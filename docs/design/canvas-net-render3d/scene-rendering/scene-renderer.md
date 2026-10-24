@@ -73,9 +73,9 @@ and a deterministic per-tile fragment budget.
   immutable `CsgProgram`. Workers share no mutable state.
 - **`CsgOperandValidator` feature tokens**: `render3d-csg-open-mesh`,
   `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
-  `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`, and
-  `render3d-csg-near-plane-clips-operands`; the report table is in _CanvasNetRender3D System
-  Design_, Operand Validation Contract.
+  `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`,
+  `render3d-csg-singular-transform`, and `render3d-csg-near-plane-clips-operands`; the report
+  table is in _CanvasNetRender3D System Design_, Operand Validation Contract.
 - **Constants**: tile size 32 x 32 output pixels; a cancellation check every 4096 triangles (also
   while collecting fragments); depth tolerance factor 1e-6; automatic near floor factor 1e-4; near
   margin 0.99 and far margin 1.01.
@@ -103,7 +103,9 @@ and a deterministic per-tile fragment budget.
    `world * translate(-eye) * rotation` and transform every vertex in double precision into a
    per-instance view-space array (so shared vertices produce bit-identical positions in every
    incident triangle), tracking the component-wise view-space minimum and maximum. The token is
-   checked per instance. On the CSG path, `CsgOperandValidator.ValidateNearPlane` then runs once
+   checked per instance. On the CSG path, `CsgOperandValidator.ValidateTransformed` then checks
+   every instance's world transform and view-space triangles (only when validation is enabled; see
+   _Operand validation_), and `CsgOperandValidator.ValidateNearPlane` runs once
    with the camera's explicit near plane and the smallest view depth (still before any tile work).
 5. **Depth statistics**: nearest depth `-max.Z`, farthest depth `-min.Z`, and the diameter of the
    view-space bounding box, over **all** instances (operands included).
@@ -197,6 +199,16 @@ only the direct operands of a difference or intersection: all leaves use the sig
 open mesh in a top-level union branch would also vanish. Inversion is a property of the mesh and
 independent of the instance's mirroring transform, because the renderer reverses the winding of a
 mirrored instance, which restores the orientation the mesh data describes.
+
+`ValidateTransformed(options, instance, viewVertices)` is the transform-dependent counterpart,
+called by `Render` for every instance after `TransformInstances` (same gating, cancellation checked
+per instance, reports after all mesh-level reports). A world transform with a zero or non-finite
+determinant reports `render3d-csg-singular-transform` for the instance's node and nothing more for
+it. Otherwise the instance's triangles are tested on the same double-precision view-space vertices
+with `MeshTopology.TryGetFaceNormal`, exactly as `PrepareTriangle` discards them, and the first
+failing triangle yields one `render3d-csg-degenerate-triangle` report for the instance (skipped when
+the mesh itself already carries that defect and was reported per node). The cost is one face-normal
+evaluation per operand triangle, paid only when a handler or strict mode is set.
 
 Delivery: in strict mode the first problem throws
 `SceneRenderUnsupportedFeatureException(feature, message, node)` and the handler is not called;

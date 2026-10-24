@@ -278,6 +278,163 @@ public class CsgOperandValidatorTests
     }
 
     /// <summary>
+    ///     Validates that a zero-scale world transform on a CSG operand is reported as a singular transform
+    ///     for that node (and the render still completes), without any mesh-level report.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported()
+    {
+        // Arrange: the mesh itself is a healthy closed cube
+        var node = new MeshNode(Cube) { Transform = Matrix4x4D.CreateScale(new Vector3D(1, 1, 0)) };
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        RenderDifference(node, reports);
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal("render3d-csg-singular-transform", report.Feature);
+        Assert.Same(node, report.Node);
+        Assert.False(string.IsNullOrWhiteSpace(report.Message));
+    }
+
+    /// <summary>
+    ///     Validates that strict mode throws the typed exception for a singular operand transform.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_StrictModeThrows()
+    {
+        // Arrange
+        var node = new MeshNode(Cube) { Transform = Matrix4x4D.CreateScale(0.0) };
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        var ex = Assert.Throws<SceneRenderUnsupportedFeatureException>(() =>
+            RenderDifference(node, reports, _ => new SceneRenderOptions { Supersampling = 1, ThrowOnUnsupportedFeature = true }));
+
+        // Assert
+        Assert.Equal("render3d-csg-singular-transform", ex.Feature);
+        Assert.Same(node, ex.Node);
+    }
+
+    /// <summary>
+    ///     Validates that a node shared by two instances, one valid and one singular, is reported for the
+    ///     singular instance only (the mesh-level analysis is per node, the transform check per instance).
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_SharedNodeOneSingularInstance_ReportedOnce()
+    {
+        // Arrange
+        var shared = new MeshNode(Cube);
+        var valid = new GroupNode([shared]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0.5, 0, 0)) };
+        var collapsed = new GroupNode([shared]) { Transform = Matrix4x4D.CreateScale(new Vector3D(1, 0, 1)) };
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(Cube), valid, collapsed]));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var options = new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = reports.Add };
+        var camera = Camera.LookAt(new Vector3D(6, -7, 5), Vector3D.Zero, Vector3D.UnitZ);
+
+        // Act
+        using var surface = SceneRenderer.Render(scene, camera, 32, 32, options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal("render3d-csg-singular-transform", report.Feature);
+        Assert.Same(shared, report.Node);
+    }
+
+    /// <summary>
+    ///     Validates that valid transformed operands (rotation, non-uniform scale, translation, mirroring) produce no reports.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_ValidTransformedOperands_ReportNothing()
+    {
+        // Arrange
+        var transform = Matrix4x4D.CreateScale(new Vector3D(0.5, 0.25, 0.75))
+            * Matrix4x4D.CreateRotationZ(30)
+            * Matrix4x4D.CreateTranslation(new Vector3D(0.3, -0.2, 0.1));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var mirrored = Matrix4x4D.CreateMirror(Vector3D.UnitX) * transform;
+
+        // Act
+        RenderDifference(new MeshNode(Cube) { Transform = transform }, reports);
+        RenderDifference(new MeshNode(Cube) { Transform = mirrored }, reports);
+
+        // Assert
+        Assert.Empty(reports);
+    }
+
+    /// <summary>
+    ///     Validates that a union-only scene with a zero-scale instance is not validated.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_UnionOnlyScene_ReportsNothing()
+    {
+        // Arrange
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var scene = new Scene(new GroupNode([new MeshNode(Cube) { Transform = Matrix4x4D.CreateScale(0.0) }, new MeshNode(Cube)]));
+        var options = new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = reports.Add, ThrowOnUnsupportedFeature = true };
+        var camera = Camera.LookAt(new Vector3D(6, -7, 5), Vector3D.Zero, Vector3D.UnitZ);
+
+        // Act
+        using var surface = SceneRenderer.Render(scene, camera, 32, 32, options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(reports);
+    }
+
+    /// <summary>
+    ///     Validates the per-instance checks directly: a non-finite determinant is singular, triangles that
+    ///     collapse in view space are reported with the renderer's own criterion, and a mesh that already
+    ///     carries the degenerate defect is not reported a second time.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_DegenerateInViewSpace_ReportedWithRendererCriterion()
+    {
+        // Arrange: a non-singular world transform, but view-space vertices flattened until the top and bottom faces collapse
+        var node = new MeshNode(Cube);
+        var flattened = Cube.Vertices.Select(v => new Vector3D(v.X * 1e-200, v.Y * 1e-200, v.Z)).ToArray();
+        var overflowed = new SceneInstance(Cube, Matrix4x4D.CreateScale(1e200), null, 0, node);
+        var instance = new SceneInstance(Cube, Matrix4x4D.Identity, null, 0, node);
+        var alreadyDegenerate = new MeshNode(CreateDefective("degenerate"));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var options = new SceneRenderOptions { UnsupportedFeatureHandler = reports.Add };
+        var triangles = Cube.TriangleIndices;
+        var collapsedCount = Enumerable.Range(0, triangles.Count / 3).Count(t =>
+            !MeshTopology.TryGetFaceNormal(flattened[triangles[3 * t]], flattened[triangles[(3 * t) + 1]], flattened[triangles[(3 * t) + 2]], out _));
+
+        // Act
+        CsgOperandValidator.ValidateTransformed(options, instance, flattened);
+        CsgOperandValidator.ValidateTransformed(options, overflowed, Cube.Vertices.ToArray());
+        CsgOperandValidator.ValidateTransformed(options, new SceneInstance(alreadyDegenerate.Mesh, Matrix4x4D.Identity, null, 1, alreadyDegenerate), flattened.Take(alreadyDegenerate.Mesh.Vertices.Count).ToArray());
+
+        // Assert
+        Assert.True(collapsedCount > 0);
+        Assert.Equal(
+            ["render3d-csg-degenerate-triangle", "render3d-csg-singular-transform"],
+            reports.Select(r => r.Feature).ToArray());
+        Assert.All(reports.Take(2), r => Assert.Same(node, r.Node));
+        Assert.Empty(reports.Skip(2));
+    }
+
+    /// <summary>
+    ///     Validates that a mirrored operand transform stays free of transform reports while a mirrored
+    ///     inverted mesh is still reported as inverted only (the winding swap cancels the mirror reversal).
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_ValidateTransformed_MirroredInvertedOperand_OnlyInvertedReported()
+    {
+        // Arrange
+        var mirror = Matrix4x4D.CreateMirror(Vector3D.UnitX);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+
+        // Act
+        RenderDifference(new MeshNode(CreateDefective("inverted")) { Transform = mirror }, reports);
+
+        // Assert
+        Assert.Equal(["render3d-csg-inverted-mesh"], reports.Select(r => r.Feature).ToArray());
+    }
+
+    /// <summary>
     ///     Validates the near-plane report: an explicit near plane in front of operand geometry is reported once,
     ///     and an explicit near plane behind all geometry is not.
     /// </summary>
@@ -375,6 +532,8 @@ public class CsgOperandValidatorTests
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.IsEnabled(null!));
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.Validate(null!, SceneRenderOptions.Default, CancellationToken.None));
         Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateNearPlane(null!, 1.0, true, 0.0));
+        Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateTransformed(null!, new SceneInstance(Cube, Matrix4x4D.Identity, null, 0, new MeshNode(Cube)), []));
+        Assert.Throws<ArgumentNullException>(() => CsgOperandValidator.ValidateTransformed(SceneRenderOptions.Default, new SceneInstance(Cube, Matrix4x4D.Identity, null, 0, new MeshNode(Cube)), null!));
         Assert.False(CsgOperandValidator.IsEnabled(SceneRenderOptions.Default));
         Assert.True(CsgOperandValidator.IsEnabled(new SceneRenderOptions { ThrowOnUnsupportedFeature = true }));
     }

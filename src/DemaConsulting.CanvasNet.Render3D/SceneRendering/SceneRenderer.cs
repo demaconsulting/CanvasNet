@@ -181,6 +181,16 @@ public static class SceneRenderer
         cancellationToken.ThrowIfCancellationRequested();
         if (csgScene)
         {
+            // Transform-dependent operand problems (singular or flattening world transforms) per instance
+            if (CsgOperandValidator.IsEnabled(options))
+            {
+                foreach (var instance in instances)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    CsgOperandValidator.ValidateTransformed(options, instance.Source, instance.Vertices);
+                }
+            }
+
             CsgOperandValidator.ValidateNearPlane(options, camera.NearPlane, stats.HasVertices, stats.MinDepth);
         }
 

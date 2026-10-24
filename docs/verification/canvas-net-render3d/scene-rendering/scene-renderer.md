@@ -272,7 +272,14 @@ fast-path scenario above.
 `CsgOperandValidatorTests.CsgOperandValidator_ValidateNearPlane_StrictMode_Throws`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_RunsBeforeRendering`,
 `CsgOperandValidatorTests.CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled`,
-`CsgOperandValidatorTests.CsgOperandValidator_NullArguments_Throw`
+`CsgOperandValidatorTests.CsgOperandValidator_NullArguments_Throw`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_StrictModeThrows`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_SharedNodeOneSingularInstance_ReportedOnce`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ValidTransformedOperands_ReportNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_UnionOnlyScene_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_DegenerateInViewSpace_ReportedWithRendererCriterion`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_MirroredInvertedOperand_OnlyInvertedReported`
 
 Renders a difference of a healthy cube and a defective operand with a recording handler (acceptance
 scenario A8). Asserts that:
@@ -293,6 +300,14 @@ scenario A8). Asserts that:
 - an explicit near plane in front of operand geometry yields one
   `render3d-csg-near-plane-clips-operands` report (with a null node), throws in strict mode before
   any tile work, and a near plane behind all geometry reports nothing;
+- every instance (not only every node) is also checked after its world transform is composed: a
+  zero-scale operand yields `render3d-csg-singular-transform` for its node (and throws in strict
+  mode), a node shared by a valid and a singular instance is reported for the singular one only,
+  triangles that collapse in view space are reported with the renderer's own
+  `TryGetFaceNormal` criterion (and a mesh already reported as degenerate is not repeated), a
+  non-finite determinant is singular, valid rotated, scaled, translated, and mirrored operands
+  report nothing, union-only scenes are unaffected, and a mirrored inverted mesh is still reported
+  only as inverted;
 - validation runs before rendering work (a strict report wins over a tiny fragment budget), observes
   cancellation (cancelling from the handler stops the render with `OperationCanceledException`), and
   the entry points reject null arguments.

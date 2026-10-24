@@ -31,6 +31,14 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         property of the mesh itself.
 ///     </para>
 ///     <para>
+///         <b>Transform-dependent checks.</b> The checks above depend only on the mesh and are done once per
+///         node, before any transform work. A valid mesh can still be destroyed by an instance's world
+///         transform, so <see cref="ValidateTransformed"/> checks every instance (not every node) after the
+///         vertices were transformed: a singular world transform and triangles that are geometrically
+///         degenerate in view space (the renderer's own <see cref="MeshTopology.TryGetFaceNormal"/> criterion).
+///         These reports follow all mesh-level reports, in scene pre-order.
+///     </para>
+///     <para>
 ///         Stateless and thread-safe.
 ///     </para>
 /// </remarks>
@@ -50,6 +58,9 @@ internal static class CsgOperandValidator
 
     /// <summary>The feature token of a closed mesh that is wound inside out.</summary>
     public const string InvertedMeshFeature = "render3d-csg-inverted-mesh";
+
+    /// <summary>The feature token of a mesh instance whose composed world transform is singular (zero or non-finite determinant).</summary>
+    public const string SingularTransformFeature = "render3d-csg-singular-transform";
 
     /// <summary>The feature token reported when a user-set near plane lies behind operand geometry.</summary>
     public const string NearPlaneClipsFeature = "render3d-csg-near-plane-clips-operands";
@@ -122,6 +133,69 @@ internal static class CsgOperandValidator
             if (mesh.IsInverted)
             {
                 Report(options, InvertedMeshFeature, "A mesh used in a constructive solid geometry scene is wound inside out (negative volume); its inside and outside are swapped.", instance.Node);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the transform-dependent properties of one mesh instance of a CSG-path scene, after
+    ///     its vertices were transformed into view space, and delivers the reports.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The mesh-level checks of <see cref="Validate"/> are independent of the instance's transform
+    ///         and run once per node. A transform can nevertheless destroy a valid closed mesh: a singular
+    ///         world transform (determinant zero or non-finite, such as a zero scale) collapses every triangle,
+    ///         and an extreme flattening or an overflowing transform collapses some. The renderer silently
+    ///         drops such a triangle (<see cref="MeshTopology.TryGetFaceNormal"/> fails), which removes
+    ///         crossings from the CSG result, so this check runs <em>per instance</em> (a node shared by a
+    ///         valid and a singular instance is reported for the singular one only).
+    ///     </para>
+    ///     <para>
+    ///         A singular transform is reported as <see cref="SingularTransformFeature"/> and nothing else for
+    ///         that instance (all of its triangles are gone). Otherwise the transformed triangles are tested
+    ///         with exactly the criterion the renderer uses, on the same double-precision view-space
+    ///         vertices, and a failing triangle is reported once per instance as
+    ///         <see cref="DegenerateTriangleFeature"/> unless the mesh itself already carries that defect
+    ///         (already reported for the node). A mirroring transform needs no special handling: swapping
+    ///         two indices does not change whether a triangle has a normal.
+    ///     </para>
+    /// </remarks>
+    /// <param name="options">The render options supplying the handler and strict flag.</param>
+    /// <param name="instance">The scene instance (mesh, composed world transform, node).</param>
+    /// <param name="viewVertices">The instance's mesh vertices in the renderer's view space.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> or <paramref name="viewVertices"/> is <see langword="null"/>.</exception>
+    /// <exception cref="SceneRenderUnsupportedFeatureException">Thrown for the first problem when <see cref="SceneRenderOptions.ThrowOnUnsupportedFeature"/> is set.</exception>
+    public static void ValidateTransformed(SceneRenderOptions options, SceneInstance instance, Vector3D[] viewVertices)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(viewVertices);
+        var mesh = instance.Mesh;
+        if (!IsEnabled(options) || mesh.TriangleCount == 0)
+        {
+            return;
+        }
+
+        var determinant = instance.World.Determinant;
+        if (!double.IsFinite(determinant) || determinant == 0.0)
+        {
+            Report(options, SingularTransformFeature, "A mesh instance in a constructive solid geometry scene has a singular (zero-determinant or non-finite) world transform; it collapses to nothing and removes its crossings.", instance.Node);
+            return;
+        }
+
+        if ((mesh.OperandDefects & MeshTopologyDefects.DegenerateTriangle) != 0)
+        {
+            // Already reported for the node; the transform cannot add a new kind of report
+            return;
+        }
+
+        var indices = mesh.IndexSpan;
+        for (var t = 0; t + 2 < indices.Length; t += 3)
+        {
+            if (!MeshTopology.TryGetFaceNormal(viewVertices[indices[t]], viewVertices[indices[t + 1]], viewVertices[indices[t + 2]], out _))
+            {
+                Report(options, DegenerateTriangleFeature, "A mesh instance in a constructive solid geometry scene has triangles that are degenerate after its world transform (extreme flattening or overflow); they are ignored and may leave gaps.", instance.Node);
+                return;
             }
         }
     }

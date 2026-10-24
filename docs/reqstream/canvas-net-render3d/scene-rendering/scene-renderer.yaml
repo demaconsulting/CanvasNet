@@ -272,7 +272,11 @@ sections:
                   would discard) and inside-out (inverted) mesh as a SceneRenderUnsupportedFeature
                   with a stable feature token to the handler, or throw
                   SceneRenderUnsupportedFeatureException for the first problem in strict mode, while
-                  rendering tolerantly otherwise; it shall judge inversion independently of a mirroring
+                  rendering tolerantly otherwise; it shall additionally check every mesh instance
+                  (not only every node) after its world transform is composed and report a singular
+                  (zero-determinant or non-finite) world transform, or triangles that are degenerate
+                  after the transform by the renderer's own discard criterion, naming the offending
+                  node; it shall judge inversion independently of a mirroring
                   transform, report an explicit near plane that clips operand geometry, and neither
                   analyze nor report anything for union-only scenes or when neither a handler nor
                   strict mode is set.
@@ -294,6 +298,13 @@ sections:
                   - CsgOperandValidator_ValidateNearPlane_StrictMode_Throws
                   - CsgOperandValidator_Validate_RunsBeforeRendering
                   - CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled
+                  - CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported
+                  - CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_StrictModeThrows
+                  - CsgOperandValidator_ValidateTransformed_SharedNodeOneSingularInstance_ReportedOnce
+                  - CsgOperandValidator_ValidateTransformed_ValidTransformedOperands_ReportNothing
+                  - CsgOperandValidator_ValidateTransformed_UnionOnlyScene_ReportsNothing
+                  - CsgOperandValidator_ValidateTransformed_DegenerateInViewSpace_ReportedWithRendererCriterion
+                  - CsgOperandValidator_ValidateTransformed_MirroredInvertedOperand_OnlyInvertedReported
                   - CsgOperandValidator_NullArguments_Throw
 
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg

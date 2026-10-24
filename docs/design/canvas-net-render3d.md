@@ -495,8 +495,20 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions | The mesh node |
 | `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (a repeated index, or distinct vertices that are coincident or collinear) | The mesh node |
 | `render3d-csg-inverted-mesh` | A defect-free closed mesh has negative signed volume beyond its rounding error bound (`Mesh.IsInverted`) | The mesh node |
+| `render3d-csg-singular-transform` | The instance's composed world transform has a zero or non-finite determinant (for example a zero scale), so the whole mesh collapses (reported per instance) | The mesh node of that instance |
 | `render3d-csg-near-plane-clips-operands` | The explicit `Camera.NearPlane` is greater than the smallest vertex view depth of the scene | None |
 <!-- markdownlint-enable MD013 -->
+
+The mesh-level tokens depend only on the mesh and are reported once per node. Because a world
+transform can destroy a valid closed mesh, a second, transform-dependent check runs per **instance**
+after the vertices are transformed (so a node shared by a valid and a singular instance is reported
+for the singular one): a singular world transform is reported as `render3d-csg-singular-transform`
+(and nothing else for that instance), and otherwise triangles with no face normal in the renderer's
+view space (the same `MeshTopology.TryGetFaceNormal` criterion `PrepareTriangle` discards by, for
+example after extreme flattening or overflow) are reported once per instance as
+`render3d-csg-degenerate-triangle`, unless the mesh already carries that defect. These reports follow
+the mesh-level reports, in scene pre-order, and the same delivery rules apply. A mirroring transform
+needs no special handling here, and inversion stays a property of the mesh data.
 
 The near-plane report is delivered once, after the vertices are transformed and still before any
 tile work.

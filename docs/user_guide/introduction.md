@@ -2810,9 +2810,13 @@ The `Feature` tokens are stable and machine-matchable:
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions |
 | `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (repeated index, or collinear vertices) |
 | `render3d-csg-inverted-mesh` | The mesh is closed but inside-out (negative `SignedVolume`) |
+| `render3d-csg-singular-transform` | An instance's world transform is singular (zero or non-finite determinant) |
 | `render3d-csg-near-plane-clips-operands` | An explicit `Camera.NearPlane` clips operands (no node) |
 
-Each `MeshNode` is reported once however many places in the scene share it. Reports are delivered
+Mesh problems are reported once per `MeshNode` however many places in the scene share it; a
+singular transform (or triangles that collapse under an extreme transform, reported as
+`render3d-csg-degenerate-triangle`) is reported per instance, so a node shared by a valid and a
+singular instance is reported for the singular one. Reports are delivered
 in scene order, and `Node` identifies the offending mesh node so a front end can map it back to its
 source.
 
