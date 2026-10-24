@@ -186,7 +186,7 @@ internal sealed partial class ScadLexer
     private bool TryConsumeLineBreak()
     {
         var c = Current;
-        if (_pos >= _source.Length || (c != '\n' && c != '\r'))
+        if (c != '\n' && c != '\r')
         {
             return false;
         }

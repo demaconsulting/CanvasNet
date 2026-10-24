@@ -290,5 +290,6 @@ public class ScadParserStatementTests
     {
         // Arrange / Act / Assert
         ScadParserTestSupport.AssertParseError("a() include <x>", 1, 5, "Expected ';', '{' or a module instantiation but found 'include <x>'");
+        ScadParserTestSupport.AssertParseError("a() use <y>", 1, 5, "Expected ';', '{' or a module instantiation but found 'use <y>'");
     }
 }

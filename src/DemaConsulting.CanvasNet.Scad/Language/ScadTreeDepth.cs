@@ -50,8 +50,7 @@ internal static class ScadTreeDepth
         ScadArgument a => [a.Value],
         ScadAssignment a => [a.Value],
         ScadStatement s => StatementChildren(s),
-        ScadExpression e => ExpressionChildren(e),
-        _ => [],
+        _ => ExpressionChildren((ScadExpression)node),
     };
 
     /// <summary>

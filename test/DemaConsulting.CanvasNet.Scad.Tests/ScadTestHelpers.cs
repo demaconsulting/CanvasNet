@@ -37,3 +37,54 @@ internal static class ScadTestHelpers
         return ex;
     }
 }
+
+/// <summary>
+///     Locates and reads the original-work <c>.scad</c> fixtures copied next to the test assembly.
+/// </summary>
+internal static class ScadFixtureHelpers
+{
+    /// <summary>The name prefix that marks a fixture that is expected to fail to parse.</summary>
+    private const string InvalidPrefix = "invalid-";
+
+    /// <summary>
+    ///     Gets the directory that holds the fixtures in the test output folder.
+    /// </summary>
+    public static string Directory => Path.Combine(AppContext.BaseDirectory, "ScadFixtures");
+
+    /// <summary>
+    ///     Gets the full path of a fixture.
+    /// </summary>
+    /// <param name="name">The fixture file name.</param>
+    /// <returns>The full path.</returns>
+    public static string PathOf(string name) => Path.Combine(Directory, name);
+
+    /// <summary>
+    ///     Reads a fixture as text.
+    /// </summary>
+    /// <param name="name">The fixture file name.</param>
+    /// <returns>The file text.</returns>
+    public static string ReadAllText(string name) => File.ReadAllText(PathOf(name));
+
+    /// <summary>
+    ///     Enumerates the fixtures that must parse (every <c>.scad</c> not starting with <c>invalid-</c>).
+    /// </summary>
+    /// <returns>The full paths, ordered by name.</returns>
+    public static IReadOnlyList<string> ValidFixtures() => Fixtures(valid: true);
+
+    /// <summary>
+    ///     Enumerates the fixtures that must fail to parse (every <c>invalid-*.scad</c>).
+    /// </summary>
+    /// <returns>The full paths, ordered by name.</returns>
+    public static IReadOnlyList<string> InvalidFixtures() => Fixtures(valid: false);
+
+    /// <summary>
+    ///     Enumerates fixtures of one class.
+    /// </summary>
+    /// <param name="valid">Whether to list the valid (true) or the invalid (false) fixtures.</param>
+    /// <returns>The full paths, ordered by name.</returns>
+    private static IReadOnlyList<string> Fixtures(bool valid) =>
+        System.IO.Directory.GetFiles(Directory, "*.scad")
+            .Where(p => Path.GetFileName(p).StartsWith(InvalidPrefix, StringComparison.Ordinal) != valid)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+}

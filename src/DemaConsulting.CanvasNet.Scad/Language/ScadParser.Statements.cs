@@ -131,7 +131,7 @@ internal sealed partial class ScadParser
             modifiers |= ToModifier(Advance().Kind);
         }
 
-        var target = ParseModifierTarget(modifiers);
+        var target = ParseModifierTarget();
         return modifiers == ScadModifiers.None
             ? target
             : new ScadModifiedStatement(modifiers, target) { Location = first.Location };
@@ -153,10 +153,9 @@ internal sealed partial class ScadParser
     /// <summary>
     ///     Parses the statement that follows the modifiers (or the statement itself when there are none).
     /// </summary>
-    /// <param name="modifiers">The modifiers already consumed.</param>
     /// <returns>An instantiation-like statement or a block.</returns>
     /// <exception cref="ScadSyntaxException">Thrown when modifiers precede anything that is not an instantiation or block.</exception>
-    private ScadStatement ParseModifierTarget(ScadModifiers modifiers)
+    private ScadStatement ParseModifierTarget()
     {
         var token = Current;
         if (token.Kind == ScadTokenKind.LeftBrace)
@@ -174,10 +173,8 @@ internal sealed partial class ScadParser
             return ParseKeywordStatement();
         }
 
-        // After modifiers only a block or instantiation may follow; without them this path is unreachable
-        throw modifiers == ScadModifiers.None
-            ? ErrorUnexpected(token)
-            : Error(token, "A modifier must be followed by a module instantiation or block");
+        // This is only reached after at least one modifier, because plain keywords returned above
+        throw Error(token, "A modifier must be followed by a module instantiation or block");
     }
 
     /// <summary>
@@ -218,7 +215,7 @@ internal sealed partial class ScadParser
             // Running out of input inside a block reports the missing brace
             if (At(ScadTokenKind.EndOfFile))
             {
-                throw ErrorExpected(NameOf(ScadTokenKind.RightBrace));
+                throw ErrorExpected(ExpectedNames[ScadTokenKind.RightBrace]);
             }
 
             var statement = ParseStatement();

@@ -271,6 +271,31 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
+    ///     Validates that when the runtime stack runs low before the depth limit is reached, the stack guard
+    ///     reports the same typed nesting error instead of the process crashing.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_Nesting_OnTinyStackThread_StackGuardReportsNestingError()
+    {
+        // Arrange: nesting below the depth limit, on a thread whose stack is too small to hold it
+        var source = $"x = {ScadParserTestSupport.Repeat("(", 240)}1{ScadParserTestSupport.Repeat(")", 240)};";
+        Exception? error = null;
+
+        // Act
+        var thread = new Thread(() => error = Record.Exception(() => ScadParserTestSupport.Parse(source)), 160 * 1024);
+        thread.Start();
+        thread.Join();
+
+        // Assert: either the stack guard or the depth limit stopped it, and in both cases with the same exception;
+        // a larger default stack may legitimately parse the input, so success is also acceptable
+        if (error is not null)
+        {
+            var ex = Assert.IsType<ScadSyntaxException>(error);
+            Assert.Contains("Nesting too deep", ex.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     ///     Validates that a source of exactly the maximum length is accepted.
     /// </summary>
     [Fact]

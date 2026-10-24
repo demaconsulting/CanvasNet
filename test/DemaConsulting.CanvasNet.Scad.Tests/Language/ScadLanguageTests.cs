@@ -90,6 +90,73 @@ public class ScadLanguageTests
     }
 
     /// <summary>
+    ///     Validates that every authored fixture parses.
+    /// </summary>
+    [Fact]
+    public void ScadLanguage_Parse_AllAuthoredFixtures_Succeed()
+    {
+        // Arrange
+        var fixtures = ScadFixtureHelpers.ValidFixtures();
+
+        // Act: parse each fixture with its path as the source name
+        var programs = fixtures.Select(path => ScadParser.Parse(File.ReadAllText(path), path)).ToList();
+
+        // Assert: all ten valid fixtures parse into non-empty programs
+        Assert.Equal(10, fixtures.Count);
+        Assert.All(programs, p => Assert.NotEmpty(p.Statements));
+    }
+
+    /// <summary>
+    ///     Validates that tokenizing and then parsing a fixture equals parsing its source directly.
+    /// </summary>
+    [Fact]
+    public void ScadLanguage_TokenizeThenParse_Fixture_MatchesParseOfSource()
+    {
+        // Arrange / Act / Assert: for every valid fixture
+        foreach (var path in ScadFixtureHelpers.ValidFixtures())
+        {
+            var source = File.ReadAllText(path);
+            var direct = ScadParser.Parse(source, path);
+            var staged = ScadParser.Parse(ScadLexer.Tokenize(source, path));
+            Assert.Equal(ScadAstDumper.Dump(direct), ScadAstDumper.Dump(staged));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that converting every fixture to CRLF or CR line endings leaves the tree unchanged.
+    /// </summary>
+    [Fact]
+    public void ScadLanguage_Parse_FixtureLineEndingConversion_ProducesIdenticalTrees()
+    {
+        // Arrange / Act / Assert: normalize to LF first (the working copy may have either convention)
+        foreach (var path in ScadFixtureHelpers.ValidFixtures())
+        {
+            var lf = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+            var expected = ScadAstDumper.Dump(ScadParser.Parse(lf, null));
+            Assert.Equal(expected, ScadAstDumper.Dump(ScadParser.Parse(lf.Replace("\n", "\r\n", StringComparison.Ordinal), null)));
+            Assert.Equal(expected, ScadAstDumper.Dump(ScadParser.Parse(lf.Replace('\n', '\r'), null)));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the include and use fixture records its directives in source order.
+    /// </summary>
+    [Fact]
+    public void ScadLanguage_Parse_IncludeAndUseFixture_RecordsDirectivesInOrder()
+    {
+        // Arrange
+        var path = ScadFixtureHelpers.PathOf("include-and-use.scad");
+
+        // Act
+        var directives = ScadParser.Parse(File.ReadAllText(path), path).Statements.OfType<ScadDirectiveStatement>().ToList();
+
+        // Assert: kinds, paths and locations in source order
+        Assert.Equal(
+            ["Include parts/frames.scad 3", "Use lib/gears.scad 4", "Include ./relative/../nested/deep/path/box.scad 5", "Use fasteners.scad 6"],
+            directives.Select(d => $"{d.Kind} {d.Path} {d.Location.Line}"));
+    }
+
+    /// <summary>
     ///     Validates that excessive nesting fails closed with the typed exception.
     /// </summary>
     [Fact]

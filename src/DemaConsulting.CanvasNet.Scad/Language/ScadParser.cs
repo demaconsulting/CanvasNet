@@ -38,6 +38,19 @@ internal sealed partial class ScadParser
     /// <summary>The maximum accepted source length in UTF-16 characters.</summary>
     internal const int MaxSourceLength = 4_194_304;
 
+    /// <summary>The message names of the token kinds the grammar requires with <c>Expect</c>.</summary>
+    private static readonly Dictionary<ScadTokenKind, string> ExpectedNames = new()
+    {
+        [ScadTokenKind.Identifier] = "an identifier",
+        [ScadTokenKind.LeftParen] = "'('",
+        [ScadTokenKind.RightParen] = "')'",
+        [ScadTokenKind.RightBrace] = "'}'",
+        [ScadTokenKind.RightBracket] = "']'",
+        [ScadTokenKind.Semicolon] = "';'",
+        [ScadTokenKind.Colon] = "':'",
+        [ScadTokenKind.Assign] = "'='",
+    };
+
     /// <summary>The tokens being parsed; the last one is always the end-of-file token.</summary>
     private readonly IReadOnlyList<ScadToken> _tokens;
 
@@ -72,11 +85,12 @@ internal sealed partial class ScadParser
         // The size limit is checked before any work so that hostile input cannot consume memory
         if (source.Length > MaxSourceLength)
         {
-            throw new InvalidDataException($"Source exceeds the maximum length of {MaxSourceLength} characters");
+            throw CreateSourceTooLongException();
         }
 
         return Parse(ScadLexer.Tokenize(source, file));
     }
+
 
     /// <summary>
     ///     Parses an already tokenized source.
@@ -89,6 +103,13 @@ internal sealed partial class ScadParser
         ArgumentNullException.ThrowIfNull(tokens);
         return new ScadParser(tokens).ParseProgramGuarded();
     }
+
+    /// <summary>
+    ///     Creates the exception reported for source text that exceeds <see cref="MaxSourceLength"/>.
+    /// </summary>
+    /// <returns>A plain <see cref="InvalidDataException"/> (no location is meaningful for an oversize source).</returns>
+    internal static InvalidDataException CreateSourceTooLongException() =>
+        new($"Source exceeds the maximum length of {MaxSourceLength} characters");
 
     /// <summary>
     ///     Parses the whole program, converting stack exhaustion into a syntax error and verifying the tree height.
@@ -157,12 +178,9 @@ internal sealed partial class ScadParser
     /// <returns>The consumed token.</returns>
     private ScadToken Advance()
     {
+        // The index never moves past the end-of-file token, so lookahead can never run off the list
         var token = _tokens[_index];
-        if (token.Kind != ScadTokenKind.EndOfFile)
-        {
-            _index++;
-        }
-
+        _index = Math.Min(_index + 1, _tokens.Count - 1);
         return token;
     }
 
@@ -189,7 +207,7 @@ internal sealed partial class ScadParser
     /// <returns>The consumed token.</returns>
     /// <exception cref="ScadSyntaxException">Thrown when the current token has a different kind.</exception>
     private ScadToken Expect(ScadTokenKind kind) =>
-        At(kind) ? Advance() : throw ErrorExpected(NameOf(kind));
+        At(kind) ? Advance() : throw ErrorExpected(ExpectedNames[kind]);
 
     /// <summary>
     ///     Enters a recursive construct, enforcing the depth limit and the runtime stack guard.
@@ -234,48 +252,24 @@ internal sealed partial class ScadParser
     }
 
     /// <summary>
-    ///     Creates the "unexpected token" error for a token.
+    ///     Creates the "unexpected token" error for a token that cannot start a statement.
     /// </summary>
-    /// <param name="token">The offending token.</param>
+    /// <param name="token">The offending token; never the end-of-file token, which the statement loops check first.</param>
     /// <returns>The exception to throw.</returns>
     private static ScadSyntaxException ErrorUnexpected(ScadToken token) =>
-        token.Kind == ScadTokenKind.EndOfFile
-            ? Error(token, "Unexpected end of input")
-            : Error(token, $"Unexpected token {Describe(token)}");
+        Error(token, $"Unexpected token {Describe(token)}");
 
     /// <summary>
     ///     Describes a token for use in messages.
     /// </summary>
-    /// <param name="token">The token.</param>
-    /// <returns>The quoted lexeme, or <c>end of input</c>.</returns>
+    /// <param name="token">The token; never the end-of-file token, which callers report separately.</param>
+    /// <returns>The quoted lexeme (strings in double quotes, directives with their path).</returns>
     private static string Describe(ScadToken token) => token.Kind switch
     {
-        ScadTokenKind.EndOfFile => "end of input",
         ScadTokenKind.String => $"\"{token.Text}\"",
         ScadTokenKind.Include => $"'include <{token.Text}>'",
         ScadTokenKind.Use => $"'use <{token.Text}>'",
         _ => $"'{token.Text}'",
-    };
-
-    /// <summary>
-    ///     Gets the message name of a token kind that the grammar can require.
-    /// </summary>
-    /// <param name="kind">The token kind.</param>
-    /// <returns>The quoted lexeme, or a phrase such as <c>an identifier</c>.</returns>
-    private static string NameOf(ScadTokenKind kind) => kind switch
-    {
-        ScadTokenKind.Identifier => "an identifier",
-        ScadTokenKind.LeftParen => "'('",
-        ScadTokenKind.RightParen => "')'",
-        ScadTokenKind.LeftBrace => "'{'",
-        ScadTokenKind.RightBrace => "'}'",
-        ScadTokenKind.LeftBracket => "'['",
-        ScadTokenKind.RightBracket => "']'",
-        ScadTokenKind.Semicolon => "';'",
-        ScadTokenKind.Comma => "','",
-        ScadTokenKind.Colon => "':'",
-        ScadTokenKind.Assign => "'='",
-        _ => $"'{kind}'",
     };
 
     /// <summary>

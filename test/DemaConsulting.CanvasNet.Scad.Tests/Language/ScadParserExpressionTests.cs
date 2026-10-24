@@ -155,6 +155,22 @@ public class ScadParserExpressionTests
     }
 
     /// <summary>
+    ///     Validates that none of the comprehension element forms can start a range.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="column">The expected column of the colon.</param>
+    [Theory]
+    [InlineData("x = [each a : 3];", 13)]
+    [InlineData("x = [if (a) 1 : 3];", 15)]
+    [InlineData("x = [let (b=1) b : 3];", 18)]
+    [InlineData("x = [for (i=0; i<3; i=i+1) i : 3];", 30)]
+    public void ScadParser_Parse_Range_ComprehensionFormStart_Throws(string source, int column)
+    {
+        // Arrange / Act / Assert
+        ScadParserTestSupport.AssertParseError(source, 1, column, "Expected ',' or ']' but found ':'");
+    }
+
+    /// <summary>
     ///     Validates index expressions.
     /// </summary>
     [Fact]
