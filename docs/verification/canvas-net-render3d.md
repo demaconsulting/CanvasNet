@@ -8,7 +8,7 @@ This document describes the system-level verification strategy for CanvasNetRend
 
 `CanvasNetRender3D` is verified at three tiers. The system tier, described here, exercises the
 library purely through its public API from the perspective of a consumer: it builds scenes with the
-public node types, `MeshBuilder`, and `PrimitiveTessellator`, renders them with `SceneRenderer`, and
+public node types, `MeshBuilder`, `PrimitiveTessellator`, and `Extruder`, renders them with `SceneRenderer`, and
 asserts on observable outputs — returned values, thrown exceptions, and pixel values of the returned
 `Surface`. No mocking or stubbing is used. The subsystem tier (see _SceneModel Subsystem
 Verification_, _Tessellation Subsystem Verification_, and _SceneRendering Subsystem Verification_
@@ -84,6 +84,28 @@ Builds a tetrahedron with every face listed clockwise from outside and asserts t
 with a negative signed volume (the supplied winding is preserved, not corrected) that
 `Mesh.Reverse` repairs, and that the same faces with one omitted yield an open mesh of three
 triangles (no face is added to close it).
+
+### Polygon Extrusion: Hole Extrusion Renders Through The Hole
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Extrusion_HoleExtrusionRendersThroughHole`
+
+Extrudes a 20 by 20 square plate with a 48-gon hole of radius 5 (a single bridged shell) and
+renders it on the z-buffer path from above, orthographically at 10 pixels per unit with flat colors.
+Asserts that the center pixel is the background (the hole is open), that a pixel on the ring is the
+node color, and that the covered-pixel count is within one percent of the analytic area (the square
+minus the 48-gon, times the pixels per square unit). A second, oblique perspective render with the
+default lighting rig asserts that the far inner wall of the hole is visible and shaded differently
+from the top face.
+
+### Polygon Extrusion: Extruded Shapes Are Valid CSG Operands
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Extrusion_ExtrudedShapesAreValidCsgOperands`
+
+Renders the difference of the plate with a hole and a box through the fragment-list path with an
+unsupported-feature handler and `ThrowOnUnsupportedFeature` set. Asserts that no exception is thrown
+and no report is delivered (the extruded mesh is a valid operand), that the pocket floor appears in
+the subtracted operand's color within three percent of the analytic pixel count, that the rest of
+the plate keeps its color, and that the hole remains open.
 
 ### Render: Cube Silhouette Matches Analytic Coverage
 

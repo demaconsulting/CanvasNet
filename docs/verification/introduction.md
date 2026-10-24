@@ -58,10 +58,10 @@ constituent software items, specifically:
   `VsdxDocument` — see _CanvasNetVsdx System Verification_ (`canvas-net-vsdx.md`)
 - **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
-  `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (unit
-  `PrimitiveTessellator`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
+  `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (units
+  `PrimitiveTessellator`, `PolygonTriangulator`, and `Extruder`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
   `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
-  (union, difference, intersection) through per-pixel fragment lists — see _CanvasNetRender3D
+  (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
   System Verification_ (`canvas-net-render3d.md`)
 
 The following OTS items are also covered:

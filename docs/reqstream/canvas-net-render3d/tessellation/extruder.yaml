@@ -1,0 +1,208 @@
+---
+# cspell:ignore triangulator triangulated collinear frustum extrusions extrusion extruded extrudes
+#
+# Software Unit Requirements for Extruder
+#
+# These requirements describe the design-level behavior of the Extruder unit: the public static
+# partial Extruder class (Extruder.cs, Extruder.Linear.cs, Extruder.Rotate.cs) in the
+# DemaConsulting.CanvasNet.Render3D.Tessellation namespace, which turns a PolygonRegion into a closed,
+# outward-oriented Mesh by linear extrusion (with optional twist and scale) or by rotation about the Z
+# axis. Every result is a valid constructive-solid-geometry operand.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        sections:
+          - title: Extruder Requirements
+            requirements:
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearPrism
+                title: >-
+                  The Extruder Linear method shall extrude a region along +Z into a closed prism of the
+                  requested height, spanning Z = 0 to the height or symmetric about Z = 0 when centered,
+                  with analytically exact volume (the region area times the height, also for concave
+                  regions and for a circle region equal to the Cylinder volume), a vertex count of V
+                  times (slices + 1), a triangle count of 2 V slices + 2 (V + 2H - 2P), and a cap
+                  triangulation that leaves no T-junction at collinear contour points.
+                justification: |
+                  The straight prism is the baseline for every linear extrusion; exact volumes and
+                  counts prove the wall and cap construction, and sharing the ring vertices with the
+                  caps keeps the solid watertight even with collinear contour points.
+                tests:
+                  - Extruder_Linear_Square_IsClosedPrismWithAnalyticVolume
+                  - Extruder_Linear_Centered_SpansPlusMinusHalfHeight
+                  - Extruder_Linear_ConcavePolygon_VolumeIsAreaTimesHeight
+                  - Extruder_Linear_CircleRegion_MatchesCylinderVolume
+                  - Extruder_Linear_Slices_TriangleCountMatchesFormula
+                  - Extruder_Linear_CollinearContourPoints_AreClosedWithoutTJunctions
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearHoles
+                title: >-
+                  The Extruder Linear method shall extrude a region with holes into one connected closed
+                  shell with a through-hole (outer wall, inward-facing hole wall, and both caps sharing
+                  vertices) whose volume is the region area times the height, for a single hole and for
+                  multiple holes, and shall extrude an island inside a hole as a second disjoint outward
+                  shell that is still a valid constructive-solid-geometry operand.
+                justification: |
+                  A single bridged shell is correct for both the z-buffer path, which never evaluates
+                  solids and would otherwise paint a coplanar outer cap across the hole, and the
+                  constructive-solid-geometry path; an island is outside the ring solid and so is a
+                  separate outward shell.
+                tests:
+                  - Extruder_Linear_RingWithHole_IsSingleClosedShellWithThroughHole
+                  - Extruder_Linear_MultipleHoles_VolumeIsAnalytic
+                  - Extruder_Linear_IslandInsideHole_IsTwoOutwardShellsAndValidOperand
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearScale
+                title: >-
+                  The Extruder Linear method shall scale the top ring relative to the bottom by a uniform
+                  or per-axis factor, interpolated linearly per ring and applied before the twist, with
+                  an exact frustum volume of A h (1 + (s - 1) + (s - 1)^2 / 3) for a uniform scale s,
+                  and a per-axis scale volume that converges to the analytic value as the slice count
+                  grows.
+                justification: |
+                  Tapered extrusions are a standard CAD operation; analytic frustum volumes prove the
+                  scale interpolation, and the documented convergence reflects that per-axis wall quads
+                  are not planar.
+                tests:
+                  - Extruder_Linear_UniformScale_FrustumVolumeIsExact
+                  - Extruder_Linear_PerAxisScale_VolumeConvergesToAnalytic
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearApex
+                title: >-
+                  The Extruder Linear method shall collapse the top ring to a single shared apex vertex,
+                  with no top cap and no degenerate triangle, when the scale is zero in both axes,
+                  yielding a pyramid of volume A h / 3 (also for a region with a hole and when combined
+                  with a twist), as a closed mesh.
+                justification: |
+                  An apex is the only legal collapse of the top ring; a single shared vertex keeps the
+                  mesh closed and free of zero-area triangles, which would fail the operand checks.
+                tests:
+                  - Extruder_Linear_ScaleZero_IsPyramidWithSingleApex
+                  - Extruder_Linear_ScaleZeroWithHole_IsClosedAndMatchesAnalytic
+                  - Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearTwist
+                title: >-
+                  The Extruder Linear method shall twist the top ring relative to the bottom by the
+                  requested angle, with a positive angle rotating the top counter-clockwise seen from
+                  +Z (right-hand rule about +Z), linearly per ring, with the rings shared by the wall
+                  quads of neighboring slices and by the caps so the result is closed, and with a volume
+                  within the documented faceting tolerance of the analytic volume, including a full
+                  360 degree twist.
+                justification: |
+                  Twisted extrusions are common in CAD models; a defined sign convention makes the
+                  result predictable, and shared ring vertices make twisted solids watertight by
+                  construction, while the first-order faceting error of twisted quads is bounded by
+                  tests rather than hidden.
+                tests:
+                  - Extruder_Linear_Twist_SlicesShareRingVertices
+                  - Extruder_Linear_Twist_PositiveRotatesTopCounterClockwise
+                  - Extruder_Linear_Twist_VolumeWithinToleranceOfAnalytic
+                  - Extruder_Linear_Twist360_IsClosedOutwardValidOperand
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-LinearValidation
+                title: >-
+                  The Extruder Linear method shall reject a null region, a height that is not finite and
+                  greater than zero, fewer than one slice, a non-finite twist, and a scale that is
+                  non-finite, negative, or zero in only one axis, and a result that would exceed the
+                  maximum mesh size, before doing any work.
+                justification: |
+                  A scale with exactly one zero component flattens the top to a line (degenerate
+                  triangles) and a negative scale passes through zero mid-extrusion (self-intersection);
+                  failing at the call site gives the caller an actionable error.
+                tests:
+                  - Extruder_Linear_InvalidArguments_Throw
+                  - Extruder_Linear_ScaleWithOneZeroComponent_Throws
+                  - Extruder_Linear_NegativeOrNonFiniteScale_Throws
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-RotateFull
+                title: >-
+                  The Extruder Rotate method shall revolve a profile (profile X is the radius, profile Y
+                  the height) about the +Z axis by exactly 360 degrees into a closed ring solid with no
+                  end caps and no duplicated seam vertices, whose volume is the exact facet volume
+                  n sin(delta) times the integral of |x| over the profile (delta = 2 pi / n), which
+                  approaches the Pappus volume, including a profile off the axis, a circular profile
+                  (torus), and a profile with a hole (a hollow solid with an inward-facing cavity shell).
+                justification: |
+                  Revolved solids (shafts, vases, rings, tori) are a standard CAD operation; the facets
+                  are planar, so the volume has an exact closed form that proves the construction, and
+                  wrapping the seam by index keeps the mesh welded.
+                tests:
+                  - Extruder_Rotate_RectangleOffAxis_FullRevolution_ExactFacetVolume
+                  - Extruder_Rotate_CircleProfileOffAxis_IsTorusWithExactFacetVolume
+                  - Extruder_Rotate_ProfileWithHole_FullRevolution_IsClosed
+                  - Extruder_Rotate_Angle360_SeamHasNoDuplicateVertices
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-RotatePartial
+                title: >-
+                  The Extruder Rotate method shall sweep a profile by an angle below 360 degrees into a
+                  closed solid with a start cap at azimuth 0 and an end cap at the final azimuth, both
+                  triangulated from the profile and sharing the wall vertices, with the exact facet
+                  volume, also for a profile touching the axis.
+                justification: |
+                  Partial sweeps (wedges, sectors) need end caps that share vertices with the walls so the
+                  solid stays closed and a valid operand.
+                tests:
+                  - Extruder_Rotate_PartialAngle_HasEndCapsClosedAndExactVolume
+                  - Extruder_Rotate_PartialAngleTouchingAxis_IsClosed
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-RotateAxis
+                title: >-
+                  The Extruder Rotate method shall weld every profile vertex lying exactly on the axis
+                  (x equal to zero) into one mesh vertex, skip a profile edge with both ends on the axis
+                  as sweeping to nothing, produce one triangle per segment for an edge with one end on the
+                  axis, support a profile entirely on the negative side of the axis with outward
+                  orientation and the same volume as its mirror image, and use no tolerance for the
+                  axis test.
+                justification: |
+                  Welding axis vertices and skipping collapsed edges keeps the result closed and free of
+                  degenerate triangles (cones, cylinders, and lenses touch the axis); an exact axis test
+                  keeps the algorithm deterministic, leaving any tolerance policy to the caller.
+                tests:
+                  - Extruder_Rotate_RectangleTouchingAxis_MatchesCylinderAndWeldsAxisVertices
+                  - Extruder_Rotate_TriangleOnAxis_IsConeWithSingleApex
+                  - Extruder_Rotate_ProfileEdgeAlongAxis_SkipsDegenerateWall
+                  - Extruder_Rotate_NegativeSideProfile_IsOutwardWithSameVolume
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-RotateValidation
+                title: >-
+                  The Extruder Rotate method shall reject, with an ArgumentException, a profile that
+                  crosses the rotation axis (vertices with both positive and negative x) or lies
+                  entirely on it, and shall reject a null region, an angle that is not finite and in the
+                  range greater than 0 up to 360 degrees, a segment count below 3 for a full revolution
+                  or below 1 for a partial sweep, and a result that would exceed the maximum mesh size.
+                justification: |
+                  A profile crossing the axis would sweep self-intersecting material and a profile on the
+                  axis sweeps no volume; both are rejected rather than silently repaired.
+                tests:
+                  - Extruder_Rotate_ProfileCrossingAxis_Throws
+                  - Extruder_Rotate_ProfileOnlyOnAxis_Throws
+                  - Extruder_Rotate_InvalidArguments_Throw
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-ValidOperand
+                title: >-
+                  Every mesh produced by the Extruder shall be a valid constructive-solid-geometry
+                  operand: welded without duplicate vertex positions, every vertex referenced, closed,
+                  outward-oriented with positive signed volume, free of degenerate triangles, and
+                  accepted by the operand validator with no report, including in strict mode, for every
+                  linear and rotational parameter set under test.
+                justification: |
+                  Extruded solids are intended as operands of difference and intersection; the Phase 2
+                  operand validator is the contract these meshes must satisfy, and an assertion that
+                  rejects a reversed mesh proves the check is able to fail.
+                tests:
+                  - Extruder_Linear_AllVariants_AreValidCsgOperands
+                  - Extruder_Rotate_AllVariants_AreValidCsgOperands
+                  - Extruder_Linear_ReversedResult_FailsOperandAssertion
+
+              - id: CanvasNetRender3D-Tessellation-Extruder-EmptyRegion
+                title: >-
+                  The Extruder Linear and Rotate methods shall return an empty mesh, without throwing,
+                  for a region without contours.
+                justification: |
+                  An empty profile (for example the result of an empty child in a modeling language)
+                  must render nothing rather than fail.
+                tests:
+                  - Extruder_Linear_EmptyRegion_ReturnsEmptyMesh
+                  - Extruder_Rotate_InvalidArguments_Throw

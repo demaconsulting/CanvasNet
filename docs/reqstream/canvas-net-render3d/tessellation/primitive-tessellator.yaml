@@ -6,7 +6,8 @@
 # These requirements describe the design-level behavior of the PrimitiveTessellator unit: the
 # public static PrimitiveTessellator class in the DemaConsulting.CanvasNet.Render3D.Tessellation
 # namespace. Box, sphere, and cylinder results honor the Mesh winding contract (counter-clockwise
-# seen from outside); a Polyhedron preserves the caller-supplied faces and winding as given.
+# seen from outside); a Polyhedron preserves the caller-supplied faces and winding as given. The
+# 2D shapes (Rectangle, Ellipse, Circle, Polygon) return validated PolygonRegion profiles.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -117,3 +118,55 @@ sections:
                   depend; a single inverted facet would render in the back-face color.
                 tests:
                   - PrimitiveTessellator_AllPrimitives_AreClosedAndOutwardOriented
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Rectangle
+                title: >-
+                  The PrimitiveTessellator Rectangle method shall produce a counter-clockwise
+                  rectangle region of the requested size with analytically exact area, spanning the
+                  origin-anchored range [0, size] by default or symmetric about the origin when
+                  centered.
+                justification: |
+                  The rectangle is the most common 2D profile; an exact area and extent give an
+                  analytic reference for extrusion tests.
+                tests:
+                  - PrimitiveTessellator_Rectangle_SizeAndCenter_HaveAnalyticAreaAndExtent
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Ellipse
+                title: >-
+                  The PrimitiveTessellator Ellipse and Circle methods shall produce a
+                  counter-clockwise inscribed polygon region whose vertices lie on the ellipse at
+                  angles 2 pi j / n starting on the +X axis (the same ring as Cylinder) and whose area
+                  is the polygon-corrected analytic value n / 2 rx ry sin(2 pi / n), a circle being
+                  an ellipse with equal radii.
+                justification: |
+                  Sharing the ring of the cylinder makes a linear extrusion of a circle equal to a
+                  cylinder, and the polygon-corrected area is an exact analytic reference.
+                tests:
+                  - PrimitiveTessellator_Ellipse_VerticesLieOnEllipseAndAreCounterClockwise
+                  - PrimitiveTessellator_Ellipse_AreaIsPolygonCorrectedAnalytic
+                  - PrimitiveTessellator_Circle_EqualsEllipseWithEqualRadii
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polygon2D
+                title: >-
+                  The PrimitiveTessellator Polygon method shall build a region from a point list,
+                  as one contour of all points in order when no paths are given, or as one contour
+                  per index path (with holes following from nesting) otherwise, rejecting invalid
+                  polygons through the PolygonRegion validation.
+                justification: |
+                  A point list with optional index paths is the common way to describe a polygon with
+                  holes; resolving paths to points keeps the validation in one place.
+                tests:
+                  - PrimitiveTessellator_Polygon_PointsOnly_IsSingleContour
+                  - PrimitiveTessellator_Polygon_WithPaths_BuildsHole
+
+              - id: CanvasNetRender3D-Tessellation-PrimitiveTessellator-Shapes2DValidation
+                title: >-
+                  The PrimitiveTessellator 2D shape methods shall reject a rectangle size, ellipse or
+                  circle radius that is not finite and greater than zero, fewer than three ellipse or
+                  circle segments, a null points list or path, a path index that does not address a
+                  point, and a polygon that is invalid (for example zero area).
+                justification: |
+                  Invalid dimensions would produce degenerate or malformed regions; failing at the
+                  call site gives the caller an actionable error.
+                tests:
+                  - PrimitiveTessellator_Shapes2D_InvalidArguments_Throw

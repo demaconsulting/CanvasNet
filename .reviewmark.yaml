@@ -1269,7 +1269,49 @@ reviews:
       - "docs/verification/canvas-net-render3d/tessellation/primitive-tessellator.md"  # unit verification
       - "docs/sysml2/model/canvas-net-render3d/tessellation/primitive-tessellator.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PrimitiveTessellator.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PrimitiveTessellator.Shapes2D.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PrimitiveTessellatorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PrimitiveTessellator2DTests.cs"  # unit tests
+
+  # CanvasNetRender3D-Tessellation-PolygonTriangulator Review (one per unit)
+  - id: CanvasNetRender3D-Tessellation-PolygonTriangulator
+    title: Review that CanvasNetRender3D Tessellation PolygonTriangulator Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/tessellation.md"
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation/polygon-triangulator.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/tessellation/polygon-triangulator.md"  # unit design
+      - "docs/verification/canvas-net-render3d/tessellation/polygon-triangulator.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation/polygon-triangulator.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PolygonPredicates.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PolygonRegion.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/ContourInfo.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/PolygonTriangulator.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PolygonPredicatesTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PolygonRegionTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/PolygonTriangulatorTests.cs"  # unit tests
+
+  # CanvasNetRender3D-Tessellation-Extruder Review (one per unit)
+  - id: CanvasNetRender3D-Tessellation-Extruder
+    title: Review that CanvasNetRender3D Tessellation Extruder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/tessellation.md"
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation/extruder.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/tessellation/extruder.md"    # unit design
+      - "docs/verification/canvas-net-render3d/tessellation/extruder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation/extruder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/Extruder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/Extruder.Linear.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/Extruder.Rotate.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/ExtruderLinearTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/ExtruderRotateTests.cs"  # unit tests
 
   # CanvasNetRender3D-SceneRendering Review (one per subsystem)
   - id: CanvasNetRender3D-SceneRendering

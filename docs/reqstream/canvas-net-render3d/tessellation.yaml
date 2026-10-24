@@ -5,7 +5,8 @@
 #
 # These requirements decompose the CanvasNetRender3D system's primitive-mesh responsibility into the
 # Tessellation subsystem (namespace DemaConsulting.CanvasNet.Render3D.Tessellation). Each
-# requirement here links down to the PrimitiveTessellator unit requirements that implement it.
+# requirement here links down to the unit requirements (PrimitiveTessellator, PolygonTriangulator,
+# Extruder) that implement it.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -35,3 +36,46 @@ sections:
             tests:
               - Tessellation_AllPrimitives_AreClosedAndOutwardOriented
               - Tessellation_Polyhedron_OpenFaceSet_IsPreservedWithoutClosureOrReorientation
+
+          - id: CanvasNetRender3D-Tessellation-PolygonExtrusion
+            title: >-
+              The Tessellation subsystem shall provide validated 2D polygon regions (rectangle,
+              ellipse, circle, and polygon with holes, with invalid polygons rejected by an
+              ArgumentException), an exact ear-clipping triangulator with hole bridging, and linear
+              (optionally twisted and scaled, with an apex when the scale is zero) and rotational
+              extrusion of those regions into closed, outward-oriented meshes that are valid
+              constructive-solid-geometry operands, with a hole extruded as a single connected shell
+              with a through-hole and a profile that crosses the rotation axis rejected.
+            justification: |
+              Extruded 2D profiles are the other half of CAD-style modeling alongside primitives;
+              the exactness of the triangulation and the closed, outward, welded guarantee of every
+              extruded mesh are what let the renderer and the constructive solid geometry path treat
+              them like any other solid, and failing closed on invalid polygons keeps defective
+              meshes from ever being produced.
+            children:
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-RegionModel
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-RegionValidation
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-ExactCoverage
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-Holes
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-CollinearAndDuplicatePoints
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-ExactPredicates
+              - CanvasNetRender3D-Tessellation-PolygonTriangulator-Determinism
+              - CanvasNetRender3D-Tessellation-Extruder-LinearPrism
+              - CanvasNetRender3D-Tessellation-Extruder-LinearHoles
+              - CanvasNetRender3D-Tessellation-Extruder-LinearScale
+              - CanvasNetRender3D-Tessellation-Extruder-LinearApex
+              - CanvasNetRender3D-Tessellation-Extruder-LinearTwist
+              - CanvasNetRender3D-Tessellation-Extruder-LinearValidation
+              - CanvasNetRender3D-Tessellation-Extruder-RotateFull
+              - CanvasNetRender3D-Tessellation-Extruder-RotatePartial
+              - CanvasNetRender3D-Tessellation-Extruder-RotateAxis
+              - CanvasNetRender3D-Tessellation-Extruder-RotateValidation
+              - CanvasNetRender3D-Tessellation-Extruder-ValidOperand
+              - CanvasNetRender3D-Tessellation-Extruder-EmptyRegion
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Rectangle
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Ellipse
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Polygon2D
+              - CanvasNetRender3D-Tessellation-PrimitiveTessellator-Shapes2DValidation
+            tests:
+              - Tessellation_PolygonExtrusion_AllResults_AreClosedAndValidCsgOperands
+              - Tessellation_PolygonRegion_InvalidPolygon_IsRejected

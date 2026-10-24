@@ -65,6 +65,8 @@ includes:
   - docs/reqstream/canvas-net-render3d/scene-model/scene-graph.yaml
   - docs/reqstream/canvas-net-render3d/tessellation.yaml
   - docs/reqstream/canvas-net-render3d/tessellation/primitive-tessellator.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/polygon-triangulator.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/extruder.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml

@@ -171,8 +171,11 @@ software items, specifically:
   `SceneModel` (units `DoublePrecisionMath` — `Vector2D`/`Vector3D`/`Matrix4x4D`/`BoundingBox3D`;
   `Mesh` — immutable triangle meshes, `MeshBuilder` and the internal `MeshTopology`; and
   `SceneGraph` — an immutable scene graph of `MeshNode`/`GroupNode`/`CsgNode` with transforms and
-  per-node colors, and `Scene`), `Tessellation` (unit `PrimitiveTessellator` — closed, outward-oriented box,
-  sphere, cylinder and cone meshes and validated polyhedra), and `SceneRendering` (units `Camera` —
+  per-node colors, and `Scene`), `Tessellation` (units `PrimitiveTessellator` — closed, outward-oriented box,
+  sphere, cylinder and cone meshes, validated polyhedra, and 2D profile regions; `PolygonTriangulator` —
+  validated even-odd `PolygonRegion` and an exact ear-clipping triangulator with hole bridging; and
+  `Extruder` — linear extrusion with twist, scale and apex, and rotation about the Z axis, producing
+  closed outward-oriented meshes), and `SceneRendering` (units `Camera` —
   perspective/orthographic projection and `FitToBounds` framing; `Lighting` — ambient/directional
   lights with flat Lambert and optional Blinn-Phong shading; `TriangleRasterizer` — homogeneous
   clipping and a fixed-point 24.8 top-left-rule rasterizer; `FragmentBuffer` — a per-worker,
@@ -287,7 +290,8 @@ A further sibling top-level system, `CanvasNetRender3D`, likewise lives in this 
 alongside `CanvasNet`, distributed as its own separate NuGet package
 (`DemaConsulting.CanvasNet.Render3D`) and depending only on the `CanvasNet` system's `Canvas`
 subsystem. Unlike the single-unit siblings it has three subsystems of its own — `SceneModel`
-(`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`), and
+(`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`,
+`PolygonTriangulator`, `Extruder`), and
 `SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `FragmentBuffer`, `CsgResolver`,
 `SceneRenderer`) — one per sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`,
 `.Tessellation`, and `.SceneRendering`), so that the 3D math and scene model, the mesh generators,
@@ -610,7 +614,15 @@ src/DemaConsulting.CanvasNet.Render3D/
 │   └── SceneInstance.cs           — SceneGraph: internal flattened mesh instance
 ├── Tessellation/                  — Tessellation subsystem
 │   ├── NamespaceDoc.cs            — Namespace-level XML documentation
-│   └── PrimitiveTessellator.cs    — PrimitiveTessellator: box/sphere/cylinder/cone/polyhedron meshes
+│   ├── PrimitiveTessellator.cs    — PrimitiveTessellator: box/sphere/cylinder/cone/polyhedron meshes
+│   ├── PrimitiveTessellator.Shapes2D.cs — PrimitiveTessellator: rectangle/ellipse/circle/polygon regions
+│   ├── PolygonRegion.cs           — PolygonTriangulator: validated even-odd 2D polygon region
+│   ├── ContourInfo.cs             — PolygonTriangulator: internal contour table entry
+│   ├── PolygonPredicates.cs       — PolygonTriangulator: internal exact orientation predicates
+│   ├── PolygonTriangulator.cs     — PolygonTriangulator: hole bridging and ear-clipping triangulation
+│   ├── Extruder.cs                — Extruder: shared helpers and uniform-scale overload
+│   ├── Extruder.Linear.cs         — Extruder: linear extrusion with twist, scale, and apex
+│   └── Extruder.Rotate.cs         — Extruder: rotational extrusion about the Z axis
 └── SceneRendering/                — SceneRendering subsystem
     ├── NamespaceDoc.cs            — Namespace-level XML documentation
     ├── Camera.cs                  — Camera: perspective/orthographic camera, LookAt, FitToBounds
