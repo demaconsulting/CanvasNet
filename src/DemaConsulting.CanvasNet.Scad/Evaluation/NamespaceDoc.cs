@@ -1,6 +1,6 @@
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
-// cspell:ignore openscad
+// cspell:ignore openscad sandboxed
 
 /// <summary>
 ///     The internal <c>Evaluation</c> namespace (the <c>ScadEvaluation</c> subsystem) turns a parsed OpenSCAD-language

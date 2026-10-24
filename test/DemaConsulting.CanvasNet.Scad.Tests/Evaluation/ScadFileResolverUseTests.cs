@@ -119,10 +119,10 @@ public class ScadFileResolverUseTests
     }
 
     /// <summary>
-    ///     Validates that a use inside an included file is collected into the includer's uses.
+    ///     Validates that a use inside an included file is collected into the uses of the including file.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_UseInsideInclude_IsCollectedByIncluder()
+    public void ScadFileResolver_Load_UseInsideInclude_IsCollectedByIncludingFile()
     {
         // Arrange
         var files = new ScadVirtualFiles(("inc.scad", "use <lib.scad>\ni = 1;\n"), ("lib.scad", "l = 1;\n"));

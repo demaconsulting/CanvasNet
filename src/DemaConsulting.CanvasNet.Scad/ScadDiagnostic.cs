@@ -15,6 +15,6 @@ public sealed record ScadDiagnostic(string Message, ScadSourceLocation Location)
     /// <summary>
     ///     Formats the diagnostic for display.
     /// </summary>
-    /// <returns><c>{location}: {message}</c>, with the location rendered culture-invariantly.</returns>
+    /// <returns><c>{location}: {message}</c>, with the location rendered using the invariant culture.</returns>
     public override string ToString() => $"{Location}: {Message}";
 }

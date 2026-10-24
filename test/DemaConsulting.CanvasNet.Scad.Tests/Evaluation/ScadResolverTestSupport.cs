@@ -3,6 +3,8 @@ using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
+// cspell:ignore scadtest
+
 /// <summary>
 ///     An in-memory file source for resolver tests: a dictionary from logical path to text that records every
 ///     path it is asked for and the threads that asked.

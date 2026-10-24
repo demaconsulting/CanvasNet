@@ -16,6 +16,6 @@ public sealed record ScadUnsupportedFeature(string Feature, string Message, Scad
     /// <summary>
     ///     Formats the report for display.
     /// </summary>
-    /// <returns><c>{location}: {message} [{feature}]</c>, with the location rendered culture-invariantly.</returns>
+    /// <returns><c>{location}: {message} [{feature}]</c>, with the location rendered using the invariant culture.</returns>
     public override string ToString() => $"{Location}: {Message} [{Feature}]";
 }

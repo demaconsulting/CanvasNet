@@ -2,6 +2,8 @@ using DemaConsulting.CanvasNet.Scad.Evaluation;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
+// cspell:ignore textmetrics
+
 /// <summary>
 ///     Unit tests for <see cref="ScadEvaluationSink"/>.
 /// </summary>

@@ -3,6 +3,8 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHe
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
+// cspell:ignore fontmetrics nosuchfunction textmetrics
+
 /// <summary>
 ///     Unit tests for the registry, argument binding, type tests and version functions of <see cref="ScadBuiltinFunctions"/>.
 /// </summary>

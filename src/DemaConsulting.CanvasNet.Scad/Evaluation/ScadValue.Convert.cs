@@ -2,6 +2,8 @@ using System.Collections;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
+// cspell:ignore enumerables
+
 /// <summary>
 ///     Conversion of host (.NET) objects to <see cref="ScadValue"/>, used for variable overrides supplied by the caller.
 /// </summary>

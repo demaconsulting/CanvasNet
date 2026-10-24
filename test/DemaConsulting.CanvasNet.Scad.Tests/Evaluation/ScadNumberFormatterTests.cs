@@ -96,7 +96,7 @@ public class ScadNumberFormatterTests
         // Act
         var text = ScadNumberFormatter.Format(value);
 
-        // Assert: documented pin (the neighbouring odd case rounds up to the even digit as well)
+        // Assert: documented pin (the neighboring odd case rounds up to the even digit as well)
         Assert.Equal("1.23456e+06", text);
         Assert.Equal("1.23458e+06", ScadNumberFormatter.Format(1234575.0));
     }

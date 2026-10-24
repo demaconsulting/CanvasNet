@@ -3,6 +3,8 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHe
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
+// cspell:ignore xabc
+
 /// <summary>
 ///     Unit tests for the list functions of <see cref="ScadBuiltinFunctions"/>.
 /// </summary>
@@ -170,7 +172,7 @@ public class ScadBuiltinListTests
     ///     Validates that lookup does not need a sorted table and that the first of equal keys wins.
     /// </summary>
     [Fact]
-    public void ScadBuiltinList_Lookup_UnsortedTable_StillFindsNeighbours()
+    public void ScadBuiltinList_Lookup_UnsortedTable_StillFindsNeighbors()
     {
         // Arrange
         var host = new ScadTestBuiltinHost();

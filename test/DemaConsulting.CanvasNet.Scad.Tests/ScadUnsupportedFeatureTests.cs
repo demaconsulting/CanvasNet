@@ -1,5 +1,7 @@
 namespace DemaConsulting.CanvasNet.Scad.Tests;
 
+// cspell:ignore textmetrics
+
 /// <summary>
 ///     Unit tests for <see cref="ScadUnsupportedFeature"/> and <see cref="ScadUnsupportedFeatureException"/>.
 /// </summary>

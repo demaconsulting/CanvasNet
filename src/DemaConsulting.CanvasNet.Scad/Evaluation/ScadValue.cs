@@ -209,7 +209,7 @@ internal readonly partial struct ScadValue : IEquatable<ScadValue>
     /// </summary>
     /// <remarks>
     ///     Values are equal only when they have the same kind (a number never equals a boolean). Numbers compare by
-    ///     IEEE rules (<c>NaN</c> equals nothing, not even itself; <c>0</c> equals <c>-0</c>), strings ordinally,
+    ///     IEEE rules (<c>NaN</c> equals nothing, not even itself; <c>0</c> equals <c>-0</c>), strings by ordinal comparison,
     ///     vectors element-wise and recursively with equal length, ranges by (start, step, end), functions by
     ///     reference, and <c>undef</c> equals <c>undef</c>.
     /// </remarks>
