@@ -471,6 +471,79 @@ public class SceneRendererTests
     }
 
     /// <summary>
+    ///     Validates that a mirrored asymmetric mesh renders exactly like the same mesh with the mirror baked into its
+    ///     vertices and shows no back-face pixel, for negative scales on one, two and three axes (z-buffer path).
+    /// </summary>
+    /// <param name="sx">The X scale (plus or minus one).</param>
+    /// <param name="sy">The Y scale (plus or minus one).</param>
+    /// <param name="sz">The Z scale (plus or minus one).</param>
+    [Theory]
+    [InlineData(-1.0, 1.0, 1.0)]
+    [InlineData(1.0, -1.0, 1.0)]
+    [InlineData(1.0, 1.0, -1.0)]
+    [InlineData(-1.0, -1.0, 1.0)]
+    [InlineData(-1.0, 1.0, -1.0)]
+    [InlineData(1.0, -1.0, -1.0)]
+    [InlineData(-1.0, -1.0, -1.0)]
+    public void SceneRenderer_Render_MirroredAsymmetricSolid_MatchesBakedMirrorWithNoBackFaces(double sx, double sy, double sz)
+    {
+        // Arrange: asymmetric closed solids (a sheared box and a tetrahedron), mirrored by transform vs baked
+        var scale = Matrix4x4D.CreateScale(new Vector3D(sx, sy, sz));
+        var magenta = new Rgba32(250, 0, 250, 255);
+        var options = Render3DTestHelpers.FlatOptions(1, backFace: magenta);
+        var camera = Camera.LookAt(new Vector3D(9, -8, 7), Vector3D.Zero, Vector3D.UnitZ);
+        foreach (var mesh in new[] { Render3DTestHelpers.CreateAsymmetricSolid(), Render3DTestHelpers.CreateTetrahedronMesh() })
+        {
+            var viaTransform = new Scene(new GroupNode([new MeshNode(mesh) { Transform = scale }]));
+            var baked = SceneOf(mesh.Transform(scale));
+
+            // Act
+            using var a = SceneRenderer.Render(viaTransform, camera, 100, 100, options, TestContext.Current.CancellationToken);
+            using var b = SceneRenderer.Render(baked, camera, 100, 100, options, TestContext.Current.CancellationToken);
+
+            // Assert
+            Render3DTestHelpers.AssertSurfacesIdentical(b, a);
+            Assert.Equal(0, Render3DTestHelpers.CountPixels(a, magenta));
+            Assert.True(Render3DTestHelpers.CountPixels(a, new Rgba32(255, 255, 255, 255)) < 100 * 100);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a double mirror (a rotation) keeps the faces front-facing and equals the baked rotation.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_DoubleMirroredAsymmetricSolid_FacesStayFrontFacing()
+    {
+        // Arrange: mirror X inside a group that mirrors Y, equal to a 180-degree rotation about Z
+        var mesh = Render3DTestHelpers.CreateAsymmetricSolid();
+        var nested = new Scene(new GroupNode([new MeshNode(mesh) { Transform = Matrix4x4D.CreateMirror(Vector3D.UnitX) }]) { Transform = Matrix4x4D.CreateMirror(Vector3D.UnitY) });
+        var baked = SceneOf(mesh.Transform(Matrix4x4D.CreateRotationZ(180.0)));
+        var magenta = new Rgba32(250, 0, 250, 255);
+        var options = Render3DTestHelpers.FlatOptions(1, backFace: magenta);
+        var camera = Camera.LookAt(new Vector3D(9, -8, 7), Vector3D.Zero, Vector3D.UnitZ);
+
+        // Act
+        using var a = SceneRenderer.Render(nested, camera, 100, 100, options, TestContext.Current.CancellationToken);
+        using var b = SceneRenderer.Render(baked, camera, 100, 100, options, TestContext.Current.CancellationToken);
+
+        // Assert: the 180-degree rotation matches up to floating-point noise on at most a few edge pixels
+        Assert.Equal(0, Render3DTestHelpers.CountPixels(a, magenta));
+        var differing = 0;
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                if (a[x, y] != b[x, y])
+                {
+                    differing++;
+                }
+            }
+        }
+
+        Assert.True(differing <= 20, $"{differing} pixels differ.");
+    }
+
+    /// <summary>
     ///     Validates that a negative scale inside a group still produces front-facing (not back-face coloured) surfaces.
     /// </summary>
     [Fact]

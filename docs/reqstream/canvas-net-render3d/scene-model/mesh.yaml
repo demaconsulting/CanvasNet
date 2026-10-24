@@ -66,6 +66,72 @@ sections:
                   - MeshTopology_IsClosed_EdgeSharedByThreeTriangles_False
                   - MeshTopology_IsClosed_TwoDisjointCubes_True
                   - Mesh_IsClosed_Tetrahedron_True
+                  - MeshTopology_IsClosed_RandomSoups_MatchesDirectedEdgeReference
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-WeldedTopology
+                title: >-
+                  The Mesh unit shall analyze closedness, topology defects and orientation on the
+                  welded form of the mesh, in which vertices at exactly the same position (exact
+                  component equality, negative and positive zero equal) are one vertex, so that a
+                  closed surface stored with duplicated vertices (for example one vertex per triangle
+                  corner, as read from an STL file) is closed, defect-free and has its orientation
+                  judged exactly like its welded equivalent, while a real hole is still open.
+                justification: |
+                  Whether a surface is closed is a geometric property, not a property of how its
+                  corners are indexed; unwelded meshes render identically to welded ones and are the
+                  common output of file importers, so reporting them as open would reject valid solids
+                  and hide their inversion.
+                tests:
+                  - Mesh_IsClosed_UnweldedCube_ClosedByWeldedTopology
+                  - Mesh_IsClosed_UnweldedOpenCube_False
+                  - Mesh_TopologyDefects_CoincidentDistinctVertices_WeldedBeforeAnalysis
+                  - MeshTopology_Weld_MergesExactDuplicatesOnly
+
+              - id: CanvasNetRender3D-SceneModel-Mesh-TopologyDefects
+                title: >-
+                  The Mesh unit shall classify the topology defects of a triangle index list as
+                  boundary edge (an edge of one triangle), non-manifold edge (an edge of three or
+                  more triangles), inconsistent winding (two triangles traversing an edge in the
+                  same direction), and degenerate triangle (a repeated index, or, for the operand
+                  defects, distinct vertices that are coincident or collinear so the renderer
+                  would discard the triangle), reporting no defect
+                  for a closed, consistently oriented surface (including multi-shell meshes) and
+                  for an empty list, and shall treat a defect-free closed mesh as inverted when
+                  any connected shell's signed volume disagrees with its nesting depth parity
+                  (an outermost shell, or one nested at even depth, must be positive; a cavity wall
+                  at odd depth negative), judged against the rounding error bound of the volume
+                  computation so that a thin valid solid is detected, while never flagging an open
+                  mesh, a zero-volume mesh, or a hollow solid (including a solid nested in its
+                  cavity), and flagging a disjoint inside-out shell even when the total volume is
+                  positive.
+                justification: |
+                  The renderer reports constructive-solid-geometry operands that are not closed,
+                  outward-oriented solids, and a single closed/open flag cannot tell the user
+                  which modelling error to fix; an inverted mesh is closed but has the wrong
+                  winding, and a whole-mesh volume sign would hide an inverted shell behind a
+                  larger valid one.
+                tests:
+                  - MeshTopology_Analyze_ClosedSurfaces_NoDefects
+                  - MeshTopology_Analyze_OpenSurface_BoundaryEdgeOnly
+                  - MeshTopology_Analyze_EdgeSharedByThreeTriangles_NonManifold
+                  - MeshTopology_Analyze_TwoShellsSharingAnEdge_NonManifold
+                  - MeshTopology_Analyze_FlippedTriangle_InconsistentWindingOnly
+                  - MeshTopology_Analyze_RepeatedIndex_DegenerateTriangleOnly
+                  - MeshTopology_Analyze_CollinearOrCoincidentVertices_DegenerateTriangleOnly
+                  - MeshTopology_TryGetFaceNormal_ZeroAreaAndExtremeTriangles
+                  - MeshTopology_SignedVolume_ErrorBound_ScalesWithMagnitude
+                  - MeshTopology_Analyze_MultipleDefects_CombineFlags
+                  - Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate
+                  - Mesh_OperandDefects_CollinearFace_ReportsDegenerate
+                  - Mesh_IsInverted_ReversedClosedMesh_True
+                  - Mesh_IsInverted_ThinBox_DetectedByOrientation
+                  - Mesh_IsInverted_ZeroVolumeClosedMesh_False
+                  - Mesh_IsInverted_CavityMesh_False
+                  - Mesh_IsInverted_DisjointInvertedShell_True
+                  - Mesh_IsInverted_HollowSolidPlusDisjointSolid_False
+                  - Mesh_IsInverted_NestedThreeLevelShells_JudgedByDepthParity
+                  - MeshTopology_HasInvertedShell_ConcentricShells_MatchesDepthParity
+                  - Mesh_IsInverted_OpenOrEmptyMesh_False
 
               - id: CanvasNetRender3D-SceneModel-Mesh-VolumeArea
                 title: >-

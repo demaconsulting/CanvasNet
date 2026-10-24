@@ -1,0 +1,73 @@
+---
+# Software Unit Requirements for FragmentBuffer
+#
+# These requirements describe the design-level behavior of the FragmentBuffer unit: the internal
+# per-worker, reusable store that collects every fragment (triangle-sample hit) of one tile in an
+# exact-sized count pass and fill pass for the fragment-list CSG path, and enforces the per-tile
+# fragment budget deterministically. Types are internal to the
+# DemaConsulting.CanvasNet.Render3D.SceneRendering namespace.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: SceneRendering Requirements
+        sections:
+          - title: FragmentBuffer Requirements
+            requirements:
+              - id: CanvasNetRender3D-SceneRendering-FragmentBuffer-Collect
+                title: >-
+                  The FragmentBuffer shall, for one tile, count the samples covered by each triangle
+                  in a count pass and store every fragment (depth and triangle index) in a fill pass
+                  of the same triangles, so that each sample holds exactly the fragments the
+                  rasterizer reports for it, only samples inside the tile rectangle are collected,
+                  and the storage is exactly as large as the tile needs; fragments of any depth are
+                  retained.
+                justification: |
+                  Fragment-list CSG needs all surfaces along each sample's ray, not just the nearest.
+                  Rasterization is deterministic, so a count pass followed by a fill pass yields
+                  exact-sized contiguous storage without per-sample allocation, and keeping deep
+                  fragments allows the resolver to infer the ray's starting state.
+                tests:
+                  - FragmentBuffer_Collect_OverlappingTriangles_HoldsEveryRasterizerHitPerSample
+                  - FragmentBuffer_Collect_TileAtOffset_CollectsOnlySamplesInsideTile
+                  - FragmentBuffer_EndCounting_FirstTile_AllocatesExactlyTheNeededFragments
+
+              - id: CanvasNetRender3D-SceneRendering-FragmentBuffer-Budget
+                title: >-
+                  The FragmentBuffer shall accept a tile whose fragment total is at most the
+                  configured budget and throw a RenderBudgetExceededException carrying the budget
+                  and a tile-independent message when the total exceeds it, so that the outcome
+                  depends only on the set of triangles of the tile and never on their order, on
+                  which tile is collected, or on thread timing, and shall reject a budget outside
+                  1 to Array.MaxLength.
+                justification: |
+                  Fragment memory grows with scene depth complexity; a hard, deterministic budget
+                  prevents out-of-memory failures and lets callers repeat the failure and react to
+                  it, which an order- or timing-dependent failure would not allow.
+                tests:
+                  - FragmentBuffer_CountTriangle_ExactlyAtBudget_Succeeds_OneAboveBudget_Throws
+                  - FragmentBuffer_CountTriangle_BudgetOutcomeAndMessage_IndependentOfOrderAndTile
+                  - FragmentBuffer_Begin_AfterBudgetExceeded_CollectsNextTile
+                  - FragmentBuffer_Constructor_InvalidBudget_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNetRender3D-SceneRendering-FragmentBuffer-Reuse
+                title: >-
+                  The FragmentBuffer shall reuse its storage across tiles, growing it only when a
+                  tile needs more and never exposing fragments of a previous tile.
+                justification: |
+                  A worker renders many tiles; per-tile allocation would dominate run time and
+                  produce garbage, while stale data would corrupt the next tile.
+                tests:
+                  - FragmentBuffer_Begin_ReusedAcrossTiles_ReusesStorageAndNeverLeaksStaleFragments
+
+              - id: CanvasNetRender3D-SceneRendering-FragmentBuffer-Lifecycle
+                title: >-
+                  The FragmentBuffer shall reject use out of order (counting or filling before the
+                  tile begins, filling before counting ends, counting after it ended) and shall
+                  report a sample whose counted fragments were not all stored.
+                justification: |
+                  The two-pass protocol is only correct when both passes see the same triangles;
+                  detecting misuse turns a silent corruption into an immediate, diagnosable error.
+                tests:
+                  - FragmentBuffer_Passes_OutOfOrder_ThrowsInvalidOperationException
+                  - FragmentBuffer_GetSample_IncompleteFill_ThrowsInvalidOperationException

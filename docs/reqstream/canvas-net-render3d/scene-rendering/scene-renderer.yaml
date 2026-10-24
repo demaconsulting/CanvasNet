@@ -4,10 +4,13 @@
 # Software Unit Requirements for SceneRenderer
 #
 # These requirements describe the design-level behavior of the SceneRenderer unit: the public static
-# SceneRenderer class and SceneRenderOptions type, plus the internal TileBinner, SampleResolver, and
-# TileWorkspace types, in the DemaConsulting.CanvasNet.Render3D.SceneRendering namespace. Output is a
-# new core Surface owned (and disposed) by the caller. Node and light color alpha is ignored in
-# Phase 1 (surfaces are opaque); background alpha is honored.
+# SceneRenderer class, SceneRenderOptions type and diagnostic types (RenderBudgetExceededException,
+# SceneRenderUnsupportedFeature and its exception), the internal CsgOperandValidator, and the internal
+# TileBinner, SampleResolver, and TileWorkspace types, in the DemaConsulting.CanvasNet.Render3D.SceneRendering
+# namespace. Output is a new core Surface owned (and disposed) by the caller. Node and light color alpha
+# is ignored (surfaces are opaque); background alpha is honored. A scene with a difference or
+# intersection is rendered through the fragment-list CSG path (see csg-resolver.yaml and
+# fragment-buffer.yaml); every other scene uses the z-buffer path.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -133,6 +136,42 @@ sections:
                   - SceneRenderOptions_Lights_Null_UsesDefaultRig
                   - SceneRenderOptions_Lights_CopiedDefensively
 
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions
+                title: >-
+                  The SceneRenderOptions type shall provide a per-tile fragment budget
+                  (MaxFragmentsPerTile) defaulting to 4 Mi (4194304) fragments and rejecting a
+                  value below one or above the maximum array length with
+                  ArgumentOutOfRangeException, and an unsupported-feature handler and strict flag
+                  that default to no handler and tolerant (non-throwing) behavior.
+                justification: |
+                  The budget bounds the memory of per-pixel fragment resolution and must be
+                  validated when set so an options instance is always valid, and the handler and
+                  strict flag follow the unsupported-feature convention of the sibling render
+                  options so callers can choose between reporting and failing.
+                tests:
+                  - SceneRenderOptions_CsgDefaults_BudgetFourMiAndTolerant
+                  - SceneRenderOptions_MaxFragmentsPerTile_OutOfRange_Throws
+                  - SceneRenderOptions_UnsupportedFeatureSettings_StoredAsGiven
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics
+                title: >-
+                  The SceneRenderer shall provide the public RenderBudgetExceededException
+                  (carrying the exceeded budget and a tile-independent message), the
+                  SceneRenderUnsupportedFeature report (feature token, message and optional mesh
+                  node) and the SceneRenderUnsupportedFeatureException (feature token and optional
+                  mesh node), each with the standard exception constructors.
+                justification: |
+                  A caller must be able to tell a budget overflow or an unsupported scene feature
+                  from a programming error without string-matching a message, and a message that
+                  does not depend on which tile or thread detected the overflow keeps failures
+                  deterministic.
+                tests:
+                  - RenderBudgetExceededException_Budget_CarriesBudgetAndStandardMessage
+                  - RenderBudgetExceededException_StandardConstructors_UseDefaultBudget
+                  - SceneRenderUnsupportedFeature_Record_ExposesValues
+                  - SceneRenderUnsupportedFeatureException_FeatureConstructor_CarriesFeatureAndNode
+                  - SceneRenderUnsupportedFeatureException_StandardConstructors_HaveEmptyFeature
+
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
                 title: >-
                   The SceneRenderer shall render a cube (and its camera) translated one million
@@ -148,10 +187,163 @@ sections:
                 title: >-
                   The SceneRenderer shall render an instance under a negative-determinant (mirror or
                   negative-scale) transform with correct winding, so that a mirrored symmetric cube
-                  is identical to the original and its faces are front-facing.
+                  is identical to the original, a mirrored asymmetric solid equals the same mesh
+                  with the mirror baked into its vertices without showing a single back-face
+                  pixel (negative scale on one, two or three axes, and a double mirror), and its
+                  faces are front-facing.
                 justification: |
                   Mirrored parts are common in CAD assemblies; without winding compensation they
-                  would render inside out in the back-face color.
+                  would render inside out in the back-face color, and a symmetric test object
+                  cannot detect a swapped front/back classification.
                 tests:
                   - SceneRenderer_Render_MirroredSymmetricCube_IdenticalToOriginal
                   - SceneRenderer_Render_NegativeScaleInGroup_FacesAreFrontFacing
+                  - SceneRenderer_Render_MirroredAsymmetricSolid_MatchesBakedMirrorWithNoBackFaces
+                  - SceneRenderer_Render_DoubleMirroredAsymmetricSolid_FacesStayFrontFacing
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgFastPath
+                title: >-
+                  The SceneRenderer shall render a scene without a difference or intersection of two
+                  or more operands (including a union CsgNode) through the z-buffer path without any
+                  fragment storage, ignoring the fragment budget and never validating operands, with
+                  output identical to the equivalent group and, for closed solids, to the
+                  fragment-list path forced onto the same scene (up to grazing silhouette
+                  samples whose front and back surfaces lie within the depth tolerance).
+                justification: |
+                  Most scenes are plain unions; keeping them on the existing z-buffer path preserves
+                  their output and cost, and proving the two paths agree on closed solids validates
+                  the fragment-list algorithm against the established renderer.
+                tests:
+                  - SceneRenderer_Render_UnionCsgNode_IdenticalToGroupNode
+                  - SceneRenderer_RenderWithFragmentPath_UnionOnlyScenes_IdenticalToZBuffer
+                  - SceneRenderer_Render_UnionOnlyScene_IgnoresFragmentBudget
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgSurfaces
+                title: >-
+                  The SceneRenderer shall render a scene containing a difference or intersection by
+                  collecting and resolving the fragments of every tile, so that a cut surface shows
+                  the subtrahend's own color lit from the flipped normal (never the back-face
+                  color), an intersection shows the clipped silhouette, nested operations equal an
+                  analytic box-CSG oracle (a fixed set of seeded random trees included), coincident
+                  and nearly coincident faces leave no speckle (nearly coincident walls seen edge-on
+                  may leave at most a few isolated pixels, tolerated up to 12 in the stress test),
+                  and a camera inside solid material
+                  sees only back-face shading, with the viewer outside the solid unaffected.
+                justification: |
+                  These are the behaviors that make CSG output correct and usable: exact per-pixel
+                  results against an independent oracle, stable results where faces coincide, and
+                  consistent shading of cut surfaces.
+                tests:
+                  - SceneRenderer_Render_CubeMinusSphere_ShowsCavityInSubtrahendColor
+                  - SceneRenderer_Render_CubeMinusSphereOblique_CutSurfaceUsesFlippedNormal
+                  - SceneRenderer_Render_CubeIntersectSphere_SilhouetteIsSquareClippedByDisc
+                  - SceneRenderer_Render_NestedDifferenceOfDifferences_MatchesOracle
+                  - SceneRenderer_Render_RandomBoxTrees_MatchOracle
+                  - SceneRenderer_Render_CoincidentFaceDifference_HasNoSpeckle
+                  - SceneRenderer_Render_NearlyCoincidentFaceDifference_HasNoSpeckle
+                  - SceneRenderer_Render_NearlyCoincidentFacesAcrossPlacements_HaveNoSpeckle
+                  - SceneRenderer_Render_PerspectiveCameraInsideSolid_ShowsBackFaceEverywhere
+                  - SceneRenderer_Render_OrthographicCameraInsideSolid_ShowsBackFaceEverywhere
+                  - SceneRenderer_Render_FittedCameraOutsideSolid_ShowsMinuendAndCavity
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Budget
+                title: >-
+                  The SceneRenderer shall throw RenderBudgetExceededException, carrying
+                  MaxFragmentsPerTile and a message that does not depend on the tile, when any
+                  tile of a fragment-list render needs more fragments than the budget, identically
+                  for sequential and parallel rendering and never wrapped in an AggregateException
+                  (cancellation taking precedence), and shall render successfully with a budget
+                  exactly equal to the largest tile's need.
+                justification: |
+                  Fragment memory grows with depth complexity; a hard, deterministic limit turns
+                  an unbounded allocation into an actionable error, and a parallel render must not
+                  report a different failure than a sequential one.
+                tests:
+                  - SceneRenderer_Render_BudgetExceeded_ThrowsDeterministicException
+                  - SceneRenderer_Render_ExactBudgetBoundary_RendersAndOneLessThrows
+                  - SceneRenderer_Render_CancelledAndOverBudget_ThrowsOperationCanceled
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-OperandReporting
+                title: >-
+                  For a scene rendered through the fragment-list path, the SceneRenderer shall, before
+                  any rendering work and observing cancellation, validate every mesh node once in scene
+                  pre-order and report each open mesh, non-manifold edge, inconsistent winding,
+                  degenerate triangle (a repeated index or a zero-area triangle that the renderer
+                  would discard) and inside-out (inverted) mesh, where inversion means a connected
+                  shell of the position-welded mesh whose orientation disagrees with its nesting
+                  (an outermost shell or a solid nested at even depth must be outward, a cavity wall
+                  inward) so that hollow solids are valid, and an unwelded closed mesh is not open,
+                  as a SceneRenderUnsupportedFeature
+                  with a stable feature token to the handler, or throw
+                  SceneRenderUnsupportedFeatureException for the first problem in strict mode, while
+                  rendering tolerantly otherwise; it shall additionally check every mesh instance
+                  (not only every node) after its world transform is composed and report a singular
+                  (zero-determinant or non-finite) world transform, or triangles that are degenerate
+                  after the transform by the renderer's own discard criterion, naming the offending
+                  node; it shall judge inversion independently of a mirroring
+                  transform, neither report nor reject an explicit near plane or a camera inside an
+                  operand, and neither
+                  analyze nor report anything for union-only scenes or when neither a handler nor
+                  strict mode is set.
+                justification: |
+                  A non-solid operand silently produces a wrong image; naming the problem with a
+                  machine-matchable token lets callers (such as a language front end) translate it into
+                  their own diagnostics, while the tolerant default keeps rendering robust. A
+                  shell wound against its nesting is dropped or inverted in the image even when the
+                  total volume is positive, whereas hollow solids and STL-style unwelded closed
+                  meshes render correctly and must not be reported.
+                tests:
+                  - CsgOperandValidator_Validate_DefectKind_ReportsFeatureAndRendersAnyway
+                  - CsgOperandValidator_Validate_HealthyOperands_ReportsNothing
+                  - CsgOperandValidator_Validate_StrictMode_ThrowsTypedException
+                  - CsgOperandValidator_Validate_StrictModeWithoutHandler_Throws
+                  - CsgOperandValidator_Validate_NoHandlerNoStrict_RendersTolerantly
+                  - CsgOperandValidator_Validate_UnionOnlyScene_ReportsNothing
+                  - CsgOperandValidator_Validate_AllInstances_DeduplicatedInPreOrder
+                  - CsgOperandValidator_Validate_MirroredOperands_InversionIsIndependentOfDeterminant
+                  - CsgOperandValidator_Validate_MirroredInvertedOperand_RendersLikeBakedMesh
+                  - CsgOperandValidator_Validate_ExplicitNearPlaneInFrontOfOperands_ReportsNothing
+                  - CsgOperandValidator_Validate_DisjointInvertedShell_ReportsInvertedMesh
+                  - CsgOperandValidator_Validate_HollowSolid_ReportsNothing
+                  - CsgOperandValidator_Validate_NestedThreeLevelShells_JudgedByNestingParity
+                  - CsgOperandValidator_Validate_UnweldedClosedCube_NotOpenAndInversionDetected
+                  - CsgOperandValidator_Validate_UnweldedOpenCube_StillReportsOpenMesh
+                  - SceneRenderer_Render_CameraInsideHollowRoomWithExplicitNearPlane_StrictModeShowsCavityWall
+                  - SceneRenderer_Render_UnweldedOperands_RenderIdenticallyToWelded
+                  - CsgOperandValidator_Validate_RunsBeforeRendering
+                  - CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled
+                  - CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported
+                  - CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_StrictModeThrows
+                  - CsgOperandValidator_ValidateTransformed_SharedNodeOneSingularInstance_ReportedOnce
+                  - CsgOperandValidator_ValidateTransformed_ValidTransformedOperands_ReportNothing
+                  - CsgOperandValidator_ValidateTransformed_UnionOnlyScene_ReportsNothing
+                  - CsgOperandValidator_ValidateTransformed_DegenerateInViewSpace_ReportedWithRendererCriterion
+                  - CsgOperandValidator_ValidateTransformed_MirroredInvertedOperand_OnlyInvertedReported
+                  - CsgOperandValidator_NullArguments_Throw
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg
+                title: >-
+                  The SceneRenderer shall classify the crossings of mirrored CSG operands with the
+                  corrected facing, so that a mirrored operand (negative scale on one, two or
+                  three axes) and a mirror on the CsgNode itself or on an ancestor, alone or split
+                  over several nodes, render byte-identically to the same operands with the mirror
+                  baked into their vertices and never show a back-face pixel.
+                justification: |
+                  Constructive solid geometry counts front and back crossings, so a swapped
+                  classification of a mirrored operand would invert it (its inside would become its
+                  outside); only asymmetric operands and several mirror configurations can prove it.
+                tests:
+                  - SceneRenderer_Render_MirroredCsgOperand_MatchesBakedMirror
+                  - SceneRenderer_Render_MirrorAboveCsgNode_MatchesBakedMirror
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgDeterminism
+                title: >-
+                  The SceneRenderer shall produce byte-identical output for a CSG scene with
+                  coincident faces, a mirrored operand and several leaves across tile parallelism
+                  (sequential, two-way, automatic) and repeated runs, at each supersampling factor.
+                justification: |
+                  Per-sample resolution is a pure function of the fragment set and tiles are
+                  independent, so parallel rendering must reproduce the sequential image exactly;
+                  this is the contract that makes CSG output usable for regression comparison.
+                tests:
+                  - SceneRenderer_Render_CsgScene_ParallelAndSequentialAreByteIdentical

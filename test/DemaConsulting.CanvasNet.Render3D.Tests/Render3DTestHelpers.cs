@@ -56,6 +56,33 @@ internal static class Render3DTestHelpers
             [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]);
 
     /// <summary>
+    ///     Concatenates meshes into one multi-shell mesh (vertices and re-based indices appended in order).
+    /// </summary>
+    /// <param name="meshes">The meshes to combine.</param>
+    /// <returns>The combined mesh.</returns>
+    public static Mesh Combine(params Mesh[] meshes)
+    {
+        var vertices = new List<Vector3D>();
+        var indices = new List<int>();
+        foreach (var mesh in meshes)
+        {
+            var offset = vertices.Count;
+            vertices.AddRange(mesh.Vertices);
+            indices.AddRange(mesh.TriangleIndices.Select(i => i + offset));
+        }
+
+        return new Mesh(vertices, indices);
+    }
+
+    /// <summary>
+    ///     Creates the STL-style unwelded form of a mesh: every triangle gets three vertices of its own.
+    /// </summary>
+    /// <param name="mesh">The mesh to split into per-triangle vertices.</param>
+    /// <returns>An equivalent mesh with <c>3 * TriangleCount</c> vertices.</returns>
+    public static Mesh ToUnwelded(Mesh mesh) =>
+        new(mesh.TriangleIndices.Select(i => mesh.Vertices[i]).ToArray(), Enumerable.Range(0, mesh.TriangleIndices.Count));
+
+    /// <summary>
     ///     Asserts that a convex mesh is closed, has positive signed volume and that every
     ///     triangle's normal points away from the vertex centroid (i.e. winding is outward).
     /// </summary>
@@ -339,12 +366,380 @@ internal static class Render3DTestHelpers
     }
 
     /// <summary>
+    ///     Creates a top-down orthographic camera whose image maps world <c>x</c> in <c>[0, width]</c> and
+    ///     <c>y</c> in <c>[0, height]</c> to pixel columns and rows one-to-one (pixel centre
+    ///     <c>(column + 0.5, height - row - 0.5)</c>), looking down -Z from high above.
+    /// </summary>
+    /// <param name="width">The image width in pixels.</param>
+    /// <param name="height">The image height in pixels.</param>
+    /// <returns>The camera.</returns>
+    public static Camera BoxGridCamera(int width, int height) =>
+        OrthoCamera(new Vector3D(width / 2.0, height / 2.0, 200.0), new Vector3D(width / 2.0, height / 2.0, 0.0), Vector3D.UnitY, height);
+
+    /// <summary>
+    ///     Creates a mesh node of a unit-colored closed box.
+    /// </summary>
+    /// <param name="min">The minimum corner.</param>
+    /// <param name="size">The edge lengths.</param>
+    /// <param name="color">The flat color of the node.</param>
+    /// <returns>The mesh node.</returns>
+    public static MeshNode ColoredBox(Vector3D min, Vector3D size, Rgba32 color) =>
+        new(CreateBoxMesh(min, size)) { Appearance = new NodeAppearance(color) };
+
+    /// <summary>
+    ///     Creates an asymmetric closed solid (a sheared box: a parallelepiped that is not symmetric under
+    ///     any axis mirror) so a wrongly mirrored or wrongly wound copy can never look like the correct one.
+    /// </summary>
+    /// <returns>The asymmetric closed mesh with outward counter-clockwise winding.</returns>
+    public static Mesh CreateAsymmetricSolid()
+    {
+        var box = CreateBoxMesh(new Vector3D(-1.5, -1.0, -0.5), new Vector3D(3.0, 2.0, 1.0));
+        var shear = Matrix4x4D.FromRowMajor(
+        [
+            1.0, 0.4, 0.0, 0.0,
+            0.0, 1.0, 0.3, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ]);
+        return box.Transform(shear);
+    }
+
+    /// <summary>
+    ///     Counts pixels that have no 4-neighbor of the same color (isolated speckles), ignoring the image border.
+    /// </summary>
+    /// <param name="surface">The surface to scan.</param>
+    /// <returns>The number of isolated pixels.</returns>
+    public static int CountIsolatedPixels(Surface surface)
+    {
+        var count = 0;
+        for (var y = 1; y < surface.Height - 1; y++)
+        {
+            for (var x = 1; x < surface.Width - 1; x++)
+            {
+                var c = surface[x, y];
+                if (surface[x - 1, y] != c && surface[x + 1, y] != c && surface[x, y - 1] != c && surface[x, y + 1] != c)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
     ///     Compares two byte spans for equality (a span-friendly wrapper so callers need no extension imports).
     /// </summary>
     /// <param name="left">The first span.</param>
     /// <param name="right">The second span.</param>
     /// <returns><see langword="true"/> when the contents are equal.</returns>
     private static bool MemoryExtensionsEqual(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right) => left.SequenceEqual(right);
+}
+
+/// <summary>
+///     A node of an axis-aligned box CSG tree used as the analytic oracle for rendered coverage: it can
+///     build the equivalent scene node and evaluate, for a vertical ray, the exact set of solid heights.
+/// </summary>
+internal abstract class BoxCsgTree
+{
+    /// <summary>Builds the scene node of the tree.</summary>
+    /// <returns>The scene node.</returns>
+    public abstract SceneNode ToSceneNode();
+
+    /// <summary>Collects the leaves of the tree in pre-order.</summary>
+    /// <param name="leaves">The list receiving the leaves.</param>
+    public abstract void CollectLeaves(List<BoxCsgLeaf> leaves);
+
+    /// <summary>
+    ///     Evaluates the solid along the vertical ray through <c>(x, y)</c>.
+    /// </summary>
+    /// <param name="x">The ray's world X.</param>
+    /// <param name="y">The ray's world Y.</param>
+    /// <returns>The sorted, disjoint, closed-open <c>(low, high)</c> height intervals inside the solid.</returns>
+    public abstract List<(double Low, double High)> Intervals(double x, double y);
+
+    /// <summary>
+    ///     Determines the exact color a top-down orthographic render must show at a pixel centre.
+    /// </summary>
+    /// <param name="x">The world X of the pixel centre.</param>
+    /// <param name="y">The world Y of the pixel centre.</param>
+    /// <param name="background">The background color.</param>
+    /// <returns>The expected pixel color.</returns>
+    public Rgba32 ExpectedColor(double x, double y, Rgba32 background)
+    {
+        var intervals = Intervals(x, y);
+        if (intervals.Count == 0)
+        {
+            return background;
+        }
+
+        // The viewer is above everything: the visible surface is at the top end of the highest interval
+        var top = intervals[^1].High;
+        var leaves = new List<BoxCsgLeaf>();
+        CollectLeaves(leaves);
+        foreach (var leaf in leaves)
+        {
+            // Heights are distinct across leaves, so exactly one leaf owns a face at the visible height
+            if (leaf.Covers(x, y) && (Math.Abs(leaf.MaxZ - top) < 1e-9 || Math.Abs(leaf.MinZ - top) < 1e-9))
+            {
+                return leaf.Color;
+            }
+        }
+
+        throw new InvalidOperationException("No leaf owns the visible surface.");
+    }
+
+    /// <summary>
+    ///     Builds a seeded pseudo-random box CSG tree whose leaves have pairwise distinct heights and
+    ///     integer footprints, so pixel centres never lie on an edge and no two faces are coincident.
+    /// </summary>
+    /// <param name="random">The random source.</param>
+    /// <param name="leafCount">The number of box leaves (at least one).</param>
+    /// <param name="width">The grid width in world units.</param>
+    /// <param name="height">The grid height in world units.</param>
+    /// <returns>The tree.</returns>
+    public static BoxCsgTree CreateRandom(Random random, int leafCount, int width, int height)
+    {
+        // Distinct heights: shuffle 1..4n and hand two to every leaf
+        var heights = Enumerable.Range(1, 4 * leafCount).OrderBy(_ => random.Next()).ToArray();
+        var leaves = new List<BoxCsgTree>();
+        for (var i = 0; i < leafCount; i++)
+        {
+            var z0 = Math.Min(heights[2 * i], heights[(2 * i) + 1]);
+            var z1 = Math.Max(heights[2 * i], heights[(2 * i) + 1]);
+            var x0 = random.Next(0, width - 1);
+            var x1 = random.Next(x0 + 1, width + 1);
+            var y0 = random.Next(0, height - 1);
+            var y1 = random.Next(y0 + 1, height + 1);
+            var color = new Rgba32((byte)(30 + (20 * i)), (byte)(220 - (15 * i)), (byte)(60 + (10 * i)), 255);
+            leaves.Add(new BoxCsgLeaf(x0, y0, z0, x1, y1, z1, color));
+        }
+
+        return Group(random, leaves, 0);
+    }
+
+    /// <summary>Recursively groups leaves into operation nodes.</summary>
+    /// <param name="random">The random source.</param>
+    /// <param name="nodes">The nodes to combine (at least one).</param>
+    /// <param name="depth">The current depth.</param>
+    /// <returns>The combined tree.</returns>
+    private static BoxCsgTree Group(Random random, List<BoxCsgTree> nodes, int depth)
+    {
+        if (nodes.Count == 1)
+        {
+            return nodes[0];
+        }
+
+        // Split into two or three consecutive groups, then combine them with a random operation
+        var parts = depth >= 3 || nodes.Count < 3 ? 2 : random.Next(2, 4);
+        var combined = new List<BoxCsgTree>();
+        var start = 0;
+        for (var p = 0; p < parts; p++)
+        {
+            var remainingParts = parts - p;
+            var size = p == parts - 1 ? nodes.Count - start : random.Next(1, nodes.Count - start - remainingParts + 2);
+            combined.Add(Group(random, nodes.GetRange(start, size), depth + 1));
+            start += size;
+        }
+
+        var operation = (CsgOperation)random.Next(0, 3);
+        return new BoxCsgOp(operation, combined);
+    }
+}
+
+/// <summary>An axis-aligned box leaf of a <see cref="BoxCsgTree"/> with integer corners.</summary>
+internal sealed class BoxCsgLeaf : BoxCsgTree
+{
+    /// <summary>
+    ///     Creates a box leaf.
+    /// </summary>
+    /// <param name="minX">The minimum X.</param>
+    /// <param name="minY">The minimum Y.</param>
+    /// <param name="minZ">The minimum Z.</param>
+    /// <param name="maxX">The maximum X.</param>
+    /// <param name="maxY">The maximum Y.</param>
+    /// <param name="maxZ">The maximum Z.</param>
+    /// <param name="color">The flat color of the box.</param>
+    public BoxCsgLeaf(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, Rgba32 color)
+    {
+        MinX = minX;
+        MinY = minY;
+        MinZ = minZ;
+        MaxX = maxX;
+        MaxY = maxY;
+        MaxZ = maxZ;
+        Color = color;
+    }
+
+    /// <summary>Gets the minimum X.</summary>
+    public int MinX { get; }
+
+    /// <summary>Gets the minimum Y.</summary>
+    public int MinY { get; }
+
+    /// <summary>Gets the minimum Z.</summary>
+    public int MinZ { get; }
+
+    /// <summary>Gets the maximum X.</summary>
+    public int MaxX { get; }
+
+    /// <summary>Gets the maximum Y.</summary>
+    public int MaxY { get; }
+
+    /// <summary>Gets the maximum Z.</summary>
+    public int MaxZ { get; }
+
+    /// <summary>Gets the flat color of the box.</summary>
+    public Rgba32 Color { get; }
+
+    /// <summary>Determines whether the vertical ray through <c>(x, y)</c> passes through the box.</summary>
+    /// <param name="x">The ray's world X.</param>
+    /// <param name="y">The ray's world Y.</param>
+    /// <returns><see langword="true"/> when the box covers the point.</returns>
+    public bool Covers(double x, double y) => x > MinX && x < MaxX && y > MinY && y < MaxY;
+
+    /// <inheritdoc/>
+    public override SceneNode ToSceneNode() =>
+        Render3DTestHelpers.ColoredBox(new Vector3D(MinX, MinY, MinZ), new Vector3D(MaxX - MinX, MaxY - MinY, MaxZ - MinZ), Color);
+
+    /// <inheritdoc/>
+    public override void CollectLeaves(List<BoxCsgLeaf> leaves) => leaves.Add(this);
+
+    /// <inheritdoc/>
+    public override List<(double Low, double High)> Intervals(double x, double y) =>
+        Covers(x, y) ? [(MinZ, MaxZ)] : [];
+}
+
+/// <summary>A union, difference or intersection node of a <see cref="BoxCsgTree"/>.</summary>
+internal sealed class BoxCsgOp : BoxCsgTree
+{
+    /// <summary>
+    ///     Creates an operation node.
+    /// </summary>
+    /// <param name="operation">The operation.</param>
+    /// <param name="children">The operands in order (at least one).</param>
+    public BoxCsgOp(CsgOperation operation, IReadOnlyList<BoxCsgTree> children)
+    {
+        Operation = operation;
+        Children = children;
+    }
+
+    /// <summary>Gets the operation.</summary>
+    public CsgOperation Operation { get; }
+
+    /// <summary>Gets the operands.</summary>
+    public IReadOnlyList<BoxCsgTree> Children { get; }
+
+    /// <inheritdoc/>
+    public override SceneNode ToSceneNode() => new CsgNode(Operation, Children.Select(c => c.ToSceneNode()));
+
+    /// <inheritdoc/>
+    public override void CollectLeaves(List<BoxCsgLeaf> leaves)
+    {
+        foreach (var child in Children)
+        {
+            child.CollectLeaves(leaves);
+        }
+    }
+
+    /// <inheritdoc/>
+    public override List<(double Low, double High)> Intervals(double x, double y)
+    {
+        var result = Children[0].Intervals(x, y);
+        for (var i = 1; i < Children.Count; i++)
+        {
+            var other = Children[i].Intervals(x, y);
+            result = Operation switch
+            {
+                CsgOperation.Union => Union(result, other),
+                CsgOperation.Intersection => Intersect(result, other),
+                _ => Subtract(result, other),
+            };
+        }
+
+        return result;
+    }
+
+    /// <summary>Unions two interval lists.</summary>
+    /// <param name="a">The first list.</param>
+    /// <param name="b">The second list.</param>
+    /// <returns>The merged, disjoint list.</returns>
+    private static List<(double Low, double High)> Union(List<(double Low, double High)> a, List<(double Low, double High)> b)
+    {
+        var all = a.Concat(b).OrderBy(i => i.Low).ToList();
+        var merged = new List<(double Low, double High)>();
+        foreach (var interval in all)
+        {
+            if (merged.Count > 0 && interval.Low <= merged[^1].High)
+            {
+                merged[^1] = (merged[^1].Low, Math.Max(merged[^1].High, interval.High));
+            }
+            else
+            {
+                merged.Add(interval);
+            }
+        }
+
+        return merged;
+    }
+
+    /// <summary>Intersects two interval lists.</summary>
+    /// <param name="a">The first list.</param>
+    /// <param name="b">The second list.</param>
+    /// <returns>The intersection.</returns>
+    private static List<(double Low, double High)> Intersect(List<(double Low, double High)> a, List<(double Low, double High)> b)
+    {
+        var result = new List<(double Low, double High)>();
+        foreach (var left in a)
+        {
+            foreach (var right in b)
+            {
+                var low = Math.Max(left.Low, right.Low);
+                var high = Math.Min(left.High, right.High);
+                if (low < high)
+                {
+                    result.Add((low, high));
+                }
+            }
+        }
+
+        return result.OrderBy(i => i.Low).ToList();
+    }
+
+    /// <summary>Subtracts the second interval list from the first.</summary>
+    /// <param name="a">The minuend.</param>
+    /// <param name="b">The subtrahend.</param>
+    /// <returns>The difference.</returns>
+    private static List<(double Low, double High)> Subtract(List<(double Low, double High)> a, List<(double Low, double High)> b)
+    {
+        var result = a;
+        foreach (var cut in b)
+        {
+            var next = new List<(double Low, double High)>();
+            foreach (var interval in result)
+            {
+                if (cut.High <= interval.Low || cut.Low >= interval.High)
+                {
+                    next.Add(interval);
+                    continue;
+                }
+
+                if (interval.Low < cut.Low)
+                {
+                    next.Add((interval.Low, cut.Low));
+                }
+
+                if (cut.High < interval.High)
+                {
+                    next.Add((cut.High, interval.High));
+                }
+            }
+
+            result = next;
+        }
+
+        return result;
+    }
 }
 
 /// <summary>

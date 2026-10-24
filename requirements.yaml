@@ -69,6 +69,8 @@ includes:
   - docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/triangle-rasterizer.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/fragment-buffer.yaml
+  - docs/reqstream/canvas-net-render3d/scene-rendering/csg-resolver.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/scene-renderer.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

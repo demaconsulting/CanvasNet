@@ -1,10 +1,12 @@
 ### SceneRenderer Unit Verification Design
 
-<!-- cspell:ignore Binner binner supersampling supersamples -->
+<!-- cspell:ignore Binner binner supersampling supersamples subtrahend subtrahends minuend speckle -->
+<!-- cspell:ignore tessellated -->
 
 This document describes the unit-level verification strategy for the `SceneRenderer` and
-`SceneRenderOptions` classes and the internal `TileBinner`, `TileBins`, `SampleResolver`, and
-`TileWorkspace` types.
+`SceneRenderOptions` classes, the diagnostic types `RenderBudgetExceededException`,
+`SceneRenderUnsupportedFeature`, and `SceneRenderUnsupportedFeatureException`, and the internal
+`CsgOperandValidator`, `TileBinner`, `TileBins`, `SampleResolver`, and `TileWorkspace` types.
 
 #### Verification Approach
 
@@ -20,10 +22,23 @@ hand-built triangles and a hand-filled `TileWorkspace`. Cancellation is verified
 tokens (sequential and parallel) and with a token cancelled during rendering. No mocking or stubbing
 is required.
 
-Unit tests reside in `SceneRendererTests.cs`, `SceneRenderOptionsTests.cs`, `TileBinnerTests.cs`,
+Fragment-list constructive solid geometry is verified end to end through `SceneRenderer.Render`
+with three techniques. **Flat shading with an unmistakable back-face color** makes a pixel's color
+name the surface that produced it. **Independent oracles** (an analytic box-CSG evaluation at every
+pixel of a top-down view, including seeded random trees; a tessellated sphere's cross-section;
+the equivalent baked mesh for mirrored operands; the z-buffer image for union-only scenes) judge
+correctness without golden images. **Contract probes** drive the budget (bisection for the exact
+boundary, sequential and parallel), cancellation precedence, and the operand-reporting delivery
+rules (recording handler, strict mode, deduplication and order, scope, and ordering relative to
+rendering work) through the public options. The internal `SceneRenderer.RenderWithFragmentPath`
+seam is used to prove the equivalence of the two paths.
+
+Unit tests reside in `SceneRendererTests.cs`, `SceneRendererCsgTests.cs` (fragment-list rendering,
+budget, mirrored CSG operands, fast path, determinism), `CsgOperandValidatorTests.cs` (operand
+reporting), `SceneRenderOptionsTests.cs`, `SceneRenderDiagnosticsTests.cs`, `TileBinnerTests.cs`,
 and `SampleResolverTests.cs` within the `DemaConsulting.CanvasNet.Render3D.Tests` project, in the
 `SceneRendering` folder. Shared helpers (flat-shading options, orthographic cameras, quad and box
-mesh builders, surface comparison) are in `Render3DTestHelpers.cs`.
+mesh builders, an asymmetric solid, surface comparison) are in `Render3DTestHelpers.cs`.
 
 #### Test Environment
 
@@ -131,6 +146,31 @@ that a null light list selects the default rig, and that the supplied light list
 mutation has no effect. `SceneRenderOptionsTests.SceneRenderOptions_NumericRanges_AreValidated`
 verifies the range checks of the numeric options.
 
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions: Fragment Budget And Unsupported-Feature Options
+
+**Tests**: `SceneRenderOptionsTests.SceneRenderOptions_CsgDefaults_BudgetFourMiAndTolerant`,
+`SceneRenderOptionsTests.SceneRenderOptions_MaxFragmentsPerTile_OutOfRange_Throws`,
+`SceneRenderOptionsTests.SceneRenderOptions_UnsupportedFeatureSettings_StoredAsGiven`
+
+Asserts that the default budget is 4 Mi (4194304) fragments with no handler and non-strict
+behavior, that a budget below one or above `Array.MaxLength` is rejected with
+`ArgumentOutOfRangeException` while the inclusive bounds 1 and `Array.MaxLength` are accepted, and
+that a supplied handler and strict flag are stored unchanged.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics: Diagnostic Types Carry Their Data
+
+**Tests**: `SceneRenderDiagnosticsTests.RenderBudgetExceededException_Budget_CarriesBudgetAndStandardMessage`,
+`SceneRenderDiagnosticsTests.RenderBudgetExceededException_StandardConstructors_UseDefaultBudget`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeature_Record_ExposesValues`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeatureException_FeatureConstructor_CarriesFeatureAndNode`,
+`SceneRenderDiagnosticsTests.SceneRenderUnsupportedFeatureException_StandardConstructors_HaveEmptyFeature`
+
+Asserts that the budget exception carries the exceeded budget and an identical message for the same
+budget, that the standard constructors report the default budget, that the report record exposes
+its feature, message and optional node with value equality, and that the unsupported-feature
+exception carries its feature token and node (empty feature and null node for the standard
+constructors).
+
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Precision: Far-Away Geometry Renders Identically
 
 **Test**: `SceneRendererTests.SceneRenderer_Render_CubeOneMillionUnitsAway_IdenticalToCubeAtOrigin`
@@ -141,11 +181,171 @@ one million units render byte-identically to the same cube and camera at the ori
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored: Mirrored Instances Are Front-Facing
 
 **Tests**: `SceneRendererTests.SceneRenderer_Render_MirroredSymmetricCube_IdenticalToOriginal`,
-`SceneRendererTests.SceneRenderer_Render_NegativeScaleInGroup_FacesAreFrontFacing`
+`SceneRendererTests.SceneRenderer_Render_NegativeScaleInGroup_FacesAreFrontFacing`,
+`SceneRendererTests.SceneRenderer_Render_MirroredAsymmetricSolid_MatchesBakedMirrorWithNoBackFaces`,
+`SceneRendererTests.SceneRenderer_Render_DoubleMirroredAsymmetricSolid_FacesStayFrontFacing`
 
 Asserts that a symmetric cube under a mirror transform renders byte-identically to the original, and
 that a cube under a group with a negative scale is shown with front-face shading, not the back-face
-color.
+color. Because a symmetric object cannot reveal a swapped front/back classification, the strong
+scenarios render an **asymmetric** solid under negative scale on one, two, and three axes and assert
+that the image equals the same mesh with the mirror baked into its vertices (`Mesh.Transform`) and
+contains no back-face-colored pixel, and that a double mirror (two negative scales) is front-facing
+again (acceptance scenario A7, z-buffer part).
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-CsgFastPath: Union-Only Scenes Keep The Z-Buffer Path
+
+**Tests**: `SceneRendererCsgTests.SceneRenderer_Render_UnionCsgNode_IdenticalToGroupNode`,
+`SceneRendererCsgTests.SceneRenderer_RenderWithFragmentPath_UnionOnlyScenes_IdenticalToZBuffer`,
+`SceneRendererCsgTests.SceneRenderer_Render_UnionOnlyScene_IgnoresFragmentBudget`
+
+Asserts that a union `CsgNode` renders byte-identically to the equivalent `GroupNode`; that a
+union-only scene renders successfully, with the same image as under the default budget, with a
+fragment budget of one (the budget is ignored because no fragment storage exists; operands of a
+union-only scene are never validated, see the operand-reporting scenario); and, through the
+internal `SceneRenderer.RenderWithFragmentPath` seam that forces the fragment-list path (single
+leaf, program `L0`) onto union-only scenes of closed solids (disjoint, overlapping, and mirrored
+solids), that the fragment-list image equals the z-buffer image with antialiasing, sequentially and
+in parallel, up to at most two differing pixels (grazing silhouette samples whose front and back
+surfaces lie within the depth tolerance; typically none). Acceptance scenario A9.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-CsgSurfaces: Fragment-List Rendering Resolves The Visible Surface
+
+**Tests**: `SceneRendererCsgTests.SceneRenderer_Render_CubeMinusSphere_ShowsCavityInSubtrahendColor`,
+`SceneRendererCsgTests.SceneRenderer_Render_CubeMinusSphereOblique_CutSurfaceUsesFlippedNormal`,
+`SceneRendererCsgTests.SceneRenderer_Render_CubeIntersectSphere_SilhouetteIsSquareClippedByDisc`,
+`SceneRendererCsgTests.SceneRenderer_Render_NestedDifferenceOfDifferences_MatchesOracle`,
+`SceneRendererCsgTests.SceneRenderer_Render_RandomBoxTrees_MatchOracle`,
+`SceneRendererCsgTests.SceneRenderer_Render_CoincidentFaceDifference_HasNoSpeckle`,
+`SceneRendererCsgTests.SceneRenderer_Render_NearlyCoincidentFaceDifference_HasNoSpeckle`,
+`SceneRendererCsgTests.SceneRenderer_Render_NearlyCoincidentFacesAcrossPlacements_HaveNoSpeckle`,
+`SceneRendererCsgTests.SceneRenderer_Render_PerspectiveCameraInsideSolid_ShowsBackFaceEverywhere`,
+`SceneRendererCsgTests.SceneRenderer_Render_OrthographicCameraInsideSolid_ShowsBackFaceEverywhere`,
+`SceneRendererCsgTests.SceneRenderer_Render_FittedCameraOutsideSolid_ShowsMinuendAndCavity`
+
+Uses flat (ambient-only) options with a back-face color no surface uses, so a pixel's color names
+the surface that produced it. Asserts:
+
+- **A1, cube minus sphere**: the cavity is shown in the subtrahend's own color with a footprint
+  matching the tessellated sphere's cross-section; in an oblique view the cut surface is lit from
+  the flipped normal (it differs from the union's bump and from the back-face color).
+- **A2, cube intersect sphere**: the silhouette is the square clipped by the disc.
+- **A3, oracle**: a nested difference of differences and seeded random box trees (depth up to four,
+  three to eight boxes) equal an analytic oracle evaluated independently at every pixel of a
+  top-down view.
+- **A4, coincident faces**: a difference whose faces coincide with the minuend's, viewed from above,
+  below, and obliquely, shows only the two surface colors and the background (no speckle); the
+  same holds when the coincidence is only approximate (mathematically equal but different transform
+  chains with a 90-degree rotation and decimal offsets) and over many placements with oblique views
+  above and below, within the documented small allowance of isolated edge-on silhouette samples.
+- **A5, camera inside a solid**: perspective and orthographic cameras inside a large cube see only
+  back-face shading, including through a cavity, matching the plain cube where rays miss the cavity;
+  a fitted camera outside the solid still shows the minuend and the cavity.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-Budget: The Fragment Budget Fails Deterministically
+
+**Tests**: `SceneRendererCsgTests.SceneRenderer_Render_BudgetExceeded_ThrowsDeterministicException`,
+`SceneRendererCsgTests.SceneRenderer_Render_ExactBudgetBoundary_RendersAndOneLessThrows`,
+`SceneRendererCsgTests.SceneRenderer_Render_CancelledAndOverBudget_ThrowsOperationCanceled`
+
+Asserts (acceptance scenario A6) that an over-budget scene throws `RenderBudgetExceededException`
+with the same `MaxFragmentsPerTile` and message for sequential, two-way, and automatic parallelism
+and never an `AggregateException`; that the smallest budget that renders (found by bisection; the
+largest tile's fragment need) succeeds, sequentially and in parallel, with the same image as the
+default budget, and one fragment less throws in both modes; and that on the parallel path a
+cancelled token together with an over-budget scene yields `OperationCanceledException`
+(cancellation takes precedence). That a union-only scene ignores the budget is asserted in the
+fast-path scenario above.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-OperandReporting: Unsuitable Operands Are Reported Before Rendering
+
+**Tests**: `CsgOperandValidatorTests.CsgOperandValidator_Validate_DefectKind_ReportsFeatureAndRendersAnyway`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_HealthyOperands_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_StrictMode_ThrowsTypedException`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_StrictModeWithoutHandler_Throws`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_NoHandlerNoStrict_RendersTolerantly`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_UnionOnlyScene_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_AllInstances_DeduplicatedInPreOrder`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_MirroredOperands_InversionIsIndependentOfDeterminant`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_MirroredInvertedOperand_RendersLikeBakedMesh`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_ExplicitNearPlaneInFrontOfOperands_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_DisjointInvertedShell_ReportsInvertedMesh`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_HollowSolid_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_NestedThreeLevelShells_JudgedByNestingParity`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_UnweldedClosedCube_NotOpenAndInversionDetected`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_UnweldedOpenCube_StillReportsOpenMesh`,
+`SceneRendererCsgTests.SceneRenderer_Render_CameraInsideHollowRoomWithExplicitNearPlane_StrictModeShowsCavityWall`,
+`SceneRendererCsgTests.SceneRenderer_Render_UnweldedOperands_RenderIdenticallyToWelded`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_RunsBeforeRendering`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled`,
+`CsgOperandValidatorTests.CsgOperandValidator_NullArguments_Throw`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_Reported`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ZeroScaleOperand_StrictModeThrows`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_SharedNodeOneSingularInstance_ReportedOnce`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_ValidTransformedOperands_ReportNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_UnionOnlyScene_ReportsNothing`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_DegenerateInViewSpace_ReportedWithRendererCriterion`,
+`CsgOperandValidatorTests.CsgOperandValidator_ValidateTransformed_MirroredInvertedOperand_OnlyInvertedReported`
+
+Renders a difference of a healthy cube and a defective operand with a recording handler (acceptance
+scenario A8). Asserts that:
+
+- each defect kind produces exactly its token (`render3d-csg-open-mesh`,
+  `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
+  `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`) with the offending `MeshNode`,
+  and the render still completes; healthy closed operands report nothing;
+- strict mode throws `SceneRenderUnsupportedFeatureException` for the first problem with the
+  handler not called, with or without a handler configured; with neither a handler nor strict mode
+  the render is tolerant and silent;
+- a union-only scene reports nothing even with an open mesh;
+- every mesh instance of a CSG-path scene is validated (not only the direct operands), a node
+  shared by several parents is reported once, and the order is the scene pre-order and repeatable;
+- inversion is independent of the mirroring transform: a mirrored outward mesh reports nothing, a
+  mirrored inverted mesh is still reported as inverted, and it really renders inside out (equal to
+  the baked inverted-and-mirrored mesh), so the report is accurate;
+- a valid shell plus a disjoint, non-nested inside-out shell (a 4-cube with a reversed unit cube
+  beside it, total volume still positive) is reported as inverted; a hollow solid is not; three
+  nested shells (solid, cavity, solid in the cavity) are valid, and a wrongly wound shell at any of
+  the levels is reported;
+- an unwelded (36-vertex, STL-style) closed cube is not reported as open (even in strict mode) and
+  renders identically to the welded cube, an unwelded reversed cube is reported as inverted, and
+  an unwelded cube with a missing triangle is still open;
+- an explicit near plane in front of operand geometry, or a camera inside a hollow room with an
+  explicit near plane in strict mode, is not reported: nothing is delivered or thrown and the
+  render shows the cavity wall (the CSG solid clipped to the near plane), identical to the render
+  with an automatic near plane;
+- every instance (not only every node) is also checked after its world transform is composed: a
+  zero-scale operand yields `render3d-csg-singular-transform` for its node (and throws in strict
+  mode), a node shared by a valid and a singular instance is reported for the singular one only,
+  triangles that collapse in view space are reported with the renderer's own
+  `TryGetFaceNormal` criterion (and a mesh already reported as degenerate is not repeated), a
+  non-finite determinant is singular, valid rotated, scaled, translated, and mirrored operands
+  report nothing, union-only scenes are unaffected, and a mirrored inverted mesh is still reported
+  only as inverted;
+- validation runs before rendering work (a strict report wins over a tiny fragment budget), observes
+  cancellation (cancelling from the handler stops the render with `OperationCanceledException`), and
+  the entry points reject null arguments.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg: Mirrored CSG Operands Behave Like Their Baked Equivalents
+
+**Tests**: `SceneRendererCsgTests.SceneRenderer_Render_MirroredCsgOperand_MatchesBakedMirror`,
+`SceneRendererCsgTests.SceneRenderer_Render_MirrorAboveCsgNode_MatchesBakedMirror`
+
+Asserts (acceptance scenario A7) that an asymmetric operand of a difference under negative scale on
+one, two, and three axes (all seven sign combinations) renders byte-identically to the same operand
+with the mirror baked into its vertices and shows no back-face-colored pixel, and that the same
+holds when the negative scales are split over the `CsgNode` itself, a grandparent group, and the
+operand nodes (including the double-mirror combinations), on the fragment-list path. Only
+asymmetric operands in several mirror configurations can detect a swapped front/back crossing
+classification.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-CsgDeterminism: CSG Output Is Byte-Identical
+
+**Test**: `SceneRendererCsgTests.SceneRenderer_Render_CsgScene_ParallelAndSequentialAreByteIdentical`
+
+Renders a scene with coincident faces, a mirrored operand, and several leaves with a maximum degree
+of parallelism of 1, 2, and -1, repeated, at each supersampling factor, and asserts byte-identical
+surfaces (acceptance scenario A10).
 
 #### Acceptance Criteria
 

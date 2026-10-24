@@ -141,4 +141,105 @@ public class SceneRenderingTests
 
         Assert.True(rowsChecked > 50);
     }
+
+    /// <summary>
+    ///     Validates the fragment-list pipeline end to end below the renderer: real box meshes go through triangle
+    ///     setup, rasterization, fragment collection and CSG resolution, and a box cut into another shows the
+    ///     subtrahend's back face as the cut surface.
+    /// </summary>
+    [Fact]
+    public void SceneRendering_FragmentListPipeline_BoxMinusBox_ShowsCutSurfaceInsideTheCutout()
+    {
+        // Arrange: orthographic view down -Z over a 64 x 64 sample tile; A spans depth 6..10, B (subtrahend) depth 5..8 over the middle
+        var projection = new SampleProjection(true, 1.0 / 32.0, 1.0 / 32.0, 64, 64, 0.1);
+        var a = new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(-30, -30, -10), new Vector3D(60, 60, 4)));
+        var b = new MeshNode(Render3DTestHelpers.CreateBoxMesh(new Vector3D(-8, -8, -8), new Vector3D(16, 16, 3)));
+        var root = new CsgNode(CsgOperation.Difference, [a, b]);
+        var compilation = CsgCompiler.Compile(root);
+        var instances = new Scene(root).EnumerateInstances().ToArray();
+        var surfaceColor = new Rgba32(10, 20, 30, 255);
+        var cutColor = new Rgba32(200, 100, 0, 255);
+        var screen = new List<ScreenTriangle>();
+        foreach (var instance in instances)
+        {
+            var isCutter = ReferenceEquals(instance.Node, b);
+            var indices = instance.Mesh.TriangleIndices;
+            for (var t = 0; t < indices.Count; t += 3)
+            {
+                ClipVertex Vertex(int i) => new(instance.Mesh.Vertices[indices[t + i]].X, instance.Mesh.Vertices[indices[t + i]].Y, instance.Mesh.Vertices[indices[t + i]].Z);
+                TriangleRasterizer.Setup(
+                    new ViewTriangle
+                    {
+                        A = Vertex(0),
+                        B = Vertex(1),
+                        C = Vertex(2),
+                        Priority = instance.Order,
+                        Leaf = compilation.LeafOfInstance[instance.Order],
+                        FrontEnterColor = isCutter ? cutColor : surfaceColor,
+                        BackEnterColor = isCutter ? cutColor : surfaceColor,
+                    },
+                    projection,
+                    screen);
+            }
+        }
+
+        var buffer = new FragmentBuffer(100_000);
+        var workspace = new TileWorkspace(64 * 64);
+        var resolver = new CsgResolver(compilation.Program!);
+        var tile = new TileRect(0, 0, 64, 64);
+
+        // Act: count pass, fill pass over the same triangles, then resolve
+        buffer.Begin(0, 0, 64, 64);
+        foreach (var triangle in screen)
+        {
+            buffer.CountTriangle(triangle);
+        }
+
+        buffer.EndCounting();
+        for (var i = 0; i < screen.Count; i++)
+        {
+            buffer.AddTriangle(i, screen[i]);
+        }
+
+        workspace.Begin(tile.X0, tile.Y0, tile.Width, tile.Height);
+        resolver.ResolveTile(buffer, [.. screen], workspace, 1e-4f, 1000.0f, TestContext.Current.CancellationToken);
+
+        // Assert: outside the cutout the top face of A at depth 6; inside it the back face of B (the cut surface) at depth 8; off both: background
+        var outside = workspace.IndexOf(4, 32);
+        var inside = workspace.IndexOf(32, 32);
+        Assert.InRange(workspace.Depth[outside], 5.999f, 6.001f);
+        Assert.Equal(surfaceColor, workspace.Colors[outside]);
+        Assert.InRange(workspace.Depth[inside], 7.999f, 8.001f);
+        Assert.Equal(cutColor, workspace.Colors[inside]);
+        Assert.Equal(1, workspace.Meta[inside] & 1);
+        Assert.True(float.IsPositiveInfinity(workspace.Depth[workspace.IndexOf(0, 0)]));
+    }
+
+    /// <summary>
+    ///     Validates the whole subsystem on a constructive solid geometry scene: camera, lights, tessellated
+    ///     operands, validation, fragment collection, resolution and antialiasing together produce a lit image whose
+    ///     cavity is shaded differently from the surrounding face, identically for sequential and parallel tiles.
+    /// </summary>
+    [Fact]
+    public void SceneRendering_ConstructiveSolidGeometry_CubeMinusSphere_RendersLitCavityDeterministically()
+    {
+        // Arrange: a cube with a spherical bite out of its top, default lights and antialiasing
+        var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 10), center: true));
+        var bite = new MeshNode(PrimitiveTessellator.Sphere(3.0, 32)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 5)) };
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [cube, bite]));
+        var camera = Camera.LookAt(new Vector3D(0, -2, 30), new Vector3D(0, 0, 2), Vector3D.UnitY);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var sequential = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = 1, UnsupportedFeatureHandler = reports.Add };
+        var parallel = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = -1 };
+
+        // Act
+        using var a = SceneRenderer.Render(scene, camera, 120, 120, sequential, TestContext.Current.CancellationToken);
+        using var b = SceneRenderer.Render(scene, camera, 120, 120, parallel, TestContext.Current.CancellationToken);
+
+        // Assert: closed primitives raise no report, the cavity centre differs from the top face, and tiles agree byte for byte
+        Assert.Empty(reports);
+        Assert.NotEqual(a[60, 60], a[10, 60]);
+        Assert.True(Render3DTestHelpers.DistinctColors(a).Count > 4);
+        Render3DTestHelpers.AssertSurfacesIdentical(a, b);
+    }
 }

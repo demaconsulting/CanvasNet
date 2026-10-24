@@ -19,6 +19,8 @@ input-files:
   - docs/design/canvas-net-render3d/scene-rendering/camera.md
   - docs/design/canvas-net-render3d/scene-rendering/lighting.md
   - docs/design/canvas-net-render3d/scene-rendering/triangle-rasterizer.md
+  - docs/design/canvas-net-render3d/scene-rendering/fragment-buffer.md
+  - docs/design/canvas-net-render3d/scene-rendering/csg-resolver.md
   - docs/design/canvas-net-render3d/scene-rendering/scene-renderer.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md

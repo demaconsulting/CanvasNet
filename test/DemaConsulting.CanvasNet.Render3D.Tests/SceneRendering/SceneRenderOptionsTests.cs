@@ -95,4 +95,57 @@ public class SceneRenderOptionsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { SpecularPower = float.PositiveInfinity });
         Assert.Equal(1.0f, new SceneRenderOptions { SpecularStrength = 1.0f }.SpecularStrength);
     }
+
+    /// <summary>
+    ///     Validates the defaults of the CSG budget and unsupported-feature options.
+    /// </summary>
+    [Fact]
+    public void SceneRenderOptions_CsgDefaults_BudgetFourMiAndTolerant()
+    {
+        // Arrange / Act
+        var options = new SceneRenderOptions();
+
+        // Assert
+        Assert.Equal(4L * 1024 * 1024, options.MaxFragmentsPerTile);
+        Assert.Equal(4_194_304L, SceneRenderOptions.Default.MaxFragmentsPerTile);
+        Assert.Null(options.UnsupportedFeatureHandler);
+        Assert.False(options.ThrowOnUnsupportedFeature);
+    }
+
+    /// <summary>
+    ///     Validates that the fragment budget must be at least 1 and at most the maximum array length.
+    /// </summary>
+    [Fact]
+    public void SceneRenderOptions_MaxFragmentsPerTile_OutOfRange_Throws()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { MaxFragmentsPerTile = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { MaxFragmentsPerTile = -1 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { MaxFragmentsPerTile = long.MinValue });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { MaxFragmentsPerTile = (long)Array.MaxLength + 1 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRenderOptions { MaxFragmentsPerTile = long.MaxValue });
+        Assert.Equal(1L, new SceneRenderOptions { MaxFragmentsPerTile = 1 }.MaxFragmentsPerTile);
+        Assert.Equal((long)Array.MaxLength, new SceneRenderOptions { MaxFragmentsPerTile = Array.MaxLength }.MaxFragmentsPerTile);
+    }
+
+    /// <summary>
+    ///     Validates that the unsupported-feature handler and strict flag are stored unchanged.
+    /// </summary>
+    [Fact]
+    public void SceneRenderOptions_UnsupportedFeatureSettings_StoredAsGiven()
+    {
+        // Arrange
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        Action<SceneRenderUnsupportedFeature> handler = reports.Add;
+
+        // Act
+        var options = new SceneRenderOptions { UnsupportedFeatureHandler = handler, ThrowOnUnsupportedFeature = true };
+        Assert.NotNull(options.UnsupportedFeatureHandler);
+        options.UnsupportedFeatureHandler(new SceneRenderUnsupportedFeature("f", "m"));
+
+        // Assert
+        Assert.Same(handler, options.UnsupportedFeatureHandler);
+        Assert.True(options.ThrowOnUnsupportedFeature);
+        Assert.Equal("f", Assert.Single(reports).Feature);
+    }
 }

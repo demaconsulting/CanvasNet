@@ -2,10 +2,10 @@
 # Software Unit Requirements for SceneGraph
 #
 # These requirements describe the design-level behavior of the SceneGraph unit: the public
-# SceneNode, MeshNode, GroupNode, NodeAppearance, and Scene types (and the internal SceneInstance
-# record) in the DemaConsulting.CanvasNet.Render3D.SceneModel namespace. A group's semantics in
-# Phase 1 is the implicit union of its children; constructive solid geometry arrives in a later
-# phase.
+# SceneNode, MeshNode, GroupNode, CsgNode, CsgOperation, NodeAppearance, and Scene types (and the
+# internal SceneInstance record) in the DemaConsulting.CanvasNet.Render3D.SceneModel namespace. A
+# group's semantics is the implicit union of its children; boolean operations (difference,
+# intersection) are expressed with CsgNode.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -89,3 +89,43 @@ sections:
                   overflow cannot be caught by the caller.
                 tests:
                   - Scene_EnumerateInstances_TenThousandNestedGroups_DoesNotOverflowStack
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-CsgNode
+                title: >-
+                  The CsgNode constructor shall accept a defined CsgOperation (Union, Difference,
+                  or Intersection) and a sequence of child nodes, reject an undefined operation
+                  with ArgumentOutOfRangeException, a null sequence with ArgumentNullException, and
+                  a null child element with ArgumentException, defensively copy the children,
+                  allow an empty node (which is empty for every operation), and validate its
+                  Transform like every other node.
+                justification: |
+                  Constructive solid geometry needs an immutable, validated boolean node that keeps
+                  the closed scene-node hierarchy, and a defined meaning for a node without
+                  children so that generated models never meet an undefined case.
+                tests:
+                  - CsgNode_Constructor_NullChildren_Throws
+                  - CsgNode_Constructor_NullChildElement_Throws
+                  - CsgNode_Constructor_UndefinedOperation_Throws
+                  - CsgNode_Constructor_KeepsOperationAndCopiesChildren
+                  - CsgNode_Constructor_Empty_AllowedAndEmptyForEveryOperation
+                  - CsgNode_Transform_NonFiniteMatrix_ThrowsArgumentException
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-CsgEnumeration
+                title: >-
+                  The Scene shall enumerate every operand of a CsgNode exactly like the children of
+                  a group (depth-first pre-order, child-then-parent transform composition,
+                  innermost-appearance inheritance, once per path for a shared child, without
+                  recursion for ten thousand nested nodes), report for each instance the MeshNode
+                  it came from, and include every operand in the scene bounds.
+                justification: |
+                  The renderer recovers the boolean structure from the same traversal that yields
+                  the instances; a node kind the traversal silently skipped would vanish from the
+                  render and from the bounds, and the source node lets diagnostics point back to
+                  the model.
+                tests:
+                  - Scene_EnumerateInstances_CsgNode_DescendsIntoOperandsInPreOrder
+                  - Scene_EnumerateInstances_CsgNode_SharedChild_EnumeratedPerPath
+                  - Scene_EnumerateInstances_CsgNode_ComposesTransformAndInheritsAppearance
+                  - CsgNode_SingleChild_EnumeratesThatChild
+                  - Scene_ComputeBounds_CsgNode_IncludesAllOperands
+                  - Scene_EnumerateInstances_TenThousandNestedCsgNodes_DoesNotOverflowStack

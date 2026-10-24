@@ -107,6 +107,22 @@ Asserts that, within the tolerance, the lower draw priority wins and a front-fac
 back-facing one, that beyond the tolerance the nearer fragment wins, and that the stored depth after
 a tie is the minimum of the two depths.
 
+##### CanvasNetRender3D-SceneRendering-TriangleRasterizer-CsgAttributes: CSG Attributes And Depth Slope
+
+**Tests**: `TriangleRasterizerTests.TriangleRasterizer_Setup_CsgAttributes_AreCopiedAndSelectedByFacing`,
+`TriangleRasterizerTests.TriangleRasterizer_Setup_DepthSlope_IsDepthGradientPerSample`,
+`TriangleRasterizerTests.TriangleRasterizer_ComputeDepthSlope_PerspectiveAndDegenerateInput`
+
+Asserts that a front-facing and a reversed (back-facing) triangle both carry the view triangle's CSG
+leaf, that the front shade pair is selected for the front-facing triangle and the back shade pair
+for the back-facing one, and that the z-buffer `Color`, facing, and area are unchanged. Asserts that
+`Setup` stores the depth slope of an orthographic triangle with depths 5, 7, and 5 over an
+8-sample right triangle as the gradient magnitude `sqrt(0.25^2 + 0.25^2)` per sample, and zero for a
+constant-depth triangle, and that `ComputeDepthSlope` gives the analytic value for perspective
+depth (the gradient of `1 / depth` = (0, 0.025) per sample for depths 10, 10, and 5 over a 4 x 4
+sample triangle, scaled by the square of the deepest depth, so 2.5) and zero for degenerate input
+(collinear vertices and a non-positive perspective depth).
+
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario above passes without error or exception beyond

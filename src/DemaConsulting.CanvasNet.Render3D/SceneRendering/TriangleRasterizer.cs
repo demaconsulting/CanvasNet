@@ -246,6 +246,7 @@ internal static class TriangleRasterizer
         var d0 = (float)a.Depth;
         var d1 = (float)b.Depth;
         var d2 = (float)c.Depth;
+        var slope = ComputeDepthSlope(fx0, fy0, fx1, fy1, fx2, fy2, d0, d1, d2, !projection.IsOrthographic);
         output.Add(front
             ? new ScreenTriangle
             {
@@ -260,9 +261,15 @@ internal static class TriangleRasterizer
                 Depth1 = d2,
                 Depth2 = d1,
                 PerspectiveDepth = !projection.IsOrthographic,
+                DepthSlope = slope,
                 Priority = source.Priority,
                 BackFacing = false,
                 Color = source.FrontColor,
+                Leaf = source.Leaf,
+                EnterColor = source.FrontEnterColor,
+                ExitColor = source.FrontExitColor,
+                PlaneNormal = source.PlaneNormal,
+                PlanePoint = source.PlanePoint,
             }
             : new ScreenTriangle
             {
@@ -277,10 +284,74 @@ internal static class TriangleRasterizer
                 Depth1 = d1,
                 Depth2 = d2,
                 PerspectiveDepth = !projection.IsOrthographic,
+                DepthSlope = slope,
                 Priority = source.Priority,
                 BackFacing = true,
                 Color = source.BackColor,
+                Leaf = source.Leaf,
+                EnterColor = source.BackEnterColor,
+                ExitColor = source.BackExitColor,
+                PlaneNormal = source.PlaneNormal,
+                PlanePoint = source.PlanePoint,
             });
+    }
+
+    /// <summary>
+    ///     Computes the magnitude of the screen-space depth gradient of a triangle, in depth units per sample.
+    /// </summary>
+    /// <remarks>
+    ///     For orthographic depth (linear on screen) this is the gradient of the plane through the three
+    ///     vertex depths. For perspective depth, <c>1 / depth</c> is linear on screen, so the gradient of
+    ///     depth is <c>depth^2</c> times the gradient of <c>1 / depth</c>, evaluated at the deepest vertex
+    ///     (an upper bound over the triangle). Degenerate or non-finite input yields zero.
+    /// </remarks>
+    /// <param name="x0">Vertex 0 X in 24.8 fixed point.</param>
+    /// <param name="y0">Vertex 0 Y in 24.8 fixed point.</param>
+    /// <param name="x1">Vertex 1 X in 24.8 fixed point.</param>
+    /// <param name="y1">Vertex 1 Y in 24.8 fixed point.</param>
+    /// <param name="x2">Vertex 2 X in 24.8 fixed point.</param>
+    /// <param name="y2">Vertex 2 Y in 24.8 fixed point.</param>
+    /// <param name="d0">The depth at vertex 0.</param>
+    /// <param name="d1">The depth at vertex 1.</param>
+    /// <param name="d2">The depth at vertex 2.</param>
+    /// <param name="perspective">Whether depth is perspective-correct (1/depth linear on screen).</param>
+    /// <returns>The gradient magnitude, or zero when it cannot be determined.</returns>
+    internal static float ComputeDepthSlope(int x0, int y0, int x1, int y1, int x2, int y2, float d0, float d1, float d2, bool perspective)
+    {
+        // Edge vectors from vertex 0 in sample units
+        var ax = (x1 - x0) / (double)FixedOne;
+        var ay = (y1 - y0) / (double)FixedOne;
+        var bx = (x2 - x0) / (double)FixedOne;
+        var by = (y2 - y0) / (double)FixedOne;
+        var determinant = (ax * by) - (ay * bx);
+        if (!(Math.Abs(determinant) > 0.0))
+        {
+            return 0.0f;
+        }
+
+        double v0 = d0;
+        double v1 = d1;
+        double v2 = d2;
+        var scale = 1.0;
+        if (perspective)
+        {
+            if (!(d0 > 0.0f && d1 > 0.0f && d2 > 0.0f))
+            {
+                return 0.0f;
+            }
+
+            v0 = 1.0 / d0;
+            v1 = 1.0 / d1;
+            v2 = 1.0 / d2;
+            var deepest = Math.Max(d0, Math.Max(d1, d2));
+            scale = (double)deepest * deepest;
+        }
+
+        // Solve gx * a + gy * a' = v1 - v0 and gx * b + gy * b' = v2 - v0 (by determinants)
+        var gx = (((v1 - v0) * by) - (ay * (v2 - v0))) / determinant;
+        var gy = ((ax * (v2 - v0)) - ((v1 - v0) * bx)) / determinant;
+        var slope = scale * Math.Sqrt((gx * gx) + (gy * gy));
+        return double.IsFinite(slope) && slope < float.MaxValue ? (float)slope : 0.0f;
     }
 
     /// <summary>Rounds a sample coordinate to 24.8 fixed point, rejecting non-finite or out-of-range values.</summary>

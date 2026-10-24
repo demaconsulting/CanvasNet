@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -65,4 +66,36 @@ internal readonly struct ScreenTriangle
 
     /// <summary>Gets the opaque flat-shaded color of the visible side.</summary>
     public Rgba32 Color { get; init; }
+
+    /// <summary>
+    ///     Gets the largest rate of change of depth per sample step (the magnitude of the screen-space depth
+    ///     gradient, in depth units per sample); used only by the fragment-list CSG path to size the tie
+    ///     tolerance of coincident faces of different meshes, whose rounded vertices can differ by a
+    ///     fixed-point quantum. Zero (the default) means "flat or unknown".
+    /// </summary>
+    public float DepthSlope { get; init; }
+
+    /// <summary>Gets the CSG leaf (collapsed union-only subtree) the triangle belongs to; used only by the fragment-list CSG path.</summary>
+    public int Leaf { get; init; }
+
+    /// <summary>
+    ///     Gets the shade used when this triangle is the visible surface where the CSG result changes
+    ///     from outside to inside; used only by the fragment-list CSG path.
+    /// </summary>
+    public Rgba32 EnterColor { get; init; }
+
+    /// <summary>
+    ///     Gets the shade used when this triangle is the visible surface where the CSG result changes
+    ///     from inside to outside (the viewer starts inside material); used only by the fragment-list CSG path.
+    /// </summary>
+    public Rgba32 ExitColor { get; init; }
+
+    /// <summary>
+    ///     Gets the unit normal of the triangle's supporting plane in view space (zero when unknown, which never
+    ///     counts as coincident); used only by the fragment-list CSG path.
+    /// </summary>
+    public Vector3 PlaneNormal { get; init; }
+
+    /// <summary>Gets a point on the triangle's supporting plane in view space (its centroid); used with <see cref="PlaneNormal"/>.</summary>
+    public Vector3 PlanePoint { get; init; }
 }

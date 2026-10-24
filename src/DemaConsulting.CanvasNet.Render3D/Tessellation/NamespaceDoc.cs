@@ -11,8 +11,8 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 /// <remarks>
 ///     Every generated mesh is welded (each vertex is created once and shared by index), closed
 ///     (every edge is shared by exactly two triangles with opposite directions) and wound
-///     counter-clockwise when seen from outside, so it can be used directly by the renderer and,
-///     in later phases, by constructive-solid-geometry operations.
+///     counter-clockwise when seen from outside, so it can be used directly by the renderer and
+///     as an operand of constructive-solid-geometry operations (<c>CsgNode</c>).
 /// </remarks>
 internal static class NamespaceDoc
 {

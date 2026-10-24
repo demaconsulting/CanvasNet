@@ -29,7 +29,8 @@ public sealed class Scene
     /// <summary>
     ///     Computes the tight world-space bounds of all geometry by transforming every instance
     ///     vertex in double precision (not the loose box of transformed boxes). The result is
-    ///     cached.
+    ///     cached. Every operand of a <see cref="CsgNode"/> contributes, so for a difference or an
+    ///     intersection the bounds conservatively enclose the (possibly smaller) result.
     /// </summary>
     /// <returns>The bounds, or <see cref="BoundingBox3D.Empty"/> for a scene without vertices.</returns>
     public BoundingBox3D ComputeBounds()
@@ -59,6 +60,11 @@ public sealed class Scene
     ///     (<c>node.Transform * parentWorld</c>), the innermost appearance and its pre-order index,
     ///     which the renderer uses as the draw priority.
     /// </summary>
+    /// <remarks>
+    ///     Both <see cref="GroupNode"/> and <see cref="CsgNode"/> children are descended, so every
+    ///     operand of a boolean node is an instance; the operation itself is not represented here.
+    ///     Each instance also carries the <see cref="MeshNode"/> it came from (for diagnostics).
+    /// </remarks>
     /// <returns>The instances in pre-order; a shared child is enumerated once per path.</returns>
     internal IEnumerable<SceneInstance> EnumerateInstances()
     {
@@ -74,16 +80,38 @@ public sealed class Scene
 
             if (node is MeshNode meshNode)
             {
-                yield return new SceneInstance(meshNode.Mesh, world, appearance, order++);
+                yield return new SceneInstance(meshNode.Mesh, world, appearance, order++, meshNode);
             }
             else if (node is GroupNode group)
             {
-                // Push in reverse so the first child is popped (and numbered) first
-                for (var i = group.Children.Count - 1; i >= 0; i--)
-                {
-                    stack.Push((group.Children[i], world, appearance));
-                }
+                PushChildren(stack, group.Children, world, appearance);
             }
+            else if (node is CsgNode csg)
+            {
+                // A CSG node enumerates its operands exactly like a group; the boolean structure is
+                // recovered by the renderer from the same pre-order walk, so no operand is ever dropped
+                PushChildren(stack, csg.Children, world, appearance);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Pushes <paramref name="children"/> in reverse so the first child is popped (and numbered)
+    ///     first, keeping the traversal a pre-order depth-first walk.
+    /// </summary>
+    /// <param name="stack">The traversal stack.</param>
+    /// <param name="children">The children of the node being expanded.</param>
+    /// <param name="world">The world transform composed so far for the expanded node.</param>
+    /// <param name="appearance">The innermost appearance of the expanded node.</param>
+    private static void PushChildren(
+        Stack<(SceneNode Node, Matrix4x4D ParentWorld, NodeAppearance? ParentAppearance)> stack,
+        IReadOnlyList<SceneNode> children,
+        Matrix4x4D world,
+        NodeAppearance? appearance)
+    {
+        for (var i = children.Count - 1; i >= 0; i--)
+        {
+            stack.Push((children[i], world, appearance));
         }
     }
 }

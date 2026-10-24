@@ -7,9 +7,10 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// </summary>
 /// <remarks>
 ///     The children are copied at construction, so a group is immutable; because a child must
-///     exist before its parent, cycles are impossible. In Phase 1 a group means the plain union of
-///     its children (no boolean operations). The same child instance may appear under several
-///     groups (a directed acyclic graph); it is then rendered once per path.
+///     exist before its parent, cycles are impossible. A group means the plain union of its
+///     children; boolean operations (difference, intersection) are expressed with
+///     <see cref="CsgNode"/>. A group without children is empty. The same child instance may
+///     appear under several groups (a directed acyclic graph); it is then rendered once per path.
 /// </remarks>
 public sealed class GroupNode : SceneNode
 {

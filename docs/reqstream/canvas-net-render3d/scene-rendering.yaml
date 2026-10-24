@@ -72,6 +72,7 @@ sections:
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-DepthInterpolation
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-Degenerate
               - CanvasNetRender3D-SceneRendering-TriangleRasterizer-TieResolution
+              - CanvasNetRender3D-SceneRendering-TriangleRasterizer-CsgAttributes
             tests:
               - SceneRendering_TwoAdjacentQuads_LeaveNoGap
 
@@ -96,7 +97,60 @@ sections:
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Parallelism
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Cancellation
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Options
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgOptions
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Diagnostics
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Precision
               - CanvasNetRender3D-SceneRendering-SceneRenderer-Mirrored
             tests:
               - SceneRendering_SceneStraddlingTileBoundaries_HasNoSeams
+
+          - id: CanvasNetRender3D-SceneRendering-FragmentListCsg
+            title: >-
+              The SceneRendering subsystem shall provide the fragment-list resolution of constructive
+              solid geometry: collecting every rasterized fragment of a tile into an exact-sized,
+              budgeted per-worker buffer, compiling the scene tree into a leaf-based program (no
+              program for union-only scenes), and resolving each sample's visible surface from its
+              sorted fragments with whole-ray initial state, atomic tie groups and cut-surface
+              shading, deterministically and independent of fragment order.
+            justification: |
+              Difference and intersection cannot be rendered by a depth buffer; resolving the
+              combined solid per sample from all fragments gives exact CSG without mesh boolean
+              operations, and bounding and ordering the fragment data keeps it safe and repeatable.
+            children:
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Collect
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Budget
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Reuse
+              - CanvasNetRender3D-SceneRendering-FragmentBuffer-Lifecycle
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Program
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Evaluation
+              - CanvasNetRender3D-SceneRendering-CsgResolver-FastPath
+              - CanvasNetRender3D-SceneRendering-CsgResolver-InitialState
+              - CanvasNetRender3D-SceneRendering-CsgResolver-VisibleSurface
+              - CanvasNetRender3D-SceneRendering-CsgResolver-TieGroups
+              - CanvasNetRender3D-SceneRendering-CsgResolver-Determinism
+            tests:
+              - SceneRendering_FragmentListPipeline_BoxMinusBox_ShowsCutSurfaceInsideTheCutout
+
+          - id: CanvasNetRender3D-SceneRendering-CsgRendering
+            title: >-
+              The SceneRendering subsystem shall integrate constructive solid geometry into the
+              renderer: scenes without a difference or intersection stay on the z-buffer path
+              unchanged, other scenes are rendered per tile from collected fragments (honoring
+              supersampling, tile parallelism, cancellation and the per-tile fragment budget,
+              with a deterministic budget exception), their operands are validated and
+              reported before any work, mirrored operands are classified with the corrected
+              facing, and the output is byte-identical across parallelism and runs.
+            justification: |
+              Resolution of a CSG scene is only useful if it composes with the rest of the
+              renderer: it must reuse the tiling, antialiasing and parallelism, fail
+              predictably when memory would be exceeded, tell the caller about operands that are
+              not solids, and stay exactly reproducible.
+            children:
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgFastPath
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgSurfaces
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-Budget
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-OperandReporting
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg
+              - CanvasNetRender3D-SceneRendering-SceneRenderer-CsgDeterminism
+            tests:
+              - SceneRendering_ConstructiveSolidGeometry_CubeMinusSphere_RendersLitCavityDeterministically

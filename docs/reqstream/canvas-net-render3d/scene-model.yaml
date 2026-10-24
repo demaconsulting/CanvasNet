@@ -37,7 +37,8 @@ sections:
             title: >-
               The SceneModel subsystem shall provide an immutable, validated, defensively copied
               triangle mesh with a counter-clockwise-outward winding contract, bounds, closedness,
-              signed volume, surface area, winding-correct transformation, and reversal, together
+              topology-defect classification, signed volume, surface area, winding-correct
+              transformation, and reversal, together
               with a welding mesh builder.
             justification: |
               Every renderable shape reduces to a triangle mesh; a validated, immutable mesh with
@@ -48,6 +49,8 @@ sections:
               - CanvasNetRender3D-SceneModel-Mesh-DefensiveCopy
               - CanvasNetRender3D-SceneModel-Mesh-Bounds
               - CanvasNetRender3D-SceneModel-Mesh-Topology
+              - CanvasNetRender3D-SceneModel-Mesh-TopologyDefects
+              - CanvasNetRender3D-SceneModel-Mesh-WeldedTopology
               - CanvasNetRender3D-SceneModel-Mesh-VolumeArea
               - CanvasNetRender3D-SceneModel-Mesh-Transform
               - CanvasNetRender3D-SceneModel-Mesh-Reverse
@@ -57,11 +60,12 @@ sections:
 
           - id: CanvasNetRender3D-SceneModel-SceneGraph
             title: >-
-              The SceneModel subsystem shall provide an immutable scene graph of mesh and group
-              nodes with validated double-precision transforms and optional node colors, whose
-              traversal composes transforms child-then-parent, applies innermost-color-wins
-              inheritance, assigns a stable draw order, handles very deep nesting without stack
-              overflow, and yields tight world-space bounds.
+              The SceneModel subsystem shall provide an immutable scene graph of mesh, group, and
+              constructive-solid-geometry (CsgNode) nodes with validated double-precision
+              transforms and optional node colors, whose traversal composes transforms
+              child-then-parent, applies innermost-color-wins inheritance, assigns a stable draw
+              order, descends into the operands of boolean nodes, handles very deep nesting
+              without stack overflow, and yields tight world-space bounds.
             justification: |
               Callers describe assemblies hierarchically; the renderer needs a flattened,
               deterministic, transform-composed view of that hierarchy.
@@ -72,5 +76,7 @@ sections:
               - CanvasNetRender3D-SceneModel-SceneGraph-AppearanceInheritance
               - CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds
               - CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting
+              - CanvasNetRender3D-SceneModel-SceneGraph-CsgNode
+              - CanvasNetRender3D-SceneModel-SceneGraph-CsgEnumeration
             tests:
               - SceneModel_NestedGroups_BoundsMatchAnalytic
