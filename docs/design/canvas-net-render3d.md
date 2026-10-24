@@ -429,10 +429,12 @@ The algorithm is exact when all of the following hold:
   faces coincide mathematically rasterize from vertices rounded to 1/256 sample, so at oblique
   angles their interpolated depths differ by about the depth slope times that quantum, far above the
   base tolerance. For a fragment of a mesh instance that is not yet in a tie group the tolerance is
-  therefore widened by `min((slopeAnchor + slopeCandidate) * (1/128 sample), 1000 * epsilon)`, where
+  therefore widened, when the two triangles are coplanar in view space (parallel normals and a plane
+  distance within the base tolerance), by `min((slopeAnchor + slopeCandidate) * (1/128 sample), 1000 * epsilon)`, where
   `slope` is the triangle's screen-space depth gradient (`ScreenTriangle.DepthSlope`). A fragment of
   an instance already in the group is never merged by this widening (it is a different event, such
-  as the far side of a thin fold or wall) and uses the base tolerance only. Exactly coincident faces
+  as the far side of a thin fold or wall) and uses the base tolerance only, and so does a fragment of
+  a different plane (genuinely separate, closely spaced surfaces keep their own events). Exactly coincident faces
   (identical vertex coordinates) give zero speckle, and nearly coincident faces from different
   transform chains are speckle-free in the tested views; along the edge-on silhouette of coincident
   walls a few isolated samples can remain (the stress test allows up to 12 in an 80 x 80 image over
@@ -491,8 +493,8 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
 | `render3d-csg-open-mesh` | The mesh has a boundary edge | The mesh node |
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles | The mesh node |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions | The mesh node |
-| `render3d-csg-degenerate-triangle` | The mesh has zero-area (repeated index) triangles | The mesh node |
-| `render3d-csg-inverted-mesh` | A defect-free closed mesh has negative signed volume (`Mesh.IsInverted`) | The mesh node |
+| `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (a repeated index, or distinct vertices that are coincident or collinear) | The mesh node |
+| `render3d-csg-inverted-mesh` | A defect-free closed mesh has negative signed volume beyond its rounding error bound (`Mesh.IsInverted`) | The mesh node |
 | `render3d-csg-near-plane-clips-operands` | The explicit `Camera.NearPlane` is greater than the smallest vertex view depth of the scene | None |
 <!-- markdownlint-enable MD013 -->
 

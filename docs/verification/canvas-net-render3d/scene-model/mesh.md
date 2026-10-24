@@ -73,9 +73,15 @@ and mutated tetrahedra the verdict equals an independent directed-edge-counting 
 `MeshTopologyTests.MeshTopology_Analyze_TwoShellsSharingAnEdge_NonManifold`,
 `MeshTopologyTests.MeshTopology_Analyze_FlippedTriangle_InconsistentWindingOnly`,
 `MeshTopologyTests.MeshTopology_Analyze_RepeatedIndex_DegenerateTriangleOnly`,
+`MeshTopologyTests.MeshTopology_Analyze_CollinearOrCoincidentVertices_DegenerateTriangleOnly`,
+`MeshTopologyTests.MeshTopology_TryGetFaceNormal_ZeroAreaAndExtremeTriangles`,
+`MeshTopologyTests.MeshTopology_SignedVolume_ErrorBound_ScalesWithMagnitude`,
 `MeshTopologyTests.MeshTopology_Analyze_MultipleDefects_CombineFlags`,
 `MeshTests.Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate`,
+`MeshTests.Mesh_OperandDefects_CollinearFace_ReportsDegenerate`,
 `MeshTests.Mesh_IsInverted_ReversedClosedMesh_True`,
+`MeshTests.Mesh_IsInverted_ThinBox_DetectedByOrientation`,
+`MeshTests.Mesh_IsInverted_ZeroVolumeClosedMesh_False`,
 `MeshTests.Mesh_IsInverted_CavityMesh_False`,
 `MeshTests.Mesh_IsInverted_OpenOrEmptyMesh_False`
 
@@ -83,11 +89,16 @@ Asserts that a cube, two disjoint cubes and an empty list report no defect; that
 quad and a cube missing a triangle report exactly `BoundaryEdge`; that a book of three triangles on
 one edge and two shells welded along an edge report `NonManifoldEdge`; that one flipped cube
 triangle reports exactly `InconsistentWinding`; that a repeated index reports exactly
-`DegenerateTriangle` even when appended to a closed cube; and that independent defects combine as
-flags. At mesh level it asserts the cached classification for a closed, an open, a degenerate and
-an empty mesh, that a reversed cube and tetrahedron are inverted while the originals are not, that
-a hollow cube with an inward cavity shell is closed with a positive volume and not inverted, and
-that an open or empty mesh is never inverted.
+`DegenerateTriangle` even when appended to a closed cube; that a closed tetrahedron with one
+collinear (or coincident-vertex) face is reported `DegenerateTriangle` by the vertex-aware analysis
+and by `Mesh.OperandDefects` while the index-only analysis and `IsClosed` stay topological; that the
+shared face-normal criterion rejects exactly the zero-area and overflowing triangles; and that
+independent defects combine as flags. At mesh level it asserts the cached classification for a
+closed, an open, a degenerate and an empty mesh, that a reversed cube and tetrahedron are inverted
+while the originals are not, that a reversed 1 x 1 x 1e-12 box is inverted while the correctly wound
+thin box and a zero-thickness closed box are not (the volume's own rounding error bound decides, and
+it is far below the thin box's volume), that a hollow cube with an inward cavity shell is closed with
+a positive volume and not inverted, and that an open or empty mesh is never inverted.
 
 ##### CanvasNetRender3D-SceneModel-Mesh-VolumeArea: Signed Volume And Surface Area Are Analytic
 

@@ -56,10 +56,25 @@ generators and callers assemble a welded mesh without managing vertex de-duplica
   `NonManifoldEdge`; exactly two in the same direction is `InconsistentWinding`; one in each
   direction is correct. The result is the OR of the defects found; an empty list has none.
   O(E log E) with two array allocations. `IsClosedOrientable` is `length > 0 && Analyze == None`.
+- `MeshTopology.Analyze(vertices, indices)` (internal): the index-only analysis plus
+  `DegenerateTriangle` for every triangle with distinct indices whose vertices are coincident or
+  collinear, judged by the same criterion the renderer discards by
+  (`MeshTopology.TryGetFaceNormal`: the normalized cross product of the edges is zero or
+  non-finite). Its edges stay in the edge table, so such a triangle does not also appear as edge
+  defects of its neighbors. A triangle that is merely very thin but has a representable normal is
+  rendered, not discarded, and is not reported.
 - `TopologyDefects` (internal): `Analyze` over the mesh's indices, computed lazily on first use and
-  cached (a benign race because the analysis is deterministic).
-- `IsInverted` (internal): true when the mesh is closed (no defect) and its signed volume is below
-  `-1e-9 * diagonal^3` (the bounds diagonal cubed), i.e. a closed mesh wound inside out. A hollow
+  cached (a benign race because the analysis is deterministic). `IsClosed` is defined through it and
+  therefore stays purely topological. `OperandDefects` (internal) is the cached
+  `Analyze(vertices, indices)` result, used by the renderer's operand validation so that every
+  triangle the renderer would drop from a CSG operand is reported.
+- `IsInverted` (internal): true when the mesh is closed (no topology defect) and its signed volume is
+  below the negative of the rounding error bound of that volume
+  (`MeshTopology.SignedVolume` with its `errorBound` output), i.e. a closed mesh wound inside out.
+  The bound is `(n + 12) * 2^-52 * sum(|a| . (|b| x |c|)) / 6` over the `n` triangles'
+  reference-relative vertices, so it scales with the mesh's own magnitude instead of a fixed
+  fraction of its bounds: a thin valid solid (for example a reversed 1 x 1 x 1e-12 box) is detected,
+  while a zero-volume closed surface, whose volume is only rounding noise, is not. A hollow
   mesh (an outward outer shell and an inward inner shell) keeps a positive total volume and is not
   inverted; open and empty meshes are never inverted because their volume is meaningless.
 - `SignedVolume`: the sum of signed tetrahedron volumes `a . (b x c) / 6` taken relative to the
@@ -102,5 +117,5 @@ library (`System.Collections.ObjectModel.ReadOnlyCollection<T>`).
 
 `MeshNode` references a `Mesh`; `Scene` reads `Bounds`, `VertexSpan`, and `IndexSpan`;
 `PrimitiveTessellator` builds every result through `MeshBuilder`; `SceneRenderer` reads the vertex
-and index spans (and, for constructive solid geometry operand validation, `TopologyDefects` and
+and index spans (and, for constructive solid geometry operand validation, `OperandDefects` and
 `IsInverted`); callers use `IsClosed`, `SignedVolume`, `Transform`, and `Reverse` directly.

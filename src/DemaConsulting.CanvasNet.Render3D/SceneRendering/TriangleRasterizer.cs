@@ -268,6 +268,8 @@ internal static class TriangleRasterizer
                 Leaf = source.Leaf,
                 EnterColor = source.FrontEnterColor,
                 ExitColor = source.FrontExitColor,
+                PlaneNormal = source.PlaneNormal,
+                PlanePoint = source.PlanePoint,
             }
             : new ScreenTriangle
             {
@@ -289,6 +291,8 @@ internal static class TriangleRasterizer
                 Leaf = source.Leaf,
                 EnterColor = source.BackEnterColor,
                 ExitColor = source.BackExitColor,
+                PlaneNormal = source.PlaneNormal,
+                PlanePoint = source.PlanePoint,
             });
     }
 

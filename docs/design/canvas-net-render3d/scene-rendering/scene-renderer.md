@@ -120,7 +120,10 @@ and a deterministic per-tile fragment budget.
    is negative (before the screen-winding classification, so `ScreenTriangle.BackFacing`, which
    gives a leaf's +1 or -1 crossing sign, is the corrected facing for CSG as well); compute the face
    normal from the double-precision view-space vertices (a zero-area or non-finite normal skips the
-   triangle); shade with `LightingModel`; narrow the vertices to single precision; call
+   triangle, the same `MeshTopology.TryGetFaceNormal` criterion operand validation reports as a
+   degenerate triangle); shade with `LightingModel`; narrow the vertices to single precision (for a
+   CSG leaf, also compute the supporting plane of the narrowed triangle: unit normal and centroid,
+   used by `CsgResolver` to tell coincident faces from separate ones); call
    `TriangleRasterizer.Setup`. The z-buffer path shades the front and back once. When the instance
    has a CSG leaf, `PrepareTriangle` computes four shades with `n` the face normal:
    `FrontEnter = Shade(n, leaf color)`, `FrontExit = Shade(n, BackFaceColor)`,
@@ -186,8 +189,10 @@ already analyzed `MeshNode` (deduplication by reference, so a node shared by sev
 paths is analyzed and reported once), checks the token per instance, skips meshes with no triangles,
 and for each remaining node reports, in this fixed order, `render3d-csg-open-mesh` (boundary edge),
 `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
-`render3d-csg-degenerate-triangle`, and `render3d-csg-inverted-mesh` (a defect-free closed mesh
-with negative signed volume, `Mesh.IsInverted`). Every mesh instance of the scene is validated, not
+`render3d-csg-degenerate-triangle` (a repeated index or coincident or collinear vertices, as
+`Mesh.OperandDefects` reports), and `render3d-csg-inverted-mesh` (a defect-free closed mesh
+with negative signed volume beyond its rounding error bound, `Mesh.IsInverted`). Every mesh instance
+of the scene is validated, not
 only the direct operands of a difference or intersection: all leaves use the signed counter, so an
 open mesh in a top-level union branch would also vanish. Inversion is a property of the mesh and
 independent of the instance's mirroring transform, because the renderer reverses the winding of a

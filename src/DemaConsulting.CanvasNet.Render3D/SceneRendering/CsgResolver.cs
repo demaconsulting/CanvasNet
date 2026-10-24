@@ -23,10 +23,12 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         differ only by float noise). Fragments of <em>different mesh instances</em> are also grouped
 ///         when the gap is within <c>epsilon</c> plus the depth noise of one fixed-point vertex quantum
 ///         on their two triangles (their <see cref="ScreenTriangle.DepthSlope"/> times 1/128 sample,
-///         capped at 1000 epsilons): two meshes whose coincident faces are equal only up to rounding
-///         rasterize from vertices that may differ by a quantum, and at oblique angles that moves their
-///         depths apart by far more than <c>epsilon</c>. Triangles of one instance share rounded vertices,
-///         so they only ever use <c>epsilon</c>. All fragments of a group are applied to the counters
+///         capped at 1000 epsilons) <em>and the two triangles are plausibly the same plane</em> (parallel
+///         normals, either orientation, and a plane distance within <c>epsilon</c>): two meshes whose
+///         coincident faces are equal only up to rounding rasterize from vertices that may differ by a quantum,
+///         and at oblique angles that moves their depths apart by far more than <c>epsilon</c>, whereas
+///         genuinely separate, closely spaced surfaces are different planes and keep their own events.
+///         Triangles of one instance share rounded vertices, so they only ever use <c>epsilon</c>. All fragments of a group are applied to the counters
 ///         <em>atomically</em>, and only then is the compiled <see cref="CsgProgram"/> re-evaluated, and
 ///         only when some leaf changed state. Processing coincident faces one at a time would flip the
 ///         root between them and leave a speckle; for example, in <c>cube - box</c> with the box flush
@@ -63,6 +65,10 @@ internal sealed class CsgResolver
 
     /// <summary>The largest slope-derived tolerance, as a multiple of the base tolerance (bounds the merging of grazing faces).</summary>
     private const float SlopeToleranceCap = 1000.0f;
+
+    /// <summary>The largest deviation of the absolute normal dot product from one (about 0.08 degrees) for two faces to count as parallel.</summary>
+    private const double NormalTolerance = 1e-6;
+
     /// <summary>The compiled CSG expression.</summary>
     private readonly CsgProgram _program;
 
@@ -343,7 +349,8 @@ internal sealed class CsgResolver
     /// <param name="epsilon">The base depth tolerance.</param>
     /// <returns>
     ///     <see langword="true"/> when the candidate's depth gap to the anchor is within the base tolerance or,
-    ///     provided no fragment of the group is from the candidate's own mesh instance, within the base
+    ///     provided no fragment of the group is from the candidate's own mesh instance and the candidate's triangle
+    ///     is coplanar with the anchor's (see <see cref="AreCoplanar"/>), within the base
     ///     tolerance plus the depth noise that one fixed-point vertex quantum causes on the two triangles
     ///     (their slopes times <see cref="SlopeQuantum"/>, capped at <see cref="SlopeToleranceCap"/> base tolerances).
     /// </returns>
@@ -374,8 +381,46 @@ internal sealed class CsgResolver
             }
         }
 
+        // Widen only for faces that are plausibly the same plane: a depth gap that merely follows from the slope
+        // would otherwise also swallow genuinely separate, closely spaced oblique surfaces
+        if (!AreCoplanar(in triangles[anchor.Triangle], in b, epsilon))
+        {
+            return false;
+        }
+
         var noise = Math.Min((triangles[anchor.Triangle].DepthSlope + b.DepthSlope) * SlopeQuantum, SlopeToleranceCap * epsilon);
         return gap <= epsilon + noise;
+    }
+
+    /// <summary>
+    ///     Decides whether two triangles lie in the same plane within a tolerance: their unit normals are
+    ///     parallel (either orientation) and the nearer of the two centroid-to-plane distances is within the tolerance.
+    /// </summary>
+    /// <remarks>
+    ///     Measuring from the larger triangle's plane (the smaller distance) keeps the angular noise of a tiny
+    ///     triangle's normal from rejecting a genuinely coincident face. A triangle without a plane (zero normal)
+    ///     is never coplanar with anything.
+    /// </remarks>
+    /// <param name="a">The first triangle.</param>
+    /// <param name="b">The second triangle.</param>
+    /// <param name="tolerance">The largest plane distance counted as coincident (the base depth tolerance).</param>
+    /// <returns><see langword="true"/> when the triangles are plausibly coincident.</returns>
+    private static bool AreCoplanar(in ScreenTriangle a, in ScreenTriangle b, float tolerance)
+    {
+        var na = a.PlaneNormal;
+        var nb = b.PlaneNormal;
+        var parallel = Math.Abs(((double)na.X * nb.X) + ((double)na.Y * nb.Y) + ((double)na.Z * nb.Z));
+        if (!(parallel >= 1.0 - NormalTolerance))
+        {
+            return false;
+        }
+
+        var dx = (double)b.PlanePoint.X - a.PlanePoint.X;
+        var dy = (double)b.PlanePoint.Y - a.PlanePoint.Y;
+        var dz = (double)b.PlanePoint.Z - a.PlanePoint.Z;
+        var fromA = Math.Abs((na.X * dx) + (na.Y * dy) + (na.Z * dz));
+        var fromB = Math.Abs((nb.X * dx) + (nb.Y * dy) + (nb.Z * dz));
+        return Math.Min(fromA, fromB) <= tolerance;
     }
 
     /// <summary>

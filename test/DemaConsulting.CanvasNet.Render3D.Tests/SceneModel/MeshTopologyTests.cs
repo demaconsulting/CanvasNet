@@ -185,6 +185,63 @@ public class MeshTopologyTests
     }
 
     /// <summary>
+    ///     Validates that triangles with distinct but coincident or collinear vertices are reported as degenerate
+    ///     by the vertex-aware analysis (the criterion the renderer discards by), without extra edge defects.
+    /// </summary>
+    [Fact]
+    public void MeshTopology_Analyze_CollinearOrCoincidentVertices_DegenerateTriangleOnly()
+    {
+        // Arrange: a closed tetrahedron with face (0, 2, 1) collinear, one with two coincident vertices, and a proper one
+        int[] indices = [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3];
+        Vector3D[] collinear = [Vector3D.Zero, new(1, 0, 0), new(2, 0, 0), Vector3D.UnitZ];
+        Vector3D[] coincident = [Vector3D.Zero, Vector3D.Zero, Vector3D.UnitY, Vector3D.UnitZ];
+        var proper = Render3DTestHelpers.CreateTetrahedronMesh();
+
+        // Act / Assert: the index-only analysis cannot see it, the vertex-aware one reports exactly that defect
+        Assert.Equal(MeshTopologyDefects.None, MeshTopology.Analyze(indices));
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, MeshTopology.Analyze(collinear, indices));
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, MeshTopology.Analyze(coincident, indices));
+        Assert.Equal(MeshTopologyDefects.None, MeshTopology.Analyze(proper.VertexSpan, proper.IndexSpan));
+    }
+
+    /// <summary>
+    ///     Validates the shared face-normal criterion: a proper triangle has a unit normal, zero-area, tiny and huge
+    ///     triangles are decided by exact zero cross product, and an overflowing triangle has none.
+    /// </summary>
+    [Fact]
+    public void MeshTopology_TryGetFaceNormal_ZeroAreaAndExtremeTriangles()
+    {
+        // Act / Assert
+        Assert.True(MeshTopology.TryGetFaceNormal(Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY, out var normal));
+        Assert.Equal(Vector3D.UnitZ, normal);
+        Assert.False(MeshTopology.TryGetFaceNormal(Vector3D.Zero, Vector3D.UnitX, new Vector3D(2, 0, 0), out _));
+        Assert.False(MeshTopology.TryGetFaceNormal(Vector3D.UnitX, Vector3D.UnitX, Vector3D.UnitY, out _));
+        Assert.True(MeshTopology.TryGetFaceNormal(Vector3D.Zero, new Vector3D(1e-150, 0, 0), new Vector3D(0, 1e-150, 0), out _));
+        Assert.False(MeshTopology.TryGetFaceNormal(Vector3D.Zero, new Vector3D(1e200, 0, 0), new Vector3D(0, 1e200, 0), out _));
+    }
+
+    /// <summary>
+    ///     Validates that the volume error bound is tiny relative to a thin box's volume (so its sign is trusted)
+    ///     and covers the rounding noise of a zero-volume surface.
+    /// </summary>
+    [Fact]
+    public void MeshTopology_SignedVolume_ErrorBound_ScalesWithMagnitude()
+    {
+        // Arrange
+        var thin = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 1e-12));
+        var flat = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 0.0));
+
+        // Act
+        var thinVolume = MeshTopology.SignedVolume(thin.VertexSpan, thin.IndexSpan, thin.Bounds.Center, out var thinBound);
+        var flatVolume = MeshTopology.SignedVolume(flat.VertexSpan, flat.IndexSpan, flat.Bounds.Center, out var flatBound);
+
+        // Assert
+        Assert.True(thinBound > 0.0);
+        Assert.True(thinVolume > 1000.0 * thinBound);
+        Assert.True(Math.Abs(flatVolume) <= flatBound);
+    }
+
+    /// <summary>
     ///     Validates that independent defects combine as flags.
     /// </summary>
     [Fact]
@@ -208,7 +265,7 @@ public class MeshTopologyTests
 
     /// <summary>
     ///     Validates over a seeded corpus of random triangle soups that <see cref="MeshTopology.IsClosedOrientable"/>
-    ///     (now expressed through <see cref="MeshTopology.Analyze"/>) agrees with an independent directed-edge reference.
+    ///     (now expressed through <see cref="MeshTopology.Analyze(ReadOnlySpan{int})"/>) agrees with an independent directed-edge reference.
     /// </summary>
     [Fact]
     public void MeshTopology_IsClosed_RandomSoups_MatchesDirectedEdgeReference()

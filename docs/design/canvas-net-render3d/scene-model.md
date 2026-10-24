@@ -33,7 +33,7 @@ The subsystem's namespace documentation is in `NamespaceDoc.cs`, which declares 
 which is a construction helper whose `Build` method returns independent immutable meshes.
 
 **Internal, exposed to the renderer within the assembly**: `Mesh.VertexSpan` and `Mesh.IndexSpan`
-(zero-copy read-only views of the mesh arrays), `Mesh.TopologyDefects` and `Mesh.IsInverted`
+(zero-copy read-only views of the mesh arrays), `Mesh.TopologyDefects`, `Mesh.OperandDefects` and `Mesh.IsInverted`
 (cached defect classification), `Scene.EnumerateInstances()` and `SceneInstance` (the flattened
 mesh instances with world matrix, appearance, draw order, and source `MeshNode`), `MeshTopology`,
 and `MeshTopologyDefects`.

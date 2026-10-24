@@ -2808,7 +2808,7 @@ The `Feature` tokens are stable and machine-matchable:
 | `render3d-csg-open-mesh` | The mesh has a boundary edge (it is not closed) |
 | `render3d-csg-non-manifold-edge` | An edge is shared by three or more triangles |
 | `render3d-csg-inconsistent-winding` | Neighboring triangles are wound in conflicting directions |
-| `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles |
+| `render3d-csg-degenerate-triangle` | The mesh has zero-area triangles (repeated index, or collinear vertices) |
 | `render3d-csg-inverted-mesh` | The mesh is closed but inside-out (negative `SignedVolume`) |
 | `render3d-csg-near-plane-clips-operands` | An explicit `Camera.NearPlane` clips operands (no node) |
 

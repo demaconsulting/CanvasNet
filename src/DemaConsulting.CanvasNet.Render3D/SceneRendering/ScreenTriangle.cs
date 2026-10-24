@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -88,4 +89,13 @@ internal readonly struct ScreenTriangle
     ///     from inside to outside (the viewer starts inside material); used only by the fragment-list CSG path.
     /// </summary>
     public Rgba32 ExitColor { get; init; }
+
+    /// <summary>
+    ///     Gets the unit normal of the triangle's supporting plane in view space (zero when unknown, which never
+    ///     counts as coincident); used only by the fragment-list CSG path.
+    /// </summary>
+    public Vector3 PlaneNormal { get; init; }
+
+    /// <summary>Gets a point on the triangle's supporting plane in view space (its centroid); used with <see cref="PlaneNormal"/>.</summary>
+    public Vector3 PlanePoint { get; init; }
 }

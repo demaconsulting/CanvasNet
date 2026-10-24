@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -57,4 +58,13 @@ internal readonly struct ViewTriangle
     ///     solid (the viewer is inside material); ignored by the z-buffer path.
     /// </summary>
     public Rgba32 BackExitColor { get; init; }
+
+    /// <summary>
+    ///     Gets the unit normal of the triangle's supporting plane in view space (zero when unknown); used only by
+    ///     the fragment-list CSG path to recognize coincident faces of different meshes.
+    /// </summary>
+    public Vector3 PlaneNormal { get; init; }
+
+    /// <summary>Gets a point on the triangle's supporting plane in view space (its centroid); used with <see cref="PlaneNormal"/>.</summary>
+    public Vector3 PlanePoint { get; init; }
 }

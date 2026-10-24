@@ -48,6 +48,9 @@ public class CsgOperandValidatorTests
         "winding" => Defective(0, i => (i[1], i[2]) = (i[2], i[1])),
         "non-manifold" => Defective(1, i => i.AddRange([0, 1, 8])),
         "degenerate" => Defective(0, i => i.AddRange([0, 0, 1])),
+        "collinear" => new Mesh(
+            [new Vector3D(0, 0, 0), new Vector3D(0.2, 0, 0), new Vector3D(0.4, 0, 0), new Vector3D(0, 0, 0.5)],
+            [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]),
         "inverted" => Cube.Reverse(),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown defect kind."),
     };
@@ -79,6 +82,7 @@ public class CsgOperandValidatorTests
     [InlineData("winding", "render3d-csg-inconsistent-winding")]
     [InlineData("non-manifold", "render3d-csg-non-manifold-edge")]
     [InlineData("degenerate", "render3d-csg-degenerate-triangle")]
+    [InlineData("collinear", "render3d-csg-degenerate-triangle")]
     [InlineData("inverted", "render3d-csg-inverted-mesh")]
     public void CsgOperandValidator_Validate_DefectKind_ReportsFeatureAndRendersAnyway(string kind, string feature)
     {

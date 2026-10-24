@@ -92,7 +92,7 @@ internal static class CsgOperandValidator
             }
 
             var mesh = instance.Mesh;
-            var defects = mesh.TopologyDefects;
+            var defects = mesh.OperandDefects;
             if (mesh.TriangleCount == 0)
             {
                 // An empty mesh contributes nothing and has nothing to report
@@ -116,7 +116,7 @@ internal static class CsgOperandValidator
 
             if ((defects & MeshTopologyDefects.DegenerateTriangle) != 0)
             {
-                Report(options, DegenerateTriangleFeature, "A mesh used in a constructive solid geometry scene has degenerate (repeated vertex) triangles; they are ignored and may leave gaps.", instance.Node);
+                Report(options, DegenerateTriangleFeature, "A mesh used in a constructive solid geometry scene has degenerate (repeated vertex or zero-area) triangles; they are ignored and may leave gaps.", instance.Node);
             }
 
             if (mesh.IsInverted)

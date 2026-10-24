@@ -268,7 +268,8 @@ sections:
                   For a scene rendered through the fragment-list path, the SceneRenderer shall, before
                   any rendering work and observing cancellation, validate every mesh node once in scene
                   pre-order and report each open mesh, non-manifold edge, inconsistent winding,
-                  degenerate triangle and inside-out (inverted) mesh as a SceneRenderUnsupportedFeature
+                  degenerate triangle (a repeated index or a zero-area triangle that the renderer
+                  would discard) and inside-out (inverted) mesh as a SceneRenderUnsupportedFeature
                   with a stable feature token to the handler, or throw
                   SceneRenderUnsupportedFeatureException for the first problem in strict mode, while
                   rendering tolerantly otherwise; it shall judge inversion independently of a mirroring

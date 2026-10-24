@@ -73,11 +73,14 @@ sections:
                   The Mesh unit shall classify the topology defects of a triangle index list as
                   boundary edge (an edge of one triangle), non-manifold edge (an edge of three or
                   more triangles), inconsistent winding (two triangles traversing an edge in the
-                  same direction), and degenerate triangle (a repeated index), reporting no defect
+                  same direction), and degenerate triangle (a repeated index, or, for the operand
+                  defects, distinct vertices that are coincident or collinear so the renderer
+                  would discard the triangle), reporting no defect
                   for a closed, consistently oriented surface (including multi-shell meshes) and
                   for an empty list, and shall treat a defect-free closed mesh with a negative
-                  signed volume as inverted while never flagging an open mesh or a hollow mesh
-                  whose total volume is positive.
+                  signed volume as inverted, judged against the rounding error bound of the volume
+                  computation so that a thin valid solid is detected, while never flagging an open
+                  mesh, a zero-volume mesh, or a hollow mesh whose total volume is positive.
                 justification: |
                   The renderer reports constructive-solid-geometry operands that are not closed,
                   outward-oriented solids, and a single closed/open flag cannot tell the user
@@ -90,9 +93,15 @@ sections:
                   - MeshTopology_Analyze_TwoShellsSharingAnEdge_NonManifold
                   - MeshTopology_Analyze_FlippedTriangle_InconsistentWindingOnly
                   - MeshTopology_Analyze_RepeatedIndex_DegenerateTriangleOnly
+                  - MeshTopology_Analyze_CollinearOrCoincidentVertices_DegenerateTriangleOnly
+                  - MeshTopology_TryGetFaceNormal_ZeroAreaAndExtremeTriangles
+                  - MeshTopology_SignedVolume_ErrorBound_ScalesWithMagnitude
                   - MeshTopology_Analyze_MultipleDefects_CombineFlags
                   - Mesh_TopologyDefects_ClassifiesClosedOpenAndDegenerate
+                  - Mesh_OperandDefects_CollinearFace_ReportsDegenerate
                   - Mesh_IsInverted_ReversedClosedMesh_True
+                  - Mesh_IsInverted_ThinBox_DetectedByOrientation
+                  - Mesh_IsInverted_ZeroVolumeClosedMesh_False
                   - Mesh_IsInverted_CavityMesh_False
                   - Mesh_IsInverted_OpenOrEmptyMesh_False
 

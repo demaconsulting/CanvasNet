@@ -118,11 +118,14 @@ sections:
                   first depth of a group as one atomic group, apply all of them before re-evaluating
                   the program, without chaining across a series of close fragments, so that
                   coincident faces of different operands do not produce speckle; it shall widen
-                  that tolerance, for a fragment of a mesh instance that is not yet in the group, by
-                  the depth noise of one fixed-point vertex quantum on the two triangles (their
-                  depth slopes times a quantum, capped) so that coincident faces of independently
-                  placed meshes still tie at oblique angles, never merging two fragments of one
-                  instance this way; and when a group changes the result it shall choose the
+                  that tolerance, for a fragment of a mesh instance that is not yet in the group
+                  and whose triangle lies in the same plane as the group's first triangle (parallel
+                  normals and a plane distance within the base tolerance), by the depth noise of one
+                  fixed-point vertex quantum on the two triangles (their depth slopes times a
+                  quantum, capped) so that coincident faces of independently placed meshes still tie
+                  at oblique angles, never merging two fragments of one instance this way and never
+                  merging genuinely separate, closely spaced surfaces; and when a group changes the
+                  result it shall choose the
                   fragment whose leaf alone explains the change, then the lowest draw priority,
                   then the lowest triangle index.
                 justification: |
@@ -130,13 +133,16 @@ sections:
                   angles, by the rounding of their vertices to the fixed-point sample grid;
                   resolving them one at a time would flip the result for a single fragment and
                   leave isolated wrong pixels, and the choice among equal candidates must be
-                  deterministic.
+                  deterministic. Widening only for faces in one plane keeps two real surfaces that
+                  merely lie close together, at a grazing slope, as separate events.
                 tests:
                   - CsgResolver_Resolve_CoincidentFrontFaces_AreOneAtomicGroupAndFlushFaceIsRemoved
                   - CsgResolver_Resolve_FragmentsBeyondTolerance_AreSeparateGroups
                   - CsgResolver_Resolve_ChainOfCloseFragments_GroupIsAnchoredAtFirstDepth
                   - CsgResolver_Resolve_CoincidentBackFaces_DoNotSpeckle
                   - CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances
+                  - CsgResolver_Resolve_SeparateCloselySpacedObliqueFaces_AreNotMerged
+                  - CsgResolver_Resolve_NonParallelOrUnknownPlane_IsNotWidened
                   - CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped
                   - CsgResolver_Resolve_CoincidentSolidsAtThinFold_ResolvesAsFrontPairAndBackPair
                   - CsgResolver_Resolve_FlushEnterAndExit_LowerPriorityOfEquallyExplainingFragmentsWins

@@ -1,7 +1,7 @@
 namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 /// <summary>
-///     The topology defects <see cref="MeshTopology.Analyze"/> can find in a triangle index list;
+///     The topology defects <see cref="MeshTopology.Analyze(ReadOnlySpan{int})"/> can find in a triangle index list;
 ///     a combination of flags, or <see cref="None"/> for a closed, consistently oriented surface.
 /// </summary>
 [Flags]

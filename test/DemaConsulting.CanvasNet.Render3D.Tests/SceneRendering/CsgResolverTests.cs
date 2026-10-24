@@ -1,3 +1,4 @@
+using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -136,6 +137,13 @@ public class CsgResolverTests
     /// <summary>The triangles of <c>A - B</c>: 0 = A front, 1 = A back, 2 = B front, 3 = B back (priorities 0, 0, 1, 1).</summary>
     /// <returns>The triangle list.</returns>
     private static ScreenTriangle[] DifferenceTriangles() => [Tri(0, false, 0), Tri(0, true, 0), Tri(1, false, 1), Tri(1, true, 1)];
+
+    /// <summary>Places every triangle in one plane facing the viewer at the given depth (all faces then count as coincident).</summary>
+    /// <param name="triangles">The triangles.</param>
+    /// <param name="z">The plane depth.</param>
+    /// <returns>The triangles with their plane set.</returns>
+    private static ScreenTriangle[] OnSharedPlane(ScreenTriangle[] triangles, float z) =>
+        [.. triangles.Select(t => t with { PlaneNormal = Vector3.UnitZ, PlanePoint = new Vector3(0.0f, 0.0f, z) })];
 
     /// <summary>
     ///     Validates that the first surface of the minuend is visible when the ray meets it first.
@@ -326,10 +334,10 @@ public class CsgResolverTests
     [Fact]
     public void CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances()
     {
-        // Arrange: A front 1.0 and B front 1.004 (noise of an oblique plane), B back 6, A back 11
+        // Arrange: A front 1.0 and B front 1.004 (noise of an oblique plane), B back 6, A back 11; both fronts lie in one plane
         var fragments = new[] { F(1.0f, 0), F(1.004f, 2), F(6, 3), F(11, 1) };
         var flat = DifferenceTriangles();
-        var oblique = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray();
+        var oblique = OnSharedPlane(DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray(), 1.0f);
 
         // Act
         var withoutSlope = Resolve(Difference(), flat, fragments, epsilon: 1e-4f);
@@ -343,6 +351,62 @@ public class CsgResolverTests
     }
 
     /// <summary>
+    ///     Validates that slope-derived widening needs plane coincidence: two separate, closely spaced oblique
+    ///     faces (parallel planes 0.0005 apart, with a slope that would otherwise merge them) stay two events,
+    ///     so the real transition at the first face is seen, while the same faces made coincident are one group.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_SeparateCloselySpacedObliqueFaces_AreNotMerged()
+    {
+        // Arrange: a 45 degree oblique plane family; A front on the plane at distance 1, B front on a parallel plane 0.0005 farther
+        var normal = new Vector3(0.0f, MathF.Sqrt(0.5f), MathF.Sqrt(0.5f));
+        var fragments = new[] { F(1.0f, 0), F(1.0005f, 2), F(6, 3), F(11, 1) };
+        ScreenTriangle[] Build(float separation) =>
+        [
+            Tri(0, false, 0) with { DepthSlope = 1.0f, PlaneNormal = normal, PlanePoint = normal },
+            Tri(0, true, 0) with { DepthSlope = 1.0f },
+            Tri(1, false, 1) with { DepthSlope = 1.0f, PlaneNormal = normal, PlanePoint = normal * (1.0f + separation) },
+            Tri(1, true, 1) with { DepthSlope = 1.0f },
+        ];
+
+        // Act
+        var separate = Resolve(Difference(), Build(0.0005f), fragments, epsilon: 1e-6f);
+        var coincident = Resolve(Difference(), Build(0.0f), fragments, epsilon: 1e-6f);
+
+        // Assert: separate faces keep the minuend entry visible; the coincident faces cancel and the cut surface at B's back remains
+        Assert.Equal(1.0f, separate.Depth);
+        Assert.Equal(Enter(0, 0), separate.Color);
+        Assert.Equal(6.0f, coincident.Depth);
+        Assert.Equal(Enter(1, 1), coincident.Color);
+    }
+
+    /// <summary>
+    ///     Validates that faces that are not parallel, or that have no plane information, are never widened into one group.
+    /// </summary>
+    /// <param name="tilt">Whether the subtrahend's plane is tilted (otherwise it has no plane at all).</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CsgResolver_Resolve_NonParallelOrUnknownPlane_IsNotWidened(bool tilt)
+    {
+        // Arrange: the same depth gap as the coincident case, but B's plane is tilted by about 5.7 degrees or unknown
+        var fragments = new[] { F(1.0f, 0), F(1.004f, 2), F(6, 3), F(11, 1) };
+        var triangles = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray();
+        triangles[0] = triangles[0] with { PlaneNormal = Vector3.UnitZ, PlanePoint = Vector3.UnitZ };
+        if (tilt)
+        {
+            triangles[2] = triangles[2] with { PlaneNormal = Vector3.Normalize(new Vector3(0.1f, 0.0f, 1.0f)), PlanePoint = Vector3.UnitZ };
+        }
+
+        // Act
+        var result = Resolve(Difference(), triangles, fragments, epsilon: 1e-4f);
+
+        // Assert: not merged, so the minuend front is seen first
+        Assert.Equal(1.0f, result.Depth);
+        Assert.Equal(Enter(0, 0), result.Color);
+    }
+
+    /// <summary>
     ///     Validates that slope-derived noise never merges two fragments of the same instance (a thin fold or wall
     ///     keeps its two sides as separate events) and is capped.
     /// </summary>
@@ -350,9 +414,9 @@ public class CsgResolverTests
     public void CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped()
     {
         // Arrange: a thin minuend (front 1.0, back 1.004) with a steep slope; and a flush subtrahend front 1.2 with a huge slope
-        var steep = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray();
+        var steep = OnSharedPlane(DifferenceTriangles().Select(t => t with { DepthSlope = 1.0f }).ToArray(), 1.0f);
         var thin = new[] { F(1.0f, 0), F(1.004f, 1) };
-        var huge = DifferenceTriangles().Select(t => t with { DepthSlope = 1.0e6f }).ToArray();
+        var huge = OnSharedPlane(DifferenceTriangles().Select(t => t with { DepthSlope = 1.0e6f }).ToArray(), 1.0f);
         var far = new[] { F(1.0f, 0), F(1.2f, 2), F(6, 3), F(11, 1) };
 
         // Act
@@ -381,6 +445,7 @@ public class CsgResolverTests
             Tri(1, false, 1) with { DepthSlope = 0.29f },
             Tri(1, true, 1) with { DepthSlope = 0.53f },
         };
+        triangles = OnSharedPlane(triangles, 1.0f);
         var fragments = new[] { F(1.0f, 0), F(1.0f, 2), F(1.0062f, 3), F(1.00623f, 1) };
 
         // Act

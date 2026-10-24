@@ -318,6 +318,60 @@ public class MeshTests
     }
 
     /// <summary>
+    ///     Validates that a thin but valid solid has its orientation detected: a reversed 1 x 1 x 1e-12 box is inverted
+    ///     and the correctly wound thin box is not (the criterion is scale-aware, not a fixed fraction of the bounds).
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_ThinBox_DetectedByOrientation()
+    {
+        // Arrange
+        var thin = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 1e-12));
+
+        // Act / Assert
+        Assert.True(thin.IsClosed);
+        Assert.Equal(1e-12, thin.SignedVolume, 1e-15);
+        Assert.False(thin.IsInverted);
+        Assert.True(thin.Reverse().IsInverted);
+        Assert.False(thin.Reverse().Reverse().IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that a closed mesh with (numerically) zero volume is not reported as inverted, since its sign is only rounding noise.
+    /// </summary>
+    [Fact]
+    public void Mesh_IsInverted_ZeroVolumeClosedMesh_False()
+    {
+        // Arrange: a box flattened to zero thickness (topologically closed, no enclosed volume) in both windings
+        var flat = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, new Vector3D(1.0, 1.0, 0.0));
+
+        // Act / Assert
+        Assert.True(flat.IsClosed);
+        Assert.False(flat.IsInverted);
+        Assert.False(flat.Reverse().IsInverted);
+    }
+
+    /// <summary>
+    ///     Validates that the operand defects add geometrically degenerate (zero-area) triangles to the topology defects
+    ///     while <see cref="Mesh.IsClosed"/> stays purely topological.
+    /// </summary>
+    [Fact]
+    public void Mesh_OperandDefects_CollinearFace_ReportsDegenerate()
+    {
+        // Arrange: a tetrahedron whose face (0, 2, 1) is collinear, plus a proper tetrahedron
+        var collinear = new Mesh(
+            [Vector3D.Zero, new Vector3D(1, 0, 0), new Vector3D(2, 0, 0), Vector3D.UnitZ],
+            [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]);
+        var proper = Render3DTestHelpers.CreateTetrahedronMesh();
+
+        // Act / Assert
+        Assert.Equal(MeshTopologyDefects.None, collinear.TopologyDefects);
+        Assert.True(collinear.IsClosed);
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, collinear.OperandDefects);
+        Assert.Equal(MeshTopologyDefects.DegenerateTriangle, collinear.OperandDefects);
+        Assert.Equal(MeshTopologyDefects.None, proper.OperandDefects);
+    }
+
+    /// <summary>
     ///     Validates that open and empty meshes are never reported as inverted (their volume is meaningless).
     /// </summary>
     [Fact]

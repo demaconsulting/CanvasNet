@@ -78,7 +78,8 @@ output list:
    `BackEnterColor`/`BackExitColor` pair as the triangle's `EnterColor`/`ExitColor`; coverage,
    depth, and winding code is unaffected. Finally it stores the triangle's `DepthSlope` (see
    `ComputeDepthSlope` below), computed once per emitted triangle from the fixed-point vertices and
-   depths.
+   depths. A CSG triangle also carries the `PlaneNormal` and `PlanePoint` of its source view
+   triangle, which `Emit` copies unchanged (clipping does not move the supporting plane).
 
 ##### Depth slope (`TriangleRasterizer.ComputeDepthSlope`)
 

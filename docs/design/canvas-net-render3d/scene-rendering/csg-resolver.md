@@ -36,9 +36,11 @@ the visible fragment and its shade.
 - **`CsgResolver` scratch.** `int[] counters`, `ulong[] bits`, `bool[] changed`, and the evaluation
   stack, sized from the program; they are all zero/false between samples and only touched for leaves
   that have fragments.
-- **Tie constants and per-triangle inputs.** `SlopeQuantum` (1/128 sample) and `SlopeToleranceCap`
-  (1000 base tolerances) are private constants; the resolver reads each triangle's `Priority`
-  (the mesh instance) and `DepthSlope` from the `ScreenTriangle` list to decide group membership.
+- **Tie constants and per-triangle inputs.** `SlopeQuantum` (1/128 sample), `SlopeToleranceCap`
+  (1000 base tolerances) and `NormalTolerance` (1e-6) are private constants; the resolver reads each
+  triangle's `Priority` (the mesh instance), `DepthSlope`, and supporting plane (`PlaneNormal`, a
+  view-space unit normal, and `PlanePoint`, the centroid, both from the narrowed vertices the
+  triangle was rasterized from) from the `ScreenTriangle` list to decide group membership.
 
 #### Key Methods
 
@@ -77,14 +79,23 @@ For one sample's fragments:
    **Join rule (`JoinsGroup`).** With `gap` the depth difference to the anchor and `epsilon` the
    base tolerance (`1e-6 * max(scene diameter, |largest depth|)`, the Phase 1 value), a fragment
    joins when `gap <= epsilon`. Otherwise it joins only if no fragment already in the group belongs
-   to its own mesh instance (`ScreenTriangle.Priority`, the instance's pre-order number) and
+   to its own mesh instance (`ScreenTriangle.Priority`, the instance's pre-order number), the
+   candidate's triangle is **coplanar** with the anchor's triangle, and
    `gap <= epsilon + noise`, where
    `noise = min((slopeAnchor + slopeCandidate) * SlopeQuantum, SlopeToleranceCap * epsilon)`,
    `slope` is the triangle's `ScreenTriangle.DepthSlope`, `SlopeQuantum` is 1/128 sample (two
-   fixed-point 24.8 quanta of 1/256), and `SlopeToleranceCap` is 1000. Rationale: two independently
-   tessellated or placed meshes with mathematically coincident faces rasterize from vertices
-   rounded to 1/256 sample, so at oblique angles their interpolated depths differ by about slope
-   times quantum, far above `epsilon`, which would otherwise leave isolated wrong pixels. A
+   fixed-point 24.8 quanta of 1/256), and `SlopeToleranceCap` is 1000. Coplanar (`AreCoplanar`)
+   means the unit normals are parallel in either orientation (`1 - |n1 . n2| <= 1e-6`, about 0.08
+   degrees) and the nearer of the two centroid-to-plane distances is within `epsilon`
+   (measuring from the larger triangle's plane, so the angular noise of a tiny triangle's normal
+   does not reject a truly coincident face); a triangle without a plane is never coplanar.
+   Rationale: two independently tessellated or placed meshes with mathematically coincident faces
+   rasterize from vertices rounded to 1/256 sample, so at oblique angles their interpolated depths
+   differ by about slope times quantum, far above `epsilon`, which would otherwise leave isolated
+   wrong pixels. That noise only moves the rasterized depth of faces that are the same plane in
+   view space, so the widening is applied only to coplanar faces: genuinely separate, closely spaced
+   surfaces (parallel planes further apart than `epsilon`, however grazing) keep their own events and
+   their transition is not skipped. A
    fragment of an instance that is already in the group is a different event (for example the far
    side of a thin fold or wall) and is never merged by slope noise: it falls back to `epsilon`
    only.

@@ -1,5 +1,6 @@
 // cspell:ignore Binner
 
+using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using DemaConsulting.CanvasNet.Canvas;
@@ -421,8 +422,8 @@ public static class SceneRenderer
         var c = instance.Vertices[i2];
 
         // Face normal from the double-precision view-space vertices; zero-area and overflowed triangles are skipped
-        var normal = Vector3D.Cross(b - a, c - a).Normalize();
-        if (!(normal.LengthSquared > 0.0) || !normal.IsFinite)
+        // (the same criterion operand validation uses to report degenerate triangles)
+        if (!MeshTopology.TryGetFaceNormal(a, b, c, out var normal))
         {
             return null;
         }
@@ -446,11 +447,16 @@ public static class SceneRenderer
         // CSG shading: an entering event shows the result surface (the leaf's own color, lit from the
         // viewer-facing normal, so a back-facing subtrahend triangle is a cut surface with a flipped
         // normal); a leaving event means the viewer is inside material and shows the back-face color.
+        // The plane of the rasterized (narrowed) vertices lets the resolver tell coincident faces from near ones.
+        var narrowedA = Narrow(a);
+        var narrowedB = Narrow(b);
+        var narrowedC = Narrow(c);
+        var plane = ComputePlane(narrowedA, narrowedB, narrowedC);
         return new ViewTriangle
         {
-            A = Narrow(a),
-            B = Narrow(b),
-            C = Narrow(c),
+            A = narrowedA,
+            B = narrowedB,
+            C = narrowedC,
             Priority = instance.Source.Order,
             FrontColor = front,
             BackColor = back,
@@ -459,7 +465,33 @@ public static class SceneRenderer
             FrontExitColor = LightingModel.Shade(normal, options.BackFaceColor, lights, options.SpecularStrength, options.SpecularPower, worldToView),
             BackEnterColor = LightingModel.Shade(-normal, baseColor, lights, options.SpecularStrength, options.SpecularPower, worldToView),
             BackExitColor = back,
+            PlaneNormal = plane.Normal,
+            PlanePoint = plane.Point,
         };
+    }
+
+    /// <summary>
+    ///     Computes the supporting plane of a narrowed view-space triangle: its unit normal and its centroid.
+    /// </summary>
+    /// <param name="a">The first vertex.</param>
+    /// <param name="b">The second vertex.</param>
+    /// <param name="c">The third vertex.</param>
+    /// <returns>
+    ///     The unit normal and a point on the plane; the zero normal when the narrowed triangle has no direction
+    ///     (the resolver then never treats it as coincident with another face).
+    /// </returns>
+    private static (Vector3 Normal, Vector3 Point) ComputePlane(in ClipVertex a, in ClipVertex b, in ClipVertex c)
+    {
+        var va = new Vector3D(a.X, a.Y, a.Z);
+        var vb = new Vector3D(b.X, b.Y, b.Z);
+        var vc = new Vector3D(c.X, c.Y, c.Z);
+        var normal = Vector3D.Cross(vb - va, vc - va).Normalize();
+        if (!(normal.LengthSquared > 0.0) || !normal.IsFinite)
+        {
+            return (Vector3.Zero, Vector3.Zero);
+        }
+
+        return (normal.ToVector3(), ((va + vb + vc) / 3.0).ToVector3());
     }
 
     /// <summary>

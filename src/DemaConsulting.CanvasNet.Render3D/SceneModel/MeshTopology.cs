@@ -12,6 +12,9 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// </remarks>
 internal static class MeshTopology
 {
+    /// <summary>The machine epsilon (2^-52) used by the volume error bound.</summary>
+    private const double MachineEpsilon = 2.220446049250313e-16;
+
     /// <summary>
     ///     Determines whether the triangle index list describes a closed, consistently oriented
     ///     surface: every directed edge <c>a -&gt; b</c> occurs exactly once and its reverse
@@ -23,7 +26,7 @@ internal static class MeshTopology
     ///     repeats) and degenerate triangles with a repeated index. Multi-shell meshes (for example
     ///     two disjoint cubes) are closed. The check sorts one <see cref="long"/> key per directed
     ///     edge, so it is O(E log E) with two array allocations and no per-edge objects. It is
-    ///     expressed through <see cref="Analyze"/>: closed means "no defect".
+    ///     expressed through <see cref="Analyze(ReadOnlySpan{int})"/>: closed means "no defect".
     /// </remarks>
     /// <param name="indices">The triangle index list (three indices per triangle, in range).</param>
     /// <returns>
@@ -117,6 +120,55 @@ internal static class MeshTopology
         return defects;
     }
 
+    /// <summary>
+    ///     Classifies every defect of a mesh, including geometrically degenerate triangles: the topology
+    ///     defects of <see cref="Analyze(ReadOnlySpan{int})"/> plus <see cref="MeshTopologyDefects.DegenerateTriangle"/>
+    ///     for every triangle with distinct indices whose vertices are coincident or collinear.
+    /// </summary>
+    /// <remarks>
+    ///     The renderer silently discards a triangle that has no face normal (see <see cref="TryGetFaceNormal"/>),
+    ///     which removes a crossing from a constructive-solid-geometry operand; this overload reports exactly the
+    ///     triangles that criterion rejects. The edges of such a triangle stay in the edge table, so they never
+    ///     masquerade as boundary defects of their neighbors.
+    /// </remarks>
+    /// <param name="vertices">The vertex positions.</param>
+    /// <param name="indices">The triangle index list (three indices per triangle, in range of <paramref name="vertices"/>).</param>
+    /// <returns>The set of defects found; <see cref="MeshTopologyDefects.None"/> for a closed, consistently oriented surface without degenerate triangles.</returns>
+    public static MeshTopologyDefects Analyze(ReadOnlySpan<Vector3D> vertices, ReadOnlySpan<int> indices)
+    {
+        var defects = Analyze(indices);
+        if ((defects & MeshTopologyDefects.DegenerateTriangle) != 0)
+        {
+            return defects;
+        }
+
+        for (var t = 0; t + 2 < indices.Length; t += 3)
+        {
+            if (!TryGetFaceNormal(vertices[indices[t]], vertices[indices[t + 1]], vertices[indices[t + 2]], out _))
+            {
+                return defects | MeshTopologyDefects.DegenerateTriangle;
+            }
+        }
+
+        return defects;
+    }
+
+    /// <summary>
+    ///     Computes the unit face normal of a triangle, or reports that it has none. This is the single
+    ///     criterion by which the renderer discards a triangle and by which operand validation reports one.
+    /// </summary>
+    /// <param name="a">The first vertex.</param>
+    /// <param name="b">The second vertex.</param>
+    /// <param name="c">The third vertex.</param>
+    /// <param name="normal">Receives the unit normal (the right-hand-rule direction of <c>(b - a) x (c - a)</c>), or zero when there is none.</param>
+    /// <returns><see langword="true"/> when the triangle has a finite, non-zero normal; <see langword="false"/> for a zero-area (coincident or collinear) or overflowed triangle.</returns>
+    public static bool TryGetFaceNormal(Vector3D a, Vector3D b, Vector3D c, out Vector3D normal)
+    {
+        // Normalize scales by the largest component first, so only an exactly zero cross product has no direction
+        normal = Vector3D.Cross(b - a, c - a).Normalize();
+        return normal.LengthSquared > 0.0 && normal.IsFinite;
+    }
+
     /// <summary>Appends one traversal of the directed edge <c>from -&gt; to</c> to the edge table.</summary>
     /// <param name="keys">The undirected edge keys.</param>
     /// <param name="directions">The parallel direction flags (1 when the edge runs from the lower to the higher index).</param>
@@ -141,9 +193,30 @@ internal static class MeshTopology
     /// <param name="indices">The triangle index list.</param>
     /// <param name="reference">A reference point near the mesh (typically its bounds center).</param>
     /// <returns>The signed volume; positive for an outward counter-clockwise closed mesh.</returns>
-    public static double SignedVolume(ReadOnlySpan<Vector3D> vertices, ReadOnlySpan<int> indices, Vector3D reference)
+    public static double SignedVolume(ReadOnlySpan<Vector3D> vertices, ReadOnlySpan<int> indices, Vector3D reference) =>
+        SignedVolume(vertices, indices, reference, out _);
+
+    /// <summary>
+    ///     Computes the signed enclosed volume together with a rigorous bound on its floating-point error.
+    /// </summary>
+    /// <remarks>
+    ///     Each triangle contributes the triple product <c>a . (b x c)</c> of its reference-relative vertices.
+    ///     Evaluating one triple product in double precision errs by at most a few units of machine epsilon
+    ///     times the same product with every component replaced by its absolute value, and summing
+    ///     <c>n</c> terms adds at most <c>n</c> epsilons of the sum of the absolute terms. The bound is therefore
+    ///     <c>(n + 12) * epsilon * sum(|a| . (|b| x |c|))</c> (divided by six like the volume): it scales with
+    ///     the mesh's own magnitude instead of a fixed fraction of its bounds, so a legitimately thin solid keeps
+    ///     a volume far above its bound while a (near) zero-volume surface cannot be distinguished from noise.
+    /// </remarks>
+    /// <param name="vertices">The vertex positions.</param>
+    /// <param name="indices">The triangle index list.</param>
+    /// <param name="reference">A reference point near the mesh (typically its bounds center).</param>
+    /// <param name="errorBound">Receives the largest absolute error the volume can have through rounding.</param>
+    /// <returns>The signed volume; positive for an outward counter-clockwise closed mesh.</returns>
+    public static double SignedVolume(ReadOnlySpan<Vector3D> vertices, ReadOnlySpan<int> indices, Vector3D reference, out double errorBound)
     {
         var sum = 0.0;
+        var absolute = 0.0;
         for (var t = 0; t < indices.Length; t += 3)
         {
             // Signed volume of the tetrahedron (reference, a, b, c) = a . (b x c) / 6
@@ -151,8 +224,21 @@ internal static class MeshTopology
             var b = vertices[indices[t + 1]] - reference;
             var c = vertices[indices[t + 2]] - reference;
             sum += Vector3D.Dot(a, Vector3D.Cross(b, c));
+
+            // The same product with absolute components bounds the rounding error of the term
+            var ax = Math.Abs(a.X);
+            var ay = Math.Abs(a.Y);
+            var az = Math.Abs(a.Z);
+            var bx = Math.Abs(b.X);
+            var by = Math.Abs(b.Y);
+            var bz = Math.Abs(b.Z);
+            var cx = Math.Abs(c.X);
+            var cy = Math.Abs(c.Y);
+            var cz = Math.Abs(c.Z);
+            absolute += (ax * ((by * cz) + (bz * cy))) + (ay * ((bz * cx) + (bx * cz))) + (az * ((bx * cy) + (by * cx)));
         }
 
+        errorBound = ((indices.Length / 3) + 12) * MachineEpsilon * absolute / 6.0;
         return sum / 6.0;
     }
 

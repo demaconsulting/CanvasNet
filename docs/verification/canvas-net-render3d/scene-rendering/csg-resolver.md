@@ -15,7 +15,7 @@ access. Three techniques are combined:
   against `Scene.EnumerateInstances`), and truth tables of the evaluator, including 130 leaves and
   10 000-deep trees.
 - **Resolver scenarios** use hand-built `ScreenTriangle`s that carry only a leaf, facing, priority,
-  an optional depth slope, and identifiable enter/exit shades, and hand-built fragment lists, so
+  an optional depth slope and plane, and identifiable enter/exit shades, and hand-built fragment lists, so
   each rule (initial state, tie groups including the slope-widened tolerance, choice within a group,
   far filtering) is isolated with an exact expected result.
 - **Analytic oracle.** Seeded random scene trees of integer-coordinate boxes (groups, unions,
@@ -115,6 +115,8 @@ overlapping union leaf, the entry into an intersection, the tile path with real 
 `CsgResolverTests.CsgResolver_Resolve_ChainOfCloseFragments_GroupIsAnchoredAtFirstDepth`,
 `CsgResolverTests.CsgResolver_Resolve_CoincidentBackFaces_DoNotSpeckle`,
 `CsgResolverTests.CsgResolver_Resolve_CoincidentFacesWithSlopeNoise_AreOneGroupAcrossInstances`,
+`CsgResolverTests.CsgResolver_Resolve_SeparateCloselySpacedObliqueFaces_AreNotMerged`,
+`CsgResolverTests.CsgResolver_Resolve_NonParallelOrUnknownPlane_IsNotWidened`,
 `CsgResolverTests.CsgResolver_Resolve_SlopeNoise_NeverMergesSameInstanceAndIsCapped`,
 `CsgResolverTests.CsgResolver_Resolve_CoincidentSolidsAtThinFold_ResolvesAsFrontPairAndBackPair`,
 `CsgResolverTests.CsgResolver_Resolve_FlushEnterAndExit_LowerPriorityOfEquallyExplainingFragmentsWins`,
@@ -129,9 +131,13 @@ choice rules (single explaining leaf, then lowest priority, then lowest triangle
 insertion order. The slope scenarios use hand-built triangles whose `DepthSlope` is set explicitly:
 
 - **Slope widens the tolerance across instances.** Two flush front faces 0.004 apart (far beyond the
-  base tolerance of 1e-4) are seen as separate groups with slope zero, so the minuend front is
-  visible, but with a slope of 1 they are one group, the flush faces cancel, and the cut surface at
-  the subtrahend's back face is shown.
+  base tolerance of 1e-4) that lie in one plane are seen as separate groups with slope zero, so the
+  minuend front is visible, but with a slope of 1 they are one group, the flush faces cancel, and the
+  cut surface at the subtrahend's back face is shown.
+- **Widening needs plane coincidence.** Two separate faces on parallel 45 degree planes 0.0005 apart,
+  with a slope of 1 (which alone would merge them) and a base tolerance of 1e-6, remain two events,
+  so the minuend entry is seen, while the same faces made coincident are one group; a face whose
+  plane is tilted by about 5.7 degrees, or has no plane, is never widened.
 - **Slope never merges one instance and is capped.** Two fragments of one thin minuend (gap 0.004,
   steep slope) remain separate events, so the thin sheet is seen; and a huge slope (1e6) cannot
   merge fragments farther apart than the cap of 1000 base tolerances (a gap of 0.2 against a cap of

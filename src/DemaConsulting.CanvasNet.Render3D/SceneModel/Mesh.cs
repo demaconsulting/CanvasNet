@@ -23,9 +23,6 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// </remarks>
 public sealed class Mesh
 {
-    /// <summary>Relative volume tolerance (against the cube of the bounds diagonal) below which a negative signed volume is treated as numerical noise rather than an inverted mesh.</summary>
-    private const double InvertedVolumeTolerance = 1e-9;
-
     /// <summary>The vertex positions (owned; never exposed mutably).</summary>
     private readonly Vector3D[] _vertices;
 
@@ -40,6 +37,9 @@ public sealed class Mesh
 
     /// <summary>Lazily computed topology defects plus one (0 = unknown; idempotent, so benign races are harmless).</summary>
     private int _defectState;
+
+    /// <summary>Lazily computed operand defects (topology plus geometric degeneracy) plus one (0 = unknown; idempotent).</summary>
+    private int _operandDefectState;
 
     /// <summary>
     ///     Creates a mesh from vertex positions and triangle indices, copying both.
@@ -141,9 +141,11 @@ public sealed class Mesh
 
     /// <summary>
     ///     Gets a value indicating whether the mesh is a defect-free closed surface that is wound
-    ///     inside out: its signed volume is negative by more than a small tolerance relative to
-    ///     the cube of the bounds diagonal. A multi-shell mesh with cavities (inner shells wound
-    ///     inward) keeps a positive total volume and is therefore not inverted.
+    ///     inside out: its signed volume is negative by more than the rounding error bound of its own
+    ///     computation (see <see cref="MeshTopology.SignedVolume(ReadOnlySpan{Vector3D}, ReadOnlySpan{int}, Vector3D, out double)"/>).
+    ///     The criterion is scale-aware, so a thin but valid solid (for example a reversed
+    ///     1 x 1 x 1e-12 box) is detected while a zero-volume surface is not. A multi-shell mesh with
+    ///     cavities (inner shells wound inward) keeps a positive total volume and is therefore not inverted.
     /// </summary>
     internal bool IsInverted
     {
@@ -154,8 +156,30 @@ public sealed class Mesh
                 return false;
             }
 
-            var diagonal = Bounds.Diagonal;
-            return SignedVolume < -InvertedVolumeTolerance * diagonal * diagonal * diagonal;
+            var volume = MeshTopology.SignedVolume(_vertices, _indices, Bounds.Center, out var errorBound);
+            return volume < -errorBound;
+        }
+    }
+
+    /// <summary>
+    ///     Gets the defects that make the mesh unsuitable as a constructive-solid-geometry operand: the
+    ///     <see cref="TopologyDefects"/> plus <see cref="MeshTopologyDefects.DegenerateTriangle"/> for triangles
+    ///     with distinct but coincident or collinear vertices, which the renderer discards. Computed lazily on
+    ///     first use and cached. Unlike <see cref="IsClosed"/>, geometric degeneracy is included.
+    /// </summary>
+    internal MeshTopologyDefects OperandDefects
+    {
+        get
+        {
+            // The analysis is deterministic, so a racing recomputation stores the same value
+            var state = Volatile.Read(ref _operandDefectState);
+            if (state == 0)
+            {
+                state = (int)MeshTopology.Analyze(_vertices, _indices) + 1;
+                Volatile.Write(ref _operandDefectState, state);
+            }
+
+            return (MeshTopologyDefects)(state - 1);
         }
     }
 
