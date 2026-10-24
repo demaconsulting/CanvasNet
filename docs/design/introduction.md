@@ -188,6 +188,19 @@ software items, specifically:
   Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
   subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
   `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, or `CanvasNetCharts`
+- **CanvasNetScad (System)** — A separate software system (not yet packable) providing a clean-room,
+  parse-only front end for the OpenSCAD language. It contains one direct unit, `ScadDocument` (the
+  public `Parse`/`Open` API with `ScadOpenOptions`, `ScadSourceLocation`, `ScadSyntaxException`, and
+  the recorded `include`/`use` directives, module names, and function names), and an internal
+  `ScadLanguage` subsystem with two units: `ScadLexer` (tokens with one-based locations) and
+  `ScadParser` (recursive-descent statements and precedence-climbing expressions into an immutable
+  syntax tree, with fail-fast single-error reporting and bounded nesting and source size).
+  Evaluation, geometry generation, rendering, and `include`/`use` resolution are deferred to later
+  phases — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full supported/deferred
+  boundary and its Implementation Phase Plan. `CanvasNetScad` references the `CanvasNet` system and
+  `CanvasNetRender3D` as architectural scaffolding for later phases but uses no type from either in
+  its current phase, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
+  `CanvasNetVsdx`, or `CanvasNetCharts`
 
 The following OTS items are also covered:
 
@@ -295,6 +308,15 @@ and the rasterization pipeline can each evolve (the constructive-solid-geometry 
 example, added units to `SceneRendering` without touching the other two) behind their own
 architectural boundary. The root namespace contains no types. See the Folder Layout section below
 and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
+
+A further sibling top-level system, `CanvasNetScad`, likewise lives in this same repository
+alongside `CanvasNet` (and is intended to be distributed as its own NuGet package, which is not yet
+enabled). It is a clean-room, parse-only front end for the OpenSCAD language: its direct unit,
+`ScadDocument` (namespace `DemaConsulting.CanvasNet.Scad`), is the public API, and its internal
+`ScadLanguage` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Language`) holds the `ScadLexer`
+and `ScadParser` units. It references the `CanvasNet` system and `CanvasNetRender3D` only as
+architectural scaffolding for the later evaluation and rendering phases. See the Folder Layout
+section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 ## Folder Layout
 
@@ -648,6 +670,41 @@ src/DemaConsulting.CanvasNet.Render3D/
 `CanvasNetRender3D`'s only dependency on the rest of this repository is the `CanvasNet` system's
 `Canvas` subsystem (`Surface`, `Rgba32`) — see _CanvasNetRender3D System Design_
 (`canvas-net-render3d.md`).
+
+The `CanvasNetScad` system lives in the `src/DemaConsulting.CanvasNet.Scad/` project folder (a
+separate `DemaConsulting.CanvasNet.Scad` package that is not yet packable). The `ScadDocument` unit
+occupies the project root; the internal `ScadLanguage` subsystem occupies the `Language/` sub-folder,
+whose name equals the sub-namespace; no unit has a nested sub-folder of its own (see _CanvasNetScad
+System Design_, `canvas-net-scad.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Scad/
+├── DemaConsulting.CanvasNet.Scad.csproj — Project definition (net8.0/net9.0/net10.0; IsPackable false)
+├── NamespaceDoc.cs                — Namespace-level XML documentation (incl. clean-room statement)
+├── ScadDocument.cs                — ScadDocument: Parse/Open entry points and file-scope facts
+├── ScadOpenOptions.cs             — ScadDocument: immutable, validated open options
+├── ScadSourceLocation.cs          — ScadDocument: file, line, and column value
+├── ScadSyntaxException.cs         — ScadDocument: syntax error exception with location
+├── ScadDirective.cs               — ScadDocument: recorded include/use directive
+├── ScadDirectiveKind.cs           — ScadDocument: include/use enumeration
+└── Language/                      — ScadLanguage subsystem (internal)
+    ├── NamespaceDoc.cs            — Namespace-level XML documentation
+    ├── ScadTokenKind.cs           — ScadLexer: token kind enumeration
+    ├── ScadToken.cs               — ScadLexer: token record struct
+    ├── ScadLexer.cs               — ScadLexer: tokenizer, operators, identifiers, comments
+    ├── ScadLexer.Literals.cs      — ScadLexer: number, string, and directive literals
+    ├── ScadSyntax.cs              — ScadParser: syntax-tree base types, parts, and enumerations
+    ├── ScadStatements.cs          — ScadParser: statement records
+    ├── ScadExpressions.cs         — ScadParser: expression records
+    ├── ScadParser.cs              — ScadParser: entry points, token cursor, errors, limits
+    ├── ScadParser.Statements.cs   — ScadParser: statement productions
+    ├── ScadParser.Expressions.cs  — ScadParser: expression productions
+    └── ScadTreeDepth.cs           — ScadParser: iterative syntax-tree height verification
+```
+
+In its current phase `CanvasNetScad` uses no type from the rest of this repository; its project
+references to the `CanvasNet` system and `CanvasNetRender3D` are scaffolding for later phases — see
+_CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 ## Document Conventions
 

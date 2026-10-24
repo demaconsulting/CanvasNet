@@ -22,6 +22,11 @@ input-files:
   - docs/design/canvas-net-render3d/scene-rendering/fragment-buffer.md
   - docs/design/canvas-net-render3d/scene-rendering/csg-resolver.md
   - docs/design/canvas-net-render3d/scene-rendering/scene-renderer.md
+  - docs/design/canvas-net-scad.md
+  - docs/design/canvas-net-scad/scad-document.md
+  - docs/design/canvas-net-scad/scad-language.md
+  - docs/design/canvas-net-scad/scad-language/scad-lexer.md
+  - docs/design/canvas-net-scad/scad-language/scad-parser.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md
