@@ -169,10 +169,13 @@ public sealed class ScadDocument
     /// <summary>
     ///     Reads a whole stream as text, stopping with an error once the size limit is exceeded.
     /// </summary>
+    /// <remarks>
+    ///     Internal so that the file resolver reads included files with exactly the same bounded, UTF-8 rules.
+    /// </remarks>
     /// <param name="stream">The stream to read; it is left open.</param>
     /// <returns>The text.</returns>
     /// <exception cref="InvalidDataException">Thrown when the text is longer than the maximum source length.</exception>
-    private static string ReadBounded(Stream stream)
+    internal static string ReadBounded(Stream stream)
     {
         // Read in chunks and check the running length so an endless stream stops one chunk past the limit
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: ReadChunkSize, leaveOpen: true);
