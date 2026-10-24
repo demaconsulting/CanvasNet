@@ -362,7 +362,7 @@ and that without the throw flag evaluation continues with `undef`.
 
 #### CanvasNetScad-ScadDocument-EvaluationException: ScadEvaluationException Is A Located InvalidOperationException
 
-**Tests**: `ScadEvaluationExceptionTests.ScadEvaluationException_IsInvalidOperationException`,
+**Tests**: `ScadEvaluationExceptionTests.ScadEvaluationException_Inheritance_DerivesFromInvalidOperationException`,
 `ScadEvaluationExceptionTests.ScadEvaluationException_Location_MessageFormat`,
 `ScadEvaluationExceptionTests.ScadEvaluationException_UnknownLocation_MessageHasNoPrefix`,
 `ScadEvaluationExceptionTests.ScadEvaluationException_StandardConstructors_SetMessageAndInnerException`,

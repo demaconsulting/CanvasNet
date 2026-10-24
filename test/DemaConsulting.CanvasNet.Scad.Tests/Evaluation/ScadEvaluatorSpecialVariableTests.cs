@@ -103,7 +103,7 @@ public class ScadEvaluatorSpecialVariableTests
     ///     Validates shadowing: a <c>$</c> parameter, with or without a default, overrides the outer binding for the call.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorSpecialVariable_ParameterShadowsOuterBinding()
+    public void ScadEvaluatorSpecialVariable_Parameter_ShadowsOuterBinding()
     {
         // Arrange
         const string Source = """

@@ -402,7 +402,7 @@ sections:
               A typed exception with a structured location lets a caller tell a failed evaluation
               from other failures and point at the exact place.
             tests:
-              - ScadEvaluationException_IsInvalidOperationException
+              - ScadEvaluationException_Inheritance_DerivesFromInvalidOperationException
               - ScadEvaluationException_Location_MessageFormat
               - ScadEvaluationException_UnknownLocation_MessageHasNoPrefix
               - ScadEvaluationException_StandardConstructors_SetMessageAndInnerException

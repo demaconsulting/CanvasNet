@@ -9,7 +9,7 @@ public class ScadEvaluationExceptionTests
     ///     Validates the base type.
     /// </summary>
     [Fact]
-    public void ScadEvaluationException_IsInvalidOperationException()
+    public void ScadEvaluationException_Inheritance_DerivesFromInvalidOperationException()
     {
         // Arrange / Act
         var ex = new ScadEvaluationException("bad");

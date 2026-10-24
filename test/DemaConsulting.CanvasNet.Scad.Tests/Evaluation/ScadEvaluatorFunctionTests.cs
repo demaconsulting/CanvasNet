@@ -204,7 +204,7 @@ public class ScadEvaluatorFunctionTests
     ///     Validates that a function sees a variable defined after it in the same scope (lazy cells).
     /// </summary>
     [Fact]
-    public void ScadEvaluatorFunction_ReadsVariablesDefinedLater()
+    public void ScadEvaluatorFunction_FileVariable_DefinedLater_IsReadable()
     {
         // Arrange
         const string Source = "function f() = later * 2;\nlater = 21;\necho(f());";

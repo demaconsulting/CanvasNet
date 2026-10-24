@@ -65,7 +65,7 @@ sections:
                   - ScadEvaluatorScoping_Cell_IsEvaluatedOnce
                   - ScadEvaluatorScoping_SelfReference_IsUndefWithWarning
                   - ScadEvaluatorScoping_MutualReference_IsUndefWithWarning
-                  - ScadEvaluatorFunction_ReadsVariablesDefinedLater
+                  - ScadEvaluatorFunction_FileVariable_DefinedLater_IsReadable
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-SpecialVariables
                 title: >-
@@ -84,7 +84,7 @@ sections:
                   - ScadEvaluatorSpecialVariable_SetInCaller_IsVisibleThroughNestedCalls
                   - ScadEvaluatorSpecialVariable_BoundByLet_IsVisibleInCalledFunction
                   - ScadEvaluatorSpecialVariable_NamedArgumentWithoutParameter_BindsDynamically
-                  - ScadEvaluatorSpecialVariable_ParameterShadowsOuterBinding
+                  - ScadEvaluatorSpecialVariable_Parameter_ShadowsOuterBinding
                   - ScadEvaluatorSpecialVariable_TailRecursionWithoutSpecials_DoesNotGrowChain
                   - ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit
                   - ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody
@@ -372,12 +372,12 @@ sections:
                   must be predictable and independent of ordering.
                 tests:
                   - ScadEvaluatorOverride_ReplacesAssignment_WithoutEvaluatingIt
-                  - ScadEvaluatorOverride_CreatesAbsentVariable
-                  - ScadEvaluatorOverride_ReplacesAllAssignmentsOfTheName
-                  - ScadEvaluatorOverride_AppliesToTopLevelOnly
+                  - ScadEvaluatorOverride_AbsentVariable_IsCreated
+                  - ScadEvaluatorOverride_RepeatedAssignments_AreAllReplaced
+                  - ScadEvaluatorOverride_Scope_AppliesToTopLevelOnly
                   - ScadEvaluatorOverride_VectorValue_IsUsableAsVector
                   - ScadEvaluatorOverride_Order_DoesNotMatter
-                  - ScadEvaluatorOverride_FlowsIntoDependentAssignments
+                  - ScadEvaluatorOverride_DependentAssignments_SeeOverriddenValue
                   - ScadEvaluatorSpecialVariable_OverrideOfSpecial_ReplacesDefault
                   - ScadEvaluatorIncludeUse_Overrides_ReplaceIncludedAssignmentsButNotLibraries
 

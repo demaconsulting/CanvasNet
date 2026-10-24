@@ -39,7 +39,7 @@ public class ScadEvaluatorOverrideTests
     ///     Validates that an override creates the variable when the program does not assign it.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorOverride_CreatesAbsentVariable()
+    public void ScadEvaluatorOverride_AbsentVariable_IsCreated()
     {
         // Arrange
         var settings = Overriding(("y", ScadValue.FromString("hello")));
@@ -56,7 +56,7 @@ public class ScadEvaluatorOverrideTests
     ///     Validates that an override replaces every top-level assignment of the name, without a reassignment warning.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorOverride_ReplacesAllAssignmentsOfTheName()
+    public void ScadEvaluatorOverride_RepeatedAssignments_AreAllReplaced()
     {
         // Arrange
         var settings = Overriding(("x", ScadValue.FromNumber(9)));
@@ -74,7 +74,7 @@ public class ScadEvaluatorOverrideTests
     ///     (a different scope) are not replaced.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorOverride_AppliesToTopLevelOnly()
+    public void ScadEvaluatorOverride_Scope_AppliesToTopLevelOnly()
     {
         // Arrange
         var settings = Overriding(("n", ScadValue.FromNumber(3)));
@@ -129,7 +129,7 @@ public class ScadEvaluatorOverrideTests
     ///     Validates that an override of a name used by a later dependent assignment flows into it.
     /// </summary>
     [Fact]
-    public void ScadEvaluatorOverride_FlowsIntoDependentAssignments()
+    public void ScadEvaluatorOverride_DependentAssignments_SeeOverriddenValue()
     {
         // Arrange
         var settings = Overriding(("width", ScadValue.FromNumber(10)));
