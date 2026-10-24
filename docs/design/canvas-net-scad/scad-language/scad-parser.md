@@ -490,9 +490,12 @@ acceptable, because the result would then depend on the platform and the caller'
 
 #### Callers
 
-`ScadDocument` is the only production caller: it calls `ScadParser.Parse(string, string?)`, reads
+`ScadDocument` and the `ScadFileResolver` unit of the `ScadEvaluation` subsystem are the production callers.
+`ScadDocument` calls `ScadParser.Parse(string, string?)`, reads
 `ScadParser.MaxSourceLength` and `ScadParser.CreateSourceTooLongException()` while reading streams and
-files, and extracts the directives and file-scope definition names from the returned `ScadProgram`.
+files, and extracts the directives and file-scope definition names from the returned `ScadProgram`;
+`ScadFileResolver` calls `ScadParser.Parse(string, string?)` for each file loaded by `include` or `use`, and
+`ScadEvaluator` walks the resulting trees (whose depth the parser bounds at 256).
 `ScadTreeDepth` is called only by `ScadParser`. The tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadParser*Tests.cs` call both `Parse` overloads
 directly through `InternalsVisibleTo` and compare trees with the `ScadAstDumper` test helper.

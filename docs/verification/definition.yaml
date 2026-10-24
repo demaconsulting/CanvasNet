@@ -29,6 +29,11 @@ input-files:
   - docs/verification/canvas-net-scad/scad-language.md
   - docs/verification/canvas-net-scad/scad-language/scad-lexer.md
   - docs/verification/canvas-net-scad/scad-language/scad-parser.md
+  - docs/verification/canvas-net-scad/scad-evaluation.md
+  - docs/verification/canvas-net-scad/scad-evaluation/scad-value.md
+  - docs/verification/canvas-net-scad/scad-evaluation/scad-evaluator.md
+  - docs/verification/canvas-net-scad/scad-evaluation/scad-builtin-functions.md
+  - docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

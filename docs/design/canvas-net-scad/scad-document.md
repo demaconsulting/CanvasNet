@@ -2,45 +2,58 @@
 
 ![CanvasNetScad Structure](CanvasNetScadView.svg)
 
-<!-- cspell:ignore lexer lexical -->
+<!-- cspell:ignore lexer lexical evaluator undef textmetrics -->
 
 ### Purpose
 
-`ScadDocument` is the public entry point of `CanvasNetScad`. It is the parse-only front end for
+`ScadDocument` is the public entry point of `CanvasNetScad`. It is the front end for
 OpenSCAD-language source: it reads source text from a string, a stream or a file, drives the internal
 `ScadLanguage` subsystem to tokenize and parse it, and exposes the validated result. A document
 proves that the source is syntactically valid and reports what it declares at file scope (the
-`include`/`use` directives and the names of the file-scope modules and functions). It never evaluates
-the program and never opens another file. The package is an original implementation written from
+`include`/`use` directives and the names of the file-scope modules and functions). **Parsing never evaluates
+the program and never opens another file.** A document can then be **evaluated**: `Evaluate` drives the
+internal `ScadEvaluation` subsystem and returns the echo output, the warnings, the unsupported-feature
+reports, and the number of module instances produced; only evaluation opens other files (the files named
+by `include` and `use`), and only through the document's `ScadOpenOptions` and inside the sandbox
+described in _CanvasNetScad System Design_. The package is an original implementation written from
 general language-design knowledge; see _ScadLexer_ (`scad-language/scad-lexer.md`) for the clean-room
 statement that applies to the whole system. The unit covers the files `ScadDocument.cs`,
-`ScadOpenOptions.cs`, `ScadSourceLocation.cs`, `ScadSyntaxException.cs`, `ScadDirective.cs`,
-`ScadDirectiveKind.cs`, and the namespace documentation `NamespaceDoc.cs`.
+`ScadDocument.Evaluate.cs`, `ScadOpenOptions.cs`, `ScadSourceLocation.cs`, `ScadSyntaxException.cs`,
+`ScadDirective.cs`, `ScadDirectiveKind.cs`, the evaluation contract `ScadEvaluationOptions.cs`,
+`ScadEvaluationResult.cs`, `ScadLimits.cs`, `ScadDiagnostic.cs`, `ScadUnsupportedFeature.cs`,
+`ScadUnsupportedFeatureException.cs`, and `ScadEvaluationException.cs`, and the namespace documentation
+`NamespaceDoc.cs`.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requirements in
 `docs/reqstream/canvas-net-scad/scad-document.yaml` and, at system level, by `CanvasNetScad-Open`,
 `CanvasNetScad-OpenOptions`, `CanvasNetScad-Directives`, `CanvasNetScad-Definitions`,
-`CanvasNetScad-SyntaxErrors`, and `CanvasNetScad-InputLimits`.
+`CanvasNetScad-SyntaxErrors`, `CanvasNetScad-InputLimits`, `CanvasNetScad-Evaluate`,
+`CanvasNetScad-EvaluationOptions`, `CanvasNetScad-Diagnostics`, `CanvasNetScad-UnsupportedFeatures`,
+`CanvasNetScad-EvaluationErrors`, `CanvasNetScad-IncludeUse`, `CanvasNetScad-EvaluationLimits`,
+`CanvasNetScad-Cancellation`, `CanvasNetScad-VariableOverrides`, and `CanvasNetScad-Determinism`.
 
 ### Data Model
 
-- **`ScadDocument`** (sealed class, immutable) — holds the internal `ScadProgram` syntax tree, the
+- **`ScadDocument`** (sealed partial class, immutable) — holds the internal `ScadProgram` syntax tree, the
   effective `ScadOpenOptions`, and three public read-only lists derived from the tree once at
   construction: `Directives`, `ModuleNames`, and `FunctionNames`. The constructor is private; the only
-  ways to obtain a document are `Parse` and the two `Open` overloads. The `Program` and `Options`
-  properties are `internal` so that later phases (evaluation, rendering) can consume them without
-  widening the public surface. A document holds no unmanaged resources and is not disposable; it is
-  safe for concurrent use.
+  ways to obtain a document are `Parse` and the two `Open` overloads. The `Program` and
+  `Options` properties are `internal` so that the evaluator can consume them without widening the public
+  surface. The class is `partial` only so that `Evaluate` can live in `ScadDocument.Evaluate.cs`. A document
+  holds no unmanaged resources, is not disposable, and keeps no state between calls: it is safe for
+  concurrent use, including concurrent `Evaluate` calls.
 - **`ScadOpenOptions`** (sealed class, init-only) — `BaseDirectory` (`string?`), `LibraryPaths`
   (`IReadOnlyList<string>`, empty by default), `FileResolver` (`Func<string, Stream?>?`), and
   `SourceName` (`string?`). Every property is validated in its `init` accessor: null is allowed for
   the nullable properties, but empty or whitespace text throws `ArgumentException`; a null
   `LibraryPaths` list or entry throws `ArgumentNullException`, and a whitespace entry throws
   `ArgumentException`. `LibraryPaths` is copied defensively into a read-only list, so a later change to
-  the caller's list has no effect. `BaseDirectory`, `LibraryPaths` and `FileResolver` are accepted and
-  stored now but not consumed until file resolution is added in a later phase; `SourceName` is
-  consumed immediately because it appears in every `ScadSourceLocation`. The internal
-  `WithEffective(baseDirectory, sourceName)` creates a copy with those two values filled in.
+  the caller's list has no effect. **Parsing consumes only `SourceName`** (it appears in every
+  `ScadSourceLocation`); `BaseDirectory`, `LibraryPaths`, and `FileResolver` are consumed by `Evaluate`,
+  where they define the file-access sandbox. A document that was not opened from a file has no base
+  directory: there is **no implicit current directory**, so a stream or string document needs a resolver or
+  library paths to use `include`/`use`. The internal `WithEffective(baseDirectory, sourceName)` creates a
+  copy with those two values filled in.
 - **`ScadSourceLocation`** (`readonly record struct (string? File, int Line, int Column)`) — a
   one-based position. A column counts UTF-16 code units, a tab counts as one column, and `\r\n`,
   `\n`, and a lone `\r` each end exactly one line. `default(ScadSourceLocation)` has `Line == 0` and
@@ -57,6 +70,35 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
 - **`ScadDirectiveKind`** (enum) — `Include` and `Use`. The same enum is shared by the public API and
   the internal syntax tree (`ScadDirectiveStatement`); consumers should handle unknown values
   defensively.
+- **`ScadEvaluationOptions`** (sealed class, init-only) — `Variables` (`IReadOnlyDictionary<string, object?>?`,
+  default null), `Time` (`double`, default 0, must be finite, else `ArgumentOutOfRangeException`), `Limits`
+  (`ScadLimits`, default `ScadLimits.Default`, null throws `ArgumentNullException`), the handlers
+  `EchoHandler` (`Action<string>?`), `WarningHandler` (`Action<ScadDiagnostic>?`), and
+  `UnsupportedFeatureHandler` (`Action<ScadUnsupportedFeature>?`), and `ThrowOnUnsupportedFeature` (default
+  false). `Variables` is validated when set: each key must be an optional `$` followed by ASCII letters,
+  digits, and underscores (an ordinary name must not start with a digit); each value is converted with
+  `ScadValue.TryFromObject` (null, boolean, any numeric type, string, or a non-string sequence of these,
+  nested at most 256 levels, with at most 1,000,000 elements in total), and anything else throws
+  `ArgumentException` naming the key. The public copy is an ordinal-sorted read-only dictionary in which
+  scalars are kept as supplied and **sequences are snapshotted** into arrays (enumerated exactly once); the
+  converted values are kept in an internal `Overrides` dictionary in ordinal key order.
+- **`ScadEvaluationResult`** (sealed class, internal constructor, get-only) — `Echo` (each full line,
+  including the `ECHO:` prefix), `Diagnostics`, `UnsupportedFeatures`, and `InstanceCount` (module instances,
+  groups included). The lists are `ReadOnlyCollection<T>` copies, not castable to a mutable type.
+- **`ScadLimits`** (sealed class, init-only) — ten limits with their defaults and valid ranges:
+  `MaxRecursionDepth` (5,000; 16 to 16,384), `MaxEvaluationSteps` (50,000,000), `MaxLoopIterations`
+  (10,000,000), `MaxListLength` (1,000,000), `MaxStringLength` (1,048,576), `MaxIncludeDepth` (16; 1 to 64),
+  `MaxIncludedFiles` (1,000), `MaxInstances` (1,000,000), `MaxOutputLength` (4,194,304 echo characters), and
+  `MaxDiagnostics` (1,000). Each is validated in its `init` accessor (`ArgumentOutOfRangeException`), and
+  `ScadLimits.Default` is a shared instance.
+- **`ScadDiagnostic`** (sealed record) — `Message` and `Location`; `ToString()` is `{Location}: {Message}` with
+  the invariant culture. **`ScadUnsupportedFeature`** (sealed record) — `Feature` (an identifier such as
+  `scad-function-textmetrics`), `Message`, and `Location`.
+- **`ScadEvaluationException`** (sealed, derives from `InvalidOperationException`) and
+  **`ScadUnsupportedFeatureException`** (sealed, derives from `IOException`, with a `Feature` property) — each
+  carries a `Location`, builds the message `{location}: {description}` when the location is known, and has the
+  standard constructors. `InvalidDataException` is sealed in the base class library, which is why these types
+  derive from other base classes (the same reason `ScadSyntaxException` is a `FormatException`).
 
 **Invariants**: a `ScadDocument` exists only for source that tokenized and parsed without error, so
 `Directives`, `ModuleNames`, and `FunctionNames` are always consistent with a valid program. The
@@ -81,26 +123,38 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   `ArgumentNullException` for a null stream and `ArgumentException` for an unreadable stream, reads
   from the stream's current position to its end, and leaves the stream open. No base directory or
   source name is invented.
-- `ReadBounded(Stream)` (private) — reads UTF-8 with byte-order-mark detection through a
+- `ScadDocument.Evaluate(ScadEvaluationOptions? options = null, CancellationToken cancellationToken = default)` —
+  uses default options when `options` is null, throws `OperationCanceledException` before any work (and before
+  any resolver call) when the token is already canceled, converts the options to internal settings, creates the
+  buffering `ScadEvaluationSink`, and calls `ScadEvaluator.Evaluate(this, settings, sink)`. On success it
+  delivers the buffered events to the handlers **on the calling thread, in order** (a handler exception
+  propagates) and returns a `ScadEvaluationResult` built from the sink and the instance count. On any
+  failure — an evaluation error, a syntax error in an included file, an I/O error, cancellation — the events
+  recorded before the failure are still delivered, and an exception thrown by a handler on that path is
+  **ignored so that the original failure wins**. The method is synchronous and thread-safe; it never invokes
+  a handler or the file resolver on a thread other than the caller's.
+- `ReadBounded(Stream)` (internal static) — reads UTF-8 with byte-order-mark detection through a
   `StreamReader` (`leaveOpen: true`) in 8,192-character chunks and checks the running length after each
   chunk. As soon as the length exceeds `ScadParser.MaxSourceLength` (4,194,304 UTF-16 characters) it
-  throws, so a stream that never ends cannot consume unbounded memory.
+  throws, so a stream that never ends cannot consume unbounded memory. It is `internal` so that
+  `ScadFileResolver` reads included files with the same bound.
 - `Create(source, effective)` (private) — calls `ScadParser.Parse(source, effective.SourceName)` and
   wraps the resulting `ScadProgram` in a document. The constructor then extracts the three public lists
   with one pass of type filtering over the program's top-level statements
   (`ScadDirectiveStatement`, `ScadModuleDefinition`, `ScadFunctionDefinition`).
 
-**Guarantees**: every entry point either returns a fully populated,
-immutable document or throws; there is no partially valid document. The parse is a pure function of the
+**Guarantees**: every parse entry point either returns a fully populated,
+immutable document or throws; there is no partially valid document. Parsing is a pure function of the
 source text and options: no file other than the one named by `Open(path)` is accessed, so an
-`include`/`use` path need not exist and `FileResolver` is never invoked.
+`include`/`use` path need not exist and `FileResolver` is never invoked. `Evaluate` is a pure function of the
+document, the options, and the files the options make reachable.
 
 ### Error Handling
 
 - Programming-error arguments (a null source, path, or stream; an empty or whitespace path; an
   unreadable stream) throw `ArgumentNullException` or `ArgumentException` synchronously and are never
-  caught or converted. `ScadOpenOptions` fails closed in the same way when a property is initialized
-  with an invalid value.
+  caught or converted. `ScadOpenOptions`, `ScadEvaluationOptions`, and `ScadLimits` fail closed in the same
+  way when a property is initialized with an invalid value.
 - Source that cannot be tokenized or parsed throws `ScadSyntaxException` with the location of the
   first error (see _ScadLanguage_, `scad-language.md`, for the fail-fast model and the exact message
   catalogue in _ScadParser_ and _ScadLexer_). Nesting deeper than 256 levels is reported the same way
@@ -108,13 +162,21 @@ source text and options: no file other than the one named by `Open(path)` is acc
   restarts on a dedicated 16 MiB-stack thread (at most a bounded number at once) only when the caller's
   stack is too small, so the limit does not depend on the caller's stack size;
   exceptions are rethrown on the calling thread with their original type and stack trace. The
-  operations take no cancellation token, so none is honored.
+  parse operations take no cancellation token, so none is honored.
 - Source longer than 4,194,304 UTF-16 characters throws a plain `InvalidDataException` with the message
   `Source exceeds the maximum length of 4194304 characters`, not a `ScadSyntaxException`, because no
   source location is meaningful for it. This applies to `Parse` (checked before any lexing), to
-  `Open(Stream)`, and to `Open(path)` (checked while reading).
+  `Open(Stream)`, and to `Open(path)` (checked while reading), and to every file loaded by `include`/`use`.
 - File-system exceptions from `File.OpenRead` and stream read failures (`IOException` and derivatives)
   propagate unchanged.
+- `Evaluate` throws `ScadEvaluationException` (with the location) for a failed `assert`, an exceeded
+  `ScadLimits` limit, an include cycle, a sandbox violation, and a directive with no place to look;
+  `ScadUnsupportedFeatureException` when `ThrowOnUnsupportedFeature` is set and the program uses an
+  unsupported feature; `ScadSyntaxException` (naming the included file) for a syntax error in a referenced
+  file; `InvalidDataException` for an oversize referenced file; `OperationCanceledException`, never wrapped,
+  for cancellation; and `IOException` for a referenced file that cannot be read. Recoverable problems (an
+  unknown name, a bad operand, a missing include file) are **warnings** in the result, not exceptions; see
+  _ScadEvaluation_ (`scad-evaluation.md`, _Event Classification_).
 
 ### Dependencies
 
@@ -124,16 +186,25 @@ source text and options: no file other than the one named by `Open(path)` is acc
   `ScadFunctionDefinition`), and the constants and factory behind the source-length limit
   (`ScadParser.MaxSourceLength`, `ScadParser.CreateSourceTooLongException`). See _ScadLanguage_
   (`scad-language.md`).
+- **`ScadEvaluation` subsystem** (internal, namespace `DemaConsulting.CanvasNet.Scad.Evaluation`) —
+  `ScadEvaluator.Evaluate`, `ScadEvaluationSettings`, `ScadEvaluationSink`, `ScadEvaluationOutput`, and
+  `ScadValue.TryFromObject` (for the `Variables` of the evaluation options). See _ScadEvaluation_
+  (`scad-evaluation.md`).
 - **.NET base class library** — `System.IO` (`File`, `Stream`, `StreamReader`, `Path`,
   `InvalidDataException`, `FileNotFoundException`), `System.Text.Encoding.UTF8`, `System.Text.StringBuilder`,
-  and `System.Linq` for the derived lists.
+  `System.Threading` (`CancellationToken`), and `System.Linq` for the derived lists.
 - No other `CanvasNet` package is used by the code; the project references the core and `Render3D`
-  packages only in anticipation of the later evaluation and rendering phases.
+  packages only in anticipation of the geometry phase.
 
 ### Callers
 
-`ScadDocument` is the sole public entry point for reading OpenSCAD-language source; it is called
-directly by consuming applications. Within this repository no other unit calls it. System-level
-integration tests in `test/DemaConsulting.CanvasNet.Scad.Tests/ScadSystemIntegrationTests.cs` exercise
-it through its public API, and the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`,
-`ScadSourceLocationTests.cs`, and `ScadSyntaxExceptionTests.cs` verify the individual types.
+`ScadDocument` is the sole public entry point for reading and evaluating OpenSCAD-language source; it is
+called directly by consuming applications. Within this repository no other unit calls it, except that
+`ScadEvaluator` and `ScadFileResolver` read its internal `Program`, `Options`, and
+`ReadBounded` (and its public `SourceName`) during evaluation. System-level integration tests in
+`test/DemaConsulting.CanvasNet.Scad.Tests/ScadSystemIntegrationTests.cs` exercise it through its public API, and
+the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSourceLocationTests.cs`,
+`ScadSyntaxExceptionTests.cs`, `ScadDocumentEvaluateTests.cs`, `ScadDocumentEvaluateSafetyTests.cs`,
+`ScadEvaluationOptionsTests.cs`, `ScadLimitsTests.cs`, `ScadDiagnosticTests.cs`,
+`ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, and `ScadFixtureEvaluationTests.cs`
+verify the individual types.
