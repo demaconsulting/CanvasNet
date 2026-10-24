@@ -45,7 +45,8 @@ sections:
                 title: >-
                   The PolygonRegion constructor shall reject, with an ArgumentException (or an
                   ArgumentNullException for null arguments), every polygon that cannot be extruded into a
-                  closed manifold solid: a non-finite point, a contour with fewer than three distinct
+                  closed manifold solid: a non-finite point, finite coordinates so extreme that the
+                  area of the region is not a finite number, a contour with fewer than three distinct
                   vertices or with zero area, a contour that crosses or touches itself (a bow tie, a
                   spike of overlapping edges, or a repeated non-consecutive point), and contours that
                   cross or touch one another; it shall never leave such input as undefined behavior.
@@ -59,6 +60,7 @@ sections:
                   - PolygonRegion_Constructor_FewerThanThreeDistinctPoints_Throws
                   - PolygonRegion_Constructor_ZeroAreaContour_Throws
                   - PolygonRegion_Constructor_NonFinitePoint_Throws
+                  - PolygonRegion_Constructor_AreaNotFinite_Throws
                   - PolygonRegion_Constructor_NullArguments_Throw
                   - PolygonRegion_Constructor_SelfIntersectingBowTie_Throws
                   - PolygonRegion_Constructor_SpikeOverlappingEdges_Throws

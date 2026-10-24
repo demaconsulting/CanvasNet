@@ -50,7 +50,9 @@ a reversed (inside-out) result, which proves the check can fail.
 
 Each argument-validation rule has a test for its exception. The unit depends only on
 `PolygonRegion`, `PolygonTriangulator`, `Mesh`, and `MeshBuilder`, so no mocking or stubbing is
-required.
+required. The only link to another subsystem is test-only: `Render3DTestHelpers.AssertValidCsgOperand`
+runs the internal `SceneRendering.CsgOperandValidator` (visible to the test project through
+`InternalsVisibleTo`), as stated in the unit design.
 
 Unit tests reside in `ExtruderLinearTests.cs` and `ExtruderRotateTests.cs` within the
 `DemaConsulting.CanvasNet.Render3D.Tests` project, in the `Tessellation` folder.
@@ -164,13 +166,18 @@ outward oriented with the same volume as its mirror image.
 
 **Tests**: `ExtruderRotateTests.Extruder_Rotate_ProfileCrossingAxis_Throws`,
 `ExtruderRotateTests.Extruder_Rotate_ProfileOnlyOnAxis_Throws`,
-`ExtruderRotateTests.Extruder_Rotate_InvalidArguments_Throw`
+`ExtruderRotateTests.Extruder_Rotate_InvalidArguments_Throw`,
+`ExtruderRotateTests.Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws`,
+`ExtruderRotateTests.Extruder_Rotate_StepUnresolvableAtRadius_Throws`
 
 Asserts `ArgumentException` for a profile that crosses the axis and for a profile lying only on it
 (which the region constructor rejects as zero area, so the test asserts the exception from that
 path, while the defensive check in `Rotate` remains), and the documented exception for a null
 region, an angle of zero, above 360, or not a number, and too few segments for a full revolution and
-for a partial sweep.
+for a partial sweep. The smallest positive double as an angle (its radian value rounds to zero)
+is rejected with an `ArgumentOutOfRangeException` naming `angleDegrees`, and a `1e-300` degree
+sweep of a profile at radius `1e-300` (the ring offset rounds to zero) is rejected with an
+`ArgumentException` instead of returning an open mesh.
 
 ##### CanvasNetRender3D-Tessellation-Extruder-ValidOperand: Every Result Is A Valid CSG Operand
 

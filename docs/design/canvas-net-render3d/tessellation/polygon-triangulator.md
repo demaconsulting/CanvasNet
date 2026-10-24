@@ -30,7 +30,7 @@ lists afterward has no effect. It exposes:
 - `Vertices` / `VertexCount`: all contour vertices concatenated in contour order; this is the index
   space of the triangulator output.
 - `Area`: solid minus holes plus islands (the sum of the signed areas of the normalized contours,
-  computed with compensated summation), never negative.
+  computed with compensated summation), finite and never negative.
 - `IsEmpty` and the shared `Empty` instance: a region without contours has no area and no triangles.
 - Internally, a `ContourInfo` table (start index, vertex count, nesting depth, innermost parent) used by
   the triangulator and the `Extruder`.
@@ -77,8 +77,24 @@ ear triangle contains no other reflex or collinear ring vertex (ignoring duplica
 corners created by bridges). Consequently no zero-area triangle is emitted, every collinear vertex
 remains a triangle vertex, and a collinear vertex on a would-be diagonal blocks that diagonal, so no
 T-junction can arise. The first ear found scanning from a rotating pointer is clipped, which makes
-the result deterministic. A convex ring costs one check per vertex; the worst case is quadratic in the
-number of vertices, adequate for CAD-sized profiles.
+the result deterministic. A convex ring costs one check per vertex. For every other ring, each
+candidate ear is tested against the list of reflex and collinear entries `r`, so the worst case is
+`O(n r)`, up to quadratic in the number of vertices. Two measures keep the constant small without
+changing any result: a bounding-box test rejects reflex vertices that cannot lie in the closed ear
+triangle before the exact predicates run, and entries that have turned convex are dropped lazily while
+scanning instead of by a separate pass per clip. Measured in a Release build, a comb of 2,000 teeth
+(8,000 vertices, many reflex vertices inside tall ear bounding boxes) triangulates in about 2 seconds
+(15 seconds before these measures); larger concave rings keep growing roughly quadratically. There is no
+cancellation. This is adequate for CAD-sized profiles; callers with very large concave profiles
+should split them.
+
+_Invariant of the reflex list._ Clipping an ear shrinks the interior angle at both neighbors, because
+the ear triangle lies inside the polygon and the new edge runs inside the neighbors' old wedges. A
+convex neighbor therefore stays convex, so the set of reflex or collinear entries only ever shrinks and
+needs no insertions. This also holds for the duplicated vertices of bridges, whose wedges lie on either
+side of the zero-width bridge. The fuzz tests, plus an exploratory run of about 60,000 lattice polygons
+with many collinear points and aligned multi-hole layouts that asserted no neighbor ever became newly
+reflex, found no counterexample.
 
 **Invariants** (asserted by the tests for every valid region): the triangle count is exactly
 `V + 2H - 2P` (V vertices, H holes, P solid contours); every triangle is strictly counter-clockwise;
@@ -93,6 +109,8 @@ The `PolygonRegion` constructor never leaves malformed input as undefined behavi
 message names the contour and the point or edge) for:
 
 - a point that is not finite;
+- finite coordinates so extreme (beyond about 1e154) that the region's area overflows to infinity or
+  NaN: the region could not report a usable area or volume;
 - a contour with fewer than three distinct vertices after cleaning, or with zero area (all
   collinear);
 - a contour that crosses itself (a bow tie) or touches itself (a repeated non-consecutive point, or

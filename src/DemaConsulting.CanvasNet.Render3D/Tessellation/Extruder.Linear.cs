@@ -27,6 +27,11 @@ public static partial class Extruder
     ///         and hole walls alike. Twisted or non-uniformly scaled wall quads are not planar; the facet
     ///         volume then only approaches the smooth solid as <paramref name="slices"/> grows, and a large
     ///         twist per slice can make neighboring slices intersect, so choose the slice count accordingly.
+    ///         Scale and twist are about the origin: for an apex, a large scale change or a per-axis scale with
+    ///         twist the profile must be star-shaped about the origin, otherwise the solid can self-intersect and
+    ///         is not a valid operand; an apex over a region with a hole also leaves a pinched (non-manifold)
+    ///         vertex. Extreme magnitudes (tiny non-zero scales, huge heights or coordinates) can round to
+    ///         degenerate triangles that the operand validator flags; see <see cref="Extruder"/>.
     ///     </para>
     /// </remarks>
     /// <param name="region">The region to extrude (profile in the XY plane).</param>

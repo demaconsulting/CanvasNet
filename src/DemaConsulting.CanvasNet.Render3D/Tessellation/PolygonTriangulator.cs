@@ -335,11 +335,14 @@ internal static class EarClipper
             output.Add(vertex[after]);
             next[before] = after;
             previous[after] = before;
+            // Clipping shrinks the interior angle at both neighbors (the ear triangle lies inside the polygon and the
+            // new edge runs inside their old wedge), so a convex neighbor stays convex and no vertex can newly become
+            // reflex or collinear; the list of reflex entries therefore only ever shrinks. This also holds at the
+            // duplicated vertices of bridges, whose wedges lie on either side of the bridge. Entries that turned
+            // convex (or were clipped) are dropped lazily by IsEar.
             reflex[current] = false;
             reflex[before] = Turn(points, vertex, previous[before], before, after) <= 0;
-            reflex[after] = Turn(points, vertex, before, after, next[after]) <= 0;
-            reflexList.RemoveAll(index => !reflex[index]);
-            remaining--;
+            reflex[after] = Turn(points, vertex, before, after, next[after]) <= 0; remaining--;
             misses = 0;
             current = after;
         }
@@ -374,7 +377,7 @@ internal static class EarClipper
     /// <param name="previous">The previous-entry links.</param>
     /// <param name="next">The next-entry links.</param>
     /// <param name="reflex">Whether each entry is reflex or collinear.</param>
-    /// <param name="reflexList">The entries that are reflex or collinear.</param>
+    /// <param name="reflexList">The entries that are reflex or collinear; stale entries are removed here as they are met.</param>
     /// <param name="tip">The candidate tip entry.</param>
     /// <returns><see langword="true"/> when the entry is a strictly convex corner with an empty closed triangle.</returns>
     private static bool IsEar(Vector2D[] points, int[] vertex, int[] previous, int[] next, bool[] reflex, List<int> reflexList, int tip)
@@ -389,8 +392,22 @@ internal static class EarClipper
         var a = points[vertex[before]];
         var b = points[vertex[tip]];
         var c = points[vertex[after]];
-        foreach (var entry in reflexList)
+        var minX = Math.Min(a.X, Math.Min(b.X, c.X));
+        var maxX = Math.Max(a.X, Math.Max(b.X, c.X));
+        var minY = Math.Min(a.Y, Math.Min(b.Y, c.Y));
+        var maxY = Math.Max(a.Y, Math.Max(b.Y, c.Y));
+
+        // Walk backwards so stale entries can be swap-removed (order is irrelevant: any blocker rejects the ear)
+        for (var i = reflexList.Count - 1; i >= 0; i--)
         {
+            var entry = reflexList[i];
+            if (!reflex[entry])
+            {
+                reflexList[i] = reflexList[^1];
+                reflexList.RemoveAt(reflexList.Count - 1);
+                continue;
+            }
+
             // Duplicates of the corners (bridge endpoints) sit exactly on the triangle and never block it
             var id = vertex[entry];
             if (id == vertex[before] || id == vertex[tip] || id == vertex[after])
@@ -398,7 +415,14 @@ internal static class EarClipper
                 continue;
             }
 
-            if (PolygonPredicates.PointInClosedTriangle(a, b, c, points[id], counterClockwise: true))
+            // The closed triangle lies inside its bounding box, so points outside it cannot block (exact, and cheap)
+            var p = points[id];
+            if (p.X < minX || p.X > maxX || p.Y < minY || p.Y > maxY)
+            {
+                continue;
+            }
+
+            if (PolygonPredicates.PointInClosedTriangle(a, b, c, p, counterClockwise: true))
             {
                 return false;
             }

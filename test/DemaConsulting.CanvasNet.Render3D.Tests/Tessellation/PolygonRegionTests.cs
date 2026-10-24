@@ -176,6 +176,24 @@ public class PolygonRegionTests
     }
 
     /// <summary>
+    ///     Validates that finite but extreme coordinates whose area overflows are rejected, while a large
+    ///     region whose area still fits is accepted with a finite area.
+    /// </summary>
+    [Fact]
+    public void PolygonRegion_Constructor_AreaNotFinite_Throws()
+    {
+        // Arrange / Act / Assert: 1e308 squared overflows (the shoelace terms become infinity / NaN)
+        var huge = Assert.Throws<ArgumentException>(() => new PolygonRegion([new Vector2D[] { new(0, 0), new(1e308, 0), new(1e308, 1e308), new(0, 1e308) }]));
+        Assert.Contains("area", huge.Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() => new PolygonRegion([new Vector2D[] { new(0, 0), new(1e200, 0), new(1e200, 1e200), new(0, 1e200) }]));
+
+        // A 1e100 square has area 1e200, which is finite
+        var large = new PolygonRegion([new Vector2D[] { new(0, 0), new(1e100, 0), new(1e100, 1e100), new(0, 1e100) }]);
+        Assert.True(double.IsFinite(large.Area));
+        Assert.Equal(1e200, large.Area, 1e185);
+    }
+
+    /// <summary>
     ///     Validates that null arguments are rejected with <see cref="ArgumentNullException"/>.
     /// </summary>
     [Fact]

@@ -2752,7 +2752,9 @@ public sealed class PolygonRegion
   with zero area (all points collinear), a contour that crosses or touches itself (a bow tie, a
   spike, or a repeated non-consecutive point), and contours that cross or touch each other (a shared
   point, or a vertex on another contour's edge). Move touching contours apart or merge them
-  yourself. `ArgumentNullException` is thrown for a null contour list or contour.
+  yourself. `ArgumentNullException` is thrown for a null contour list or contour. Finite but
+  extreme coordinates (beyond about 1e154, where the area overflows) are also rejected with
+  `ArgumentException`, so `Area` is always a finite number.
 
 ```csharp
 // A 10 x 10 square plate with a 4 x 4 hole (winding does not matter)
@@ -2781,8 +2783,11 @@ public static class PolygonTriangulator
   exactly and leave the holes uncovered. The decisions use exact arithmetic (no tolerances), and the
   result is deterministic.
 - Holes are connected to their outer boundary by zero-width bridges before the ears are clipped.
-  The worst-case time is quadratic in the number of vertices, which suits typical CAD-sized
-  profiles; a convex polygon is linear.
+  A convex polygon is linear. A concave polygon costs up to the number of vertices times the number
+  of reflex (inward-pointing) vertices, so the worst case is quadratic in the number of vertices:
+  fine for typical CAD-sized profiles, but a comb with 8,000 vertices and many deep teeth takes about
+  two seconds, and the time keeps growing quadratically beyond that. There is no cancellation, so
+  split very large concave profiles.
 - `ArgumentNullException` is thrown for a null region.
 
 ```csharp
@@ -2808,7 +2813,19 @@ public static class Extruder
 
 Every result is a welded, closed, outward-oriented mesh with positive `SignedVolume` and no
 degenerate triangles, so it is a valid operand for constructive solid geometry (`CsgNode`) without
-any operand report. An empty region gives an empty mesh.
+any operand report. An empty region gives an empty mesh. These guarantees hold for profiles and
+parameters of ordinary magnitude and are subject to two caveats:
+
+- **Finite precision.** With extreme values (a tiny non-zero scale such as `1e-17`, a height near
+  `double.MaxValue`, or coordinates of about `1e200`) rounding can make a triangle degenerate; the
+  operand validator then reports `render3d-csg-degenerate-triangle`. Use scales, heights, and
+  coordinates of moderate magnitude.
+- **Scale and twist are about the origin.** For an apex (scale `(0, 0)`), a large scale change, or a
+  per-axis scale combined with a twist, the profile should be **star-shaped about the origin** (every
+  point of the profile is visible from the origin). Otherwise the solid can intersect itself (it may
+  even come out inverted) and is not a valid operand. An apex over a profile with a hole, and a
+  `Rotate` profile that touches the axis at one isolated vertex, leave a pinched (non-manifold)
+  vertex, although every edge stays manifold.
 
 The `Linear` method:
 
@@ -2834,7 +2851,8 @@ The `Rotate` method:
 
 - The profile's X is the radius and its Y is the height; it is revolved about the +Z axis, turning
   from azimuth 0 toward `+angleDegrees` (counter-clockwise as seen from +Z).
-- `angleDegrees` must be in `(0, 360]`. Exactly 360 is a full revolution (`segments` at least 3, no
+- `angleDegrees` must be in `(0, 360]`, and not so small that its radian value rounds to zero
+  (`double.Epsilon` is rejected). Exactly 360 is a full revolution (`segments` at least 3, no
   end caps); a smaller angle is a partial sweep (`segments` at least 1) with end caps at both ends.
 - The whole profile must lie on **one side of the axis**: every vertex with `x >= 0`, or every
   vertex with `x <= 0`. A profile that **crosses the axis** (vertices with both signs) throws
@@ -2850,9 +2868,11 @@ The `Rotate` method:
 
 - `ArgumentNullException`: Thrown for a null region.
 - `ArgumentOutOfRangeException`: Thrown for a height that is not finite and positive, fewer than one
-  slice, an invalid scale, an angle outside `(0, 360]`, or too few segments.
+  slice, an invalid scale, an angle outside `(0, 360]` (or one whose radian value is zero), or too few
+  segments.
 - `ArgumentException`: Thrown for a non-finite twist, a profile that crosses or lies on the
-  rotation axis, or a result too large for a mesh.
+  rotation axis, a sweep step too small to resolve at a profile vertex's radius, or a result too
+  large for a mesh.
 
 ```csharp
 var plate3D = Extruder.Linear(plate, 2.0, center: true);

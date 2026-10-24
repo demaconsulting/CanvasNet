@@ -30,18 +30,20 @@ public static partial class Extruder
     ///         <see cref="PolygonTriangulator"/>. Facets are planar (parallel chords of concentric rings), so the
     ///         volume has the exact closed form <c>segments sin(delta) integral(x dA)</c> with
     ///         <c>delta = angle / segments</c>, which approaches the Pappus volume as the segment count grows.
-    ///         A profile with a hole yields a hollow solid (outer shell outward, cavity shell inward).
+    ///         A profile with a hole yields a hollow solid (outer shell outward, cavity shell inward). A profile
+    ///         that touches the axis at one isolated vertex (not along an edge) sweeps two surfaces that meet
+    ///         at that vertex, which becomes a pinched (non-manifold) vertex although every edge stays manifold.
     ///     </para>
     /// </remarks>
     /// <param name="region">The profile in the (X = radius, Y = height) plane.</param>
-    /// <param name="angleDegrees">The sweep angle in degrees; finite, greater than 0 and at most 360 (exactly 360 is a full revolution).</param>
+    /// <param name="angleDegrees">The sweep angle in degrees; finite, greater than 0 and at most 360 (exactly 360 is a full revolution); not so small that its radian value rounds to zero.</param>
     /// <param name="segments">
     ///     The number of angular steps over the sweep: at least 3 for a full revolution, at least 1 for a partial sweep.
     /// </param>
     /// <returns>The closed, outward-oriented mesh; empty for an empty region.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the angle is not in (0, 360] or the segment count is too small.</exception>
-    /// <exception cref="ArgumentException">Thrown when the profile crosses or lies entirely on the axis, or the result would exceed the maximum mesh size.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the angle is not in (0, 360], is so small that it converts to a zero radian sweep, or the segment count is too small.</exception>
+    /// <exception cref="ArgumentException">Thrown when the profile crosses or lies entirely on the axis, a sweep step is too small to resolve at a profile vertex's radius, or the result would exceed the maximum mesh size.</exception>
     public static Mesh Rotate(PolygonRegion region, double angleDegrees, int segments)
     {
         // Validate everything before doing any work
@@ -49,6 +51,12 @@ public static partial class Extruder
         if (!double.IsFinite(angleDegrees) || angleDegrees <= 0.0 || angleDegrees > 360.0)
         {
             throw new ArgumentOutOfRangeException(nameof(angleDegrees), angleDegrees, "The angle must be greater than 0 and at most 360 degrees.");
+        }
+
+        // An angle so small that its radian value rounds to zero would weld the end ring onto the start ring
+        if (angleDegrees * Math.PI / 180.0 == 0.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(angleDegrees), angleDegrees, "The angle is too small to represent as a non-zero sweep.");
         }
 
         var full = angleDegrees >= 360.0;
@@ -149,6 +157,11 @@ public static partial class Extruder
             {
                 var (sin, cos) = Math.SinCos(angle * j / segments);
                 rings[j][i] = builder.AddVertex(new Vector3D(points[i].X * cos, points[i].X * sin, points[i].Y));
+                if (j > 0 && rings[j][i] == rings[j - 1][i])
+                {
+                    // Floating point cannot resolve this step at this radius; welding would leave holes in the mesh
+                    throw new ArgumentException("The sweep step is too small to resolve at the profile's radius.", nameof(region));
+                }
             }
         }
 

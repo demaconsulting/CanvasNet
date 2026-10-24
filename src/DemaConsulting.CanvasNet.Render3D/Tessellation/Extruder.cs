@@ -23,6 +23,21 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         extrudes to an empty mesh (nothing is rendered).
 ///     </para>
 ///     <para>
+///         <b>Finite precision.</b> The guarantees above hold in exact arithmetic for ordinary magnitudes. With
+///         extreme values (a tiny non-zero scale such as 1e-17, a height near <see cref="double.MaxValue"/>, or
+///         coordinates of about 1e200) the rounded vertices can make a triangle degenerate (zero area or
+///         overflow), which <c>CsgOperandValidator</c> reports as a <c>DegenerateTriangle</c> defect; such a mesh is
+///         not a valid operand. Use scales, heights and coordinates of moderate magnitude.
+///     </para>
+///     <para>
+///         <b>Shapes that can self-overlap.</b> Scale and twist act about the origin. Scaling to an apex, a large
+///         scale change or a per-axis scale combined with twist keeps the solid valid only when the profile is
+///         star-shaped about the origin; otherwise the result may self-intersect (it can even be inverted) and is
+///         not a valid operand. An apex over a region with a hole, or a rotational profile that touches the
+///         axis at a single vertex, produces a pinched (non-manifold) vertex although every edge stays
+///         manifold.
+///     </para>
+///     <para>
 ///         Invalid polygons cannot reach this type: <see cref="PolygonRegion"/> rejects them at construction.
 ///         All methods are pure and thread-safe.
 ///     </para>

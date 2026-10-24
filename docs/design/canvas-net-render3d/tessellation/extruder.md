@@ -16,6 +16,22 @@ valid constructive-solid-geometry operand: the operand validator reports nothing
 mode included. Meshes are built so that this holds by construction (shared vertex indices), not by
 recomputing coordinates and hoping they compare equal.
 
+**Limits of the guarantee.** The statements above hold in exact arithmetic for profiles and
+parameters of ordinary magnitude. Two classes of input fall outside them, and both are documented in
+the `Extruder` XML remarks and the user guide:
+
+- *Finite precision.* With extreme values (a tiny non-zero scale such as `1e-17`, a height near
+  `double.MaxValue`, or coordinates of about `1e200`) the rounded vertices can make a triangle
+  degenerate (zero area or overflow), which the operand validator flags as a `DegenerateTriangle`
+  defect. The geometry is correct in exact arithmetic; no clamping or relative threshold is applied,
+  because any threshold would be arbitrary.
+- *Self-overlap about the origin.* Scale and twist act about the origin. An apex, a large scale
+  change, or a per-axis scale combined with twist is only guaranteed valid when the profile is
+  star-shaped about the origin; otherwise the result can self-intersect (it can be reported as
+  inverted) and is not a valid operand. An apex over a region with a hole, and a rotational profile
+  that touches the axis at one isolated vertex, leave a pinched (non-manifold) vertex, although
+  every edge stays manifold.
+
 #### Data Model
 
 `Extruder` is stateless and thread-safe. Each method builds its result through a local
@@ -79,7 +95,9 @@ outward normals for outer walls and for hole walls (which then face into the hol
   toward `+angleDegrees`. A profile with vertices on both sides (it *crosses the axis*) and a profile
   entirely on the axis are rejected with `ArgumentException`. There is **no tolerance**: `x == 0`
   exactly means a vertex on the axis (a tolerance policy belongs to the caller).
-- *Angle and segments*: `angleDegrees` must be finite in `(0, 360]`. Exactly 360 is a full revolution
+- *Angle and segments*: `angleDegrees` must be finite in `(0, 360]`, and its radian value must not
+  round to zero (for example `double.Epsilon`), which would weld the end ring onto the start ring
+  and return an open mesh. Exactly 360 is a full revolution
   (`segments >= 3`, the last ring wraps to the first by index, no duplicated seam, no end caps);
   anything less is a partial sweep (`segments >= 1` angular steps, a start cap at azimuth 0 and an end
   cap at the final azimuth, both triangulated from the profile and sharing the wall vertices).
@@ -101,8 +119,10 @@ outward normals for outer walls and for hole walls (which then face into the hol
 All validation precedes any construction. `ArgumentNullException` for a null region;
 `ArgumentOutOfRangeException` for a height that is not finite and greater than zero, fewer than one
 slice, an invalid scale (non-finite, negative, or zero in only one axis), an angle outside `(0, 360]`
-or not finite, and too few segments; `ArgumentException` for a non-finite twist, a profile that
-crosses or lies entirely on the rotation axis, and a result that would exceed the maximum mesh size
+or not finite or so small that its radian value is zero, and too few segments; `ArgumentException`
+for a non-finite twist, a profile that crosses or lies entirely on the rotation axis, a sweep step
+too small to resolve at a profile vertex's radius (two rings would coincide), and a result that would
+exceed the maximum mesh size
 (checked in `long` before allocation, so hostile counts fail with a clear exception). An empty region
 extrudes to an empty mesh without throwing. Invalid polygons never reach this unit because
 `PolygonRegion` rejects them at construction. Exceptions from `Mesh` construction propagate unchanged.
@@ -112,6 +132,12 @@ extrudes to an empty mesh without throwing. Invalid polygons never reach this un
 The `PolygonTriangulator` unit (`PolygonRegion` and `PolygonTriangulator`) of this subsystem, and the
 `Mesh` unit (`Mesh`, `MeshBuilder`) and `DoublePrecisionMath` unit (`Vector2D`, `Vector3D`) of the
 `SceneModel` subsystem. No dependency on `SceneRendering`.
+
+The unit tests have one **test-only** dependency that production code does not: the shared helper
+`Render3DTestHelpers.AssertValidCsgOperand` runs the internal `CsgOperandValidator` of the
+`SceneRendering` subsystem (made visible to the test assembly through `InternalsVisibleTo`) on every
+extruded mesh. It is used so that "valid operand" is checked by the real validator rather than by a
+re-implementation of its rules; it does not make `Extruder` depend on `SceneRendering`.
 
 #### Callers
 

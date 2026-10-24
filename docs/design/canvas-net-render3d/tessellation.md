@@ -30,7 +30,10 @@ documentation is in `NamespaceDoc.cs`.
 `SceneModel` `Mesh`; the 2D factories return a `PolygonRegion`.
 
 **Consumed**: the `SceneModel` subsystem's `Mesh`, `MeshBuilder`, `Vector2D`, and `Vector3D`. It does
-not depend on `SceneRendering` or on the core `CanvasNet` system.
+not depend on `SceneRendering` or on the core `CanvasNet` system. The only link to `SceneRendering` is
+test-only: the Tessellation unit tests reach the internal `CsgOperandValidator` (via
+`InternalsVisibleTo`) through `Render3DTestHelpers.AssertValidCsgOperand` to check that extruded meshes
+are valid operands with the real validator; production code has no such dependency.
 
 ### Design
 
@@ -48,9 +51,11 @@ _CanvasNetRender3D System Design_ (`../canvas-net-render3d.md`) for the coordina
 The polygon path follows the same principles with stronger guarantees. `PolygonRegion` is the single
 place where polygon validity is decided, exactly and without tolerances: invalid polygons (non-finite,
 zero-area, self-intersecting, or touching contours) throw `ArgumentException` rather than producing a
-defective mesh later. `Extruder` builds its vertex rings once and shares them by index between walls
+defective mesh later (as are finite coordinates so extreme that the area overflows). `Extruder` builds
+its vertex rings once and shares them by index between walls
 and caps, and the caps are triangulated by `PolygonTriangulator` without added vertices, so every
-extruded mesh is welded, closed, outward, free of degenerate triangles, and a valid
+extruded mesh is welded, closed, outward, free of degenerate triangles (for ordinary magnitudes; the
+`Extruder` unit design lists the finite-precision and self-overlap caveats), and a valid
 constructive-solid-geometry operand. A region with a hole is extruded as one connected shell with a
 through-hole (the hole is bridged into the cap triangulation), because independent outer and hole
 shells would paint a coplanar outer cap across the hole on the z-buffer path; only an island inside a

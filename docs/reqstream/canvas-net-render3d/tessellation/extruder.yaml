@@ -170,15 +170,22 @@ sections:
                   The Extruder Rotate method shall reject, with an ArgumentException, a profile that
                   crosses the rotation axis (vertices with both positive and negative x) or lies
                   entirely on it, and shall reject a null region, an angle that is not finite and in the
-                  range greater than 0 up to 360 degrees, a segment count below 3 for a full revolution
-                  or below 1 for a partial sweep, and a result that would exceed the maximum mesh size.
+                  range greater than 0 up to 360 degrees (an angle whose radian value rounds to
+                  zero, such as the smallest positive double, with an ArgumentOutOfRangeException), a
+                  segment count below 3 for a full revolution or below 1 for a partial sweep, and a
+                  result that would exceed the maximum mesh size; it shall also reject, with an
+                  ArgumentException, a sweep step too small to separate the rings at a profile vertex's
+                  radius, rather than return an open mesh.
                 justification: |
                   A profile crossing the axis would sweep self-intersecting material and a profile on the
-                  axis sweeps no volume; both are rejected rather than silently repaired.
+                  axis sweeps no volume; both are rejected rather than silently repaired. A sweep that
+                  rounds to zero would weld the end ring onto the start ring and leave an open mesh.
                 tests:
                   - Extruder_Rotate_ProfileCrossingAxis_Throws
                   - Extruder_Rotate_ProfileOnlyOnAxis_Throws
                   - Extruder_Rotate_InvalidArguments_Throw
+                  - Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws
+                  - Extruder_Rotate_StepUnresolvableAtRadius_Throws
 
               - id: CanvasNetRender3D-Tessellation-Extruder-ValidOperand
                 title: >-

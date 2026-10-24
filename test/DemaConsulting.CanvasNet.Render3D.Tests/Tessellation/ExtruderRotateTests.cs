@@ -288,6 +288,35 @@ public class ExtruderRotateTests
     }
 
     /// <summary>
+    ///     Validates that an angle whose radian value rounds to zero is rejected instead of welding the end
+    ///     ring onto the start ring and returning an open mesh.
+    /// </summary>
+    [Fact]
+    public void Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws()
+    {
+        // Arrange
+        var region = Profile("offAxis");
+
+        // Act / Assert
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Rotate(region, double.Epsilon, 1));
+        Assert.Equal("angleDegrees", exception.ParamName);
+    }
+
+    /// <summary>
+    ///     Validates that a sweep step that cannot be resolved at the profile's radius (the ring vertices would
+    ///     coincide) is rejected rather than producing an open mesh.
+    /// </summary>
+    [Fact]
+    public void Extruder_Rotate_StepUnresolvableAtRadius_Throws()
+    {
+        // Arrange: a profile at radius 1e-300 swept by 1e-300 degrees has a ring offset (y) that rounds to zero
+        var region = new PolygonRegion([Rect(1e-300, 0, 1e-300, 1)]);
+
+        // Act / Assert
+        Assert.Throws<ArgumentException>(() => Extruder.Rotate(region, 1e-300, 1));
+    }
+
+    /// <summary>
     ///     Validates that invalid arguments are rejected with the documented exceptions.
     /// </summary>
     [Fact]

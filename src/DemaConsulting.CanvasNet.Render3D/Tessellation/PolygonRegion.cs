@@ -28,7 +28,8 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         vertices, zero-area (all collinear) contours, contours that cross or touch themselves (including
 ///         a repeated non-consecutive point and edges that fold back onto each other), and contours that cross
 ///         or touch one another (a shared point or a vertex lying on another contour's edge), because touching
-///         contours would create non-manifold vertices in an extrusion.
+///         contours would create non-manifold vertices in an extrusion, and regions whose area is not a finite
+///         number because the (finite) coordinates are extreme (beyond about 1e154).
 ///     </para>
 ///     <para>
 ///         A region may have no contours at all (<see cref="Empty"/>); it then has no area and extrudes to an
@@ -63,8 +64,10 @@ public sealed class PolygonRegion
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="contours"/> or one of the contours is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
     ///     Thrown when a point is not finite, a contour has fewer than three distinct vertices or zero area,
-    ///     a contour intersects or touches itself, or two contours intersect or touch each other. The message
-    ///     names the offending contour (and point or edge).
+    ///     a contour intersects or touches itself, two contours intersect or touch each other, or the
+    ///     coordinates are so large that the area of the region is not a finite number (the region is
+    ///     rejected rather than reporting infinity or NaN). The message names the offending contour (and
+    ///     point or edge) where there is one.
     /// </exception>
     public PolygonRegion(IEnumerable<IReadOnlyList<Vector2D>> contours)
     {
@@ -104,6 +107,13 @@ public sealed class PolygonRegion
             start += points.Length;
         }
 
+        // Finite but extreme coordinates (about 1e154 and beyond) overflow the shoelace terms; such a region
+        // cannot report a usable area or volume, so it is rejected instead of carrying infinity or NaN
+        if (!double.IsFinite(area.Total))
+        {
+            throw new ArgumentException("The coordinates are too large: the area of the region is not a finite number.", nameof(contours));
+        }
+
         Area = Math.Max(0.0, area.Total);
         _contourView = Array.AsReadOnly(_contours);
         _vertexView = Array.AsReadOnly(_vertices);
@@ -132,7 +142,7 @@ public sealed class PolygonRegion
 
     /// <summary>
     ///     Gets the area of the region: solid contours minus holes plus islands (the sum of the signed
-    ///     areas of the normalized contours); never negative.
+    ///     areas of the normalized contours); finite and never negative.
     /// </summary>
     public double Area { get; }
 
