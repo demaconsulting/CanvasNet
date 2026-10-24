@@ -140,6 +140,7 @@ public class SceneRenderOptionsTests
 
         // Act
         var options = new SceneRenderOptions { UnsupportedFeatureHandler = handler, ThrowOnUnsupportedFeature = true };
+        Assert.NotNull(options.UnsupportedFeatureHandler);
         options.UnsupportedFeatureHandler(new SceneRenderUnsupportedFeature("f", "m"));
 
         // Assert
