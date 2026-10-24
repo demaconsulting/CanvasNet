@@ -116,6 +116,68 @@ internal static class Render3DTestHelpers
     }
 
     /// <summary>
+    ///     Asserts that a mesh is a valid constructive-solid-geometry operand: closed, free of operand defects,
+    ///     not inverted, positive volume, welded with every vertex referenced, and reported as healthy (no
+    ///     report in handler mode and no exception in strict mode) by the renderer's operand validator.
+    /// </summary>
+    /// <param name="mesh">The mesh to check.</param>
+    public static void AssertValidCsgOperand(Mesh mesh)
+    {
+        Assert.True(mesh.IsClosed, "The mesh must be closed.");
+        Assert.Equal(MeshTopologyDefects.None, mesh.OperandDefects);
+        Assert.False(mesh.IsInverted, "The mesh must not be inverted.");
+        Assert.True(mesh.SignedVolume > 0.0, "The mesh must have positive signed volume.");
+        AssertNoDuplicateVerticesAndAllReferenced(mesh);
+
+        // The validator only runs on CSG scenes, so subtract a far-away box from the mesh under test
+        var far = CreateBoxMesh(new Vector3D(1.0e6, 1.0e6, 1.0e6), new Vector3D(1, 1, 1));
+        var scene = new Scene(new CsgNode(CsgOperation.Difference, [new MeshNode(mesh), new MeshNode(far)]));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        CsgOperandValidator.Validate(scene, new SceneRenderOptions { UnsupportedFeatureHandler = reports.Add }, CancellationToken.None);
+        Assert.Empty(reports);
+        CsgOperandValidator.Validate(scene, new SceneRenderOptions { ThrowOnUnsupportedFeature = true }, CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Asserts that no two vertices of a mesh share a position and that every vertex is used by a triangle.
+    /// </summary>
+    /// <param name="mesh">The mesh to check.</param>
+    public static void AssertNoDuplicateVerticesAndAllReferenced(Mesh mesh)
+    {
+        Assert.Equal(mesh.VertexCount, mesh.Vertices.Distinct().Count());
+        Assert.Equal(mesh.VertexCount, mesh.TriangleIndices.Distinct().Count());
+    }
+
+    /// <summary>
+    ///     Counts the connected shells of a mesh, where triangles sharing a vertex index belong to the same shell.
+    /// </summary>
+    /// <param name="mesh">The mesh to analyze.</param>
+    /// <returns>The number of connected components of the vertex-sharing relation.</returns>
+    public static int CountConnectedShells(Mesh mesh)
+    {
+        var parent = Enumerable.Range(0, mesh.VertexCount).ToArray();
+        int Find(int x)
+        {
+            while (parent[x] != x)
+            {
+                parent[x] = parent[parent[x]];
+                x = parent[x];
+            }
+
+            return x;
+        }
+
+        var indices = mesh.TriangleIndices;
+        for (var t = 0; t < indices.Count; t += 3)
+        {
+            parent[Find(indices[t + 1])] = Find(indices[t]);
+            parent[Find(indices[t + 2])] = Find(indices[t]);
+        }
+
+        return indices.Select(Find).Distinct().Count();
+    }
+
+    /// <summary>
     ///     Asserts that two vectors are component-wise equal within an absolute tolerance.
     /// </summary>
     /// <param name="expected">The expected vector.</param>
