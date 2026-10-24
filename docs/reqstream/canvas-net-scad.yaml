@@ -1,0 +1,148 @@
+---
+# cspell:ignore openscad
+#
+# Software System Requirements for CanvasNetScad
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Scad
+# package (root namespace DemaConsulting.CanvasNet.Scad; internal subsystem namespace
+# DemaConsulting.CanvasNet.Scad.Language) from the perspective of its consumers, without specifying
+# implementation details.
+#
+# CanvasNetScad is an independent software system that will be distributed as its own NuGet package.
+# It is a clean-room implementation of a front end for the OpenSCAD language (OpenSCAD is
+# GPL-licensed and its manual is CC BY-SA; no OpenSCAD source, grammar, manual text, example, or
+# library was consulted - see docs/design/canvas-net-scad.md, Design Constraints, Clean-Room
+# Provenance). It depends on the core CanvasNet system and on the CanvasNetRender3D system as
+# architectural scaffolding for the later phases; Phase 4 consumes no type from either of them
+# (see docs/design/canvas-net-scad.md's Dependencies section).
+#
+# CanvasNetScad is being delivered incrementally. Phase 4 (this delivery) is parse-only: a lexer and
+# a recursive-descent parser turn OpenSCAD-language source into an internal, immutable syntax tree,
+# and the public ScadDocument reports what the source declares at file scope (include/use
+# directives, module names, function names) or the first syntax error with its file, line, and
+# column. Evaluation, geometry generation, and rendering are added by later phases; their
+# requirements will be added to this file (and new per-unit files) when each phase lands, mirroring
+# canvas-net-render3d.yaml's per-phase header-comment convention. The package is not yet packable.
+
+sections:
+  - title: CanvasNetScad Requirements
+    requirements:
+      - id: CanvasNetScad-Open
+        title: >-
+          The library shall parse OpenSCAD-language source supplied as a string, a readable stream,
+          or a file path into a ScadDocument that is identical whichever entry point is used, and
+          shall reject null, unreadable, and empty arguments with the documented exception
+          contract.
+        tags: [system]
+        justification: |
+          Callers hold source text in different forms; every entry point must yield the same
+          validated result, and invalid arguments must fail closed with a predictable exception
+          rather than being coerced.
+        children:
+          - CanvasNetScad-ScadDocument-ParseString
+          - CanvasNetScad-ScadDocument-OpenStream
+          - CanvasNetScad-ScadDocument-OpenPath
+          - CanvasNetScad-ScadDocument-SourceName
+        tests:
+          - CanvasNetScad_SystemIntegration_Open_ParseStringOpenStreamAndOpenPathAgree
+          - CanvasNetScad_SystemIntegration_Open_InvalidArgumentsThrow
+
+      - id: CanvasNetScad-OpenOptions
+        title: >-
+          The library shall let a caller supply immutable, validated open options (source name,
+          base directory, library paths, and a file resolver), rejecting invalid values when they
+          are set and never changing an options instance afterwards.
+        tags: [system]
+        justification: |
+          Options that are validated at initialization let the parser and later phases trust every
+          instance they receive, and immutability makes a shared options instance safe to use from
+          several threads.
+        children:
+          - CanvasNetScad-ScadDocument-OpenOptions
+        tests:
+          - CanvasNetScad_SystemIntegration_Options_AreValidatedAndImmutable
+
+      - id: CanvasNetScad-Syntax
+        title: >-
+          The library shall accept the supported OpenSCAD-language syntax - variable assignments,
+          module and function definitions, module instantiations with modifiers, conditional and
+          loop statements, expressions with the documented precedence, list comprehensions, and
+          function literals - and shall report a successfully parsed program through its
+          ScadDocument.
+        tags: [system]
+        justification: |
+          A parse-only front end is only useful if it accepts the language constructs that real
+          parametric models are written in; the accepted grammar is the contract later evaluation
+          and rendering phases build on.
+        children:
+          - CanvasNetScad-ScadLanguage-Tokenization
+          - CanvasNetScad-ScadLanguage-Parsing
+        tests:
+          - CanvasNetScad_SystemIntegration_Syntax_AllAuthoredFixturesParse
+          - CanvasNetScad_SystemIntegration_Syntax_ParametricPartFixtureReportsDefinitions
+
+      - id: CanvasNetScad-SyntaxErrors
+        title: >-
+          The library shall reject malformed source with a ScadSyntaxException that carries the
+          source name, one-based line, and one-based column of the first error and a message that
+          begins with that location, and shall report only the first error.
+        tags: [system]
+        justification: |
+          A trustworthy location lets a caller point a user at the exact place in a file that
+          needs fixing; stopping at the first error keeps the result deterministic and ensures that
+          no partial syntax tree is ever produced.
+        children:
+          - CanvasNetScad-ScadLanguage-SyntaxErrors
+          - CanvasNetScad-ScadDocument-SyntaxException
+          - CanvasNetScad-ScadDocument-SourceLocation
+        tests:
+          - CanvasNetScad_SystemIntegration_SyntaxErrors_MalformedFixturesReportLocation
+          - CanvasNetScad_SystemIntegration_SyntaxErrors_FirstErrorIsReported
+
+      - id: CanvasNetScad-Directives
+        title: >-
+          The library shall record file-scope include and use directives (kind, path, and source
+          location, in source order) on the parsed document without opening, resolving, or
+          otherwise accessing any referenced file.
+        tags: [system]
+        justification: |
+          Recording directives without touching the file system lets a caller inspect a document's
+          dependencies safely; resolution policy belongs to a later phase and must never happen
+          implicitly during parsing.
+        children:
+          - CanvasNetScad-ScadLanguage-Directives
+          - CanvasNetScad-ScadDocument-Directives
+        tests:
+          - CanvasNetScad_SystemIntegration_Directives_IncludeAndUseRecordedWithoutFileAccess
+
+      - id: CanvasNetScad-Definitions
+        title: >-
+          The library shall expose, in source order and keeping duplicates, the names of the
+          file-scope module and function definitions of a parsed document.
+        tags: [system]
+        justification: |
+          A caller wanting to discover what a library file offers needs its module and function
+          names without evaluating the program.
+        children:
+          - CanvasNetScad-ScadDocument-Definitions
+        tests:
+          - CanvasNetScad_SystemIntegration_Syntax_ParametricPartFixtureReportsDefinitions
+
+      - id: CanvasNetScad-InputLimits
+        title: >-
+          The library shall fail closed on hostile input: source nested more than 256 levels deep
+          shall be rejected with a ScadSyntaxException without overflowing the call stack, and
+          source longer than 4,194,304 characters shall be rejected with an InvalidDataException
+          before it is parsed, including when it is read from a stream that never ends.
+        tags: [system]
+        justification: |
+          Source text may come from an untrusted origin; a stack overflow, which cannot be caught,
+          or unbounded memory growth would take down the host process, so every resource the
+          parser uses must be bounded and every violation reported as a catchable, typed
+          exception.
+        children:
+          - CanvasNetScad-ScadLanguage-InputLimits
+          - CanvasNetScad-ScadDocument-SourceLimit
+        tests:
+          - CanvasNetScad_SystemIntegration_Limits_DeepNestingFailsClosed
+          - CanvasNetScad_SystemIntegration_Limits_OversizedSourceIsRejected

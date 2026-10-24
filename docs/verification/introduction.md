@@ -63,6 +63,11 @@ constituent software items, specifically:
   `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
   (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
   System Verification_ (`canvas-net-render3d.md`)
+- **CanvasNetScad (System)** — A separate software system providing a clean-room, parse-only front
+  end for the OpenSCAD language, containing a single direct unit, `ScadDocument` (the public parse
+  API, options, locations, and syntax exception), and an internal `ScadLanguage` subsystem with the
+  units `ScadLexer` and `ScadParser` — see _CanvasNetScad System Verification_
+  (`canvas-net-scad.md`)
 
 The following OTS items are also covered:
 

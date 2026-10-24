@@ -1551,3 +1551,134 @@ reviews:
       - "docs/reqstream/ots/xunit.yaml"                                   # OTS requirements
       - "docs/design/ots/xunit.md"                                        # OTS integration design
       - "docs/verification/ots/xunit.md"                                 # OTS verification
+
+  # ---------------------------------------------------------------------------------------------
+  # CanvasNetScad review-sets (clean-room OpenSCAD-language front end)
+  # Provenance check for every CanvasNetScad set: reviewers confirm that the reviewed items are original
+  # works and carry no OpenSCAD source, grammar, manual text, example, or library material (see the
+  # Clean-Room Provenance constraint in docs/design/canvas-net-scad.md).
+  # ---------------------------------------------------------------------------------------------
+
+  # CanvasNetScad-Architecture Review (one per system)
+  - id: CanvasNetScad-Architecture
+    title: Review that CanvasNetScad Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-scad.yaml"                         # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-scad.md"                              # system design (clean-room provenance)
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-scad.md"                        # system verification
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadTestHelpers.cs"  # shared test helpers
+      - "src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj"  # project file
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/DemaConsulting.CanvasNet.Scad.Tests.csproj"  # test project
+
+  # CanvasNetScad-Design Review (one per system)
+  - id: CanvasNetScad-Design
+    title: Review that CanvasNetScad Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/platform-requirements.yaml"   # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-scad.md"                              # system design (clean-room provenance)
+      - "docs/design/canvas-net-scad/**/*.md"                         # all system design documents
+
+  # CanvasNetScad-Verification Review (one per system)
+  - id: CanvasNetScad-Verification
+    title: Review that CanvasNetScad Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-scad.md"                        # system verification
+      - "docs/verification/canvas-net-scad/**/*.md"                   # all verification documents
+
+  # CanvasNetScad-AllRequirements Review (one per system)
+  - id: CanvasNetScad-AllRequirements
+    title: Review that All CanvasNetScad Requirements are Complete
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/**/*.yaml"                    # all requirements files
+
+  # CanvasNetScad-ScadDocument Review (one per direct unit; includes the fixture provenance check)
+  - id: CanvasNetScad-ScadDocument
+    title: Review that CanvasNetScad ScadDocument Implementation is Correct and Fixtures are Original Works
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-document.yaml"           # unit requirements
+      - "docs/design/canvas-net-scad/scad-document.md"                # unit design
+      - "docs/verification/canvas-net-scad/scad-document.md"          # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-document.sysml"       # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/NamespaceDoc.cs"           # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDocument.cs"           # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadOpenOptions.cs"        # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadSourceLocation.cs"     # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadSyntaxException.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDirective.cs"          # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDirectiveKind.cs"      # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSyntaxExceptionTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures and provenance README
+
+  # CanvasNetScad-ScadLanguage Review (one per subsystem)
+  - id: CanvasNetScad-ScadLanguage
+    title: Review that CanvasNetScad ScadLanguage Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-language.yaml"           # subsystem requirements
+      - "docs/design/canvas-net-scad/scad-language.md"                # subsystem design
+      - "docs/verification/canvas-net-scad/scad-language.md"          # subsystem verification
+      - "docs/sysml2/model/canvas-net-scad/scad-language.sysml"       # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Language/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLanguageTests.cs"  # subsystem tests
+
+  # CanvasNetScad-ScadLanguage-ScadLexer Review (one per unit)
+  - id: CanvasNetScad-ScadLanguage-ScadLexer
+    title: Review that CanvasNetScad ScadLanguage ScadLexer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-language.md"
+      - "docs/reqstream/canvas-net-scad/scad-language.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-language/scad-lexer.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-language/scad-lexer.md"     # unit design
+      - "docs/verification/canvas-net-scad/scad-language/scad-lexer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-language/scad-lexer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadTokenKind.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadToken.cs"     # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadLexer*.cs"    # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadLexer*.cs"  # unit tests and test support
+
+  # CanvasNetScad-ScadLanguage-ScadParser Review (one per unit)
+  - id: CanvasNetScad-ScadLanguage-ScadParser
+    title: Review that CanvasNetScad ScadLanguage ScadParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-language.md"
+      - "docs/reqstream/canvas-net-scad/scad-language.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-language/scad-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-language/scad-parser.md"    # unit design
+      - "docs/verification/canvas-net-scad/scad-language/scad-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-language/scad-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadSyntax.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadStatements.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadExpressions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadParser*.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Language/ScadTreeDepth.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadParser*.cs"  # unit tests and test support
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Language/ScadAstDumper.cs"  # test support
