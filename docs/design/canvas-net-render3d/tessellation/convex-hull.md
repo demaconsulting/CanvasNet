@@ -52,7 +52,9 @@ point is the lexicographic maximum of all points so far.
 **`Hull2D`.** Andrew's monotone chain on the sorted distinct points, with `PolygonPredicates.Orient2D`
 deciding every turn (a point is popped while the turn is not strictly counter-clockwise). The result is strictly
 convex (no collinear vertices), counter-clockwise and starts at the lexicographically smallest point. It is
-O(n log n) in every case. A degenerate set returns no point, the one point, or the two extreme points (it never
+O(n log n) time in every case (the copy and the de-duplication are O(n), the sort is O(n log n), and the chain after
+the sort is O(n) because every point is pushed and popped at most once per half) and O(n) memory (the sorted copy,
+an index array and the chain buffer). A degenerate set returns no point, the one point, or the two extreme points (it never
 throws; the caller decides what a point or a segment means).
 
 **`Hull3D` algorithm (sorted incremental insertion).**
@@ -110,13 +112,19 @@ throws; the caller decides what a point or a segment means).
 An internal inconsistency (which the argument above excludes) throws `InvalidOperationException` instead of
 returning a defective mesh; the machine check is the exhaustive lattice oracle in the unit tests.
 
-**Complexity.** Sorting is O(n log n). An insertion costs the fan length of the previous vertex (amortized free),
-the visible faces and the horizon, so the construction is O(n log n) in total for typical input and **O(n h)
-worst case** (h = number of hull vertices; adversarial inputs such as points on a moment curve make every
-insertion see a large part of the surface, which is O(n^2)). The canonical reduction is O(F) plus one exact
-coplanarity test per edge. Memory is O(n): one 24-byte-per-point array (sorted and de-duplicated in place), about
-9 bytes per point of construction tables, and face tables proportional to the hull; the result has at most
-`2n - 4` triangles. The work is bounded by
+**Complexity.** Let `n` be the number of input points, `h` the number of hull vertices and `F <= 2h - 4` the number
+of final triangles. The copy, validation, canonicalization and removal of duplicates are O(n), and the sort is
+O(n log n) in the worst case. The coplanar prefix that starts the construction is hulled by a monotone chain, which
+is O(k log k) for a prefix of `k <= n` points. An insertion costs the length of the fan around the previously
+inserted vertex plus the visible faces and the horizon, each unit being one exact predicate, so the insertions
+take O(n log n) in total while the hull stays small (random points in a cube or a ball, lattices) and **O(n h)
+worst case**, which is O(n^2) when almost every point is a hull vertex (adversarial inputs such as points on a moment
+curve make every insertion see a large part of the surface). The canonical reduction is O(F) for the closure check,
+one exact coplanarity test per edge, the union-find merge and the boundary extraction, plus O(F log F) comparisons to
+order the facets. An exact predicate is a constant number of operations when the floating-point filter decides it and
+costs more only in the rare near-degenerate fallback, bounded by the bit length of the double range. Memory is O(n): one
+24-byte-per-point array (sorted and de-duplicated in place), about 9 bytes per point of construction tables, and face
+tables proportional to the hull; the result has at most `2n - 4` triangles. The work is bounded by
 the input size and polls the cancellation token every few thousand elementary steps (`Array.Sort` itself
 cannot be interrupted). The hull is built in internal arrays and the `Mesh` is allocated at the end.
 

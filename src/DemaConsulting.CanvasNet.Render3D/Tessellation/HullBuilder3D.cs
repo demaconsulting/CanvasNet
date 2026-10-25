@@ -49,7 +49,9 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///     </para>
 ///     <para>
 ///         <b>Cost.</b> An insertion costs the length of the previous vertex fan, the visible faces and the
-///         horizon: O(n log n) for typical input and O(n * h) in the worst case (h = hull vertices). Memory is
+///         horizon: the insertions take O(n log n) in total while the hull stays small and O(n * h) in the worst
+///         case (h = hull vertices, up to O(n^2)); the final merge of coplanar triangles is O(F log F) for F
+///         triangles. The sort that precedes the build is O(n log n). Memory is
 ///         O(n). An instance is single-use and not thread-safe.
 ///     </para>
 /// </remarks>

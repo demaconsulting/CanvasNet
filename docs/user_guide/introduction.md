@@ -2913,9 +2913,15 @@ public static class ConvexHull
   or the two end points of the segment, and the caller decides what that means.
 - Every decision is exact (no tolerance), and the result depends only on the point **set**: any order and any
   repetition of the points (and `-0.0` versus `0.0`) gives a byte-identical result.
-- The work is O(n log n) for typical input and O(n * h) in the worst case (h = number of hull vertices; points
-  on a moment curve are the classic adversarial input), with O(n) memory; the cancellation token is polled
-  every few thousand steps (the initial sort cannot be interrupted).
+- `Hull2D` is O(n log n) time in every case (the sort dominates; the monotone chain after it is O(n)) and O(n)
+  memory.
+- `Hull3D` is O(n log n) for the copy, the sort and the removal of duplicates, plus the incremental insertion:
+  each insertion costs the faces it replaces and the faces around the previously inserted vertex, so the
+  total is O(n log n) when the hull stays small (random points in a cube or a ball, lattices) and O(n * h) in the
+  worst case, which is O(n^2) when almost every point is a hull vertex (h = number of hull vertices; points
+  on a moment curve are the classic adversarial input). Merging the coplanar triangles into facets is
+  O(F log F) for F ≤ 2n - 4 triangles. Memory is O(n). The cancellation token is polled every few thousand steps
+  (the initial sort cannot be interrupted).
 
 **Exceptions:** `ArgumentNullException` for a null sequence; `ArgumentException` for a non-finite coordinate, and
 for `Hull3D` when the points are not **affinely independent** enough to span a volume (fewer than four distinct

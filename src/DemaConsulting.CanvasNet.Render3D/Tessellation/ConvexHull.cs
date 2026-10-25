@@ -30,10 +30,16 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         which is outside the supported range.
 ///     </para>
 ///     <para>
-///         <b>Work and memory.</b> Sorting is O(n log n). The incremental construction inserts the points in
-///         sorted order; an insertion costs time proportional to the faces it replaces plus the faces around
-///         the previously inserted vertex, which is O(n log n) in total for typical input and O(n * h) in the
-///         worst case (h = number of hull vertices, for example adversarial cyclic-polytope-like input).
+///         <b>Work and memory.</b> Let <c>n</c> be the number of points, <c>h</c> the number of hull vertices and
+///         <c>F</c> the number of result triangles. For <see cref="Hull3D"/> the copy, validation and removal of
+///         duplicates are O(n) and the sort is O(n log n) in the worst case. The incremental construction inserts the
+///         points in sorted order; an insertion costs time proportional to the faces it replaces plus the faces around
+///         the previously inserted vertex, so the insertions take O(n log n) in total while the hull stays small
+///         (random points in a cube or a ball, lattices) and O(n * h) in the worst case, which is O(n^2) when almost
+///         every point is a hull vertex (for example adversarial cyclic-polytope-like input). The coplanar prefix is
+///         hulled by a monotone chain, O(k log k) for <c>k</c> points, and the final merge of coplanar triangles into
+///         facets is O(F) exact tests of whether neighbors are coplanar plus O(F log F) comparisons to order the facets. <see cref="Hull2D"/>
+///         is O(n log n) in every case: O(n) to copy, O(n log n) to sort and O(n) for the monotone chain.
 ///         Memory is O(n) and the result has at most <c>2n - 4</c> triangles: the input is copied exactly once into
 ///         one array of 24 bytes per point, which is validated, sorted and de-duplicated in place (no list, no
 ///         second array), and the construction adds about 9 bytes per point plus face tables proportional to the
@@ -60,7 +66,8 @@ public static class ConvexHull
     /// <remarks>
     ///     The result is a function of the point set only (see the type remarks), contains every extreme
     ///     point, no interior point, and is a valid closed, outward-wound, positive-volume mesh. The work is
-    ///     O(n log n) typically and O(n * h) in the worst case; see the type remarks.
+    ///     O(n log n) for the sort plus the insertions, which are O(n log n) while the hull stays small and
+    ///     O(n * h), up to O(n^2), in the worst case; see the type remarks.
     /// </remarks>
     /// <param name="points">The points; every coordinate must be finite. Duplicates and any order are allowed.</param>
     /// <param name="cancellationToken">A token that cancels the computation.</param>
