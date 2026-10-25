@@ -110,6 +110,11 @@ outward normals for outer walls and for hole walls (which then face into the hol
   (`segments >= 3`, the last ring wraps to the first by index, no duplicated seam, no end caps);
   anything less is a partial sweep (`segments >= 1` angular steps, a start cap at azimuth 0 and an end
   cap at the final azimuth, both triangulated from the profile and sharing the wall vertices).
+  Every angular step (`angleDegrees / segments`) must be **at most 120 degrees**, the step of the
+  coarsest full revolution (360 degrees in 3 segments), so a partial sweep follows the same rule as a
+  full one. Wider steps are rejected with `ArgumentOutOfRangeException` on `segments`: at 180 degrees the
+  wall chords pass through the axis (zero volume) and beyond it the facets face the wrong way (inside-out,
+  negative volume). A caller that tessellates by fragment count always satisfies the bound.
 - *Axis welding*: every profile vertex on the axis becomes exactly one mesh vertex, not one per ring;
   a profile edge with both ends on the axis sweeps to nothing and is skipped; an edge with one end on
   the axis yields one triangle per segment; an off-axis edge yields two triangles per segment. The
@@ -128,7 +133,8 @@ outward normals for outer walls and for hole walls (which then face into the hol
 All validation precedes any construction. `ArgumentNullException` for a null region;
 `ArgumentOutOfRangeException` for a height that is not finite and greater than zero, fewer than one
 slice, an invalid scale (non-finite, negative, or zero in only one axis), an angle outside `(0, 360]`
-or not finite or so small that its radian value is zero, and too few segments; `ArgumentException`
+or not finite or so small that its radian value is zero, and too few segments (including a segment count that
+leaves a single angular step wider than 120 degrees); `ArgumentException`
 for a non-finite twist, an apex (zero scale) over a region with more than one contour, a profile that
 crosses or lies entirely on the rotation axis or touches it at an isolated vertex, a sweep step
 too small to resolve at a profile vertex's radius (two rings would coincide), and a result that would

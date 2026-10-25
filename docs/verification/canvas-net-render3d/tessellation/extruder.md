@@ -173,7 +173,9 @@ outward oriented with the same volume as its mirror image.
 `ExtruderRotateTests.Extruder_Rotate_PoleVerticesWithAxisEdge_AreAccepted`,
 `ExtruderRotateTests.Extruder_Rotate_InvalidArguments_Throw`,
 `ExtruderRotateTests.Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws`,
-`ExtruderRotateTests.Extruder_Rotate_StepUnresolvableAtRadius_Throws`
+`ExtruderRotateTests.Extruder_Rotate_StepUnresolvableAtRadius_Throws`,
+`ExtruderRotateTests.Extruder_Rotate_StepWiderThanMaximum_ThrowsArgumentOutOfRangeOnSegments`,
+`ExtruderRotateTests.Extruder_Rotate_StepAtOrBelowMaximum_IsValidPositiveVolume`
 
 Asserts `ArgumentException` for a profile that crosses the axis and for a profile lying only on it
 (which the region constructor rejects as zero area, so the test asserts the exception from that
@@ -184,7 +186,11 @@ region, an angle of zero, above 360, or not a number, and too few segments for a
 for a partial sweep. The smallest positive double as an angle (its radian value rounds to zero)
 is rejected with an `ArgumentOutOfRangeException` naming `angleDegrees`, and a `1e-300` degree
 sweep of a profile at radius `1e-300` (the ring offset rounds to zero) is rejected with an
-`ArgumentException` instead of returning an open mesh.
+`ArgumentException` instead of returning an open mesh. A sweep whose single angular step would exceed
+120 degrees (the step of the coarsest full revolution; for example 180 degrees in one segment, or 359
+degrees in two) is rejected with an `ArgumentOutOfRangeException` naming `segments` (such steps gave
+flat or inside-out facets), while steps of exactly 120 degrees or less (for example 120/1, 180/2 and
+360/3) are accepted and give a positive facet volume.
 
 ##### CanvasNetRender3D-Tessellation-Extruder-ValidOperand: Every Result Is A Valid CSG Operand
 

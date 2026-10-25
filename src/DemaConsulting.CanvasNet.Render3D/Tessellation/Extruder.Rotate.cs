@@ -11,6 +11,12 @@ public static partial class Extruder
     private const int MinimumFullRevolutionSegments = 3;
 
     /// <summary>
+    ///     Largest angular step in degrees of any sweep: the step of the coarsest full revolution (360 degrees in
+    ///     three segments). Wider steps yield flat or inside-out facets.
+    /// </summary>
+    private const double MaximumStepDegrees = 360.0 / MinimumFullRevolutionSegments;
+
+    /// <summary>
     ///     Revolves a region about the +Z axis: profile X is the radius, profile Y is the height.
     /// </summary>
     /// <remarks>
@@ -39,11 +45,13 @@ public static partial class Extruder
     /// <param name="region">The profile in the (X = radius, Y = height) plane.</param>
     /// <param name="angleDegrees">The sweep angle in degrees; finite, greater than 0 and at most 360 (exactly 360 is a full revolution); not so small that its radian value rounds to zero.</param>
     /// <param name="segments">
-    ///     The number of angular steps over the sweep: at least 3 for a full revolution, at least 1 for a partial sweep.
+    ///     The number of angular steps over the sweep: at least 3 for a full revolution, at least 1 for a partial sweep,
+    ///     and in every case enough that each step (<paramref name="angleDegrees"/> / <paramref name="segments"/>) is at
+    ///     most 120 degrees, the step of the coarsest full revolution. A wider step produces flat or inside-out facets.
     /// </param>
     /// <returns>The closed, outward-oriented mesh; empty for an empty region.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the angle is not in (0, 360], is so small that it converts to a zero radian sweep, or the segment count is too small.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the angle is not in (0, 360], is so small that it converts to a zero radian sweep, the segment count is too small, or a sweep step would exceed 120 degrees.</exception>
     /// <exception cref="ArgumentException">Thrown when the profile crosses or lies entirely on the axis, touches the axis at an isolated vertex, a sweep step is too small to resolve at a profile vertex's radius, or the result would exceed the maximum mesh size.</exception>
     public static Mesh Rotate(PolygonRegion region, double angleDegrees, int segments)
     {
@@ -64,6 +72,17 @@ public static partial class Extruder
         if (segments < (full ? MinimumFullRevolutionSegments : 1))
         {
             throw new ArgumentOutOfRangeException(nameof(segments), segments, full ? "A full revolution needs at least 3 segments." : "At least 1 segment is required.");
+        }
+
+        // A step wider than the step of the coarsest full revolution (360 / 3) makes the facets degenerate: at 180
+        // degrees the wall chords pass through the axis and the volume collapses to zero, beyond it the facets
+        // face the wrong way and the solid is inside out. Rejecting it makes partial and full sweeps consistent.
+        if (angleDegrees / segments > MaximumStepDegrees)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(segments),
+                segments,
+                $"Each angular step must be at most {MaximumStepDegrees} degrees; a sweep of {angleDegrees} degrees needs at least {Math.Ceiling(angleDegrees / MaximumStepDegrees)} segments.");
         }
 
         if (region.IsEmpty)
