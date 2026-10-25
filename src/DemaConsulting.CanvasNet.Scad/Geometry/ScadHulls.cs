@@ -49,15 +49,18 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         warning says so) so that an enclosing <c>color</c> applies.
 ///     </para>
 ///     <para>
-///         <b>Budget and cancellation.</b> The triangle count of a hull or a sum is known only once it is built
-///         (the hull of <c>n</c> points has at most <c>2n - 4</c> triangles), so it is charged, exactly, right after
-///         the computation and before the node is created: the work and the memory before the charge are bounded
-///         by the number of points (itself capped by the triangle budget for a hull and by
-///         <see cref="MinkowskiSum.MaxPairwiseSums"/> for a sum), and the total charged always equals the
-///         triangles of the meshes created. Intermediate sums of a fold are charged while they live and refunded
-///         when the next step has consumed them, so the memory of a fold stays within the budget; operand meshes
-///         stay charged like any consumed operand. Cancellation is polled between meshes and sums and inside the
-///         Render3D loops.
+///         <b>Budget and cancellation.</b> The exact triangle count of a hull or a sum is known only once it is
+///         built, but the hull of <c>d</c> distinct points has at most <c>2d - 4</c> triangles. That upper bound
+///         (<c>2n - 4</c> for the points of a hull, <c>2 * Va * Vb - 4</c> for one pairwise sum) is therefore charged
+///         <em>before</em> any hull or sums memory is allocated, so a computation whose bound does not fit the
+///         <em>remaining</em> budget is rejected with the triangle-limit error without being begun (the bound can
+///         reject a hull that would fit exactly, which is the price of failing before allocating). After the mesh is
+///         built the charge is settled to its actual triangle count by refunding the difference, and a rejection, a
+///         failure or a cancellation refunds the whole pre-charge, so the total charged always equals the triangles of
+///         the meshes created. Intermediate sums of a fold are charged (at their actual count) while they live and
+///         refunded when the next step has consumed them, so the memory of a fold stays within the budget; operand
+///         meshes stay charged like any consumed operand. Cancellation is polled between meshes and sums and inside
+///         the Render3D loops.
 ///     </para>
 ///     <para>
 ///         The methods are stateless and thread-safe.
@@ -222,10 +225,18 @@ internal static class ScadHulls
         WarnColors(node, parts.HasAppearance, context);
         var points = GatherPoints(parts, node, context);
         context.Poll();
+
+        // The hull of d distinct points has at most 2d - 4 triangles: that bound is charged, and so checked against
+        // the remaining budget, before any hull memory exists; the charge is settled to the actual count afterwards
+        var charged = ChargeHullBound(points, node, context);
+        var settled = false;
         Mesh mesh;
         try
         {
+            context.NoteHullStarted();
             mesh = ConvexHull.Hull3D(points, context.Cancellation);
+            context.SettleTriangles(charged, mesh.TriangleCount, node.Location);
+            settled = true;
         }
         catch (ArgumentException)
         {
@@ -235,10 +246,42 @@ internal static class ScadHulls
                 node.Location);
             return ScadGeo.Empty;
         }
+        finally
+        {
+            // A rejection, a cancellation or any other failure returns the whole pre-charge
+            if (!settled)
+            {
+                context.RefundTriangles(charged);
+            }
+        }
 
-        // The exact count is known only now; it is charged before the node is created
-        context.ChargeTriangles(mesh.TriangleCount, node.Location);
         return ScadGeo.FromMesh(context.CreateMeshNode(mesh, node.Location));
+    }
+
+    /// <summary>
+    ///     Charges the upper bound of the triangles of the hull of a point list, failing with the triangle-limit
+    ///     error when it exceeds the remaining budget.
+    /// </summary>
+    /// <remarks>
+    ///     The bound is <c>2d - 4</c> for <c>d</c> distinct points. The raw count of the points is used when it fits;
+    ///     only when it does not, the distinct points are counted (children can share positions), so a hull whose
+    ///     points repeat is not rejected by the count of its duplicates.
+    /// </remarks>
+    /// <param name="points">The candidate points.</param>
+    /// <param name="node">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <returns>The number of triangles charged.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the bound does not fit the remaining budget.</exception>
+    private static long ChargeHullBound(List<Vector3D> points, ScadInstance node, ScadGeometryContext context)
+    {
+        var bound = Math.Max(0L, (2L * points.Count) - 4L);
+        if (bound > context.MaxTriangles - context.TrianglesCharged)
+        {
+            bound = Math.Max(0L, (2L * new HashSet<Vector3D>(points).Count) - 4L);
+        }
+
+        context.ChargeTriangles(bound, node.Location);
+        return bound;
     }
 
     /// <summary>
@@ -761,9 +804,30 @@ internal static class ScadHulls
                     return null;
                 }
 
-                // Both operands are verified members or sums (hulls), so the repeated convexity test is skipped
-                var sum = MinkowskiSum.ConvexSumOfVerified(left, right, context.Cancellation);
-                context.ChargeTriangles(sum.TriangleCount, node.Location);
+                // The sum has at most 2 * (Va * Vb) - 4 triangles (the hull of that many points): the bound is charged,
+                // and so checked against the remaining budget, before the sums array exists, then settled to the
+                // actual count. Both operands are verified members or sums (hulls), so the repeated convexity test is
+                // skipped
+                var bound = Math.Max(0L, (2L * cost) - 4L);
+                context.ChargeTriangles(bound, node.Location);
+                var settled = false;
+                Mesh sum;
+                try
+                {
+                    context.NoteSumStarted();
+                    sum = MinkowskiSum.ConvexSumOfVerified(left, right, context.Cancellation);
+                    context.SettleTriangles(bound, sum.TriangleCount, node.Location);
+                    settled = true;
+                }
+                finally
+                {
+                    // A failure or a cancellation returns the whole pre-charge of this sum
+                    if (!settled)
+                    {
+                        context.RefundTriangles(bound);
+                    }
+                }
+
                 charges.Step += sum.TriangleCount;
                 sums.Add(sum);
             }

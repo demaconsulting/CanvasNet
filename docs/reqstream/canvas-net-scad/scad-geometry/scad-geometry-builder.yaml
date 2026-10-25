@@ -263,20 +263,24 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget
                 title: >-
-                  The ScadGeometryBuilder unit shall charge each hull and each final Minkowski sum with the
-                  exact number of triangles of the mesh created, before its node is created, so that the
-                  number charged equals the triangles of every mesh created (the operands it consumes stay
-                  charged, and the temporary sums of a fold are charged while they live and refunded when
-                  consumed), shall bound the points of a hull by the triangle budget, and shall fail with a
-                  ScadEvaluationException that names the module's location and the limit when the count
-                  does not fit.
+                  The ScadGeometryBuilder unit shall charge each hull and each pairwise Minkowski sum with
+                  the upper bound of its triangles (2d - 4 for d distinct hull points, 2 * Va * Vb - 4 for
+                  one sum) before any hull or sums memory is allocated, failing with a
+                  ScadEvaluationException that names the module's location and the limit, without starting
+                  the computation, when the bound exceeds the remaining budget; shall settle the charge to
+                  the actual triangle count of the mesh created by refunding the difference, and refund the
+                  whole pre-charge on a rejection, failure or cancellation, so that the number charged
+                  equals the triangles of every mesh created (the operands it consumes stay charged, and the
+                  temporary sums of a fold are charged while they live and refunded when consumed).
                 justification: |
-                  The count of a hull is known only when it is computed, so it is charged right after, on
-                  a computation whose work is bounded by the budget; the totals must still be exact and a
-                  failure must leave no charge behind.
+                  The budget must hold before memory is allocated so that a hostile model cannot exhaust
+                  the host; the exact count of a hull is known only afterwards, so its upper bound is
+                  charged first (which can reject a hull that would fit exactly) and the totals are then
+                  made exact again, leaving no charge behind on failure.
                 tests:
                   - ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated
                   - ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge
+                  - ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
                 title: >-

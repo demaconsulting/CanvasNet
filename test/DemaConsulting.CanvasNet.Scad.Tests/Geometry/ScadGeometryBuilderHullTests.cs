@@ -307,32 +307,104 @@ public class ScadGeometryBuilderHullTests
     }
 
     /// <summary>
-    ///     Validates that a hull and a sum over the budget fail with the located limit error, that the exact count is
-    ///     the boundary (the limit equal to the charge accepts and one below rejects), and that failing leaves no charge
-    ///     behind to fail a later build.
+    ///     Validates that a hull and a sum over the budget fail with the located limit error, that the upper bound
+    ///     of the triangles (2n - 4 for the 16 points of the hull, 2 * 8 * 8 - 4 for the sum) is the boundary (the
+    ///     limit equal to the operands plus the bound accepts and one below rejects), and that after the mesh is
+    ///     built the charge is settled to the actual twelve triangles.
     /// </summary>
     [Fact]
     public void ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge()
     {
-        // Arrange: the two cubes cost 24 triangles and the box over them 12
+        // Arrange: the two cubes cost 24 triangles; the hull bound is 28 and the sum bound 124
         const string Hull = "\n  hull() { cube(1); translate([3, 0, 0]) cube(1); }";
         const string Sum = "\n  minkowski() { cube(1); cube(1); }";
 
         // Act
-        var hullFits = Build(Hull, Settings(maxTriangles: 36));
-        var sumFits = Build(Sum, Settings(maxTriangles: 36));
-        var hullFails = Assert.Throws<ScadEvaluationException>(() => Build(Hull, Settings(maxTriangles: 35)));
-        var sumFails = Assert.Throws<ScadEvaluationException>(() => Build(Sum, Settings(maxTriangles: 35)));
+        var hullFits = Build(Hull, Settings(maxTriangles: 52));
+        var sumFits = Build(Sum, Settings(maxTriangles: 148));
+        var hullFails = Assert.Throws<ScadEvaluationException>(() => Build(Hull, Settings(maxTriangles: 51)));
+        var sumFails = Assert.Throws<ScadEvaluationException>(() => Build(Sum, Settings(maxTriangles: 147)));
 
-        // Assert
+        // Assert: the charge settled to the actual twelve triangles of the box over the 24 of the cubes
         Assert.Equal(36, hullFits.TrianglesCharged);
         Assert.Equal(36, sumFits.TrianglesCharged);
+        Assert.Equal(12, hullFits.MeshTriangles);
+        Assert.Equal(12, sumFits.MeshTriangles);
         Assert.Equal(new ScadSourceLocation(null, 2, 3), hullFails.Location);
         Assert.Equal(new ScadSourceLocation(null, 2, 3), sumFails.Location);
-        Assert.Equal("2:3: Triangle limit exceeded (limit 35)", hullFails.Message);
-        Assert.Equal("2:3: Triangle limit exceeded (limit 35)", sumFails.Message);
+        Assert.Equal("2:3: Triangle limit exceeded (limit 51)", hullFails.Message);
+        Assert.Equal("2:3: Triangle limit exceeded (limit 147)", sumFails.Message);
     }
 
+    /// <summary>
+    ///     Validates the pre-charge protocol directly on a context: a hull or a sum whose upper bound does not fit the
+    ///     remaining budget is rejected before its computation is started (the context counts the computations it
+    ///     began), the rejection leaves no charge behind, a bound that fits is settled to the actual triangle count, a
+    ///     degenerate hull refunds its whole pre-charge, and the temporary sums of a fold with several children are
+    ///     pre-charged, settled and refunded so that the charge always equals the operands plus the meshes created.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual()
+    {
+        var location = new ScadSourceLocation(null, 1, 1);
+
+        // Builds a context with the given limit and the charged operands: unit cubes at the given x offsets
+        (ScadGeometryContext Context, ScadGeo[] Operands) Create(long limit, params double[] offsets)
+        {
+            var context = new ScadGeometryContext(Settings(maxTriangles: limit), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+            var operands = offsets.Select(x =>
+            {
+                var mesh = PrimitiveTessellator.Box(new Vector3D(1, 1, 1)).Transform(Matrix4x4D.CreateTranslation(new Vector3D(x, 0, 0)));
+                context.ChargeTriangles(mesh.TriangleCount, location);
+                return ScadGeo.FromMesh(context.CreateMeshNode(mesh, location));
+            }).ToArray();
+            return (context, operands);
+        }
+
+        // Hull: 16 points, bound 28, actual 12; the operands cost 24
+        var (rejectedHull, hullOperands) = Create(51, 0, 3);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Hull(Instance("hull", []), [.. hullOperands], rejectedHull));
+        Assert.Equal(0, rejectedHull.HullsStarted);
+        Assert.Equal(24, rejectedHull.TrianglesCharged);
+        var (acceptedHull, acceptedHullOperands) = Create(52, 0, 3);
+        var hull = ScadHulls.Hull(Instance("hull", []), [.. acceptedHullOperands], acceptedHull);
+        Assert.Equal(1, acceptedHull.HullsStarted);
+        Assert.Equal(12, Assert.IsType<MeshNode>(hull.Node).Mesh.TriangleCount);
+        Assert.Equal(24 + 12, acceptedHull.TrianglesCharged);
+
+        // Hull: a flat quad (four coplanar points) is degenerate; its pre-charge of four triangles is refunded
+        var (degenerate, _) = Create(1000);
+        var flat = new Mesh([Vector3D.Zero, Vector3D.UnitX, new Vector3D(1, 1, 0), Vector3D.UnitY], [0, 1, 2, 0, 2, 3]);
+        degenerate.ChargeTriangles(flat.TriangleCount, location);
+        var flatResult = ScadHulls.Hull(Instance("hull", []), [ScadGeo.FromMesh(degenerate.CreateMeshNode(flat, location))], degenerate);
+        Assert.Equal(ScadGeoKind.Empty, flatResult.Kind);
+        Assert.Equal(1, degenerate.HullsStarted);
+        Assert.Equal(flat.TriangleCount, degenerate.TrianglesCharged);
+
+        // Sum of two cubes: 8 * 8 points, bound 124, actual 12
+        var (rejectedSum, sumOperands) = Create(147, 0, 3);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. sumOperands], rejectedSum));
+        Assert.Equal(0, rejectedSum.SumsStarted);
+        Assert.Equal(24, rejectedSum.TrianglesCharged);
+        var (acceptedSum, acceptedSumOperands) = Create(148, 0, 3);
+        var sum = ScadHulls.Minkowski(Instance("minkowski", []), [.. acceptedSumOperands], acceptedSum);
+        Assert.Equal(1, acceptedSum.SumsStarted);
+        Assert.Equal(12, Assert.IsType<MeshNode>(sum.Node).Mesh.TriangleCount);
+        Assert.Equal(24 + 12, acceptedSum.TrianglesCharged);
+
+        // Fold of three cubes: the second step needs the live sum of the first (12) and its own bound (124) on top of the
+        // 36 of the operands
+        var (rejectedFold, foldOperands) = Create(171, 0, 3, 6);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. foldOperands], rejectedFold));
+        Assert.Equal(1, rejectedFold.SumsStarted);
+        Assert.Equal(36, rejectedFold.TrianglesCharged);
+        var (acceptedFold, acceptedFoldOperands) = Create(172, 0, 3, 6);
+        var fold = ScadHulls.Minkowski(Instance("minkowski", []), [.. acceptedFoldOperands], acceptedFold);
+        Assert.Equal(2, acceptedFold.SumsStarted);
+        var foldMesh = Assert.IsType<MeshNode>(fold.Node).Mesh;
+        Assert.Equal(12, foldMesh.TriangleCount);
+        Assert.Equal(36 + foldMesh.TriangleCount, acceptedFold.TrianglesCharged);
+    }
     /// <summary>
     ///     Validates that a canceled token stops a hull and a sum: through the whole build, and directly in the
     ///     builders (which poll before the heavy work even when their children cost no polls).

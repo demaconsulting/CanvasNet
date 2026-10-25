@@ -79,6 +79,24 @@ internal sealed class ScadGeometryContext
     /// <summary>Gets the number of triangles charged so far.</summary>
     public long TrianglesCharged => _triangles;
 
+    /// <summary>
+    ///     Gets the number of hull computations (<c>ConvexHull.Hull3D</c> calls) that the hull and Minkowski builders
+    ///     started with this context, a diagnostic counter that lets tests prove that a computation was rejected by the
+    ///     triangle budget before it was begun.
+    /// </summary>
+    public long HullsStarted { get; private set; }
+
+    /// <summary>
+    ///     Gets the number of pairwise Minkowski sums that the builders started with this context (a diagnostic counter).
+    /// </summary>
+    public long SumsStarted { get; private set; }
+
+    /// <summary>Counts a hull computation that is about to start.</summary>
+    public void NoteHullStarted() => HullsStarted++;
+
+    /// <summary>Counts a pairwise Minkowski sum that is about to start.</summary>
+    public void NoteSumStarted() => SumsStarted++;
+
     /// <summary>Gets the triangle budget of the model (<see cref="ScadLimits.MaxTriangles"/>).</summary>
     public long MaxTriangles => _settings.MaxTriangles;
 

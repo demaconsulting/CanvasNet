@@ -222,12 +222,14 @@ triangle count of a mesh from its parameters before it allocates (a sphere, a cy
 an extrusion, whose caps have `V + 2H − 2P` triangles for a profile with `V` vertices, `H` holes and `P` solid
 contours), with saturating arithmetic, and fails with a located `ScadEvaluationException` when the count would
 exceed the remaining budget. The charge is reconciled with the actual mesh when it is created, so the triangles
-charged always equal the triangles of the meshes built. A `hull` and a `minkowski` know the triangle count of
-their result only once it is computed, so they charge it exactly right after the computation and before the node
-is created (their work is bounded first: the points of a hull by `MaxTriangles`, the pairwise sums of two
-meshes by `MinkowskiSum.MaxPairwiseSums`); the temporary sums of a Minkowski fold are charged while they live and
-refunded when the next step has consumed them, so the operands stay charged and only the meshes of the result
-remain. The budget accumulates across all instances, including
+charged always equal the triangles of the meshes built. A `hull` and a `minkowski` know the exact triangle count of
+their result only once it is computed, but its upper bound is known first (`2d - 4` for `d` distinct points), so
+they charge that bound before any hull or sums memory exists and fail with the normal located error when it does not
+fit the **remaining** budget, then settle the charge to the actual count by refunding the difference (a rejection,
+failure or cancellation refunds all of it). The bound can reject a hull that would fit exactly. The pairwise sums of
+two meshes are also bounded by `MinkowskiSum.MaxPairwiseSums`; the temporary sums of a Minkowski fold are charged
+(at their actual count) while they live and refunded when the next step has consumed them, so the operands stay
+charged and only the meshes of the result remain. The budget accumulates across all instances, including
 loops. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a
 `ScadEvaluationException` without a location.

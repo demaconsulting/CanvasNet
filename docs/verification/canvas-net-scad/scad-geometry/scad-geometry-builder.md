@@ -283,18 +283,26 @@ vertices each are one `scad-minkowski-too-complex` report with nothing built, th
 message (the verification of the members counts toward the 2,097,152 total) before the sum is computed, while three
 small cylinders stay under the cap and build one closed mesh.
 
-##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget: Exact Charges
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget: Bounds Charged Before Computing, Exact Totals
 
 **Tests**:
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`,
-`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge`
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual`
 
 Asserts, for hulls of boxes and spheres, an extruded 2D hull, sums of one, two, and three children, a union
 operand, and the reported cases (a boolean, a flat hull, and a fold whose second step is too complex after its
 first step produced sums), that the charge equals the triangles of the operands built alone plus the triangles of
 the meshes in the scene, that a colored lone sum adds no charge while stripping its appearance, so the temporary
-sums are refunded and nothing leaks on a report; and that a limit equal to the exact charge (36) builds, one below
-throws a `ScadEvaluationException` at the module's location with the limit in its message.
+sums are refunded and nothing leaks on a report; and that the boundary is the upper bound that is charged before the
+computation: for two unit cubes (24 triangles) a hull needs 24 + 28 and a sum 24 + 124, so limits of 52 and 148 build
+(settling to a box of 12 triangles, 36 charged) and one below throws a `ScadEvaluationException` at the module's
+location with the limit in its message. The direct test on a context asserts that a rejected hull or sum is never
+begun (the context's `HullsStarted` and `SumsStarted` counters stay 0) and leaves exactly the operands charged, that a
+bound that fits is settled to the actual twelve triangles, that a degenerate flat hull refunds its pre-charge, and, for
+a fold of three cubes, that the second step needs the operands (36) plus the live first sum (12) plus its own bound
+(124): 172 builds (36 + 12 charged) and 171 fails in the second step with the first sum started and only the operands
+(36) left charged.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation: Cancellation
 

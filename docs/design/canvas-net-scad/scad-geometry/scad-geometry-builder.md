@@ -254,12 +254,16 @@ references are used.
 **`hull` of solids.** `ConvexHull.Hull3D` of the transformed points (their number bounded by `MaxTriangles`,
 which keeps the memory of the point list within the budget: a welded mesh has fewer vertices than triangles, so
 only a pathological polyhedron fails here) after `context.Poll()`; an `ArgumentException` (fewer than four
-affinely independent points) is `scad-hull-degenerate`. The mesh is charged with its exact triangle count
-(`ChargeTriangles(mesh.TriangleCount)`), then given a node by `CreateMeshNode` at the hull's location. The charge
-follows the computation (the count is known only then) rather than preceding the allocation; the computation is
-O(n log n) typically and bounded by the number of points, the mesh has `2V − 4` triangles with `V ≤ n`, and a
-charge that does not fit fails with the normal located `ScadEvaluationException` before the node is created. The
-result is a closed, outward-wound mesh of the strictly extreme vertices, a valid operand for later booleans.
+affinely independent points) is `scad-hull-degenerate`. The charge **precedes** the computation: the mesh has at most
+`2d − 4` triangles for `d` distinct points, so `ChargeHullBound` charges that bound (the raw point count `n` when it
+fits the remaining budget, the distinct count only when it does not, because children can share positions) before
+`ConvexHull.Hull3D` allocates anything, and a bound that does not fit the **remaining** budget fails with the normal
+located `ScadEvaluationException` without the hull being begun (the bound can reject a hull that would fit exactly).
+After the mesh is built `SettleTriangles` refunds the difference to its actual `2V − 4` triangles (`V ≤ d`), and a
+degenerate hull, a cancellation or any other failure refunds the whole pre-charge, so the total charged equals the
+triangles of the meshes created. The node is then created by `CreateMeshNode` at the hull's location. The result is
+a closed, outward-wound mesh of the strictly extreme vertices, a valid operand for later booleans. The 2D hull
+charges nothing here (see below).
 
 **`hull` of flat shapes.** The 2D trees must be union-only (`ScadShape2D.IsUnionOnly`, iterative), else
 `scad-hull-csg-operand`. The points are the vertices of every leaf region taken through the planar matrix of
@@ -306,10 +310,15 @@ and a node reached through several parents is copied once, so shared subtrees st
 in nodes plus edges; a child without any appearance is returned as it is. The result is one `MeshNode` or a
 `GroupNode` of mesh nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
 
-**Budget.** Each sum is charged with its exact triangle count right after `ConvexSumOfVerified` returns and before its node
-exists. The sums of every fold step but the last are scene-less temporaries: they are charged while they live (so
-the memory of a fold stays inside the budget) and refunded when the next step has consumed them, and on any
-failure everything not turned into a node is refunded. The operand meshes keep the charge they received when they
+**Budget.** Each sum is pre-charged with its upper bound, `2 * (Va * Vb) − 4` triangles (the hull of the `Va * Vb`
+pairwise-sum points, `Va * Vb` being the `PairCost` that the work meter uses), **before** `ConvexSumOfVerified`
+allocates its sums array; a bound above the remaining budget fails with the located triangle-limit error without
+the sum being begun, and after the sum is built the charge is settled to its actual triangle count (the node is
+created afterwards) while a failure or cancellation refunds the whole pre-charge. The sums of every fold step but the
+last are scene-less temporaries: they are charged (at their actual count) while they live, so the memory of a fold stays
+inside the budget, and refunded when the next step has consumed them; the peak is therefore the operands, the live
+sums of the previous step and the bound of the sum in progress. On any failure everything not turned into a node is
+refunded. The operand meshes keep the charge they received when they
 were created, so the total charged equals the triangles of every mesh created (pinned by
 `ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`).
 
