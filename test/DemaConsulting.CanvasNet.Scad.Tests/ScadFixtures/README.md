@@ -15,6 +15,14 @@ parser or grammar. They were written from general knowledge of C-family language
 scenes (a shelf bracket, rings of pegs, grids and so on) were invented for these tests; any resemblance to
 common idioms is generic and coincidental.
 
+The `render-*.scad` fixtures (geometry and rendering) are original works of the same kind, authored for CanvasNet from
+general geometry (the shapes, coordinates and sizes were chosen so that their silhouettes can be computed by hand).
+They are **not** derived from OpenSCAD's source code, test corpus, manual text or manual examples. The tests that use
+them (`ScadRenderSystemTests`, `ScadSystemIntegrationTests`) assert only analytic properties of the models - covered
+pixel rectangles and polygons, sample-pixel colors, symmetry, bounds, determinism and reports - computed in the test
+itself. There are no reference images: no expected image was produced by, compared with or generated from OpenSCAD or
+any other implementation, and the render fixtures have no expected-output files beside them.
+
 OpenSCAD itself is licensed under the GPL and its manual under CC BY-SA. Nothing from either is included here, and
 nothing may be added to this folder that is. If a new fixture is needed, author it fresh.
 
@@ -65,6 +73,18 @@ named after the topic, not after any other implementation's behavior.
 | `eval-instance-tree.scad` | The instantiation tree of a parametric bracket with modifiers, loops and fragment settings |
 | `eval-diagnostics.scad` | Every kind of survivable problem and its warning text and location |
 | `eval-unsupported.scad` | Recognized but unsupported functions, reported once per location |
+| `render-primitives.scad` | A colored cube, sphere and cylinder side by side: exact colors, footprints and heights |
+| `render-bracket-csg.scad` | A plate with a round through hole and a rectangular slot (`difference`) |
+| `render-intersection.scad` | A block trimmed by a round cutter (`intersection`): corners lost, sides kept |
+| `render-transforms.scad` | `translate`, `rotate`, `mirror`, `scale`, `resize` and `multmatrix` on separately colored parts with known extents |
+| `render-extrusions.scad` | `linear_extrude` (star with a hole, `scale`, `twist` with `center`) and `rotate_extrude` (vase and ring) |
+| `render-2d-csg.scad` | 2D `difference` and `intersection` of circles and squares distributed into extrusions |
+| `render-polyhedron.scad` | A pyramid, an octahedron and an L-shaped prism with a concave face, faces listed clockwise from outside |
+| `render-modules-scene.scad` | A recursive staircase, a ring of posts made with a loop and `children()`, and a painting module |
+| `render-modifiers.scad` | The `*`, `#` and `%` modifiers: disabled, highlighted (drawn, reported) and background (omitted, reported) |
+| `render-root-modifier.scad` | The `!` modifier: only the marked subtree is drawn |
+| `render-parametric.scad` | A peg board whose size comes from variables that the tests override (the `-D` equivalent) |
+| `render-unsupported.scad` | One recognized but unsupported construct per line (modules, background modifier, color alpha) next to supported geometry |
 | `libs/defs.scad`, `libs/nested/inner.scad`, `libs/shapes.scad` | Files included or used by `eval-include-main.scad`; they are not enumerated by the parse tests |
 
 ## Expected Outputs
