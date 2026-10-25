@@ -24,7 +24,8 @@ generator is verified against **golden sequences** pinned in the tests, so any p
 verified for seeded repeatability, range, count truncation, the deterministic unseeded stream, and the limit.
 Culture independence of `str` is verified under the `de-DE` culture.
 
-Unit tests reside in `ScadBuiltinMathTests.cs`, `ScadBuiltinListTests.cs`, `ScadBuiltinStringTests.cs`,
+Unit tests reside in `ScadBuiltinMathTests.cs`, `ScadBuiltinListTests.cs`, `ScadBuiltinSearchLimitTests.cs` (the
+cost and allocation of `search`), `ScadBuiltinStringTests.cs`,
 `ScadBuiltinRandomTests.cs` (including the `ScadRandom` scenarios), and `ScadBuiltinRegistryTests.cs` (type tests,
 version, unsupported names, and argument binding) within the `DemaConsulting.CanvasNet.Scad.Tests` project, in the
 `Evaluation` folder, with the host in `ScadTestBuiltinHost.cs`.
@@ -168,6 +169,12 @@ parameter filled with `undef`.
 
 **Tests**: `ScadBuiltinListTests.ScadBuiltinList_Concat_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinListTests.ScadBuiltinList_Search_TooMuchWorkOrResult_Throws`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_LargeStrings_ChargesBeforeMaterializing`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_MatchLongerThanListLimit_ThrowsBeforeAllocating`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_AsciiStrings_DoNotAllocatePerScalar`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_AllMatches_ExceedingListLimit_StopsDuringCollection`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_VectorSource_RowsAndColumns_ResultsUnchanged`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_ChargeIncludesLinearPreprocessing`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_LargeVector_ChargesPerElement`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_StepLimit_StopsDuringFormatting`,
@@ -177,4 +184,13 @@ parameter filled with `undef`.
 Asserts, for `concat`, `str`, `chr`, and `rands`, that a result exactly at the limit is produced and one more
 throws the limit error before the result is built, and that a `search` that would do too much work or produce too
 large a result throws. For `str`, it asserts that a large vector is charged at least eight steps per element and
-that a step limit stops the call during formatting, not after it.
+that a step limit stops the call during formatting, not after it. For `search`, the allocation scenarios measure the
+bytes allocated on the calling thread (`GC.GetAllocatedBytesForCurrentThread`), which is deterministic for a given
+implementation: two 100,000-character strings with a budget of 1,000 steps are refused with the step-limit error
+and under a megabyte allocated (the former implementation allocated about nineteen); a match string longer than the
+list limit is refused before the result array exists; a ten-character match against a 100,000-character ASCII string
+allocates under 200 KB (nothing per scalar); and a million matches against a limit of 50 stop at the fifty-first index
+instead of after the whole index list was built. The charge scenario asserts the exact steps `1 + match size + source
+size` plus the comparison work, and the regression theory pins ten result forms (number against string, empty
+operands, NaN, a lone surrogate, a surrogate pair as one scalar, rows mixed with plain elements, string elements
+against scalars, a column of rows, bounded counts) that gave the same results before the in-place implementation.
