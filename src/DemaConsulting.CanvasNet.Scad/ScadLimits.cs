@@ -59,6 +59,9 @@ public sealed class ScadLimits
     /// <summary>The backing field of <see cref="MaxDiagnostics"/>.</summary>
     private readonly int _maxDiagnostics = 1_000;
 
+    /// <summary>The backing field of <see cref="MaxTriangles"/>.</summary>
+    private readonly long _maxTriangles = 5_000_000;
+
     /// <summary>
     ///     Gets the shared instance that holds the default limits.
     /// </summary>
@@ -173,6 +176,23 @@ public sealed class ScadLimits
     {
         get => _maxDiagnostics;
         init => _maxDiagnostics = (int)RequireAtLeastOne(value);
+    }
+
+    /// <summary>
+    ///     Gets the maximum total number of triangles the geometry builder may create for one model (the sum of the
+    ///     upper-bound estimates made before each primitive or extrusion is tessellated); 5,000,000 by default.
+    /// </summary>
+    /// <remarks>
+    ///     The limit is checked before any mesh is allocated, so a hostile <c>$fn</c> or a huge loop fails closed
+    ///     with a <see cref="ScadEvaluationException"/> that carries the location of the instance that crossed it
+    ///     instead of exhausting memory. It only applies when a model is built (<c>BuildScene</c> and
+    ///     <c>Render</c>); plain evaluation creates no triangles.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
+    public long MaxTriangles
+    {
+        get => _maxTriangles;
+        init => _maxTriangles = RequireAtLeastOne(value);
     }
 
     /// <summary>

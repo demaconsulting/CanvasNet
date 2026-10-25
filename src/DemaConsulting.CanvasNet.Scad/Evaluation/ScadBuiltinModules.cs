@@ -10,8 +10,8 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 /// <remarks>
 ///     A recognized name produces a <see cref="ScadInstanceKind.BuiltinModule"/> instance with its evaluated
 ///     arguments and children; the evaluator never interprets geometry or validates arguments, so a name in this
-///     set that a later phase cannot build is that phase's concern. A user module of the same name shadows the
-///     built-in.
+///     set that the geometry builder cannot build is reported there (as an unsupported feature). A user module of
+///     the same name shadows the built-in.
 /// </remarks>
 internal static class ScadBuiltinModules
 {

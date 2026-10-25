@@ -5,8 +5,9 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///     silently mis-evaluated.
 /// </summary>
 /// <remarks>
-///     The feature identifier is stable and lower-case, of the form <c>scad-function-name</c> or
-///     <c>scad-search-form</c>, so callers can match on it. The record is immutable and safe for concurrent use.
+///     The feature identifier is stable and lower-case, of the form <c>scad-function-name</c>,
+///     <c>scad-search-form</c> or <c>scad-module-name</c>, so callers can match on it. The record is immutable and
+///     safe for concurrent use.
 /// </remarks>
 /// <param name="Feature">The stable feature identifier.</param>
 /// <param name="Message">The description of what is not supported, without the location.</param>

@@ -1,0 +1,141 @@
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Scad.Evaluation;
+using DemaConsulting.CanvasNet.Scad.Geometry;
+using DemaConsulting.CanvasNet.Scad.Language;
+using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHelpers;
+using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
+
+namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
+
+/// <summary>
+///     Tests that <see cref="ScadGeometryBuilder"/> is iterative: trees far deeper than any recursive walk could
+///     survive on a 64 KiB or 256 KiB caller stack build to exactly the same scene as on a big stack.
+/// </summary>
+public class ScadGeometryBuilderStackTests
+{
+    /// <summary>The stack size, in bytes, of a very small caller.</summary>
+    private const int TinyStack = 64 * 1024;
+
+    /// <summary>The stack size, in bytes, of a caller with plenty of stack.</summary>
+    private const int BigStack = 256 * 1024 * 1024;
+
+    /// <summary>The nesting depth of the hand-made trees: far beyond what a recursive walk survives on any stack.</summary>
+    private const int HandMadeDepth = 100_000;
+
+    /// <summary>The fragment settings of the hand-made instances.</summary>
+    private static readonly ScadFragmentSettings Defaults = new(0, 12, 2);
+
+    /// <summary>
+    ///     Creates a chain of nested groups, each holding a cube and the next group, ending in a cube.
+    /// </summary>
+    /// <param name="depth">The number of nested groups.</param>
+    /// <returns>The outermost instance.</returns>
+    private static ScadInstance Chain(int depth)
+    {
+        ScadInstance Cube() =>
+            new(ScadInstanceKind.BuiltinModule, "cube", [new ScadInstanceArgument(null, N(1))], [], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+
+        var node = Cube();
+        for (var i = 0; i < depth; i++)
+        {
+            node = new ScadInstance(ScadInstanceKind.Group, "m", [], [Cube(), node], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+        }
+
+        return node;
+    }
+
+    /// <summary>
+    ///     Builds a hand-made tree and describes the scene.
+    /// </summary>
+    /// <param name="depth">The nesting depth.</param>
+    /// <returns>The mesh count, the scene depth and the total volume.</returns>
+    private static (int Meshes, int Depth, double Volume) BuildChain(int depth)
+    {
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+        var built = ScadGeometryBuilder.Build([Chain(depth)], Settings(), sink);
+        var meshes = MeshNodes(built.Scene);
+        return (meshes.Count, Depth(built.Scene), meshes.Sum(m => m.Mesh.SignedVolume));
+    }
+
+    /// <summary>
+    ///     Validates that a 100,000-level tree builds on a 64 KiB and a 256 KiB caller exactly as on a big stack.
+    /// </summary>
+    /// <param name="stackSize">The caller's stack size in bytes.</param>
+    [Theory]
+    [InlineData(TinyStack)]
+    [InlineData(SmallStack)]
+    public void ScadGeometryBuilder_Build_HandMadeDeepTree_OnSmallStack_MatchesBigStack(int stackSize)
+    {
+        // Arrange / Act
+        var big = OnSmallStack(() => BuildChain(HandMadeDepth), BigStack);
+        var small = OnSmallStack(() => BuildChain(HandMadeDepth), stackSize);
+
+        // Assert
+        Assert.Equal(big, small);
+        Assert.Equal(HandMadeDepth + 1, big.Meshes);
+        Assert.Equal(HandMadeDepth + 1, big.Depth);
+        Assert.Equal(HandMadeDepth + 1.0, big.Volume, 1e-6);
+    }
+
+    /// <summary>
+    ///     Validates that a deep chain of user modules written in source (the deepest the evaluator allows) builds
+    ///     through the whole front end on small caller stacks to the same scene as on a big stack.
+    /// </summary>
+    /// <param name="stackSize">The caller's stack size in bytes.</param>
+    [Theory]
+    [InlineData(TinyStack)]
+    [InlineData(SmallStack)]
+    public void ScadGeometryBuilder_Build_DeepModuleChainFromSource_OnSmallStack_MatchesBigStack(int stackSize)
+    {
+        // Arrange: each level holds a cube and the next level; 5,000 levels need about 15,000 evaluation frames
+        const string source = "module r(n) { cube(1); if (n > 0) r(n - 1); }\nr(5000);";
+        var evaluation = new ScadEvaluationSettings { Limits = new ScadLimits { MaxRecursionDepth = 16_384 } };
+
+        // Act
+        var big = OnSmallStack(() => Describe(Build(source, evaluation: evaluation)), BigStack);
+        var small = OnSmallStack(() => Describe(Build(source, evaluation: evaluation)), stackSize);
+
+        // Assert
+        Assert.Equal(big, small);
+        Assert.Equal(5001, big.Meshes);
+        Assert.True(big.Depth > 4999);
+    }
+
+    /// <summary>
+    ///     Validates that a deep <c>!</c> search (a mark at the bottom of a deep tree) is also iterative.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_DeepShowOnlySearch_OnSmallStack_FindsTheMark()
+    {
+        // Arrange: the mark sits at the bottom of a 100,000-level tree
+        var deepest = new ScadInstance(
+            ScadInstanceKind.BuiltinModule,
+            "cube",
+            [new ScadInstanceArgument(null, N(2))],
+            [],
+            ScadModifiers.ShowOnly,
+            Defaults,
+            new ScadSourceLocation(null, 1, 1));
+        var node = deepest;
+        for (var i = 0; i < HandMadeDepth; i++)
+        {
+            node = new ScadInstance(ScadInstanceKind.Group, "m", [], [node], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+        }
+
+        // Act
+        var volume = OnSmallStack(
+            () => MeshNodes(ScadGeometryBuilder.Build([node], Settings(), new ScadEvaluationSink(ScadLimits.Default)).Scene).Single().Mesh.SignedVolume,
+            TinyStack);
+
+        // Assert
+        Assert.Equal(8.0, volume, 1e-12);
+    }
+
+    /// <summary>
+    ///     Describes a built scene by its mesh count, depth and total volume.
+    /// </summary>
+    /// <param name="result">The build result.</param>
+    /// <returns>The description.</returns>
+    private static (int Meshes, int Depth, double Volume) Describe(ScadBuildResult result) =>
+        (result.Meshes.Count, Depth(result.Scene), result.Meshes.Sum(m => m.Mesh.SignedVolume));
+}

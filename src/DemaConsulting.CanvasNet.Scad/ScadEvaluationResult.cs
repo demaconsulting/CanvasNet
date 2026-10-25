@@ -11,8 +11,9 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         returning a result.
 ///     </para>
 ///     <para>
-///         The instantiation tree the evaluation produces is internal: it is the input of the rendering phase and
-///         may change shape while that is added. Only its size is reported here.
+///         The instantiation tree the evaluation produces is internal: it is the input of the geometry builder
+///         (<see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/>) and may change shape.
+///         Only its size is reported here.
 ///     </para>
 /// </remarks>
 public sealed class ScadEvaluationResult

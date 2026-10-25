@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Packaging gate: the package stays unpackable until Phase 6, the first release with user-visible capability. -->
-    <IsPackable>false</IsPackable>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -13,13 +11,13 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Scad is a front end for the OpenSCAD language: a clean-room lexer and parser that produce a syntax tree from OpenSCAD-language source with file/line/column diagnostics, and a deterministic, resource-limited evaluator that reports echo output, warnings and unsupported features. Rendering is planned.</Description>
+    <Description>DemaConsulting.CanvasNet.Scad renders models written in the OpenSCAD language: a clean-room lexer and parser with file/line/column diagnostics, a deterministic, resource-limited evaluator, and a geometry builder that turns the evaluated model into a CanvasNet.Render3D scene (ScadDocument.BuildScene) or draws it straight onto a CanvasNet Surface (ScadDocument.Render). Constructs that are not supported yet are reported, never silently skipped.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library;3d;openscad;scad</PackageTags>
+    <PackageTags>canvas;dotnet-library;3d;openscad;scad;rendering;cad</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet.Scad</Title>
     <Product>DemaConsulting.CanvasNet.Scad</Product>
