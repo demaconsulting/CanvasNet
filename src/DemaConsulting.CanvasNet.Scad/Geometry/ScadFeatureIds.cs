@@ -1,3 +1,4 @@
+// cspell:ignore multmatrix
 namespace DemaConsulting.CanvasNet.Scad.Geometry;
 
 /// <summary>

@@ -619,6 +619,59 @@ public class ScadSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the triangle limit bounds the generated geometry through the public API: a model over the
+    ///     limit fails with a located <see cref="ScadEvaluationException"/> and the same model passes with a higher
+    ///     limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_BuildScene_TriangleLimitFailsClosed()
+    {
+        // Arrange: a sphere on line 2 needs far more than 100 triangles
+        var document = ScadDocument.Parse("cube(1);\nsphere(r = 5, $fn = 64);");
+        var tight = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { Limits = new ScadLimits { MaxTriangles = 100 } } };
+        var roomy = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { Limits = new ScadLimits { MaxTriangles = 100_000 } } };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => document.BuildScene(tight, TestContext.Current.CancellationToken));
+        var scene = document.BuildScene(roomy, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, ex.Location.Line);
+        Assert.Equal(5, scene.ComputeBounds().Max.X, 0.2);
+    }
+
+    /// <summary>
+    ///     Validates that the render options have documented defaults, reject invalid values when they are set, and
+    ///     are immutable afterwards.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_RenderOptions_AreValidatedAndImmutable()
+    {
+        // Arrange / Act
+        var defaults = new ScadRenderOptions();
+        var custom = new ScadRenderOptions { ViewAzimuthDegrees = 10, ViewElevationDegrees = 20, Projection = CameraProjection.Orthographic, FlatShapeThickness = 2 };
+
+        // Assert: defaults, accepted values, rejected values, and init-only properties
+        Assert.Null(defaults.Evaluation);
+        Assert.Null(defaults.Camera);
+        Assert.Null(defaults.SceneOptions);
+        Assert.Equal(Camera.DefaultAzimuthDegrees, defaults.ViewAzimuthDegrees);
+        Assert.Equal(Camera.DefaultElevationDegrees, defaults.ViewElevationDegrees);
+        Assert.Equal(CameraProjection.Perspective, defaults.Projection);
+        Assert.Equal(0.1, defaults.FlatShapeThickness);
+        Assert.Equal(CameraProjection.Orthographic, custom.Projection);
+        Assert.Equal(2, custom.FlatShapeThickness);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { ViewAzimuthDegrees = double.NaN });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { ViewElevationDegrees = double.PositiveInfinity });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { Projection = (CameraProjection)99 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { FlatShapeThickness = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadLimits { MaxTriangles = 0 });
+        Assert.All(
+            typeof(ScadRenderOptions).GetProperties().Where(p => p.CanWrite),
+            property => Assert.True(property.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().Any(m => m.Name == "IsExternalInit"), property.Name));
+    }
+
+    /// <summary>
     ///     Runs a function on a new thread with the given stack size and returns its result.
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>

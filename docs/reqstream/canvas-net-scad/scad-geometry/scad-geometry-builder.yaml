@@ -1,0 +1,316 @@
+---
+# cspell:ignore minkowski
+# Software Unit Requirements for ScadGeometryBuilder
+#
+# These requirements describe the design-level behavior of the ScadGeometryBuilder unit: the internal engine
+# that walks the instantiation tree of an evaluation iteratively and converts it into a Render3D scene
+# (ScadGeometryBuilder and its Walk, Modifiers, and Unsupported partial files, ScadGeo, ScadGeometryContext,
+# ScadSceneMap, ScadReporter, ScadSceneOptions, ScadFeatureIds, and ScadBooleans) in the
+# DemaConsulting.CanvasNet.Scad.Geometry namespace.
+#
+# The unit owns the walk, the implicit union, the three modifiers, the CSG booleans and their dimension rules,
+# the table of modules that are recognized but not built, the triangle budget, cancellation, the single
+# reporting channel, the location map of the built scene, and the copy of the renderer options. The primitives,
+# the transforms, and the extrusions are separate units that the engine dispatches to. Each "tests" entry cites
+# an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-geometry/scad-geometry-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        sections:
+          - title: ScadGeometryBuilder Requirements
+            requirements:
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-NoRecursion
+                title: >-
+                  The ScadGeometryBuilder unit shall build instantiation trees of any depth without
+                  recursion, so that trees of 100,000 nested groups, transforms, colors, or 2D
+                  transforms, and of 20,000 nested differences, intersections, or extruded 2D
+                  differences, produce the same scene on a 64 KiB or 256 KiB caller stack as on a large
+                  stack, including the search for a show-only mark at the bottom of a deep tree.
+                justification: |
+                  A recursive user module nests as deeply as the evaluation limit allows and a caller
+                  may run on a very small stack; an iterative engine makes the build independent of the
+                  caller's stack and removes the need for a stack-guard thread.
+                tests:
+                  - ScadGeometryBuilder_Build_HandMadeDeepTree_OnSmallStack_MatchesBigStack
+                  - ScadGeometryBuilder_Build_DeepModuleChainFromSource_OnSmallStack_MatchesBigStack
+                  - ScadGeometryBuilder_Build_DeepShowOnlySearch_OnSmallStack_FindsTheMark
+                  - ScadGeometryBuilder_Build_DeepBooleanChain_OnSmallStack_MatchesBigStack
+                  - ScadGeometryBuilder_Build_DeepExtrudedBooleanChain_OnSmallStack_MatchesBigStack
+                  - ScadGeometryBuilder_Build_DeepFlatTransformChainFromSource_OnSmallStack_Extrudes
+                  - ScadGeometryBuilder_Build_DeepTranslateChain_OnSmallStack_ComposesExactly
+                  - ScadGeometryBuilder_Build_DeepScaleChain_OnSmallStack_ComposesToTheProduct
+                  - ScadGeometryBuilder_Build_DeepColorChain_OnSmallStack_Builds
+                  - ScadGeometryBuilder_Build_DeepFlatTranslateChain_OnSmallStack_ComposesExactly
+                  - ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion
+                title: >-
+                  The ScadGeometryBuilder unit shall treat user modules, for loops, the union and render
+                  modules, and the top level as the implicit union of their children in document order,
+                  adding no wrapper node for a single child, building an empty scene for an empty
+                  document, and ignoring a disabled instance without any report.
+                justification: |
+                  Grouping must not change geometry, and a chain of single-child modules must not grow
+                  the scene, so that deep models stay cheap for the renderer.
+                tests:
+                  - ScadGeometryBuilder_Build_EmptyDocument_GivesEmptyScene
+                  - ScadGeometryBuilder_Build_SingleSolid_IsTheRootNode
+                  - ScadGeometryBuilder_Build_GroupsAndUnions_FlattenInDocumentOrder
+                  - ScadGeometryBuilder_Build_SingleChildChain_AddsNoWrappers
+                  - ScadGeometryBuilder_Build_Disable_IsAbsentAndSilent
+                  - ScadBooleans_UnionAndRender_AreGroups
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ShowOnly
+                title: >-
+                  The ScadGeometryBuilder unit shall make the outermost subtrees marked with the show-only
+                  modifier the whole model, built without the transforms and colors of their ancestors and
+                  combined in document order, ignore a mark nested in a marked subtree or in a background
+                  subtree, and build nothing for an instance that is both marked and background.
+                justification: |
+                  Show-only isolates part of a model for inspection; its exact scope decides what the
+                  author sees and must be the same in every build.
+                tests:
+                  - ScadGeometryBuilder_Build_ShowOnly_ReplacesModelWithoutAncestors
+                  - ScadGeometryBuilder_Build_SeveralShowOnly_UnionInOrderAndNestedMarkIgnored
+                  - ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored
+                  - ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing
+                  - ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
+                title: >-
+                  The ScadGeometryBuilder unit shall render a subtree marked with the highlight modifier
+                  normally and report scad-modifier-highlight at the instance, and shall omit a subtree
+                  marked with the background modifier without visiting it and report
+                  scad-modifier-background at the instance.
+                justification: |
+                  The two modifiers are not fully supported; the author must be told exactly where the
+                  rendering differs from what the modifier asks for.
+                tests:
+                  - ScadGeometryBuilder_Build_Highlight_RendersAndReports
+                  - ScadGeometryBuilder_Build_Background_OmitsSubtreeAndReports
+                  - ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
+                title: >-
+                  The ScadGeometryBuilder unit shall report each of the recognized modules text, offset,
+                  projection, surface, import, roof, hull, and minkowski as an unsupported feature
+                  scad-module-{name} at the module's location, omit the module and its children without
+                  visiting them, keep its supported siblings, and let a user module of the same name
+                  shadow the built-in so that its geometry is built and nothing is reported.
+                justification: |
+                  Nothing may be skipped silently: a module that is recognized but not built must be
+                  named, with its location, while a module the author defined is always theirs.
+                tests:
+                  - ScadUnsupportedModule_Module_IsReportedAndOmittedWithItsChildren
+                  - ScadUnsupportedModule_RealisticArguments_AreReportedOnce
+                  - ScadUnsupportedModule_Siblings_StillBuild
+                  - ScadUnsupportedModule_Table_CoversExactlyTheDocumentedModules
+                  - ScadUnsupportedModule_UnderTransformsAndBooleans_YieldsNothing
+                  - ScadUnsupportedModule_UserModuleOfTheSameName_ShadowsTheBuiltin
+                  - ScadGeometryBuilder_Build_UnsupportedModule_ReportsFeatureWithLocation
+                  - ScadGeometryBuilder_Build_UserModuleShadowingBuiltin_IsBuiltNotReported
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
+                title: >-
+                  The ScadGeometryBuilder unit shall report every warning and unsupported feature through
+                  the evaluation's own sink, after the events of the evaluation, once per message or
+                  feature and location, at the location of the producing instance, naming the included or
+                  used file when the instance came from one.
+                justification: |
+                  One channel keeps the events ordered, de-duplicated, capped, and delivered once on the
+                  calling thread, and a location that names the right file lets the author find the line.
+                tests:
+                  - ScadGeometryBuilder_Build_SharedSink_KeepsEvaluationBeforeGeometryEvents
+                  - ScadGeometryBuilder_Build_RepeatedUnsupportedInstance_ReportedOnce
+                  - ScadGeometryBuilder_Build_UnsupportedInUsedFile_CarriesFileLocation
+                  - ScadUnsupportedModule_InUsedFile_CarriesTheFile
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode
+                title: >-
+                  The ScadGeometryBuilder unit shall, in strict mode, throw a ScadUnsupportedFeatureException
+                  carrying the feature identifier and location at the first report of an unsupported
+                  feature, including the degraded modifiers, leaving that report in the sink, and shall
+                  deliver every unsupported module to the caller's handler in document order otherwise.
+                justification: |
+                  Strict mode turns a degraded rendering into an error for callers that cannot accept one;
+                  it must stop at the first occurrence and say where.
+                tests:
+                  - ScadGeometryBuilder_Build_StrictMode_ThrowsAtFirstUnsupported
+                  - ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightModifier
+                  - ScadUnsupportedModule_StrictMode_ThrowsAtTheFirst
+                  - ScadUnsupportedModule_PublicHandlerAndStrictMode_SeeEveryModule
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Difference
+                title: >-
+                  The ScadGeometryBuilder unit shall build difference as a boolean node whose first operand
+                  is the minuend and whose other operands are separate subtrahends, with an empty first
+                  operand giving an empty result, empty later operands vanishing, a single remaining
+                  operand being returned unchanged, and nested differences nesting as nodes.
+                justification: |
+                  The position of an operand decides its role in a difference, so the order of the
+                  operands and the treatment of empty ones must be exact.
+                tests:
+                  - ScadBooleans_Difference_TwoSolids_IsADifferenceNode
+                  - ScadBooleans_Difference_FirstChildIsTheMinuend
+                  - ScadBooleans_Difference_SeveralSubtrahends_AreSeparateOperands
+                  - ScadBooleans_Difference_Nested_NestsNodes
+                  - ScadBooleans_Difference_EmptyFirstOperand_IsEmpty
+                  - ScadBooleans_Difference_EmptyLaterOperands_Vanish
+                  - ScadBooleans_Difference_SingleOrNoChild_IsTheChildOrNothing
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Intersection
+                title: >-
+                  The ScadGeometryBuilder unit shall build intersection, and the iterations of
+                  intersection_for, as a boolean node of all operands, with any empty operand giving an
+                  empty result and a single operand being returned unchanged.
+                justification: |
+                  The intersection of anything with nothing is nothing; an empty operand must not be
+                  dropped, because dropping it would enlarge the result.
+                tests:
+                  - ScadBooleans_Intersection_IsAnIntersectionNodeAndAnyEmptyOperandEmptiesIt
+                  - ScadBooleans_IntersectionFor_IsAnIntersectionOfTheIterations
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-BooleanOperands
+                title: >-
+                  The ScadGeometryBuilder unit shall treat each child instance of a boolean as one operand,
+                  so that a loop, a user module, or an explicit union under a boolean is that operand's own
+                  union, and shall leave the transforms and colors of the operands and of the boolean
+                  where they were written.
+                justification: |
+                  Authors write booleans over loops and modules; the operand count and the place of each
+                  transform and color define the model and must not depend on how it was grouped.
+                tests:
+                  - ScadBooleans_Difference_LoopChild_IsOneUnionOperand
+                  - ScadBooleans_Difference_ModuleAndUnionChildren_AreOneOperandEach
+                  - ScadBooleans_TransformsAndColors_StayWhereTheyWereWritten
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MixedDimensions
+                title: >-
+                  The ScadGeometryBuilder unit shall keep the 3D members of a union of 2D and 3D children
+                  and the operands of a difference or intersection that have the dimension of the first
+                  non-empty operand, and shall report a warning at the location of the first dropped 2D
+                  shape or of the boolean module, so that a mixed model is never silently rendered wrongly.
+                justification: |
+                  A 2D shape and a solid cannot be combined; the rule must be fixed and the dropped
+                  operands must be reported.
+                tests:
+                  - ScadBooleans_MixedDimensions_KeepTheDimensionOfTheFirstOperand
+                  - ScadBooleans_UnionOfMixedDimensions_KeepsTheSolids
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatBooleans
+                title: >-
+                  The ScadGeometryBuilder unit shall combine 2D shapes with union, difference, and
+                  intersection into a shape tree that keeps the nesting of the booleans, applies each 2D
+                  transform and color to its own operand, normalizes mirrored and holed shapes, and follows
+                  the same empty-operand rules as solids.
+                justification: |
+                  Extrusions are distributed over the 2D tree, so its structure and the placement of each
+                  transform must match the source exactly.
+                tests:
+                  - ScadBooleans_Flat_Difference_BecomesADifferenceOfSlabs
+                  - ScadBooleans_Flat_IntersectionAndNesting_FollowTheTree
+                  - ScadBooleans_Flat_TransformsApplyToTheirOperandOnly
+                  - ScadBooleans_Flat_HoleAndMirroredOperands_AreValid
+                  - ScadBooleans_Flat_ColorAroundDifference_ColorsAllOperands
+                  - ScadBooleans_Flat_EmptyOperands_FollowTheSameRules
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ResizeBounds
+                title: >-
+                  The ScadGeometryBuilder unit shall give every result an upper bound of its extent that is
+                  the union of the operand boxes for a union, the first operand's box for a difference, and
+                  the overlap of the boxes for an intersection, shall mark a result that contains a
+                  difference or an intersection of several operands as approximate, and shall leave a
+                  union of plain solids or a single-operand boolean exact.
+                justification: |
+                  resize needs the extent of its children bottom-up; the bounds must be cheap, safe, and
+                  honest about when they are estimates.
+                tests:
+                  - ScadBooleans_Resize_OverBoolean_ReportsApproximateBoundsAndStillResizes
+                  - ScadBooleans_Resize_OverDifference_UsesTheFirstOperandExtent
+                  - ScadBooleans_Resize_OverIntersection_UsesTheOverlap
+                  - ScadBooleans_Resize_OverUnionOfPlainSolids_IsNotReported
+                  - ScadBooleans_Resize_OverSingleOperandBoolean_IsNotReported
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-TriangleBudget
+                title: >-
+                  The ScadGeometryBuilder unit shall charge an upper-bound estimate of the triangles of
+                  each instance against ScadLimits.MaxTriangles before allocating them, accumulating
+                  across the instances of loops, and shall fail with a ScadEvaluationException that names
+                  the offending instance's location and the limit when an estimate does not fit.
+                justification: |
+                  A hostile fragment count or loop must fail fast with a message that names the source
+                  line instead of exhausting memory.
+                tests:
+                  - ScadGeometryBuilder_Build_HostileFragmentCount_ThrowsLocatedLimitError
+                  - ScadGeometryBuilder_Build_HugeSphereUnderDefaultBudget_ThrowsLocatedLimitError
+                  - ScadGeometryBuilder_Build_BudgetAccumulatesAcrossLoopIterations
+                  - ScadGeometryBuilder_Build_CylinderEstimate_IsFourTrianglesPerFragment
+                  - ScadGeometryBuilder_Build_PublicMaxTriangles_FailsBuildScene
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatSlabs
+                title: >-
+                  The ScadGeometryBuilder unit shall turn a 2D result at the top of the model into one slab
+                  per 2D shape, of the configured flat-shape thickness and with the shape's exact footprint,
+                  and shall charge each slab against the triangle budget.
+                justification: |
+                  A bare 2D shape must be visible in a rendering, and its slab costs triangles like any
+                  other geometry.
+                tests:
+                  - ScadBooleans_Flat_Difference_BecomesADifferenceOfSlabs
+                  - ScadGeometryBuilder_Build_FlatShape_IsChargedForItsSlab
+                  - ScadGeometryBuilder_Build_FlatShapeThickness_SetsSlabHeight
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
+                title: >-
+                  The ScadGeometryBuilder unit shall honor cancellation by polling the token at a fixed
+                  interval of visited instances and before each tessellation, throwing
+                  OperationCanceledException without wrapping it, and keeping the events reported before
+                  the cancellation in the sink.
+                justification: |
+                  A build over a large model must be possible to abandon promptly, and the caller must still be
+                  able to deliver what was reported so far.
+                tests:
+                  - ScadGeometryBuilder_Build_AlreadyCanceled_ThrowsBeforeTessellating
+                  - ScadGeometryBuilder_Build_AlreadyCanceled_StopsWalkOverManyUnsupportedInstances
+                  - ScadGeometryBuilder_Build_NothingToDo_IgnoresCanceledToken
+                  - ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap
+                title: >-
+                  The ScadGeometryBuilder unit shall return, with the built scene, a map from each mesh node
+                  it created to the source location of the instance that produced it, answering an unknown
+                  or missing node with an unknown location.
+                justification: |
+                  Render-time reports name a mesh node; the map turns that node back into the line and
+                  column of the module that caused it.
+                tests:
+                  - ScadPrimitives_Cube_TwoInstances_MapRecordsEachLocation
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneOptionsCopy
+                title: >-
+                  The ScadGeometryBuilder unit shall create the renderer options of a render as a copy of
+                  the caller's SceneRenderOptions in which every public property is copied except the
+                  unsupported-feature handler, which is replaced by the supplied handler or by none, and
+                  strict mode, which is always off, and shall use the renderer defaults for a missing
+                  source.
+                justification: |
+                  Reporting and strict mode are decided by the evaluation options alone; a property added
+                  to the renderer later must not be silently lost by the copy.
+                tests:
+                  - ScadSceneOptions_Create_EveryPublicProperty_IsCopiedExceptReplacedOnes
+                  - ScadSceneOptions_Create_ReplacesHandlerAndForcesStrictOff
+                  - ScadSceneOptions_Create_NullSource_UsesRenderDefaults
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneOptionsMapping
+                title: >-
+                  The ScadGeometryBuilder unit shall map a renderer feature identifier with the prefix
+                  render3d- to the identifier with the prefix scad- (so the six render3d-csg-
+                  identifiers become scad-csg-), and any other identifier to itself with the scad-
+                  prefix.
+                justification: |
+                  Callers match on the package's own stable identifiers, never on those of the renderer.
+                tests:
+                  - ScadSceneOptions_MapFeature_RewritesPrefix

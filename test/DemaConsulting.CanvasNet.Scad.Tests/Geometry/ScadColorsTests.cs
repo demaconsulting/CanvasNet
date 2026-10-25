@@ -1,4 +1,4 @@
-// cspell:ignore rebeccapurple aliceblue
+// cspell:ignore rebeccapurple aliceblue darkslategray darkslategrey yellowgreen dodgerblue nosuchcolor
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;

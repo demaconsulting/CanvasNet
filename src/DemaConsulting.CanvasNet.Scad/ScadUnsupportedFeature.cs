@@ -1,3 +1,4 @@
+// cspell:ignore minkowski multmatrix
 namespace DemaConsulting.CanvasNet.Scad;
 
 /// <summary>

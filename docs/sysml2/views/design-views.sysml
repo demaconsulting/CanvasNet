@@ -60,6 +60,10 @@ package CanvasNet {
         expose ScadEvaluation;
     }
 
+    view ScadGeometryView {
+        expose ScadGeometry;
+    }
+
     view ChartModelView {
         expose ChartModel;
     }

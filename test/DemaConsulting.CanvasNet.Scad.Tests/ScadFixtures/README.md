@@ -1,4 +1,4 @@
-<!-- cspell:ignore openscad scad -->
+<!-- cspell:ignore openscad scad multmatrix -->
 
 # Scad Test Fixtures
 

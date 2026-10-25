@@ -29,8 +29,9 @@ the subsystem scenarios cite the cross-unit subset.
 Trees are compared through `ScadInstanceDumper`, a test helper that renders an instantiation tree as compact,
 location-free text with one instance per line (and, for the golden files, an indented form that also shows
 fragment settings that differ from the defaults). The dumper is **iterative**, because a recursive dumper
-overflowed a 256 KiB test thread on a 5,000-level tree; this is the same constraint that applies to the later
-geometry phase (see _ScadEvaluation Subsystem Design_). No mocking or stubbing is used: the only test doubles are
+overflowed a 256 KiB test thread on a 5,000-level tree; the same constraint applies to the `ScadGeometry`
+subsystem, whose builder never recurses (see _ScadEvaluation Subsystem Design_ and _ScadGeometry Subsystem
+Design_). No mocking or stubbing is used: the only test doubles are
 the in-memory `ScadVirtualFiles` resolver, which records every path it is asked for, and per-test temporary
 directories. The subsystem is internal, so the tests reach it through the test assembly's `InternalsVisibleTo`
 access.

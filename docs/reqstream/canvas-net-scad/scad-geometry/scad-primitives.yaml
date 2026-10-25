@@ -1,0 +1,289 @@
+---
+# cspell:ignore tessellators
+# Software Unit Requirements for ScadPrimitives
+#
+# These requirements describe the design-level behavior of the ScadPrimitives unit: the internal builders
+# of the seven primitive shapes - cube, sphere, cylinder, polyhedron, square, circle, and polygon - together
+# with the argument binder they share (ScadArguments) and the public fragment rule for $fn, $fa, and $fs
+# (ScadFragmentRule), in the DemaConsulting.CanvasNet.Scad.Geometry namespace (ScadArguments.cs,
+# ScadFragmentRule.cs, ScadPrimitives.cs, ScadPrimitives.Polyhedron.cs, ScadPrimitives.Shapes2D.cs).
+#
+# An invalid argument is a warning plus an empty result for that instance, a shape that Render3D or the
+# polygon and polyhedron checks cannot accept is an unsupported-feature report, and exhausting the triangle
+# budget is an evaluation error. Each "tests" entry cites an existing test method of the unit's own test files
+# (ScadArgumentsTests, ScadFragmentRuleTests, ScadPrimitivesSolidTests, ScadPrimitivesShape2DTests, and
+# ScadPolyhedronTests) in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-geometry/scad-primitives.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        sections:
+          - title: ScadPrimitives Requirements
+            requirements:
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentBinding
+                title: >-
+                  The ScadPrimitives unit shall bind the arguments of a primitive to the module's
+                  documented parameter names the way the language calls a module: an unnamed argument
+                  fills the next parameter in the module's documented order, a named argument fills the
+                  parameter of that name in any order and may be mixed with unnamed ones, a parameter
+                  supplied twice keeps its last value, and a parameter given as undef counts as not
+                  supplied so that the module's default applies.
+                justification: |
+                  Authors write primitives positionally, by name, or both; one binding rule keeps every
+                  primitive's calling convention identical and predictable.
+                tests:
+                  - ScadArguments_Bind_Positional_FillsInOrder
+                  - ScadArguments_Bind_NamedAndMixed_BindByName
+                  - ScadArguments_TryGet_UndefValue_IsNotSupplied
+                  - ScadPrimitives_Cube_ArgumentForms_GiveExpectedBounds
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentWarnings
+                title: >-
+                  The ScadPrimitives unit shall report, as a warning at the instance's location, an
+                  unknown argument name, a surplus positional value, a parameter supplied twice, and
+                  child objects given to a primitive, and shall still build the primitive; it shall
+                  ignore special-variable arguments such as $fn silently because the evaluator has
+                  already folded them into the instance's fragment settings.
+                justification: |
+                  A misspelled or surplus argument that silently did nothing would hide mistakes, while
+                  a special variable is legitimate on every module and must not be noise.
+                tests:
+                  - ScadArguments_Bind_UnknownExtraDuplicateAndSpecial_WarnsExceptSpecial
+                  - ScadPrimitives_Cube_UnknownArgumentAndChildren_WarnButStillBuild
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-TypedReaders
+                title: >-
+                  The ScadPrimitives unit shall read argument values through typed readers that accept
+                  only a finite number, a vector of an exact length of finite numbers, or a non-negative
+                  whole number that fits in a list index, and return failure instead of throwing for any
+                  other value, while treating a request for a name that is not a parameter of the module
+                  as a programming error (ArgumentException).
+                justification: |
+                  Argument values come from untrusted documents; every primitive must be able to turn a
+                  wrong type, a NaN, or a length mismatch into a warning rather than a crash.
+                tests:
+                  - ScadArguments_TypedReaders_AcceptOnlyWellFormedValues
+                  - ScadArguments_TryGet_UnknownParameterName_Throws
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-FragmentFormula
+                title: >-
+                  The ScadPrimitives unit shall compute the number of fragments of a circle from its
+                  radius and the $fn, $fa, and $fs settings as the largest whole number not below
+                  max(min(360 / $fa, radius * 2 * pi / $fs), 5) when $fn is not positive - giving 5 for
+                  radius 1, 7 for radius 2, 30 for radius 10, and 30 for radius 100 with the defaults
+                  $fa = 12 and $fs = 2 - and shall apply the same rule to the settings of an instance.
+                justification: |
+                  The fragment count decides every curved primitive's shape and cost; the documented
+                  public formula must be reproduced exactly so models look the same everywhere.
+                tests:
+                  - ScadFragmentRule_Fragments_DefaultAngleAndSize_GivesAutomaticCount
+                  - ScadFragmentRule_Fragments_AngleSizeAndInvalidSteps_AreHandled
+                  - ScadFragmentRule_Fragments_InstanceSettings_MatchesScalarOverload
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-FragmentClamps
+                title: >-
+                  The ScadPrimitives unit shall let a positive $fn fix the fragment count (truncated,
+                  never below 3), shall give 3 fragments for a radius that is non-finite or at or below
+                  1e-8 whatever the settings, shall cap the count at 1,048,576, and shall clamp a zero or
+                  negative $fa or $fs to 0.01 and replace a non-finite one by its default.
+                justification: |
+                  Hostile or degenerate settings must neither ask for unbounded detail nor produce an
+                  invalid polygon; the clamps keep the rule total.
+                tests:
+                  - ScadFragmentRule_Fragments_PositiveFn_WinsAndIsClamped
+                  - ScadFragmentRule_Fragments_HugeFn_IsCappedAtMaximum
+                  - ScadFragmentRule_Fragments_TinyOrInvalidRadius_GivesThree
+                  - ScadFragmentRule_Fragments_AngleSizeAndInvalidSteps_AreHandled
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Cube
+                title: >-
+                  The ScadPrimitives unit shall build cube as a closed, outward-oriented box whose
+                  size is a positive number or a vector of three positive numbers (default 1) with its
+                  minimum corner at the origin, or centered on the origin when center is any truthy
+                  value, in the positional order size then center, and shall record the source
+                  location of each cube it builds.
+                justification: |
+                  The cube is the most used primitive; its extent, placement, and exact volume are the
+                  baseline every other construction is measured against.
+                tests:
+                  - ScadPrimitives_Cube_ScalarSize_IsClosedCubeFromOrigin
+                  - ScadPrimitives_Cube_ArgumentForms_GiveExpectedBounds
+                  - ScadPrimitives_Cube_TwoInstances_MapRecordsEachLocation
+                  - ScadPrimitives_Cube_InLoopAndModule_BuildsEveryInstance
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Sphere
+                title: >-
+                  The ScadPrimitives unit shall build sphere as a closed faceted sphere about the origin
+                  whose radius is r (default 1, first positional parameter) or half of d, with d
+                  overriding r, and whose fragment count follows the instance's $fn, $fa, and $fs.
+                justification: |
+                  The sphere's size, precedence of d over r, and resolution settings must follow the
+                  documented dialect so that sized and detailed spheres are predictable.
+                tests:
+                  - ScadPrimitives_Sphere_RadiusAndDiameter_ClosedWithFacetedVolume
+                  - ScadPrimitives_Sphere_DiameterOverridesRadius_PositionalIsRadius
+                  - ScadPrimitives_Sphere_FragmentSettings_GiveExpectedVertexCount
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Cylinder
+                title: >-
+                  The ScadPrimitives unit shall build cylinder as a closed faceted cylinder, cone, or
+                  frustum along the positive Z axis of height h (default 1), starting at the origin or
+                  centered in Z when center is truthy, in the positional order h, r1, r2, center, r, d,
+                  d1, d2, with the exact faceted volume and with the fragment count taken from the
+                  larger of the two end radii.
+                justification: |
+                  Cylinders, cones, and frustums are the workhorse round solids; their height, end radii,
+                  and resolution must be exact and predictable.
+                tests:
+                  - ScadPrimitives_Cylinder_Forms_HaveExactFacetedVolume
+                  - ScadPrimitives_Cylinder_ConeAndFrustum_HaveExactFacetedVolume
+                  - ScadPrimitives_Cylinder_FragmentsFollowLargerRadius
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-CylinderRadii
+                title: >-
+                  The ScadPrimitives unit shall resolve the radius of each end of a cylinder with the
+                  following precedence from weakest to strongest: the default of 1, the common r, the
+                  common diameter d, the per-end radius r1 or r2, and the per-end diameter d1 or d2.
+                justification: |
+                  Several parameters can name the same radius; a fixed precedence removes ambiguity and
+                  must be pinned because the dialect, not a reference implementation, defines it.
+                tests:
+                  - ScadPrimitives_Cylinder_RadiusPrecedence_FollowsDocumentedOrder
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidSolidArguments
+                title: >-
+                  The ScadPrimitives unit shall report an invalid argument of cube, sphere, cylinder, or
+                  polyhedron (a wrong type, a non-positive size, a negative radius, no positive radius,
+                  a missing required parameter, or an index out of range) as a warning that names the
+                  module and the problem at the instance's location, and shall build nothing for that
+                  instance.
+                justification: |
+                  A bad argument in one instance must not abort the model or build a nonsensical solid,
+                  and the author must be told exactly what to fix and where.
+                tests:
+                  - ScadPrimitives_Cube_InvalidSize_WarnsAndBuildsNothing
+                  - ScadPrimitives_Sphere_InvalidSize_WarnsAndBuildsNothing
+                  - ScadPrimitives_Cylinder_InvalidArguments_WarnAndBuildNothing
+                  - ScadPrimitives_Polyhedron_InvalidArguments_WarnAndBuildNothing
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Shape2D
+                title: >-
+                  The ScadPrimitives unit shall build square (a positive number or a vector of two
+                  positive numbers, default 1, optionally centered) and circle (radius r or half of d
+                  with d overriding r, fragments from the fragment rule) as flat shapes that, at the top
+                  level of a model, become closed slabs of the configured flat-shape thickness with the
+                  exact area of the square or of the inscribed polygon, without any report.
+                justification: |
+                  Two-dimensional shapes are the input of extrusions and are also visible on their own;
+                  their area, placement, and slab thickness must be exact.
+                tests:
+                  - ScadPrimitives_Square_Forms_GiveSlabOfExpectedArea
+                  - ScadPrimitives_Circle_Forms_GiveInscribedPolygonSlab
+                  - ScadGeometryBuilder_Build_FlatShapeThickness_SetsSlabHeight
+                  - ScadGeometryBuilder_Build_SeveralFlatShapes_AreAllSlabs
+                  - ScadGeometryBuilder_Build_FlatShape_ReportsNothing
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidShapeArguments
+                title: >-
+                  The ScadPrimitives unit shall report an invalid argument of square, circle, or polygon
+                  (a wrong type, a non-positive size or radius, a missing or malformed points list, a
+                  list of fewer than three points, or paths that are empty or hold an index that is not a
+                  whole number in range) as a warning that names the module and the problem at the
+                  instance's location, and shall build nothing for that instance.
+                justification: |
+                  Invalid 2D input must degrade to a located warning and an empty result so that the
+                  rest of the model still renders.
+                tests:
+                  - ScadPrimitives_Square_InvalidSize_WarnsAndBuildsNothing
+                  - ScadPrimitives_Circle_InvalidSize_WarnsAndBuildsNothing
+                  - ScadPrimitives_Polygon_InvalidArguments_WarnAndBuildNothing
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Polygon
+                title: >-
+                  The ScadPrimitives unit shall build polygon from a list of points as one contour
+                  through all the points in order when no paths are given, regardless of the contour's
+                  winding direction, and shall build holes by nesting and separate islands from the
+                  paths when paths are given, regardless of the winding of each path.
+                justification: |
+                  Polygons with holes and islands are how profiles for extrusion are written; winding
+                  must not matter to the author.
+                tests:
+                  - ScadPrimitives_Polygon_SingleContour_WindingIndependent
+                  - ScadPrimitives_Polygon_Paths_DescribeHolesAndIslands
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-PolygonInvalid
+                title: >-
+                  The ScadPrimitives unit shall report a polygon that cannot be accepted as a region -
+                  because it crosses or touches itself or has no area - as the unsupported feature
+                  scad-polygon-invalid at the instance's location, shall build nothing for it, and shall
+                  make that report throw a ScadUnsupportedFeatureException in strict mode.
+                justification: |
+                  A geometrically invalid shape is a capability boundary of the renderer rather than a
+                  mistyped argument; the stable identifier lets callers detect it, and strict mode lets
+                  them refuse it.
+                tests:
+                  - ScadPrimitives_Polygon_SelfCrossing_ReportsPolygonInvalid
+                  - ScadPrimitives_Polygon_SelfCrossing_StrictThrows
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Polyhedron
+                title: >-
+                  The ScadPrimitives unit shall build polyhedron from a list of points and a list of
+                  faces (or, only when faces is absent, from the legacy triangles list) in the positional
+                  order points, faces, convexity, triangles, treating each face as listed clockwise when
+                  seen from outside by reversing it so that the result is a closed, outward-oriented mesh
+                  with positive volume, and shall keep an open shape, and a point that no face uses,
+                  exactly as given and without a report.
+                justification: |
+                  Polyhedra are the escape hatch for any shape the other primitives cannot express; the
+                  face-winding convention and the legacy parameter must be handled exactly.
+                tests:
+                  - ScadPrimitives_Polyhedron_ClockwiseCube_IsClosedWithPositiveVolume
+                  - ScadPrimitives_Polyhedron_Tetrahedron_HasExpectedVolume
+                  - ScadPrimitives_Polyhedron_LegacyTriangles_UsedOnlyWithoutFaces
+                  - ScadPrimitives_Polyhedron_OpenShapeAndUnusedPoint_AreKept
+                  - ScadPrimitives_Polyhedron_CounterClockwiseCube_IsReversedWithWarning
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-PolyhedronTriangulation
+                title: >-
+                  The ScadPrimitives unit shall triangulate every polyhedron face of more than three
+                  vertices - fanning a strictly convex or non-planar convex face from its first vertex and
+                  ear-clipping a concave planar face in its best-fit plane - and shall report a face that
+                  cannot be triangulated as the unsupported feature scad-polyhedron-face-invalid at the
+                  instance's location, omit the whole polyhedron, and throw in strict mode.
+                justification: |
+                  Real polyhedra contain concave and slightly non-planar faces; they must be handled, and
+                  a face that cannot be handled must be reported rather than silently producing a
+                  broken solid.
+                tests:
+                  - ScadPrimitives_Polyhedron_ConcaveFaces_AreTriangulated
+                  - ScadPrimitives_Polyhedron_NonPlanarQuad_IsFannedAndClosed
+                  - ScadPrimitives_Polyhedron_FaceThatCannotBeTriangulated_ReportsFaceInvalid
+                  - ScadPrimitives_Polyhedron_FaceThatCannotBeTriangulated_StrictThrows
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget
+                title: >-
+                  The ScadPrimitives unit shall charge the model's triangle budget with an upper-bound
+                  estimate of the triangles of a primitive before the mesh is allocated, and shall raise
+                  a ScadEvaluationException that names the offending instance's location and the limit
+                  when the estimate does not fit, so that a hostile fragment count or face list cannot
+                  exhaust memory.
+                justification: |
+                  Resource exhaustion must fail fast and early with a located error instead of an
+                  out-of-memory crash.
+                tests:
+                  - ScadPrimitives_Polyhedron_ExceedsTriangleBudget_ThrowsWithLocation
+
+              - id: CanvasNetScad-ScadGeometry-ScadPrimitives-GeometryRejected
+                title: >-
+                  The ScadPrimitives unit shall not crash on a primitive whose input passed the argument
+                  checks but is rejected by the Render3D tessellators or the polyhedron triangulation: it
+                  shall report the unsupported feature scad-geometry-rejected (or the more specific
+                  scad-polyhedron-face-invalid) at the instance's location, keep the message of the
+                  rejection, and build nothing.
+                justification: |
+                  A build must always terminate with either geometry or a report; a catch-all identifier
+                  guarantees that no tessellator rejection can escape as an unexplained exception.
+                tests:
+                  - ScadPrimitives_Polyhedron_WeldedDuplicatePointsInOneFace_ReportsGeometryRejected

@@ -1,11 +1,14 @@
 ## ScadDocument Unit Verification Design
 
+<!-- cspell:ignore Underflowing -->
+
 This document describes the unit-level verification strategy for the `ScadDocument` unit: the public types in
 the `DemaConsulting.CanvasNet.Scad` namespace — `ScadDocument` (the `Parse` and `Open` entry points, the
-`SourceName`, `Directives`, `ModuleNames`, and `FunctionNames` properties, and the `Evaluate` method),
-`ScadOpenOptions`, `ScadSourceLocation`, `ScadSyntaxException`, `ScadDirective`, `ScadDirectiveKind`, and the
-evaluation contract `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadDiagnostic`,
-`ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`.
+`SourceName`, `Directives`, `ModuleNames`, and `FunctionNames` properties, and the `Evaluate`, `BuildScene`, and
+`Render` methods), `ScadOpenOptions`, `ScadSourceLocation`, `ScadSyntaxException`, `ScadDirective`,
+`ScadDirectiveKind`, the evaluation contract `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`,
+`ScadDiagnostic`, `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`,
+and the render options `ScadRenderOptions`.
 
 ### Verification Approach
 
@@ -38,9 +41,13 @@ expectation files were authored for this repository and reviewed line by line.
 Unit tests reside in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSourceLocationTests.cs`,
 `ScadSyntaxExceptionTests.cs`, `ScadDocumentEvaluateTests.cs`, `ScadDocumentEvaluateSafetyTests.cs`,
 `ScadEvaluationOptionsTests.cs`, `ScadLimitsTests.cs`, `ScadDiagnosticTests.cs`,
-`ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, and `ScadFixtureEvaluationTests.cs` within
-the `DemaConsulting.CanvasNet.Scad.Tests` project; the shared fixture and syntax-error helpers are in
-`ScadTestHelpers.cs`.
+`ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, `ScadFixtureEvaluationTests.cs`,
+`ScadRenderOptionsTests.cs`, `ScadDocumentBuildSceneTests.cs`, `ScadDocumentRenderTests.cs`,
+`ScadDocumentRenderCsgTests.cs`, `ScadDocumentRenderExtrusionTests.cs`, and `ScadDocumentRenderReportTests.cs`
+within the `DemaConsulting.CanvasNet.Scad.Tests` project; the shared fixture and syntax-error helpers are in
+`ScadTestHelpers.cs`. The rendering scenarios use the real Render3D renderer and read pixels back from the
+returned surface, with flat, ambient-only lighting and orthographic cameras wherever an exact pixel count is
+asserted.
 
 ### Test Environment
 
@@ -304,18 +311,23 @@ is requested.
 
 **Tests**: `ScadLimitsTests.ScadLimits_Default_HasDocumentedValues`,
 `ScadLimitsTests.ScadLimits_Initialization_AcceptsValidValues`,
+`ScadLimitsTests.ScadLimits_MaxTriangles_MustBeAtLeastOne`,
 `ScadLimitsTests.ScadLimits_MaxRecursionDepth_IsRangeChecked`,
 `ScadLimitsTests.ScadLimits_MaxIncludeDepth_IsRangeChecked`,
 `ScadLimitsTests.ScadLimits_PositiveLimits_RejectZeroAndNegative`,
 `ScadLimitsTests.ScadLimits_Properties_AreInitOnly`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_Limit_ThrowsEvaluationExceptionWithLocation`,
-`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_Limit_AtLimitSucceedsOneOverFails`
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_Limit_AtLimitSucceedsOneOverFails`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_Limits_ArePassedThrough`
 
-Asserts the documented default of each of the ten limits; that valid values are stored; that the recursion limit
+Asserts the documented default of each of the eleven limits (the triangle limit is 5,000,000); that valid values
+are stored; that the triangle limit rejects values below one; that the recursion limit
 accepts 16 to 16,384 and the include depth 1 to 64 and reject values outside; that every other limit rejects zero
 and negative values; that every property is init-only; and, through `Evaluate`, that each of the recursion, step,
 loop, list, string, instance, and output limits throws a `ScadEvaluationException` with a location, and that a
-program exactly at a limit succeeds while one unit over fails.
+program exactly at a limit succeeds while one unit over fails; and that `BuildScene` passes the limits on (a model
+that exceeds a tiny instance limit fails, and a model whose geometry exceeds a tiny triangle limit throws a
+`ScadEvaluationException` whose message is `2:1: Triangle limit exceeded (limit 20)`).
 
 #### CanvasNetScad-ScadDocument-StackSafety: Evaluate Does Not Overflow A Small Stack
 
@@ -373,3 +385,130 @@ and that without the throw flag evaluation continues with `undef`.
 Asserts that the exception is assignable to `InvalidOperationException`, exposes its location and prefixes the
 message with it, leaves the message bare for an unknown location, provides the standard constructors, and is what
 `Evaluate` throws when a limit is exceeded.
+
+#### CanvasNetScad-ScadDocument-BuildScene: BuildScene Builds A Scene Of The Model
+
+**Tests**: `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_ConcurrentBuilds_AreEqual`
+
+Builds small programs with the default options and asserts the mesh nodes and bounds of the scene; builds with
+variable overrides and a different animation time and asserts that the geometry changes; builds a 2D shape with
+two thicknesses and asserts the slab height; and builds one document from several threads at once, asserting
+that every scene has the same bounds and the same meshes.
+
+#### CanvasNetScad-ScadDocument-Render: Render Validates, Fits, And Draws
+
+**Tests**: `ScadDocumentRenderTests.ScadDocument_Render_InvalidSize_ThrowsBeforeEvaluating`,
+`ScadDocumentRenderTests.ScadDocument_Render_InvalidCamera_ThrowsBeforeEvaluating`,
+`ScadDocumentRenderTests.ScadDocument_Render_EmptyModel_IsBackgroundOnlyAtRequestedSize`,
+`ScadDocumentRenderTests.ScadDocument_Render_DefaultFittedView_EqualsRenderFittedOfSameMesh`,
+`ScadDocumentRenderTests.ScadDocument_Render_ExplicitOrthographicTopCamera_CoversExactFootprint`,
+`ScadDocumentRenderTests.ScadDocument_Render_FittedViewOptions_ChangeTheImage`,
+`ScadDocumentRenderTests.ScadDocument_Render_DefaultColorOption_IsHonored`
+
+Asserts, for sizes outside the permitted range, that `ArgumentOutOfRangeException` is thrown with the parameter
+name **before** the document is evaluated (a resolver that records its calls is never asked), and that an
+invalid camera throws `ArgumentException` the same way; that a document without geometry renders a background-only
+surface of the requested size; that the default render is byte-identical to `SceneRenderer.RenderFitted` of the
+same hand-built mesh; that an explicit orthographic top camera covers exactly the analytic footprint of a cube;
+that the azimuth, elevation, and projection options change the fitted image; and that the default color of the
+scene options is used for geometry without a `color()`.
+
+#### CanvasNetScad-ScadDocument-RenderOptions: ScadRenderOptions Is Immutable And Validated
+
+**Tests**: `ScadRenderOptionsTests.ScadRenderOptions_New_HasDocumentedDefaults`,
+`ScadRenderOptionsTests.ScadRenderOptions_Initialization_AcceptsValidValues`,
+`ScadRenderOptionsTests.ScadRenderOptions_ViewAngles_NonFinite_Throw`,
+`ScadRenderOptionsTests.ScadRenderOptions_Projection_Undefined_Throws`,
+`ScadRenderOptionsTests.ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive`,
+`ScadRenderOptionsTests.ScadRenderOptions_Properties_AreInitOnly`,
+`ScadRenderOptionsTests.ScadRenderOptions_Evaluation_IsComposedAndOptional`
+
+Asserts the documented defaults, that valid values are kept, that a non-finite angle (NaN and both infinities), an
+undefined projection, and a thickness that is zero, negative, or not finite are rejected with
+`ArgumentOutOfRangeException` when set, that every writable property is init-only (by reflection), and that the
+evaluation options are kept by reference, may be omitted, and may be shared between calls.
+
+#### CanvasNetScad-ScadDocument-RenderReporting: Events Of Every Stage Are Delivered Once, In Order
+
+**Tests**: `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_Handlers_ReceiveAllStagesOnceInOrder`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_StrictMode_ThrowsAndStillDeliversEvents`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_FailingHandler_PropagatesOnlyOnSuccess`,
+`ScadDocumentRenderTests.ScadDocument_Render_ReportsThroughEvaluationHandlersOnly`,
+`ScadDocumentRenderTests.ScadDocument_Render_StrictMode_ThrowsForUnsupportedFeature`,
+`ScadDocumentRenderTests.ScadDocument_Render_EvaluationFailure_PropagatesAfterDeliveringEvents`,
+`ScadDocumentRenderTests.ScadDocument_Render_FailingHandlerOnSuccess_Propagates`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_AllStages_AreDeliveredInOrderOnTheCallingThread`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_StrictMode_ThrowsTheMappedOperandReport`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_FragmentBudgetExceeded_IsAnEvaluationException`
+
+Asserts, with handlers that record the events and the thread they run on, that echo lines, warnings, and
+unsupported features of evaluation, geometry building, and the renderer's operand checks are delivered once each,
+in the order they occurred and on the calling thread; that strict mode throws at the first unsupported feature of
+any stage after delivering the earlier events; that a handler that throws on a failure path never hides the
+failure while one that throws on success propagates (and `Render` does not leak its surface); that the
+unsupported-feature handler and the strict flag of the nested scene options are ignored; and that exceeding the
+renderer's fragment budget is a `ScadEvaluationException`.
+
+#### CanvasNetScad-ScadDocument-RenderOperandReports: Renderer Reports Map Back To The Source
+
+**Tests**: `ScadDocumentRenderReportTests.ScadDocumentRenderReport_OpenPolyhedronInDifference_IsReportedAtThePolyhedron`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_MeshDefects_AreMappedWithTheirFeature`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_InvertedShellNextToCorrectShell_IsReported`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_UnderflowingWorldTransform_IsReportedPerOperand`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_RepeatedOperand_IsReportedOnce`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_DefectInUsedFile_CarriesTheFile`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_NoBooleanOrNoHandler_ReportsNothing`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_BuildScene_DoesNotValidateOperands`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_MapFeature_MapsEveryRenderToken`
+
+Renders differences whose operands are defective polyhedra (open, non-manifold, inconsistently wound,
+degenerate, inverted) and asserts that each defect is reported as the matching `scad-csg-*` unsupported feature
+at the line and column of the module that produced the mesh (and the file of a used library); that a collapsed
+world transform is reported per operand; that a repeated operand is reported once; that nothing is reported
+without a boolean, without a handler, or by `BuildScene`; and that every Render3D report token maps to the
+documented identifier.
+
+#### CanvasNetScad-ScadDocument-RenderCancellation: Cancellation Stops Building And Rendering
+
+**Tests**: `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_AlreadyCanceled_ThrowsBeforeAnyResolverCall`,
+`ScadDocumentRenderTests.ScadDocument_Render_AlreadyCanceled_ThrowsBeforeAnyResolverCall`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_CanceledDuringEvaluation_StopsBuildAndRender`,
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender`
+
+Asserts that an already canceled token throws `OperationCanceledException` before any resolver call, and that a
+token canceled while the evaluation is running, or while the image is being rendered, stops the work with the
+plain exception.
+
+#### CanvasNetScad-ScadDocument-RenderDeterminism: Renders Are Reproducible On Any Stack
+
+**Tests**: `ScadDocumentRenderTests.ScadDocument_Render_IsDeterministicForEveryParallelism`,
+`ScadDocumentRenderTests.ScadDocument_Render_ConcurrentRenders_AreIdentical`,
+`ScadDocumentRenderTests.ScadDocument_Render_DeepModuleChain_OnSmallStack_MatchesBigStack`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_CsgModel_IsDeterministicForEveryParallelism`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_DeepDifferenceChain_OnSmallStack_MatchesBigStack`
+
+Asserts that renders with different degrees of parallelism, and renders from several threads at once, are
+byte-identical, for a model with and without booleans, and that a deep module chain and a deep difference chain
+render on 64 KiB and 256 KiB caller stacks to the same image as on a large stack.
+
+#### CanvasNetScad-ScadDocument-RenderGeometry: Booleans, Extrusions, And Revolutions Draw As Their Solids
+
+**Tests**: `ScadDocumentRenderCsgTests.ScadDocument_Render_CubeWithCylinderHole_ShowsTheHole`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_FlatDifference_ShowsTheHole`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_FlatIntersection_ShowsTheOverlapOnly`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_CubeSphereIntersection_IsClippedByTheCube`,
+`ScadDocumentRenderCsgTests.ScadDocument_Render_ColoredDifference_UsesTheColor`,
+`ScadDocumentRenderExtrusionTests.ScadDocument_Render_ExtrudedRing_ShowsTheAnnulus`,
+`ScadDocumentRenderExtrusionTests.ScadDocument_Render_RevolvedVase_HasTheProfileSilhouette`,
+`ScadDocumentRenderExtrusionTests.ScadDocument_Render_ExtrudedDifference_EqualsTheHandBuiltDifferenceOfExtrusions`,
+`ScadDocumentRenderExtrusionTests.ScadDocument_Render_RevolvedDifference_EqualsTheHandBuiltDifferenceOfRevolutions`,
+`ScadDocumentRenderExtrusionTests.ScadDocument_Render_ColoredAndTwistedExtrusions_AreVisible`
+
+Renders small models and asserts exact pixel counts and positions (the hole in a block shows the background over
+the analytic pixel count, a 2D difference shows its hole, a 2D intersection only the overlap, a sphere is clipped
+by a cube, a colored difference is drawn in its color, an extruded ring is an annulus, and a revolved vase has
+the profile's radius at every row), and that an extruded or revolved 2D difference is pixel-identical to the
+hand-built Render3D difference of the extruded or revolved parts.

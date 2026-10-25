@@ -1476,7 +1476,9 @@ reviews:
       - "docs/verification/introduction.md"                           # verification introduction
       - "docs/verification/canvas-net-scad.md"                        # system verification
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadRenderSystemTests.cs"  # render system tests (fixture-driven)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadRenderTestHelpers.cs"  # render test helpers
       - "src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj"  # project file
       - "test/DemaConsulting.CanvasNet.Scad.Tests/DemaConsulting.CanvasNet.Scad.Tests.csproj"  # test project
 
@@ -1536,6 +1538,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadDiagnostic.cs"         # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadUnsupportedFeature.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadUnsupportedFeatureException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadDocument.Render.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadRenderOptions.cs"      # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
@@ -1548,6 +1552,12 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDiagnosticTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadUnsupportedFeatureTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtureEvaluationTests.cs"  # unit tests (golden fixtures)
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadRenderOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentBuildSceneTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderCsgTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderExtrusionTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderReportTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures, goldens, provenance README
 
   # CanvasNetScad-ScadLanguage Review (one per subsystem)
@@ -1709,6 +1719,104 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadFileResolver*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolver*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadResolverTestSupport.cs"  # test support
+
+  # CanvasNetScad-ScadGeometry Review (one per subsystem)
+  - id: CanvasNetScad-ScadGeometry
+    title: Review that CanvasNetScad ScadGeometry Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"           # subsystem requirements
+      - "docs/design/canvas-net-scad/scad-geometry.md"                # subsystem design
+      - "docs/verification/canvas-net-scad/scad-geometry.md"          # subsystem verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry.sysml"       # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTestSupport.cs"  # shared test support
+
+  # CanvasNetScad-ScadGeometry-ScadGeometryBuilder Review (one per unit)
+  - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder
+    title: Review that CanvasNetScad ScadGeometry ScadGeometryBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-geometry.md"
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-geometry/scad-geometry-builder.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-geometry/scad-geometry-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-geometry-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadGeometryBuilder*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadGeo.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadGeometryContext.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadSceneMap.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadReporter.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadSceneOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFeatureIds.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadBooleans.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryBuilder*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadSceneOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadUnsupportedModuleTests.cs"  # unit tests
+
+  # CanvasNetScad-ScadGeometry-ScadPrimitives Review (one per unit)
+  - id: CanvasNetScad-ScadGeometry-ScadPrimitives
+    title: Review that CanvasNetScad ScadGeometry ScadPrimitives Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-geometry.md"
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry/scad-primitives.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-geometry/scad-primitives.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-geometry/scad-primitives.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-primitives.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadArguments.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFragmentRule.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadPrimitives*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadArgumentsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadFragmentRuleTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadPrimitives*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadPolyhedronTests.cs"  # unit tests
+
+  # CanvasNetScad-ScadGeometry-ScadTransforms Review (one per unit)
+  - id: CanvasNetScad-ScadGeometry-ScadTransforms
+    title: Review that CanvasNetScad ScadGeometry ScadTransforms Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-geometry.md"
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-geometry/scad-transforms.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-transforms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColors.cs"    # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColorTable.cs"  # unit source (color table provenance check)
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadResizeTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadColorsTests.cs"  # unit tests
+
+  # CanvasNetScad-ScadGeometry-ScadExtrusions Review (one per unit)
+  - id: CanvasNetScad-ScadGeometry-ScadExtrusions
+    title: Review that CanvasNetScad ScadGeometry ScadExtrusions Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-geometry.md"
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry/scad-extrusions.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-geometry/scad-extrusions.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-geometry/scad-extrusions.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-extrusions.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadShape2D.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadExtrusions*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadExtrusions*Tests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

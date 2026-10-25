@@ -1,0 +1,241 @@
+---
+# cspell:ignore openscad polyhedron extrusions extrude mirrored multmatrix uncatchable abandonable
+# Software Subsystem Requirements for ScadGeometry
+#
+# These requirements decompose the CanvasNetScad system's geometry responsibility into the ScadGeometry
+# subsystem (internal namespace DemaConsulting.CanvasNet.Scad.Geometry): the geometry builder that walks the
+# geometry-agnostic instantiation tree of an evaluation and combines it into a Render3D scene
+# (ScadGeometryBuilder), the primitive builders (ScadPrimitives), the transforms, resize, and color
+# (ScadTransforms), and the linear and rotational extrusions (ScadExtrusions). Each requirement here links
+# down to the unit requirements that implement it.
+#
+# The subsystem boundary is the internal ScadGeometryBuilder.Build entry point, which receives the roots of an
+# evaluation and returns a scene with its source-location map. The subsystem-level tests below therefore drive
+# that entry point across all four units. See docs/verification/canvas-net-scad/scad-geometry.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        requirements:
+          - id: CanvasNetScad-ScadGeometry-Model
+            title: >-
+              The ScadGeometry subsystem shall build the model as the implicit union, in document order, of
+              the top-level instances - groups, loops, user modules, and the union and render modules
+              combining their children the same way - or, when the program marks subtrees with the
+              show-only modifier, as the union of the outermost marked subtrees without the transforms and
+              colors of their ancestors.
+            justification: |
+              Every model is a tree of instances; the way the tree turns into one solid decides what a
+              user sees, so the combination rule and the meaning of the show-only modifier must be
+              specified once and applied everywhere.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ShowOnly
+            tests:
+              - ScadGeometry_Build_PrimitiveSolids_AreClosedOutwardMeshesInDocumentOrder
+              - ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsReported
+
+          - id: CanvasNetScad-ScadGeometry-Primitives
+            title: >-
+              The ScadGeometry subsystem shall build the cube, sphere, cylinder (including cones and
+              frusta), polyhedron, square, circle, and polygon modules into closed, outward-oriented
+              meshes or 2D regions with the documented argument forms, parameter precedence, and
+              fragment-count rule for the special variables that control curve resolution, accepting
+              polyhedron faces in either winding and polygons with holes in either winding.
+            justification: |
+              The primitives are the vocabulary every model is written in; their arguments, their
+              defaults, and the resolution of curved surfaces are the contract that models are written
+              against, so they must be specified rather than inherited from another implementation.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentBinding
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-TypedReaders
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-FragmentFormula
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-FragmentClamps
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Cube
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Sphere
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Cylinder
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-CylinderRadii
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Shape2D
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Polygon
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-Polyhedron
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-PolyhedronTriangulation
+            tests:
+              - ScadGeometry_Build_PrimitiveSolids_AreClosedOutwardMeshesInDocumentOrder
+
+          - id: CanvasNetScad-ScadGeometry-Transforms
+            title: >-
+              The ScadGeometry subsystem shall apply the translate, rotate, scale, mirror, multmatrix,
+              and resize modules to the geometry of their children with the documented conventions
+              (rotation order, column-vector matrices, composition from the innermost transform
+              outward), apply a color to the geometry it wraps with the innermost color winning, and
+              apply transforms and colors to 2D shapes as well as solids.
+            justification: |
+              Transforms and colors are how a model places and distinguishes its parts; the order in
+              which they compose and the conventions of their arguments decide whether a model renders
+              as its author intended.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Translate
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Rotate
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Scale
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Mirror
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Multmatrix
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Identity
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Composition
+              - CanvasNetScad-ScadGeometry-ScadTransforms-FlatTransforms
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Resize
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ResizeBounds
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ResizeDegenerate
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorForms
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorNesting
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ResizeBounds
+            tests:
+              - ScadGeometry_Build_TransformsAndColorsOverPrimitives_ComposeWorldPlacementAndAppearance
+
+          - id: CanvasNetScad-ScadGeometry-Booleans
+            title: >-
+              The ScadGeometry subsystem shall build the difference and intersection modules - with the
+              first operand of a difference as the minuend, loops, modules, and unions as single
+              operands, an empty operand emptying an intersection, and 2D operands combined as a
+              symbolic tree - for solids and for 2D shapes, keeping the dimension of the first
+              non-empty operand of a mixed boolean and warning about the operands it drops.
+            justification: |
+              Constructive solid geometry is how most parts are described; its operand rules decide
+              which solid results, and a mixed 2D and 3D boolean has no geometric meaning that could be
+              guessed silently.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Difference
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Intersection
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-BooleanOperands
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MixedDimensions
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatBooleans
+            tests:
+              - ScadGeometry_Build_DifferenceOfPrimitives_BuildsDifferenceNodeWithMinuendFirst
+
+          - id: CanvasNetScad-ScadGeometry-Extrusions
+            title: >-
+              The ScadGeometry subsystem shall build the linear_extrude and rotate_extrude modules from
+              2D shapes into closed solids with the documented defaults and argument forms (height,
+              center, twist, slices, and scale; sweep angle and sweep resolution), extruding a 2D
+              boolean or transformed shape so that the result equals the corresponding boolean or
+              transform of the extruded parts, and ignoring (with a warning) any 3D child.
+            justification: |
+              Extrusions are how 2D drawings become parts; their defaults, their twist and sweep
+              conventions, and their behavior over 2D booleans are the contract that models are written
+              against.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-Distribution
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-ProfileTransforms
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-ChildDimensions
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearHeight
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearTwist
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearSlices
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearScale
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSweep
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSegments
+            tests:
+              - ScadGeometry_Build_ExtrusionsOfShapes_BuildClosedSolids
+
+          - id: CanvasNetScad-ScadGeometry-FlatShapes
+            title: >-
+              The ScadGeometry subsystem shall represent a 2D shape that is not extruded, and sits at the
+              top of the model, as a closed slab of the configured thickness, and shall charge the slab
+              to the triangle budget.
+            justification: |
+              A model that is only a drawing must still be visible when rendered, and the slab must not
+              be a way around the resource limits.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatSlabs
+            tests:
+              - ScadGeometry_Build_TopLevelFlatShape_BecomesASlabOfTheConfiguredThickness
+
+          - id: CanvasNetScad-ScadGeometry-Reporting
+            title: >-
+              The ScadGeometry subsystem shall report everything it cannot build instead of skipping it
+              silently - an invalid argument as a located warning that leaves that instance empty, a
+              recognized module or option that is not supported as an unsupported-feature report with a
+              stable identifier and a location (with the marked geometry of a highlight modifier still
+              built, the subtree of a background modifier omitted, and a color alpha drawn opaque), a
+              geometry the extruders reject as an unsupported-feature report instead of an exception -
+              through one channel shared with the evaluation, de-duplicated per location, and, in strict
+              mode, stop at the first unsupported feature with a ScadUnsupportedFeatureException.
+            justification: |
+              A model that silently loses parts is worse than one that fails; every divergence from the
+              author's intent must reach the caller with the place to fix, and a strict caller must be
+              able to refuse a partial result.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentWarnings
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidSolidArguments
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidShapeArguments
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-PolygonInvalid
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-GeometryRejected
+              - CanvasNetScad-ScadGeometry-ScadTransforms-InvalidArguments
+              - CanvasNetScad-ScadGeometry-ScadTransforms-Singular
+              - CanvasNetScad-ScadGeometry-ScadTransforms-MultmatrixProjective
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorInvalid
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-InvalidProfile
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-RejectedExtrusion
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearUnsupportedScale
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearArguments
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-RotateArguments
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-RotateAxis
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-ErrorMapping
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-Robustness
+            tests:
+              - ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations
+              - ScadGeometry_Build_StrictMode_ThrowsAtTheFirstUnsupportedFeature
+
+          - id: CanvasNetScad-ScadGeometry-Limits
+            title: >-
+              The ScadGeometry subsystem shall bound the geometry a model generates by the triangle
+              limit, estimating the size of every sphere, cylinder, circle, polyhedron, slab, and
+              extrusion before allocating it and failing with a located ScadEvaluationException when the
+              budget would be exceeded, without arithmetic overflow for hostile arguments.
+            justification: |
+              A model can ask for geometry of any size with a few characters; the budget must hold
+              before memory is allocated so that a hostile model cannot exhaust the host.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-TriangleBudget
+              - CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget
+              - CanvasNetScad-ScadGeometry-ScadExtrusions-TriangleBudget
+            tests:
+              - ScadGeometry_Build_TriangleBudgetExceeded_ThrowsLocatedEvaluationException
+
+          - id: CanvasNetScad-ScadGeometry-StackSafety
+            title: >-
+              The ScadGeometry subsystem shall build a model nested thousands of levels deep to the same
+              scene on a caller thread with a small stack as on one with a large stack, without
+              recursion, and shall stop promptly when the caller's cancellation token is canceled.
+            justification: |
+              Callers invoke the builder from threads of any stack size and a recursive module can nest
+              as deep as the recursion limit allows; an uncatchable stack overflow would terminate the
+              host process, and a long build must be abandonable.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-NoRecursion
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
+            tests:
+              - ScadGeometry_Build_DeepNestedModel_OnSmallStack_MatchesBigStack
+
+          - id: CanvasNetScad-ScadGeometry-SceneHandoff
+            title: >-
+              The ScadGeometry subsystem shall provide, with the scene, a map from every mesh node to the
+              source location of the module that produced it, and shall provide the renderer options for
+              a render so that every look-and-feel setting of the caller's scene options is kept, the
+              renderer's operand reports are routed to the document's handlers, and each report is
+              mapped to the matching scad- identifier and the module's location.
+            justification: |
+              The renderer reports defects against mesh nodes it does not know the source of; the map
+              and the options hand-off let the author see which line of which file to fix without a
+              second reporting channel.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneOptionsCopy
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneOptionsMapping
+            tests:
+              - ScadGeometry_Build_MeshNodes_MapBackToTheirModuleLocations

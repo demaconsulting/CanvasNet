@@ -1,3 +1,4 @@
+// cspell:ignore rrggbbaa
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;

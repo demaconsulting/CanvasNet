@@ -1,4 +1,4 @@
-// cspell:ignore polyhedron
+// cspell:ignore polyhedron newsize
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 

@@ -1,4 +1,4 @@
-// cspell:ignore polyhedron
+// cspell:ignore polyhedron underflows underflowing supersampled
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad.Geometry;
