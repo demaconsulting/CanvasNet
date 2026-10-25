@@ -271,7 +271,10 @@ sections:
                   the actual triangle count of the mesh created by refunding the difference, and refund the
                   whole pre-charge on a rejection, failure or cancellation, so that the number charged
                   equals the triangles of every mesh created (the operands it consumes stay charged, and the
-                  temporary sums of a fold are charged while they live and refunded when consumed).
+                  temporary sums of a fold and the transformed copies of the convex parts are charged,
+                  the copies before they are allocated, while they live and refunded when consumed), and
+                  shall count the distinct vertices of each convex part once and reuse the count for every
+                  pair.
                 justification: |
                   The budget must hold before memory is allocated so that a hostile model cannot exhaust
                   the host; the exact count of a hull is known only afterwards, so its upper bound is
@@ -281,6 +284,8 @@ sections:
                   - ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated
                   - ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge
                   - ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual
+                  - ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded
+                  - ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
                 title: >-

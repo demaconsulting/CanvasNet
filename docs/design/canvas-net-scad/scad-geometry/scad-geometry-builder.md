@@ -310,8 +310,19 @@ and a node reached through several parents is copied once, so shared subtrees st
 in nodes plus edges; a child without any appearance is returned as it is. The result is one `MeshNode` or a
 `GroupNode` of mesh nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
 
+**Transformed copies and distinct counts.** A member whose matrix is not the identity is a copy made by
+`Mesh.Transform`; it has the triangles of the original, so `InFrame` charges them **before** allocating the copy (a
+`ScadEvaluationException` when they do not fit the remaining budget) and records the charge per child in the
+`MemberStore`. The copies of a child are refunded when the fold has consumed them (the first two children after the
+first step, each later child after its step), those of a lone child after its verification, and whatever remains when
+the module ends in any way (the `finally` of `MinkowskiSolids`), so the charge always equals the triangles of the
+meshes that are alive. The same store holds the number of distinct referenced vertices of each member, scanned **once**
+when the member is verified (its cost is covered by the verification charge) and reused by every pair, so the cost of
+a pair is `Va * Vb` from cached counts (a sum, which is a welded hull, uses its vertex count) instead of a rescan of
+both meshes per pair.
+
 **Budget.** Each sum is pre-charged with its upper bound, `2 * (Va * Vb) − 4` triangles (the hull of the `Va * Vb`
-pairwise-sum points, `Va * Vb` being the `PairCost` that the work meter uses), **before** `ConvexSumOfVerified`
+pairwise-sum points, `Va * Vb` being the cached distinct counts that the work meter uses), **before** `ConvexSumOfVerified`
 allocates its sums array; a bound above the remaining budget fails with the located triangle-limit error without
 the sum being begun, and after the sum is built the charge is settled to its actual triangle count (the node is
 created afterwards) while a failure or cancellation refunds the whole pre-charge. The sums of every fold step but the

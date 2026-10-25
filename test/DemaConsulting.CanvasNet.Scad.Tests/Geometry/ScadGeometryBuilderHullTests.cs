@@ -427,6 +427,110 @@ public class ScadGeometryBuilderHullTests
     }
 
     /// <summary>
+    ///     Validates that the transformed copies of the convex parts of a <c>minkowski</c> are charged to the triangle
+    ///     budget before they are allocated and refunded when they are consumed or the module ends: the copy of a
+    ///     translated child costs its twelve triangles on top of the operands while it lives, a limit that does not
+    ///     fit it fails and leaves only the operands charged, and after the fold the charge is the operands plus the
+    ///     result, for a fold of two children and for a lone child.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded()
+    {
+        var location = new ScadSourceLocation(null, 1, 1);
+
+        // Builds a context with the charged unit cubes; the cubes at the given x offsets are wrapped in a translation
+        (ScadGeometryContext Context, ScadGeo[] Operands) Create(long limit, params double[] translations)
+        {
+            var context = new ScadGeometryContext(Settings(maxTriangles: limit), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+            var operands = translations.Select(x =>
+            {
+                var mesh = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+                context.ChargeTriangles(mesh.TriangleCount, location);
+                var node = context.CreateMeshNode(mesh, location);
+                return double.IsNaN(x)
+                    ? ScadGeo.FromMesh(node)
+                    : ScadGeo.FromSolid(new GroupNode([node]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(x, 0, 0)) }, mesh.Bounds, true, false);
+            }).ToArray();
+            return (context, operands);
+        }
+
+        // Fold: the operands (24), the copy of the translated child (12) and the bound of the sum (124) are alive at once
+        var (tooSmall, tooSmallOperands) = Create(159, 3, double.NaN);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. tooSmallOperands], tooSmall));
+        Assert.Equal(24, tooSmall.TrianglesCharged);
+        var (copyDoesNotFit, copyDoesNotFitOperands) = Create(35, 3, double.NaN);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. copyDoesNotFitOperands], copyDoesNotFit));
+        Assert.Equal(0, copyDoesNotFit.SumsStarted);
+        Assert.Equal(24, copyDoesNotFit.TrianglesCharged);
+        var (fits, fitsOperands) = Create(160, 3, double.NaN);
+        var sum = ScadHulls.Minkowski(Instance("minkowski", []), [.. fitsOperands], fits);
+        Assert.Equal(1, fits.SumsStarted);
+        Assert.Equal(24 + Assert.IsType<MeshNode>(sum.Node).Mesh.TriangleCount, fits.TrianglesCharged);
+
+        // Lone child: the copy exists only for the convexity test, so it is refunded and the child stays charged once
+        var (loneTooSmall, loneTooSmallOperands) = Create(23, 3);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. loneTooSmallOperands], loneTooSmall));
+        Assert.Equal(12, loneTooSmall.TrianglesCharged);
+        var (lone, loneOperands) = Create(24, 3);
+        var loneResult = ScadHulls.Minkowski(Instance("minkowski", []), [.. loneOperands], lone);
+        Assert.Equal(ScadGeoKind.Solid, loneResult.Kind);
+        Assert.Equal(12, lone.TrianglesCharged);
+    }
+
+    /// <summary>
+    ///     Validates that the distinct vertices of each convex part are counted once and reused by every pair: two
+    ///     children of three parts each give nine sums with six scans (not a scan per pair), the pair cost is the
+    ///     distinct count (an unwelded cube costs like a welded one, so the bound of its sum is the same), and the
+    ///     results are those of the welded operands.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused()
+    {
+        var location = new ScadSourceLocation(null, 1, 1);
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+
+        // A child of three separate cubes (a union of three parts)
+        ScadGeo Union(double offset)
+        {
+            var nodes = Enumerable.Range(0, 3).Select(i =>
+            {
+                var mesh = PrimitiveTessellator.Box(new Vector3D(1, 1, 1)).Transform(Matrix4x4D.CreateTranslation(new Vector3D(offset + (i * 4.0), 0, 0)));
+                context.ChargeTriangles(mesh.TriangleCount, location);
+                return (SceneNode)context.CreateMeshNode(mesh, location);
+            }).ToList();
+            return ScadGeo.FromSolid(new GroupNode(nodes), BoundingBox3D.Empty, true, false);
+        }
+
+        // Act
+        var result = ScadHulls.Minkowski(Instance("minkowski", []), [Union(0), Union(20)], context);
+
+        // Assert: 3 x 3 sums, each member scanned once (6 scans), and the nine boxes are those of the welded cubes
+        Assert.Equal(9, context.SumsStarted);
+        Assert.Equal(6, context.DistinctScans);
+        var group = Assert.IsType<GroupNode>(result.Node);
+        Assert.Equal(9, group.Children.Count);
+        Assert.All(group.Children, c => Assert.Equal(12, Assert.IsType<MeshNode>(c).Mesh.TriangleCount));
+
+        // Arrange: an unwelded cube (36 vertices, 8 distinct) and a cube; the pair costs 8 * 8, so the bound is 124
+        var cube = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+        var unwelded = new Mesh(cube.TriangleIndices.Select(i => cube.Vertices[i]), Enumerable.Range(0, cube.TriangleIndices.Count));
+        Assert.Equal(36, unwelded.VertexCount);
+        var tight = new ScadGeometryContext(Settings(maxTriangles: 24 + 124), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+        tight.ChargeTriangles(12, location);
+        tight.ChargeTriangles(12, location);
+        var first = ScadGeo.FromMesh(tight.CreateMeshNode(unwelded, location));
+        var second = ScadGeo.FromMesh(tight.CreateMeshNode(cube, location));
+
+        // Act
+        var tightResult = ScadHulls.Minkowski(Instance("minkowski", []), [first, second], tight);
+
+        // Assert: accepted at the boundary of the distinct counts and settled to the twelve triangles of the box
+        Assert.Equal(12, Assert.IsType<MeshNode>(tightResult.Node).Mesh.TriangleCount);
+        Assert.Equal(24 + 12, tight.TrianglesCharged);
+        Assert.Equal(2, tight.DistinctScans);
+    }
+
+    /// <summary>
     ///     Validates that building the same model twice gives identical meshes, vertex for vertex and index for index.
     /// </summary>
     [Fact]

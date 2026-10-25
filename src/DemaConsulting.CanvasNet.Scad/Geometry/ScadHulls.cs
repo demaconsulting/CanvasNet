@@ -58,7 +58,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         built the charge is settled to its actual triangle count by refunding the difference, and a rejection, a
 ///         failure or a cancellation refunds the whole pre-charge, so the total charged always equals the triangles of
 ///         the meshes created. Intermediate sums of a fold are charged (at their actual count) while they live and
-///         refunded when the next step has consumed them, so the memory of a fold stays within the budget; operand
+///         refunded when the next step has consumed them, so the memory of a fold stays within the budget; the transformed
+///         copies of the convex parts of a <c>minkowski</c> are charged (before they are allocated) while they live and
+///         refunded when the fold has consumed them or the module ends; operand
 ///         meshes stay charged like any consumed operand. Cancellation is polled between meshes and sums and inside
 ///         the Render3D loops.
 ///     </para>
@@ -100,6 +102,103 @@ internal static class ScadHulls
         {
             Used += cost;
             return Used <= MaxMinkowskiWork;
+        }
+    }
+
+    /// <summary>
+    ///     The convex members of the children of one <c>minkowski</c> with what is charged or computed once per member:
+    ///     the triangles of the transformed copies and the distinct vertex counts.
+    /// </summary>
+    private sealed class MemberStore
+    {
+        /// <summary>The distinct referenced vertex count of the members that were scanned, by mesh reference.</summary>
+        private readonly Dictionary<Mesh, int> _distinct = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>The triangles charged for the transformed copies of each child that are still alive.</summary>
+        private readonly List<long> _copyCharges = [];
+
+        /// <summary>Gets the members of each child, in the frame of the module.</summary>
+        public List<List<Mesh>> Members { get; } = [];
+
+        /// <summary>
+        ///     Starts a child: its members will be added and its copies charged to it.
+        /// </summary>
+        /// <param name="members">The members of the child.</param>
+        public void AddChild(List<Mesh> members)
+        {
+            Members.Add(members);
+            _copyCharges.Add(0L);
+        }
+
+        /// <summary>
+        ///     Records the triangles charged for a transformed copy of the child being built (the last one added).
+        /// </summary>
+        /// <param name="triangles">The triangles charged.</param>
+        public void AddCopyCharge(long triangles) => _copyCharges[^1] += triangles;
+
+        /// <summary>
+        ///     Gets the number of distinct referenced vertices of a mesh: the scanned count of a member, otherwise (a sum,
+        ///     which is a welded hull whose vertices are all referenced) its vertex count.
+        /// </summary>
+        /// <param name="mesh">The mesh.</param>
+        /// <returns>The distinct vertex count.</returns>
+        public int DistinctCount(Mesh mesh) => _distinct.TryGetValue(mesh, out var count) ? count : mesh.VertexCount;
+
+        /// <summary>
+        ///     Scans the distinct vertices of a member once; a mesh that was scanned already is not scanned again.
+        /// </summary>
+        /// <param name="mesh">The member.</param>
+        /// <param name="context">The build context (counts the scan).</param>
+        public void Scan(Mesh mesh, ScadGeometryContext context)
+        {
+            if (!_distinct.ContainsKey(mesh))
+            {
+                context.NoteDistinctScan();
+                _distinct[mesh] = DistinctVertexCount(mesh);
+            }
+        }
+
+        /// <summary>
+        ///     Counts the distinct positions of the vertices that a mesh's triangles reference.
+        /// </summary>
+        /// <param name="mesh">The mesh.</param>
+        /// <returns>The number of distinct referenced positions.</returns>
+        private static int DistinctVertexCount(Mesh mesh)
+        {
+            var used = ReferencedVertices(mesh);
+            var distinct = new HashSet<Vector3D>();
+            for (var i = 0; i < used.Length; i++)
+            {
+                if (used[i])
+                {
+                    distinct.Add(mesh.Vertices[i]);
+                }
+            }
+
+            return distinct.Count;
+        }
+
+        /// <summary>
+        ///     Releases the transformed copies of a child that the fold has consumed, refunding their charge.
+        /// </summary>
+        /// <param name="context">The build context.</param>
+        /// <param name="child">The index of the child.</param>
+        public void Release(ScadGeometryContext context, int child)
+        {
+            context.RefundTriangles(_copyCharges[child]);
+            _copyCharges[child] = 0L;
+        }
+
+        /// <summary>
+        ///     Releases every copy that is still charged (idempotent), whatever way the module ended.
+        /// </summary>
+        /// <param name="context">The build context.</param>
+        public void ReleaseAll(ScadGeometryContext context)
+        {
+            for (var child = 0; child < _copyCharges.Count; child++)
+            {
+                Release(context, child);
+            }
         }
     }
 
@@ -482,9 +581,9 @@ internal static class ScadHulls
     /// <returns>The sum, or nothing after a report.</returns>
     private static ScadGeo MinkowskiSolids(ScadInstance node, List<ScadGeo> children, List<string> labels, ScadGeometryContext context)
     {
+        var store = new MemberStore();
         try
         {
-            var members = new List<List<Mesh>>();
             var hasAppearance = false;
             for (var c = 0; c < children.Count; c++)
             {
@@ -502,8 +601,10 @@ internal static class ScadHulls
                     return ScadGeo.Empty;
                 }
 
-                members.Add(InFrame(parts, context));
+                InFrame(parts, node, store, context);
             }
+
+            var members = store.Members;
 
             // Every step multiplies the number of members (a sum is made of every pair), so the last step is the largest
             long pairs = members[0].Count;
@@ -519,12 +620,13 @@ internal static class ScadHulls
 
             WarnColors(node, hasAppearance, context);
 
-            // Each member is verified once here; the sums of the fold then skip the repeated test
+            // Each member is verified once here (and, for a fold, its distinct vertices counted once); the sums of the
+            // fold then skip the repeated test and reuse the counts
             var meter = new WorkMeter();
             for (var c = 0; c < members.Count; c++)
             {
                 var label = labels[c];
-                if (members[c].Any(member => !VerifyMember(node, label, member, meter, context)))
+                if (members[c].Any(member => !VerifyMember(node, label, member, meter, store, members.Count > 1, context)))
                 {
                     return ScadGeo.Empty;
                 }
@@ -532,7 +634,7 @@ internal static class ScadHulls
 
             if (members.Count > 1)
             {
-                return Fold(node, members, meter, context);
+                return Fold(node, store, meter, context);
             }
 
             return hasAppearance ? StripAppearances(children[0], context) : children[0];
@@ -544,6 +646,11 @@ internal static class ScadHulls
                 "minkowski: the sum is not valid geometry (for example a coordinate of the sum is outside the supported range); the minkowski is omitted",
                 node.Location);
             return ScadGeo.Empty;
+        }
+        finally
+        {
+            // The transformed copies are temporaries: whatever way the module ended, their charge is returned
+            store.ReleaseAll(context);
         }
     }
 
@@ -559,10 +666,20 @@ internal static class ScadHulls
     /// <param name="label">The description of the child the member belongs to.</param>
     /// <param name="member">The member.</param>
     /// <param name="meter">The work meter of the module.</param>
+    /// <param name="store">The members of the module, which remember the distinct vertex count.</param>
+    /// <param name="countVertices">Whether the distinct vertices are counted for the pair costs of a fold.</param>
     /// <param name="context">The build context.</param>
     /// <returns><see langword="true"/> when the member is verified; <see langword="false"/> after a report.</returns>
-    private static bool VerifyMember(ScadInstance node, string label, Mesh member, WorkMeter meter, ScadGeometryContext context)
+    private static bool VerifyMember(
+        ScadInstance node,
+        string label,
+        Mesh member,
+        WorkMeter meter,
+        MemberStore store,
+        bool countVertices,
+        ScadGeometryContext context)
     {
+        // The cost of the test covers the one scan of the distinct vertices that follows it (both are linear in the vertices)
         context.Poll();
         if (!meter.TryCharge(member.VertexCount))
         {
@@ -573,6 +690,11 @@ internal static class ScadHulls
         try
         {
             MinkowskiSum.RequireConvexSolid(member, "operand", context.Cancellation);
+            if (countVertices)
+            {
+                store.Scan(member, context);
+            }
+
             return true;
         }
         catch (NotSupportedException)
@@ -591,21 +713,36 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Brings the meshes of a child into the frame of the module.
+    ///     Brings the meshes of a child into the frame of the module and adds them to the store.
     /// </summary>
+    /// <remarks>
+    ///     A mesh whose matrix is not the identity is copied with <see cref="Mesh.Transform"/>. The copy has the
+    ///     triangles of the original, so those triangles are charged to the budget <em>before</em> the copy is
+    ///     allocated (the build fails with the triangle-limit error when they do not fit the remaining budget) and are
+    ///     refunded when the fold has consumed the copy or the module ends (<see cref="MemberStore.Release"/>),
+    ///     so the charge always equals the triangles of the meshes that are alive.
+    /// </remarks>
     /// <param name="parts">The meshes of the child.</param>
+    /// <param name="node">The instance.</param>
+    /// <param name="store">The store that receives the members and the charge of the copies.</param>
     /// <param name="context">The build context.</param>
-    /// <returns>The meshes (the original mesh when its matrix is the identity).</returns>
-    private static List<Mesh> InFrame(SolidParts parts, ScadGeometryContext context)
+    private static void InFrame(SolidParts parts, ScadInstance node, MemberStore store, ScadGeometryContext context)
     {
         var members = new List<Mesh>(parts.Meshes.Count);
+        store.AddChild(members);
         foreach (var (mesh, matrix) in parts.Meshes)
         {
             context.Poll();
-            members.Add(matrix == Matrix4x4D.Identity ? mesh : mesh.Transform(matrix));
-        }
+            if (matrix == Matrix4x4D.Identity)
+            {
+                members.Add(mesh);
+                continue;
+            }
 
-        return members;
+            context.ChargeTriangles(mesh.TriangleCount, node.Location);
+            store.AddCopyCharge(mesh.TriangleCount);
+            members.Add(mesh.Transform(matrix));
+        }
     }
 
     /// <summary>
@@ -718,12 +855,13 @@ internal static class ScadHulls
     ///     Folds the Minkowski sum over the members of two or more children.
     /// </summary>
     /// <param name="node">The instance.</param>
-    /// <param name="members">The convex members of each child (at least two children), each already verified.</param>
+    /// <param name="store">The convex members of each child (at least two children), each already verified and scanned.</param>
     /// <param name="meter">The work meter of the module, shared with the verification of the members.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The sum, or nothing after a report.</returns>
-    private static ScadGeo Fold(ScadInstance node, List<List<Mesh>> members, WorkMeter meter, ScadGeometryContext context)
+    private static ScadGeo Fold(ScadInstance node, MemberStore store, WorkMeter meter, ScadGeometryContext context)
     {
+        var members = store.Members;
         var accumulated = members[0];
         var charges = new FoldCharges();
         var completed = false;
@@ -732,10 +870,17 @@ internal static class ScadHulls
             // The number of sums of each step was bounded before the members were verified
             for (var step = 1; step < members.Count; step++)
             {
-                var produced = SumStep(node, accumulated, members[step], meter, context, charges);
+                var produced = SumStep(node, accumulated, members[step], meter, store, context, charges);
                 if (produced is null)
                 {
                     return ScadGeo.Empty;
+                }
+
+                // The transformed copies of the children this step consumed are released (the first child with the second)
+                store.Release(context, step);
+                if (step == 1)
+                {
+                    store.Release(context, 0);
                 }
 
                 accumulated = produced;
@@ -773,6 +918,7 @@ internal static class ScadHulls
     /// <param name="accumulated">The accumulated members.</param>
     /// <param name="next">The members of the next child.</param>
     /// <param name="meter">The work meter of the module.</param>
+    /// <param name="store">The members, which hold the distinct vertex counts.</param>
     /// <param name="context">The build context.</param>
     /// <param name="charges">The charges of the temporary sums; updated as sums are created and consumed.</param>
     /// <returns>The sums, or <see langword="null"/> after a pair above the work bound was reported.</returns>
@@ -781,6 +927,7 @@ internal static class ScadHulls
         List<Mesh> accumulated,
         List<Mesh> next,
         WorkMeter meter,
+        MemberStore store,
         ScadGeometryContext context,
         FoldCharges charges)
     {
@@ -791,7 +938,7 @@ internal static class ScadHulls
             foreach (var right in next)
             {
                 context.Poll();
-                var cost = PairCost(left, right);
+                var cost = (long)store.DistinctCount(left) * store.DistinctCount(right);
                 if (cost > MinkowskiSum.MaxPairwiseSums)
                 {
                     ReportTooComplex(node, context, $"two parts have too many vertices to sum (limit {MinkowskiSum.MaxPairwiseSums} pairwise sums)");
@@ -862,39 +1009,6 @@ internal static class ScadHulls
         }
 
         return ScadGeo.FromSolid(new GroupNode(nodes), bounds, true, false, bounds);
-    }
-
-    /// <summary>
-    ///     Gets the work of summing two meshes in pairwise vertex sums: the product of their vertex counts, with
-    ///     distinct referenced vertices counted only when the raw product is over the bound of one pair.
-    /// </summary>
-    /// <param name="a">The first mesh.</param>
-    /// <param name="b">The second mesh.</param>
-    /// <returns>The number of pairwise sums; above <see cref="MinkowskiSum.MaxPairwiseSums"/> the pair is too large.</returns>
-    private static long PairCost(Mesh a, Mesh b)
-    {
-        var raw = (long)a.VertexCount * b.VertexCount;
-        return raw <= MinkowskiSum.MaxPairwiseSums ? raw : (long)DistinctVertexCount(a) * DistinctVertexCount(b);
-    }
-
-    /// <summary>
-    ///     Counts the distinct positions of the vertices that a mesh's triangles reference.
-    /// </summary>
-    /// <param name="mesh">The mesh.</param>
-    /// <returns>The number of distinct referenced positions.</returns>
-    private static int DistinctVertexCount(Mesh mesh)
-    {
-        var used = ReferencedVertices(mesh);
-        var distinct = new HashSet<Vector3D>();
-        for (var i = 0; i < used.Length; i++)
-        {
-            if (used[i])
-            {
-                distinct.Add(mesh.Vertices[i]);
-            }
-        }
-
-        return distinct.Count;
     }
 
     /// <summary>

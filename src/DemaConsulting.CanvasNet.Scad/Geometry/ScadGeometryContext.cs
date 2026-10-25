@@ -97,6 +97,15 @@ internal sealed class ScadGeometryContext
     /// <summary>Counts a pairwise Minkowski sum that is about to start.</summary>
     public void NoteSumStarted() => SumsStarted++;
 
+    /// <summary>
+    ///     Gets the number of scans that counted the distinct vertices of a Minkowski member (a diagnostic counter that
+    ///     lets tests prove that each member is scanned once, not once per pair).
+    /// </summary>
+    public long DistinctScans { get; private set; }
+
+    /// <summary>Counts a scan of the distinct vertices of one mesh.</summary>
+    public void NoteDistinctScan() => DistinctScans++;
+
     /// <summary>Gets the triangle budget of the model (<see cref="ScadLimits.MaxTriangles"/>).</summary>
     public long MaxTriangles => _settings.MaxTriangles;
 

@@ -274,10 +274,13 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 - **Bounded geometry.** The geometry a model generates is bounded by `ScadLimits.MaxTriangles`: every sphere,
   cylinder, polyhedron, slab, and extrusion computes the exact triangle count of its mesh (for an extrusion,
   the caps of a profile with holes included), with saturating arithmetic, before it allocates, and exceeding
-  the budget raises a `ScadEvaluationException` located at the module. A `hull` and a `minkowski` know the
-  count of their result only once they have computed it, so they charge it exactly right after the computation
-  (the points of a hull are bounded by the budget, the pairwise sums of a Minkowski sum by `MinkowskiSum.MaxPairwiseSums`)
-  and before the node exists.
+  the budget raises a `ScadEvaluationException` located at the module. A `hull` and a `minkowski` know the exact
+  count of their result only once they have computed it, so they charge its upper bound first (`2d - 4` triangles for
+  a hull of `d` distinct points, `2 * Va * Vb - 4` for a pairwise sum) before any hull or sums memory is allocated,
+  fail without starting when the bound exceeds the remaining budget, settle the charge to the actual count afterwards
+  (refunding the whole pre-charge on a rejection, failure or cancellation), and charge the transformed copies of the
+  convex parts of a `minkowski` while they live (the pairwise sums of a Minkowski sum are bounded by
+  `MinkowskiSum.MaxPairwiseSums`).
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
   shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested

@@ -288,7 +288,9 @@ small cylinders stay under the cap and build one closed mesh.
 **Tests**:
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`,
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge`,
-`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual`
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused`
 
 Asserts, for hulls of boxes and spheres, an extruded 2D hull, sums of one, two, and three children, a union
 operand, and the reported cases (a boolean, a flat hull, and a fold whose second step is too complex after its
@@ -302,7 +304,13 @@ begun (the context's `HullsStarted` and `SumsStarted` counters stay 0) and leave
 bound that fits is settled to the actual twelve triangles, that a degenerate flat hull refunds its pre-charge, and, for
 a fold of three cubes, that the second step needs the operands (36) plus the live first sum (12) plus its own bound
 (124): 172 builds (36 + 12 charged) and 171 fails in the second step with the first sum started and only the operands
-(36) left charged.
+(36) left charged. The copy test asserts that the transformed copy of a translated child (12 triangles) is charged
+before it is allocated and refunded afterwards: for a fold of two children the operands (24) plus the copy (12) plus
+the bound of the sum (124) need a limit of 160 (159 fails and 35 fails when the copy does not fit, each leaving only the
+operands charged), the final charge is the operands plus the result, and for a lone child a limit of 24 passes
+(23 fails) and leaves the child charged once. The count test asserts that two children of three parts give nine sums
+with six distinct-vertex scans (not one per pair), and that an unwelded cube (36 vertices, 8 distinct) costs like a
+welded one: its sum is accepted at 24 + 124 and settles to 12 triangles.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation: Cancellation
 
