@@ -1,6 +1,6 @@
 ### ScadFileResolver Unit Verification Design
 
-<!-- cspell:ignore undef symlink symlinks sandboxed -->
+<!-- cspell:ignore undef symlink symlinks sandboxed junction mklink -->
 
 This document describes the unit-level verification strategy for the `ScadFileResolver` unit: the internal
 `ScadFileResolver` (expansion, library loading, path normalization, and the sandbox) and the `ScadSourceUnit` it
@@ -19,7 +19,16 @@ Two kinds of file source are used, and both are real implementations of the unit
   file-system access happened (the scenario runs with a base directory that does not exist).
 - **File-system mode** uses `ScadTempDirectory`, a per-test temporary directory tree that the test creates and
   deletes, for real files, folders, library paths, byte-order marks, and (where the host permits creating them)
-  symbolic links.
+  directory links.
+
+The link rule (a symbolic link or junction below a root is rejected whatever its target) is verified in two layers.
+The **cited** scenarios (`ScadFileResolverLinkTests`) inject a fake link probe through the resolver's internal
+constructor seam (`Func<string, bool>`): the fake reports chosen paths of real temporary files and directories as
+links, so the walk logic (top-down order, existing components only, caching, trusted root, fail-closed probe,
+resolver mode never probing, dot-dot normalization) is proven on every platform without creating a link, and these
+tests never skip. The **not cited** scenarios create real links (a junction through `mklink /J` or a symbolic link
+through the framework) and so additionally prove the default probe against the real file system; they skip
+themselves where the host cannot create links and are listed here as additional evidence only.
 
 Limits are verified in memory with generated chains: include depth at the limit and one over (and the default limit
 and the maximum of 64 on a thread with a small stack, to show that expansion is not stack-bound), cycles and
@@ -27,13 +36,9 @@ self-includes, a diamond that is not a cycle, a diamond blow-up stopped by the i
 oversize file, and cancellation between files (the resolver cancels the token). The Windows, Linux, and macOS file
 name case rules are asserted per platform.
 
-The one scenario that creates a symbolic link (`ScadFileResolver_Load_FileSystem_LinkTargets_AreChecked`) skips
-itself when the host does not permit creating links (on Windows without the privilege), so it runs on hosts that
-do, such as the Linux and macOS CI runners; on a host where it skips, the link-rejection branch of the sandbox is
-not exercised, and the requirement's evidence for the other confinement rules is unaffected.
-
 Unit tests reside in `ScadFileResolverIncludeTests.cs`, `ScadFileResolverUseTests.cs`,
-`ScadFileResolverSandboxTests.cs`, `ScadFileResolverLimitTests.cs`, and `ScadFileResolverFileSystemTests.cs` within
+`ScadFileResolverSandboxTests.cs`, `ScadFileResolverLinkTests.cs`, `ScadFileResolverLimitTests.cs`, and
+`ScadFileResolverFileSystemTests.cs` within
 the `DemaConsulting.CanvasNet.Scad.Tests` project, in the `Evaluation` folder, with the shared helpers
 (`ScadVirtualFiles`, `ScadResolverTestSupport`, and `ScadTempDirectory`) in `ScadResolverTestSupport.cs`.
 
@@ -111,15 +116,32 @@ that file-name case follows the platform.
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_NestedFileEscapingRoot_Throws`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused`,
-`ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot`
+`ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedDirectoryBetweenRootAndFile_IsRejected`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedDirectoryAtAnyDepth_IsRejected`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedFile_IsRejectedWhateverItsTarget`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedLibraryRootComponent_IsRejected`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedRootAndAncestors_AreTrusted`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkAfterMissingComponent_IsNotProbed_AndFileIsMissing`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_EveryComponentProbedOnce_AndCached`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_ProbeThrows_FailsClosed`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_ResolverMode_NeverProbes`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Load_DotDotRouteThroughLink_IsJudgedOnNormalizedPath`
 
 Asserts that absolute paths, drive letters, colons, empty paths, control characters, and paths climbing above the
 root throw an evaluation error (in resolver mode without asking the callback), that dot-dot segments inside the
 root are allowed, that a nested file whose own include escapes the root is rejected, that a library root confines
 its own candidates, that an existing file outside every root is refused, and that a sibling folder sharing a name
-prefix with a root is outside it. The link-rejection scenario
-`ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_LinkTargets_AreChecked` asserts that a link whose
-target is outside the roots is rejected, and skips where links cannot be created (see the approach above).
+prefix with a root is outside it. The link scenarios (fake probe, never skipped) assert that a linked directory at
+depth one, two, or three, a linked file, and a linked component below a library root are each rejected with a
+message that names the component below the root and contains `link` (the file is never read), that a linked root
+and its ancestors are trusted, that the walk ends at the first missing component without probing below it, that
+each component is probed once, that a failing probe rejects the file, that resolver mode never asks the probe, and
+that a route through dot-dot is judged on the normalized path. Additional evidence, not cited by the requirement
+and skipped where links cannot be created: `ScadFileResolverLinkTests.ScadFileResolverLink_Load_RealDirectoryLink_EscapingRoot_IsRejected`,
+`…_RealDirectoryLink_InsideRoot_IsRejected`, `…_RealFileLink_IsRejected` (a file link is rejected even when its
+target is inside the root), `…_RealLinkedBaseDirectoryItself_IsAllowed`, and the end-to-end
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemSandbox_DirectoryLinkEscape_IsRejected`.
 
 ##### CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback: Resolver Mode
 

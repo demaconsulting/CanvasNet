@@ -69,7 +69,8 @@ tree to a `CanvasNetRender3D` scene.
 the whole file graph can be resolved **before** anything is evaluated.
 
 - **Phase A — `ScadFileResolver`** runs on the calling thread. It is the only code that touches the file
-  system or calls the caller's `FileResolver` callback. It enforces the sandbox, the depth, cycle, and file
+  system or calls the caller's `FileResolver` callback. It enforces the sandbox (including the refusal of any
+  symbolic link or junction below a root), the depth, cycle, and file
   count limits, parses each distinct file once, and produces an immutable, include-expanded `ScadSourceUnit`
   for the main document plus the list of `use`d library units.
 - **Phase B — `ScadEvaluator`** is pure computation over those immutable units. It records every echo line,

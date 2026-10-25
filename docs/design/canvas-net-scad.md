@@ -202,8 +202,10 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   through the open options: files under the base directory or a library path, or, when a resolver callback is
   supplied, **only** that callback with no file-system access at all. Environment variables are never
   consulted. Absolute paths, drive letters, colons, control characters, and `..` above the root are rejected
-  with an evaluation error (and, in resolver mode, never reach the callback); a file that is a link to
-  a target outside every root is refused; include cycles, nesting depth, the number of inclusions, and the
+  with an evaluation error (and, in resolver mode, never reach the callback); a file that is, or lies beneath, a
+  symbolic link or junction below its root is refused whatever the link's target (the root itself is trusted;
+  to use linked content, add the real directory as a library path); include cycles, nesting depth, the number of
+  inclusions, and the
   number of statements include expansion may produce are bounded. A document with `include` or `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.
 - **Cancellation.** A `CancellationToken` is honored before any work (and before any resolver call), between

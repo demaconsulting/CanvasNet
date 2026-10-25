@@ -27,8 +27,8 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 ///         <b>Sandbox.</b> Environment variables (including <c>OPENSCADPATH</c>) are never consulted. For a path text
 ///         the candidates are, in order, the directory of the including file and each library path; every candidate must
 ///         stay inside the root it was derived from (the base directory or a library path), absolute paths, drive
-///         letters or colons, control characters and <c>..</c> above the root are errors, and a found file that is a
-///         link to a target outside every root is rejected. With a <see cref="ScadOpenOptions.FileResolver"/> no file
+///         letters or colons, control characters and <c>..</c> above the root are errors, and a file that is, or lies
+///         beneath, a symbolic link or junction below its root is rejected whatever the link's target. With a <see cref="ScadOpenOptions.FileResolver"/> no file
 ///         system access happens at all: candidates are normalized logical paths handed to the callback. See
 ///         <c>ScadFileResolver.Paths</c> for the details.
 ///     </para>
@@ -71,14 +71,17 @@ internal sealed partial class ScadFileResolver
     /// <param name="limits">The resource limits.</param>
     /// <param name="sink">The sink that receives missing-file warnings.</param>
     /// <param name="cancellation">The cancellation token, polled between files.</param>
-    public ScadFileResolver(ScadOpenOptions options, ScadLimits limits, ScadEvaluationSink sink, CancellationToken cancellation)
+    /// <param name="isLink">The probe that tells whether a full path is a symbolic link or junction; <see langword="null"/> uses the file system. A seam for tests.</param>
+    public ScadFileResolver(ScadOpenOptions options, ScadLimits limits, ScadEvaluationSink sink, CancellationToken cancellation, Func<string, bool>? isLink = null)
     {
         _options = options;
         _limits = limits;
         _sink = sink;
         _cancellation = cancellation;
+        _isLink = isLink ?? DefaultIsLink;
         _keyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
         _files = new Dictionary<string, LoadedFile?>(_keyComparer);
+        _linkStates = new Dictionary<string, bool>(_keyComparer);
         _libraries = new Dictionary<string, ScadSourceUnit>(_keyComparer);
     }
 

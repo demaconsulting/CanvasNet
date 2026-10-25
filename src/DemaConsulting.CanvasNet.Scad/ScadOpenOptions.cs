@@ -38,7 +38,9 @@ public sealed class ScadOpenOptions
     ///     A document created from a string or a stream has no folder: unless it supplies a base directory, a
     ///     <see cref="LibraryPaths"/> entry or a <see cref="FileResolver"/>, its <c>include</c> and <c>use</c>
     ///     directives cannot be resolved and evaluating them fails with a <see cref="ScadEvaluationException"/>. The
-    ///     current directory is never used implicitly.
+    ///     current directory is never used implicitly. A symbolic link or junction below this directory (a directory on
+    ///     the path to an included file, or the file itself) is never followed: the file is rejected whatever the
+    ///     link's target. The directory itself may be reached through links.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory
@@ -51,6 +53,10 @@ public sealed class ScadOpenOptions
     ///     Gets the additional library directories that are searched, after the including file's folder, for
     ///     referenced files; empty by default.
     /// </summary>
+    /// <remarks>
+    ///     The same link rule as for <see cref="BaseDirectory"/> applies below each entry. To use linked content, add
+    ///     the real directory as an entry.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value or an entry is null.</exception>
     /// <exception cref="ArgumentException">Thrown on initialization when an entry is empty or whitespace.</exception>
     public IReadOnlyList<string> LibraryPaths

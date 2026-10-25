@@ -3,7 +3,7 @@ using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
-// cspell:ignore scadtest
+// cspell:ignore scadtest mklink
 
 /// <summary>
 ///     An in-memory file source for resolver tests: a dictionary from logical path to text that records every
@@ -99,17 +99,19 @@ internal static class ScadResolverTestSupport
     /// <param name="limits">The limits, or null for the defaults.</param>
     /// <param name="sink">The sink that receives warnings, or null to create one.</param>
     /// <param name="cancellation">The cancellation token.</param>
+    /// <param name="isLink">The link probe handed to the resolver, or null for the file system.</param>
     /// <returns>The expanded main unit.</returns>
     public static ScadSourceUnit Load(
         string source,
         ScadOpenOptions options,
         ScadLimits? limits = null,
         ScadEvaluationSink? sink = null,
-        CancellationToken? cancellation = null)
+        CancellationToken? cancellation = null,
+        Func<string, bool>? isLink = null)
     {
         var effectiveLimits = limits ?? ScadLimits.Default;
         var document = ScadDocument.Parse(source, options);
-        var resolver = new ScadFileResolver(document.Options, effectiveLimits, sink ?? new ScadEvaluationSink(effectiveLimits), cancellation ?? TestContext.Current.CancellationToken);
+        var resolver = new ScadFileResolver(document.Options, effectiveLimits, sink ?? new ScadEvaluationSink(effectiveLimits), cancellation ?? TestContext.Current.CancellationToken, isLink);
         return resolver.Load(document.Program, document.SourceName);
     }
 
@@ -138,8 +140,9 @@ internal static class ScadResolverTestSupport
     /// <param name="options">The open options.</param>
     /// <param name="paths">The include paths, one directive each on lines 1, 2, ...</param>
     /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <param name="isLink">The link probe handed to the resolver, or null for the file system.</param>
     /// <returns>The expanded main unit.</returns>
-    public static ScadSourceUnit LoadDirectives(ScadOpenOptions options, IReadOnlyList<string> paths, ScadLimits? limits = null)
+    public static ScadSourceUnit LoadDirectives(ScadOpenOptions options, IReadOnlyList<string> paths, ScadLimits? limits = null, Func<string, bool>? isLink = null)
     {
         var effectiveLimits = limits ?? ScadLimits.Default;
         var statements = new List<ScadStatement>();
@@ -148,8 +151,97 @@ internal static class ScadResolverTestSupport
             statements.Add(new ScadDirectiveStatement(ScadDirectiveKind.Include, paths[i]) { Location = new ScadSourceLocation("main.scad", i + 1, 1) });
         }
 
-        var resolver = new ScadFileResolver(options, effectiveLimits, new ScadEvaluationSink(effectiveLimits), CancellationToken.None);
+        var resolver = new ScadFileResolver(options, effectiveLimits, new ScadEvaluationSink(effectiveLimits), CancellationToken.None, isLink);
         return resolver.Load(new ScadProgram(statements), "main.scad");
+    }
+
+    /// <summary>
+    ///     Tries to create a directory link (a symbolic link, or on Windows a junction when links need a privilege).
+    /// </summary>
+    /// <param name="link">The full path of the link to create.</param>
+    /// <param name="target">The full path of the existing target directory.</param>
+    /// <param name="reason">The reason the link could not be created, or an empty string.</param>
+    /// <returns><see langword="true"/> when the link exists afterwards.</returns>
+    public static bool TryCreateDirectoryLink(string link, string target, out string reason)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+            reason = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            reason = ex.Message;
+        }
+
+        // Without the privilege for symbolic links a junction can still be made on Windows
+        return OperatingSystem.IsWindows() && TryCreateJunction(link, target, out reason);
+    }
+
+    /// <summary>
+    ///     Tries to create a file symbolic link.
+    /// </summary>
+    /// <param name="link">The full path of the link to create.</param>
+    /// <param name="target">The full path of the existing target file.</param>
+    /// <param name="reason">The reason the link could not be created, or an empty string.</param>
+    /// <returns><see langword="true"/> when the link was created.</returns>
+    public static bool TryCreateFileLink(string link, string target, out string reason)
+    {
+        try
+        {
+            File.CreateSymbolicLink(link, target);
+            reason = string.Empty;
+            return true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            reason = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Creates a Windows junction through the command interpreter (no privilege needed).
+    /// </summary>
+    /// <param name="link">The full path of the junction.</param>
+    /// <param name="target">The full path of the target directory.</param>
+    /// <param name="reason">The reason the junction could not be created, or an empty string.</param>
+    /// <returns><see langword="true"/> when the junction exists afterwards.</returns>
+    private static bool TryCreateJunction(string link, string target, out string reason)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo("cmd.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        info.ArgumentList.Add("/c");
+        info.ArgumentList.Add("mklink");
+        info.ArgumentList.Add("/J");
+        info.ArgumentList.Add(Path.GetFullPath(link));
+        info.ArgumentList.Add(Path.GetFullPath(target));
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(info);
+            if (process is null)
+            {
+                reason = "cmd.exe could not be started";
+                return false;
+            }
+
+            process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            reason = process.ExitCode == 0 ? string.Empty : "mklink /J failed";
+            return process.ExitCode == 0 && Directory.Exists(link);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            reason = ex.Message;
+            return false;
+        }
     }
 }
 

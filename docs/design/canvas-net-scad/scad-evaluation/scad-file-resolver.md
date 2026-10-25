@@ -1,14 +1,14 @@
 ### ScadFileResolver
 
-<!-- cspell:ignore evaluator undef OPENSCADPATH symlink symlinks sandboxed sandboxing -->
+<!-- cspell:ignore evaluator undef OPENSCADPATH symlink symlinks sandboxed sandboxing junction junctions -->
 
 The `ScadFileResolver` unit is the fourth software unit in the `ScadEvaluation` subsystem. It comprises three
 source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `internal`:
 
 - `ScadFileResolver.cs` — `ScadFileResolver` (sealed partial class): the phase A driver — expansion, library
   loading from a work queue, the file cache, and the cycle, depth, count, and statement limits
-- `ScadFileResolver.Paths.cs` — path normalization, candidate generation, the sandbox checks, and file and
-  callback access
+- `ScadFileResolver.Paths.cs` — path normalization, candidate generation, the sandbox checks (including the
+  link walk), and file and callback access
 - `ScadSourceUnit.cs` — `ScadSourceUnit`: a source file after `include` expansion plus the libraries it
   imports with `use`
 
@@ -84,12 +84,25 @@ example `a/../b.scad` and `b.scad`) are one file; file-name case is significant 
 Windows and macOS (the platform comparer is used for the file keys and the root checks).
 
 - **File-system mode** (no `FileResolver`): a candidate is `Path.GetFullPath`-normalized and accepted only if it
-  lies under the root it was derived from. `..` that stays inside the root is allowed. An existing file that
-  is a link whose final target lies outside every root is rejected
-  (`Include file '…' is a link to a location outside the allowed directories`); directory-level links are a
-  documented limitation of the base class library, and the roots are chosen by the caller. A directory in place
-  of a file counts as missing. Files are read with the shared bounded UTF-8 reader of `ScadDocument` (byte-order
-  mark detection, at most 4,194,304 characters).
+  lies under the root it was derived from. `..` that stays inside the root is allowed. **Link policy:** a
+  candidate is rejected when **any component strictly below its root, including the file itself, is a symbolic
+  link or junction, whatever the target** (`FileSystemInfo.LinkTarget` is not null; the probe is an injectable
+  `Func<string, bool>` that defaults to that check). The walk runs **top-down from the root**, probes only
+  components that exist, and ends at the first nonexistent component (the file is then missing, the search
+  continues, and nothing below the missing component is probed, so the existence of a file behind a link is never
+  revealed); the first link raises `Include file '…' passes through a link ('<component below the root>'); links
+  are not followed inside the allowed directories`. The walk happens before the file is opened, on the normalized
+  path (so `a/../lib/x.scad` is judged as `lib/x.scad`), and each component is probed once per resolver call
+  (results are cached). A probe that throws (`IOException`, `UnauthorizedAccessException`, …) **fails closed**
+  with `Include file '…' cannot be checked for links and is not read`. The **root itself and everything above it
+  are trusted** — the caller chose them, and this keeps hosts whose temporary folder is itself a link working.
+  Strict rejection was chosen over resolving real paths because resolution is ambiguous (relative links, chains,
+  junction targets) and racy; it tightens an earlier rule that allowed a file link whose target was inside a root.
+  To use linked content, a caller adds the real directory as a library path. **Residual risk (documented):** an
+  attacker who can modify the tree between the check and the open (a time-of-check/time-of-use race) is outside
+  the threat model of an untrusted document plus caller-chosen directories. A directory in place of a file
+  counts as missing. Files are read with the shared bounded UTF-8 reader of `ScadDocument` (byte-order mark
+  detection, at most 4,194,304 characters).
 - **Resolver mode** (`FileResolver` supplied): **no file-system access at all.** Each candidate is a
   normalized **logical path** (forward slashes, no leading `/`, `..` collapsed) handed to the callback; the first
   non-null stream wins; the unit reads it with the shared bounded reader and then disposes of it. Library paths
@@ -144,8 +157,8 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
 - **`ScadLanguage` subsystem** — `ScadParser.Parse(string, string?)` and the syntax tree (`ScadProgram`,
   `ScadDirectiveStatement`).
 - **`ScadEvaluationSink`** — receives the missing-file warnings. **`ScadLimits`** — the limits.
-- **.NET base class library** — `System.IO` (`File`, `FileInfo.ResolveLinkTarget`, `Path`), and
-  `System.Collections.Generic`.
+- **.NET base class library** — `System.IO` (`File`, `Directory`, `FileInfo.LinkTarget`,
+  `DirectoryInfo.LinkTarget`, `Path`), and `System.Collections.Generic`.
 
 #### Callers
 
@@ -154,5 +167,8 @@ document's `Options`, `Program`, and `SourceName` on the calling thread before t
 in `test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolver*Tests.cs` call `Load` directly through
 `InternalsVisibleTo`, using the in-memory `ScadVirtualFiles` resolver (which records every path requested, so a
 test can assert that no other path is ever asked for) and, for file-system tests, a per-test temporary
-directory (`ScadTempDirectory`). The one test that creates a symbolic link skips itself where the host
-does not permit creating links, so the link-rejection branch is exercised on hosts that do (Linux and macOS CI).
+directory (`ScadTempDirectory`). The link rule is verified on every platform through the internal **link-probe
+seam** (an optional `Func<string, bool>` constructor parameter that tests replace with a fake reporting chosen
+real temporary paths as links, so the walk logic never needs a real link). Additional tests create real links (a
+junction or symbolic link) and skip themselves where the host does not permit creating them; they are not cited
+by a requirement.

@@ -89,10 +89,14 @@ sections:
                   an empty path, a control character, and a path that climbs above its root, while
                   allowing dot-dot segments that stay inside the root; it shall refuse an existing
                   file outside every root, including a sibling folder that merely shares a name
-                  prefix with a root.
+                  prefix with a root; in file-system mode it shall also refuse a file that is, or
+                  that lies beneath a directory that is, a symbolic link or junction below its root,
+                  whatever the link's target, without reading the file or revealing whether it exists,
+                  while trusting the root itself and everything above it.
                 justification: |
                   A document may come from an untrusted source; an include path must never be a way to
-                  read arbitrary files of the host.
+                  read arbitrary files of the host. A link inside an allowed directory can point
+                  anywhere, so a link is refused instead of being followed.
                 tests:
                   - ScadFileResolver_Load_HostilePath_InResolverMode_ThrowsWithoutAskingResolver
                   - ScadFileResolver_Load_HostilePath_InFileSystemMode_Throws
@@ -101,6 +105,16 @@ sections:
                   - ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates
                   - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused
                   - ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot
+                  - ScadFileResolverLink_Load_LinkedDirectoryBetweenRootAndFile_IsRejected
+                  - ScadFileResolverLink_Load_LinkedDirectoryAtAnyDepth_IsRejected
+                  - ScadFileResolverLink_Load_LinkedFile_IsRejectedWhateverItsTarget
+                  - ScadFileResolverLink_Load_LinkedLibraryRootComponent_IsRejected
+                  - ScadFileResolverLink_Load_LinkedRootAndAncestors_AreTrusted
+                  - ScadFileResolverLink_Load_LinkAfterMissingComponent_IsNotProbed_AndFileIsMissing
+                  - ScadFileResolverLink_Load_EveryComponentProbedOnce_AndCached
+                  - ScadFileResolverLink_Load_ProbeThrows_FailsClosed
+                  - ScadFileResolverLink_Load_ResolverMode_NeverProbes
+                  - ScadFileResolverLink_Load_DotDotRouteThroughLink_IsJudgedOnNormalizedPath
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
                 title: >-

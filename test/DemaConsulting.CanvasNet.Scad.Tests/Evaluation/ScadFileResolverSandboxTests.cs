@@ -266,36 +266,4 @@ public class ScadFileResolverSandboxTests
         // Act / Assert
         Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["../root-evil/b.scad"]));
     }
-
-    /// <summary>
-    ///     Validates that a link whose target is outside every root is rejected, and a link inside is allowed.
-    /// </summary>
-    [Fact]
-    public void ScadFileResolver_Load_FileSystem_LinkTargets_AreChecked()
-    {
-        // Arrange
-        using var directory = new ScadTempDirectory();
-        var outside = directory.Write("outside/target.scad", "t = 1;\n");
-        var inside = directory.Write("root/real.scad", "r = 1;\n");
-        directory.Write("root/placeholder.txt", string.Empty);
-        var escapingLink = directory.Combine("root/escape.scad");
-        var allowedLink = directory.Combine("root/alias.scad");
-        try
-        {
-            File.CreateSymbolicLink(escapingLink, outside);
-            File.CreateSymbolicLink(allowedLink, inside);
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
-        {
-            Assert.Skip("Symbolic links cannot be created in this environment: " + ex.Message);
-            return;
-        }
-
-        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root") };
-
-        // Act / Assert
-        var ex2 = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["escape.scad"]));
-        Assert.Contains("link", ex2.Message, StringComparison.Ordinal);
-        Assert.Equal(["r"], AssignmentNames(LoadDirectives(options, ["alias.scad"])));
-    }
 }

@@ -16,9 +16,14 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 ///     <para>
 ///         <b>File-system mode</b> (no resolver callback): the roots are the base directory and each library path as
 ///         full paths. A candidate is the full path of the text combined with a directory and must lie under the root
-///         that directory belongs to (ordinal comparison; case-insensitive on Windows and macOS). A file that is a link
-///         whose final target is outside every root is rejected. Directory-level symbolic links inside a root are not
-///         detected (a limitation of the framework file API; the roots are chosen by the caller).
+///         that directory belongs to (ordinal comparison; case-insensitive on Windows and macOS). Every component below
+///         the root, including the file itself, must not be a symbolic link or junction, whatever its target: the
+///         candidate is walked top-down from the root, only existing components are probed (a missing component means
+///         the file is missing, and nothing below it is examined), each component is probed once per resolver, and a
+///         probe that fails rejects the file. The root itself and everything above it are trusted, because the caller
+///         chose them. The check precedes opening the file, so nothing is read through a link and a file behind a link
+///         is not reported as existing. A caller who wants to use linked content adds the real directory as a library
+///         path. A concurrent change of the tree between the check and the open is not defended against.
 ///     </para>
 ///     <para>
 ///         <b>Resolver mode</b>: no file system access happens. Candidates are normalized logical paths (forward
@@ -43,6 +48,12 @@ internal sealed partial class ScadFileResolver
 
     /// <summary>The comparer for file keys: platform path comparison in file-system mode, ordinal for logical paths.</summary>
     private readonly StringComparer _keyComparer;
+
+    /// <summary>The link probe: tells whether a full path is a symbolic link or junction.</summary>
+    private readonly Func<string, bool> _isLink;
+
+    /// <summary>The probe results by full path of an existing component, so each component is probed once.</summary>
+    private readonly Dictionary<string, bool> _linkStates;
 
     /// <summary>The full path of the base directory, or <see langword="null"/>; computed on first use.</summary>
     private string? _baseRoot;
@@ -328,36 +339,81 @@ internal sealed partial class ScadFileResolver
             return stream is null ? null : ScadDocument.ReadBounded(stream);
         }
 
-        if (!File.Exists(candidate.Key))
+        // The walk runs before the file is opened (and before File.Exists on the final component), so nothing is
+        // ever read through a link and a file behind a link is never reported as existing
+        if (!WalkRejectingLinks(candidate, location) || !File.Exists(candidate.Key))
         {
             return null;
         }
 
-        RejectEscapingLink(candidate.Key, location);
         using var file = File.OpenRead(candidate.Key);
         return ScadDocument.ReadBounded(file);
     }
 
     /// <summary>
-    ///     Rejects a file that is a link to a target outside every allowed root.
+    ///     Walks the components of a candidate from the root down to the file and rejects the first link.
     /// </summary>
-    /// <param name="path">The full path of the file.</param>
+    /// <param name="candidate">The candidate; its key is a full path under its root.</param>
     /// <param name="location">The location of the directive.</param>
-    /// <exception cref="ScadEvaluationException">Thrown when the final link target is outside every root.</exception>
-    private void RejectEscapingLink(string path, ScadSourceLocation location)
+    /// <returns><see langword="true"/> when every component exists and none is a link; <see langword="false"/> when a component does not exist.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when a component is a link, or cannot be checked.</exception>
+    private bool WalkRejectingLinks(Candidate candidate, ScadSourceLocation location)
     {
-        var target = new FileInfo(path).ResolveLinkTarget(returnFinalTarget: true);
-        if (target is null)
+        // The root itself and everything above it are trusted; only components strictly below it are examined
+        var current = candidate.Root;
+        foreach (var segment in Path.GetRelativePath(candidate.Root, candidate.Key).Split(Path.DirectorySeparatorChar))
         {
-            return;
+            current = Path.Join(current, segment);
+            if (!_linkStates.TryGetValue(current, out var isLink))
+            {
+                // The first missing component ends the walk: nothing below it can exist, so it is never probed
+                if (!File.Exists(current) && !Directory.Exists(current))
+                {
+                    return false;
+                }
+
+                isLink = ProbeLink(current, candidate, location);
+                _linkStates[current] = isLink;
+            }
+
+            if (isLink)
+            {
+                throw new ScadEvaluationException(
+                    $"Include file '{DisplayName(candidate.Key)}' passes through a link ('{Path.GetRelativePath(candidate.Root, current).Replace('\\', '/')}'); links are not followed inside the allowed directories",
+                    location);
+            }
         }
 
-        var roots = _libraryRoots!.Concat(_baseRoot is null ? [] : [_baseRoot]);
-        if (!roots.Any(root => IsUnder(target.FullName, root)))
+        return true;
+    }
+
+    /// <summary>
+    ///     Asks the link probe about one existing component, failing closed when the probe cannot answer.
+    /// </summary>
+    /// <param name="path">The full path of the component.</param>
+    /// <param name="candidate">The candidate being examined.</param>
+    /// <param name="location">The location of the directive.</param>
+    /// <returns><see langword="true"/> when the component is a symbolic link or junction.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the probe fails.</exception>
+    private bool ProbeLink(string path, Candidate candidate, ScadSourceLocation location)
+    {
+        try
         {
-            throw new ScadEvaluationException($"Include file '{DisplayName(path)}' is a link to a location outside the allowed directories", location);
+            return _isLink(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            throw new ScadEvaluationException($"Include file '{DisplayName(candidate.Key)}' cannot be checked for links and is not read", location);
         }
     }
+
+    /// <summary>
+    ///     The default link probe: a symbolic link or junction has a link target, whether it names a file or a directory.
+    /// </summary>
+    /// <param name="path">The full path of an existing file or directory.</param>
+    /// <returns><see langword="true"/> when the path is a symbolic link or junction.</returns>
+    private static bool DefaultIsLink(string path) =>
+        (Directory.Exists(path) ? new DirectoryInfo(path).LinkTarget : new FileInfo(path).LinkTarget) is not null;
 
     /// <summary>
     ///     Gets the name shown in source locations for a file.

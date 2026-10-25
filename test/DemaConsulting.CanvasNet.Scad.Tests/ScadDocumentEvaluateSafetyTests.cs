@@ -226,6 +226,34 @@ public class ScadDocumentEvaluateSafetyTests
     }
 
     /// <summary>
+    ///     Validates end to end that an include through a real directory link that leaves the project folder is
+    ///     rejected and the file behind it is never executed. Skips where links cannot be created.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_FileSystemSandbox_DirectoryLinkEscape_IsRejected()
+    {
+        // Arrange
+        using var directory = new ScadTempDirectory();
+        directory.Write("outside/secret.scad", "echo(\"leaked\");\n");
+        var main = directory.Write("project/main.scad", "include <lnk/secret.scad>\n");
+        if (!ScadResolverTestSupport.TryCreateDirectoryLink(directory.Combine("project/lnk"), directory.Combine("outside"), out var reason))
+        {
+            Assert.Skip("Directory links cannot be created in this environment: " + reason);
+        }
+
+        var lines = new List<string>();
+        var document = ScadDocument.Open(main);
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => document.Evaluate(new ScadEvaluationOptions { EchoHandler = lines.Add }, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Empty(lines);
+        Assert.Contains("link", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, ex.Location.Line);
+    }
+
+    /// <summary>
     ///     Validates that in resolver mode hostile paths are rejected before the callback and only logical paths are requested.
     /// </summary>
     [Fact]
