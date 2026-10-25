@@ -136,6 +136,8 @@ sections:
                   - ScadGeometryBuilder_Hull_ChildrenAreTransformedBeforeTheHull
                   - ScadGeometryBuilder_Hull_MirroredAndRotatedChildren_GiveAPositiveVolumeMesh
                   - ScadGeometryBuilder_Hull_UnionOfChildrenViaGroupsAndUserModules_IsOneHull
+                  - ScadGeometryBuilder_Hull_LoneColoredChild_WarnsAndDropsAppearance
+                  - ScadGeometryBuilder_Hull_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull2D
                 title: >-
@@ -203,6 +205,8 @@ sections:
                   - ScadGeometryBuilder_Minkowski_UnionOfConvexChildren_Distributes
                   - ScadGeometryBuilder_Minkowski_ConvexityArgumentIsIgnored
                   - ScadGeometryBuilder_Minkowski_HullChild_IsConvex
+                  - ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance
+                  - ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
                 title: >-

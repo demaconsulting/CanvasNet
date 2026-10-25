@@ -1,4 +1,5 @@
 // cspell:ignore polyhedron minkowski extrude
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -141,6 +142,41 @@ public class ScadGeometryBuilderHullTests
         var solidWarning = Assert.Single(solid.Warnings);
         Assert.Contains("colors inside hull()", solidWarning.Message, StringComparison.Ordinal);
         Assert.Null(Assert.Single(solid.Leaves).Appearance);
+    }
+
+    /// <summary>
+    ///     Validates that a colored lone 3D hull child is warned about and dropped while the hull preserves its
+    ///     transformed geometry.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Hull_LoneColoredChild_WarnsAndDropsAppearance()
+    {
+        // Arrange / Act
+        var result = Build("hull() color(\"red\") translate([2, 3, 4]) cube(1);");
+
+        // Assert: the hull warning is retained, but its newly created mesh is uncolored at the child's position
+        var warning = Assert.Single(result.Warnings);
+        Assert.Contains("colors inside hull()", warning.Message, StringComparison.Ordinal);
+        var leaf = Assert.Single(result.Leaves);
+        Assert.Null(leaf.Appearance);
+        AssertBounds(leaf.WorldMesh.Bounds, new Vector3D(2, 3, 4), new Vector3D(3, 4, 5));
+        AssertSolidVolume(leaf.WorldMesh, 1.0);
+    }
+
+    /// <summary>
+    ///     Validates that an enclosing color applies to a lone hull after the child's color has been dropped.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Hull_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance()
+    {
+        // Arrange / Act
+        var result = Build("color(\"blue\") hull() color(\"red\") cube(1);");
+
+        // Assert: the child warning remains, while the enclosing color is the only appearance
+        var warning = Assert.Single(result.Warnings);
+        Assert.Contains("colors inside hull()", warning.Message, StringComparison.Ordinal);
+        var leaf = Assert.Single(result.Leaves);
+        Assert.Equal(new NodeAppearance(new Rgba32(0, 0, 255, 255)), leaf.Appearance);
     }
 
     /// <summary>

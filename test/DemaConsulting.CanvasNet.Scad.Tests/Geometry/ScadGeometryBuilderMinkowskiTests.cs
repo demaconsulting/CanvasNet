@@ -1,4 +1,5 @@
 // cspell:ignore minkowski Minkowski polyhedron
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
@@ -119,6 +120,43 @@ public class ScadGeometryBuilderMinkowskiTests
         AssertSolidVolume(lone.SingleMesh, 8.0);
         Assert.Equal(12, lone.TrianglesCharged);
         Assert.Empty(lone.Features);
+    }
+
+    /// <summary>
+    ///     Validates that a colored lone child is verified without retaining its child appearance, while its transform
+    ///     and geometry remain unchanged.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance()
+    {
+        // Arrange / Act
+        var result = Build("minkowski() color(\"red\") translate([2, 3, 4]) cube(1);");
+
+        // Assert: the warning is retained, but the lone result has no child color and remains translated
+        var warning = Assert.Single(result.Warnings);
+        Assert.Contains("colors inside minkowski()", warning.Message, StringComparison.Ordinal);
+        var leaf = Assert.Single(result.Leaves);
+        Assert.Null(leaf.Appearance);
+        AssertBounds(leaf.WorldMesh.Bounds, new Vector3D(2, 3, 4), new Vector3D(3, 4, 5));
+        AssertSolidVolume(leaf.WorldMesh, 1.0);
+        Assert.Equal(result.MeshTriangles, result.TrianglesCharged);
+    }
+
+    /// <summary>
+    ///     Validates that an enclosing color applies to the geometry after a lone colored Minkowski child has been
+    ///     stripped.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance()
+    {
+        // Arrange / Act
+        var result = Build("color(\"blue\") minkowski() color(\"red\") cube(1);");
+
+        // Assert: the child warning remains, while the enclosing color is the only appearance
+        var warning = Assert.Single(result.Warnings);
+        Assert.Contains("colors inside minkowski()", warning.Message, StringComparison.Ordinal);
+        var leaf = Assert.Single(result.Leaves);
+        Assert.Equal(new NodeAppearance(new Rgba32(0, 0, 255, 255)), leaf.Appearance);
     }
 
     /// <summary>

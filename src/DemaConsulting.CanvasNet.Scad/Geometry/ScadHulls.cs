@@ -39,7 +39,8 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         operand convex (within its documented tolerance) or refuses; a child that contains a boolean or a mesh
 ///         that is not convex is reported (<see cref="ScadFeatureIds.MinkowskiNonConvex"/>) and the module is
 ///         omitted as a whole. A 2D <c>minkowski</c> is deferred (<see cref="ScadFeatureIds.Minkowski2D"/>). A
-///         module with one child is that child, after its convexity has been verified in the same way.
+///         module with one child is that child's geometry, after its convexity has been verified in the same way and
+///         any child appearances have been stripped.
 ///     </para>
 ///     <para>
 ///         <b>Budget and cancellation.</b> The triangle count of a hull or a sum is known only once it is built
@@ -411,7 +412,7 @@ internal static class ScadHulls
 
             WarnColors(node, hasAppearance, context);
             return members.Count == 1
-                ? VerifyLoneChild(node, children[0], members[0], context)
+                ? VerifyLoneChild(node, children[0], members[0], hasAppearance, context)
                 : Fold(node, members, context);
         }
         catch (NotSupportedException ex)
@@ -448,18 +449,27 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Verifies that a lone child is convex (a sum with a point would be the child itself) and returns it unchanged.
+    ///     Verifies that a lone child is convex (a sum with a point would be the child itself) and returns its geometry
+    ///     without child appearances.
     /// </summary>
     /// <remarks>
     ///     The sum with a small tetrahedron makes <see cref="MinkowskiSum.ConvexSum"/> verify the member; the sum is
-    ///     discarded, so nothing is created and nothing is charged.
+    ///     discarded, so nothing is created and nothing is charged. The child scene is cloned iteratively only when
+    ///     it carries an appearance, preserving every mesh, transform, group, and CSG node while removing the
+    ///     appearance wrappers so an enclosing color can apply.
     /// </remarks>
     /// <param name="node">The instance.</param>
     /// <param name="child">The child.</param>
     /// <param name="members">The convex members of the child.</param>
+    /// <param name="hasAppearance">Whether the child scene carries an appearance.</param>
     /// <param name="context">The build context.</param>
-    /// <returns>The child, or nothing after a report.</returns>
-    private static ScadGeo VerifyLoneChild(ScadInstance node, ScadGeo child, List<Mesh> members, ScadGeometryContext context)
+    /// <returns>The verified child geometry, or nothing after a report.</returns>
+    private static ScadGeo VerifyLoneChild(
+        ScadInstance node,
+        ScadGeo child,
+        List<Mesh> members,
+        bool hasAppearance,
+        ScadGeometryContext context)
     {
         foreach (var member in members)
         {
@@ -473,7 +483,85 @@ internal static class ScadHulls
             _ = MinkowskiSum.ConvexSum(member, ConvexityProbe, context.Cancellation);
         }
 
-        return child;
+        return hasAppearance ? StripAppearances(child, context) : child;
+    }
+
+    /// <summary>
+    ///     Removes appearances from a lone Minkowski child without changing its geometry or local transforms.
+    /// </summary>
+    /// <remarks>
+    ///     The geometry builder must remain safe for deeply nested models, so this scene copy uses an explicit
+    ///     post-order stack rather than recursive calls. A reference map also preserves shared group or CSG
+    ///     subtrees if one is present.
+    /// </remarks>
+    /// <param name="child">The solid child whose appearances are to be removed.</param>
+    /// <param name="context">The build context.</param>
+    /// <returns>A solid with the same geometry and transforms and no appearances.</returns>
+    private static ScadGeo StripAppearances(ScadGeo child, ScadGeometryContext context)
+    {
+        var root = child.Node!;
+        var copies = new Dictionary<SceneNode, SceneNode>(ReferenceEqualityComparer.Instance);
+        var scheduled = new HashSet<SceneNode>(ReferenceEqualityComparer.Instance) { root };
+        var stack = new Stack<(SceneNode Node, bool Expanded)>();
+        stack.Push((root, false));
+
+        while (stack.Count > 0)
+        {
+            context.Tick();
+            var (node, expanded) = stack.Pop();
+            if (!expanded)
+            {
+                stack.Push((node, true));
+                switch (node)
+                {
+                    case GroupNode group:
+                        PushCopyChildren(stack, group.Children, scheduled);
+                        break;
+                    case CsgNode csg:
+                        PushCopyChildren(stack, csg.Children, scheduled);
+                        break;
+                }
+
+                continue;
+            }
+
+            SceneNode copy = node switch
+            {
+                MeshNode mesh => new MeshNode(mesh.Mesh) { Transform = mesh.Transform },
+                GroupNode group => new GroupNode(group.Children.Select(childNode => copies[childNode]))
+                {
+                    Transform = group.Transform,
+                },
+                CsgNode csg => new CsgNode(csg.Operation, csg.Children.Select(childNode => copies[childNode]))
+                {
+                    Transform = csg.Transform,
+                },
+                _ => throw new InvalidOperationException($"Unknown scene node type {node.GetType().FullName}."),
+            };
+            copies.Add(node, copy);
+        }
+
+        return ScadGeo.FromSolid(copies[root], child.Bounds, child.IsTight, child.IsApproximate, child.Reach);
+    }
+
+    /// <summary>
+    ///     Pushes scene children in reverse order for the iterative appearance-stripping walk.
+    /// </summary>
+    /// <param name="stack">The walk stack.</param>
+    /// <param name="children">The children.</param>
+    /// <param name="scheduled">The nodes already scheduled for copying.</param>
+    private static void PushCopyChildren(
+        Stack<(SceneNode Node, bool Expanded)> stack,
+        IReadOnlyList<SceneNode> children,
+        HashSet<SceneNode> scheduled)
+    {
+        for (var i = children.Count - 1; i >= 0; i--)
+        {
+            if (scheduled.Add(children[i]))
+            {
+                stack.Push((children[i], false));
+            }
+        }
     }
 
     /// <summary>

@@ -170,13 +170,16 @@ the same name builds its own geometry without a report.
 **Tests**: `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_TwoSeparatedCubes_IsTheConvexSolidSpanningBoth`,
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_ChildrenAreTransformedBeforeTheHull`,
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_MirroredAndRotatedChildren_GiveAPositiveVolumeMesh`,
-`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_UnionOfChildrenViaGroupsAndUserModules_IsOneHull`
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_UnionOfChildrenViaGroupsAndUserModules_IsOneHull`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_LoneColoredChild_WarnsAndDropsAppearance`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance`
 
 Asserts that the hull of two unit cubes ten apart is one closed mesh at the scene root with volume 11, bounds
 11 x 1 x 1, twelve triangles and no report; that translated, quarter-turned, and scaled children are hulled in
 their transformed positions (bounds x -1..6, y 0..2, z 0..3); that mirrored and rotated children give a closed
-mesh of positive volume; and that the children of a user module, a loop, and a union are one point set, the
-hull being byte-identical to the one of the same cubes written as direct children.
+mesh of positive volume; that the children of a user module, a loop, and a union are one point set, the hull being
+byte-identical to the one of the same cubes written as direct children; and that a lone colored child warns, is
+uncolored in the result, keeps its transform, and takes an enclosing color.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull2D: Hull Of Shapes
 
@@ -219,13 +222,16 @@ builds nothing and reports nothing of its own.
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_TransformedConvexChildren_AreSummed`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_UnionOfConvexChildren_Distributes`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_ConvexityArgumentIsIgnored`,
-`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_HullChild_IsConvex`
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_HullChild_IsConvex`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance`
 
 Asserts that a 10 x 6 x 4 block summed with a ball of 16 fragments is a closed mesh with bounds -1..11, -1..7,
 -1..5 and a volume between the block with its faces added and the exact rounded block; that a translated box and a
 quarter-turned box sum to the 4 x 3 x 5 box (volume 60); that a union on either side or both gives two or four
-boxes by distribution; that the `convexity` argument, named or positional, changes nothing; and that the output
-of a hull is an accepted operand and a lone convex child is itself (twelve triangles charged).
+boxes by distribution; that the `convexity` argument, named or positional, changes nothing; that the output
+of a hull is an accepted operand and a lone convex child keeps its geometry and charge; and that a colored lone
+child warns and is uncolored while preserving its transform, with an enclosing color applying afterward.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex: Non-Convex Operands
 
@@ -264,9 +270,9 @@ vertices each are one `scad-minkowski-too-complex` report with nothing built, an
 Asserts, for hulls of boxes and spheres, an extruded 2D hull, sums of one, two, and three children, a union
 operand, and the reported cases (a boolean, a flat hull, and a fold whose second step is too complex after its
 first step produced sums), that the charge equals the triangles of the operands built alone plus the triangles of
-the meshes in the scene, so the temporary sums are refunded and nothing leaks on a report; and that a limit
-equal to the exact charge (36) builds, one below throws a `ScadEvaluationException` at the module's location with
-the limit in its message.
+the meshes in the scene, that a colored lone sum adds no charge while stripping its appearance, so the temporary
+sums are refunded and nothing leaks on a report; and that a limit equal to the exact charge (36) builds, one below
+throws a `ScadEvaluationException` at the module's location with the limit in its message.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation: Cancellation
 
