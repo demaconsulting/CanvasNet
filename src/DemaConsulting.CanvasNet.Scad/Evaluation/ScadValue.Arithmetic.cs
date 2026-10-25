@@ -94,9 +94,11 @@ internal readonly partial struct ScadValue
     ///     Indexes a vector or a string.
     /// </summary>
     /// <remarks>
-    ///     The index must be a finite number and is truncated toward zero. A vector yields the element at that
-    ///     position and a string yields the one-scalar string there (strings are indexed by Unicode scalar, so a
-    ///     surrogate pair is one element). A negative or too large position, a non-numeric or non-finite index, and
+    ///     The index must be a finite, non-negative number; a fractional index is truncated toward zero
+    ///     (<c>[10, 20, 30][1.5]</c> is <c>20</c>). A vector yields the element at that position and a string yields
+    ///     the one-scalar string there (strings are indexed by Unicode scalar, so a surrogate pair is one element).
+    ///     Every negative index (including a fraction such as <c>-0.5</c>), a too large position, a non-numeric or
+    ///     non-finite index (NaN, infinity), and
     ///     any other target (number, boolean, range, function, <c>undef</c>) yield <c>undef</c> silently.
     /// </remarks>
     /// <param name="index">The index value.</param>
@@ -109,9 +111,15 @@ internal readonly partial struct ScadValue
             return Undef;
         }
 
-        // Truncate toward zero first; a negative result (below -1 before truncation) is out of range
+        // Any negative index is out of range, including a fraction in (-1, 0) that would truncate to zero; only
+        // then is a non-negative fraction truncated toward zero
+        if (index._number < 0)
+        {
+            return Undef;
+        }
+
         var position = Math.Truncate(index._number);
-        if (position < 0 || position >= int.MaxValue)
+        if (position >= int.MaxValue)
         {
             return Undef;
         }

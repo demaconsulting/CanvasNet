@@ -75,6 +75,23 @@ public class ScadEvaluatorDeterminismTests
     }
 
     /// <summary>
+    ///     Validates that a program can seed <c>rands</c> by the name <c>seed_value</c> and gets the numbers the
+    ///     positional seed gives.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorDeterminism_Rands_NamedSeedValue_MatchesPositionalSeed()
+    {
+        // Arrange
+        const string Source = "echo(rands(0, 1, 3, seed_value = 7) == rands(0, 1, 3, 7), rands(1, 2, 2, seed_value = 3) == rands(1, 2, 2, seed_value = 3));";
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal("ECHO: true, true", Assert.Single(output.Echo));
+        Assert.Empty(output.Diagnostics);
+    }
+    /// <summary>
     ///     Validates that concurrent evaluations of the same program from several threads give identical results.
     /// </summary>
     [Fact]

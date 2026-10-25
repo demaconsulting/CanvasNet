@@ -146,9 +146,10 @@ sections:
                 title: >-
                   The ScadBuiltinFunctions unit shall provide rands, which produces numbers in a
                   half-open range from a documented, platform-independent generator: a given seed
-                  yields the same numbers on every platform and starts afresh at every call, a call
-                  without a seed continues one deterministic per-evaluation stream, the count is
-                  truncated to a whole number, and invalid arguments yield undef with a warning.
+                  (the fourth parameter, named seed_value) yields the same numbers on every platform and
+                  starts afresh at every call, a call without a seed continues one deterministic
+                  per-evaluation stream, the count is truncated to a whole number, and invalid arguments yield
+                  undef with a warning.
                 justification: |
                   Randomness in a model must not make two evaluations of the same document differ;
                   the generator is therefore specified exactly and pinned by golden sequences.
@@ -160,6 +161,7 @@ sections:
                   - ScadBuiltinRandom_Rands_ScalesToRange
                   - ScadBuiltinRandom_Rands_WithoutSeed_AdvancesDeterministicStream
                   - ScadBuiltinRandom_Rands_NamedArguments_AreAccepted
+                  - ScadBuiltinRandom_Rands_SeedValueName_IsDeterministicAndSeedIsUnknown
                   - ScadBuiltinRandom_Rands_Count_IsTruncated
                   - ScadBuiltinRandom_Rands_InvalidArguments_ReturnUndefWithWarning
 

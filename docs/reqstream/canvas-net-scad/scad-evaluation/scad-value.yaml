@@ -137,10 +137,12 @@ sections:
 
               - id: CanvasNetScad-ScadEvaluation-ScadValue-Indexing
                 title: >-
-                  The ScadValue type shall index a vector by a finite number truncated toward zero,
-                  index a string by Unicode scalar value, read the x, y, and z members of a vector as
-                  its first three elements, and yield undef, without raising an error, for an
-                  out-of-range or non-numeric index, a non-indexable target, or any other member.
+                  The ScadValue type shall index a vector by a finite, non-negative number truncated
+                  toward zero, index a string by Unicode scalar value, read the x, y, and z members of
+                  a vector as its first three elements, and yield undef, without raising an error, for
+                  a negative index (including a fraction between minus one and zero), a NaN or
+                  infinite index, an out-of-range or non-numeric index, a non-indexable target, or
+                  any other member.
                 justification: |
                   Element access is pervasive in parametric models; lenient, well-defined results let
                   a model probe optional data without failing.
@@ -159,14 +161,19 @@ sections:
                 title: >-
                   The ScadValue type shall hold a range as a start, step, and end without
                   materializing its elements, compute its element count and the element at an index
-                  from the start and step (never by accumulation), saturate the count for enormous
-                  ranges, and flag a range with a zero step or a non-finite part as invalid.
+                  from the start and step (never by accumulation), include the last element only when
+                  it lies within floating-point rounding error of the end (a few units in the last
+                  place of the magnitudes involved) and never a value genuinely beyond it, saturate
+                  the count for enormous ranges, and flag a range with a zero step or a non-finite
+                  part as invalid.
                 justification: |
                   Ranges such as 0 to 1e12 must be cheap to hold and to measure so that a loop budget
                   can reject them before any iteration happens.
                 tests:
                   - ScadRange_Count_ReturnsExpected
                   - ScadRange_Count_HugeRange_Saturates
+                  - ScadRange_Count_AbsorbsRoundingErrorButNotRealOvershoot
+                  - ScadRange_ElementAt_LastElementIsWithinEndAndNextIsBeyond
                   - ScadRange_ElementAt_ComputesFromIndex
                   - ScadRange_IsInvalid_ZeroOrNonFiniteParts
                   - ScadRange_Equals_ComparesStartStepEnd

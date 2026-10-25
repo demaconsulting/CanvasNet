@@ -98,8 +98,10 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
   are trusted** — the caller chose them, and this keeps hosts whose temporary folder is itself a link working.
   Strict rejection was chosen over resolving real paths because resolution is ambiguous (relative links, chains,
   junction targets) and racy; it tightens an earlier rule that allowed a file link whose target was inside a root.
-  To use linked content, a caller adds the real directory as a library path. **Residual risk (documented):** an
-  attacker who can modify the tree between the check and the open (a time-of-check/time-of-use race) is outside
+  To use linked content, a caller adds the real directory as a library path. **Residual risk (documented, accepted):**
+  the sandbox protects against path-based escapes in static file trees; it is **not a security boundary against a
+  concurrent local attacker with write access to the included folders**. Such an attacker, who can modify the tree
+  between the check and the open (a time-of-check/time-of-use race), is outside
   the threat model of an untrusted document plus caller-chosen directories: the link walk and the later
   `File.Exists`/`File.OpenRead` are separate file-system operations, so a component swapped for a link in
   between is not noticed. **Hard links cannot be detected:** a hard link is an ordinary directory entry that names

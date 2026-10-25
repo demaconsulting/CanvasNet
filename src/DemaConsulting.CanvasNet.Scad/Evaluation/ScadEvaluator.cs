@@ -96,6 +96,10 @@ internal sealed partial class ScadEvaluator
     [ThreadStatic]
     private static ScadEvaluatorFallbackSlots? _slotsForThread;
 
+    /// <summary>The action the current thread uses to start a fallback thread instead of <see cref="Thread.Start()"/>, or <see langword="null"/> (a test seam).</summary>
+    [ThreadStatic]
+    private static Action<Thread>? _threadStarterForThread;
+
     /// <summary>The managed thread id that completed the most recent evaluation started by the current thread.</summary>
     [ThreadStatic]
     private static int _lastRunThreadId;
@@ -168,6 +172,17 @@ internal sealed partial class ScadEvaluator
     }
 
     /// <summary>
+    ///     Gets or sets the action that evaluations started by the <em>calling thread</em> use to start a fallback
+    ///     thread instead of <see cref="Thread.Start()"/>; <see langword="null"/> (the default) starts it normally
+    ///     (a test seam that simulates a thread-start failure, such as an out-of-memory condition).
+    /// </summary>
+    internal static Action<Thread>? ThreadStarterForCurrentThread
+    {
+        get => _threadStarterForThread;
+        set => _threadStarterForThread = value;
+    }
+
+    /// <summary>
     ///     Gets the managed thread id that completed the most recent evaluation started by the calling thread: the
     ///     calling thread itself unless the pass fell back to a dedicated thread (a test hook; per calling thread).
     /// </summary>
@@ -180,7 +195,7 @@ internal sealed partial class ScadEvaluator
     /// <param name="settings">The settings.</param>
     /// <param name="sink">The sink that receives echo, warnings and unsupported-feature reports. It also holds them when evaluation fails.</param>
     /// <returns>The evaluation output.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown for a failed assertion, an exceeded limit, an include problem and similar errors.</exception>
+    /// <exception cref="ScadEvaluationException">Thrown for a failed assertion, an exceeded limit, an include problem, a dedicated large-stack thread that cannot be started (for example in a 32-bit process) and similar errors.</exception>
     /// <exception cref="ScadSyntaxException">Thrown when an included or used file has a syntax error.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the settings' cancellation token is canceled.</exception>
     internal static ScadEvaluationOutput Evaluate(ScadDocument document, ScadEvaluationSettings settings, ScadEvaluationSink sink)
@@ -211,6 +226,7 @@ internal sealed partial class ScadEvaluator
     /// <param name="settings">The settings.</param>
     /// <param name="sink">The sink.</param>
     /// <returns>The evaluation output.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the dedicated large-stack thread the restart needs cannot be created or started.</exception>
     internal static ScadEvaluationOutput Evaluate(ScadSourceUnit unit, ScadEvaluationSettings settings, ScadEvaluationSink sink)
     {
         var executedOn = Environment.CurrentManagedThreadId;
@@ -271,10 +287,12 @@ internal sealed partial class ScadEvaluator
     ///         about 19 to 21 MiB while a recursion of 5,000 or 16,384 frames runs, and nothing after it ends, while
     ///         the process's virtual size grows by about 767 MiB per thread (the operating system reports roughly
     ///         twice the requested reservation). This is
-    ///         intended for 64-bit hosts; it is not supported in a 32-bit process (the reservation can fail) nor under
-    ///         strict overcommit accounting (for example <c>vm.overcommit_memory=2</c>) or a tight virtual-memory
-    ///         limit, where thread creation fails with the runtime's own thread-creation exception, which propagates
-    ///         to the caller unchanged.
+    ///         intended for 64-bit hosts. When the reservation cannot be made (a 32-bit process, strict overcommit
+    ///         accounting such as <c>vm.overcommit_memory=2</c>, or a tight virtual-memory limit) creating or
+    ///         starting the thread fails with <see cref="OutOfMemoryException"/> or <see cref="ThreadStartException"/>;
+    ///         that failure, and only that, is converted to a <see cref="ScadEvaluationException"/> (the slot is
+    ///         released) so that the caller sees the documented controlled failure instead of a runtime exception.
+    ///         Failures of the evaluation itself are never converted.
     ///     </para>
     /// </remarks>
     /// <typeparam name="T">The result type.</typeparam>
@@ -282,6 +300,7 @@ internal sealed partial class ScadEvaluator
     /// <param name="cancellation">The token that ends the wait for a slot.</param>
     /// <returns>The result of the work.</returns>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled before a slot was acquired.</exception>
+    /// <exception cref="ScadEvaluationException">Thrown when the dedicated thread cannot be created or started.</exception>
     private static T RunOnEvaluatorThread<T>(Func<T> work, CancellationToken cancellation)
     {
         var result = default(T);
@@ -294,7 +313,7 @@ internal sealed partial class ScadEvaluator
         try
         {
             Interlocked.Increment(ref _fallbackCount);
-            var thread = new Thread(
+            var thread = StartFallbackThread(
                 () =>
                 {
                     CultureInfo.CurrentCulture = culture;
@@ -308,13 +327,7 @@ internal sealed partial class ScadEvaluator
                         // Every exception is handed back to the caller unchanged, so none may be lost here
                         failure = ExceptionDispatchInfo.Capture(ex);
                     }
-                },
-                EvaluatorStackSize)
-            {
-                IsBackground = true,
-                Name = FallbackThreadName,
-            };
-            thread.Start();
+                });
             thread.Join();
         }
         finally
@@ -325,6 +338,48 @@ internal sealed partial class ScadEvaluator
         failure?.Throw();
         return result!;
     }
+
+    /// <summary>
+    ///     Creates and starts the dedicated fallback thread, converting a failure to obtain it into the documented
+    ///     controlled failure.
+    /// </summary>
+    /// <remarks>
+    ///     Only the creation and the start of the thread are guarded: reserving <see cref="EvaluatorStackSize"/>
+    ///     (384 MiB) of address space can fail with <see cref="OutOfMemoryException"/> (typically in a 32-bit process
+    ///     or under a tight virtual-memory limit) or with <see cref="ThreadStartException"/>. The evaluation itself
+    ///     runs on the new thread, so an <see cref="OutOfMemoryException"/> it raises is captured there and rethrown
+    ///     unchanged by the caller; it is never converted.
+    /// </remarks>
+    /// <param name="body">The thread body.</param>
+    /// <returns>The started thread.</returns>
+    /// <exception cref="ScadEvaluationException">Thrown when the thread cannot be created or started.</exception>
+    private static Thread StartFallbackThread(ThreadStart body)
+    {
+        try
+        {
+            var thread = new Thread(body, EvaluatorStackSize)
+            {
+                IsBackground = true,
+                Name = FallbackThreadName,
+            };
+            (_threadStarterForThread ?? StartThread)(thread);
+            return thread;
+        }
+        catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException)
+        {
+            throw new ScadEvaluationException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Evaluation needs a dedicated thread with a {EvaluatorStackSize / (1024 * 1024)} MiB stack and it could not be started (not enough memory or address space; a 32-bit process cannot supply it)"),
+                ex);
+        }
+    }
+
+    /// <summary>
+    ///     Starts a thread (the default of the thread-start seam).
+    /// </summary>
+    /// <param name="thread">The thread.</param>
+    private static void StartThread(Thread thread) => thread.Start();
 
     /// <summary>
     ///     Runs one evaluation pass.

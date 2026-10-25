@@ -118,8 +118,12 @@ give `undef` and a circular-reference warning, and that a function reads variabl
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit`,
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren`,
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit`,
-`ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody`,
-`ScadEvaluatorIncludeUseTests.ScadEvaluatorIncludeUse_Use_LibraryModulesSeeCallersSpecialVariables`
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_BuiltinModuleArgument_BindsForChildrenOnly`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_BuiltinModuleArgument_IsDynamicAndArgumentsUseCallSite`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_PropagatesToNestedChildren`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_NearestBindingWins`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_UserModuleArgument_ReachesBodyAndChildren`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_BuiltinModuleArgumentAroundChildren_ReachesReevaluatedChildren`,
 
 Asserts the defaults of the fragment variables, the time, and the preview flag, that the time comes from the
 settings, that a binding made by a caller is visible through nested module and function calls, that a `let`
@@ -128,7 +132,14 @@ shadows an outer binding, that a long tail recursion that binds no `$` name does
 binds one at every level fails with the recursion error, that a `$` loop variable is dynamic for the body, that
 a library module sees its caller's special variables, that a `$` variable assigned in a child list reaches the
 modules and functions its children call, and that the frames child lists add are bounded by the recursion limit
-(nesting a module a thousand levels deep ends in `Recursion too deep (limit 16)`, not a stack error).
+(nesting a module a thousand levels deep ends in `Recursion too deep (limit 16)`, not a stack error). The
+built-in module scenarios assert that a named `$` argument (`translate([0, 0, 0], $x = 7) echo($x);`) is bound for
+the instance's children only (outside it the variable is unknown), is visible to the modules and functions the
+children call, that the argument's own expression is evaluated at the call site and a repeated name shadows, that
+``,``, and `` arguments are recorded on the instance and inherited by nested children but not by
+siblings, that the nearest binding wins (an argument beats an enclosing assignment and an inner instance beats an
+outer one), that a `$` argument of a user module reaches its body and its re-evaluated children, and that a built-in
+module wrapped around `children()` binds for the re-evaluated children without leaking to other call sites.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-Functions: User Functions
 
@@ -284,11 +295,17 @@ of named and positional arguments with commas, and that the sink buffers lines i
 
 **Tests**: `ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_AssertStatement_FailureAbortsWithMessage`,
 `ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_AssertStatement_PassingHasNoEffect`,
+`ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_AssertWithoutCondition_Fails`,
+`ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_AssertExtraAndUnknownArguments_WarnAndAreIgnored`,
+`ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_AssertExtraArguments_StillFailOnFalseCondition`,
 `ScadEvaluatorFunctionTests.ScadEvaluatorFunction_AssertExpression_Fails_WithMessage`,
 `ScadEvaluatorDiagnosticsTests.ScadEvaluatorDiagnostics_AssertFailure_HasLocationAndMessage`
 
 Asserts that a failed assertion aborts with the message and the location of the assertion (with and without a
-message, and as a statement and as an expression), and that a passing assertion has no effect.
+message, and as a statement and as an expression), that a passing assertion has no effect, that an `assert` without a
+condition fails with `Assertion failed: the condition argument is missing` (statement and expression form, with the
+location of the assert), and that surplus positional and unknown named arguments are ignored with the warnings
+`Ignoring extra arguments to assert` and `Ignoring unknown argument 'x' of assert` without changing the outcome.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-Imports: Include And Use Semantics
 
@@ -537,7 +554,10 @@ untouched.
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_ConcurrentTinyCallerStacks_BoundFallbackThreads`,
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased`,
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot`,
-`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers`
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers`,
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_ThreadStartOutOfMemory_ThrowsEvaluationException`,
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_ThreadStartFailure_ReleasesTheSlot`,
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_ThreadStarterSeam_StartsTheFallbackThread`
 
 Asserts, over the shapes of function, closure, mutual, module, and `children()` recursion, `let`, `echo`, and
 `assert` chains, ternary chains, nested expressions and vector literals inside recursion, and comprehensions, that
@@ -553,7 +573,14 @@ the set's start count rises by one) or cancels (see the Cancellation scenario); 
 is free again. Because nothing else can acquire, wait on, or count against the private set, evaluations that other
 tests run in parallel cannot satisfy or disturb the waits (a process-wide waiter counter could be satisfied by
 another test's fallback hop). A further scenario holds two independent sets, waits one caller on each, and asserts
-that each set counts exactly its own waiter. The concurrent-fallback scenario still uses the process-wide set and
+that each set counts exactly its own waiter. The thread-start failure scenarios inject an
+`OutOfMemoryException` through the per-thread `ScadEvaluator.ThreadStarterForCurrentThread` seam (which replaces
+`Thread.Start` for the calling thread) and assert that a tiny-stack caller gets a `ScadEvaluationException` naming the
+dedicated thread and the 32-bit limitation with the `OutOfMemoryException` as its inner exception, that five failures
+in a row on a two-slot set leave every slot free and a later evaluation (seam removed) still succeeds, and that a
+pass-through starter is actually used for the hop. Out-of-memory conditions raised by the evaluation itself cannot be
+converted by construction: the pass runs on the new thread and its exceptions are captured and rethrown unchanged.
+The concurrent-fallback scenario still uses the process-wide set and
 asserts its peak.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery: Invisible Restart
@@ -576,6 +603,7 @@ null handlers and propagating a handler exception.
 **Tests**: `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_SameDocumentTwice_GivesIdenticalResults`,
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults`,
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation`,
+`ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_Rands_NamedSeedValue_MatchesPositionalSeed`,
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults`,
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible`,
 `ScadEvaluatorCultureTests.ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture`,

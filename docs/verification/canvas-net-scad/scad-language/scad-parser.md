@@ -393,6 +393,7 @@ and that a whitespace-and-comment-only source is an empty program located at the
 `ScadParserLimitTests.ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread`,
 `ScadParserLimitTests.ScadParser_Parse_OnTinyCallerStack_PreservesExceptionsAndCulture`,
 `ScadParserLimitTests.ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads`,
+`ScadParserLimitTests.ScadParser_Parse_ThreadStartOutOfMemory_ThrowsSyntaxExceptionAndReleasesSlot`,
 `ScadParserLimitTests.ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace`,
 `ScadParserLimitTests.ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal`,
 `ScadParserLimitTests.ScadParser_Parse_Concurrent_ProducesIndependentResults`
@@ -405,7 +406,11 @@ and rejected when far beyond the limit; a left-associative chain of 255 operands
 and chains of 256 and of 100,000 operands are rejected, while a 200-operand chain is accepted; long index,
 member, and call postfix chains are rejected; left-leaning chains stacked through parentheses are rejected by the
 verified tree height although the parser's own recursion stays shallow; and an input whose deep chain starts on
-line 3 reports line 3. Hostile inputs of seven shapes, 100,000 levels deep, are parsed on a thread with a 1 MiB
+line 3 reports line 3. A thread-start failure injected through the per-thread
+`ScadParser.ThreadStarterForCurrentThread` seam (an
+`OutOfMemoryException`, as in a 32-bit process) is shown to surface as a `ScadSyntaxException` located on line 1,
+repeatedly (more times than there are fallback slots, so a leaked slot would block), after which the same input
+parses normally. Hostile inputs of seven shapes, 100,000 levels deep, are parsed on a thread with a 1 MiB
 stack and each produces the typed syntax exception rather than a stack overflow. Determinism independent of the
 caller's stack is proved by two theories over eleven pathological shapes (parentheses, vectors, prefix
 operators, ternaries, exponent chains, comprehension chains, function literals, call arguments, blocks,

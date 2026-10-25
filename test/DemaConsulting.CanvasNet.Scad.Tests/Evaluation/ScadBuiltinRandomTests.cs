@@ -145,7 +145,7 @@ public class ScadBuiltinRandomTests
         var host = new ScadTestBuiltinHost();
 
         // Act
-        var named = host.CallNamed("rands", ("seed", N(1)), ("value_count", N(3)), ("max_value", N(1)), ("min_value", N(0)));
+        var named = host.CallNamed("rands", ("seed_value", N(1)), ("value_count", N(3)), ("max_value", N(1)), ("min_value", N(0)));
         var positional = host.Call("rands", N(0), N(1), N(3), N(1));
 
         // Assert
@@ -153,6 +153,30 @@ public class ScadBuiltinRandomTests
         Assert.Empty(host.Warnings);
     }
 
+    /// <summary>
+    ///     Validates that the seed parameter is named <c>seed_value</c>: a named seeded call is deterministic and equals
+    ///     the positional one, while the old name <c>seed</c> is an unknown argument.
+    /// </summary>
+    [Fact]
+    public void ScadBuiltinRandom_Rands_SeedValueName_IsDeterministicAndSeedIsUnknown()
+    {
+        // Arrange
+        var host = new ScadTestBuiltinHost();
+        var other = new ScadTestBuiltinHost();
+
+        // Act
+        var first = host.CallNamed("rands", ("min_value", N(0)), ("max_value", N(10)), ("value_count", N(4)), ("seed_value", N(42)));
+        var second = other.CallNamed("rands", ("seed_value", N(42)), ("min_value", N(0)), ("max_value", N(10)), ("value_count", N(4)));
+        var positional = other.Call("rands", N(0), N(10), N(4), N(42));
+        var wrongName = host.CallNamed("rands", ("min_value", N(0)), ("max_value", N(10)), ("value_count", N(4)), ("seed", N(42)));
+
+        // Assert
+        Assert.Equal(first, second);
+        Assert.Equal(first, positional);
+        Assert.Empty(other.Warnings);
+        Assert.Equal("Ignoring unknown argument 'seed' of function 'rands'", Assert.Single(host.Warnings));
+        Assert.Equal(4, wrongName.AsVector.Count);
+    }
     /// <summary>
     ///     Validates that a fractional count is truncated and that a zero count gives an empty vector.
     /// </summary>

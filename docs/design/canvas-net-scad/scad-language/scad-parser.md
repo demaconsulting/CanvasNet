@@ -148,10 +148,16 @@ never constant-folded: `-5` is `ScadUnaryExpression(Negate, ScadNumberLiteral(5)
   `InsufficientExecutionStackException` (the runtime stack guard, not the depth counter) does it restart the
   parse on a fallback thread through `RunOnParserThread`. It also records the completing thread in
   `LastParseThreadId`.
-- `RunOnParserThread<T>(Func<T>)` (private, static) — waits for a slot of the static `SemaphoreSlim`
-  (bounding concurrent fallback threads), runs the work on a new `ScadParser` thread with
+- `RunOnParserThread<T>(Func<T>, ScadSourceLocation)` (private, static) — waits for a slot of the static
+  `SemaphoreSlim` (bounding concurrent fallback threads), runs the work on a new `ScadParser` thread with
   `ParserStackSize` (16 MiB), joins it, releases the slot, and rethrows any captured exception with
-  `ExceptionDispatchInfo`; see _Depth and limit mechanics_.
+  `ExceptionDispatchInfo`; see _Depth and limit mechanics_. `StartFallbackThread` creates and starts the thread
+  and is the only guarded step: `OutOfMemoryException` or `ThreadStartException` (a 32-bit process, a tight
+  virtual-memory limit) is converted to a `ScadSyntaxException` at the first token, reported like the nesting limit
+  the fallback stands in for (`Nesting cannot be checked: the dedicated 16 MiB parser thread could not be started
+  (not enough memory or address space)`), and the slot is released. The internal seam
+  `ScadParser.ThreadStarterForCurrentThread` replaces `Thread.Start` for the calling thread so a test can simulate
+  the failure.
 - `ParseProgramGuarded(bool stackShortageIsSyntaxError)` — runs `ParseProgram()`; when the argument is true
   (the fallback thread) a tripped stack guard is converted into the `Nesting too deep` error, otherwise
   `InsufficientExecutionStackException` escapes to `ParseTokens`. It then calls `ScadTreeDepth.Verify` on
@@ -407,7 +413,11 @@ with `ExceptionDispatchInfo` and rethrown on the caller, preserving its type, lo
 stack trace; an exception from the inline attempt (syntax errors, nesting errors) propagates directly. The
 caller's `CurrentCulture` and `CurrentUICulture` are applied to the fallback thread, `ExecutionContext`
 flows as for any thread start, and the only shared state is the thread-safe gate and counters, so the
-static entry points remain safe for concurrent use. `ScadDocument.Parse`/`Open` carry no cancellation
+static entry points remain safe for concurrent use. A failure to create or start the fallback thread
+(`OutOfMemoryException`, `ThreadStartException`; the 16 MiB reservation is small, but a 32-bit process or a tight
+address-space limit can still refuse it) is converted to `ScadSyntaxException` as described for
+`RunOnParserThread`; an exception raised by the parse itself on the fallback thread is never converted.
+`ScadDocument.Parse`/`Open` carry no cancellation
 token, so there is nothing to honor. The null-argument and source-length checks run before any parsing.
 
 _Derivation of the stack size._ Each nesting level costs a fixed set of recursive frames (for a

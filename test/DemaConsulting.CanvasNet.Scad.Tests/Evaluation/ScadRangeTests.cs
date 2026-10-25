@@ -53,6 +53,77 @@ public class ScadRangeTests
     }
 
     /// <summary>
+    ///     Validates that the last element survives floating-point rounding error (the end is reached up to a few
+    ///     ULPs) but that a value that is genuinely beyond the end is never included.
+    /// </summary>
+    /// <param name="start">The first value.</param>
+    /// <param name="step">The increment.</param>
+    /// <param name="end">The limit.</param>
+    /// <param name="expected">The expected count.</param>
+    [Theory]
+    [InlineData(0, 0.1, 0.3, 4)]
+    [InlineData(0, 0.1, 0.2999999995, 3)]
+    [InlineData(0, 0.1, 0.29999999999, 3)]
+    [InlineData(0, 0.1, 0.7, 8)]
+    [InlineData(0, 0.1, 0.6999999, 7)]
+    [InlineData(0, 0.01, 1, 101)]
+    [InlineData(0, 0.01, 0.9999999, 100)]
+    [InlineData(-1, 0.1, 1, 21)]
+    [InlineData(0.3, -0.1, 0, 4)]
+    [InlineData(0.3, -0.1, 0.0000000005, 3)]
+    [InlineData(1, -0.1, 0, 11)]
+    [InlineData(0, -0.1, -0.3, 4)]
+    [InlineData(0, -0.1, -0.2999999995, 3)]
+    [InlineData(1e15, 0.5, 1e15 + 2, 5)]
+    [InlineData(1e15, 0.5, 1e15 + 1.75, 4)]
+    [InlineData(1e15, 1, 1e15 + 10, 11)]
+    [InlineData(1e16, 1, 1e16 + 10, 11)]
+    [InlineData(0, 1e10, 1e12, 101)]
+    [InlineData(0, 1e-10, 3e-10, 4)]
+    [InlineData(0, 1e-10, 2.99e-10, 3)]
+    public void ScadRange_Count_AbsorbsRoundingErrorButNotRealOvershoot(double start, double step, double end, long expected)
+    {
+        // Arrange
+        var range = new ScadRange(start, step, end);
+
+        // Act
+        var count = range.Count;
+
+        // Assert: the count is exact, and the elements start at the start and run in the direction of the step
+        Assert.Equal(expected, count);
+        Assert.Equal(start, range.ElementAt(0));
+        Assert.True(Math.Sign(step) * (range.ElementAt(count - 1) - start) >= 0);
+    }
+
+    /// <summary>
+    ///     Validates that the last element of a range is never beyond the end by more than rounding error, and that
+    ///     the first element past the count would be.
+    /// </summary>
+    /// <param name="start">The first value.</param>
+    /// <param name="step">The increment.</param>
+    /// <param name="end">The limit.</param>
+    [Theory]
+    [InlineData(0, 0.1, 0.3)]
+    [InlineData(0, 0.1, 0.2999999995)]
+    [InlineData(-5, 0.7, 50)]
+    [InlineData(5, -0.3, -40)]
+    [InlineData(1e9, 0.001, 1e9 + 1)]
+    public void ScadRange_ElementAt_LastElementIsWithinEndAndNextIsBeyond(double start, double step, double end)
+    {
+        // Arrange
+        var range = new ScadRange(start, step, end);
+        var direction = Math.Sign(step);
+        var tolerance = Math.Max(Math.Abs(end), Math.Abs(start)) * 1e-15;
+
+        // Act
+        var last = range.ElementAt(range.Count - 1);
+        var next = range.ElementAt(range.Count);
+
+        // Assert: the last element does not pass the end by more than rounding error; the next one is clearly beyond
+        Assert.True(direction * (last - end) <= tolerance, $"last element {last} passes the end {end}");
+        Assert.True(direction * (next - end) > 0, $"element {next} after the last is not beyond the end {end}");
+    }
+    /// <summary>
     ///     Validates that elements are computed from the index, never accumulated.
     /// </summary>
     [Fact]

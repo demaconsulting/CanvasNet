@@ -495,6 +495,119 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
+    ///     Validates that a failure to start the dedicated thread (here an injected out-of-memory condition, as in a
+    ///     32-bit process) is reported as the documented evaluation exception, with the cause attached.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorStack_Evaluate_ThreadStartOutOfMemory_ThrowsEvaluationException()
+    {
+        // Arrange
+        var program = Shapes["function"].Make(1000);
+        var slots = new ScadEvaluatorFallbackSlots(2);
+
+        // Act
+        var ex = OnSmallStack(
+            () =>
+            {
+                ScadEvaluator.SlotsForCurrentThread = slots;
+                ScadEvaluator.ThreadStarterForCurrentThread = _ => throw new OutOfMemoryException("simulated");
+                try
+                {
+                    return Assert.Throws<ScadEvaluationException>(() => Run(program));
+                }
+                finally
+                {
+                    ScadEvaluator.ThreadStarterForCurrentThread = null;
+                    ScadEvaluator.SlotsForCurrentThread = null;
+                }
+            },
+            SmallCallerStackSize);
+
+        // Assert
+        Assert.Contains("dedicated thread", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("32-bit", ex.Message, StringComparison.Ordinal);
+        Assert.IsType<OutOfMemoryException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Validates that a failed thread start releases its slot, so repeated failures neither exhaust the slots nor
+    ///     block a later evaluation that can start its thread.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorStack_Evaluate_ThreadStartFailure_ReleasesTheSlot()
+    {
+        // Arrange
+        var program = Shapes["function"].Make(1000);
+        var slots = new ScadEvaluatorFallbackSlots(2);
+
+        // Act
+        var (failures, output) = OnSmallStack(
+            () =>
+            {
+                ScadEvaluator.SlotsForCurrentThread = slots;
+                try
+                {
+                    var count = 0;
+                    ScadEvaluator.ThreadStarterForCurrentThread = _ => throw new OutOfMemoryException("simulated");
+                    for (var i = 0; i < 5; i++)
+                    {
+                        Assert.Throws<ScadEvaluationException>(() => Run(program));
+                        count++;
+                    }
+
+                    ScadEvaluator.ThreadStarterForCurrentThread = null;
+                    return (count, Run(program));
+                }
+                finally
+                {
+                    ScadEvaluator.ThreadStarterForCurrentThread = null;
+                    ScadEvaluator.SlotsForCurrentThread = null;
+                }
+            },
+            SmallCallerStackSize);
+
+        // Assert
+        Assert.Equal(5, failures);
+        Assert.Equal("ECHO: 1000", Assert.Single(output.Echo));
+        Assert.Equal(slots.Capacity, slots.FreeSlots);
+    }
+
+    /// <summary>
+    ///     Validates that the thread-start seam is used when a pass falls back and that an ordinary starter keeps
+    ///     the evaluation working.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorStack_Evaluate_ThreadStarterSeam_StartsTheFallbackThread()
+    {
+        // Arrange
+        var program = Shapes["function"].Make(1000);
+        var started = 0;
+
+        // Act
+        var output = OnSmallStack(
+            () =>
+            {
+                ScadEvaluator.ThreadStarterForCurrentThread = thread =>
+                {
+                    started++;
+                    thread.Start();
+                };
+                try
+                {
+                    return Run(program);
+                }
+                finally
+                {
+                    ScadEvaluator.ThreadStarterForCurrentThread = null;
+                }
+            },
+            SmallCallerStackSize);
+
+        // Assert
+        Assert.Equal(1, started);
+        Assert.Equal("ECHO: 1000", Assert.Single(output.Echo));
+    }
+    /// <summary>
     ///     Takes every slot of a slot set, so the next caller that has to hop on that set must wait.
     /// </summary>
     /// <param name="slots">The slot set (private to the test; nothing else competes for it).</param>

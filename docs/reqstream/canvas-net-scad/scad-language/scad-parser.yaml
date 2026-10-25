@@ -337,8 +337,9 @@ sections:
                   the limit on every platform regardless of the stack size of the calling thread
                   (by parsing inline on the calling thread and restarting on a bounded number of
                   dedicated threads with an explicitly sized stack only when the caller's stack is
-                  too small, and propagating any exception faithfully to the caller), and shall not
-                  overflow the call stack.
+                  too small, propagating any exception faithfully to the caller, and reporting a
+                  failure to create or start such a thread as a ScadSyntaxException with the slot
+                  released), and shall not overflow the call stack.
                 justification: |
                   Bounding both the parser's recursion and the finished tree's height prevents an
                   stack overflow, which cannot be caught, here and in every later recursive
@@ -370,6 +371,7 @@ sections:
                   - ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread
                   - ScadParser_Parse_OnTinyCallerStack_PreservesExceptionsAndCulture
                   - ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads
+                  - ScadParser_Parse_ThreadStartOutOfMemory_ThrowsSyntaxExceptionAndReleasesSlot
                   - ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace
                   - ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal
                   - ScadParser_Parse_Concurrent_ProducesIndependentResults

@@ -42,6 +42,15 @@ internal sealed partial class ScadEvaluator
     /// <summary>
     ///     Instantiates a built-in module: its arguments are evaluated first, then its children.
     /// </summary>
+    /// <remarks>
+    ///     The arguments are evaluated in the scope of the call site. A named argument starting with <c>$</c> is a
+    ///     special-variable binding for the instance, exactly as for a user module: it is bound dynamically in a
+    ///     scope of its own (later arguments of the same name shadow earlier ones), and that scope is the one the
+    ///     children execute in. The binding is therefore seen by everything the instance contains, including the
+    ///     children a user module re-evaluates with <c>children()</c>, and by nothing outside it. The instance's own
+    ///     fragment settings are those of the call site with the numeric <c>$fn</c>, <c>$fa</c> and <c>$fs</c>
+    ///     arguments applied (a non-numeric one is ignored for the instance itself).
+    /// </remarks>
     /// <param name="instantiation">The instantiation.</param>
     /// <param name="scope">The scope.</param>
     /// <param name="output">The instance list.</param>
@@ -49,13 +58,20 @@ internal sealed partial class ScadEvaluator
     {
         var values = EvaluateArguments(instantiation.Arguments, scope);
         var arguments = new ScadInstanceArgument[values.Length];
+        var instanceScope = scope;
         for (var i = 0; i < values.Length; i++)
         {
             arguments[i] = new ScadInstanceArgument(values[i].Name, values[i].Value);
+            if (values[i].Name is { } name && ScadScope.IsSpecial(name))
+            {
+                // A scope with the same lexical parent keeps every name visible and only adds the dynamic frame
+                instanceScope = instanceScope == scope ? new ScadScope(scope, scope.Specials) : instanceScope;
+                BindValue(instanceScope, name, values[i].Value, instantiation.Location);
+            }
         }
 
         var children = new List<ScadInstance>();
-        ExecuteBlock(instantiation.Children, scope, children);
+        ExecuteBlock(instantiation.Children, instanceScope, children);
         output.Add(NewInstance(ScadInstanceKind.BuiltinModule, instantiation.Name, arguments, children, ScadModifiers.None, scope, instantiation.Location));
     }
 

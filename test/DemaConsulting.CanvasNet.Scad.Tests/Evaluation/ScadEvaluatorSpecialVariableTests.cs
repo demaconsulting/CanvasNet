@@ -386,4 +386,152 @@ public class ScadEvaluatorSpecialVariableTests
         // Assert
         Assert.Contains("Recursion too deep (limit 50)", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Validates that a named <c>$</c> argument of a built-in module is bound dynamically for the children of that
+    ///     instance only.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_BuiltinModuleArgument_BindsForChildrenOnly()
+    {
+        // Arrange
+        const string Source = """
+            translate([0, 0, 0], $x = 7) echo($x);
+            echo($x);
+            """;
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal(["ECHO: 7", "ECHO: undef"], output.Echo);
+        Assert.Equal("Ignoring unknown variable '$x'", Assert.Single(output.Diagnostics).Message);
+    }
+
+    /// <summary>
+    ///     Validates that the <c>$</c> argument is visible to modules and functions that the children call, and that
+    ///     the arguments of the instance are still evaluated in the scope of the call site.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_BuiltinModuleArgument_IsDynamicAndArgumentsUseCallSite()
+    {
+        // Arrange
+        const string Source = """
+            $x = 1;
+            function f() = $x * 10;
+            module show() { echo($x, f()); }
+            translate([0, 0, 0], $x = $x + 1) show();
+            show();
+            translate([0, 0, 0], $x = 1, $x = 2) echo($x);
+            """;
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("2, 20|1, 10|2", text);
+    }
+
+    /// <summary>
+    ///     Validates that <c>$fn</c>, <c>$fa</c> and <c>$fs</c> arguments are recorded for the instance itself and
+    ///     inherited by everything inside it, but not by its siblings.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_PropagatesToNestedChildren()
+    {
+        // Arrange
+        const string Source = """
+            rotate(45, $fn = 8, $fa = 3, $fs = 0.5) { sphere(1); translate([1, 0, 0]) cube(1); }
+            sphere(2);
+            """;
+
+        // Act
+        var roots = Run(Source).Roots;
+
+        // Assert
+        var expected = new ScadFragmentSettings(8, 3, 0.5);
+        Assert.Equal(expected, roots[0].Fragments);
+        Assert.Equal(expected, roots[0].Children[0].Fragments);
+        Assert.Equal(expected, roots[0].Children[1].Fragments);
+        Assert.Equal(expected, roots[0].Children[1].Children[0].Fragments);
+        Assert.Equal(new ScadFragmentSettings(0, 12, 2), roots[1].Fragments);
+    }
+
+    /// <summary>
+    ///     Validates the precedence of fragment settings: the nearest binding wins, a built-in argument beats an
+    ///     assignment of the enclosing scope, and a user-module argument reaches built-in children.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_NearestBindingWins()
+    {
+        // Arrange
+        const string Source = """
+            $fn = 30;
+            translate([0, 0, 0], $fn = 8) {
+                sphere(1);
+                sphere(1, $fn = 3);
+                rotate(1, $fn = 16) sphere(2);
+            }
+            sphere(3);
+            module wrap() { sphere(4); }
+            wrap($fn = 12);
+            """;
+
+        // Act
+        var roots = Run(Source).Roots;
+
+        // Assert
+        Assert.Equal(8, roots[0].Fragments.Fn);
+        Assert.Equal(8, roots[0].Children[0].Fragments.Fn);
+        Assert.Equal(3, roots[0].Children[1].Fragments.Fn);
+        Assert.Equal(16, roots[0].Children[2].Fragments.Fn);
+        Assert.Equal(16, roots[0].Children[2].Children[0].Fragments.Fn);
+        Assert.Equal(30, roots[1].Fragments.Fn);
+        Assert.Equal(12, roots[2].Children[0].Fragments.Fn);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>$</c> argument given to a user module is seen by its body and by the children it
+    ///     re-evaluates with <c>children()</c>.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_UserModuleArgument_ReachesBodyAndChildren()
+    {
+        // Arrange
+        const string Source = """
+            module m() { echo("body", $x); children(); }
+            m($x = 3) echo("child", $x);
+            """;
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("\"body\", 3|\"child\", 3", text);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>$</c> argument of a built-in module wrapped around <c>children()</c> is in effect for
+    ///     the re-evaluated children, and that fragments set around the user-module call reach them too.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_BuiltinModuleArgumentAroundChildren_ReachesReevaluatedChildren()
+    {
+        // Arrange
+        const string Source = """
+            module wrap() { translate([0, 0, 0], $k = 5) children(); }
+            wrap() { echo($k); sphere(1); }
+            translate([0, 0, 0], $fn = 6) wrap() sphere(2);
+            wrap() sphere(3);
+            """;
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal("ECHO: 5", Assert.Single(output.Echo));
+        Assert.Equal(0, output.Roots[0].Children[0].Children[0].Fragments.Fn);
+        Assert.Equal(6, output.Roots[1].Children[0].Children[0].Children[0].Fragments.Fn);
+        Assert.Equal(0, output.Roots[2].Children[0].Children[0].Fragments.Fn);
+    }
 }

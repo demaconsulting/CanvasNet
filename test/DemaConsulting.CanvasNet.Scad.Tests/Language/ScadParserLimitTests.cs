@@ -442,6 +442,52 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
+    ///     Validates that a failure to start the dedicated parser thread (here an injected out-of-memory condition, as
+    ///     in a 32-bit process) is reported as a syntax error at the start of the source, and that the gate slot is
+    ///     released, so more failures than there are slots neither block nor change the outcome.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_ThreadStartOutOfMemory_ThrowsSyntaxExceptionAndReleasesSlot()
+    {
+        // Arrange
+        var source = Shapes["parentheses"].Make(Limit - 2);
+        var attempts = ScadParser.MaxConcurrentFallbackThreads + 2;
+        var starts = 0;
+
+        // Act
+        var (errors, program) = OnSmallStack(
+            () =>
+            {
+                var caught = new List<ScadSyntaxException>();
+                ScadParser.ThreadStarterForCurrentThread = _ =>
+                {
+                    starts++;
+                    throw new OutOfMemoryException("simulated");
+                };
+                try
+                {
+                    for (var i = 0; i < attempts; i++)
+                    {
+                        caught.Add(Assert.Throws<ScadSyntaxException>(() => ScadParserTestSupport.Parse(source)));
+                    }
+                }
+                finally
+                {
+                    ScadParser.ThreadStarterForCurrentThread = null;
+                }
+
+                // With the seam removed the same input still parses on a dedicated thread
+                return (caught, ScadParserTestSupport.Parse(source));
+            });
+
+        // Assert: every attempt really needed the dedicated thread (the seam was reached) and failed with the syntax error
+        Assert.Equal(attempts, starts);
+        Assert.Equal(attempts, errors.Count);
+        Assert.All(errors, e => Assert.Contains("parser thread could not be started", e.Message, StringComparison.Ordinal));
+        Assert.All(errors, e => Assert.Equal(1, e.Location.Line));
+        Assert.Single(program.Statements);
+    }
+    /// <summary>
     ///     Validates that the fallback path keeps exception type, location and stack trace, the caller's culture,
     ///     and the nesting error for input over the limit.
     /// </summary>

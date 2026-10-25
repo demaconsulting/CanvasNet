@@ -197,7 +197,9 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   and, only when the runtime stack guard reports that the caller's stack is too small, is discarded and
   restarted on a bounded number of dedicated large-stack threads (`max(2, ProcessorCount)` threads, each reserving
   384 MiB of address space that is committed only as touched: 768 MiB on one or two cores, 24 GiB on 64 cores; for
-  64-bit hosts, not supported in a 32-bit process or under strict overcommit), exactly as the parser does; a
+  64-bit hosts, not supported in a 32-bit process or under strict overcommit, where failing to create or start the
+  thread is reported as a `ScadEvaluationException`, or, for the parser, a `ScadSyntaxException`), exactly as the
+  parser does; a
   caller waiting for a thread slot can be canceled. The restart is invisible because evaluation has no observable
   side effect until the buffered events are delivered.
 - **File-access sandbox.** `include` and `use` are resolved before evaluation, on the calling thread, and only
@@ -206,8 +208,12 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   consulted. Absolute paths, drive letters, colons, control characters, and `..` above the root are rejected
   with an evaluation error (and, in resolver mode, never reach the callback); a file that is, or lies beneath, a
   symbolic link or junction below its root is refused whatever the link's target (the root itself is trusted;
-  to use linked content, add the real directory as a library path); include cycles, nesting depth, the number of
-  inclusions, and the
+  to use linked content, add the real directory as a library path). **The sandbox is not a security boundary
+  against a concurrent local attacker:** it protects against path-based escapes in static file trees, but the check
+  and the open are separate operations, so an attacker with write access to the included folders can swap a
+  component for a link or junction between them, or place a hard link (which cannot be detected) to a file outside
+  the roots; controlling who can write to those folders is the caller's responsibility. Include cycles, nesting
+  depth, the number of inclusions, and the
   number of statements include expansion may produce are bounded. A document with `include` or `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.
 - **Cancellation.** A `CancellationToken` is honored before any work (and before any resolver call), between

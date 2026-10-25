@@ -184,7 +184,9 @@ per-frame cost stays far below the 8 KiB at which the ceiling would have to be l
 at most `max(2, ProcessorCount)` threads times 384 MiB (768 MiB on one or two cores, 24 GiB on 64 cores) of address
 space; measured, a fallback thread commits about 0.1 MiB for an ordinary program and about 20 MiB at the deepest
 legal recursion. It is meant for 64-bit hosts and is not supported in a 32-bit process or under strict overcommit
-or a tight virtual-memory limit (see _ScadEvaluator Unit Design_, _Memory reservation and cost_).
+or a tight virtual-memory limit; where the thread cannot be created or started (`OutOfMemoryException` or
+`ThreadStartException`) the failure is converted to a `ScadEvaluationException` and the slot is released (see
+_ScadEvaluator Unit Design_, _Memory reservation and cost_).
 
 #### Resource Limits
 

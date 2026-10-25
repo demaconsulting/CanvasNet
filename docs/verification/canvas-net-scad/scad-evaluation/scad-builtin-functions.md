@@ -135,13 +135,15 @@ Asserts each type test for every kind of value (`NaN` is a number) and the versi
 `ScadBuiltinRandomTests.ScadRandom_NextDouble_MatchesGoldenValues`, `ScadBuiltinRandomTests.ScadRandom_DefaultState_MatchesGoldenSequence`,
 `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_WithSeed_IsDeterministicAndRestartsEachCall`,
 `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_ScalesToRange`, `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_WithoutSeed_AdvancesDeterministicStream`,
-`ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_NamedArguments_AreAccepted`, `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_Count_IsTruncated`,
+`ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_NamedArguments_AreAccepted`,
+`ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_SeedValueName_IsDeterministicAndSeedIsUnknown`, `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_Count_IsTruncated`,
 `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_InvalidArguments_ReturnUndefWithWarning`
 
 Asserts the golden 64-bit sequence for a seed, the golden doubles, and the golden sequence of the default state;
 that a seeded call gives the same numbers every time and starts afresh per call; that values fall in the half-open
-range; that unseeded calls continue one deterministic stream; that named arguments work; that the count is
-truncated; and `undef` with a warning for invalid arguments.
+range; that unseeded calls continue one deterministic stream; that named arguments work, including the seed by its name
+`seed_value` (deterministic and equal to the positional seed) while the former name `seed` is an unknown
+argument; that the count is truncated; and `undef` with a warning for invalid arguments.
 
 ##### CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-UnsupportedFunctions: Recognized But Not Implemented
 

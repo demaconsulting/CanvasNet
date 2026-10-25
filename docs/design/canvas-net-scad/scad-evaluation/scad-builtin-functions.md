@@ -69,7 +69,7 @@ that the sequences are identical on every platform; golden sequences are pinned 
   `Ignoring extra arguments to function 'f'` and are dropped; too few arguments give
   `Function 'f' expects N arguments, got M` and `undef`; a wrong kind gives
   `Function 'f' expects a number, got a string` (and so on) and `undef`. Only `rands` (`min_value`,
-  `max_value`, `value_count`, `seed`), `search` (`match_value`, `search_vector`, `num_returns_per_match`,
+  `max_value`, `value_count`, `seed_value`), `search` (`match_value`, `search_vector`, `num_returns_per_match`,
   `index_col_num`), and `lookup` (`key`, `table`) and the two-argument numeric functions `atan2` and `pow`
   accept named arguments.
 
@@ -87,7 +87,7 @@ that the sequences are identical on every platform; golden sequences are pinned 
 | Strings | `str`, `chr`, `ord` | `str` concatenates the string forms of its arguments (invariant culture); `chr` converts code points (a number, or a vector of numbers) to a string and warns and skips invalid ones; `ord` gives the first code point of a string (`undef` for an empty or non-string argument). All operate on Unicode scalar values, so `chr` and `ord` round-trip and a surrogate pair is one character |
 | Type tests | `is_undef`, `is_num`, `is_bool`, `is_string`, `is_list`, `is_function` | Kind tests (`is_num(nan)` is true) |
 | Version | `version`, `version_num` | The emulated language level: `[2021, 1, 0]` and `20210100` |
-| Random | `rands(min, max, count, seed)` | See below |
+| Random | `rands(min, max, count, seed_value)` | See below |
 <!-- markdownlint-enable MD013 -->
 
 **`rands`.** Returns `count` numbers `min + (max - min) * u`, with `u` from the generator, so each lies in the

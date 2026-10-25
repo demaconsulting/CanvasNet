@@ -91,6 +91,21 @@ internal sealed partial class ScadParser
     [ThreadStatic]
     private static int _lastParseThreadId;
 
+    /// <summary>The action the current thread uses to start a fallback thread instead of <see cref="Thread.Start()"/>, or <see langword="null"/> (a test seam).</summary>
+    [ThreadStatic]
+    private static Action<Thread>? _threadStarterForThread;
+
+    /// <summary>
+    ///     Gets or sets the action that parses started by the <em>calling thread</em> use to start a fallback thread
+    ///     instead of <see cref="Thread.Start()"/>; <see langword="null"/> (the default) starts it normally (a test
+    ///     seam that simulates a thread-start failure, such as an out-of-memory condition).
+    /// </summary>
+    internal static Action<Thread>? ThreadStarterForCurrentThread
+    {
+        get => _threadStarterForThread;
+        set => _threadStarterForThread = value;
+    }
+
     /// <summary>
     ///     Gets the managed thread id that completed the most recent parse started by the calling thread: the
     ///     calling thread itself unless the parse fell back to a dedicated thread (a test hook; per calling thread).
@@ -136,7 +151,7 @@ internal sealed partial class ScadParser
     /// <returns>The syntax tree.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is null.</exception>
     /// <exception cref="InvalidDataException">Thrown when the source exceeds <see cref="MaxSourceLength"/> characters.</exception>
-    /// <exception cref="ScadSyntaxException">Thrown at the first lexical or grammatical error, or when nesting is too deep.</exception>
+    /// <exception cref="ScadSyntaxException">Thrown at the first lexical or grammatical error, when nesting is too deep, or when the dedicated large-stack parser thread a short caller stack needs cannot be started.</exception>
     public static ScadProgram Parse(string source, string? file)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -157,7 +172,7 @@ internal sealed partial class ScadParser
     /// </summary>
     /// <param name="tokens">The tokens produced by <see cref="ScadLexer.Tokenize"/>, ending with an end-of-file token.</param>
     /// <returns>The syntax tree.</returns>
-    /// <exception cref="ScadSyntaxException">Thrown at the first grammatical error, or when nesting is too deep.</exception>
+    /// <exception cref="ScadSyntaxException">Thrown at the first grammatical error, when nesting is too deep, or when the dedicated large-stack parser thread a short caller stack needs cannot be started.</exception>
     public static ScadProgram Parse(IReadOnlyList<ScadToken> tokens)
     {
         ArgumentNullException.ThrowIfNull(tokens);
@@ -193,11 +208,13 @@ internal sealed partial class ScadParser
                 // The caller's stack is too small; fall through to the dedicated thread
             }
 
-            return RunOnParserThread(() =>
-            {
-                executedOn = Environment.CurrentManagedThreadId;
-                return new ScadParser(tokens).ParseProgramGuarded(stackShortageIsSyntaxError: true);
-            });
+            return RunOnParserThread(
+                () =>
+                {
+                    executedOn = Environment.CurrentManagedThreadId;
+                    return new ScadParser(tokens).ParseProgramGuarded(stackShortageIsSyntaxError: true);
+                },
+                tokens.Count > 0 ? tokens[0].Location : default);
         }
         finally
         {
@@ -217,12 +234,19 @@ internal sealed partial class ScadParser
     ///     <see cref="ExceptionDispatchInfo"/>, which preserves its type and original stack trace. The calling
     ///     thread's current culture and UI culture are applied to the dedicated thread. The stack is reserved
     ///     (not committed) address space that is returned when the thread ends, and the only shared state is the
-    ///     thread-safe gate, so the entry points remain safe for concurrent use.
+    ///     thread-safe gate, so the entry points remain safe for concurrent use. The reservation is intended for
+    ///     64-bit hosts: when the thread cannot be created or started (<see cref="OutOfMemoryException"/> or
+    ///     <see cref="ThreadStartException"/>, typically in a 32-bit process or under a tight virtual-memory limit),
+    ///     the failure is reported like the nesting limit it stands in for, as a <see cref="ScadSyntaxException"/>,
+    ///     and the slot is released. Only the creation and start of the thread are guarded; an exception thrown by
+    ///     the work itself is rethrown unchanged.
     /// </remarks>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="work">The work to run.</param>
+    /// <param name="location">The location reported when the thread cannot be started.</param>
     /// <returns>The result of the work.</returns>
-    private static T RunOnParserThread<T>(Func<T> work)
+    /// <exception cref="ScadSyntaxException">Thrown when the dedicated thread cannot be created or started.</exception>
+    private static T RunOnParserThread<T>(Func<T> work, ScadSourceLocation location)
     {
         var result = default(T);
         ExceptionDispatchInfo? failure = null;
@@ -234,7 +258,7 @@ internal sealed partial class ScadParser
         try
         {
             Interlocked.Increment(ref _fallbackCount);
-            var thread = new Thread(
+            var thread = StartFallbackThread(
                 () =>
                 {
                     CultureInfo.CurrentCulture = culture;
@@ -249,12 +273,7 @@ internal sealed partial class ScadParser
                         failure = ExceptionDispatchInfo.Capture(ex);
                     }
                 },
-                ParserStackSize)
-            {
-                IsBackground = true,
-                Name = FallbackThreadName,
-            };
-            thread.Start();
+                location);
             thread.Join();
         }
         finally
@@ -266,6 +285,41 @@ internal sealed partial class ScadParser
         failure?.Throw();
         return result!;
     }
+
+    /// <summary>
+    ///     Creates and starts the dedicated fallback thread, converting a failure to obtain it into a syntax error.
+    /// </summary>
+    /// <param name="body">The thread body.</param>
+    /// <param name="location">The location reported on failure.</param>
+    /// <returns>The started thread.</returns>
+    /// <exception cref="ScadSyntaxException">Thrown when the thread cannot be created or started.</exception>
+    private static Thread StartFallbackThread(ThreadStart body, ScadSourceLocation location)
+    {
+        try
+        {
+            var thread = new Thread(body, ParserStackSize)
+            {
+                IsBackground = true,
+                Name = FallbackThreadName,
+            };
+            (_threadStarterForThread ?? StartThread)(thread);
+            return thread;
+        }
+        catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException)
+        {
+            throw new ScadSyntaxException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Nesting cannot be checked: the dedicated {ParserStackSize / (1024 * 1024)} MiB parser thread could not be started (not enough memory or address space)"),
+                location);
+        }
+    }
+
+    /// <summary>
+    ///     Starts a thread (the default of the thread-start seam).
+    /// </summary>
+    /// <param name="thread">The thread.</param>
+    private static void StartThread(Thread thread) => thread.Start();
 
     /// <summary>Records that a fallback thread is starting, keeping the observed peak up to date (a test hook).</summary>
     private static void TrackFallbackStart()

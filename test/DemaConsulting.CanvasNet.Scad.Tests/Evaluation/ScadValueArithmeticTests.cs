@@ -326,7 +326,10 @@ public class ScadValueArithmeticTests
         Assert.Equal(N(10), vector.Index(N(0)));
         Assert.Equal(N(30), vector.Index(N(2)));
         Assert.Equal(N(20), vector.Index(N(1.9)));
-        Assert.Equal(N(10), vector.Index(N(-0.5)));
+        Assert.Equal(N(20), vector.Index(N(1.5)));
+        Assert.Equal(ScadValue.Undef, vector.Index(N(-0.5)));
+        Assert.Equal(ScadValue.Undef, vector.Index(N(-0.0000001)));
+        Assert.Equal(ScadValue.Undef, vector.Index(N(double.NegativeInfinity)));
         Assert.Equal(ScadValue.Undef, vector.Index(N(3)));
         Assert.Equal(ScadValue.Undef, vector.Index(N(-1)));
         Assert.Equal(ScadValue.Undef, vector.Index(N(double.NaN)));
@@ -365,6 +368,12 @@ public class ScadValueArithmeticTests
         Assert.Equal(S("b"), text.Index(N(2)));
         Assert.Equal(ScadValue.Undef, text.Index(N(3)));
         Assert.Equal(S("c"), S("abc").Index(N(2.7)));
+        Assert.Equal(S("b"), S("abc").Index(N(1.5)));
+        Assert.Equal(ScadValue.Undef, S("abc").Index(N(-0.5)));
+        Assert.Equal(ScadValue.Undef, S("abc").Index(N(-1)));
+        Assert.Equal(ScadValue.Undef, S("abc").Index(N(double.NaN)));
+        Assert.Equal(ScadValue.Undef, S("abc").Index(N(double.PositiveInfinity)));
+        Assert.Equal(ScadValue.Undef, S("abc").Index(N(double.NegativeInfinity)));
         Assert.Equal(ScadValue.Undef, S(string.Empty).Index(N(0)));
     }
 

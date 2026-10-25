@@ -186,7 +186,7 @@ public class ScadBuiltinRegistryTests
         var host = new ScadTestBuiltinHost();
 
         // Act: only the last parameter is given by name, so the earlier slots are undef and the call is rejected
-        var result = host.CallNamed("rands", ("seed", N(1)));
+        var result = host.CallNamed("rands", ("seed_value", N(1)));
 
         // Assert
         Assert.Equal(ScadValue.Undef, result);

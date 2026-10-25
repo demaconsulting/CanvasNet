@@ -11,7 +11,7 @@ internal static partial class ScadBuiltinFunctions
     /// <returns>The descriptors.</returns>
     private static IEnumerable<Descriptor> RandomFunctions()
     {
-        yield return Define("rands", 3, 4, Rands, "min_value", "max_value", "value_count", "seed");
+        yield return Define("rands", 3, 4, Rands, "min_value", "max_value", "value_count", "seed_value");
     }
 
     /// <summary>

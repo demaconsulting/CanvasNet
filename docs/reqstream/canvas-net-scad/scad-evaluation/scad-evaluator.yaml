@@ -75,7 +75,10 @@ sections:
                   need no matching parameter, falling back to the defaults for the fragment settings,
                   the animation time (taken from the evaluation settings), and the preview flag, and
                   shall not let a chain of tail calls grow the lookup chain; a special variable
-                  assigned in a child list shall be visible to that list's children.
+                  assigned in a child list shall be visible to that list's children; a named special
+                  variable argument of a built-in module instance shall likewise be bound
+                  dynamically for everything the instance contains (including its own fragment settings
+                  and re-evaluated children), with the nearest binding winning.
                 justification: |
                   Special variables such as the fragment counts configure whole subtrees of a model
                   from the outside; their dynamic visibility is the language's way of doing so.
@@ -90,6 +93,12 @@ sections:
                   - ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit
                   - ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren
                   - ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgument_BindsForChildrenOnly
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgument_IsDynamicAndArgumentsUseCallSite
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_PropagatesToNestedChildren
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_NearestBindingWins
+                  - ScadEvaluatorSpecialVariable_UserModuleArgument_ReachesBodyAndChildren
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgumentAroundChildren_ReachesReevaluatedChildren
                   - ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody
                   - ScadEvaluatorIncludeUse_Use_LibraryModulesSeeCallersSpecialVariables
 
@@ -292,13 +301,17 @@ sections:
                 title: >-
                   The ScadEvaluator unit shall abort the evaluation with an evaluation error located
                   at the assertion, carrying the optional message, when an assert statement or
-                  expression fails, and shall have no effect when it passes.
+                  expression fails or has no condition, shall have no effect when it passes, and
+                  shall warn about and ignore surplus positional and unknown named arguments.
                 justification: |
                   Assertions let a model reject invalid parameters; a failure must stop the
                   evaluation and say where and why.
                 tests:
                   - ScadEvaluatorControlFlow_AssertStatement_FailureAbortsWithMessage
                   - ScadEvaluatorControlFlow_AssertStatement_PassingHasNoEffect
+                  - ScadEvaluatorControlFlow_AssertWithoutCondition_Fails
+                  - ScadEvaluatorControlFlow_AssertExtraAndUnknownArguments_WarnAndAreIgnored
+                  - ScadEvaluatorControlFlow_AssertExtraArguments_StillFailOnFalseCondition
                   - ScadEvaluatorFunction_AssertExpression_Fails_WithMessage
                   - ScadEvaluatorDiagnostics_AssertFailure_HasLocationAndMessage
 
@@ -601,7 +614,9 @@ sections:
                   program fails identically, a normal program stays on the caller's thread, and
                   exceptions and the caller's culture are preserved across the hop; a caller that
                   finds every dedicated-thread slot taken shall wait for a slot and then proceed,
-                  and a canceled wait shall not leak a slot.
+                  and a canceled wait shall not leak a slot; a failure to create or start the
+                  dedicated thread (for example in a 32-bit process) shall be reported as an
+                  evaluation exception, with the slot released.
                 justification: |
                   A stack overflow cannot be caught and terminates the host process; the recursion
                   limit must hold regardless of how much stack the calling thread happens to have.
@@ -617,6 +632,9 @@ sections:
                   - ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased
                   - ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot
                   - ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers
+                  - ScadEvaluatorStack_Evaluate_ThreadStartOutOfMemory_ThrowsEvaluationException
+                  - ScadEvaluatorStack_Evaluate_ThreadStartFailure_ReleasesTheSlot
+                  - ScadEvaluatorStack_Evaluate_ThreadStarterSeam_StartsTheFallbackThread
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery
                 title: >-
@@ -653,6 +671,7 @@ sections:
                   - ScadEvaluatorDeterminism_SameDocumentTwice_GivesIdenticalResults
                   - ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults
                   - ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation
+                  - ScadEvaluatorDeterminism_Rands_NamedSeedValue_MatchesPositionalSeed
                   - ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults
                   - ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible
                   - ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture

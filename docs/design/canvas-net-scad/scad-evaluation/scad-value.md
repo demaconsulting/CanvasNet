@@ -55,9 +55,10 @@ modify it afterwards); `FromVector(IReadOnlyCollection<ScadValue>)` copies. Beca
 vectors can be shared freely, which the lazy variable cells and closures of the evaluator rely on.
 
 **`ScadRange`** holds `Start`, `Step`, and `End` as written. It is **lazy**: it is never materialized except
-by iteration. `Count` is `floor((end - start) / step + 1e-9) + 1` for a step in the right direction and 0
-otherwise, and saturates at `long.MaxValue - 1` for enormous ranges so that `[0 : 1e300]` can be measured
-without overflow; `ElementAt(i)` returns `start + i * step` (never an accumulated sum, so rounding does not
+by iteration. `Count` is `floor((end - start) / step) + 1`, corrected as described under _Range count_ below, for a step
+in the right direction and 0 otherwise, and saturates at `long.MaxValue - 1` for enormous ranges so that
+`[0 : 1e300]` can be measured without overflow; `ElementAt(i)` returns `start + i * step` (never an
+accumulated sum, so rounding does not
 drift); `IsInvalid` is true for a zero step or any non-finite part, which the evaluator reports as a warning.
 
 **Limits owned by the unit**: `MaxNestingDepth = 256` (a vector may be nested at most 256 levels deep) and
@@ -146,10 +147,25 @@ token before a product of two vectors).
 The evaluator charges evaluation steps for the remaining vector work (the unit itself does not): element
 counts before an operation, so a vector operation is charged before it allocates.
 
+##### Range count
+
+The quotient `(end - start) / step` is inexact, so `floor` alone can drop a last element that should be there
+(`[0 : 0.1 : 0.3]` computes 2.9999999999999996). A fixed absolute epsilon cannot fix this without also admitting
+values that really are beyond the end (`[0 : 0.1 : 0.2999999995]` would gain `0.3`). Instead the count starts from
+`floor` and the **last element is judged by the value `ElementAt` actually generates**: it is dropped when it lies
+beyond `end` by more than a tolerance, and one further element is added when that next element lies beyond `end` by
+no more than the tolerance. The tolerance only absorbs floating-point rounding: **4 ULPs of
+`max(|start|, |end|, |step| * n)`**, never more than a quarter of `|step|` (so that a step comparable to the
+magnitude cannot add an element that is far past the end). Hence `[0 : 0.1 : 0.3]` keeps its last element
+(about 0.3), `[0 : 0.1 : 0.2999999995]` stops at 0.2, negative steps behave symmetrically, and large magnitudes
+scale the tolerance with them. Elements are always `start + i * step`, never accumulated. Beyond 2^53 steps the
+plain `floor` estimate is used.
+
 ##### Indexing and members (`Index`, `Member`)
 
-`v[i]` on a vector with a finite numeric `i` returns the element at `trunc(i)` (so `v[1.5]` is `v[1]` and
-`v[-0.5]` is element 0); a negative or too large index gives `undef` without a warning. A string indexes by
+`v[i]` on a vector with a finite, **non-negative** numeric `i` returns the element at `trunc(i)` (so `v[1.5]` is
+`v[1]`); **every negative index, including a fraction such as `-0.5` that would truncate to zero, gives `undef`**, as
+do a NaN or infinite index and a too large index, all without a warning. A string indexes by
 **Unicode scalar value**, returning a one-character string (a surrogate pair is one scalar). Finding the scalar
 costs work proportional to its position, so, when the evaluator passes itself as the host, `Index` charges extra
 steps before doing that work: `position / 512` for the vectorized scan of the prefix for surrogates (every string

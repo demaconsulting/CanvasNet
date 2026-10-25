@@ -162,6 +162,15 @@ A name beginning with `$` is a special variable with **dynamic scope**:
   `undef`.
 - A **named argument whose name starts with `$`** always binds in the callee's special frame, whether or not
   it is a declared parameter. A `$` parameter's default is evaluated in the call scope like any default.
+- The same holds for a **built-in module instance**: `translate([0, 0, 0], $x = 7) echo($x);` and
+  `rotate(45, $fn = 8) sphere(1);` bind `$x` and `$fn` dynamically for everything the instance contains (its
+  child statements, the modules and functions they call, and the children a user module re-evaluates with
+  `children()` inside it), and for nothing outside it. The arguments are evaluated in the caller's scope first,
+  then bound in a scope of the instance (a repeated name shadows the earlier one) in which the child statements run;
+  the instance's own fragment settings are those of the call site with its numeric `$fn`, `$fa`, and `$fs`
+  arguments applied (a non-numeric one is ignored for the instance itself), so the nearest binding wins (an
+  argument of the instance beats an enclosing assignment, and a nested instance's argument beats the outer one).
+  The arguments remain visible in the instance's recorded argument list.
 - `$children` (modules only) is the number of child **slots** of the call (see _Children_).
 - A tail call that binds no `$` name does not grow the chain; a recursion that binds a `$` name at every level
   adds one frame per level, so the chain depth is capped by `MaxRecursionDepth` and such a recursion fails with
@@ -231,7 +240,9 @@ counts as a slot. The assignments and definitions in the child list are bound in
 - **Ranges** `[a : s : b]` (written order; the step defaults to 1): a zero step or a non-finite part gives
   the warning `Ignoring a range with a zero step or a non-finite bound` and no iterations; `s > 0` requires
   `a <= b` and `s < 0` requires `a >= b`, otherwise the range is empty **without** a diagnostic; the count is
-  `floor((b - a) / s + 1e-9) + 1` and element `i` is `a + i * s`. A range with a non-numeric part evaluates to
+  `floor((b - a) / s) + 1`, corrected by at most one element so that the last element is judged by the value that
+  is generated (see _Range count_ in the ScadValue design), and element `i` is `a + i * s` (computed from the
+  index, never accumulated). A range with a non-numeric part evaluates to
   `undef` with the warning `Range bounds and step must be numbers`. The range count is checked against the
   **remaining loop budget before the first iteration**, so `[0 : 1e12]` never loops: it fails at once with the
   loop-iteration error. Indexing a range gives `undef`, and `len` of a range is `undef` with a warning.
@@ -248,6 +259,13 @@ counts as a slot. The assignments and definitions in the child list are bound in
   `Cannot apply operator '+' to a number and a string` (the kinds named with `KindDescription`); `undef`
   operands propagate `undef` and also warn; division by zero follows IEEE without a warning; `echo`, `let`, and
   `assert` also exist as expressions.
+- **`assert`** (statement and expression form) takes the condition as the first positional argument or `condition=`
+  and the message as the second or `message=`. A false condition fails with `Assertion failed`, followed by `:` and
+  the message when one was given. **A call without a condition fails too**, with `Assertion failed: the condition
+  argument is missing` (or the supplied message), located at the `assert`. Surplus positional arguments give the
+  warning `Ignoring extra arguments to assert`, and an unknown named argument gives
+  `Ignoring unknown argument 'x' of assert`, the same wording style as the built-in functions; such arguments are
+  still evaluated.
 
 ##### Normative Semantics: Tail Calls
 
@@ -392,8 +410,14 @@ costs, and this operating system reports roughly twice the requested stack size.
 while a pass that outgrew the caller's stack runs. The reservation is intended for **64-bit hosts**. It is **not
 supported in a 32-bit process** (the address space cannot hold even one reservation reliably) and may fail under
 strict overcommit accounting (for example `vm.overcommit_memory=2`) or a tight `ulimit -v`: thread creation then
-fails with the runtime's own exception, which propagates to the caller unchanged (a caller with such limits should
-evaluate on a thread that already has a large stack, which never needs the fallback).
+fails with `OutOfMemoryException` or `ThreadStartException`. Creating and starting the thread is the only
+guarded step: such a failure is converted to a `ScadEvaluationException` (message naming the dedicated 384 MiB
+thread and the 32-bit limitation, the runtime exception as `InnerException`) and the fallback slot is released
+before it propagates. An `OutOfMemoryException` raised by the evaluation itself runs on the fallback thread, is
+captured there, and is rethrown unchanged; it is never converted. A caller with such limits should evaluate on a
+thread that already has a large stack, which never needs the fallback. The internal seam
+`ScadEvaluator.ThreadStarterForCurrentThread` replaces `Thread.Start` for the calling thread so a test can
+simulate the failure.
 
 **Phase A warnings survive a restart**: the snapshot of the sink's warnings taken before the pass (for
 example `Can't open include file` from file loading) is re-recorded after the reset, a behavior pinned by a
@@ -409,12 +433,13 @@ _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_)
   nothing. Locations: an unknown function at the identifier; call-site problems at the `(` token (the parser's
   call location); instances at the module-name token; the reassignment warning at the earlier assignment.
   Message texts are listed with the semantics above and pinned by tests.
-- An **error** is a `ScadEvaluationException` created by `Fail(description, location)`: a failed `assert`
-  (`Assertion failed`, followed by `:` and the message when one was given), every limit
+- An **error** is a `ScadEvaluationException` created by `Fail(description, location)`: a failed or condition-less
+  `assert` (`Assertion failed`, followed by `:` and the message when one was given), every limit
   (`Recursion too deep (limit N)`, `Evaluation step limit exceeded (limit N)`,
   `Loop iteration limit exceeded (limit N)`, `List too long (limit N)`, `String too long (limit N)`,
   `List nesting too deep (limit 256)`, `Instance limit exceeded (limit N)`, `Echo output limit exceeded
-  (limit N)`), and the errors of the resolver. The recursion error is located at the offending node on the
+  (limit N)`), the errors of the resolver, and a dedicated fallback thread that cannot be created or started
+  (no location; see _Memory reservation and cost_). The recursion error is located at the offending node on the
   nominal path (identical on every stack size, as tested) and at the last frame entered on the defense-in-depth
   path.
 - An **unsupported feature** is recorded with `sink.Unsupported`; when `ThrowOnUnsupportedFeature` is set the

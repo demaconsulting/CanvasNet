@@ -145,18 +145,25 @@ thread.
 `ScadTextTests.ScadText_Scalars_SplitsIntoScalars`, `ScadTextTests.ScadText_FirstCodePoint_HandlesPairsAndLoneSurrogates`,
 `ScadTextTests.ScadText_FromCodePoint_ValidAndInvalid`
 
-Asserts element access with negative, too large, fractional, and non-numeric indexes, undef for non-indexable
+Asserts element access with negative (including `-0.5`, which must not truncate to element 0), NaN, infinite, too large,
+non-negative fractional (`[10, 20, 30][1.5]` is `20`), and non-numeric indexes, for vectors and for strings, undef for non-indexable
 targets, string indexing over a string with a surrogate pair, the x, y, and z members, and the scalar helpers,
 including a lone surrogate and invalid code points.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-Ranges: Range Counting
 
 **Tests**: `ScadRangeTests.ScadRange_Count_ReturnsExpected`, `ScadRangeTests.ScadRange_Count_HugeRange_Saturates`,
+`ScadRangeTests.ScadRange_Count_AbsorbsRoundingErrorButNotRealOvershoot`,
+`ScadRangeTests.ScadRange_ElementAt_LastElementIsWithinEndAndNextIsBeyond`,
 `ScadRangeTests.ScadRange_ElementAt_ComputesFromIndex`, `ScadRangeTests.ScadRange_IsInvalid_ZeroOrNonFiniteParts`,
 `ScadRangeTests.ScadRange_Equals_ComparesStartStepEnd`
 
 Asserts counts for ascending, descending, fractional, and contradictory ranges, saturation for an enormous range,
-elements computed from the index, the invalid cases, and equality by start, step, and end.
+elements computed from the index, the invalid cases, and equality by start, step, and end. The rounding scenarios
+assert that `[0 : 0.1 : 0.3]` keeps its last element while `[0 : 0.1 : 0.2999999995]` does not reach `0.3` (a fixed
+absolute tolerance would include it), for ascending and descending ranges, negative steps, large magnitudes (`1e15`,
+`1e16`), large and tiny steps, and that the last element passes the end by no more than rounding error while the
+next element is clearly beyond it.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-NumberFormatting: Deterministic Number Text
 

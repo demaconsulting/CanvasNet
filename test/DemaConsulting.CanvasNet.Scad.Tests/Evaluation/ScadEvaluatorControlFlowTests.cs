@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Scad.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluatorTestSupport;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
@@ -218,6 +219,63 @@ public class ScadEvaluatorControlFlowTests
         Assert.Empty(output.Echo);
     }
 
+    /// <summary>
+    ///     Validates that an <c>assert</c> without a condition fails, in statement and expression form, with a clear
+    ///     message and the location of the assert.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="expected">The expected exception message.</param>
+    [Theory]
+    [InlineData("assert();", "1:1: Assertion failed: the condition argument is missing")]
+    [InlineData("assert() cube(1);", "1:1: Assertion failed: the condition argument is missing")]
+    [InlineData("assert(message = \"no condition\");", "1:1: Assertion failed: no condition")]
+    [InlineData("\n x = assert() 1;", "2:6: Assertion failed: the condition argument is missing")]
+    [InlineData("function f() = assert() 1;\necho(f());", "1:16: Assertion failed: the condition argument is missing")]
+    public void ScadEvaluatorControlFlow_AssertWithoutCondition_Fails(string source, string expected)
+    {
+        // Arrange / Act
+        var ex = Fails(source);
+
+        // Assert
+        Assert.Equal(expected, ex.Message);
+    }
+
+    /// <summary>
+    ///     Validates that surplus positional and unknown named arguments of <c>assert</c> are ignored with a warning
+    ///     (still evaluated), and do not change the outcome.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorControlFlow_AssertExtraAndUnknownArguments_WarnAndAreIgnored()
+    {
+        // Arrange
+        const string Source = "function f() = echo(\"third\") 3;\nassert(true, \"ok\", f(), 4);\nassert(true, bogus = 1);\ncube(1);";
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal("cube(1)", ScadInstanceDumper.Dump(output.Roots));
+        Assert.Equal("ECHO: \"third\"", Assert.Single(output.Echo));
+        Assert.Equal(
+            ["2:1: Ignoring extra arguments to assert", "3:1: Ignoring unknown argument 'bogus' of assert"],
+            output.Diagnostics.Select(d => $"{d.Location}: {d.Message}"));
+    }
+
+    /// <summary>
+    ///     Validates that surplus arguments do not mask a failing condition, and that the message is still the
+    ///     second positional argument.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorControlFlow_AssertExtraArguments_StillFailOnFalseCondition()
+    {
+        // Arrange / Act
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+        var ex = Assert.Throws<ScadEvaluationException>(() => Run("assert(false, \"msg\", 3);", null, null, sink));
+
+        // Assert
+        Assert.Equal("1:1: Assertion failed: msg", ex.Message);
+        Assert.Equal("Ignoring extra arguments to assert", Assert.Single(sink.Diagnostics).Message);
+    }
     /// <summary>
     ///     Validates that a loop variable starting with <c>$</c> becomes a dynamic special variable for the body.
     /// </summary>

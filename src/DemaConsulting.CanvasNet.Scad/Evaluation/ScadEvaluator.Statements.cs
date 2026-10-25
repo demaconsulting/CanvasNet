@@ -268,19 +268,30 @@ internal sealed partial class ScadEvaluator
     /// <summary>
     ///     Performs the check of <c>assert</c>.
     /// </summary>
+    /// <remarks>
+    ///     The first positional argument (or the one named <c>condition</c>) is the condition and the second (or the
+    ///     one named <c>message</c>) the message. A call without a condition cannot hold and fails like a false
+    ///     condition. Surplus positional arguments and unknown named arguments are ignored with a warning, like the
+    ///     arguments of the built-in functions; they are still evaluated.
+    /// </remarks>
     /// <param name="arguments">The arguments: the condition and an optional message (positional or named).</param>
     /// <param name="scope">The scope.</param>
     /// <param name="location">The location of the assert.</param>
-    /// <exception cref="ScadEvaluationException">Thrown when the condition is false.</exception>
+    /// <exception cref="ScadEvaluationException">Thrown when the condition is false or missing.</exception>
     private void DoAssert(IReadOnlyList<ScadArgument> arguments, ScadScope scope, ScadSourceLocation location)
     {
         ScadValue? condition = null;
         ScadValue? message = null;
         var position = 0;
+        var extra = false;
         foreach (var argument in arguments)
         {
             var value = Evaluate(argument.Value, scope);
-            var slot = argument.Name ?? (position++ == 0 ? "condition" : "message");
+            var slot = argument.Name;
+            if (slot is null && position < 2)
+            {
+                slot = position++ == 0 ? "condition" : "message";
+            }
             if (string.Equals(slot, "condition", StringComparison.Ordinal))
             {
                 condition = value;
@@ -289,14 +300,31 @@ internal sealed partial class ScadEvaluator
             {
                 message = value;
             }
+            else if (slot is null)
+            {
+                extra = true;
+            }
+            else
+            {
+                Warn($"Ignoring unknown argument '{slot}' of assert", location);
+            }
         }
 
-        if (condition is { IsTrue: false })
+        if (extra)
+        {
+            Warn("Ignoring extra arguments to assert", location);
+        }
+
+        if (condition is null)
+        {
+            throw Fail(message is null ? "Assertion failed: the condition argument is missing" : AssertionMessage(message), location);
+        }
+
+        if (!condition.Value.IsTrue)
         {
             throw Fail(AssertionMessage(message), location);
         }
     }
-
     /// <summary>
     ///     Builds the description of a failed assertion.
     /// </summary>
