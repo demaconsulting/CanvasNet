@@ -103,7 +103,7 @@ public class ScadGeometryTests
     public void ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations()
     {
         // Arrange: one construct per line
-        const string Source = "cube(2);\ncube(-1);\ntext(\"a\");\nhull() cube(1);\n%cube(1);";
+        const string Source = "cube(2);\ncube(-1);\ntext(\"a\");\nroof() cube(1);\n%cube(1);";
 
         // Act
         var result = Build(Source);
@@ -112,8 +112,39 @@ public class ScadGeometryTests
         Assert.Single(result.Meshes);
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(2, warning.Location.Line);
-        Assert.Equal(["scad-module-text", "scad-module-hull", "scad-modifier-background"], result.Features);
+        Assert.Equal(["scad-module-text", "scad-module-roof", "scad-modifier-background"], result.Features);
         Assert.Equal([3, 4, 5], result.Unsupported.Select(u => u.Location.Line).ToArray());
+    }
+
+    /// <summary>
+    ///     Validates that hull and minkowski work with the rest of the subsystem: a hull of transformed solids, a
+    ///     rounded box from a minkowski sum, a 2D hull that extrudes, and a hull that is a valid boolean operand,
+    ///     all closed and with analytic bounds and without reports.
+    /// </summary>
+    [Fact]
+    public void ScadGeometry_Build_HullAndMinkowski_BuildClosedSolids()
+    {
+        // Arrange / Act
+        var result = Build(
+            "hull() { cube(1); translate([10, 0, 0]) cube(1); }\n"
+            + "translate([0, 5, 0]) minkowski() { cube([4, 4, 4]); sphere(r = 1, $fn = 16); }\n"
+            + "translate([0, 20, 0]) linear_extrude(height = 2) hull() { square(2); translate([6, 6]) square(1); }\n"
+            + "difference() { translate([0, 30, 0]) cube(20); translate([5, 35, 5]) hull() { cube(2); translate([4, 4, 4]) cube(2); } }");
+
+        // Assert: every mesh is closed with positive volume, the hull spans both cubes, the sum rounds the box
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Features);
+        var leaves = result.Leaves;
+        Assert.Equal(5, leaves.Count);
+        Assert.All(leaves, leaf =>
+        {
+            Assert.True(leaf.WorldMesh.IsClosed);
+            Assert.True(leaf.WorldMesh.SignedVolume > 0.0);
+        });
+        AssertBounds(leaves[0].WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(11, 1, 1), 1e-9);
+        AssertBounds(leaves[1].WorldMesh.Bounds, new Vector3D(-1, 4, -1), new Vector3D(5, 10, 5), 1e-9);
+        AssertBounds(leaves[2].WorldMesh.Bounds, new Vector3D(0, 20, 0), new Vector3D(7, 27, 2), 1e-9);
+        Assert.NotNull(FindDifference(result.Scene));
     }
 
     /// <summary>

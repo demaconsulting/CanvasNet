@@ -234,10 +234,10 @@ public class ScadDocumentRenderTests
         };
 
         // Act
-        using var surface = ScadDocument.Parse("cube(1);\nhull() cube(1);").Render(16, 16, options, TestContext.Current.CancellationToken);
+        using var surface = ScadDocument.Parse("cube(1);\nroof() cube(1);").Render(16, 16, options, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(["scad-module-hull"], features);
+        Assert.Equal(["scad-module-roof"], features);
         Assert.Equal(0, sceneHandlerCalls);
         Assert.True(CountNon(surface, White) > 0);
     }
@@ -256,11 +256,11 @@ public class ScadDocumentRenderTests
         };
 
         // Act
-        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => ScadDocument.Parse("hull() cube(1);").Render(8, 8, options, TestContext.Current.CancellationToken));
+        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => ScadDocument.Parse("roof() cube(1);").Render(8, 8, options, TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.Equal("scad-module-hull", ex.Feature);
-        Assert.Equal(["scad-module-hull"], features);
+        Assert.Equal("scad-module-roof", ex.Feature);
+        Assert.Equal(["scad-module-roof"], features);
     }
 
     /// <summary>

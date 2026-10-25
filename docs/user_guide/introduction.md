@@ -2891,6 +2891,100 @@ var cone = Extruder.Rotate(new PolygonRegion([new Vector2D[] { new(0, 0), new(2,
 Console.WriteLine(cone.IsClosed); // Output: True
 ```
 
+### ConvexHull
+
+`ConvexHull` computes the exact convex hull of a point set: a closed solid mesh for 3D points and a polygon for
+2D points. It is what the OpenSCAD `hull` module is built on.
+
+```csharp
+public static class ConvexHull
+{
+    public static Mesh Hull3D(IEnumerable<Vector3D> points, CancellationToken cancellationToken = default);
+    public static IReadOnlyList<Vector2D> Hull2D(IEnumerable<Vector2D> points, CancellationToken cancellationToken = default);
+}
+```
+
+- `Hull3D` returns a welded, closed, outward-oriented mesh with positive `SignedVolume` whose vertices are
+  exactly the **strictly extreme** points of the input (points inside the hull, on a face, or on an edge do
+  not appear), so the result is a valid operand for constructive solid geometry (`CsgNode`). It has exactly
+  `2 * V - 4` triangles for `V` vertices; coplanar triangles of one facet are merged and fan-triangulated.
+- `Hull2D` returns the strictly convex polygon (no collinear points), counter-clockwise, starting at the
+  lexicographically smallest point. A degenerate set does not throw: it returns no point, the single point,
+  or the two end points of the segment, and the caller decides what that means.
+- Every decision is exact (no tolerance), and the result depends only on the point **set**: any order and any
+  repetition of the points (and `-0.0` versus `0.0`) gives a byte-identical result.
+- The work is O(n log n) for typical input and O(n * h) in the worst case (h = number of hull vertices; points
+  on a moment curve are the classic adversarial input), with O(n) memory; the cancellation token is polled
+  every few thousand steps (the initial sort cannot be interrupted).
+
+**Exceptions:** `ArgumentNullException` for a null sequence; `ArgumentException` for a non-finite coordinate, and
+for `Hull3D` when the points are not **affinely independent** enough to span a volume (fewer than four distinct
+points, all collinear, or all coplanar; the message says which); `OperationCanceledException` when canceled.
+
+```csharp
+Vector3D[] points =
+[
+    new(0, 0, 0), new(1, 0, 0), new(1, 1, 0), new(0, 1, 0),
+    new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1),
+    new(0.5, 0.5, 0.5), // inside: not a vertex of the hull
+];
+var hull = ConvexHull.Hull3D(points);
+Console.WriteLine($"{hull.VertexCount} {hull.TriangleCount} {hull.SignedVolume}"); // Output: 8 12 1
+```
+
+### MinkowskiSum
+
+`MinkowskiSum.ConvexSum` computes the Minkowski sum of two **convex** solid meshes (every point `a + b`, the
+shape of one solid swept over the other): rounding a block with a sphere, or offsetting a part by another. It
+is what the OpenSCAD `minkowski` module is built on.
+
+```csharp
+public static class MinkowskiSum
+{
+    public const int MaxPairwiseSums = 2_097_152;
+    public static Mesh ConvexSum(Mesh a, Mesh b, CancellationToken cancellationToken = default);
+}
+```
+
+- The result is the exact `ConvexHull.Hull3D` of all pairwise sums of the operands' vertices (each a single
+  `double` addition, so the sum has an error of at most one unit in the last place per coordinate): a closed,
+  outward-oriented mesh and a valid CSG operand, byte-identical for `(a, b)` and `(b, a)`.
+- **Convex operands only, and checked.** An operand is verified to be a closed, consistently wound, single-shell
+  convex solid; it is accepted only if it differs from the convex hull of its own vertices by at most **1e-9
+  of the hull's volume and surface area** (plus the rounding error of the volume computation), so the rounding
+  noise of rotated cubes, cylinder caps, and sphere quads passes and no real dent, notch, hole, or second shell
+  does. The sum is then computed from the operand's vertices, which is exact for the operand's hull. A
+  non-convex operand is **never approximated**: it throws. A per-edge tolerance would be unsound (a gently
+  concave bowl of many facets passes any per-edge height tolerance), which is why the test is global. Models
+  whose offset is huge compared with their size (more than about a million times the feature size) can fail
+  the test through coordinate rounding and are rejected as well.
+- The work is O(Va *Vb* log(Va *Vb)) with O(Va* Vb) memory (about 50 MB at the bound), where `Va` and
+  `Vb` are the numbers of distinct vertices; the product is limited to `MaxPairwiseSums` (2^21).
+
+**Exceptions:** `ArgumentNullException` for a null operand; `ArgumentException` for an operand without
+triangles or without volume, or when `Va * Vb` exceeds `MaxPairwiseSums`; `NotSupportedException` for an
+operand that is not provably a closed convex solid (open, non-manifold, inconsistently wound, inverted, several
+shells, or not convex within the tolerance; the message gives the reason); `OperationCanceledException` when
+canceled.
+
+```csharp
+var block = PrimitiveTessellator.Box(new Vector3D(2, 2, 2));
+var other = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+var sum = MinkowskiSum.ConvexSum(block, other);
+Console.WriteLine(sum.SignedVolume); // Output: 27 (a 3 x 3 x 3 box)
+
+try
+{
+    var corners = new Vector2D[] { new(0, 0), new(3, 0), new(3, 1), new(1, 1), new(1, 3), new(0, 3) };
+    var notch = Extruder.Linear(new PolygonRegion([corners]), 1.0);
+    MinkowskiSum.ConvexSum(notch, other);
+}
+catch (NotSupportedException ex)
+{
+    Console.WriteLine("not convex: " + ex.Message);
+}
+```
+
 ### Scene
 
 A `Scene` is an immutable tree of nodes. Each node has a `Transform` (a `Matrix4x4D`, default
@@ -3365,6 +3459,8 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins. A transparency below 1 is drawn opaque and reported |
 | `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
 | `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
+| `hull` | `hull() { ... }` of 3D children or of 2D children | The convex hull of every vertex of the children, in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`; the hull is omitted in each case, never approximated |
+| `minkowski` | `minkowski(convexity) { ... }` of convex 3D children | The Minkowski sum of the children, folded from the left: `minkowski() { cube([10, 6, 4]); sphere(1); }` is the block with rounded edges and corners. A union among the children distributes over the sum. Every child must be **convex**: a block, a sphere, a cylinder, a `hull`, a convex `polyhedron`, or a union of those; a `difference`, an `intersection`, or a hollow, notched, or otherwise non-convex mesh is `scad-minkowski-nonconvex` (also for a single child), and the module is omitted. A sum of 2D children is deferred (`scad-minkowski-2d`), mixed 2D and 3D children are `scad-minkowski-mixed-dimensions`, and more than 4,096 convex parts or sums, or more than 2,097,152 pairwise vertex sums for two parts, is `scad-minkowski-too-complex`. `convexity` is ignored; colors inside are dropped with a warning |
 | `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
 | `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
@@ -3394,7 +3490,13 @@ module in a loop is reported once. The identifiers are part of the documented be
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
 | `scad-module-text`, `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
-| `scad-module-hull`, `scad-module-minkowski` | Not supported yet | The module and its children are omitted |
+| `scad-hull-csg-operand` | A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any depth) | The hull is omitted |
+| `scad-hull-degenerate` | The points of a `hull` span no volume (3D: fewer than four, collinear, or coplanar points) or no area (2D) | The hull is omitted |
+| `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
+| `scad-minkowski-nonconvex` | A `minkowski` has a child that is a boolean or a mesh that is not convex (also a lone child); the message gives the reason | The module is omitted |
+| `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
+| `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
+| `scad-minkowski-too-complex` | A `minkowski` has a child of more than 4,096 convex parts, a step of more than 4,096 sums, or two parts with more than 2,097,152 pairwise vertex sums | The module is omitted |
 | `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
 | `scad-modifier-background` | The `%` modifier | The subtree is omitted |
 | `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `"transparent"`) | The geometry is drawn opaque |
@@ -4228,7 +4330,7 @@ using DemaConsulting.CanvasNet.Scad;
 var document = ScadDocument.Parse("""
     cube(10);
     translate([20, 0, 0]) text("label");
-    hull() { sphere(3); translate([8, 0, 0]) sphere(3); }
+    roof() { sphere(3); translate([8, 0, 0]) sphere(3); }
     cube(-1);
     %cube(2);
     """, new ScadOpenOptions { SourceName = "model.scad" });
@@ -4258,7 +4360,7 @@ foreach (var feature in unsupported)
 }
 // Output:
 // model.scad:2:23 scad-module-text
-// model.scad:3:1 scad-module-hull
+// model.scad:3:1 scad-module-roof
 // model.scad:5:2 scad-modifier-background
 
 // Strict: refuse a partial result. The first unsupported feature of any stage throws, after the events that
@@ -4276,6 +4378,55 @@ catch (ScadUnsupportedFeatureException ex)
 {
     Console.WriteLine($"{ex.Location}: {ex.Feature}"); // Output: model.scad:2:23: scad-module-text
 }
+```
+
+## Example 26: Hull and Minkowski Sum
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    $fn = 32;
+
+    // A capsule: the convex hull of two spheres
+    hull() { sphere(r = 3); translate([12, 0, 0]) sphere(r = 3); }
+
+    // A rounded block: the Minkowski sum of a block and a ball
+    translate([0, 14, 0]) minkowski() { cube([14, 8, 4]); sphere(r = 1.5); }
+
+    // A hull as a cutter: a diagonal slot through a plate
+    translate([0, 34, 0]) difference() {
+        cube([24, 24, 4]);
+        translate([4, 4, -1]) hull() { cube([2, 2, 6]); translate([12, 12, 0]) cube([2, 2, 6]); }
+    }
+
+    // A 2D hull, extruded
+    translate([30, 0, 0]) linear_extrude(height = 3) hull() { circle(r = 3); translate([10, 6]) square(2); }
+    """, new ScadOpenOptions { SourceName = "convex.scad" });
+
+using var image = document.Render(800, 600);
+PngCodec.Save(image, "convex.png");
+
+// A hull of a difference, and a Minkowski sum with a hollow part, are reported, never approximated
+var report = new List<ScadUnsupportedFeature>();
+var options = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions { UnsupportedFeatureHandler = report.Add },
+};
+ScadDocument.Parse("""
+    hull() difference() { cube(4); cube(3); }
+    minkowski() { difference() { cube(4); translate([1, 1, 1]) cube(2); } sphere(1); }
+    """, new ScadOpenOptions { SourceName = "bad.scad" }).BuildScene(options);
+
+foreach (var feature in report)
+{
+    Console.WriteLine($"{feature.Location} {feature.Feature}");
+}
+// Output:
+// bad.scad:1:1 scad-hull-csg-operand
+// bad.scad:2:1 scad-minkowski-nonconvex
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

@@ -24,11 +24,13 @@
 # modules and children, control flow, comprehensions, built-in functions, include/use resolution
 # inside a sandbox, variable overrides, resource limits, cancellation, and echo, warning, and
 # unsupported-feature reporting - into an internal, geometry-agnostic instantiation tree and returns
-# the echo output, diagnostics, unsupported-feature reports, and instance count. Phase 6 (this
-# delivery) adds geometry and rendering: ScadDocument.BuildScene turns the instantiation tree into a
+# the echo output, diagnostics, unsupported-feature reports, and instance count. Phase 6 added geometry
+# and rendering: ScadDocument.BuildScene turns the instantiation tree into a
 # Render3D scene (primitives, 2D shapes, transforms, color, booleans, extrusions, modifiers, and the
 # special variables that control curve resolution) and ScadDocument.Render draws it to a Surface, with
-# every construct that cannot be built reported rather than skipped. Hull, Minkowski sum, offset,
+# every construct that cannot be built reported rather than skipped. Phase 7 (this delivery) adds the
+# hull module (3D and 2D) and the minkowski module of convex 3D children, built on the Render3D convex
+# hull and Minkowski sum; the 2D Minkowski sum, offset,
 # projection, text, surface, import, roof, color transparency, and true highlight and background
 # modifiers are not supported yet and are reported as unsupported features (see
 # docs/design/canvas-net-scad.md, Supported And Deferred Features). The package is packable; packaging
@@ -458,6 +460,27 @@ sections:
           - ScadRenderSystem_TwoDCsg_PlateHasTrimmedCornersAndTwoHoles
           - ScadRenderSystem_TwoDCsg_RingFrontViewIsTheFullRectangle
 
+      - id: CanvasNetScad-HullMinkowski
+        title: >-
+          The library shall build the hull module - of 3D children as the convex solid through their
+          points, and of 2D children as the convex outline that an extrusion then consumes - and the
+          minkowski module of convex 3D children, so that a hull has the convex outline of its parts and
+          cuts as a valid operand, a sum of a block and a ball is the rounded block, a sum distributes
+          over a union, and a model that has no hull or sum (a boolean or a non-convex operand, mixed or 2D
+          operands) is reported with a stable identifier and omitted instead of being approximated.
+        tags: [system]
+        justification: |
+          Hull and Minkowski sum are how enclosures, rounded parts, and offsets are described.
+        children:
+          - CanvasNetScad-ScadGeometry-HullMinkowski
+        tests:
+          - ScadRenderSystem_Hull_TopViewIsTheConvexOutlineOfTheParts
+          - ScadRenderSystem_Hull_TwoDimensionalHullExtrudesToItsOutline
+          - ScadRenderSystem_Hull_CutsAsAValidCsgOperandWithoutReports
+          - ScadRenderSystem_Minkowski_RoundsTheCubeAndKeepsItsExtents
+          - ScadRenderSystem_Minkowski_NonConvexChildIsReportedAtItsLocationAndOmitted
+          - ScadRenderSystem_HullAndMinkowski_StrictModeThrowsTheNewFeatureIds
+
       - id: CanvasNetScad-Extrusions
         title: >-
           The library shall build the linear_extrude and rotate_extrude modules from 2D shapes - with
@@ -480,7 +503,8 @@ sections:
       - id: CanvasNetScad-GeometryUnsupported
         title: >-
           The library shall report every construct it recognizes but cannot build or draw faithfully -
-          the text, offset, projection, surface, import, roof, hull, and Minkowski modules, the
+          the text, offset, projection, surface, import, and roof modules, a hull or a minkowski whose
+          operands have no hull or sum (the scad-hull-* and scad-minkowski-* identifiers), the
           highlight and background modifiers, color transparency, and the other documented cases - as
           an unsupported-feature report with a stable identifier, a message, and the source location,
           while drawing the supported geometry around it; shall report an invalid argument as a located

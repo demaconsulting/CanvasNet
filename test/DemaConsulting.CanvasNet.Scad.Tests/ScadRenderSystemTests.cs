@@ -46,7 +46,7 @@ public class ScadRenderSystemTests
     public static TheoryData<string> AllFixtures => [.. FixtureNames()];
 
     /// <summary>
-    ///     Validates that the twelve render fixtures exist, so the theories cannot silently run empty.
+    ///     Validates that the fourteen render fixtures exist, so the theories cannot silently run empty.
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Fixtures_AreDiscovered()
@@ -57,7 +57,7 @@ public class ScadRenderSystemTests
         // Assert
         Assert.Equal(
             [
-                "2d-csg", "bracket-csg", "extrusions", "intersection", "modifiers", "modules-scene",
+                "2d-csg", "bracket-csg", "extrusions", "hull", "intersection", "minkowski", "modifiers", "modules-scene",
                 "parametric", "polyhedron", "primitives", "root-modifier", "transforms", "unsupported",
             ],
             names.Order(StringComparer.Ordinal).ToList());
@@ -782,8 +782,8 @@ public class ScadRenderSystemTests
             ("scad-module-surface", 7),
             ("scad-module-import", 8),
             ("scad-module-roof", 9),
-            ("scad-module-hull", 10),
-            ("scad-module-minkowski", 11),
+            ("scad-hull-mixed-dimensions", 10),
+            ("scad-minkowski-nonconvex", 11),
             ("scad-modifier-background", 12),
             ("scad-color-alpha", 13),
         };
@@ -839,6 +839,211 @@ public class ScadRenderSystemTests
         Assert.NotEmpty(log.Unsupported);
         Assert.Equal("scad-module-text", log.Unsupported[0].Feature);
         Assert.Throws<ScadUnsupportedFeatureException>(() => document.BuildScene(options, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    ///     Validates that the top view of the hulled cubes is the convex hexagon through their corners, and that the
+    ///     hull of two spheres is the capsule between them.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Hull_TopViewIsTheConvexOutlineOfTheParts()
+    {
+        // Arrange: x -1..15, y -1..15 at four pixels per unit with the grid shifted off the edges; the capsule alone
+        var prismView = ScadOrthoView.Top(7.013, 7.007, 16, 16, 4);
+        var capsuleView = ScadOrthoView.Top(65.013, 5.007, 20, 10, 4);
+        var document = Fixture("hull");
+        (double X, double Y)[] hexagon = [(0, 0), (4, 0), (14, 10), (14, 14), (10, 14), (0, 4)];
+
+        // Act
+        using var prism = prismView.Render(document);
+        using var capsule = capsuleView.Render(document);
+
+        // Assert: the hexagon, with the corners between the cubes cut off by the hull's slanted sides
+        Assert.Equal(White, At(prismView, prism, 12, 2));
+        Assert.Equal(White, At(prismView, prism, 2, 12));
+        Assert.Equal(Gray, At(prismView, prism, 7, 7));
+        Assert.Equal(Gray, At(prismView, prism, 2, 2));
+        Assert.Equal(Count(prism, p => p != White), Count(prism, p => p == Gray));
+        Assert.InRange(CountMismatches(prismView, prism, White, (x, y) => InPolygon(x, y, hexagon)), 0, 1);
+
+        // The capsule: a rectangle of the sphere diameter between the centers and a round cap on each end
+        Assert.Equal(Gray, At(capsuleView, capsule, 65, 5));
+        Assert.Equal(Gray, At(capsuleView, capsule, 60, 5));
+        Assert.Equal(Gray, At(capsuleView, capsule, 72, 5));
+        Assert.Equal(Gray, At(capsuleView, capsule, 65, 6.9));
+        Assert.Equal(White, At(capsuleView, capsule, 65, 7.2));
+        Assert.Equal(White, At(capsuleView, capsule, 57.5, 5));
+        Assert.Equal(White, At(capsuleView, capsule, 74.5, 5));
+        Assert.Equal(White, At(capsuleView, capsule, 58.5, 6.5));
+    }
+
+    /// <summary>
+    ///     Validates that the hull of 2D shapes is the convex polygon through their corners and that its extrusion is
+    ///     that polygon, 3 tall.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Hull_TwoDimensionalHullExtrudesToItsOutline()
+    {
+        // Arrange: x 28..44, y -2..12 at four pixels per unit, shifted off the edges; the front view is aligned
+        var top = ScadOrthoView.Top(36.013, 5.007, 16, 14, 4);
+        var front = ScadOrthoView.Front(36, 1.5, 16, 5, 4);
+        var document = Fixture("hull");
+        (double X, double Y)[] outline = [(30, 0), (42, 0), (42, 2), (37, 10), (35, 10), (30, 2)];
+
+        // Act
+        using var fromTop = top.Render(document);
+        using var fromFront = front.Render(document);
+
+        // Assert: the outline from above, and the 12 x 3 rectangle from the front
+        Assert.InRange(CountMismatches(top, fromTop, White, (x, y) => InPolygon(x, y, outline)), 0, 2);
+        Assert.Equal(Gray, At(top, fromTop, 36, 6));
+        Assert.Equal(White, At(top, fromTop, 31, 8));
+        Assert.Equal(White, At(top, fromTop, 41, 8));
+        Assert.Equal(12 * 3 * 16, CountNon(fromFront, White));
+    }
+
+    /// <summary>
+    ///     Validates that a hull is a valid operand of a difference: the block shows the hexagonal slot, and nothing
+    ///     is reported by the geometry builder or the renderer.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Hull_CutsAsAValidCsgOperandWithoutReports()
+    {
+        // Arrange: x -2..22, y 28..52 at four pixels per unit, shifted off the edges
+        var view = ScadOrthoView.Top(10.013, 40.007, 24, 24, 4);
+        var log = new ScadReportLog();
+        (double X, double Y)[] slot = [(4, 34), (6, 34), (16, 44), (16, 46), (14, 46), (4, 36)];
+
+        // Act
+        using var surface = view.Render(Fixture("hull"), evaluation: log.Options());
+
+        // Assert: the block without the slot, and no reports
+        Assert.Equal(White, At(view, surface, 10, 40));
+        Assert.Equal(Gray, At(view, surface, 3, 33));
+        Assert.Equal(Gray, At(view, surface, 17, 47));
+        Assert.InRange(
+            CountMismatches(view, surface, White, (x, y) => x is > 0 and < 20 && y is > 30 and < 50 && !InPolygon(x, y, slot)),
+            0,
+            2);
+        Assert.Empty(log.Warnings);
+        Assert.Empty(log.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that the Minkowski sum of a block and a ball is the rounded block, that the sum distributes over a
+    ///     union and takes a hull as an operand, and the extents of all of them.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Minkowski_RoundsTheCubeAndKeepsItsExtents()
+    {
+        // Arrange: the rounded block x -2..12, y -2..8 and the hexagon x 37.5..51.5, y -1.5..10.5, shifted off the
+        // edges, and the two blocks x 18..36, y -1..7 aligned to the pixels
+        var roundedView = ScadOrthoView.Top(5.013, 3.007, 14, 10, 4);
+        var blocksView = ScadOrthoView.Top(27, 3, 18, 8);
+        var hexagonView = ScadOrthoView.Top(45.013, 4.507, 14, 12, 4);
+        var document = Fixture("minkowski");
+        (double X, double Y)[] hexagon = [(40, 0), (43, 0), (49, 6), (49, 9), (46, 9), (40, 3)];
+        var log = new ScadReportLog();
+
+        // Act
+        using var rounded = roundedView.Render(document, evaluation: log.Options());
+        using var blocks = blocksView.Render(document);
+        using var hexagonImage = hexagonView.Render(document);
+        var bounds = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+
+        // Assert: points within one unit of the block are covered, the corners are round
+        Assert.Equal(Gray, At(roundedView, rounded, -0.8, 3));
+        Assert.Equal(Gray, At(roundedView, rounded, 10.8, 3));
+        Assert.Equal(White, At(roundedView, rounded, -0.95, -0.95));
+        Assert.Equal(White, At(roundedView, rounded, -1.2, 3));
+        Assert.InRange(
+            CountMismatches(
+                roundedView,
+                rounded,
+                White,
+                (x, y) => Math.Sqrt(Math.Pow(Math.Max(0, Math.Max(-x, x - 10)), 2) + Math.Pow(Math.Max(0, Math.Max(-y, y - 6)), 2)) <= 1),
+            0,
+            3);
+        Assert.Empty(log.Warnings);
+        Assert.Empty(log.Unsupported);
+
+        // The union of two blocks distributes: two 6 x 6 blocks with a gap of two between them
+        Assert.Equal(72, CountNon(blocks, White));
+        Assert.Equal(72, Count(blocks, p => p == Gray));
+        Assert.Equal(Gray, At(blocksView, blocks, 22.5, 3));
+        Assert.Equal(White, At(blocksView, blocks, 26.5, 3));
+        Assert.Equal(White, At(blocksView, blocks, 27.5, 3));
+        Assert.Equal(Gray, At(blocksView, blocks, 30.5, 3));
+
+        // The sum with a hull is the hexagon through the corners of the summed squares
+        Assert.InRange(CountMismatches(hexagonView, hexagonImage, White, (x, y) => InPolygon(x, y, hexagon)), 0, 2);
+
+        // The extents: the ball's vertices lie on its axes, so the sum reaches its full radius; the blocks and the hexagon are exact
+        AssertBounds(bounds, new Vector3D(-1, -1, -1), new Vector3D(49, 9, 6), 1e-9);
+    }
+
+    /// <summary>
+    ///     Validates that a Minkowski sum with a non-convex operand is reported at its own location, is not
+    ///     approximated and leaves the geometry around it alone.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Minkowski_NonConvexChildIsReportedAtItsLocationAndOmitted()
+    {
+        // Arrange: a unit cube and, on line 2, a sum whose first operand is a hollow block; one pixel is 0.1 units
+        var view = ScadOrthoView.Top(0.5, 0.5, 2, 2, 10);
+        var document = ScadDocument.Parse("cube(1);\n  minkowski() { difference() { cube(5); cube(2); } sphere(1); }");
+        var log = new ScadReportLog();
+
+        // Act
+        using var surface = view.Render(document, evaluation: log.Options());
+
+        // Assert: one report for the sum, only the cube is drawn
+        var report = Assert.Single(log.Unsupported);
+        Assert.Equal("scad-minkowski-nonconvex", report.Feature);
+        Assert.Equal(new ScadSourceLocation(document.SourceName, 2, 3), report.Location);
+        Assert.Contains("difference", report.Message, StringComparison.Ordinal);
+        Assert.Empty(log.Warnings);
+        Assert.Equal(100, CountNon(surface, White));
+    }
+
+    /// <summary>
+    ///     Validates that strict mode throws the new feature identifiers of hull and minkowski.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_HullAndMinkowski_StrictModeThrowsTheNewFeatureIds()
+    {
+        // Arrange
+        var options = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { ThrowOnUnsupportedFeature = true } };
+        (string Source, string Feature)[] cases =
+        [
+            ("hull() { cube(1); square(1); }", "scad-hull-mixed-dimensions"),
+            ("hull() difference() { cube(2); cube(1); }", "scad-hull-csg-operand"),
+            ("hull() polyhedron([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1, 2]]);", "scad-hull-degenerate"),
+            ("minkowski() { square(1); square(2); }", "scad-minkowski-2d"),
+            ("minkowski() { cube(1); square(1); }", "scad-minkowski-mixed-dimensions"),
+            ("minkowski() { difference() { cube(2); cube(1); } cube(1); }", "scad-minkowski-nonconvex"),
+            (
+                "minkowski() { for (i = [0 : 64]) translate([i * 3, 0, 0]) cube(1); for (j = [0 : 64]) translate([0, j * 3, 0]) cube(1); }",
+                "scad-minkowski-too-complex"
+            ),
+        ];
+
+        // Act / Assert
+        foreach (var (source, feature) in cases)
+        {
+            var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => ScadDocument.Parse(source).BuildScene(options, TestContext.Current.CancellationToken));
+            Assert.Equal(feature, ex.Feature);
+            Assert.Equal(new ScadSourceLocation(null, 1, 1), ex.Location);
+        }
+
+        // The same models without strict mode report the same feature once and build nothing
+        foreach (var (source, feature) in cases)
+        {
+            var log = new ScadReportLog();
+            var scene = ScadDocument.Parse(source).BuildScene(new ScadRenderOptions { Evaluation = log.Options() }, TestContext.Current.CancellationToken);
+            Assert.Equal([feature], log.Unsupported.Select(u => u.Feature).ToArray());
+            Assert.True(scene.ComputeBounds().IsEmpty);
+        }
     }
 
     /// <summary>

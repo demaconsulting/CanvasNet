@@ -4,7 +4,7 @@
 
 This document describes the unit-level verification strategy for the `ScadGeometryBuilder` unit: the internal
 iterative engine and its supporting types (`ScadGeometryBuilder`, `ScadGeo`, `ScadGeometryContext`, `ScadSceneMap`,
-`ScadReporter`, `ScadSceneOptions`, `ScadFeatureIds`, and `ScadBooleans`) in the
+`ScadReporter`, `ScadSceneOptions`, `ScadFeatureIds`, `ScadBooleans`, and `ScadHulls`) in the
 `DemaConsulting.CanvasNet.Scad.Geometry` namespace.
 
 #### Verification Approach
@@ -41,8 +41,18 @@ The render-level behavior of the unit's outputs (the mapping of renderer reports
 renderer fragment budget, and the installation of the renderer handler) is built by `ScadDocument` and is verified
 in the `ScadDocument` unit and the `ScadGeometry` subsystem and system tests, not here.
 
+Hull and minkowski are verified the same way: the built meshes are checked against closed-form results (the
+volume and bounds of a hull of boxes, the box that is the sum of two boxes, the rounded box between the analytic
+bounds), the reports for the operands that have no hull or sum by feature and location, the budget by the
+exact charge (the charge equals the triangles of the operands plus the meshes of the result, with the temporary
+sums of a fold refunded, and the boundary limit accepts while one below rejects), cancellation by a canceled
+token driven both through `Build` and directly through `ScadHulls` with already built results (so that the
+builders' own polls are reached), determinism by comparing two builds vertex for vertex, and the stack by
+hand-built chains of nested instances on a 64 KiB caller thread.
+
 Unit tests reside in `ScadGeometryBuilderWalkTests.cs`, `ScadGeometryBuilderStackTests.cs`,
 `ScadGeometryBuilderCancellationTests.cs`, `ScadGeometryBuilderLimitTests.cs`, `ScadGeometryBuilderBooleanTests.cs`,
+`ScadGeometryBuilderHullTests.cs`, `ScadGeometryBuilderMinkowskiTests.cs`,
 `ScadGeometryBuilderTransformDepthTests.cs`, `ScadSceneOptionsTests.cs`, and `ScadUnsupportedModuleTests.cs` within
 the `DemaConsulting.CanvasNet.Scad.Tests` project, in the `Geometry` folder, with the shared helpers
 (`ScadGeometryTestSupport`, `ScadBuildResult`, and `SceneLeaf`) in `ScadGeometryTestSupport.cs`.
@@ -79,16 +89,18 @@ wrong limit, an exception that is wrapped, or a scene option that is lost by the
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepScaleChain_OnSmallStack_ComposesToTheProduct`,
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepColorChain_OnSmallStack_Builds`,
 `ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepFlatTranslateChain_OnSmallStack_ComposesExactly`,
-`ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly`
+`ScadGeometryBuilderTransformDepthTests.ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_DeeplyNestedInstances_BuildOnASmallStack`
 
 Asserts that a chain of 100,000 groups (a cube and the next group per level) yields 100,001 meshes at depth
 100,001 with the same description on 64 KiB, 256 KiB, and big stacks; that 5,000 levels of a user module written
 in source build the same scene on small and big stacks; that a show-only mark at the bottom of a 100,000-level
 tree is found on a 64 KiB stack; that 20,000-level nests of differences, of intersections, and of extruded 2D
 differences give one node and one operand per level; that a 3,000-level chain of 2D translations written in
-source extrudes linearly and by rotation; and that 100,000 translations compose to the exact offset, 10,000
+source extrudes linearly and by rotation; that 100,000 translations compose to the exact offset, 10,000
 nested scales to the closed-form product, 100,000 colors build, 100,000 2D translations place the slab exactly, and
-3,000 translations from source compose exactly.
+3,000 translations from source compose exactly; and that hand-built chains of 3,000 nested hulls and 800 nested
+Minkowski sums around a unit cube build to the same unit solid on 64 KiB and big stacks.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion: Groups And Unions
 
@@ -143,14 +155,134 @@ before it is looked at.
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UnsupportedModule_ReportsFeatureWithLocation`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UserModuleShadowingBuiltin_IsBuiltNotReported`
 
-Asserts, for each of the eight modules `text`, `offset`, `projection`, `surface`, `import`, `roof`, `hull`, and
-`minkowski`, that the report is `scad-module-{name}` at the module's location with a message naming it, that no
+Asserts, for each of the six modules `text`, `offset`, `projection`, `surface`, `import`, and `roof`, that the
+report is `scad-module-{name}` at the module's location with a message naming it, that no
 mesh is built, and that an invalid child (a cube that would warn) is never visited; that realistic arguments make
 no difference and three modules in one program are reported in order at their own lines; that supported siblings
-still build; that, of every module the evaluator recognizes, exactly the eight are reported (so a module added to
+still build; that, of every module the evaluator recognizes, exactly the six are reported (`hull` and `minkowski`
+are built, and without children they yield nothing and report nothing, so a module added to
 the evaluator cannot be silently dropped); that an unsupported module under transforms yields nothing, as a
 minuend it empties the difference, and as a subtrahend it vanishes after being reported; and that a user module of
 the same name builds its own geometry without a report.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull3D: Hull Of Solids
+
+**Tests**: `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_TwoSeparatedCubes_IsTheConvexSolidSpanningBoth`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_ChildrenAreTransformedBeforeTheHull`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_MirroredAndRotatedChildren_GiveAPositiveVolumeMesh`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_UnionOfChildrenViaGroupsAndUserModules_IsOneHull`
+
+Asserts that the hull of two unit cubes ten apart is one closed mesh at the scene root with volume 11, bounds
+11 x 1 x 1, twelve triangles and no report; that translated, quarter-turned, and scaled children are hulled in
+their transformed positions (bounds x -1..6, y 0..2, z 0..3); that mirrored and rotated children give a closed
+mesh of positive volume; and that the children of a user module, a loop, and a union are one point set, the
+hull being byte-identical to the one of the same cubes written as direct children.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull2D: Hull Of Shapes
+
+**Tests**:
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_TwoDimensionalChildren_ProduceAConvexRegionThatExtrudes`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_TwoDimensionalTransformsAndColors_AreApplied`
+
+Asserts that the extrusion of the hull of two squares is the 8 x 2 box (volume 48 at height 3), that a triangle
+with a square inside it stays the triangle (volume 16 at height 2), that planar transforms of the children move
+the points (bounds x -1..12, y 0..11), and that a color inside a 2D or a 3D hull is dropped with one warning
+at the hull's location and leaves the result without an appearance.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDimensions: Hull Of Mixed Dimensions
+
+**Tests**: `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_MixedDimensions_ReportsAndOmits`
+
+Asserts that a hull of a square and a cube is one `scad-hull-mixed-dimensions` report at the hull's location,
+that nothing of it is built, and that its sibling cube is.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullCsgOperand: Hull Of A Boolean
+
+**Tests**: `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_DifferenceOrIntersectionChild_ReportsAndOmits`
+
+Asserts that a difference or an intersection below a 3D or a 2D hull, directly or under a union or a translate,
+is one `scad-hull-csg-operand` report with nothing built, and that a union of the same operands is hulled.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDegenerate: Flat And Empty Hulls
+
+**Tests**:
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_FlatCollinearOrSinglePointChildren_ReportsDegenerate`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_NoChildrenOrEmptyChildren_YieldsNothingWithoutAReport`
+
+Asserts that a single triangle and two coplanar triangles are one `scad-hull-degenerate` report at the hull's
+location, and that a hull without children, with an empty block, or with an invalid cube (which warns by itself)
+builds nothing and reports nothing of its own.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Minkowski: Minkowski Sum Of Convex Solids
+
+**Tests**: `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_CubeAndSphere_IsTheRoundedBox`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_TransformedConvexChildren_AreSummed`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_UnionOfConvexChildren_Distributes`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_ConvexityArgumentIsIgnored`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_HullChild_IsConvex`
+
+Asserts that a 10 x 6 x 4 block summed with a ball of 16 fragments is a closed mesh with bounds -1..11, -1..7,
+-1..5 and a volume between the block with its faces added and the exact rounded block; that a translated box and a
+quarter-turned box sum to the 4 x 3 x 5 box (volume 60); that a union on either side or both gives two or four
+boxes by distribution; that the `convexity` argument, named or positional, changes nothing; and that the output
+of a hull is an accepted operand and a lone convex child is itself (twelve triangles charged).
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex: Non-Convex Operands
+
+**Tests**: `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_NonConvexChild_ReportsAndOmits`
+
+Asserts that an L-shaped prism, a hollowed block, a ring, a difference, and an intersection, as one of several
+children or alone, are each one `scad-minkowski-nonconvex` report at the module's location with a message that
+names convexity, that nothing is built, and that no warning is added.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions: 2D And Mixed Operands
+
+**Tests**:
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_TwoDimensionalChildren_ReportsDeferred`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_MixedDimensions_ReportsAndOmits`
+
+Asserts that a sum of two squares, or of one, is one `scad-minkowski-2d` report and that a sum of a cube and a
+square is one `scad-minkowski-mixed-dimensions` report, each at the module's location, with the sibling cube
+still built.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiLimits: Work Bounds
+
+**Tests**:
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_TooManyPairsOrCombinations_ReportsTooComplex`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_SumBeyondTheCoordinateRange_IsRejected`
+
+Asserts that a child of 4,097 parts, two children of 65 parts (4,225 combinations), and two spheres of 4,902
+vertices each are one `scad-minkowski-too-complex` report with nothing built, and that a sum that leaves the
+1e100 range of two parts that are each inside it is `scad-geometry-rejected`.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget: Exact Charges
+
+**Tests**:
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge`
+
+Asserts, for hulls of boxes and spheres, an extruded 2D hull, sums of one, two, and three children, a union
+operand, and the reported cases (a boolean, a flat hull, and a fold whose second step is too complex after its
+first step produced sums), that the charge equals the triangles of the operands built alone plus the triangles of
+the meshes in the scene, so the temporary sums are refunded and nothing leaks on a report; and that a limit
+equal to the exact charge (36) builds, one below throws a `ScadEvaluationException` at the module's location with
+the limit in its message.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation: Cancellation
+
+**Tests**:
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_Canceled_ThrowsOperationCanceledException`
+
+Asserts that a canceled token stops a hull and a sum through `Build`, and that `ScadHulls.Hull` and
+`ScadHulls.Minkowski` called directly with already built operands throw `OperationCanceledException` unwrapped.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiDeterminism: Repeatable Meshes
+
+**Tests**:
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_SameModelTwice_BuildsIdenticalMeshes`
+
+Asserts that a model with a hull of a sphere and a rotated cube, a distributed sum with a union, and an extruded
+2D hull builds twice to the same four meshes vertex for vertex and index for index with the same charge.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting: One Reporting Channel
 

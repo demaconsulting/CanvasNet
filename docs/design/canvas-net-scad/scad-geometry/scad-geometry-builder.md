@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore evaluator minuend subtrahend subtrahends minkowski multmatrix tessellation tessellator -->
 
-The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises eleven
+The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises twelve
 source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 
 - `ScadGeometryBuilder.cs` — `ScadGeometryBuilder` (sealed partial class): the entry point `Build`, the dimension
@@ -20,13 +20,16 @@ source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `int
 - `ScadSceneOptions.cs` — `ScadSceneOptions`: the copy of the renderer options and the feature-id mapping
 - `ScadFeatureIds.cs` — `ScadFeatureIds`: the stable unsupported-feature identifiers
 - `ScadBooleans.cs` — `ScadBooleans`: the implicit union and the `difference` and `intersection` combiners
+- `ScadHulls.cs` — `ScadHulls`: the `hull` and `minkowski` combiners (also `ScadShape2D.IsUnionOnly` and
+  `HasColor`, the iterative 2D tree checks it uses, live in `ScadShape2D.cs`)
 
 #### Purpose
 
 `ScadGeometryBuilder` converts the geometry-agnostic instantiation tree produced by the evaluator (a list of
 `ScadInstance` roots) into a Render3D `Scene`, and returns with it the map from the scene's mesh nodes back to
 source locations. It owns what is common to every module: the walk, the implicit union, the modifiers, the CSG
-booleans and the dimension rules, the table of modules that are recognized but not built, the triangle budget,
+booleans and the dimension rules, the `hull` and `minkowski` convex combinations, the table of modules that are
+recognized but not built, the triangle budget,
 cancellation, the single reporting channel, and the copy of the renderer options. What a particular primitive,
 transform, color, or extrusion builds is delegated to the `ScadPrimitives`, `ScadTransforms`, and
 `ScadExtrusions` units through the dispatch tables (see _ScadGeometry Subsystem Design_).
@@ -43,7 +46,9 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometry
 (`NoRecursion`, `ImplicitUnion`, `ShowOnly`, `DegradedModifiers`, `UnsupportedModules`, `Reporting`,
 `StrictMode`, `Difference`, `Intersection`, `BooleanOperands`, `MixedDimensions`, `FlatBooleans`,
 `ResizeBounds`, `TriangleBudget`, `CoordinateRange`, `FlatSlabs`, `Cancellation`, `SceneMap`,
-`SceneOptionsCopy`, and `SceneOptionsMapping`) in `docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml`.
+`SceneOptionsCopy`, `SceneOptionsMapping`, and the Phase 7 `Hull3D`, `Hull2D`, `HullDimensions`, `HullCsgOperand`,
+`HullDegenerate`, `Minkowski`, `MinkowskiNonConvex`, `MinkowskiDimensions`, `MinkowskiLimits`,
+`HullMinkowskiBudget`, `HullMinkowskiCancellation`, and `HullMinkowskiDeterminism`) in `docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml`.
 
 #### Data Model
 
@@ -90,7 +95,10 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | Identifier                                                          | Meaning                                      |
 |---------------------------------------------------------------------|----------------------------------------------|
 | `scad-module-text`, `-offset`, `-projection`, `-surface`, `-import` | recognized module not built; omitted         |
-| `scad-module-roof`, `scad-module-hull`, `scad-module-minkowski`     | recognized module not built; omitted         |
+| `scad-module-roof`                                                  | recognized module not built; omitted         |
+| `scad-hull-csg-operand`, `-degenerate`, `-mixed-dimensions`         | `hull` with a boolean, flat points, 2D + 3D  |
+| `scad-minkowski-nonconvex`, `-2d`, `-mixed-dimensions`              | non-convex operand, deferred 2D sum, 2D + 3D |
+| `scad-minkowski-too-complex`                                        | work above the documented bounds             |
 | `scad-modifier-highlight`                                           | `#` renders normally, not highlighted        |
 | `scad-modifier-background`                                          | `%` subtree omitted                          |
 | `scad-color-alpha`                                                  | alpha below 1 drawn opaque (`ScadColors`)    |
@@ -105,8 +113,9 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | `scad-csg-degenerate-triangle`, `-inverted-mesh`                    | the producing module (see `ScadDocument`)    |
 | `scad-csg-singular-transform`                                       | collapsed world transform of an operand      |
 
-The `Module(name)` helper builds `scad-module-{name}` with underscores kept. This unit itself emits only the
-`scad-module-*` identifiers of the eight unsupported modules and the two `scad-modifier-*` identifiers; the
+The `Module(name)` helper builds `scad-module-{name}` with underscores kept. This unit itself emits the
+`scad-module-*` identifiers of the six unsupported modules, the two `scad-modifier-*` identifiers, and the seven
+`scad-hull-*` and `scad-minkowski-*` identifiers of `ScadHulls`; the
 other identifiers are emitted by the sibling units and by `ScadDocument`, and are defined here so that they live
 in one place.
 
@@ -165,9 +174,9 @@ The tables are `FrozenDictionary` instances keyed by ordinal module name:
 | Leaf        | `cube`, `sphere`, `cylinder`, `polyhedron`, `square`, `circle`, `polygon`               |
 | Container   | `union`, `render` (the implicit union), `difference`, `intersection`, `translate`,      |
 |             | `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color`, `linear_extrude`,         |
-|             | `rotate_extrude`                                                                        |
+|             | `rotate_extrude`, `hull`, `minkowski`                                                   |
 | Unsupported | every other recognized built-in: `text`, `offset`, `projection`, `surface`, `import`,   |
-|             | `roof`, `hull`, `minkowski`                                                             |
+|             | `roof`                                                                                  |
 
 `intersection_for` reaches the builder as the built-in `intersection` whose children are one group per iteration
 (the evaluator's decision), so it needs no entry of its own.
@@ -227,6 +236,66 @@ distributes over. Transforms and colors stay on the operand or the boolean where
 The combiners are stateless and thread-safe; the 2D shape tree is symbolic (see _ScadExtrusions Unit Design_ for
 why 2D booleans are never evaluated into one region).
 
+##### `ScadHulls` combiners (`hull` and `minkowski`)
+
+Both modules take their children's results with the empty ones dropped; no child left gives an empty result and
+no report. Children of both dimensions are reported (`scad-hull-mixed-dimensions`,
+`scad-minkowski-mixed-dimensions`) and the module yields nothing. The `convexity` argument and any other
+argument are ignored and not validated. A color inside either module is dropped with one warning (the result
+takes the enclosing `color`).
+
+**Collecting the points.** A solid result is a scene tree: `MeshNode`, `GroupNode` (a union, or a transform
+wrapper with the matrix in `Transform`), and `CsgNode`. The walk is an explicit stack that accumulates the world
+matrix of each node (`node.Transform * parent`, the row-vector convention), polls cancellation per node
+(`context.Tick()`), and stops at the first `CsgNode` that is not a union (the operation of every non-union boolean
+makes the hull of its vertices wrong, so it is reported, never approximated). Only the vertices that a triangle
+references are used.
+
+**`hull` of solids.** `ConvexHull.Hull3D` of the transformed points (their number bounded by `MaxTriangles`,
+which keeps the memory of the point list within the budget: a welded mesh has fewer vertices than triangles, so
+only a pathological polyhedron fails here) after `context.Poll()`; an `ArgumentException` (fewer than four
+affinely independent points) is `scad-hull-degenerate`. The mesh is charged with its exact triangle count
+(`ChargeTriangles(mesh.TriangleCount)`), then given a node by `CreateMeshNode` at the hull's location. The charge
+follows the computation (the count is known only then) rather than preceding the allocation; the computation is
+O(n log n) typically and bounded by the number of points, the mesh has `2V − 4` triangles with `V ≤ n`, and a
+charge that does not fit fails with the normal located `ScadEvaluationException` before the node is created. The
+result is a closed, outward-wound mesh of the strictly extreme vertices, a valid operand for later booleans.
+
+**`hull` of flat shapes.** The 2D trees must be union-only (`ScadShape2D.IsUnionOnly`, iterative), else
+`scad-hull-csg-operand`. The points are the vertices of every leaf region taken through the planar matrix of
+`EnumerateLeaves`; `ConvexHull.Hull2D` gives the strictly convex counter-clockwise polygon, fewer than three
+points are `scad-hull-degenerate`, and the polygon becomes a `PolygonRegion` flat result at the hull's location
+(an `ArgumentException` of the region is `scad-geometry-rejected`). No triangles are charged: the region is
+extruded, or made into a slab, by the unit that charges its exact triangles.
+
+**`minkowski`.** All flat children are `scad-minkowski-2d` (deferred). Each solid child reduces to its convex
+members: the meshes of its union-only scene tree, each brought into the module's frame with `Mesh.Transform`
+(which reverses the winding of a mirroring transform); a boolean is `scad-minkowski-nonconvex`, and a child with
+more than `MaxMinkowskiCombinations` (4,096) members is `scad-minkowski-too-complex`. The sum is folded from the
+left. Because `(A ∪ B) ⊕ C = (A ⊕ C) ∪ (B ⊕ C)`, the members of the accumulated result are summed pairwise with the
+members of the next child with `MinkowskiSum.ConvexSum`; a step of more than 4,096 sums, or a pair of meshes
+above `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums (decided on the distinct referenced vertices, only when
+the raw counts are over the bound), is `scad-minkowski-too-complex`. `ConvexSum` verifies that both operands are
+convex (see _MinkowskiSum Unit Design_ in the Render3D _Tessellation_ subsystem) and throws
+`NotSupportedException` otherwise (`scad-minkowski-nonconvex` with the reason in the message); any other
+`ArgumentException` (an operand without volume, for example) is `scad-geometry-rejected`. The module is
+all-or-nothing: the first report makes the whole `minkowski` empty, and one report is made. A single child is
+verified the same way by summing each of its members with a small tetrahedron (the sum is discarded: nothing is
+created or charged) and is then returned **unchanged**. The result is one `MeshNode` or a `GroupNode` of mesh
+nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
+
+**Budget.** Each sum is charged with its exact triangle count right after `ConvexSum` returns and before its node
+exists. The sums of every fold step but the last are scene-less temporaries: they are charged while they live (so
+the memory of a fold stays inside the budget) and refunded when the next step has consumed them, and on any
+failure everything not turned into a node is refunded. The operand meshes keep the charge they received when they
+were created, so the total charged equals the triangles of every mesh created (pinned by
+`ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`).
+
+**Cancellation, determinism, stack.** `context.Poll()` runs before each hull, each sum, and between the meshes
+gathered, and `context.Cancellation` is passed into the Render3D loops. The point and member order is document
+order, the Render3D results depend on point sets only, and nothing is enumerated from a hash order, so the same
+model gives the same meshes. Every walk is iterative.
+
 ##### Triangle budget
 
 The charges are the **exact** triangle counts of the meshes, computed from their parameters and charged **before**
@@ -244,7 +313,8 @@ across all instances, including those of loops, and the check uses subtraction, 
 ##### Cancellation
 
 `Tick()` is called for every instance entered and polls the token once every 256 instances; `Poll()` is called
-explicitly before each heavy tessellation (a primitive, an extrusion, a slab). A model of fewer than 256
+explicitly before each heavy tessellation (a primitive, an extrusion, a slab) and before each hull and convex sum.
+A model of fewer than 256
 instances that needs no tessellation (for example an empty document) never polls and completes even with a
 canceled token. The `OperationCanceledException` is never wrapped; the events reported before it stay in the
 sink.
@@ -264,12 +334,15 @@ prefix gets `scad-` prepended.
 
 #### Error Handling
 
-- **Warning** (through the reporter, into the shared sink): the mixed-dimension warnings above. The primitives,
+- **Warning** (through the reporter, into the shared sink): the mixed-dimension warnings above and the warning
+  that colors inside a `hull` or `minkowski` are not kept. The primitives,
   transforms, and extrusions report their invalid arguments the same way (see their unit designs).
 - **Unsupported feature** (`ScadReporter.Unsupported`): `scad-module-{name}` with the message
   `The module '{name}' is not supported; it and its children are omitted`, `scad-modifier-highlight`
-  (`The '#' modifier is not highlighted; the subtree is rendered normally`) and `scad-modifier-background`
-  (`The '%' modifier is not supported; the subtree is omitted`), each at the instance's location (which names an
+  (`The '#' modifier is not highlighted; the subtree is rendered normally`), `scad-modifier-background`
+  (`The '%' modifier is not supported; the subtree is omitted`), and the `scad-hull-*` and `scad-minkowski-*`
+  identifiers of `ScadHulls` (each message names the module, the cause, and that the module is omitted), each at
+  the instance's location (which names an
   included or used file when the instance came from one). The sink de-duplicates by feature and location, so a
   loop reports one module once. In **strict mode** the first report of a feature at a location throws a
   `ScadUnsupportedFeatureException` carrying the feature, message, and location (the report stays in the sink);
@@ -295,7 +368,8 @@ prefix gets `scad-` prepended.
   dispatch tables (`ScadPrimitives.*`, `ScadTransforms.*`, `ScadColors.Color`, `ScadExtrusions.*`), and
   `ScadExtrusions.MakeSlabs` for a flat model; `ScadShape2D` for the 2D shape tree.
 - **`Render3D` public types** — `Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `CsgOperation`,
-  `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), and `SceneRenderOptions`,
+  `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), `ConvexHull` and `MinkowskiSum`
+  (the exact hull and the convex Minkowski sum used by `ScadHulls`), and `SceneRenderOptions`,
   `SceneRenderUnsupportedFeature`, and `Light` (scene rendering).
 - **`CanvasNet` core types** — `Rgba32` (through the options copy).
 - **.NET base class library** — `System.Collections.Frozen`, `System.Collections.Generic`, and

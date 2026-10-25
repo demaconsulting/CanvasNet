@@ -143,6 +143,57 @@ internal sealed class ScadShape2D
     }
 
     /// <summary>
+    ///     Gets a value indicating whether the tree combines its children with unions only (no difference and no
+    ///     intersection anywhere), walking iteratively.
+    /// </summary>
+    /// <returns><see langword="true"/> when the tree has no difference and no intersection node.</returns>
+    public bool IsUnionOnly()
+    {
+        var stack = new Stack<ScadShape2D>();
+        stack.Push(this);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node.Kind == ScadShape2DKind.Csg && node.Operation != CsgOperation.Union)
+            {
+                return false;
+            }
+
+            foreach (var child in node.Children)
+            {
+                stack.Push(child);
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether the tree contains a color node, walking iteratively.
+    /// </summary>
+    /// <returns><see langword="true"/> when any node is a <see cref="ScadShape2DKind.Color"/>.</returns>
+    public bool HasColor()
+    {
+        var stack = new Stack<ScadShape2D>();
+        stack.Push(this);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node.Kind == ScadShape2DKind.Color)
+            {
+                return true;
+            }
+
+            foreach (var child in node.Children)
+            {
+                stack.Push(child);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     ///     Computes the exact bounds of every vertex of every leaf of the tree (including operands that a boolean
     ///     would remove), as a box in the XY plane at Z = 0.
     /// </summary>

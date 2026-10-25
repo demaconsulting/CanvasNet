@@ -97,8 +97,8 @@ public class ScadSystemIntegrationTests
         // Act: open every valid fixture from disk
         var documents = fixtures.Select(path => ScadDocument.Open(path)).ToList();
 
-        // Assert: the ten parse fixtures, the sixteen golden evaluation fixtures and the twelve render fixtures, each named by its path
-        Assert.Equal(38, documents.Count);
+        // Assert: the ten parse fixtures, the sixteen golden evaluation fixtures and the fourteen render fixtures, each named by its path
+        Assert.Equal(40, documents.Count);
         Assert.Equal(fixtures, documents.Select(d => d.SourceName));
     }
 

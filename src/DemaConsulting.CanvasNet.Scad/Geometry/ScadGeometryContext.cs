@@ -79,6 +79,12 @@ internal sealed class ScadGeometryContext
     /// <summary>Gets the number of triangles charged so far.</summary>
     public long TrianglesCharged => _triangles;
 
+    /// <summary>Gets the triangle budget of the model (<see cref="ScadLimits.MaxTriangles"/>).</summary>
+    public long MaxTriangles => _settings.MaxTriangles;
+
+    /// <summary>Gets the token polled while building, for the long-running Render3D operations (hull, Minkowski sum).</summary>
+    public CancellationToken Cancellation => _settings.Cancellation;
+
     /// <summary>
     ///     Counts one visited instance and polls cancellation once every <see cref="PollInterval"/> instances.
     /// </summary>
