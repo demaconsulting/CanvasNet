@@ -198,9 +198,18 @@ counts as a slot. The assignments and definitions in the child list are bound in
 
 - `children()` places all slots in order; `children(i)` (positional, or `index=`) one slot; a vector its
   listed slots in order; a range its integer elements.
-- Each selected slot executes in a fresh block scope whose **lexical parent is the call-site scope** and whose
-  **dynamic parent is the scope that executes `children()`**, so special variables set inside the module
-  before `children()` are visible to the children.
+- Each selected slot executes in a fresh block scope whose **lexical parent is the call-site scope** (extended by
+  the child list's own assignments and definitions) and whose **dynamic `$` chain** is the `$` bindings made by
+  the **child list itself** on top of the chain in effect where `children()` executes. Precisely: (a) special
+  variables set inside the module before `children()` are visible to the children; (b) `$` variables assigned in
+  the child list are visible to the children whatever the module does — `m() { $x = 4; echo($x); }` behaves like
+  `{ $x = 4; echo($x); }`, because the child list is the lexically innermost block — and they **shadow** a
+  same-named binding of the module, while the module body itself never sees them; (c) the list's `$` cells are
+  forced once, when the call's children are captured, under the call site's chain, so `$b = $a * 3` reads the
+  call site's `$a`; (d) `$` bindings made outside the child list (in the block that contains the call) keep the
+  old behavior: the module's executing chain wins; (e) the list's frame is copied in front of the executing
+  chain each time a slot runs (the cells themselves are shared, not re-evaluated), and the copy is bounded by
+  the recursion limit like every other binding of a special variable (`Recursion too deep (limit N)`).
 - A non-integer, negative, or too large index gives the warning `Ignoring invalid child index` and places
   nothing for that index. `children()` outside a module gives `children() used outside a module`.
 - Children can be forwarded through a nested module (`children()` inside a call whose own children list

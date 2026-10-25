@@ -86,7 +86,9 @@ internal sealed partial class ScadEvaluator
     /// <remarks>
     ///     Nested braces are flattened; every other statement that is not an assignment or a definition is one slot,
     ///     however many instances it later produces. Assignments and definitions of the child list are bound in a scope
-    ///     that extends the call site, which is the scope the slots run in.
+    ///     that extends the call site, which is the scope the slots run in. The <c>$</c> assignments of the list are
+    ///     forced once, here, under the call site's dynamic chain, and their frame is remembered separately so that
+    ///     <see cref="RunSlot"/> can put it in front of the chain in effect where <c>children()</c> executes.
     /// </remarks>
     /// <param name="instantiation">The instantiation.</param>
     /// <param name="scope">The scope of the call site.</param>
@@ -97,13 +99,17 @@ internal sealed partial class ScadEvaluator
         var declarations = new List<ScadStatement>();
         Flatten(instantiation.Children, slots, declarations);
         var listScope = scope;
+        ScadSpecialFrame? listSpecials = null;
         if (declarations.Count > 0)
         {
             listScope = BuildScope(declarations, scope, scope.Specials);
             ForceAll(listScope);
+
+            // Only a frame the list created itself counts; the call site's own frame is never taken from the call site
+            listSpecials = listScope.OwnedFrame;
         }
 
-        return new ScadChildren(slots, listScope, instantiation.Location);
+        return new ScadChildren(slots, listScope, instantiation.Location, listSpecials);
     }
 
     /// <summary>
@@ -242,7 +248,9 @@ internal sealed partial class ScadEvaluator
     }
 
     /// <summary>
-    ///     Executes one child slot in a fresh scope: lexically the call site, dynamically the executing scope.
+    ///     Executes one child slot in a fresh scope: lexically the call site (extended by the child list's own
+    ///     assignments), dynamically the <c>$</c> chain in effect where <c>children()</c> executes with the <c>$</c>
+    ///     assignments of the child list itself in front, so they shadow a same-named binding of the module.
     /// </summary>
     /// <param name="children">The children.</param>
     /// <param name="index">The slot index.</param>
@@ -250,7 +258,11 @@ internal sealed partial class ScadEvaluator
     /// <param name="output">The instance list.</param>
     private void RunSlot(ScadChildren children, int index, ScadScope scope, List<ScadInstance> output)
     {
-        var slotScope = new ScadScope(children.ListScope, scope.Specials);
+        var specials = children.ListSpecials is null ? scope.Specials : children.ListSpecials.CopyOnto(scope.Specials);
+        var slotScope = new ScadScope(children.ListScope, specials);
+
+        // The extra frame counts towards the recursion limit like any other binding of a special variable
+        CheckSpecialDepth(slotScope, children.Location);
         Execute(children.Slots[index], slotScope, output);
     }
 }

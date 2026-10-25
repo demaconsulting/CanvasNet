@@ -155,6 +155,166 @@ public class ScadEvaluatorSpecialVariableTests
     }
 
     /// <summary>
+    ///     Validates that a <c>$</c> variable assigned in a child list is visible to that list's children, whatever
+    ///     the module does (the repro of the original defect).
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_IsVisibleToChildren()
+    {
+        // Arrange
+        const string Source = "module m() { children(); }\nm() { $x = 4; echo($x); }";
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal("ECHO: 4", Assert.Single(output.Echo));
+        Assert.Empty(output.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Validates precedence: the child list's binding shadows a same-named binding of the module, and the module
+    ///     body itself never sees the child list's binding.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_ShadowsModuleBinding()
+    {
+        // Arrange
+        const string Source = "module m() { $x = 9; echo($x); children(); echo($x); }\nm() { $x = 4; echo($x); }";
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("9|4|9", text);
+    }
+
+    /// <summary>
+    ///     Validates that the child list's special variables are evaluated under the call site's chain, once, even
+    ///     when the module rebinds the variable they depend on.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_DependsOnCallSiteSpecials()
+    {
+        // Arrange
+        const string Source = "module m() { $a = 100; children(); }\n$a = 2;\nm() { $b = $a * 3; echo($b); }";
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("6", text);
+    }
+
+    /// <summary>
+    ///     Validates that the dynamic scope of the children reaches modules and functions they call.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren()
+    {
+        // Arrange
+        const string Source = "module show() { echo($x, f()); }\nfunction f() = $x * 2;\nmodule m() { children(); }\nm() { $x = 4; show(); }";
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("4, 8", text);
+    }
+
+    /// <summary>
+    ///     Validates that the binding exists only for the children: neither the module body nor the call site sees it.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_IsNotVisibleAtTheCallSite()
+    {
+        // Arrange
+        const string Source = "module m() { children(); echo($x); }\nm() { $x = 4; echo($x); }\necho($x);";
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal(["ECHO: 4", "ECHO: undef", "ECHO: undef"], output.Echo);
+        Assert.Equal(2, output.Diagnostics.Count);
+    }
+
+    /// <summary>
+    ///     Validates that children forwarded through a nested module still see the binding of their own child list.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesChildrenForwardedThroughNestedModule()
+    {
+        // Arrange
+        const string Source = """
+            module inner() { children(); }
+            module outer() { inner() { children(); } }
+            outer() { $x = 4; echo($x); }
+            """;
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("4", text);
+    }
+
+    /// <summary>
+    ///     Validates that a child selected by index sees the binding of the list it belongs to.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_SelectedChild_SeesIt()
+    {
+        // Arrange
+        const string Source = "module m() { children(1); }\nm() { echo(\"first\"); $x = 4; echo($x); }";
+
+        // Act
+        var text = EchoText(Source);
+
+        // Assert
+        Assert.Equal("4", text);
+    }
+
+    /// <summary>
+    ///     Validates that the extra frame a child list adds counts towards the recursion limit: forwarding children
+    ///     through deeply nested modules ends in the limit error, never in a stack error.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit()
+    {
+        // Arrange
+        var settings = With(new ScadLimits { MaxRecursionDepth = 16 });
+        const string Source = """
+            module nest(n) { if (n > 0) nest(n - 1) { $d = n; children(); } else children(); }
+            nest(1000) { echo($d); }
+            """;
+
+        // Act
+        var ex = Fails(Source, settings);
+
+        // Assert
+        Assert.Contains("Recursion too deep (limit 16)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the regression twin of the module-binding case: a child list that assigns only ordinary
+    ///     variables adds no special frame, so the module's bindings still reach its children.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorSpecialVariable_ModuleBinding_WithoutChildListSpecials_StillReachesChildren()
+    {
+        // Arrange
+        const string Source = "module m() { $v = 4; children(); }\nm() { y = 1; echo($v, y); }";
+
+        // Act
+        var output = Run(Source);
+
+        // Assert
+        Assert.Equal("ECHO: 4, 1", Assert.Single(output.Echo));
+        Assert.Empty(output.Diagnostics);
+    }
+
+    /// <summary>
     ///     Validates that the fragment settings of instances follow the dynamic <c>$fn</c> and a named argument overrides it.
     /// </summary>
     [Fact]

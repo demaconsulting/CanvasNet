@@ -74,7 +74,8 @@ sections:
                   nested module and function calls, let, loop variables, and named arguments that
                   need no matching parameter, falling back to the defaults for the fragment settings,
                   the animation time (taken from the evaluation settings), and the preview flag, and
-                  shall not let a chain of tail calls grow the lookup chain.
+                  shall not let a chain of tail calls grow the lookup chain; a special variable
+                  assigned in a child list shall be visible to that list's children.
                 justification: |
                   Special variables such as the fragment counts configure whole subtrees of a model
                   from the outside; their dynamic visibility is the language's way of doing so.
@@ -87,6 +88,8 @@ sections:
                   - ScadEvaluatorSpecialVariable_Parameter_ShadowsOuterBinding
                   - ScadEvaluatorSpecialVariable_TailRecursionWithoutSpecials_DoesNotGrowChain
                   - ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit
                   - ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody
                   - ScadEvaluatorIncludeUse_Use_LibraryModulesSeeCallersSpecialVariables
 
@@ -167,7 +170,8 @@ sections:
                   The ScadEvaluator unit shall give a user module access to the child statements of
                   its call through the children pseudo-module - all children, one child by index, a
                   list of indices, or a range - evaluating each selected child at the call site with
-                  the special variables of the module visible to it, counting a nested braced block
+                  the special variables of the module visible to it and those assigned in the child
+                  list itself visible and taking precedence, counting a nested braced block
                   as flattened and every other statement as one child, exposing the child count as a
                   special variable, forwarding children through nested modules, and warning without
                   output for an invalid index or a use outside a module.
@@ -185,6 +189,13 @@ sections:
                   - ScadEvaluatorModule_Children_ForwardedThroughNestedModule
                   - ScadEvaluatorSpecialVariable_Children_CountsSlots
                   - ScadEvaluatorSpecialVariable_SetBeforeChildren_IsVisibleToChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_IsVisibleToChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ShadowsModuleBinding
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_DependsOnCallSiteSpecials
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_IsNotVisibleAtTheCallSite
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesChildrenForwardedThroughNestedModule
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_SelectedChild_SeesIt
+                  - ScadEvaluatorSpecialVariable_ModuleBinding_WithoutChildListSpecials_StillReachesChildren
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ControlFlow
                 title: >-

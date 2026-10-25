@@ -116,6 +116,22 @@ internal sealed class ScadSpecialFrame
     /// <param name="cell">The binding when found.</param>
     /// <returns><see langword="true"/> when the frame binds the name.</returns>
     public bool TryGet(string name, out ScadCell cell) => _cells.TryGetValue(name, out cell!);
+
+    /// <summary>
+    ///     Creates a frame with the same bindings (the very same, already evaluated cells) in front of another chain.
+    /// </summary>
+    /// <param name="next">The chain the copy is put in front of, or <see langword="null"/>.</param>
+    /// <returns>The new frame; this frame is unchanged.</returns>
+    public ScadSpecialFrame CopyOnto(ScadSpecialFrame? next)
+    {
+        var copy = new ScadSpecialFrame(next);
+        foreach (var cell in _cells.Values)
+        {
+            copy._cells[cell.Name] = cell;
+        }
+
+        return copy;
+    }
 }
 
 /// <summary>
@@ -131,7 +147,11 @@ internal sealed record ScadModuleBinding(ScadModuleDefinition Definition, ScadSc
 /// <param name="Slots">The child slots: every statement of the call's child list that is not an assignment or a definition, nested braces flattened.</param>
 /// <param name="ListScope">The scope slots execute in: the call site, extended by assignments and definitions of the child list.</param>
 /// <param name="Location">The location of the call.</param>
-internal sealed record ScadChildren(IReadOnlyList<ScadStatement> Slots, ScadScope ListScope, ScadSourceLocation Location);
+/// <param name="ListSpecials">
+///     The frame of the <c>$</c> variables assigned by the child list itself, or <see langword="null"/> when it assigns
+///     none. A slot runs with a copy of this frame in front of the dynamic chain in effect where <c>children()</c> executes.
+/// </param>
+internal sealed record ScadChildren(IReadOnlyList<ScadStatement> Slots, ScadScope ListScope, ScadSourceLocation Location, ScadSpecialFrame? ListSpecials = null);
 
 /// <summary>
 ///     A function value: a named function definition or a function literal together with the scope it closes over.
@@ -226,6 +246,9 @@ internal sealed class ScadScope
 
     /// <summary>Gets the head of the dynamic <c>$</c> chain that applies inside this scope.</summary>
     public ScadSpecialFrame? Specials { get; private set; }
+
+    /// <summary>Gets the frame this scope created for its own <c>$</c> bindings, or <see langword="null"/> when it binds none.</summary>
+    public ScadSpecialFrame? OwnedFrame => _ownsFrame ? Specials : null;
 
     /// <summary>Gets or sets the children of the module call this scope belongs to (set on a module call scope).</summary>
     public ScadChildren? Children { get; set; }

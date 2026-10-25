@@ -116,6 +116,8 @@ give `undef` and a circular-reference warning, and that a function reads variabl
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_Parameter_ShadowsOuterBinding`,
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_TailRecursionWithoutSpecials_DoesNotGrowChain`,
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit`,
 `ScadEvaluatorControlFlowTests.ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody`,
 `ScadEvaluatorIncludeUseTests.ScadEvaluatorIncludeUse_Use_LibraryModulesSeeCallersSpecialVariables`
 
@@ -123,8 +125,10 @@ Asserts the defaults of the fragment variables, the time, and the preview flag, 
 settings, that a binding made by a caller is visible through nested module and function calls, that a `let`
 binding is visible in a called function, that a named `$` argument binds even without a parameter, that a parameter
 shadows an outer binding, that a long tail recursion that binds no `$` name does not grow the chain, that one that
-binds one at every level fails with the recursion error, that a `$` loop variable is dynamic for the body, and that
-a library module sees its caller's special variables.
+binds one at every level fails with the recursion error, that a `$` loop variable is dynamic for the body, that
+a library module sees its caller's special variables, that a `$` variable assigned in a child list reaches the
+modules and functions its children call, and that the frames child lists add are bounded by the recursion limit
+(nesting a module a thousand levels deep ends in `Recursion too deep (limit 16)`, not a stack error).
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-Functions: User Functions
 
@@ -189,13 +193,25 @@ body, and that a failed assertion aborts.
 `ScadEvaluatorModuleTests.ScadEvaluatorModule_Children_AreEvaluatedAtTheCallSite`,
 `ScadEvaluatorModuleTests.ScadEvaluatorModule_Children_ForwardedThroughNestedModule`,
 `ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_Children_CountsSlots`,
-`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_SetBeforeChildren_IsVisibleToChildren`
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_SetBeforeChildren_IsVisibleToChildren`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_IsVisibleToChildren`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_ShadowsModuleBinding`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_DependsOnCallSiteSpecials`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_IsNotVisibleAtTheCallSite`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesChildrenForwardedThroughNestedModule`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ChildListAssignment_SelectedChild_SeesIt`,
+`ScadEvaluatorSpecialVariableTests.ScadEvaluatorSpecialVariable_ModuleBinding_WithoutChildListSpecials_StillReachesChildren`
 
 Asserts all children in order, selection by index, vector, and range, the warnings for an invalid index and for a
 use outside a module, slot counting (nested blocks flattened; a `for`, an `if`, and a disabled child one slot each),
 that child assignments are visible to the slots, that children are evaluated at the call site, that children
 forward through a nested module, the child-count special variable, and that special variables set before
-`children()` are visible to the children.
+`children()` are visible to the children. For special variables assigned in the child list itself, it asserts that
+`module m() { children(); }` with `m() { $x = 4; echo($x); }` prints `ECHO: 4` without a warning, that the list's
+binding shadows the module's while the module body keeps its own, that a list binding that depends on another
+special variable reads the call site's value even when the module rebinds it, that the binding is not visible in
+the module body or at the call site, that it reaches children forwarded through a nested module and a child selected
+by index, and that a child list assigning only ordinary variables leaves the module's bindings visible.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-ControlFlow: Conditionals And Loops
 

@@ -408,7 +408,8 @@ unit design documents:
  1. Variable assignment is position independent and **the last assignment in a scope wins** (with a warning at
     the earlier one); variables are lazy, memoized cells that are forced in source order, and a circular
     reference is `undef` with a warning.
- 2. Special variables (`$name`) are dynamically scoped through calls and `children()`.
+ 2. Special variables (`$name`) are dynamically scoped through calls and `children()`; a `$` assignment made in a
+    child list is visible to that list's children and shadows a same-named binding of the module.
  3. Truthiness: `undef`, `false`, `0`, `-0`, the empty string, and the empty vector are false; everything
     else, including `NaN`, ranges, and functions, is true. Equality never coerces between kinds
     (`true == 1` is false).
