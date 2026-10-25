@@ -224,7 +224,7 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorForms
                 title: >-
                   The ScadTransforms unit shall build color from a name of the CSS named-color table (all 148
-                  names and transparent, case-insensitive), a hexadecimal string #rgb, # rgba,  # rrggbb, or
+                  names and transparent, case-insensitive), a hexadecimal string # rgb, # rgba,  # rrggbb, or
                   # rrggbbaa, or a vector of three or four numbers from 0 to 1 (clamped and rounded to the
                   nearest of 256 levels), given positionally or as c.
                 justification: |
