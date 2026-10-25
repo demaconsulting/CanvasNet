@@ -80,6 +80,11 @@ includes:
   - docs/reqstream/canvas-net-scad/scad-language.yaml
   - docs/reqstream/canvas-net-scad/scad-language/scad-lexer.yaml
   - docs/reqstream/canvas-net-scad/scad-language/scad-parser.yaml
+  - docs/reqstream/canvas-net-scad/scad-evaluation.yaml
+  - docs/reqstream/canvas-net-scad/scad-evaluation/scad-value.yaml
+  - docs/reqstream/canvas-net-scad/scad-evaluation/scad-evaluator.yaml
+  - docs/reqstream/canvas-net-scad/scad-evaluation/scad-builtin-functions.yaml
+  - docs/reqstream/canvas-net-scad/scad-evaluation/scad-file-resolver.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

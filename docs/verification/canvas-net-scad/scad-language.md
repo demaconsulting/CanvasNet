@@ -43,8 +43,9 @@ scenario in the two unit verification documents passes without error or unexpect
 - **Tokenization — Fixtures And Line Endings** (requirement `CanvasNetScad-ScadLanguage-Tokenization`):
   `ScadLanguageTests.ScadLanguage_Parse_AllAuthoredFixtures_Succeed`,
   `ScadLanguageTests.ScadLanguage_Parse_LineEndingVariants_ProduceIdenticalTrees`,
-  `ScadLanguageTests.ScadLanguage_Parse_FixtureLineEndingConversion_ProducesIdenticalTrees` — parses all ten
-  valid fixtures into non-empty programs; parses a small program joined with LF, CRLF, and CR line endings and
+  `ScadLanguageTests.ScadLanguage_Parse_FixtureLineEndingConversion_ProducesIdenticalTrees` — parses all twenty-six
+  valid fixtures (the ten parse fixtures and the sixteen golden evaluation fixtures) into non-empty programs;
+  parses a small program joined with LF, CRLF, and CR line endings and
   asserts a single distinct tree dump and a single distinct list of statement locations (`p.scad:2:1` and
   `p.scad:10:1`); and converts every fixture to CRLF and to CR (after normalizing to LF) and asserts the dump is
   unchanged. Together they show that comment skipping, string handling, and position tracking compose through

@@ -1,0 +1,18 @@
+ECHO: "arithmetic", 10, 4, 21, 3.5, 1, 1024, -1, -5
+ECHO: "division", inf, -inf, nan
+ECHO: "comparison", true, true, false, true, true, true, false
+ECHO: "equality", false, true, true, true, true
+ECHO: "not", true, true, false, true, false, true, false
+ECHO: "logic yields booleans", true, false, true, false
+ECHO: "ternary", "yes", "no", "no"
+ECHO: "vector arithmetic", [11, 22, 33], [4, 3]
+ECHO: "scaling", [2, 4, 6], [2, 4], [1, 2]
+ECHO: "dot product", 32
+ECHO: "matrix times vector", [3, 7]
+ECHO: "matrix times matrix", [[1, 2], [3, 4]], [[2, 1], [4, 3]]
+ECHO: "indexing", 10, 30, undef, undef, 20
+ECHO: "string indexing", "e", undef
+ECHO: "members", 10, 20, 30, undef
+ECHO: "nested index", 3
+ECHO: "range as value", [1 : 2 : 9], [1, 3, 5, 7, 9]
+ECHO: "precedence", 14, 20, 512, -4, 3, true

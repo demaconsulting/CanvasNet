@@ -1,0 +1,678 @@
+---
+# Software Unit Requirements for ScadEvaluator
+#
+# These requirements describe the design-level behavior of the ScadEvaluator unit: the internal evaluator of
+# the DemaConsulting.CanvasNet.Scad.Evaluation namespace that turns a parsed, include-expanded program into
+# a geometry-agnostic instantiation tree (ScadEvaluator and its partial files, ScadScope, ScadInstance,
+# ScadBuiltinModules, ScadEvaluationSettings, ScadEvaluationOutput, and the buffering ScadEvaluationSink).
+#
+# The language semantics - lazy, last-assignment-wins scoping, dynamically scoped special variables, module
+# children, tail calls, ranges, comprehensions, and the accounting that bounds recursion, steps, loops, lists,
+# strings, instances, and output - are the CanvasNetScad dialect's own decisions, pinned by the tests below
+# (see docs/design/canvas-net-scad.md, Clean-Room Provenance). The recursion limit is deterministic: a frame
+# counter defines it, so it behaves identically on every stack size. Each "tests" entry cites an existing
+# test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-evaluation/scad-evaluator.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadEvaluation Requirements
+        sections:
+          - title: ScadEvaluator Requirements
+            requirements:
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Scoping
+                title: >-
+                  The ScadEvaluator unit shall resolve a variable from the innermost scope outward,
+                  make every assignment, function, and module of a scope visible throughout that scope
+                  wherever it is written, let the last assignment to a name in one scope win while
+                  warning at the earlier assignment, let a block, an if branch, and each loop
+                  iteration have their own scope, bind let variables sequentially, evaluate a
+                  function in the scope of its definition rather than of its caller, keep variables
+                  and functions of the same name separate, make definitions nested in a body local to
+                  it, and predefine the constant PI.
+                justification: |
+                  Scoping decides what every name in a model means; the rules are unusual (position
+                  independent, last assignment wins) and must be stated and pinned exactly.
+                tests:
+                  - ScadEvaluatorScoping_Reassignment_LastWinsAndWarnsAtEarlierAssignment
+                  - ScadEvaluatorScoping_ForwardReference_SeesLaterAssignment
+                  - ScadEvaluatorScoping_Block_ShadowsWithoutLeaking
+                  - ScadEvaluatorScoping_Definitions_AreHoisted
+                  - ScadEvaluatorScoping_VariableAndFunctionOfSameName_Coexist
+                  - ScadEvaluatorScoping_Function_UsesDefinitionScopeNotCallerScope
+                  - ScadEvaluatorScoping_DuplicateDefinitions_LastWinsWithWarnings
+                  - ScadEvaluatorScoping_NestedDefinitions_AreLocalToTheirBody
+                  - ScadEvaluatorScoping_Pi_IsDefinedAndCanBeShadowed
+                  - ScadEvaluatorScoping_SameNameInDifferentScopes_DoesNotWarn
+                  - ScadEvaluatorScoping_IfBranch_HasOwnScope
+                  - ScadEvaluatorScoping_Let_BindsSequentially
+                  - ScadEvaluatorScoping_LoopBody_HasScopePerIteration
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-LazyCells
+                title: >-
+                  The ScadEvaluator unit shall evaluate each variable of a scope at most once, on
+                  first use or, for an unused variable, in source order when the scope is entered (so
+                  that echo and assert effects still occur in source order and forward references
+                  work), evaluating a variable's expression in the scope that defines it, and shall
+                  warn and yield undef when a variable depends on itself directly or through other
+                  variables.
+                justification: |
+                  Forward references and unused assignments with effects must behave predictably, and
+                  a circular definition must not hang or crash the evaluation.
+                tests:
+                  - ScadEvaluatorScoping_Cells_AreForcedInSourceOrderWithDependenciesFirst
+                  - ScadEvaluatorScoping_Cell_IsEvaluatedOnce
+                  - ScadEvaluatorScoping_SelfReference_IsUndefWithWarning
+                  - ScadEvaluatorScoping_MutualReference_IsUndefWithWarning
+                  - ScadEvaluatorFunction_FileVariable_DefinedLater_IsReadable
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-SpecialVariables
+                title: >-
+                  The ScadEvaluator unit shall give special variables (names beginning with a dollar
+                  sign) dynamic scope: a lookup finds the binding made by the nearest caller, through
+                  nested module and function calls, let, loop variables, and named arguments that
+                  need no matching parameter, falling back to the defaults for the fragment settings,
+                  the animation time (taken from the evaluation settings), and the preview flag, and
+                  shall not let a chain of tail calls grow the lookup chain; a special variable
+                  assigned in a child list shall be visible to that list's children; a named special
+                  variable argument of a built-in module instance shall likewise be bound
+                  dynamically for everything the instance contains (including its own fragment settings
+                  and re-evaluated children), with the nearest binding winning.
+                justification: |
+                  Special variables such as the fragment counts configure whole subtrees of a model
+                  from the outside; their dynamic visibility is the language's way of doing so.
+                tests:
+                  - ScadEvaluatorSpecialVariable_Defaults_AreDocumentedValues
+                  - ScadEvaluatorSpecialVariable_Time_IsTakenFromSettings
+                  - ScadEvaluatorSpecialVariable_SetInCaller_IsVisibleThroughNestedCalls
+                  - ScadEvaluatorSpecialVariable_BoundByLet_IsVisibleInCalledFunction
+                  - ScadEvaluatorSpecialVariable_NamedArgumentWithoutParameter_BindsDynamically
+                  - ScadEvaluatorSpecialVariable_Parameter_ShadowsOuterBinding
+                  - ScadEvaluatorSpecialVariable_TailRecursionWithoutSpecials_DoesNotGrowChain
+                  - ScadEvaluatorSpecialVariable_TailRecursionBindingSpecial_IsBoundedByRecursionLimit
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesModulesCalledByChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_InRecursion_IsBoundedByRecursionLimit
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgument_BindsForChildrenOnly
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgument_IsDynamicAndArgumentsUseCallSite
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_PropagatesToNestedChildren
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleFragmentArgument_NearestBindingWins
+                  - ScadEvaluatorSpecialVariable_UserModuleArgument_ReachesBodyAndChildren
+                  - ScadEvaluatorSpecialVariable_BuiltinModuleArgumentAroundChildren_ReachesReevaluatedChildren
+                  - ScadEvaluatorControlFlow_For_SpecialLoopVariable_IsDynamicForBody
+                  - ScadEvaluatorIncludeUse_Use_LibraryModulesSeeCallersSpecialVariables
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Functions
+                title: >-
+                  The ScadEvaluator unit shall call user functions with positional and named
+                  arguments evaluated in the caller (a named argument overriding a positional one, a
+                  default value seeing only the parameters declared before it, surplus and unknown
+                  arguments warned about and ignored), support recursion and bodies that combine let,
+                  echo, and assert, let a user definition shadow a built-in function of the same
+                  name, and print a function value with its parameter names.
+                justification: |
+                  User-defined functions are the language's main abstraction for computed values;
+                  argument binding must be precisely specified.
+                tests:
+                  - ScadEvaluatorFunction_Recursion_ComputesExpectedResult
+                  - ScadEvaluatorFunction_ArgumentBinding_FollowsDocumentedRules
+                  - ScadEvaluatorFunction_Default_SeesOnlyEarlierParameters
+                  - ScadEvaluatorFunction_ExtraAndUnknownArguments_WarnAndAreIgnored
+                  - ScadEvaluatorFunction_NamedArgument_OverridesPositional
+                  - ScadEvaluatorFunction_BodyForms_LetEchoAssert_Compose
+                  - ScadEvaluatorFunction_UserDefinitions_ShadowBuiltins
+                  - ScadEvaluatorFunction_FunctionValue_PrintsParameterNames
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Closures
+                title: >-
+                  The ScadEvaluator unit shall evaluate a function literal to a value that captures
+                  the scope in which it was written, so that calling it later, passing it as an
+                  argument, or calling the result of an expression behaves lexically, including for
+                  closures created in the turns of a comprehension loop.
+                justification: |
+                  Function values enable higher-order modeling helpers; capturing the defining scope
+                  is what makes them usable.
+                tests:
+                  - ScadEvaluatorFunction_Closures_BehaveLexically
+                  - ScadEvaluatorComprehension_CStyleFor_ClosuresKeepTheirTurnsValues
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-TailCalls
+                title: >-
+                  The ScadEvaluator unit shall execute a call of a user function or closure in tail
+                  position (a conditional branch or the body of a let, echo, or assert) in a loop that
+                  adds no recursion frame, so that tail recursion of any depth succeeds while still
+                  being bounded by the evaluation-step limit, and shall count a call used as an
+                  operand as an ordinary recursive call.
+                justification: |
+                  Iterative algorithms are written as tail recursion in a language without loops over
+                  values; they must not be limited by the recursion depth, but must still terminate.
+                tests:
+                  - ScadEvaluatorTailCall_DeepTailRecursion_SucceedsAtDefaultLimits
+                  - ScadEvaluatorTailCall_TailRecursion_UsesConstantFrames
+                  - ScadEvaluatorTailCall_TailPositions_AddNoFrames
+                  - ScadEvaluatorTailCall_MutualAndClosureRecursion_AddNoFrames
+                  - ScadEvaluatorTailCall_CallAsOperand_IsNotATailCall
+                  - ScadEvaluatorTailCall_InfiniteTailRecursion_EndsWithStepLimit
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Modules
+                title: >-
+                  The ScadEvaluator unit shall call a user module with argument binding identical to
+                  functions, instantiating its body into one named group that is present even when
+                  the body is empty, support recursion and definitions nested in a body, let a user
+                  module shadow a built-in module of the same name, execute echo, let, and assert
+                  statements in a body, and abort on a failed assertion.
+                justification: |
+                  Modules are the language's unit of reuse for geometry; their calling convention and
+                  the group they produce are part of the contract with the geometry phase.
+                tests:
+                  - ScadEvaluatorModule_Call_ProducesNamedGroupOfBodyInstances
+                  - ScadEvaluatorModule_EmptyBody_ProducesEmptyGroup
+                  - ScadEvaluatorModule_Recursion_NestsGroups
+                  - ScadEvaluatorModule_UserModule_ShadowsBuiltin
+                  - ScadEvaluatorModule_ArgumentBinding_FollowsFunctionRules
+                  - ScadEvaluatorModule_NestedDefinition_IsLocal
+                  - ScadEvaluatorModule_Body_EchoLetAssertStatements
+                  - ScadEvaluatorModule_Body_AssertFailure_Aborts
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Children
+                title: >-
+                  The ScadEvaluator unit shall give a user module access to the child statements of
+                  its call through the children pseudo-module - all children, one child by index, a
+                  list of indices, or a range - evaluating each selected child at the call site with
+                  the special variables of the module visible to it and those assigned in the child
+                  list itself visible and taking precedence, counting a nested braced block
+                  as flattened and every other statement as one child, exposing the child count as a
+                  special variable, forwarding children through nested modules, and warning without
+                  output for an invalid index or a use outside a module.
+                justification: |
+                  Children are how modules wrap and transform other geometry; the slot-counting and
+                  scoping rules determine which geometry a model produces.
+                tests:
+                  - ScadEvaluatorModule_Children_AllInOrder
+                  - ScadEvaluatorModule_Children_Selection_PicksSlots
+                  - ScadEvaluatorModule_Children_InvalidIndex_WarnsAndPlacesNothing
+                  - ScadEvaluatorModule_Children_OutsideModule_WarnsAndPlacesNothing
+                  - ScadEvaluatorModule_Children_SlotCounting
+                  - ScadEvaluatorModule_Children_SeeAssignmentsOfTheirList
+                  - ScadEvaluatorModule_Children_AreEvaluatedAtTheCallSite
+                  - ScadEvaluatorModule_Children_ForwardedThroughNestedModule
+                  - ScadEvaluatorSpecialVariable_Children_CountsSlots
+                  - ScadEvaluatorSpecialVariable_SetBeforeChildren_IsVisibleToChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_IsVisibleToChildren
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ShadowsModuleBinding
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_DependsOnCallSiteSpecials
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_IsNotVisibleAtTheCallSite
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_ReachesChildrenForwardedThroughNestedModule
+                  - ScadEvaluatorSpecialVariable_ChildListAssignment_SelectedChild_SeesIt
+                  - ScadEvaluatorSpecialVariable_ModuleBinding_WithoutChildListSpecials_StillReachesChildren
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ControlFlow
+                title: >-
+                  The ScadEvaluator unit shall execute if and else by truthiness, for loops over one
+                  or several iterators (the first outermost, each seeing the earlier ones), over
+                  vectors, ranges, and single values, intersection_for, and let statements, placing
+                  the instances of each construct as the documented tree shape requires - a for loop
+                  always producing a group, even when it iterates zero times.
+                justification: |
+                  Control flow decides how many instances a model creates and how they are grouped.
+                tests:
+                  - ScadEvaluatorControlFlow_If_SelectsBranchByTruthiness
+                  - ScadEvaluatorControlFlow_For_IteratesExpectedValues
+                  - ScadEvaluatorControlFlow_For_MultipleIterators_FirstIsOutermost
+                  - ScadEvaluatorControlFlow_For_LaterIteratorSeesEarlierOne
+                  - ScadEvaluatorControlFlow_For_ProducesGroupEvenWhenEmpty
+                  - ScadEvaluatorControlFlow_IntersectionFor_ProducesIntersectionOfGroups
+                  - ScadEvaluatorControlFlow_LetStatement_ScopesBindingsAndSplices
+                  - ScadEvaluatorControlFlow_EchoAndAssertStatements_PlaceTheirChildren
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Ranges
+                title: >-
+                  The ScadEvaluator unit shall evaluate a range expression to a range value, iterate
+                  a range by computing each element from its start and step, produce no iterations
+                  without error for a range whose direction contradicts its step, warn and iterate
+                  nothing for a zero step, a non-finite bound, or an undef iterated value, warn and
+                  yield undef for a range with a non-numeric part, and count each iteration against
+                  the loop budget, rejecting a range too large for the remaining budget before its
+                  first iteration.
+                justification: |
+                  A range such as zero to a trillion must be refused at once rather than iterated
+                  until a limit trips.
+                tests:
+                  - ScadEvaluatorControlFlow_For_IteratesExpectedValues
+                  - ScadEvaluatorControlFlow_For_UndefOrInvalidRange_WarnsWithoutIterating
+                  - ScadEvaluatorControlFlow_For_ChargesLoopIterations
+                  - ScadEvaluatorExpression_RangeWithNonNumber_IsUndefWithWarning
+                  - ScadEvaluatorLimit_LoopIterations_HugeRange_FailsImmediately
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Comprehensions
+                title: >-
+                  The ScadEvaluator unit shall evaluate list comprehensions - for, C-style for with
+                  simultaneous update of its variables, if and else, let, each, and nested forms - to
+                  vectors in element order, warn and produce nothing for a comprehension over undef,
+                  work inside recursive functions, reject an each over a range too large for the
+                  remaining budget up front, and bound the length of the resulting list.
+                justification: |
+                  Comprehensions build most computed point lists in a parametric model.
+                tests:
+                  - ScadEvaluatorComprehension_Forms_ProduceExpectedVector
+                  - ScadEvaluatorComprehension_CStyleFor_UpdatesStateSimultaneously
+                  - ScadEvaluatorComprehension_ForOverUndef_WarnsAndYieldsNothing
+                  - ScadEvaluatorComprehension_InsideRecursion_Works
+                  - ScadEvaluatorComprehension_ListLimit_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorComprehension_EachOverHugeRange_IsRejectedUpFront
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Operators
+                title: >-
+                  The ScadEvaluator unit shall evaluate the operators, indexing, member access,
+                  conditional expression, and string conversion with the documented semantics -
+                  logical operators short-circuiting, division by zero following IEEE rules without a
+                  warning, mismatched vectors and invalid operands yielding undef together with a
+                  warning that names the operator and the kinds - and shall render echoed values in
+                  their stable text forms.
+                justification: |
+                  Expressions are the bulk of a model; each operator's behavior on every kind of
+                  operand must be specified, not left to chance.
+                tests:
+                  - ScadEvaluatorExpression_Scalars_ProduceExpectedNumber
+                  - ScadEvaluatorExpression_DivisionByZero_FollowsIeeeWithoutWarning
+                  - ScadEvaluatorExpression_VectorAndMatrixArithmetic_ProducesExpectedValue
+                  - ScadEvaluatorExpression_MismatchedVectors_YieldUndefWithWarning
+                  - ScadEvaluatorExpression_IndexingAndMembers_ReturnExpectedValue
+                  - ScadEvaluatorExpression_ComparisonAndLogic_ProduceExpectedValue
+                  - ScadEvaluatorExpression_LogicalOperators_ShortCircuit
+                  - ScadEvaluatorExpression_InvalidOperands_YieldUndefAndWarn
+                  - ScadEvaluatorExpression_InvalidOperands_WarningNamesOperatorAndKinds
+                  - ScadEvaluatorExpression_ParenthesizedLetAsOperand_Evaluates
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Echo
+                title: >-
+                  The ScadEvaluator unit shall record each echo as one line that begins with the echo
+                  prefix and lists its arguments in echo form, separated by commas, with named
+                  arguments printed as name and value, so that a recorded line never contains a raw
+                  line break.
+                justification: |
+                  Echo is the language's only output channel; consumers parse it line by line.
+                tests:
+                  - ScadEvaluatorExpression_EchoForms_AreStable
+                  - ScadEvaluatorExpression_Echo_NamedAndPositionalArguments_AreJoined
+                  - ScadEvaluationSink_Echo_BuffersLinesInOrder
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Assert
+                title: >-
+                  The ScadEvaluator unit shall abort the evaluation with an evaluation error located
+                  at the assertion, carrying the optional message, when an assert statement or
+                  expression fails or has no condition, shall have no effect when it passes, and
+                  shall warn about and ignore surplus positional and unknown named arguments.
+                justification: |
+                  Assertions let a model reject invalid parameters; a failure must stop the
+                  evaluation and say where and why.
+                tests:
+                  - ScadEvaluatorControlFlow_AssertStatement_FailureAbortsWithMessage
+                  - ScadEvaluatorControlFlow_AssertStatement_PassingHasNoEffect
+                  - ScadEvaluatorControlFlow_AssertWithoutCondition_Fails
+                  - ScadEvaluatorControlFlow_AssertExtraAndUnknownArguments_WarnAndAreIgnored
+                  - ScadEvaluatorControlFlow_AssertExtraArguments_StillFailOnFalseCondition
+                  - ScadEvaluatorFunction_AssertExpression_Fails_WithMessage
+                  - ScadEvaluatorDiagnostics_AssertFailure_HasLocationAndMessage
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Imports
+                title: >-
+                  The ScadEvaluator unit shall treat the statements of an included file as if they
+                  were written in the including file, shall import from a used library only its
+                  module and function definitions (never its geometry, echo, or assertions), letting
+                  the library's functions see the library's own variables and its private libraries,
+                  and shall prefer a definition in the importing file over an imported one and a
+                  later use over an earlier one.
+                justification: |
+                  The difference between include and use is the main source of confusion in multi-file
+                  models; the evaluator must implement it exactly.
+                tests:
+                  - ScadEvaluatorIncludeUse_Include_BehavesAsTextualInclusion
+                  - ScadEvaluatorIncludeUse_Include_LaterAssignmentOfIncludingFileWins_WarnsInIncludedFile
+                  - ScadEvaluatorIncludeUse_Use_ImportsOnlyDefinitions
+                  - ScadEvaluatorIncludeUse_Use_LibraryFunctionsSeeLibraryAssignments
+                  - ScadEvaluatorIncludeUse_Use_LibrariesOwnUsesArePrivate
+                  - ScadEvaluatorIncludeUse_Use_PrecedenceLocalThenLaterUse
+                  - ScadEvaluatorIncludeUse_Use_MutuallyUsingLibraries_Work
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceTree
+                title: >-
+                  The ScadEvaluator unit shall produce a geometry-agnostic tree of module instances
+                  in which a built-in module becomes a node with its evaluated arguments (names
+                  preserved), evaluated children, and the location of its name, a user module and a
+                  for loop become groups, if, block, let, echo, assert, and children place their
+                  results directly into the parent, lookup prefers a user module over a built-in one
+                  and an unknown name produces a warning and no node, an each statement is an unknown
+                  module, and every node is counted.
+                justification: |
+                  The instantiation tree is the contract with the later geometry phase; its shape must
+                  be exact and independent of any geometry rule.
+                tests:
+                  - ScadEvaluatorInstanceTree_BuiltinModules_CarryEvaluatedArgumentsAndChildren
+                  - ScadEvaluatorInstanceTree_RecognizedBuiltinName_ProducesBuiltinInstance
+                  - ScadEvaluatorInstanceTree_SplicingConstructs_HaveNoNodeOfTheirOwn
+                  - ScadEvaluatorInstanceTree_LookupOrder_UserBeforeBuiltinBeforeUnknown
+                  - ScadEvaluatorInstanceTree_EachStatement_IsAnUnknownModule
+                  - ScadEvaluatorInstanceTree_Location_IsTheModuleNameToken
+                  - ScadEvaluatorInstanceTree_InstanceCount_CountsEveryNode
+                  - ScadEvaluatorInstanceTree_TwoEvaluations_ProduceEqualDumps
+                  - ScadEvaluatorModule_Unknown_WarnsAndSkipsChildren
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Modifiers
+                title: >-
+                  The ScadEvaluator unit shall not evaluate a statement marked with the disable
+                  modifier (no output, no side effects, no budget use) and shall merge the show-only,
+                  highlight, and background modifiers onto the single instance a statement produces,
+                  wrapping several instances in a group that carries the flags.
+                justification: |
+                  Modifiers change what a model contributes; disabling must be free of side effects.
+                tests:
+                  - ScadEvaluatorInstanceTree_Modifiers_AreMergedOntoInstances
+                  - ScadEvaluatorInstanceTree_DisableModifier_IsNeverEvaluated
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-FragmentSettings
+                title: >-
+                  The ScadEvaluator unit shall record, on every instance, the fragment settings in
+                  effect for it - the dynamically scoped values of the fragment-count, fragment-angle,
+                  and fragment-size special variables, overridden by a named argument of the same name
+                  on that instance - with the documented defaults when none is set.
+                justification: |
+                  Circle and sphere resolution is inherited through special variables; the geometry
+                  phase must receive the effective values without re-evaluating scopes.
+                tests:
+                  - ScadEvaluatorInstanceTree_Fragments_DefaultInheritAndOverride
+                  - ScadEvaluatorSpecialVariable_Fragments_FollowDynamicBindingAndArgumentOverride
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Overrides
+                title: >-
+                  The ScadEvaluator unit shall apply caller-supplied variable overrides by replacing
+                  every top-level assignment to the name in the main document (without evaluating the
+                  replaced expression), creating the variable when it is absent, so that dependent
+                  assignments see the override, applying special-variable overrides in place of their
+                  defaults, never changing used libraries, and giving the same result in any order of
+                  the overrides.
+                justification: |
+                  Overrides parameterize a model from outside, like a command-line definition; they
+                  must be predictable and independent of ordering.
+                tests:
+                  - ScadEvaluatorOverride_ReplacesAssignment_WithoutEvaluatingIt
+                  - ScadEvaluatorOverride_AbsentVariable_IsCreated
+                  - ScadEvaluatorOverride_RepeatedAssignments_AreAllReplaced
+                  - ScadEvaluatorOverride_Scope_AppliesToTopLevelOnly
+                  - ScadEvaluatorOverride_VectorValue_IsUsableAsVector
+                  - ScadEvaluatorOverride_Order_DoesNotMatter
+                  - ScadEvaluatorOverride_DependentAssignments_SeeOverriddenValue
+                  - ScadEvaluatorSpecialVariable_OverrideOfSpecial_ReplacesDefault
+                  - ScadEvaluatorIncludeUse_Overrides_ReplaceIncludedAssignmentsButNotLibraries
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Warnings
+                title: >-
+                  The ScadEvaluator unit shall report a recoverable problem - an unknown variable,
+                  function, or module, a call of a non-function, an invalid operand, or a
+                  reassignment - as a warning with a message and the source location of the
+                  construct, naming the included file when the construct comes from one, and shall
+                  report the same message at the same location only once however often it recurs,
+                  while the same problem at another location is reported again.
+                justification: |
+                  Warnings are the evaluator's main feedback to a model's author; they must be located
+                  and must not flood the output when a problem sits inside a loop.
+                tests:
+                  - ScadEvaluatorDiagnostics_Warning_HasExpectedTextAndLocation
+                  - ScadEvaluatorDiagnostics_RepeatedWarningAtOneLocation_IsReportedOnce
+                  - ScadEvaluatorDiagnostics_SameProblemAtTwoLocations_IsReportedTwice
+                  - ScadEvaluatorDiagnostics_Location_CarriesTheSourceName
+                  - ScadEvaluatorScoping_UnknownVariable_IsUndefWithWarning
+                  - ScadEvaluatorFunction_CallingNonFunction_WarnsAndYieldsUndef
+                  - ScadEvaluationSink_Warn_DuplicatesAreDropped
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-DiagnosticCap
+                title: >-
+                  The ScadEvaluator unit shall record at most the configured number of warnings and
+                  replace all later ones by a single notice that further diagnostics were suppressed,
+                  without treating the excess as an error and without growing memory with the number
+                  of distinct warnings.
+                justification: |
+                  A model that warns on every iteration of a large loop must not exhaust memory or
+                  drown the useful messages.
+                tests:
+                  - ScadEvaluatorLimit_Diagnostics_AreCappedWithNotice
+                  - ScadEvaluationSink_Warn_BeyondCap_CollapsesIntoOneNotice
+                  - ScadEvaluationSink_Warn_ExactlyAtCap_HasNoNotice
+                  - ScadEvaluationSink_Warn_ManyDistinctWarnings_StaysBounded
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-UnsupportedFeatures
+                title: >-
+                  The ScadEvaluator unit shall record each use of an unsupported feature once per
+                  feature and location, continue evaluating with an undef or default result, and,
+                  when the caller asks for it, abort at the first use with an exception that carries
+                  the feature identifier and location.
+                justification: |
+                  A model that relies on something this implementation does not provide must be told
+                  precisely, and strict callers must be able to refuse to continue.
+                tests:
+                  - ScadEvaluatorDiagnostics_UnsupportedFunction_IsReportedAndEvaluationContinues
+                  - ScadEvaluatorDiagnostics_UnsupportedFeature_IsDeduplicatedByLocation
+                  - ScadEvaluatorDiagnostics_ThrowOnUnsupportedFeature_AbortsWithFeatureAndLocation
+                  - ScadEvaluationSink_Unsupported_RecordsAndDeduplicates
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ErrorLocations
+                title: >-
+                  The ScadEvaluator unit shall report an exceeded limit as an evaluation error located
+                  at the offending construct, and shall retain the echo lines, warnings, and
+                  unsupported-feature reports recorded before an evaluation fails.
+                justification: |
+                  A caller diagnosing a failed evaluation needs the location of the failure and the
+                  output produced up to it.
+                tests:
+                  - ScadEvaluatorDiagnostics_LimitError_IsLocatedAtOffendingConstruct
+                  - ScadEvaluatorLimit_FailedEvaluation_KeepsEventsRecordedBeforeTheFailure
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-RecursionLimit
+                title: >-
+                  The ScadEvaluator unit shall bound the nesting of evaluation frames (expressions,
+                  statements, comprehension elements, module bodies, and children expansions) by the
+                  configured recursion limit, counted deterministically so that a program at the limit
+                  succeeds and a program one frame over fails with the same located error on every
+                  platform and stack size, with a documented cost per level of recursion.
+                justification: |
+                  Unbounded recursion would exhaust the stack of the host process; a deterministic
+                  count gives every host the same, testable behavior.
+                tests:
+                  - ScadEvaluatorTailCall_NonTailRecursion_CostsTwoFramesPerLevel
+                  - ScadEvaluatorTailCall_NonTailRecursion_AtDefaultLimit_Succeeds_OneOverFails
+                  - ScadEvaluatorTailCall_InfiniteNonTailRecursion_EndsWithRecursionLimit
+                  - ScadEvaluatorLimit_RecursionDepth_ModuleRecursion_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorStack_Evaluate_OverLimit_IsIdenticalOnEveryStackSize
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-StepLimit
+                title: >-
+                  The ScadEvaluator unit shall charge evaluation steps for every expression,
+                  statement, loop turn, and tail-call turn, more for work proportional to the size of
+                  the vectors it handles (counting shared nested vectors by their full contents, and
+                  refusing an operand whose count exceeds a fixed aggregate cap even when the step
+                  limit is effectively unlimited), to
+                  the multiply-add work of matrix products, to the formatting of values by str and
+                  echo (per element, while formatting), to the position of an indexed string
+                  character, and to the length of a long scope walk,
+                  and shall abort with an evaluation error when the configured step limit is
+                  exceeded, while a program at the limit succeeds.
+                justification: |
+                  Time is bounded by counting work, not by wall-clock time, so that the limit is
+                  deterministic and cannot be dodged by cheap-looking but expensive constructs.
+                  A few vectors that share their children can stand for more logical elements than
+                  a 64-bit counter or any memory can hold, so the count saturates, stops at the
+                  remaining budget or the aggregate cap, and is refused with a deterministic error.
+                tests:
+                  - ScadEvaluatorLimit_Steps_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement
+                  - ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_DefaultLimits_FailsWithStepLimit
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_UnlimitedSteps_FailsWithAggregateLimit
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_BudgetNearCap_ChoosesTheSmallerLimit
+                  - ScadEvaluatorAggregateLimit_NestedOperand_WithinCap_IsChargedByElementCount
+                  - ScadEvaluatorElementCounter_Count_FlatVectors_CountTheirLength
+                  - ScadEvaluatorElementCounter_Count_NestedVectors_AddsNestedElements
+                  - ScadEvaluatorElementCounter_Count_AboveCap_StopsEarlyWithValueAboveCap
+                  - ScadEvaluatorElementCounter_Count_SharedLevels_SaturatesAndUsesTheMemo
+                  - ScadEvaluatorElementCounter_Count_CanceledToken_ThrowsOnlyOnceTheCountIsLong
+                  - ScadEvaluatorElementCounter_Count_ListOfSmallVectors_DoesNotUseTheMemo
+                  - ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged
+                  - ScadEvaluatorLimit_Steps_StrOfLargeVector_IsChargedPerElement
+                  - ScadEvaluatorLimit_Steps_EchoOfLargeVector_IsChargedPerElement
+                  - ScadEvaluatorLimit_Steps_StrInLoop_HitsStepLimit
+                  - ScadEvaluatorLimit_Steps_StringIndexing_IsChargedByPosition
+                  - ScadEvaluatorLimit_Steps_StringIndexNearStart_ChargesOneStep
+                  - ScadEvaluatorLimit_Steps_StringIndexingInLoop_HitsStepLimit
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast
+                  - ScadEvaluatorProductLimit_MatrixTimesVector_StillComputesAndCharges
+                  - ScadEvaluatorProductLimit_VectorTimesScalar_ChargedBeforeAllocation
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit
+                title: >-
+                  The ScadEvaluator unit shall count loop iterations across the whole evaluation,
+                  including nested loops, and shall abort with an evaluation error when the
+                  configured loop-iteration limit is exceeded, while a program at the limit succeeds.
+                justification: |
+                  Loops are the cheapest way to multiply work; their total must be bounded.
+                tests:
+                  - ScadEvaluatorLimit_LoopIterations_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorLimit_LoopIterations_AreCountedAcrossNestedLoops
+                  - ScadEvaluatorLimit_LoopIterations_HugeRange_FailsImmediately
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ListAndStringLimits
+                title: >-
+                  The ScadEvaluator unit shall abort with an evaluation error when a list would exceed
+                  the configured list-length limit (including a matrix product that would have more
+                  elements than that limit, refused before it is computed), when a string would
+                  exceed the configured string-length limit, or when a vector would be nested more
+                  than 256 levels deep, while a value exactly at a limit is accepted.
+                justification: |
+                  Memory use is bounded by bounding the size and depth of every value a model can
+                  construct.
+                tests:
+                  - ScadEvaluatorLimit_ListLength_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorLimit_StringLength_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorLimit_ListNesting_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorComprehension_ListLimit_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_ResultAtListLimit_Succeeds_OneOverFails
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_HugeResult_FailsBeforeAllocating
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceLimit
+                title: >-
+                  The ScadEvaluator unit shall count every node of the instantiation tree, groups
+                  included, and shall abort with an evaluation error when the configured instance
+                  limit is exceeded, while a tree exactly at the limit is accepted.
+                justification: |
+                  The size of the instantiation tree bounds the cost of the later geometry phase.
+                tests:
+                  - ScadEvaluatorLimit_Instances_AtLimitSucceeds_OneOverFails
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-OutputLimit
+                title: >-
+                  The ScadEvaluator unit shall abort with an evaluation error when the cumulative
+                  length of the echo output, or of a single echo line, exceeds the configured output
+                  limit, while output exactly at the limit is accepted.
+                justification: |
+                  Echo output is buffered in memory; it must be bounded.
+                tests:
+                  - ScadEvaluatorLimit_OutputLength_AtLimitSucceeds_OneOverFails
+                  - ScadEvaluationSink_Echo_AtLimit_Succeeds_OneOver_Throws
+                  - ScadEvaluationSink_Echo_SingleLineOverLimit_Throws
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Cancellation
+                title: >-
+                  The ScadEvaluator unit shall honor a cancellation token: it shall do no work when
+                  the token is already canceled, shall stop promptly when it is canceled during
+                  endless recursion, a huge loop, a large matrix product or the formatting of a huge
+                  value, throwing OperationCanceledException that is never
+                  wrapped in an evaluation error, shall also stop while it waits for a free
+                  dedicated-thread slot, shall keep the events recorded before the
+                  cancellation, and shall evaluate normally when the token is never canceled.
+                justification: |
+                  A caller must be able to abandon an evaluation that runs longer than it can afford,
+                  even when the step limit has been raised very high, and even when it is queued
+                  behind other evaluations for a dedicated thread.
+                tests:
+                  - ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall
+                  - ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents
+                  - ScadEvaluatorCancellation_DuringHugeLoop_Stops
+                  - ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled
+                  - ScadEvaluatorCancellation_DuringLargeFormatting_Stops
+                  - ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile
+                  - ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally
+                  - ScadEvaluatorStack_Evaluate_CancelWhileWaitingForFallbackSlot_ThrowsOperationCanceled
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety
+                title: >-
+                  The ScadEvaluator unit shall never overflow the call stack: it shall evaluate inline
+                  on the caller's thread and, only when the caller's stack proves too small for the
+                  nominal recursion limit, discard the pass and repeat it on a dedicated thread with a
+                  large stack, bounding the number of such threads that run at once, so that every
+                  program within the limits - including the largest recursion limit and values nested
+                  256 levels deep - evaluates to the same result on any stack size, an over-limit
+                  program fails identically, a normal program stays on the caller's thread, and
+                  exceptions and the caller's culture are preserved across the hop; a caller that
+                  finds every dedicated-thread slot taken shall wait for a slot and then proceed,
+                  and a canceled wait shall not leak a slot; a failure to create or start the
+                  dedicated thread (for example in a 32-bit process) shall be reported as an
+                  evaluation exception, with the slot released.
+                justification: |
+                  A stack overflow cannot be caught and terminates the host process; the recursion
+                  limit must hold regardless of how much stack the calling thread happens to have.
+                tests:
+                  - ScadEvaluatorStack_Evaluate_AtLimit_OnSmallCallerStack_MatchesBigStackResult
+                  - ScadEvaluatorStack_Evaluate_OverLimit_OnSmallCallerStack_ThrowsSameRecursionError
+                  - ScadEvaluatorStack_Evaluate_ComprehensionNesting_AtAndOverLimit_OnSmallCallerStack
+                  - ScadEvaluatorStack_Evaluate_ValueNestingAtLimit_OnSmallCallerStack_MatchesBigStack
+                  - ScadEvaluatorStack_Evaluate_TinyCallerStack_FallsBackToDedicatedThread
+                  - ScadEvaluatorStack_Evaluate_NormalProgram_RunsOnCallerThread
+                  - ScadEvaluatorStack_Evaluate_OnTinyCallerStack_PreservesExceptionsAndCulture
+                  - ScadEvaluatorStack_Evaluate_ConcurrentTinyCallerStacks_BoundFallbackThreads
+                  - ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased
+                  - ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot
+                  - ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers
+                  - ScadEvaluatorStack_Evaluate_ThreadStartOutOfMemory_ThrowsEvaluationException
+                  - ScadEvaluatorStack_Evaluate_ThreadStartFailure_ReleasesTheSlot
+                  - ScadEvaluatorStack_Evaluate_ThreadStarterSeam_StartsTheFallbackThread
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery
+                title: >-
+                  The ScadEvaluator unit shall buffer every echo line, warning, and unsupported-feature
+                  report instead of calling user code while it evaluates, so that restarting an
+                  evaluation on a larger stack records each event exactly once, keeps the warnings
+                  produced while files were loaded, and neither repeats nor moves a call of the
+                  caller's file resolver, and so that the recorded events can be replayed later in
+                  chronological order on the calling thread.
+                justification: |
+                  Restarting is only invisible to the caller if nothing observable happens during the
+                  discarded pass.
+                tests:
+                  - ScadEvaluatorStack_Evaluate_Restart_RecordsEachEventOnce
+                  - ScadEvaluatorStack_Evaluate_Restart_KeepsFileLoadingWarnings
+                  - ScadEvaluatorStack_Evaluate_Restart_DoesNotRepeatOrMoveResolverCalls
+                  - ScadEvaluatorIncludeUse_Resolver_RunsOnCallingThreadBeforeEvaluation
+                  - ScadEvaluationSink_Reset_ClearsEverything
+                  - ScadEvaluationSink_Deliver_KeepsChronologicalOrder
+                  - ScadEvaluationSink_Deliver_NullHandlersSkipped_HandlerExceptionPropagates
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Determinism
+                title: >-
+                  The ScadEvaluator unit shall be deterministic: evaluating the same program with the
+                  same settings any number of times, concurrently, in any culture, or after a restart
+                  on a larger stack shall produce identical echo output, diagnostics, and
+                  instantiation tree, including for programs that draw random numbers without a seed,
+                  and the text of every diagnostic (limit, parser, lexer, and argument messages)
+                  shall not vary with the culture.
+                justification: |
+                  Reproducible output is what makes golden tests, caching, and cross-platform use of
+                  the results possible.
+                tests:
+                  - ScadEvaluatorDeterminism_SameDocumentTwice_GivesIdenticalResults
+                  - ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults
+                  - ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation
+                  - ScadEvaluatorDeterminism_Rands_NamedSeedValue_MatchesPositionalSeed
+                  - ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults
+                  - ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible
+                  - ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture
+                  - ScadEvaluatorCulture_ParserAndLimitsMessages_AreIdenticalInEveryCulture

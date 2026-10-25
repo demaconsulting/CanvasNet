@@ -27,7 +27,8 @@ contain a comma or start a comprehension. Hostile-input behavior is verified at 
 256 levels is accepted and one more is rejected for each construct that recurses, left-associative and postfix
 chains are bounded by the verified height of the finished tree, deep input does not overflow the call stack on
 a thread with a 1 MiB, 256 KiB, or 64 KiB caller stack (the parser parses inline and falls back to its own
-sized thread when the stack is too small), and source of
+sized thread when the stack is too small; only the outcome is asserted there, because the stack size a platform
+really grants differs), and source of
 exactly 4,194,304 characters parses while one
 more character throws a plain `InvalidDataException` (not a `ScadSyntaxException`, because no location is
 meaningful for it). Syntax errors are `ScadSyntaxException`, which derives from `FormatException` and not
@@ -66,7 +67,9 @@ directives), `ScadParserControlFlowTests.cs` (conditionals, loops, and the let, 
 - **Threads**: The stack-safety scenarios run the parse from a caller thread with a 1 MiB, 256 KiB, or 64 KiB
   stack and join it before asserting; a normal parse runs on the caller's thread and only a parse that the
   caller's stack cannot hold falls back to the parser's own bounded 16 MiB thread (observed through the internal
-  `LastParseThreadId`, `FallbackCount`, and `PeakConcurrentFallbackThreads` hooks)
+  `LastParseThreadId`, `FallbackCount`, and `PeakConcurrentFallbackThreads` hooks); the fallback scenarios do not
+  rely on a small stack, which a platform may round up, but force the fallback through the per-thread internal
+  `ScadParser.ForceFallbackForCurrentThread` seam
 - **Isolation**: Each test parses its own source strings; no files are read
 
 #### Acceptance Criteria
@@ -393,6 +396,7 @@ and that a whitespace-and-comment-only source is an empty program located at the
 `ScadParserLimitTests.ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread`,
 `ScadParserLimitTests.ScadParser_Parse_OnTinyCallerStack_PreservesExceptionsAndCulture`,
 `ScadParserLimitTests.ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads`,
+`ScadParserLimitTests.ScadParser_Parse_ThreadStartOutOfMemory_ThrowsSyntaxExceptionAndReleasesSlot`,
 `ScadParserLimitTests.ScadParser_Parse_Exception_RethrownFromParserThread_PreservesTypeAndStackTrace`,
 `ScadParserLimitTests.ScadParser_Parse_NumberLiteral_UnderGermanCulture_ParsesDotDecimal`,
 `ScadParserLimitTests.ScadParser_Parse_Concurrent_ProducesIndependentResults`
@@ -405,7 +409,11 @@ and rejected when far beyond the limit; a left-associative chain of 255 operands
 and chains of 256 and of 100,000 operands are rejected, while a 200-operand chain is accepted; long index,
 member, and call postfix chains are rejected; left-leaning chains stacked through parentheses are rejected by the
 verified tree height although the parser's own recursion stays shallow; and an input whose deep chain starts on
-line 3 reports line 3. Hostile inputs of seven shapes, 100,000 levels deep, are parsed on a thread with a 1 MiB
+line 3 reports line 3. A thread-start failure injected through the per-thread
+`ScadParser.ThreadStarterForCurrentThread` seam (an
+`OutOfMemoryException`, as in a 32-bit process) is shown to surface as a `ScadSyntaxException` located on line 1,
+repeatedly (more times than there are fallback slots, so a leaked slot would block), after which the same input
+parses normally. Hostile inputs of seven shapes, 100,000 levels deep, are parsed on a thread with a 1 MiB
 stack and each produces the typed syntax exception rather than a stack overflow. Determinism independent of the
 caller's stack is proved by two theories over eleven pathological shapes (parentheses, vectors, prefix
 operators, ternaries, exponent chains, comprehension chains, function literals, call arguments, blocks,
@@ -413,11 +421,12 @@ child chains, and else-if chains), each run from a caller thread with only a 256
 exactly at the limit parses, and the input one level beyond it throws `Nesting too deep (limit 256)` rather
 than overflowing. A further test parses parentheses at the limit from a caller with a 64 KiB stack. A normal,
 moderately nested parse is shown to complete on the calling thread for both entry points (no fallback thread),
-while the same parse from a 64 KiB caller completes on a different (fallback) thread with the correct tree. The
+while the same parse with the fallback forced through the `ScadParser.ForceFallbackForCurrentThread` seam completes
+on a different (fallback) thread with the correct tree and counts the fallback. The
 fallback is shown to marshal exceptions faithfully (a `ScadSyntaxException` keeps its type, location, and
 parser stack frames, and the over-limit input still reports `Nesting too deep (limit 256)`), to apply the
 caller's culture (a `de-DE` caller still reads `1.5` as 1.5), and to be bounded and safe for concurrent
-callers: four times as many simultaneous 64 KiB callers as the bound all succeed while the observed peak number
+callers: four times as many simultaneous forced callers as the bound all succeed while the observed peak number
 of concurrent fallback threads stays within `MaxConcurrentFallbackThreads`; 16 parallel ordinary parses yield
 independent results.
 

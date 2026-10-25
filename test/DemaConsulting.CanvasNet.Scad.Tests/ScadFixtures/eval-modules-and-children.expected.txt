@@ -1,0 +1,18 @@
+ECHO: "pair", 1, 2
+ECHO: "pair", 5, 6
+ECHO: "pair", 1, 9
+ECHO: "pair", 3, 4
+ECHO: "frame start", 1
+ECHO: "first"
+ECHO: "frame start", 2
+ECHO: "nested"
+ECHO: "frame end", 2
+ECHO: "frame end", 1
+ECHO: "one"
+ECHO: "a0"
+ECHO: "a1"
+ECHO: "children counted", 3
+ECHO: "countdown", 3
+ECHO: "countdown", 2
+ECHO: "countdown", 1
+ECHO: "user cube", 4

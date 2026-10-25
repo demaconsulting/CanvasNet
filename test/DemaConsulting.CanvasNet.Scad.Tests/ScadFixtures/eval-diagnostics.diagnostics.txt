@@ -1,0 +1,20 @@
+4:1: 'count' is assigned more than once in this scope; the last assignment is used
+7:26: Ignoring unknown variable 'nothing_here'
+8:26: Ignoring unknown function 'no_such_function'
+9:1: Ignoring unknown module 'no_such_module'
+10:26: Ignoring unknown function 'count'
+13:27: Ignoring extra argument for function 'one'
+14:29: Ignoring unknown argument 'z' for function 'one'
+19:1: Ignoring extra argument for module 'm'
+20:1: Ignoring unknown argument 'nope' for module 'm'
+22:6: Ignoring a range with a zero step or a non-finite bound
+24:6: Cannot iterate over undef
+26:1: children() used outside a module
+27:22: Ignoring invalid child index
+30:24: Cannot apply operator '+' to a number and a string
+30:31: Cannot apply operator '-' to a string
+30:44: Cannot apply operator '+' to a vector and a vector
+30:57: Cannot apply operator '*' to undef and a number
+31:22: Function 'sqrt' expects a number, got a string
+31:32: Function 'len' expects a vector or a string, got a number
+33:24: Ignoring unknown variable 'missing_in_loop'

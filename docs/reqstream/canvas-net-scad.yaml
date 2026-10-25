@@ -1,28 +1,33 @@
 ---
-# cspell:ignore openscad
+# cspell:ignore openscad sandboxed uncatchable Parameterizing
 #
 # Software System Requirements for CanvasNetScad
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Scad
-# package (root namespace DemaConsulting.CanvasNet.Scad; internal subsystem namespace
-# DemaConsulting.CanvasNet.Scad.Language) from the perspective of its consumers, without specifying
-# implementation details.
+# package (root namespace DemaConsulting.CanvasNet.Scad; internal subsystem namespaces
+# DemaConsulting.CanvasNet.Scad.Language and DemaConsulting.CanvasNet.Scad.Evaluation) from the
+# perspective of its consumers, without specifying implementation details.
 #
 # CanvasNetScad is an independent software system that will be distributed as its own NuGet package.
 # It is a clean-room implementation of a front end for the OpenSCAD language (OpenSCAD is
 # GPL-licensed and its manual is CC BY-SA; no OpenSCAD source, grammar, manual text, example, or
 # library was consulted - see docs/design/canvas-net-scad.md, Design Constraints, Clean-Room
 # Provenance). It depends on the core CanvasNet system and on the CanvasNetRender3D system as
-# architectural scaffolding for the later phases; Phase 4 consumes no type from either of them
+# architectural scaffolding for the later phases; Phases 4 and 5 consume no type from either of them
 # (see docs/design/canvas-net-scad.md's Dependencies section).
 #
-# CanvasNetScad is being delivered incrementally. Phase 4 (this delivery) is parse-only: a lexer and
-# a recursive-descent parser turn OpenSCAD-language source into an internal, immutable syntax tree,
-# and the public ScadDocument reports what the source declares at file scope (include/use
-# directives, module names, function names) or the first syntax error with its file, line, and
-# column. Evaluation, geometry generation, and rendering are added by later phases; their
-# requirements will be added to this file (and new per-unit files) when each phase lands, mirroring
-# canvas-net-render3d.yaml's per-phase header-comment convention. The package is not yet packable.
+# CanvasNetScad is being delivered incrementally. Phase 4 delivered parsing: a lexer and a
+# recursive-descent parser turn OpenSCAD-language source into an internal, immutable syntax tree, and
+# the public ScadDocument reports what the source declares at file scope (include/use directives,
+# module names, function names) or the first syntax error with its file, line, and column. Phase 5
+# (this delivery) adds evaluation: ScadDocument.Evaluate runs a document - values, scoping, functions,
+# modules and children, control flow, comprehensions, built-in functions, include/use resolution
+# inside a sandbox, variable overrides, resource limits, cancellation, and echo, warning, and
+# unsupported-feature reporting - into an internal, geometry-agnostic instantiation tree and returns
+# the echo output, diagnostics, unsupported-feature reports, and instance count. Geometry generation
+# and rendering are added by Phase 6; their requirements will be added to this file (and new
+# per-unit files) when that phase lands, mirroring canvas-net-render3d.yaml's per-phase
+# header-comment convention. The package is not yet packable.
 
 sections:
   - title: CanvasNetScad Requirements
@@ -56,7 +61,7 @@ sections:
           are set and never changing an options instance afterwards.
         tags: [system]
         justification: |
-          Options that are validated at initialization let the parser and later phases trust every
+          Options that are validated at initialization let the parser and the evaluator trust every
           instance they receive, and immutability makes a shared options instance safe to use from
           several threads.
         children:
@@ -105,12 +110,13 @@ sections:
         title: >-
           The library shall record file-scope include and use directives (kind, path, and source
           location, in source order) on the parsed document without opening, resolving, or
-          otherwise accessing any referenced file.
+          otherwise accessing any referenced file while parsing; files are accessed only when a
+          document is evaluated.
         tags: [system]
         justification: |
           Recording directives without touching the file system lets a caller inspect a document's
-          dependencies safely; resolution policy belongs to a later phase and must never happen
-          implicitly during parsing.
+          dependencies safely; resolution is an explicit, sandboxed part of evaluation and must
+          never happen implicitly during parsing.
         children:
           - CanvasNetScad-ScadLanguage-Directives
           - CanvasNetScad-ScadDocument-Directives
@@ -148,3 +154,173 @@ sections:
         tests:
           - CanvasNetScad_SystemIntegration_Limits_DeepNestingFailsClosed
           - CanvasNetScad_SystemIntegration_Limits_OversizedSourceIsRejected
+
+      - id: CanvasNetScad-Evaluate
+        title: >-
+          The library shall evaluate a parsed document with the documented semantics of the dialect
+          - values, scoping, functions, modules with children, control flow, comprehensions,
+          operators, built-in functions, echo, and assert - and shall report the echo output as
+          lines, the diagnostics, the unsupported-feature reports, and the number of module
+          instances it produced, without generating any geometry.
+        tags: [system]
+        justification: |
+          Evaluation is what turns a parsed model into a result; callers need the echo output and
+          the diagnostics to validate a model, and the instance count to see what it contains,
+          before any geometry exists.
+        children:
+          - CanvasNetScad-ScadDocument-Evaluate
+          - CanvasNetScad-ScadDocument-EvaluationResult
+          - CanvasNetScad-ScadEvaluation-Values
+          - CanvasNetScad-ScadEvaluation-Evaluation
+          - CanvasNetScad-ScadEvaluation-InstanceTree
+          - CanvasNetScad-ScadEvaluation-BuiltinFunctions
+        tests:
+          - CanvasNetScad_SystemIntegration_Evaluate_EchoAndAssertReportOutputAndFail
+          - CanvasNetScad_SystemIntegration_Evaluate_ParametricFixtureProducesInstances
+
+      - id: CanvasNetScad-EvaluationOptions
+        title: >-
+          The library shall let a caller supply immutable, validated evaluation options (variable
+          overrides, animation time, resource limits, and handlers for echo output, warnings, and
+          unsupported features, and a switch that makes an unsupported feature an error), rejecting
+          invalid values when they are set and never changing an options instance afterwards.
+        tags: [system]
+        justification: |
+          Options validated at initialization let the evaluator trust every instance, and
+          immutability makes a shared options instance safe to use from several threads.
+        children:
+          - CanvasNetScad-ScadDocument-EvaluationOptions
+          - CanvasNetScad-ScadDocument-EvaluationHandlers
+        tests:
+          - CanvasNetScad_SystemIntegration_EvaluationOptions_AreValidatedAndImmutable
+
+      - id: CanvasNetScad-Diagnostics
+        title: >-
+          The library shall report a recoverable problem in a model - for example an unknown
+          variable, function, or module - as a warning with a message and a source location,
+          continuing the evaluation instead of failing it.
+        tags: [system]
+        justification: |
+          Authors need precise feedback on mistakes, and a model with a mistake should still produce
+          whatever it can.
+        children:
+          - CanvasNetScad-ScadDocument-Diagnostic
+          - CanvasNetScad-ScadEvaluation-Diagnostics
+        tests:
+          - CanvasNetScad_SystemIntegration_Diagnostics_UnknownNamesAreWarnings
+
+      - id: CanvasNetScad-UnsupportedFeatures
+        title: >-
+          The library shall report a recognized but unsupported feature as an unsupported-feature
+          report with a feature identifier, a message, and a source location, continuing with an
+          undefined result, or, when the caller asks for it, stop at the first one with a typed
+          exception carrying the same information.
+        tags: [system]
+        justification: |
+          A model that relies on something this implementation does not provide must be told so
+          precisely, and a strict caller must be able to refuse a partial result.
+        children:
+          - CanvasNetScad-ScadDocument-UnsupportedFeature
+          - CanvasNetScad-ScadEvaluation-UnsupportedFeatures
+        tests:
+          - CanvasNetScad_SystemIntegration_UnsupportedFeatures_ReportedOrThrown
+
+      - id: CanvasNetScad-EvaluationErrors
+        title: >-
+          The library shall stop an evaluation with a ScadEvaluationException that carries the
+          source location of the failure and a message that begins with it when an assertion fails,
+          a resource limit is exceeded, or an include rule is violated, and shall keep the echo
+          output and warnings produced before the failure available to the caller's handlers.
+        tags: [system]
+        justification: |
+          Some failures make a result meaningless; a typed, located exception lets a caller report
+          them precisely, and the output produced so far helps explain them.
+        children:
+          - CanvasNetScad-ScadDocument-EvaluationException
+          - CanvasNetScad-ScadEvaluation-Errors
+        tests:
+          - CanvasNetScad_SystemIntegration_Evaluate_EchoAndAssertReportOutputAndFail
+          - CanvasNetScad_SystemIntegration_EvaluationLimits_FailClosed
+
+      - id: CanvasNetScad-IncludeUse
+        title: >-
+          The library shall resolve include and use directives when a document is evaluated -
+          textually for include, definitions only for use - from the file system or through a
+          caller-supplied resolver, confined to the base directory and library paths (or to the
+          logical paths handed to the resolver), and shall reject any path that escapes them.
+        tags: [system]
+        justification: |
+          A document may come from an untrusted source and include resolution is the one place
+          where evaluation reaches outside it; the access must be explicit, confined, and
+          verifiable.
+        children:
+          - CanvasNetScad-ScadDocument-IncludeUse
+          - CanvasNetScad-ScadEvaluation-FileResolution
+        tests:
+          - CanvasNetScad_SystemIntegration_IncludeUse_ResolverAndSandbox
+
+      - id: CanvasNetScad-EvaluationLimits
+        title: >-
+          The library shall fail closed on hostile or runaway models: recursion depth, evaluation
+          steps, loop iterations, list length, string length, instance count, and echo output shall
+          each be bounded by a limit the caller can set, exceeding a limit shall raise a located
+          ScadEvaluationException, and the recursion limit shall hold without overflowing the call
+          stack on a thread with a small stack.
+        tags: [system]
+        justification: |
+          Evaluation runs untrusted programs; unbounded time or memory, or an uncatchable stack
+          overflow, would take down the host process, so every resource must be bounded and every
+          violation reported as a typed exception.
+        children:
+          - CanvasNetScad-ScadDocument-Limits
+          - CanvasNetScad-ScadDocument-StackSafety
+          - CanvasNetScad-ScadEvaluation-ResourceLimits
+          - CanvasNetScad-ScadEvaluation-StackSafety
+        tests:
+          - CanvasNetScad_SystemIntegration_EvaluationLimits_FailClosed
+          - CanvasNetScad_SystemIntegration_EvaluationLimits_DeepRecursionOnSmallStackDoesNotOverflow
+
+      - id: CanvasNetScad-Cancellation
+        title: >-
+          The library shall stop an evaluation, including one in endless recursion, promptly when
+          the caller's cancellation token is canceled, by throwing OperationCanceledException, and
+          shall do no work at all when the token is canceled beforehand.
+        tags: [system]
+        justification: |
+          A caller must be able to abandon an evaluation that takes longer than it can afford, even
+          when it has raised the step limit very high.
+        children:
+          - CanvasNetScad-ScadDocument-Cancellation
+          - CanvasNetScad-ScadEvaluation-Cancellation
+        tests:
+          - CanvasNetScad_SystemIntegration_Cancellation_StopsEvaluation
+
+      - id: CanvasNetScad-VariableOverrides
+        title: >-
+          The library shall let a caller override the variables of a document from outside its
+          source text, replacing every top-level assignment of a name and creating the variable when
+          absent, including special variables.
+        tags: [system]
+        justification: |
+          Parameterizing a model from the outside is the basis of batch rendering and the
+          generation of variants.
+        children:
+          - CanvasNetScad-ScadDocument-VariableOverrides
+          - CanvasNetScad-ScadEvaluation-Overrides
+        tests:
+          - CanvasNetScad_SystemIntegration_VariableOverrides_ReplaceAssignments
+
+      - id: CanvasNetScad-Determinism
+        title: >-
+          The library shall give identical echo output, diagnostics, and instance count for the same
+          document and options on every platform, in every culture, and from repeated calls,
+          including for models whose numbers must be formatted.
+        tags: [system]
+        justification: |
+          Reproducible results make golden-output verification, caching, and cross-platform use
+          possible.
+        children:
+          - CanvasNetScad-ScadDocument-Determinism
+          - CanvasNetScad-ScadEvaluation-Determinism
+        tests:
+          - CanvasNetScad_SystemIntegration_Determinism_InvariantCultureAndRepeatable

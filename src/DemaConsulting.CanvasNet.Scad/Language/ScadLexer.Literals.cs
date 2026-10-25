@@ -202,7 +202,7 @@ internal sealed partial class ScadLexer
         // Exactly the required number of ASCII hexadecimal digits must follow
         if (_pos + digits > _source.Length || !IsAllHex(_source.AsSpan(_pos, digits)))
         {
-            throw Error($"Invalid escape sequence '\\{letter}': expected {digits} hexadecimal digits", escapeLocation);
+            throw Error(string.Create(CultureInfo.InvariantCulture, $"Invalid escape sequence '\\{letter}': expected {digits} hexadecimal digits"), escapeLocation);
         }
 
         var codePoint = int.Parse(_source.AsSpan(_pos, digits), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);

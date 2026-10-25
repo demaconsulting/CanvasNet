@@ -1,0 +1,5 @@
+ECHO: "computing the default tag"
+ECHO: "size", 10, 5
+ECHO: "tag", "default"
+ECHO: "fragments", 12
+ECHO: "extra", "not supplied"

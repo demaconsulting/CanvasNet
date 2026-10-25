@@ -1,0 +1,11 @@
+ECHO: "fact", 120, 3.6288e+06
+ECHO: "fib", 610
+ECHO: "tail recursion", 5.00005e+09
+ECHO: "mutual", true, true, false
+ECHO: "named", [1, 10, 100], [1, 10, 3], [2, 10, 5], [1, 2, 3]
+ECHO: "describing", 4
+ECHO: "expression forms", 9
+ECHO: "assert passes", 3
+ECHO: "clamp", 10, 0, 4
+ECHO: "repeat", "ab-ab-ab-"
+ECHO: "user min shadows the built-in", 3

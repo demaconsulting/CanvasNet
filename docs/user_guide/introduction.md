@@ -3228,6 +3228,29 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
   operand is not a closed, outward-oriented solid.
 
+### OpenSCAD Documents and the Include Sandbox
+
+`ScadDocument` parses an OpenSCAD-language source (`Parse`, `Open`) and `Evaluate` runs it to an
+instantiation tree with echo output, warnings, and a report of unsupported features. `include` and `use`
+are resolved before evaluation and only through `ScadOpenOptions`: files under `BaseDirectory` or a
+`LibraryPaths` entry, or, when a `FileResolver` callback is supplied, only that callback with no file-system
+access at all. Absolute paths, drive letters, and `..` above the root are rejected with a
+`ScadEvaluationException`, and a symbolic link or junction below a root is never followed.
+
+**Security note.** The sandbox protects against path-based escapes in a *static* file tree. It is **not a
+security boundary against a concurrent local attacker** who has write access to the included folders: the
+link check and the file open are separate operations, so a component swapped for a link or junction between
+them is not noticed, and a hard link (which cannot be detected) to a file outside the folders is read like any
+other file. Only point `BaseDirectory` and `LibraryPaths` at folders that untrusted parties cannot write to, or
+use a `FileResolver` callback to serve the files yourself.
+
+Two further behaviors are worth knowing. Indexing is lenient: `v[i]` is `undef` for every negative or
+non-finite index, and a fractional non-negative index is truncated (`[10, 20, 30][1.5]` is `20`). A very deeply
+recursive program may need a dedicated 384 MiB-stack thread (address space, committed only as touched); where
+the process cannot provide it, such as a 32-bit process, `Evaluate` throws a `ScadEvaluationException` (and
+`Parse` a `ScadSyntaxException` for the corresponding 16 MiB parser thread) instead of a runtime
+out-of-memory error.
+
 # Examples
 
 ## Example 1: Surface Pixel Access

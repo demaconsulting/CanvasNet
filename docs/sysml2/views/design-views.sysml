@@ -56,6 +56,10 @@ package CanvasNet {
         expose ScadLanguage;
     }
 
+    view ScadEvaluationView {
+        expose ScadEvaluation;
+    }
+
     view ChartModelView {
         expose ChartModel;
     }

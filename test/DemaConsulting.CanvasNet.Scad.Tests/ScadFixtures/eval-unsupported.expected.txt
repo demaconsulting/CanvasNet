@@ -1,0 +1,6 @@
+ECHO: "before"
+ECHO: undef
+ECHO: undef
+ECHO: undef
+ECHO: undef
+ECHO: "after", undef

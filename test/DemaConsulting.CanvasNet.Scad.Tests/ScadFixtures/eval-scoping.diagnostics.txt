@@ -1,0 +1,5 @@
+4:1: 'a' is assigned more than once in this scope; the last assignment is used
+34:5: Circular reference while evaluating 'p'
+34:7: Cannot apply operator '+' to undef and a number
+33:7: Cannot apply operator '+' to undef and a number
+36:17: Ignoring unknown variable 'missing'

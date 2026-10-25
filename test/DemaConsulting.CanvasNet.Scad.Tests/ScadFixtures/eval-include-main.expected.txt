@@ -1,0 +1,5 @@
+ECHO: "inner included"
+ECHO: "defs included", 5
+ECHO: "main", 5, 10, "from inner"
+ECHO: "library function", 6, 50
+ECHO: "library value is private", true

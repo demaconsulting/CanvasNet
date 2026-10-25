@@ -127,10 +127,11 @@ public class ScadOpenOptionsTests
     }
 
     /// <summary>
-    ///     Validates that the options are accepted but have no effect on parsing yet.
+    ///     Validates that the file-resolution options (base directory, library paths, resolver) have no effect on
+    ///     parsing: parsing never accesses another file; they are consumed only when the document is evaluated.
     /// </summary>
     [Fact]
-    public void ScadOpenOptions_AcceptedButNotConsumedYet_DoNotAffectParse()
+    public void ScadOpenOptions_EvaluationOnlySettings_DoNotAffectParse()
     {
         // Arrange: a nonexistent base directory, library paths and a resolver that must never be called
         var options = new ScadOpenOptions

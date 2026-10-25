@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def ScadFileResolver {
+        doc /* The internal ScadFileResolver (a sealed partial class) and the immutable ScadSourceUnit it produces: before any evaluation it expands include directives textually (keeping each statement's own source location), loads use directives as separate, private library units, and enforces a sandbox - the base directory and library paths in file-system mode, or normalized logical paths handed to the caller's resolver callback with no file-system access at all - rejecting absolute paths, drive letters, control characters, paths that escape their root, and any symbolic link or junction below a root (whatever its target), and never consulting environment variables. It detects include cycles, bounds include depth, included files, and expanded statements, reads each distinct file once with the shared bounded UTF-8 reader, reports a missing file as a warning, lets syntax errors in referenced files surface with that file's name, and polls cancellation between files. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadSourceUnit.cs, src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadFileResolver.cs, src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadFileResolver.Paths.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverIncludeTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverUseTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverSandboxTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverLinkTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverLimitTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolverFileSystemTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadResolverTestSupport.cs */
+        comment designRef /* Design: docs/design/canvas-net-scad/scad-evaluation/scad-file-resolver.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-evaluation/scad-file-resolver.yaml */
+    }
+}

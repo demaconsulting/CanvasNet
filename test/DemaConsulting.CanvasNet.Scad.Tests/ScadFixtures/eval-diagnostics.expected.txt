@@ -1,0 +1,15 @@
+ECHO: "reassigned", 2
+ECHO: "unknown variable", undef
+ECHO: "unknown function", undef
+ECHO: "calling a number", undef
+ECHO: "extra argument", 1
+ECHO: "unknown argument", 1
+ECHO: "module body", 1
+ECHO: "module body", 1
+ECHO: "iterate undef"
+ECHO: "bad operands", undef, undef, undef, undef
+ECHO: "bad math", undef, undef
+ECHO: "repeated"
+ECHO: undef
+ECHO: undef
+ECHO: undef

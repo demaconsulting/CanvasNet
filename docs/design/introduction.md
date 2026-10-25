@@ -191,15 +191,21 @@ software items, specifically:
   Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
   subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
   `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, or `CanvasNetCharts`
-- **CanvasNetScad (System)** — A separate software system (not yet packable) providing a clean-room,
-  parse-only front end for the OpenSCAD language. It contains one direct unit, `ScadDocument` (the
-  public `Parse`/`Open` API with `ScadOpenOptions`, `ScadSourceLocation`, `ScadSyntaxException`, and
-  the recorded `include`/`use` directives, module names, and function names), and an internal
-  `ScadLanguage` subsystem with two units: `ScadLexer` (tokens with one-based locations) and
-  `ScadParser` (recursive-descent statements and precedence-climbing expressions into an immutable
-  syntax tree, with fail-fast single-error reporting and bounded nesting and source size).
-  Evaluation, geometry generation, rendering, and `include`/`use` resolution are deferred to later
-  phases — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full supported/deferred
+- **CanvasNetScad (System)** — A separate software system (not yet packable) providing a clean-room
+  front end for the OpenSCAD language that parses and evaluates (but does not yet render) models. It
+  contains one direct unit, `ScadDocument` (the public `Parse`/`Open`/`Evaluate` API with
+  `ScadOpenOptions`, `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadSourceLocation`,
+  `ScadSyntaxException`, `ScadEvaluationException`, and the recorded `include`/`use` directives, module
+  names, and function names), and two internal subsystems. The `ScadLanguage` subsystem has two units:
+  `ScadLexer` (tokens with one-based locations) and `ScadParser` (recursive-descent statements and
+  precedence-climbing expressions into an immutable syntax tree, with fail-fast single-error reporting and
+  bounded nesting and source size). The `ScadEvaluation` subsystem has four units: `ScadValue` (the value
+  model and the deterministic number format), `ScadEvaluator` (scoping, special variables, functions,
+  modules and children, control flow, comprehensions, and a geometry-agnostic instantiation tree, with
+  deterministic, stack-independent resource limits), `ScadBuiltinFunctions` (the built-in function library
+  and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
+  resolution inside a sandbox). Geometry generation, rendering, and packaging are deferred to later phases — see
+  _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full supported/deferred
   boundary and its Implementation Phase Plan. `CanvasNetScad` references the `CanvasNet` system and
   `CanvasNetRender3D` as architectural scaffolding for later phases but uses no type from either in
   its current phase, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
@@ -315,11 +321,13 @@ and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
 
 A further sibling top-level system, `CanvasNetScad`, likewise lives in this same repository
 alongside `CanvasNet` (and is intended to be distributed as its own NuGet package, which is not yet
-enabled). It is a clean-room, parse-only front end for the OpenSCAD language: its direct unit,
-`ScadDocument` (namespace `DemaConsulting.CanvasNet.Scad`), is the public API, and its internal
-`ScadLanguage` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Language`) holds the `ScadLexer`
-and `ScadParser` units. It references the `CanvasNet` system and `CanvasNetRender3D` only as
-architectural scaffolding for the later evaluation and rendering phases. See the Folder Layout
+enabled). It is a clean-room front end for the OpenSCAD language that parses and evaluates models (it does
+not yet render them): its direct unit, `ScadDocument` (namespace `DemaConsulting.CanvasNet.Scad`), is the
+public API, its internal `ScadLanguage` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Language`) holds
+the `ScadLexer` and `ScadParser` units, and its internal `ScadEvaluation` subsystem (namespace
+`DemaConsulting.CanvasNet.Scad.Evaluation`) holds the `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`,
+and `ScadFileResolver` units. It references the `CanvasNet` system and `CanvasNetRender3D` only as
+architectural scaffolding for the later rendering phase. See the Folder Layout
 section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 ## Folder Layout
@@ -685,33 +693,84 @@ src/DemaConsulting.CanvasNet.Render3D/
 
 The `CanvasNetScad` system lives in the `src/DemaConsulting.CanvasNet.Scad/` project folder (a
 separate `DemaConsulting.CanvasNet.Scad` package that is not yet packable). The `ScadDocument` unit
-occupies the project root; the internal `ScadLanguage` subsystem occupies the `Language/` sub-folder,
-whose name equals the sub-namespace; no unit has a nested sub-folder of its own (see _CanvasNetScad
-System Design_, `canvas-net-scad.md`):
+occupies the project root; the internal `ScadLanguage` and `ScadEvaluation` subsystems occupy the
+`Language/` and `Evaluation/` sub-folders, whose names equal their sub-namespaces; no unit has a nested
+sub-folder of its own (see _CanvasNetScad System Design_, `canvas-net-scad.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Scad/
 ├── DemaConsulting.CanvasNet.Scad.csproj — Project definition (net8.0/net9.0/net10.0; IsPackable false)
 ├── NamespaceDoc.cs                — Namespace-level XML documentation (incl. clean-room statement)
 ├── ScadDocument.cs                — ScadDocument: Parse/Open entry points and file-scope facts
+├── ScadDocument.Evaluate.cs       — ScadDocument: Evaluate (headless evaluation, handler delivery)
 ├── ScadOpenOptions.cs             — ScadDocument: immutable, validated open options
 ├── ScadSourceLocation.cs          — ScadDocument: file, line, and column value
 ├── ScadSyntaxException.cs         — ScadDocument: syntax error exception with location
 ├── ScadDirective.cs               — ScadDocument: recorded include/use directive
 ├── ScadDirectiveKind.cs           — ScadDocument: include/use enumeration
-└── Language/                      — ScadLanguage subsystem (internal)
+├── ScadEvaluationOptions.cs       — ScadDocument: immutable, validated evaluation options
+├── ScadEvaluationResult.cs        — ScadDocument: echo, diagnostics, unsupported features, instance count
+├── ScadLimits.cs                  — ScadDocument: resource limits
+├── ScadDiagnostic.cs              — ScadDocument: warning record
+├── ScadUnsupportedFeature.cs      — ScadDocument: unsupported-feature report record
+├── ScadUnsupportedFeatureException.cs — ScadDocument: strict-mode unsupported-feature exception
+├── ScadEvaluationException.cs     — ScadDocument: evaluation error exception with location
+├── Language/                      — ScadLanguage subsystem (internal)
+│   ├── NamespaceDoc.cs            — Namespace-level XML documentation
+│   ├── ScadTokenKind.cs           — ScadLexer: token kind enumeration
+│   ├── ScadToken.cs               — ScadLexer: token record struct
+│   ├── ScadLexer.cs               — ScadLexer: tokenizer, operators, identifiers, comments
+│   ├── ScadLexer.Literals.cs      — ScadLexer: number, string, and directive literals
+│   ├── ScadSyntax.cs              — ScadParser: syntax-tree base types, parts, and enumerations
+│   ├── ScadStatements.cs          — ScadParser: statement records
+│   ├── ScadExpressions.cs         — ScadParser: expression records
+│   ├── ScadParser.cs              — ScadParser: entry points, token cursor, errors, limits
+│   ├── ScadParser.Statements.cs   — ScadParser: statement productions
+│   ├── ScadParser.Expressions.cs  — ScadParser: expression productions
+│   └── ScadTreeDepth.cs           — ScadParser: iterative syntax-tree height verification
+└── Evaluation/                    — ScadEvaluation subsystem (internal)
     ├── NamespaceDoc.cs            — Namespace-level XML documentation
-    ├── ScadTokenKind.cs           — ScadLexer: token kind enumeration
-    ├── ScadToken.cs               — ScadLexer: token record struct
-    ├── ScadLexer.cs               — ScadLexer: tokenizer, operators, identifiers, comments
-    ├── ScadLexer.Literals.cs      — ScadLexer: number, string, and directive literals
-    ├── ScadSyntax.cs              — ScadParser: syntax-tree base types, parts, and enumerations
-    ├── ScadStatements.cs          — ScadParser: statement records
-    ├── ScadExpressions.cs         — ScadParser: expression records
-    ├── ScadParser.cs              — ScadParser: entry points, token cursor, errors, limits
-    ├── ScadParser.Statements.cs   — ScadParser: statement productions
-    ├── ScadParser.Expressions.cs  — ScadParser: expression productions
-    └── ScadTreeDepth.cs           — ScadParser: iterative syntax-tree height verification
+    ├── ScadValueKind.cs           — ScadValue: value kind enumeration
+    ├── ScadValue.cs               — ScadValue: value struct, factories, truthiness, equality
+    ├── ScadValue.Compare.cs       — ScadValue: ordering
+    ├── ScadValue.Arithmetic.cs    — ScadValue: operators, indexing, members
+    ├── ScadValue.Matrix.cs        — ScadValue: dot, matrix, and vector products
+    ├── ScadValue.Format.cs        — ScadValue: string and echo text forms
+    ├── ScadValue.Convert.cs       — ScadValue: conversion from caller-supplied objects
+    ├── ScadVector.cs              — ScadValue: immutable vector payload
+    ├── ScadRange.cs               — ScadValue: lazy range payload
+    ├── IScadFunctionValue.cs      — ScadValue: function-value interface
+    ├── ScadNumberFormatter.cs     — ScadValue: deterministic number format
+    ├── ScadNumbers.cs             — ScadValue: IEEE equality helper
+    ├── ScadText.cs                — ScadValue: Unicode-scalar text helpers
+    ├── ScadEvaluator.cs           — ScadEvaluator: entry points, restart, accounting
+    ├── ScadEvaluator.Scopes.cs    — ScadEvaluator: scopes, lazy cells, lookup
+    ├── ScadEvaluator.Expressions.cs — ScadEvaluator: expressions and operators
+    ├── ScadEvaluator.Calls.cs     — ScadEvaluator: argument binding, calls, tail calls
+    ├── ScadEvaluator.Statements.cs — ScadEvaluator: statements, echo, assert
+    ├── ScadEvaluator.Modules.cs   — ScadEvaluator: modules and children
+    ├── ScadEvaluator.Comprehensions.cs — ScadEvaluator: comprehensions and iteration
+    ├── ScadEvaluator.Host.cs      — ScadEvaluator: built-in function host
+    ├── ScadEvaluatorElementCounter.cs — ScadEvaluator: capped, memoized count of nested vector elements
+    ├── ScadEvaluatorFallbackSlots.cs — ScadEvaluator: bounded slots for fallback threads, with counters
+    ├── ScadScope.cs               — ScadEvaluator: scopes, cells, special frames, closures
+    ├── ScadInstance.cs            — ScadEvaluator: instantiation tree nodes
+    ├── ScadBuiltinModules.cs      — ScadEvaluator: recognized built-in module names
+    ├── ScadEvaluationSettings.cs  — ScadEvaluator: evaluation settings
+    ├── ScadEvaluationOutput.cs    — ScadEvaluator: evaluation result
+    ├── ScadEvaluationSink.cs      — ScadEvaluator: buffered echo, warnings, unsupported features
+    ├── IScadBuiltinHost.cs        — ScadBuiltinFunctions: evaluator services for functions
+    ├── ScadBuiltinFunctions.cs    — ScadBuiltinFunctions: registry and argument binding
+    ├── ScadBuiltinFunctions.Math.cs    — ScadBuiltinFunctions: mathematics and trigonometry
+    ├── ScadBuiltinFunctions.Lists.cs   — ScadBuiltinFunctions: list functions and lookup
+    ├── ScadBuiltinFunctions.Search.cs  — ScadBuiltinFunctions: search
+    ├── ScadBuiltinFunctions.Strings.cs — ScadBuiltinFunctions: string functions
+    ├── ScadBuiltinFunctions.Types.cs   — ScadBuiltinFunctions: type tests and version
+    ├── ScadBuiltinFunctions.Random.cs  — ScadBuiltinFunctions: rands
+    ├── ScadRandom.cs              — ScadBuiltinFunctions: SplitMix64 generator
+    ├── ScadSourceUnit.cs          — ScadFileResolver: include-expanded source unit
+    ├── ScadFileResolver.cs        — ScadFileResolver: expansion, libraries, limits
+    └── ScadFileResolver.Paths.cs  — ScadFileResolver: path normalization and sandbox
 ```
 
 In its current phase `CanvasNetScad` uses no type from the rest of this repository; its project

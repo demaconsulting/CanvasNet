@@ -1,0 +1,229 @@
+---
+# Software Unit Requirements for ScadBuiltinFunctions
+#
+# These requirements describe the design-level behavior of the ScadBuiltinFunctions unit: the internal
+# registry of built-in functions and its implementations (mathematics, trigonometry in degrees, list,
+# string, search, and type-test functions, the deterministic random-number generator, and the reporting of
+# recognized-but-unsupported functions) in the DemaConsulting.CanvasNet.Scad.Evaluation namespace.
+#
+# The function set and every edge-case result are the CanvasNetScad dialect's own decisions, pinned by the
+# tests below (see docs/design/canvas-net-scad.md, Clean-Room Provenance). Each "tests" entry cites an
+# existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-evaluation/scad-builtin-functions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadEvaluation Requirements
+        sections:
+          - title: ScadBuiltinFunctions Requirements
+            requirements:
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Math
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide the single-number functions abs, sign,
+                  sqrt, exp, ln, log (base ten), floor, ceil, and round (half away from zero) and the
+                  two-number function pow, following IEEE rules for special values (the square root
+                  of a negative number is NaN), and shall return undef with a warning for an operand
+                  that is not a number.
+                justification: |
+                  Parametric models compute dimensions with elementary mathematics; the results at the
+                  edges and for wrong operand types must be defined rather than left to chance.
+                tests:
+                  - ScadBuiltinMath_Unary_ReturnsExpected
+                  - ScadBuiltinMath_Pow_ComputesPowers
+                  - ScadBuiltinMath_SpecialValues_FollowIeee
+                  - ScadBuiltinMath_Unary_WrongType_ReturnsUndefWithWarning
+                  - ScadBuiltinMath_Binary_WrongType_ReturnsUndefWithWarning
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Trigonometry
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide sin, cos, tan, asin, acos, atan, and
+                  atan2 working in degrees, returning the exact values at every multiple of ninety
+                  degrees (an infinity for the tangent at odd multiples), and returning angles in
+                  degrees from the inverse functions, including atan2 across all four quadrants with
+                  named arguments.
+                justification: |
+                  Models express rotations in degrees, and a sine of ninety degrees that is not
+                  exactly one would leak rounding noise into every derived coordinate.
+                tests:
+                  - ScadBuiltinMath_Trigonometry_IsExactAtRightAngles
+                  - ScadBuiltinMath_Tan_AtOddRightAngles_IsInfinite
+                  - ScadBuiltinMath_Trigonometry_OtherAngles_MatchesToSixDigits
+                  - ScadBuiltinMath_InverseTrigonometry_ReturnsDegrees
+                  - ScadBuiltinMath_Atan2_CoversQuadrantsAndNamedArguments
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Aggregates
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide min and max over either several number
+                  arguments or a single vector of numbers, and shall return undef with a warning for
+                  an empty vector or any other operand.
+                justification: |
+                  Taking the smallest or largest of a set of dimensions is a routine parametric
+                  operation, with two common calling forms.
+                tests:
+                  - ScadBuiltinMath_MinMax_AcceptNumbersOrOneVector
+                  - ScadBuiltinMath_MinMax_InvalidOperands_ReturnUndefWithWarning
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Vectors
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide len (the element count of a vector or
+                  the scalar count of a string), concat (which flattens one level of vector
+                  arguments), norm (the Euclidean length of a numeric vector), and cross (the vector
+                  product of two three-element vectors and the scalar product of two two-element
+                  vectors), returning undef with a warning for operands they cannot accept.
+                justification: |
+                  Vector and list handling is the core of coordinate computation in a parametric
+                  model.
+                tests:
+                  - ScadBuiltinList_Len_VectorsAndStrings_ReturnsCount
+                  - ScadBuiltinList_Len_OtherKinds_ReturnsUndefWithWarning
+                  - ScadBuiltinList_Concat_FlattensOneLevel
+                  - ScadBuiltinList_Norm_ReturnsEuclideanLength
+                  - ScadBuiltinList_Cross_ThreeAndTwoDimensions
+                  - ScadBuiltinList_Cross_InvalidOperands_ReturnsUndefWithWarning
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Lookup
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide lookup, which interpolates linearly
+                  between the nearest keys of a table without assuming it is sorted, clamps to the
+                  value of the nearest extreme key outside the table, skips malformed rows, and
+                  returns undef with a warning when the input is unusable.
+                justification: |
+                  Table-driven dimensions (a size chart, a gear table) are common in parametric
+                  models and must be robust against unsorted data.
+                tests:
+                  - ScadBuiltinList_Lookup_InterpolatesAndClamps
+                  - ScadBuiltinList_Lookup_UnsortedTable_StillFindsNeighbors
+                  - ScadBuiltinList_Lookup_InvalidInput_SkipsRowsOrWarns
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Search
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide search for a string, a number, or a
+                  vector of such match values against a string, a vector of scalars, or a vector of
+                  rows (using a selectable column), returning the first index or an empty list, all
+                  indices, or a bounded number of indices as requested, and shall report every other
+                  argument form as an unsupported feature instead of guessing.
+                justification: |
+                  Search has many argument forms; supporting a documented subset and reporting the
+                  rest keeps results trustworthy and the limitation visible.
+                tests:
+                  - ScadBuiltinList_Search_DefaultReturnsFirstIndexOrEmpty
+                  - ScadBuiltinList_Search_Strings_MatchesScalars
+                  - ScadBuiltinList_Search_Rows_UsesColumn
+                  - ScadBuiltinList_Search_ReturnsPerMatch_AllOrBounded
+                  - ScadBuiltinList_Search_UnsupportedForms_ReportFeature
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Strings
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide str (concatenating the string forms of
+                  its arguments with invariant-culture numbers), chr (code points to a string,
+                  warning and skipping invalid input), and ord (the first code point of a string),
+                  operating on Unicode scalar values so that chr and ord round-trip.
+                justification: |
+                  Building labels and keys from numbers and text is routine, and the text must not
+                  vary with the culture in which the library runs.
+                tests:
+                  - ScadBuiltinString_Str_ConcatenatesTextForms
+                  - ScadBuiltinString_Str_UnderGermanCulture_UsesInvariantNumbers
+                  - ScadBuiltinString_Chr_ConvertsCodePoints
+                  - ScadBuiltinString_Chr_InvalidInput_WarnsAndSkips
+                  - ScadBuiltinString_Ord_ReturnsFirstCodePoint
+                  - ScadBuiltinString_Ord_NonString_ReturnsUndefWithWarning
+                  - ScadBuiltinString_ChrOrd_RoundTrip
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-TypeTests
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide the type tests is_undef, is_num,
+                  is_bool, is_string, is_list, and is_function, and the version functions that report
+                  the emulated language level.
+                justification: |
+                  Models branch on the kind of a value and on the language level they run under.
+                tests:
+                  - ScadBuiltinRegistry_TypeTests_ClassifyValues
+                  - ScadBuiltinRegistry_Version_ReportsEmulatedLanguageLevel
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Random
+                title: >-
+                  The ScadBuiltinFunctions unit shall provide rands, which produces numbers in a
+                  half-open range from a documented, platform-independent generator: a given seed
+                  (the fourth parameter, named seed_value) yields the same numbers on every platform and
+                  starts afresh at every call, a call without a seed continues one deterministic
+                  per-evaluation stream, the count is truncated to a whole number, and invalid arguments yield
+                  undef with a warning.
+                justification: |
+                  Randomness in a model must not make two evaluations of the same document differ;
+                  the generator is therefore specified exactly and pinned by golden sequences.
+                tests:
+                  - ScadRandom_NextUInt64_MatchesGoldenSequence
+                  - ScadRandom_NextDouble_MatchesGoldenValues
+                  - ScadRandom_DefaultState_MatchesGoldenSequence
+                  - ScadBuiltinRandom_Rands_WithSeed_IsDeterministicAndRestartsEachCall
+                  - ScadBuiltinRandom_Rands_ScalesToRange
+                  - ScadBuiltinRandom_Rands_WithoutSeed_AdvancesDeterministicStream
+                  - ScadBuiltinRandom_Rands_NamedArguments_AreAccepted
+                  - ScadBuiltinRandom_Rands_SeedValueName_IsDeterministicAndSeedIsUnknown
+                  - ScadBuiltinRandom_Rands_Count_IsTruncated
+                  - ScadBuiltinRandom_Rands_InvalidArguments_ReturnUndefWithWarning
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-UnsupportedFunctions
+                title: >-
+                  The ScadBuiltinFunctions unit shall recognize the names of functions that are not
+                  implemented, shall report each use as an unsupported feature identified by the
+                  function name and return undef, and shall report a name that is not a built-in
+                  function as not handled so that the caller can warn about an unknown function.
+                justification: |
+                  A model that uses a function outside the supported subset must learn that precisely,
+                  and must be distinguishable from a model that misspells a name.
+                tests:
+                  - ScadBuiltinRegistry_IsKnown_ImplementedAndUnsupportedNames_AreKnown
+                  - ScadBuiltinRegistry_UnknownName_IsNotHandled
+                  - ScadBuiltinRegistry_KnownUnsupported_ReportsFeatureAndReturnsUndef
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Arguments
+                title: >-
+                  The ScadBuiltinFunctions unit shall bind positional and named arguments to a
+                  function's parameters (a named argument overriding a positional one and a skipped
+                  parameter becoming undef), shall warn about and ignore an unknown or unnamed
+                  parameter name and surplus arguments, and shall warn and return undef when too few
+                  arguments are supplied.
+                justification: |
+                  Calls with wrong argument lists are a common modeling mistake; they must degrade
+                  to a warning with a defined result.
+                tests:
+                  - ScadBuiltinRegistry_NamedArgument_ToUnnamedFunction_IsIgnoredWithWarning
+                  - ScadBuiltinRegistry_UnknownNamedArgument_IsIgnoredWithWarning
+                  - ScadBuiltinRegistry_NamedArgument_OverridesPositional
+                  - ScadBuiltinRegistry_TooFewArguments_WarnsAndReturnsUndef
+                  - ScadBuiltinRegistry_ExtraArguments_AreDroppedWithWarning
+                  - ScadBuiltinRegistry_NamedArgumentGap_IsFilledWithUndef
+
+              - id: CanvasNetScad-ScadEvaluation-ScadBuiltinFunctions-Limits
+                title: >-
+                  The ScadBuiltinFunctions unit shall check the list-length and string-length limits
+                  before building a result and shall charge the evaluation budget for work
+                  proportional to its input (for str, per element while it formats; for search, the
+                  preprocessing of its arguments before it builds any intermediate list, and
+                  cancellation polls at a fixed count of comparisons while it scans), so that a
+                  function such as concat, str, chr, rands, or
+                  search that would exceed a limit fails with the limit error instead of consuming
+                  memory or time, while a result exactly at a limit succeeds.
+                justification: |
+                  Built-in functions are the cheapest way for hostile input to request a huge result;
+                  every one that can grow its output must honor the evaluation limits.
+                tests:
+                  - ScadBuiltinList_Concat_AtLimit_Succeeds_OneOver_Throws
+                  - ScadBuiltinList_Search_TooMuchWorkOrResult_Throws
+                  - ScadBuiltinSearchLimit_Search_LargeStrings_ChargesBeforeMaterializing
+                  - ScadBuiltinSearchLimit_Search_MatchLongerThanListLimit_ThrowsBeforeAllocating
+                  - ScadBuiltinSearchLimit_Search_AsciiStrings_DoNotAllocatePerScalar
+                  - ScadBuiltinSearchLimit_Search_AllMatches_ExceedingListLimit_StopsDuringCollection
+                  - ScadBuiltinSearchLimit_Search_VectorSource_RowsAndColumns_ResultsUnchanged
+                  - ScadBuiltinSearchLimit_Search_ChargeIncludesLinearPreprocessing
+                  - ScadBuiltinSearchLimit_Search_Scans_PollAtFixedComparisonIntervals
+                  - ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch
+                  - ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws
+                  - ScadBuiltinString_Str_LargeVector_ChargesPerElement
+                  - ScadBuiltinString_Str_ManyLargeStrings_AllocateNoMoreThanLimitPlusOneElement
+                  - ScadBuiltinString_Str_StepLimit_StopsDuringFormatting
+                  - ScadBuiltinString_Chr_AtLimit_Succeeds_OneOver_Throws
+                  - ScadBuiltinRandom_Rands_AtLimit_Succeeds_OneOver_Throws

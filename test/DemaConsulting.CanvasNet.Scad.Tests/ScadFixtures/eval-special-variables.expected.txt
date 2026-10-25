@@ -1,0 +1,8 @@
+ECHO: "defaults", 0, 12, 2, 0, true
+ECHO: "ring", 3, 24
+ECHO: "ring", 1, 0
+ECHO: "ring", 2, 9
+ECHO: "function sees", 6
+ECHO: "after", 0
+ECHO: "children", 1
+ECHO: "child sees", 40

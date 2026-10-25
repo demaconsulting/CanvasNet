@@ -1,15 +1,19 @@
 ---
+# cspell:ignore uncatchable
 # Software Unit Requirements for ScadDocument
 #
 # These requirements describe the design-level behavior of the ScadDocument unit, the sole direct
-# unit of the CanvasNetScad system outside the ScadLanguage subsystem. It comprises the public
-# types in the DemaConsulting.CanvasNet.Scad namespace: ScadDocument (Parse and Open entry points,
-# SourceName, Directives, ModuleNames, FunctionNames), ScadOpenOptions, ScadSourceLocation,
-# ScadSyntaxException (a FormatException), ScadDirective, and ScadDirectiveKind.
+# unit of the CanvasNetScad system outside the ScadLanguage and ScadEvaluation subsystems. It comprises
+# the public types in the DemaConsulting.CanvasNet.Scad namespace: ScadDocument (Parse and Open entry
+# points, SourceName, Directives, ModuleNames, FunctionNames, and the Evaluate method), ScadOpenOptions,
+# ScadSourceLocation, ScadSyntaxException (a FormatException), ScadDirective, ScadDirectiveKind, and the
+# Phase 5 evaluation contract - ScadEvaluationOptions, ScadEvaluationResult, ScadLimits, ScadDiagnostic,
+# ScadUnsupportedFeature, ScadUnsupportedFeatureException, and ScadEvaluationException.
 #
-# Delivery status: Phase 4 is parse-only. Every "tests" entry below cites an existing test method in
-# the DemaConsulting.CanvasNet.Scad.Tests project; see docs/verification/canvas-net-scad/scad-document.md
-# for the test-evidence mapping.
+# Delivery status: Phase 4 delivered parsing; Phase 5 adds Evaluate (headless evaluation: echo,
+# diagnostics, unsupported features, and the number of module instances; no geometry). Every "tests"
+# entry below cites an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
+# docs/verification/canvas-net-scad/scad-document.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetScad Requirements
@@ -80,7 +84,8 @@ sections:
             title: >-
               The ScadDocument Directives property shall list the file-scope include and use
               directives, each with its kind, path, and source location, in source order as a
-              read-only list, and shall never invoke a file resolver or open a file while parsing.
+              read-only list, and parsing shall never invoke a file resolver or open a file (files
+              are opened only by Evaluate).
             justification: |
               Recording dependencies without resolving them lets a caller inspect a document
               safely and keeps resolution policy out of the parser.
@@ -138,10 +143,11 @@ sections:
               initialized (null or non-whitespace for the text values; a non-null list with no
               null or whitespace entries for LibraryPaths), shall copy the supplied library paths,
               and shall default to unset values and an empty list; the base directory, library
-              paths, and file resolver are accepted but not consumed by parsing.
+              paths, and file resolver are not consumed by parsing - they govern include and use
+              resolution when the document is evaluated.
             justification: |
-              Validated, immutable options let every consumer trust an instance, and accepting the
-              evaluation-phase options now keeps the public API additive when they gain behavior.
+              Validated, immutable options let every consumer trust an instance, and keeping the
+              evaluation-time options out of parsing keeps parsing free of file access.
             tests:
               - ScadOpenOptions_Defaults_AreUnsetAndEmpty
               - ScadOpenOptions_ValidValues_AreStored
@@ -149,7 +155,7 @@ sections:
               - ScadOpenOptions_NullLibraryPaths_ThrowArgumentNullException
               - ScadOpenOptions_NullTextValues_AreAccepted
               - ScadOpenOptions_LibraryPaths_AreCopied
-              - ScadOpenOptions_AcceptedButNotConsumedYet_DoNotAffectParse
+              - ScadOpenOptions_EvaluationOnlySettings_DoNotAffectParse
               - ScadOpenOptions_Properties_AreInitOnly
 
           - id: CanvasNetScad-ScadDocument-SourceLimit
@@ -163,3 +169,241 @@ sections:
             tests:
               - ScadDocument_Parse_OverLimit_ThrowsInvalidDataException
               - ScadDocument_Open_OverLimitStream_ThrowsInvalidDataException
+
+          - id: CanvasNetScad-ScadDocument-Evaluate
+            title: >-
+              The ScadDocument Evaluate method shall evaluate a parsed document - whether it came from
+              Parse, Open(Stream), or Open(string) - with default options when none are supplied,
+              returning the echo output, the diagnostics, the unsupported-feature reports, and the
+              instance count, resolving include and use directives through the document's open
+              options (relative to a file's folder for a path, through the resolver for a stream),
+              reporting a missing included file as a warning, a syntax error in an included file as a
+              ScadSyntaxException that names that file, and an include with nowhere to look as an
+              evaluation error, and shall be safe to call repeatedly and from several threads on one
+              document.
+            justification: |
+              Evaluate is the library's one execution entry point; callers hold documents from
+              different origins and must get the same behavior, with failures reported by type.
+            tests:
+              - ScadDocument_Evaluate_DefaultOptions_ReturnsEchoDiagnosticsAndInstanceCount
+              - ScadDocument_Evaluate_NullOptions_BehavesLikeDefaults
+              - ScadDocument_Evaluate_OpenPath_ResolvesRelativeIncludeAndUse
+              - ScadDocument_Evaluate_OpenStreamWithResolver_UsesTheResolver
+              - ScadDocument_Evaluate_IncludeWithoutBaseOrResolver_ThrowsEvaluationException
+              - ScadDocument_Evaluate_MissingInclude_IsWarning
+              - ScadDocument_Evaluate_SyntaxErrorInIncludedFile_ThrowsSyntaxExceptionWithFileName
+              - ScadDocument_Evaluate_ConcurrentCalls_AreIndependentAndIdentical
+              - ScadFixtureEvaluation_GoldenFixtures_AreDiscoveredWithExpectedOutput
+              - ScadFixtureEvaluation_ExpectedFiles_HaveAFixture
+              - ScadFixtureEvaluation_Evaluate_MatchesExpectedEcho
+              - ScadFixtureEvaluation_Evaluate_MatchesExpectedDiagnostics
+              - ScadFixtureEvaluation_Evaluate_MatchesExpectedInstanceTree
+
+          - id: CanvasNetScad-ScadDocument-EvaluationResult
+            title: >-
+              The ScadEvaluationResult class shall expose the echo lines (each with its echo prefix),
+              the diagnostics, the unsupported-feature reports, and the number of module instances
+              (groups included) as read-only values that the caller cannot turn into mutable
+              collections.
+            justification: |
+              A result that cannot be altered can be cached and shared without defensive copying.
+            tests:
+              - ScadDocument_Evaluate_DefaultOptions_ReturnsEchoDiagnosticsAndInstanceCount
+              - ScadDocument_Evaluate_InstanceCount_CountsModuleInstancesAndGroups
+              - ScadDocument_Evaluate_ResultLists_AreReadOnly
+
+          - id: CanvasNetScad-ScadDocument-EvaluationHandlers
+            title: >-
+              The ScadDocument Evaluate method shall deliver echo lines, warnings, and
+              unsupported-feature reports to the handlers of the options, in the order they occurred
+              and equal to the result, on the calling thread only (even when the evaluation had to
+              restart on a larger stack), also deliver the events recorded before a failure while
+              letting the failure win over an exception thrown by a handler, let a handler exception
+              on success propagate, and abort at the first unsupported feature when the options ask
+              for it, after delivering the earlier events.
+            justification: |
+              Handlers run caller code; it must run in a predictable order, on a predictable thread,
+              and never mask the real failure.
+            tests:
+              - ScadDocument_Evaluate_Handlers_ReceiveEventsInOrderAndMatchResult
+              - ScadDocument_Evaluate_Failure_StillDeliversEventsToHandlers
+              - ScadDocument_Evaluate_HandlerThrowsOnSuccess_Propagates
+              - ScadDocument_Evaluate_HandlerThrowsOnFailure_EvaluationFailureWins
+              - ScadDocument_Evaluate_Handlers_RunOnCallerThread_EvenAfterStackRestart
+              - ScadDocument_Evaluate_ThrowOnUnsupportedFeature_ThrowsAfterDeliveringEarlierEvents
+
+          - id: CanvasNetScad-ScadDocument-EvaluationOptions
+            title: >-
+              The ScadEvaluationOptions class shall be immutable with init-only properties Variables,
+              Time, Limits, EchoHandler, WarningHandler, UnsupportedFeatureHandler, and
+              ThrowOnUnsupportedFeature, shall default to no variables, time zero, the default
+              limits, no handlers, and no throwing, shall reject a non-finite time, a null limits
+              value, a variable name that is not a valid identifier or special-variable name, and a
+              variable value that is not a supported kind, is nested too deeply, or is an endless or
+              self-referential sequence, and shall keep a name-ordered copy of the variables with
+              sequences captured once.
+            justification: |
+              Options validated when set let the evaluator trust every instance, and a snapshot of
+              the variables makes later changes by the caller harmless.
+            tests:
+              - ScadEvaluationOptions_Defaults_AreEmptyAndDefaultLimits
+              - ScadEvaluationOptions_Time_NonFiniteIsRejected
+              - ScadEvaluationOptions_Limits_NullIsRejectedAndValueKept
+              - ScadEvaluationOptions_Handlers_AreStored
+              - ScadEvaluationOptions_Variables_AreCopiedAndOrderedByKey
+              - ScadEvaluationOptions_Variables_SequencesAreSnapshotted
+              - ScadEvaluationOptions_Variables_AcceptSupportedKinds
+              - ScadEvaluationOptions_Variables_InvalidNameIsRejected
+              - ScadEvaluationOptions_Variables_ValidNameIsAccepted
+              - ScadEvaluationOptions_Variables_UnsupportedValueIsRejected
+              - ScadEvaluationOptions_Variables_TooDeepNestingIsRejected
+              - ScadEvaluationOptions_Variables_EndlessAndSelfReferentialSequencesAreRejected
+              - ScadEvaluationOptions_Variables_NullMeansNone
+              - ScadDocument_Evaluate_Variables_InvalidValueIsRejectedByOptions
+
+          - id: CanvasNetScad-ScadDocument-VariableOverrides
+            title: >-
+              The ScadDocument Evaluate method shall apply the Variables of the options as overrides:
+              each replaces every top-level assignment of the same name in the document (including
+              assignments brought in by include but not those of used libraries) and creates the
+              variable when absent, every supported kind of value is converted, special variables can
+              be overridden, the Time option sets the animation time, and the result does not depend
+              on the order in which the variables were supplied.
+            justification: |
+              Callers parameterize a model from outside the source text, as with a command-line
+              definition.
+            tests:
+              - ScadDocument_Evaluate_Variables_ReplaceAndCreateAssignments
+              - ScadDocument_Evaluate_Variables_ConvertEverySupportedKind
+              - ScadDocument_Evaluate_Variables_ReplaceIncludedAssignmentsButNotUsedLibraries
+              - ScadDocument_Evaluate_Variables_SpecialVariablesAndOrderIndependence
+              - ScadDocument_Evaluate_Time_SetsSpecialVariable
+              - ScadFixtureEvaluation_Overrides_MatchExpectedEcho
+
+          - id: CanvasNetScad-ScadDocument-IncludeUse
+            title: >-
+              The ScadDocument Evaluate method shall confine file access during include and use
+              resolution to the base directory and library paths of the open options, or, when a
+              resolver is supplied, shall pass the resolver only normalized logical paths and shall
+              never let a hostile path reach it, shall reject a path that escapes its root with an
+              evaluation error, and shall reject include cycles and excessive include depth or file
+              counts with an evaluation error.
+            justification: |
+              A document may come from an untrusted source; include resolution is the one place where
+              evaluation reaches outside the document, so its public behavior must be confined and
+              verifiable.
+            tests:
+              - ScadDocument_Evaluate_FileSystemSandbox_EscapesAreRejected
+              - ScadDocument_Evaluate_FileSystemSandbox_LibraryPathIsAllowedRoot
+              - ScadDocument_Evaluate_ResolverSandbox_HostilePathsNeverReachTheCallback
+              - ScadDocument_Evaluate_ResolverMode_RequestsNormalizedLogicalPaths
+              - ScadDocument_Evaluate_IncludeLimitsAndCycles_ThrowEvaluationException
+              - ScadFixtureEvaluation_IncludeMain_ThroughResolver_MatchesExpectedEcho
+
+          - id: CanvasNetScad-ScadDocument-Cancellation
+            title: >-
+              The ScadDocument Evaluate method shall throw OperationCanceledException before any work
+              (and before any resolver call) when its cancellation token is already canceled, and
+              shall stop promptly, delivering the events recorded so far, when the token is canceled
+              during evaluation or while include files are being loaded.
+            justification: |
+              A caller must be able to abandon an evaluation it can no longer afford.
+            tests:
+              - ScadDocument_Evaluate_PreCanceledToken_ThrowsBeforeAnyWork
+              - ScadDocument_Evaluate_CanceledDuringRun_StopsPromptlyAndDeliversEarlierEvents
+              - ScadDocument_Evaluate_CanceledDuringIncludeLoading_StopsBeforeNextFile
+
+          - id: CanvasNetScad-ScadDocument-Limits
+            title: >-
+              The ScadLimits class shall be immutable with init-only limits for recursion depth,
+              evaluation steps, loop iterations, list length, string length, include depth, included
+              files, instances, output length, and diagnostics, with documented defaults, shall reject
+              a value outside its permitted range when it is set, and the Evaluate method shall fail
+              with a located ScadEvaluationException when any limit is exceeded while accepting a
+              program exactly at the limit.
+            justification: |
+              The caller owns the trade-off between permissiveness and safety; limits must be
+              validated, immutable, and enforced at their exact values.
+            tests:
+              - ScadLimits_Default_HasDocumentedValues
+              - ScadLimits_Initialization_AcceptsValidValues
+              - ScadLimits_MaxRecursionDepth_IsRangeChecked
+              - ScadLimits_MaxIncludeDepth_IsRangeChecked
+              - ScadLimits_PositiveLimits_RejectZeroAndNegative
+              - ScadLimits_Properties_AreInitOnly
+              - ScadDocument_Evaluate_Limit_ThrowsEvaluationExceptionWithLocation
+              - ScadDocument_Evaluate_Limit_AtLimitSucceedsOneOverFails
+
+          - id: CanvasNetScad-ScadDocument-StackSafety
+            title: >-
+              The ScadDocument Evaluate method shall not overflow the call stack: a program at the
+              recursion limit, including the largest permitted limit, shall evaluate on a thread with
+              a small stack, a program over the limit shall fail with the same error on any stack
+              size, and a program shall give identical results on a small and on a normal stack.
+            justification: |
+              Callers invoke Evaluate from threads of any stack size; an uncatchable stack overflow
+              would terminate their process.
+            tests:
+              - ScadDocument_Evaluate_DeepRecursionOnSmallStack_AtLimitSucceedsAndOverLimitFailsIdentically
+              - ScadDocument_Evaluate_MaximumRecursionLimitOnSmallStack_Succeeds
+              - ScadDocument_Evaluate_SmallAndNormalStack_ProduceIdenticalResults
+
+          - id: CanvasNetScad-ScadDocument-Determinism
+            title: >-
+              The ScadDocument Evaluate method shall give identical results for the same document and
+              options when called repeatedly, concurrently, under a different culture, or on a small
+              stack.
+            justification: |
+              Reproducible results allow caching and golden-output verification.
+            tests:
+              - ScadDocument_Evaluate_RepeatedAndCultureIndependent_ProducesIdenticalResults
+              - ScadDocument_Evaluate_ConcurrentCalls_AreIndependentAndIdentical
+              - ScadFixtureEvaluation_Evaluate_OnSmallStackUnderGermanCulture_MatchesExpectedOutput
+              - ScadFixtureEvaluation_Evaluate_TwiceIsDeterministic
+
+          - id: CanvasNetScad-ScadDocument-Diagnostic
+            title: >-
+              The ScadDiagnostic record shall carry a message and a source location with value
+              equality, and its ToString shall prefix the message with the location in a way that does
+              not depend on the culture.
+            justification: |
+              A warning must say where it applies, in a form that is the same on every machine.
+            tests:
+              - ScadDiagnostic_Properties_AreExposedWithValueEquality
+              - ScadDiagnostic_ToString_PrefixesLocation
+              - ScadDiagnostic_ToString_IsCultureInvariant
+
+          - id: CanvasNetScad-ScadDocument-UnsupportedFeature
+            title: >-
+              The ScadUnsupportedFeature record shall carry a feature identifier, a message, and a
+              source location, and the ScadUnsupportedFeatureException class shall be an IOException
+              that exposes the feature and location, prefixes its message with the location when it
+              is known, and provides the standard constructors; Evaluate shall report each
+              unsupported feature once per location and continue unless told to throw.
+            justification: |
+              Unsupported features are reported through a typed, structured channel so that callers
+              can decide whether to continue.
+            tests:
+              - ScadUnsupportedFeature_Record_ExposesMembersAndFormats
+              - ScadUnsupportedFeatureException_Location_PrefixesMessage
+              - ScadUnsupportedFeatureException_UnknownLocation_MessageHasNoPrefix
+              - ScadUnsupportedFeatureException_StandardConstructors_SetMessageAndInnerException
+              - ScadDocument_Evaluate_UnsupportedFeatures_ReportedOncePerLocation
+              - ScadDocument_Evaluate_UnsupportedFeature_WithoutThrowFlag_Continues
+
+          - id: CanvasNetScad-ScadDocument-EvaluationException
+            title: >-
+              The ScadEvaluationException class shall be an InvalidOperationException that exposes the
+              ScadSourceLocation of the failure, prefixes its message with that location when it is
+              known, leaves the message unprefixed when it is not, and provides the standard
+              exception constructors; a failed assertion, an exceeded limit, and a violated include
+              rule shall be reported as this exception.
+            justification: |
+              A typed exception with a structured location lets a caller tell a failed evaluation
+              from other failures and point at the exact place.
+            tests:
+              - ScadEvaluationException_Inheritance_DerivesFromInvalidOperationException
+              - ScadEvaluationException_Location_MessageFormat
+              - ScadEvaluationException_UnknownLocation_MessageHasNoPrefix
+              - ScadEvaluationException_StandardConstructors_SetMessageAndInnerException
+              - ScadDocument_Evaluate_Limit_ThrowsEvaluationExceptionWithLocation

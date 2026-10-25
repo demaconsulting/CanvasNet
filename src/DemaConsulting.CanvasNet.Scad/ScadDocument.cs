@@ -9,11 +9,12 @@ namespace DemaConsulting.CanvasNet.Scad;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         This phase is parse-only. A document proves that the source is syntactically valid and reports
-///         what it declares at file scope (<see cref="Directives"/>, <see cref="ModuleNames"/>,
-///         <see cref="FunctionNames"/>); it never evaluates the program and never touches any other file, so
-///         <c>include</c>/<c>use</c> paths are recorded but not resolved. The syntax tree itself is internal so
-///         it can evolve while evaluation and rendering are added.
+///         A document proves that the source is syntactically valid and reports what it declares at file scope
+///         (<see cref="Directives"/>, <see cref="ModuleNames"/>, <see cref="FunctionNames"/>). Parsing never
+///         evaluates the program and never touches any other file, so <c>include</c>/<c>use</c> paths are recorded
+///         but not resolved. <see cref="Evaluate(ScadEvaluationOptions?, CancellationToken)"/> runs the program
+///         (resolving those directives under the sandbox rules of <see cref="ScadOpenOptions"/>) and reports
+///         its output. The syntax tree itself is internal so it can evolve while rendering is added.
 ///     </para>
 ///     <para>
 ///         Parsing is fail-fast: the first lexical or grammatical error throws a
@@ -26,7 +27,7 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         disposable, and a stream passed to <see cref="Open(Stream, ScadOpenOptions?)"/> is left open.
 ///     </para>
 /// </remarks>
-public sealed class ScadDocument
+public sealed partial class ScadDocument
 {
     /// <summary>The number of characters read from a stream per call.</summary>
     private const int ReadChunkSize = 8192;
@@ -58,8 +59,8 @@ public sealed class ScadDocument
     public string? SourceName { get; }
 
     /// <summary>
-    ///     Gets the file-scope <c>include</c> and <c>use</c> directives in source order. They are recorded only;
-    ///     no referenced file is ever opened.
+    ///     Gets the file-scope <c>include</c> and <c>use</c> directives in source order. Parsing only records them;
+    ///     no referenced file is opened until the document is evaluated.
     /// </summary>
     public IReadOnlyList<ScadDirective> Directives { get; }
 
@@ -76,12 +77,12 @@ public sealed class ScadDocument
     public IReadOnlyList<string> FunctionNames { get; }
 
     /// <summary>
-    ///     Gets the syntax tree (internal; consumed by later phases).
+    ///     Gets the syntax tree (internal; consumed by the evaluator).
     /// </summary>
     internal ScadProgram Program { get; }
 
     /// <summary>
-    ///     Gets the effective options, with the base directory and source name resolved (internal; consumed by later phases).
+    ///     Gets the effective options, with the base directory and source name resolved (internal; consumed by the evaluator).
     /// </summary>
     internal ScadOpenOptions Options { get; }
 
@@ -169,10 +170,13 @@ public sealed class ScadDocument
     /// <summary>
     ///     Reads a whole stream as text, stopping with an error once the size limit is exceeded.
     /// </summary>
+    /// <remarks>
+    ///     Internal so that the file resolver reads included files with exactly the same bounded, UTF-8 rules.
+    /// </remarks>
     /// <param name="stream">The stream to read; it is left open.</param>
     /// <returns>The text.</returns>
     /// <exception cref="InvalidDataException">Thrown when the text is longer than the maximum source length.</exception>
-    private static string ReadBounded(Stream stream)
+    internal static string ReadBounded(Stream stream)
     {
         // Read in chunks and check the running length so an endless stream stops one chunk past the limit
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: ReadChunkSize, leaveOpen: true);

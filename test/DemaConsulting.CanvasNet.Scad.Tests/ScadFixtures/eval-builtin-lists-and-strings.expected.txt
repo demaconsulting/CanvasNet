@@ -1,0 +1,12 @@
+ECHO: "len", 3, 0, 5, 2, undef
+ECHO: "concat", [1, 2, 3, 4, [5]], [], ["a", "b"]
+ECHO: "str", "1a[1, \"b\"]true undef", "", "0.333333", "0.3"
+ECHO: "chr ord", "A", "Hi", "ab", 65, 97, undef
+ECHO: "lookup", 50, 250, 0, 400
+ECHO: "search list", [1], [1, 2], [[]]
+ECHO: "search chars", [2, 4], [[2, 3]]
+ECHO: "search table", [1]
+ECHO: "build", ["a", "b", "c", "d"], "[1, 4, 9]"
+ECHO: "seeded random", 5, true, true, true
+ECHO: "version", [2021, 1, 0]
+ECHO: "wrong types", undef, undef, [undef, undef]

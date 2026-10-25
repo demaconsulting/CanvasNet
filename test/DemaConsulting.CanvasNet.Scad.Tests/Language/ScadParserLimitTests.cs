@@ -333,8 +333,33 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
+    ///     Runs a function on a new thread whose parses are forced onto the dedicated fallback thread (as if the
+    ///     runtime stack guard had reported an insufficient stack), so the fallback path is exercised
+    ///     deterministically whatever stack size the platform really grants. The seam is per thread and is reset
+    ///     when the function ends.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="function">The function to run.</param>
+    /// <returns>The result.</returns>
+    private static T OnForcedFallback<T>(Func<T> function) =>
+        OnSmallStack(
+            () =>
+            {
+                ScadParser.ForceFallbackForCurrentThread = true;
+                try
+                {
+                    return function();
+                }
+                finally
+                {
+                    ScadParser.ForceFallbackForCurrentThread = false;
+                }
+            });
+
+    /// <summary>
     ///     Validates that every shape nested exactly at the limit parses when the caller has only a small stack,
-    ///     because the parser restarts on its own sized thread when the caller's stack guard trips.
+    ///     because the parser restarts on its own sized thread when the caller's stack guard trips (whether it does
+    ///     depends on the platform, so only the outcome is asserted).
     /// </summary>
     /// <param name="shape">The name of the shape.</param>
     [Theory]
@@ -418,27 +443,75 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
-    ///     Validates that a parse needing more stack than the caller has falls back to a different thread and
-    ///     still produces the correct tree.
+    ///     Validates that a forced fallback (the stack guard reporting an insufficient stack) parses on a different
+    ///     thread and still produces the correct tree.
     /// </summary>
     [Fact]
     public void ScadParser_Parse_AtLimit_OnTinyCallerStack_FallsBackToDedicatedThread()
     {
-        // Arrange: a 64 KiB caller is below the runtime guard's reserve, so the inline attempt must give up
+        // Arrange
         var source = Shapes["parentheses"].Make(Limit - 2);
+        var before = ScadParser.FallbackCount;
 
         // Act
-        var (program, callerThread, parseThread) = OnSmallStack(
+        var (program, callerThread, parseThread) = OnForcedFallback(
             () =>
             {
                 var parsed = ScadParserTestSupport.Parse(source);
                 return (parsed, Environment.CurrentManagedThreadId, ScadParser.LastParseThreadId);
-            },
-            64 * 1024);
+            });
 
         // Assert
         Assert.Single(program.Statements);
         Assert.NotEqual(callerThread, parseThread);
+        Assert.True(ScadParser.FallbackCount > before);
+    }
+
+    /// <summary>
+    ///     Validates that a failure to start the dedicated parser thread (here an injected out-of-memory condition, as
+    ///     in a 32-bit process) is reported as a syntax error at the start of the source, and that the gate slot is
+    ///     released, so more failures than there are slots neither block nor change the outcome.
+    /// </summary>
+    [Fact]
+    public void ScadParser_Parse_ThreadStartOutOfMemory_ThrowsSyntaxExceptionAndReleasesSlot()
+    {
+        // Arrange
+        var source = Shapes["parentheses"].Make(Limit - 2);
+        var attempts = ScadParser.MaxConcurrentFallbackThreads + 2;
+        var starts = 0;
+
+        // Act
+        var (errors, program) = OnForcedFallback(
+            () =>
+            {
+                var caught = new List<ScadSyntaxException>();
+                ScadParser.ThreadStarterForCurrentThread = _ =>
+                {
+                    starts++;
+                    throw new OutOfMemoryException("simulated");
+                };
+                try
+                {
+                    for (var i = 0; i < attempts; i++)
+                    {
+                        caught.Add(Assert.Throws<ScadSyntaxException>(() => ScadParserTestSupport.Parse(source)));
+                    }
+                }
+                finally
+                {
+                    ScadParser.ThreadStarterForCurrentThread = null;
+                }
+
+                // With the seam removed the same input still parses on a dedicated thread
+                return (caught, ScadParserTestSupport.Parse(source));
+            });
+
+        // Assert: every attempt really needed the dedicated thread (the seam was reached) and failed with the syntax error
+        Assert.Equal(attempts, starts);
+        Assert.Equal(attempts, errors.Count);
+        Assert.All(errors, e => Assert.Contains("parser thread could not be started", e.Message, StringComparison.Ordinal));
+        Assert.All(errors, e => Assert.Equal(1, e.Location.Line));
+        Assert.Single(program.Statements);
     }
 
     /// <summary>
@@ -453,7 +526,7 @@ public class ScadParserLimitTests
         var decimalSource = $"x = {ScadParserTestSupport.Repeat("(", 10)}1.5{ScadParserTestSupport.Repeat(")", 10)};";
 
         // Act
-        var (error, errorOnCaller, number, numberOnCaller) = OnSmallStack(
+        var (error, errorOnCaller, number, numberOnCaller) = OnForcedFallback(
             () =>
             {
                 var caught = Record.Exception(() => ScadParserTestSupport.Parse(overLimit));
@@ -462,8 +535,7 @@ public class ScadParserLimitTests
                 var program = ScadParserTestSupport.Parse(decimalSource);
                 var value = Assert.IsType<ScadNumberLiteral>(Assert.IsType<ScadAssignmentStatement>(program.Statements[0]).Value).Value;
                 return (caught, failedOnCaller, value, ScadParser.LastParseThreadId == Environment.CurrentManagedThreadId);
-            },
-            64 * 1024);
+            });
 
         // Assert
         var syntax = Assert.IsType<ScadSyntaxException>(error);
@@ -475,8 +547,8 @@ public class ScadParserLimitTests
     }
 
     /// <summary>
-    ///     Validates that many concurrent small-stack callers all succeed while the number of simultaneously
-    ///     running fallback threads never exceeds the bound.
+    ///     Validates that many concurrent callers forced onto the fallback all succeed while the number of
+    ///     simultaneously running fallback threads never exceeds the bound.
     /// </summary>
     [Fact]
     public void ScadParser_Parse_ConcurrentTinyCallerStacks_BoundFallbackThreads()
@@ -488,7 +560,20 @@ public class ScadParserLimitTests
         for (var i = 0; i < callers.Length; i++)
         {
             var index = i;
-            callers[i] = new Thread(() => failures[index] = Record.Exception(() => ScadParserTestSupport.Parse(source)), 64 * 1024);
+            callers[i] = new Thread(
+                () =>
+                {
+                    ScadParser.ForceFallbackForCurrentThread = true;
+                    try
+                    {
+                        failures[index] = Record.Exception(() => ScadParserTestSupport.Parse(source));
+                    }
+                    finally
+                    {
+                        ScadParser.ForceFallbackForCurrentThread = false;
+                    }
+                },
+                64 * 1024);
         }
 
         // Act
