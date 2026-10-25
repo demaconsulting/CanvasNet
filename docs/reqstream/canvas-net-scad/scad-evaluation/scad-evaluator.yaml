@@ -465,7 +465,9 @@ sections:
                   The ScadEvaluator unit shall charge evaluation steps for every expression,
                   statement, loop turn, and tail-call turn, more for work proportional to the size of
                   the vectors it handles (counting shared nested vectors by their full contents), to
-                  the multiply-add work of matrix products, and to the length of a long scope walk,
+                  the multiply-add work of matrix products, to the formatting of values by str and
+                  echo (per element, while formatting), to the position of an indexed string
+                  character, and to the length of a long scope walk,
                   and shall abort with an evaluation error when the configured step limit is
                   exceeded, while a program at the limit succeeds.
                 justification: |
@@ -476,6 +478,12 @@ sections:
                   - ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement
                   - ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply
                   - ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged
+                  - ScadEvaluatorLimit_Steps_StrOfLargeVector_IsChargedPerElement
+                  - ScadEvaluatorLimit_Steps_EchoOfLargeVector_IsChargedPerElement
+                  - ScadEvaluatorLimit_Steps_StrInLoop_HitsStepLimit
+                  - ScadEvaluatorLimit_Steps_StringIndexing_IsChargedByPosition
+                  - ScadEvaluatorLimit_Steps_StringIndexNearStart_ChargesOneStep
+                  - ScadEvaluatorLimit_Steps_StringIndexingInLoop_HitsStepLimit
                   - ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront
                   - ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast
                   - ScadEvaluatorProductLimit_MatrixTimesVector_StillComputesAndCharges
@@ -537,8 +545,8 @@ sections:
                 title: >-
                   The ScadEvaluator unit shall honor a cancellation token: it shall do no work when
                   the token is already canceled, shall stop promptly when it is canceled during
-                  endless recursion, a huge loop or a large matrix product, throwing
-                  OperationCanceledException that is never
+                  endless recursion, a huge loop, a large matrix product or the formatting of a huge
+                  value, throwing OperationCanceledException that is never
                   wrapped in an evaluation error, shall keep the events recorded before the
                   cancellation, and shall evaluate normally when the token is never canceled.
                 justification: |
@@ -549,6 +557,7 @@ sections:
                   - ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents
                   - ScadEvaluatorCancellation_DuringHugeLoop_Stops
                   - ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled
+                  - ScadEvaluatorCancellation_DuringLargeFormatting_Stops
                   - ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile
                   - ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally
 

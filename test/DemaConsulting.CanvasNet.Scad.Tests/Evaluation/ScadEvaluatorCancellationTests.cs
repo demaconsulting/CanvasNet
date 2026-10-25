@@ -110,6 +110,32 @@ public class ScadEvaluatorCancellationTests
     }
 
     /// <summary>
+    ///     Validates that cancellation interrupts the formatting of a huge value, which is charged and polled while
+    ///     it formats rather than afterwards.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorCancellation_DuringLargeFormatting_Stops()
+    {
+        // Arrange: each str of 100,000 numbers takes tens of milliseconds; the step limit is out of the way
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var settings = new ScadEvaluationSettings
+        {
+            Cancellation = cts.Token,
+            Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
+        };
+        const string Source = "v = [for (i = [0 : 99999]) i * 1.5];\na = [for (k = [1 : 1000000]) len(str(v))];";
+        var started = DateTime.UtcNow;
+        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+
+        // Act
+        var ex = Record.Exception(() => Run(Source, settings));
+
+        // Assert
+        Assert.IsType<OperationCanceledException>(ex);
+        Assert.True(DateTime.UtcNow - started < Generous);
+    }
+
+    /// <summary>
     ///     Validates that an uncanceled token does not disturb evaluation.
     /// </summary>
     [Fact]

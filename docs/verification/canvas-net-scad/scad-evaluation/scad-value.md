@@ -172,12 +172,18 @@ produces a character outside digits, sign, point, `e`, and the special words.
 `ScadValueFormatTests.ScadValue_ToStr_Vectors_UseCommaSpaceAndQuoteNestedStrings`,
 `ScadValueFormatTests.ScadValue_ToStr_Range_ShowsStartStepEnd`, `ScadValueFormatTests.ScadValue_ToStr_Function_ShowsParameterNames`,
 `ScadValueFormatTests.ScadValue_ToStr_OtherCultures_IsIdentical`, `ScadValueFormatTests.ScadValue_TryToStr_Limit_FitsOrFails`,
-`ScadValueFormatTests.ScadValue_TryToStr_HugeVector_StopsEarly`
+`ScadValueFormatTests.ScadValue_TryToStr_HugeVector_StopsEarly`,
+`ScadValueFormatTests.ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement`,
+`ScadValueFormatTests.ScadValueFormat_TryToStr_StepLimitReached_StopsMidFormat`,
+`ScadValueFormatTests.ScadValueFormat_TryToEchoText_WithMeter_QuotedStringsChargedByLength`
 
 Asserts the raw top-level string and the quoted nested string, the escapes of the echo form and that a rendered
 value never contains a raw line break, the vector, range, and function forms, identical text under other
 cultures, and that the length-limited variants succeed at the limit, fail one over, and stop early for a huge
-vector.
+vector. The metered scenarios use the recording `ScadTestBuiltinHost`: every visited element, nested ones
+included, is charged eight steps; a budget of 100 steps stops the formatting of a thousand-element vector at the
+thirteenth element (104 steps charged) instead of after the whole value; and a quoted string element is charged one
+extra step per sixteen characters.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-NestingLimit: Depth And Stack Behavior
 

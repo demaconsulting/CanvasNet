@@ -405,14 +405,25 @@ the over-limit error is identical on every stack size.
 `ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront`,
 `ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast`,
 `ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesVector_StillComputesAndCharges`,
-`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_VectorTimesScalar_ChargedBeforeAllocation`
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_VectorTimesScalar_ChargedBeforeAllocation`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_StrOfLargeVector_IsChargedPerElement`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_EchoOfLargeVector_IsChargedPerElement`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_StrInLoop_HitsStepLimit`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_StringIndexing_IsChargedByPosition`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_StringIndexNearStart_ChargesOneStep`,
+`ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_StringIndexingInLoop_HitsStepLimit`
 
 Asserts the exact step limit, that vector arithmetic is charged per element, that a nested vector shared many times
 is charged by its full contents, and that a long scope walk is charged. The product scenarios assert that a matrix
 product is charged at least `n³ / 16` steps beyond its operands and that a smaller budget fails at the operator; that
 two 1000 × 1000 matrices (about the cost that ran for minutes before the work was charged) fail under the default
 limits in well under a second of work; that matrix-by-vector, vector-by-matrix, and dot products keep their results;
-and that scaling a vector is charged before it is allocated.
+and that scaling a vector is charged before it is allocated. The formatting scenarios assert that `str` and `echo` of a
+2,000-number vector are charged at least eight steps per element, and that a 100,000-turn loop that formats such a
+vector fails at a one-million-step budget. The string-index scenarios assert the exact extra steps for an index
+99,000 characters into a 100,000-character string (a scan charge for a plain string, a scan plus a walk charge for
+one that starts with a surrogate pair), that an index below 512 costs nothing extra, and that a loop indexing a
+million-character string near its end fails at a five-million-step budget within seconds.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit: Loop Iterations
 
@@ -459,12 +470,15 @@ single over-long line fails.
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringHugeLoop_Stops`,
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile`,
 `ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally`,
-`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled`
+`ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DuringProduct_CanBeCanceled`,
+`ScadEvaluatorCancellationTests.ScadEvaluatorCancellation_DuringLargeFormatting_Stops`
 
 Asserts the cancellation behavior described in the requirement, always a plain `OperationCanceledException`, that
-the earlier events are kept, and that an uncanceled token changes nothing. The product scenario cancels from a timer
-while 21 products of 27 million multiply-adds each are running; the deterministic proof that a single product
-polls at fixed intervals is the `ScadValueProduct` poll scenario in the unit verification of `ScadValue`.
+the earlier events are kept, and that an uncanceled token changes nothing. The formatting scenario cancels from a
+timer while `str` repeatedly formats a vector of 100,000 numbers with the step limit raised to the maximum. The
+product scenario cancels from a timer while 21 products of 27 million multiply-adds each are running; the
+deterministic proof that a single product polls at fixed intervals is the `ScadValueProduct` poll scenario in the
+unit verification of `ScadValue`.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety: Restart On A Large Stack
 

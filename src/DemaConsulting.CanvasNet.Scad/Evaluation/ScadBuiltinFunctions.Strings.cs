@@ -35,7 +35,7 @@ internal static partial class ScadBuiltinFunctions
         var builder = new StringBuilder();
         foreach (var arg in args)
         {
-            if (!arg.TryToStr(host.MaxStringLength - builder.Length, out var text))
+            if (!arg.TryToStr(host.MaxStringLength - builder.Length, out var text, host))
             {
                 // The limit check throws; the value is only returned if a host chooses not to
                 host.CheckStringLength((long)host.MaxStringLength + 1);

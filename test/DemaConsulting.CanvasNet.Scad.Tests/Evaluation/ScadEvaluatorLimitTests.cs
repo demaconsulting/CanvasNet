@@ -102,6 +102,118 @@ public class ScadEvaluatorLimitTests
     }
 
     /// <summary>
+    ///     Validates that <c>str</c> of a large vector is charged per element while it formats.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_StrOfLargeVector_IsChargedPerElement()
+    {
+        // Arrange
+        const string Setup = "v = [for (i = [0 : 1999]) i * 1.5];\n";
+        var baseline = Run(Setup + "a = v;").Steps;
+
+        // Act
+        var formatted = Run(Setup + "a = str(v);").Steps;
+
+        // Assert
+        Assert.True(formatted - baseline >= 2000 * ScadValue.FormatStepsPerElement, $"formatted={formatted} baseline={baseline}");
+    }
+
+    /// <summary>
+    ///     Validates that <c>echo</c> of a large vector is charged per element while it formats.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_EchoOfLargeVector_IsChargedPerElement()
+    {
+        // Arrange
+        const string Setup = "v = [for (i = [0 : 1999]) i * 1.5];\n";
+        var baseline = Run(Setup + "a = v;").Steps;
+
+        // Act
+        var echoed = Run(Setup + "echo(v);").Steps;
+
+        // Assert
+        Assert.True(echoed - baseline >= 2000 * ScadValue.FormatStepsPerElement, $"echoed={echoed} baseline={baseline}");
+    }
+
+    /// <summary>
+    ///     Validates that repeated formatting of a large vector exhausts the step budget quickly.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_StrInLoop_HitsStepLimit()
+    {
+        // Arrange: each of the 100,000 turns formats 2,000 numbers; the budget allows about sixty turns
+        var settings = With(new ScadLimits { MaxEvaluationSteps = 1_000_000 });
+        const string Source = "v = [for (i = [0 : 1999]) i * 1.5];\na = [for (k = [1 : 100000]) len(str(v))];";
+
+        // Act
+        var ex = Fails(Source, settings);
+
+        // Assert
+        Assert.Contains("Evaluation step limit exceeded (limit 1000000)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that indexing a string is charged by the work of finding the position: a vectorized scan for a
+    ///     string without surrogates, plus a walk over the scalars when the prefix contains one.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_StringIndexing_IsChargedByPosition()
+    {
+        // Arrange: 100,000 scalars, without and with a surrogate pair at the start
+        var plain = $"s = \"{new string('a', 100_000)}\";\n";
+        var paired = $"s = \"\U0001F600{new string('a', 99_999)}\";\n";
+        var plainNear = Run(plain + "r = s[10];").Steps;
+        var plainFar = Run(plain + "r = s[99000];").Steps;
+        var pairedNear = Run(paired + "r = s[10];").Steps;
+        var pairedFar = Run(paired + "r = s[99000];").Steps;
+
+        // Act / Assert
+        Assert.Equal(512, ScadText.ScanUnitsPerStep);
+        Assert.Equal(16, ScadText.WalkScalarsPerStep);
+        Assert.Equal(99_000 / ScadText.ScanUnitsPerStep, plainFar - plainNear);
+        Assert.Equal(
+            (99_000 / ScadText.ScanUnitsPerStep) + (99_000 / ScadText.WalkScalarsPerStep),
+            pairedFar - pairedNear);
+    }
+
+    /// <summary>
+    ///     Validates that indexing near the start of a string costs nothing beyond the ordinary expression steps.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_StringIndexNearStart_ChargesOneStep()
+    {
+        // Arrange
+        var text = $"s = \"{new string('a', 600)}\";\n";
+
+        // Act
+        var first = Run(text + "r = s[0];").Steps;
+        var last = Run(text + "r = s[511];").Steps;
+
+        // Assert
+        Assert.Equal(first, last);
+    }
+
+    /// <summary>
+    ///     Validates that a step limit stops a loop of string indexing that would otherwise take minutes.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorLimit_Steps_StringIndexingInLoop_HitsStepLimit()
+    {
+        // Arrange: a million-character string with a surrogate pair, indexed near its end a million times
+        var settings = With(new ScadLimits { MaxEvaluationSteps = 5_000_000 });
+        var source = $"s = \"\U0001F600{new string('a', 999_999)}\";\nr = [for (k = [1 : 100000]) s[999000]];";
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Act
+        var ex = Fails(source, settings);
+        watch.Stop();
+
+        // Assert
+        Assert.Contains("Evaluation step limit exceeded (limit 5000000)", ex.Message, StringComparison.Ordinal);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), $"elapsed={watch.Elapsed}");
+    }
+
+    /// <summary>
     ///     Validates the loop iteration limit and that a count over the budget is rejected before looping.
     /// </summary>
     [Fact]

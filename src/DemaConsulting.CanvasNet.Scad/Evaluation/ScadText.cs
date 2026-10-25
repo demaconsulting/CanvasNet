@@ -46,12 +46,29 @@ internal static class ScadText
     }
 
     /// <summary>
+    ///     The number of UTF-16 units that cost one evaluation step to scan with the vectorized surrogate check.
+    /// </summary>
+    internal const long ScanUnitsPerStep = 512;
+
+    /// <summary>
+    ///     The number of scalars that cost one evaluation step to walk one by one.
+    /// </summary>
+    internal const long WalkScalarsPerStep = 16;
+
+    /// <summary>
     ///     Gets one scalar of a string as a string.
     /// </summary>
+    /// <remarks>
+    ///     Finding a scalar costs work proportional to its index: a vectorized scan of the prefix for surrogates and,
+    ///     only when the prefix contains one, a walk over the scalars. With a host, each part is charged before it
+    ///     runs (<see cref="ScanUnitsPerStep"/> and <see cref="WalkScalarsPerStep"/>), so the charge depends only on
+    ///     the string and the index and never on timing or hardware.
+    /// </remarks>
     /// <param name="text">The string.</param>
     /// <param name="index">The zero-based scalar index.</param>
+    /// <param name="host">The host to charge for the work, or <see langword="null"/> for none.</param>
     /// <returns>The scalar's text (one or two UTF-16 units), or <see langword="null"/> when out of range.</returns>
-    public static string? ScalarAt(string text, long index)
+    public static string? ScalarAt(string text, long index, IScadBuiltinHost? host = null)
     {
         // Scalars never outnumber UTF-16 units, so a larger index is certainly out of range
         if (index < 0 || index >= text.Length)
@@ -60,6 +77,7 @@ internal static class ScadText
         }
 
         // Fast path: when nothing up to the index is a surrogate, the scalar index equals the unit index
+        ChargeWork(host, index / ScanUnitsPerStep);
         var prefix = text.AsSpan(0, (int)index + 1);
         if (!prefix.ContainsAnyInRange((char)FirstSurrogate, (char)LastSurrogate))
         {
@@ -67,6 +85,7 @@ internal static class ScadText
         }
 
         // Slow path: walk the scalars from the start
+        ChargeWork(host, index / WalkScalarsPerStep);
         var position = 0;
         for (long i = 0; i < index && position < text.Length; i++)
         {
@@ -74,6 +93,19 @@ internal static class ScadText
         }
 
         return position < text.Length ? text.Substring(position, ScalarLength(text, position)) : null;
+    }
+
+    /// <summary>
+    ///     Charges extra steps for string work when a host is present and the amount is positive.
+    /// </summary>
+    /// <param name="host">The host, or <see langword="null"/>.</param>
+    /// <param name="steps">The steps; nothing is charged when zero.</param>
+    private static void ChargeWork(IScadBuiltinHost? host, long steps)
+    {
+        if (host is not null && steps > 0)
+        {
+            host.Charge(steps);
+        }
     }
 
     /// <summary>
@@ -126,6 +158,6 @@ internal static class ScadText
     /// <param name="text">The string.</param>
     /// <param name="position">The position; must be within the string.</param>
     /// <returns>Two for a well-formed surrogate pair; otherwise one.</returns>
-    private static int ScalarLength(string text, int position) =>
+    internal static int ScalarLength(string text, int position) =>
         char.IsHighSurrogate(text[position]) && position + 1 < text.Length && char.IsLowSurrogate(text[position + 1]) ? 2 : 1;
 }

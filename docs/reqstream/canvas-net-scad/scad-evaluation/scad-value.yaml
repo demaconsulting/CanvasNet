@@ -190,11 +190,12 @@ sections:
                   their parameter names) and the echo form (strings always quoted, with quotes,
                   backslashes, and line breaks escaped so that a rendered value never contains a raw
                   line break) - and shall be able to stop rendering as soon as a length limit is
-                  exceeded.
+                  exceeded and, when given an evaluation host, to charge its formatting work per
+                  element while it formats so that a step limit or a cancellation stops it midway.
                 justification: |
                   Echo output is line oriented and string conversion feeds further computation; both
                   forms must be stable, culture independent, and bounded so that a huge value cannot
-                  exhaust memory while being printed.
+                  exhaust memory or time while being printed.
                 tests:
                   - ScadValue_ToStr_Scalars_AreRawAndFormatted
                   - ScadValue_ToEchoText_Strings_AreQuotedAndEscaped
@@ -205,6 +206,9 @@ sections:
                   - ScadValue_ToStr_OtherCultures_IsIdentical
                   - ScadValue_TryToStr_Limit_FitsOrFails
                   - ScadValue_TryToStr_HugeVector_StopsEarly
+                  - ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement
+                  - ScadValueFormat_TryToStr_StepLimitReached_StopsMidFormat
+                  - ScadValueFormat_TryToEchoText_WithMeter_QuotedStringsChargedByLength
 
               - id: CanvasNetScad-ScadEvaluation-ScadValue-NestingLimit
                 title: >-

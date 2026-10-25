@@ -291,7 +291,10 @@ These formulas are pinned by tests in `ScadEvaluatorStackTests`, `ScadEvaluatorT
 `let`, or other construct that does extra work charges for it. Operations on vectors charge the **deep
 element count** (so shared nested vectors cannot dodge the limit; counting stops once the remaining budget is
 exceeded). A **matrix product** additionally charges its result elements plus its multiply-add work divided by
-16, rounded up, before it computes anything (see _ScadValue_, Products and limits). Scope and special-chain walks
+16, rounded up, before it computes anything (see _ScadValue_, Products and limits). `str`, `echo`, and the
+assert message charge `8` steps per vector element **while** they format (a string element one more per 16
+characters), and indexing a string charges `position / 512` steps for the scan and, when the prefix has a
+surrogate, `position / 16` more for the walk (see _ScadValue_, Text forms and Indexing). Scope and special-chain walks
 of 32 hops or more charge `hops / 32` extra steps. Built-in functions charge their own O(n) work through the host.
 Every element a vector operation creates is charged at least one step before it is allocated, so live elements
 are bounded by `MaxEvaluationSteps` as well as by the per-list `MaxListLength`; there is no separate

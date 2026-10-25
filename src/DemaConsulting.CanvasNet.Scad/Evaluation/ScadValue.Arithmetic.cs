@@ -100,8 +100,9 @@ internal readonly partial struct ScadValue
     ///     any other target (number, boolean, range, function, <c>undef</c>) yield <c>undef</c> silently.
     /// </remarks>
     /// <param name="index">The index value.</param>
+    /// <param name="host">The host charged for the work of finding a string scalar, or <see langword="null"/> for none.</param>
     /// <returns>The element, or <c>undef</c>.</returns>
-    public ScadValue Index(ScadValue index)
+    public ScadValue Index(ScadValue index, IScadBuiltinHost? host = null)
     {
         if (index._kind != ScadValueKind.Number || !double.IsFinite(index._number))
         {
@@ -121,7 +122,7 @@ internal readonly partial struct ScadValue
                 var vector = (ScadVector)_reference!;
                 return position < vector.Count ? vector[(int)position] : Undef;
             case ScadValueKind.String:
-                var scalar = ScadText.ScalarAt((string)_reference!, (long)position);
+                var scalar = ScadText.ScalarAt((string)_reference!, (long)position, host);
                 return scalar is null ? Undef : FromString(scalar);
             default:
                 return Undef;

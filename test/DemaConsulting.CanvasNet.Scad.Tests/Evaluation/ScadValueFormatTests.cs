@@ -171,4 +171,65 @@ public class ScadValueFormatTests
         Assert.False(fits);
         Assert.Empty(text);
     }
+
+    /// <summary>
+    ///     Validates that, under a meter, every vector element visited is charged, nested elements included.
+    /// </summary>
+    [Fact]
+    public void ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement()
+    {
+        // Arrange: ten numbers, then a vector holding a vector of two numbers and a vector of one (5 elements)
+        var host = new ScadTestBuiltinHost();
+        var flat = Nums(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        var nested = Vec(Nums(1, 2), Nums(3));
+
+        // Act
+        var flatFits = flat.TryToStr(1000, out _, host);
+        var flatSteps = host.Steps;
+        var nestedFits = nested.TryToStr(1000, out _, host);
+
+        // Assert
+        Assert.Equal(8, ScadValue.FormatStepsPerElement);
+        Assert.True(flatFits);
+        Assert.True(nestedFits);
+        Assert.Equal(10 * ScadValue.FormatStepsPerElement, flatSteps);
+        Assert.Equal(flatSteps + (5 * ScadValue.FormatStepsPerElement), host.Steps);
+    }
+
+    /// <summary>
+    ///     Validates that a step limit stops formatting midway instead of after the whole value was formatted.
+    /// </summary>
+    [Fact]
+    public void ScadValueFormat_TryToStr_StepLimitReached_StopsMidFormat()
+    {
+        // Arrange: a thousand elements would cost 8,000 steps; the budget is 100
+        var host = new ScadTestBuiltinHost { MaxSteps = 100 };
+        var value = ScadValue.FromVector(Enumerable.Range(0, 1000).Select(i => N(i)).ToArray());
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => value.TryToStr(1_000_000, out _, host));
+
+        // Assert: the thirteenth element is the first to pass the budget
+        Assert.Contains("Evaluation step limit exceeded (limit 100)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(104, host.Steps);
+    }
+
+    /// <summary>
+    ///     Validates that a quoted string element is charged by its length on top of the element charge.
+    /// </summary>
+    [Fact]
+    public void ScadValueFormat_TryToEchoText_WithMeter_QuotedStringsChargedByLength()
+    {
+        // Arrange: one 160-character string (ten extra steps) and one empty string (none)
+        var host = new ScadTestBuiltinHost();
+        var value = Vec(S(new string('x', 160)), S(string.Empty));
+
+        // Act
+        var fits = value.TryToEchoText(1000, out var text, host);
+
+        // Assert
+        Assert.True(fits);
+        Assert.Equal(168, text.Length);
+        Assert.Equal((2 * ScadValue.FormatStepsPerElement) + 10, host.Steps);
+    }
 }

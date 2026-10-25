@@ -116,7 +116,9 @@ angles; no fused multiply-add is used.
 - **Resource limits** are errors raised through the host: `concat`, `chr`, `str`, `rands`, and `search` check
   the list-length and string-length limits **before** building their result, and every function that does work
   proportional to its input charges `max(1, n)` evaluation steps through `Charge`, so a hostile call cannot
-  allocate or compute beyond the limits. The evaluator additionally charges the call expression itself.
+  allocate or compute beyond the limits. The evaluator additionally charges the call expression itself. `str`
+  passes the host to the formatter as a meter, so its formatting work is charged per element **while** it formats
+  (see _ScadValue_, Text forms) and a step limit or cancellation stops a huge value midway.
 
 #### Dependencies
 

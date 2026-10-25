@@ -73,7 +73,7 @@ internal sealed partial class ScadEvaluator
     private ScadValue EvaluateIndex(ScadIndexExpression index, ScadScope scope)
     {
         var target = Evaluate(index.Target, scope);
-        return target.Index(Evaluate(index.Index, scope));
+        return target.Index(Evaluate(index.Index, scope), this);
     }
 
     /// <summary>

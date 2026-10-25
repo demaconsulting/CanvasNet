@@ -30,6 +30,41 @@ public class ScadBuiltinStringTests
     }
 
     /// <summary>
+    ///     Validates that str charges the formatting of a large vector per element.
+    /// </summary>
+    [Fact]
+    public void ScadBuiltinString_Str_LargeVector_ChargesPerElement()
+    {
+        // Arrange
+        var host = new ScadTestBuiltinHost { MaxStringLength = 100_000 };
+        var vector = ScadValue.FromVector(Enumerable.Range(0, 1000).Select(i => N(i)).ToArray());
+
+        // Act
+        host.Call("str", vector);
+
+        // Assert: eight steps for each of the 1,000 elements, plus the final charge for the text
+        Assert.True(host.Steps >= 1000 * ScadValue.FormatStepsPerElement, $"steps={host.Steps}");
+    }
+
+    /// <summary>
+    ///     Validates that a step limit stops str while it formats a large vector.
+    /// </summary>
+    [Fact]
+    public void ScadBuiltinString_Str_StepLimit_StopsDuringFormatting()
+    {
+        // Arrange
+        var host = new ScadTestBuiltinHost { MaxStringLength = 100_000, MaxSteps = 200 };
+        var vector = ScadValue.FromVector(Enumerable.Range(0, 1000).Select(i => N(i)).ToArray());
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => host.Call("str", vector));
+
+        // Assert
+        Assert.Contains("Evaluation step limit exceeded (limit 200)", ex.Message, StringComparison.Ordinal);
+        Assert.True(host.Steps <= 208, $"steps={host.Steps}");
+    }
+
+    /// <summary>
     ///     Validates that str is culture-invariant.
     /// </summary>
     [Fact]

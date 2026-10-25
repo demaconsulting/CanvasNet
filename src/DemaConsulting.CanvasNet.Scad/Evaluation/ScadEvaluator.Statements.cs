@@ -253,7 +253,7 @@ internal sealed partial class ScadEvaluator
                 line.Append(name).Append(" = ");
             }
 
-            if (!value.TryToEchoText(_limits.MaxStringLength, out var text) || (line.Length - EchoPrefix.Length) + text.Length > _limits.MaxStringLength)
+            if (!value.TryToEchoText(_limits.MaxStringLength, out var text, this) || (line.Length - EchoPrefix.Length) + text.Length > _limits.MaxStringLength)
             {
                 throw Fail($"String too long (limit {_limits.MaxStringLength})", location);
             }
@@ -308,7 +308,7 @@ internal sealed partial class ScadEvaluator
             return "Assertion failed";
         }
 
-        if (!message.Value.TryToStr(_limits.MaxStringLength, out var text))
+        if (!message.Value.TryToStr(_limits.MaxStringLength, out var text, this))
         {
             throw Fail($"String too long (limit {_limits.MaxStringLength})", _lastFrameLocation);
         }

@@ -169,9 +169,12 @@ parameter filled with `undef`.
 **Tests**: `ScadBuiltinListTests.ScadBuiltinList_Concat_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinListTests.ScadBuiltinList_Search_TooMuchWorkOrResult_Throws`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws`,
+`ScadBuiltinStringTests.ScadBuiltinString_Str_LargeVector_ChargesPerElement`,
+`ScadBuiltinStringTests.ScadBuiltinString_Str_StepLimit_StopsDuringFormatting`,
 `ScadBuiltinStringTests.ScadBuiltinString_Chr_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_AtLimit_Succeeds_OneOver_Throws`
 
 Asserts, for `concat`, `str`, `chr`, and `rands`, that a result exactly at the limit is produced and one more
 throws the limit error before the result is built, and that a `search` that would do too much work or produce too
-large a result throws.
+large a result throws. For `str`, it asserts that a large vector is charged at least eight steps per element and
+that a step limit stops the call during formatting, not after it.

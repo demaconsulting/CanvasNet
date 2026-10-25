@@ -186,7 +186,7 @@ per-frame cost stays far below the 8 KiB at which the ceiling would have to be l
 | Limit (`ScadLimits`) | Default | Enforced where | Failure |
 | -------------------- | ------- | -------------- | ------- |
 | `MaxRecursionDepth` | 5,000 (16 to 16,384) | every evaluation frame | `Recursion too deep (limit N)` |
-| `MaxEvaluationSteps` | 50,000,000 | every expression, statement, loop turn, and tail-call turn; vector work, matrix-product work (result elements plus multiply-adds / 16), and long scope walks charge more | `Evaluation step limit exceeded (limit N)` |
+| `MaxEvaluationSteps` | 50,000,000 | every expression, statement, loop turn, and tail-call turn; vector work, matrix-product work (result elements plus multiply-adds / 16), `str`/`echo` formatting (8 per element, while formatting), string indexing (by position), and long scope walks charge more | `Evaluation step limit exceeded (limit N)` |
 | `MaxLoopIterations` | 10,000,000 | every loop turn, plus an up-front check of a range's count (total across the whole evaluation) | `Loop iteration limit exceeded (limit N)` |
 | `MaxListLength` | 1,000,000 | every vector append, `concat`, `rands`, comprehension; also the result elements of a matrix product (checked before it is computed) | `List too long (limit N)` |
 | `MaxStringLength` | 1,048,576 | `str`, `chr`, echo formatting | `String too long (limit N)` |
@@ -196,7 +196,7 @@ per-frame cost stays far below the 8 KiB at which the ceiling would have to be l
 | `MaxInstances` | 1,000,000 | every instance created; also the number of statements include expansion may produce (phase A, before any step accounting exists) | `Instance limit exceeded (limit N)`, or `Included statement limit exceeded (limit N)` during expansion |
 | `MaxOutputLength` | 4,194,304 | the echo sink (cumulative characters after the prefix) | `Echo output limit exceeded (limit N)` |
 | `MaxDiagnostics` | 1,000 | the warning sink | not an error: collapsed into one notice |
-| cancellation | — | every 1,024 steps, every 65,536 multiply-adds of a matrix product, every loop turn, every file load, entry | `OperationCanceledException` |
+| cancellation | — | every 1,024 steps (so inside `str`/`echo` formatting), every 65,536 multiply-adds of a matrix product, every loop turn, every file load, entry | `OperationCanceledException` |
 <!-- markdownlint-enable MD013 -->
 
 #### Determinism

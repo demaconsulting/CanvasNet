@@ -145,7 +145,16 @@ counts before an operation, so a vector operation is charged before it allocates
 
 `v[i]` on a vector with a finite numeric `i` returns the element at `trunc(i)` (so `v[1.5]` is `v[1]` and
 `v[-0.5]` is element 0); a negative or too large index gives `undef` without a warning. A string indexes by
-**Unicode scalar value**, returning a one-character string (a surrogate pair is one scalar). A non-numeric
+**Unicode scalar value**, returning a one-character string (a surrogate pair is one scalar). Finding the scalar
+costs work proportional to its position, so, when the evaluator passes itself as the host, `Index` charges extra
+steps before doing that work: `position / 512` for the vectorized scan of the prefix for surrogates (every string
+index), and `position / 16` more for the one-by-one walk over the scalars when that prefix contains a surrogate
+(`ScadText.ScanUnitsPerStep` and `WalkScalarsPerStep`). The charge depends only on the string and the index, never
+on timing, and a position below 512 costs nothing beyond the ordinary expression steps. _Calibration:_ on the
+development machine the scan of a 1,000,000-unit prefix took about 50–150 µs and the walk 0.7–4.7 ms (about 1–5 ns
+per scalar), against an evaluation step of about 30–50 ns, so the constants charge at or above the measured cost
+(about 2,000 and 62,500 steps for a position near the end of a 1 MiB string); a loop that indexes such a string
+near its end now reaches the default step budget in about a second instead of running for minutes. A non-numeric
 index, a range, a number, a boolean, or `undef` as the target gives `undef`. `.x`, `.y`, and `.z` on a vector
 are elements 0, 1, and 2; any other member is `undef`.
 
@@ -159,6 +168,16 @@ are elements 0, 1, and 2; any other member is `undef`.
   are escaped so that a line never contains a raw line break; everything else is as in the string form.
 - The `Try…` variants take a maximum length and **stop as soon as it is exceeded**, so a huge vector cannot
   allocate an enormous string before the string-length limit is checked.
+- **Meter.** `TryToStr` and `TryToEchoText` take an optional `IScadBuiltinHost? meter`; the evaluator's `echo`,
+  the assert message, and `str` always pass the host. While formatting, every vector element visited (nested
+  elements included) is charged `FormatStepsPerElement = 8` steps, plus one step per 16 characters for a string
+  element, **before** it is written, so a step limit stops formatting midway and `Charge`'s cancellation poll
+  (every 1,024 steps, so every 128 elements) fires inside it. The final charge of `str` (`1 + length / 16`) and the
+  deep-count charge of `echo` stay. _Calibration:_ formatting a number takes roughly 60–400 ns, one to eight
+  evaluation steps' worth, so eight steps per element is the pessimistic end; `[for (k = [0 : 100000])
+  len(str(v))]` with a vector of 100,000 numbers, which ran 49.5 s before the step limit tripped, now stops at the
+  default step limit after about 1.4–3 s. The constant is pinned by
+  `ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement`.
 
 ##### Number formatting (`ScadNumberFormatter.Format`)
 

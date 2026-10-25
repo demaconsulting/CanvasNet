@@ -23,6 +23,15 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 internal readonly partial struct ScadValue
 {
     /// <summary>
+    ///     The evaluation steps charged for each vector element visited while formatting under a meter.
+    /// </summary>
+    /// <remarks>
+    ///     Formatting a number costs several hundred nanoseconds, several times the cost of an evaluation step, so an
+    ///     element is charged eight steps; a string element is charged one more step per sixteen characters.
+    /// </remarks>
+    internal const long FormatStepsPerElement = 8;
+
+    /// <summary>
     ///     Gets the <c>str()</c> text of the value.
     /// </summary>
     /// <returns>The text; a top-level string is returned unchanged.</returns>
@@ -39,19 +48,25 @@ internal readonly partial struct ScadValue
     /// </summary>
     /// <remarks>
     ///     Formatting stops as soon as the limit is exceeded, so a very large value never builds a very large string.
+    ///     With a meter, every vector element visited is charged while formatting (see
+    ///     <see cref="FormatStepsPerElement"/>), so a step limit or a cancellation stops formatting midway.
     /// </remarks>
     /// <param name="maxLength">The maximum text length in UTF-16 units.</param>
     /// <param name="text">The text when it fits; otherwise an empty string.</param>
+    /// <param name="meter">The host that is charged for the formatting work, or <see langword="null"/> for none.</param>
     /// <returns><see langword="true"/> when the text fits within <paramref name="maxLength"/>.</returns>
-    public bool TryToStr(int maxLength, out string text) => TryFormat(quoteStrings: false, maxLength, out text);
+    public bool TryToStr(int maxLength, out string text, IScadBuiltinHost? meter = null) =>
+        TryFormat(quoteStrings: false, maxLength, out text, meter);
 
     /// <summary>
     ///     Gets the echo text unless it would be longer than a limit.
     /// </summary>
     /// <param name="maxLength">The maximum text length in UTF-16 units.</param>
     /// <param name="text">The text when it fits; otherwise an empty string.</param>
+    /// <param name="meter">The host that is charged for the formatting work, or <see langword="null"/> for none.</param>
     /// <returns><see langword="true"/> when the text fits within <paramref name="maxLength"/>.</returns>
-    public bool TryToEchoText(int maxLength, out string text) => TryFormat(quoteStrings: true, maxLength, out text);
+    public bool TryToEchoText(int maxLength, out string text, IScadBuiltinHost? meter = null) =>
+        TryFormat(quoteStrings: true, maxLength, out text, meter);
 
     /// <summary>
     ///     Formats the value without a length limit.
@@ -60,7 +75,7 @@ internal readonly partial struct ScadValue
     /// <returns>The text.</returns>
     private string Format(bool quoteStrings)
     {
-        TryFormat(quoteStrings, int.MaxValue, out var text);
+        TryFormat(quoteStrings, int.MaxValue, out var text, meter: null);
         return text;
     }
 
@@ -70,11 +85,12 @@ internal readonly partial struct ScadValue
     /// <param name="quoteStrings">Whether a top-level string is quoted.</param>
     /// <param name="maxLength">The maximum text length.</param>
     /// <param name="text">The text when it fits; otherwise an empty string.</param>
+    /// <param name="meter">The host that is charged for the formatting work, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text fits.</returns>
-    private bool TryFormat(bool quoteStrings, int maxLength, out string text)
+    private bool TryFormat(bool quoteStrings, int maxLength, out string text, IScadBuiltinHost? meter)
     {
         var builder = new StringBuilder();
-        var fits = Write(builder, quoteStrings, maxLength);
+        var fits = Write(builder, quoteStrings, maxLength, meter);
         text = fits ? builder.ToString() : string.Empty;
         return fits;
     }
@@ -85,8 +101,9 @@ internal readonly partial struct ScadValue
     /// <param name="builder">The builder.</param>
     /// <param name="quoteStrings">Whether a string value is quoted.</param>
     /// <param name="maxLength">The maximum builder length.</param>
+    /// <param name="meter">The host that is charged for the formatting work, or <see langword="null"/>.</param>
     /// <returns><see langword="false"/> as soon as the builder exceeds <paramref name="maxLength"/>.</returns>
-    private bool Write(StringBuilder builder, bool quoteStrings, int maxLength)
+    private bool Write(StringBuilder builder, bool quoteStrings, int maxLength, IScadBuiltinHost? meter)
     {
         RuntimeHelpers.EnsureSufficientExecutionStack();
         switch (_kind)
@@ -104,7 +121,7 @@ internal readonly partial struct ScadValue
                 AppendString(builder, (string)_reference!, quoteStrings);
                 break;
             case ScadValueKind.Vector:
-                return WriteVector(builder, (ScadVector)_reference!, maxLength);
+                return WriteVector(builder, (ScadVector)_reference!, maxLength, meter);
             case ScadValueKind.Range:
                 WriteRange(builder, (ScadRange)_reference!);
                 break;
@@ -122,8 +139,9 @@ internal readonly partial struct ScadValue
     /// <param name="builder">The builder.</param>
     /// <param name="vector">The vector.</param>
     /// <param name="maxLength">The maximum builder length.</param>
+    /// <param name="meter">The host that is charged for each element before it is written, or <see langword="null"/>.</param>
     /// <returns><see langword="false"/> as soon as the builder exceeds <paramref name="maxLength"/>.</returns>
-    private static bool WriteVector(StringBuilder builder, ScadVector vector, int maxLength)
+    private static bool WriteVector(StringBuilder builder, ScadVector vector, int maxLength, IScadBuiltinHost? meter)
     {
         builder.Append('[');
         for (var i = 0; i < vector.Count; i++)
@@ -133,7 +151,10 @@ internal readonly partial struct ScadValue
                 builder.Append(", ");
             }
 
-            if (!vector[i].Write(builder, quoteStrings: true, maxLength))
+            // Charge before writing, so a step limit or a cancellation stops a huge value midway
+            var element = vector[i];
+            meter?.Charge(FormatStepsPerElement + (element._kind == ScadValueKind.String ? ((string)element._reference!).Length / 16 : 0));
+            if (!element.Write(builder, quoteStrings: true, maxLength, meter))
             {
                 return false;
             }

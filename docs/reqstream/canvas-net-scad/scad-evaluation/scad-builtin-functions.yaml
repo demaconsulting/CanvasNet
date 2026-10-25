@@ -199,7 +199,8 @@ sections:
                 title: >-
                   The ScadBuiltinFunctions unit shall check the list-length and string-length limits
                   before building a result and shall charge the evaluation budget for work
-                  proportional to its input, so that a function such as concat, str, chr, rands, or
+                  proportional to its input (for str, per element while it formats), so that a
+                  function such as concat, str, chr, rands, or
                   search that would exceed a limit fails with the limit error instead of consuming
                   memory or time, while a result exactly at a limit succeeds.
                 justification: |
@@ -209,5 +210,7 @@ sections:
                   - ScadBuiltinList_Concat_AtLimit_Succeeds_OneOver_Throws
                   - ScadBuiltinList_Search_TooMuchWorkOrResult_Throws
                   - ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws
+                  - ScadBuiltinString_Str_LargeVector_ChargesPerElement
+                  - ScadBuiltinString_Str_StepLimit_StopsDuringFormatting
                   - ScadBuiltinString_Chr_AtLimit_Succeeds_OneOver_Throws
                   - ScadBuiltinRandom_Rands_AtLimit_Succeeds_OneOver_Throws
