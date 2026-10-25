@@ -58,10 +58,12 @@ sections:
                   region as the unsupported feature scad-polygon-invalid at that leaf, leave only that leaf
                   out, and extrude the remaining leaves.
                 justification: |
-                  A transform can make a valid polygon invalid (for example a non-finite coordinate). The
-                  author must be told which shape was dropped, and the rest of the model must still build.
+                  A polygon the region checks reject (for example a self-crossing one) must not take the rest
+                  of the model with it; the author must be told which shape was dropped. A transform that
+                  would push a leaf out of the supported coordinate range is rejected earlier, as
+                  scad-geometry-rejected at the transform (see the ScadGeometryBuilder CoordinateRange
+                  requirement), so no non-finite coordinate reaches the region checks.
                 tests:
-                  - ScadExtrusionsLinear_InvalidLeafAfterTransform_IsReportedAsInvalidPolygon
                   - ScadExtrusionsMapping_InvalidPolygonInsideBoolean_IsReportedAndTheRestExtrudes
 
               - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RejectedExtrusion

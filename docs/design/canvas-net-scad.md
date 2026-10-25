@@ -278,7 +278,8 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   iterative for deep scenes.
 - **Nothing is silently skipped.** Invalid arguments are warnings, constructs that are recognized but not built
   are unsupported-feature reports with stable identifiers, and a Render3D rejection that argument validation did
-  not anticipate is reported as `scad-geometry-rejected`; the geometry builder never throws an
+  not anticipate, and an instance whose coordinates are not finite or exceed 1e100 in magnitude, are reported as
+  `scad-geometry-rejected`; the geometry builder never throws an
   `ArgumentException` out of the library. All reports of evaluation, geometry building, and the renderer's
   operand checks share one buffer, one ordering, one de-duplication, one cap, and one strict-mode switch, and are
   delivered once on the calling thread.
@@ -340,7 +341,9 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
    reports it as unsupported), and returns the `Scene` and the node-to-location map. A model without geometry is a
    scene with an empty root.
 4. **Fit the camera and render** (`Render` only): the camera is the caller's, or fitted to the bounds of the
-   scene with the configured azimuth, elevation, and projection; the renderer options are the caller's scene
+   scene with the configured azimuth, elevation, and projection (an unusable box, which the coordinate guard
+   of the geometry builder makes impossible, falls back to the unit-cube framing instead of throwing); the
+   renderer options are the caller's scene
    options copied with a handler that maps the renderer's operand reports into the sink (installed only when a
    handler or strict mode exists); `SceneRenderer.Render` draws the scene with the token. The renderer's
    fragment-budget overflow becomes a `ScadEvaluationException`.

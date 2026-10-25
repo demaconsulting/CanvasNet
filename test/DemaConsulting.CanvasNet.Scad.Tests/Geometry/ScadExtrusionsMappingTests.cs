@@ -24,8 +24,8 @@ public class ScadExtrusionsMappingTests
         { "\n  linear_extrude(5, scale = [0, 2]) square(1);", "scad-linear-extrude-scale", "linear_extrude" },
         { "\n  rotate_extrude() translate([-1, 0]) square(2);", "scad-rotate-extrude-axis-crossing", "rotate_extrude" },
         { "\n  rotate_extrude() polygon([[0, 0], [2, -1], [2, 1]]);", "scad-rotate-extrude-axis-contact", "rotate_extrude" },
-        { "\n  linear_extrude(1) scale([1e200, 1]) scale([1e200, 1]) square(1);", "scad-polygon-invalid", "square(1)" },
-        { "\n  rotate_extrude() scale([1e200, 1]) scale([1e200, 1]) translate([1, 0]) square(1);", "scad-polygon-invalid", "square(1)" },
+        { "\n  linear_extrude(1) scale([1e200, 1]) scale([1e200, 1]) square(1);", "scad-geometry-rejected", "scale([1e200, 1]) square(1)" },
+        { "\n  rotate_extrude() scale([1e200, 1]) scale([1e200, 1]) translate([1, 0]) square(1);", "scad-geometry-rejected", "scale([1e200, 1]) translate" },
         { "\n  rotate_extrude(angle = 5e-324) translate([1, 0]) square(1);", "scad-geometry-rejected", "rotate_extrude" },
     };
 

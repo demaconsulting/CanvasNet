@@ -218,13 +218,38 @@ public sealed partial class ScadDocument
         }
 
         var sceneOptions = ScadSceneOptions.Create(options.SceneOptions, handler);
-        var camera = options.Camera ?? Camera.FitToBounds(
-            built.Scene.ComputeBounds(),
-            options.ViewAzimuthDegrees,
-            options.ViewElevationDegrees,
-            width / (double)height,
-            options.Projection);
+        var camera = options.Camera ?? FitCamera(built.Scene, options, width / (double)height);
         return SceneRenderer.Render(built.Scene, camera, width, height, sceneOptions, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Fits the default camera to the scene; it never throws for a scene the build returned.
+    /// </summary>
+    /// <remarks>
+    ///     The build keeps every coordinate finite and within <see cref="ScadGeo.MaxCoordinate"/>, so the fit
+    ///     normally succeeds. Should the bounds still be unusable (not finite or out of range) or the fit be
+    ///     rejected, the camera frames the unit cube around the origin instead of failing the render.
+    /// </remarks>
+    /// <param name="scene">The scene.</param>
+    /// <param name="options">The render options.</param>
+    /// <param name="aspectRatio">The width divided by the height.</param>
+    /// <returns>The camera.</returns>
+    internal static Camera FitCamera(Scene scene, ScadRenderOptions options, double aspectRatio)
+    {
+        var bounds = scene.ComputeBounds();
+        if (!ScadGeo.IsSafe(bounds))
+        {
+            bounds = BoundingBox3D.Empty;
+        }
+
+        try
+        {
+            return Camera.FitToBounds(bounds, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+        }
+        catch (ArgumentException)
+        {
+            return Camera.FitToBounds(BoundingBox3D.Empty, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+        }
     }
 
     /// <summary>

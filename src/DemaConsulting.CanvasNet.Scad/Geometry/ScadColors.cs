@@ -88,10 +88,10 @@ internal static class ScadColors
         var appearance = new NodeAppearance(color.Value);
         if (union.Kind == ScadGeoKind.Solid)
         {
-            return ScadGeo.FromSolid(new GroupNode([union.Node!]) { Appearance = appearance }, union.Bounds, union.IsTight, union.IsApproximate);
+            return ScadGeo.FromSolid(new GroupNode([union.Node!]) { Appearance = appearance }, union.Bounds, union.IsTight, union.IsApproximate, union.Reach);
         }
 
-        return ScadGeo.FromShape(ScadShape2D.CreateColor(union.Shape!, appearance), union.Bounds, union.IsTight, union.IsApproximate, union.FlatLocation);
+        return ScadGeo.FromShape(ScadShape2D.CreateColor(union.Shape!, appearance), union.Bounds, union.IsTight, union.IsApproximate, union.FlatLocation, union.Reach);
     }
 
     /// <summary>

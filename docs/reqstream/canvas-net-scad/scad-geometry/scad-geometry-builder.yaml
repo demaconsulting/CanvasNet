@@ -250,6 +250,28 @@ sections:
                   - ScadGeometryBuilder_Build_CylinderEstimate_IsFourTrianglesPerFragment
                   - ScadGeometryBuilder_Build_PublicMaxTriangles_FailsBuildScene
 
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
+                title: >-
+                  The ScadGeometryBuilder unit shall reject, as the unsupported feature
+                  scad-geometry-rejected at the instance's location, any instance whose vertices
+                  (including the operands that a difference or an intersection hides) are not finite or
+                  exceed 1e100 in magnitude, omitting only that instance, and ScadDocument.Render shall
+                  fall back to the unit-cube framing for scene bounds that are unusable, so that neither
+                  BuildScene nor Render throws for a finite but extreme transform outside strict mode.
+                justification: |
+                  A finite transform such as translate([1.7e308, 0, 0]) must not pass the build and then
+                  overflow the camera fitting or the renderer; a located report keeps the failure visible
+                  and consistent between BuildScene, Render, and strict mode.
+                tests:
+                  - ScadGeometryBuilder_ExtremeCoordinates_AreRejectedAtTheInstance
+                  - ScadGeometryBuilder_OverflowingScale_IsWarnedAndOmitted
+                  - ScadGeometryBuilder_ExtremeCoordinates_OmitOnlyTheOffendingInstance
+                  - ScadGeometryBuilder_LargeButSafeCoordinates_AreKept
+                  - ScadDocument_ExtremeTranslate_BuildSceneAndRenderAreConsistent
+                  - ScadDocument_Render_ExtremeTransformNextToVisibleSolid_RendersTheVisibleSolid
+                  - ScadDocument_Render_CoordinatesAtTheLimit_DoesNotThrow
+                  - ScadDocument_FitCamera_UnusableBounds_FallsBackToTheUnitCube
+                  - ScadDocument_FitCamera_UsableBounds_FitsTheScene
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatSlabs
                 title: >-
                   The ScadGeometryBuilder unit shall turn a 2D result at the top of the model into one slab

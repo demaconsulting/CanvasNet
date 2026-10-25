@@ -156,7 +156,7 @@ internal static class ScadBooleans
         var nodes = operands.Select(o => o.Node!).ToList();
         SceneNode node = operation == CsgOperation.Union ? new GroupNode(nodes) : new CsgNode(operation, nodes);
         var (bounds, tight, approximate) = CombineBounds(operation, operands);
-        return ScadGeo.FromSolid(node, bounds, tight, approximate);
+        return ScadGeo.FromSolid(node, bounds, tight, approximate, Reach(operands));
     }
 
     /// <summary>
@@ -174,7 +174,7 @@ internal static class ScadBooleans
 
         var shape = ScadShape2D.CreateCsg(operation, operands.Select(o => o.Shape!).ToList());
         var (bounds, tight, approximate) = CombineBounds(operation, operands);
-        return ScadGeo.FromShape(shape, bounds, tight, approximate, operands[0].FlatLocation);
+        return ScadGeo.FromShape(shape, bounds, tight, approximate, operands[0].FlatLocation, Reach(operands));
     }
 
     /// <summary>
@@ -211,6 +211,22 @@ internal static class ScadBooleans
         }
 
         return (bounds, tight, approximate);
+    }
+
+    /// <summary>
+    ///     Computes the box of every vertex below a combination: the union of the operands' reach.
+    /// </summary>
+    /// <param name="operands">The operands.</param>
+    /// <returns>The union of their reach boxes.</returns>
+    private static BoundingBox3D Reach(List<ScadGeo> operands)
+    {
+        var reach = BoundingBox3D.Empty;
+        foreach (var operand in operands)
+        {
+            reach = reach.Union(operand.Reach);
+        }
+
+        return reach;
     }
 
     /// <summary>

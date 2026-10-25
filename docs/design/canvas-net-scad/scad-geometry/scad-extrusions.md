@@ -71,7 +71,8 @@ Walks `EnumerateLeaves` and, for each leaf, applies the accumulated planar matri
 (`TransformRegion`: `x' = x·M11 + y·M21 + M41`, `y' = x·M12 + y·M22 + M42`) before any extrusion, so the extruders
 only ever see regions and never a matrix; an identity matrix reuses the leaf's own region. `PolygonRegion`
 re-normalizes the winding, so a mirror costs nothing. A leaf whose transformed points the polygon validator
-rejects (for example a non-finite coordinate) is reported as the unsupported feature **`scad-polygon-invalid`**
+rejects (for example a self-crossing contour; a transform that leaves the coordinate range is rejected
+earlier by the builder as `scad-geometry-rejected`) is reported as the unsupported feature **`scad-polygon-invalid`**
 at the **leaf's** location and left out; the other leaves are kept. Each leaf also ticks the cancellation counter.
 When no leaf is valid, the extrusion is empty.
 

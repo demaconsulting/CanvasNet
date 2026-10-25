@@ -134,13 +134,13 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `transparent`) | The geometry is drawn opaque |
 | `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | The estimated bounds are used |
 | `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
-| `scad-polygon-invalid` | A `polygon`, or any 2D leaf after transformation under an extrusion or slab, that is self-crossing, zero-area, or non-finite | That leaf is omitted |
+| `scad-polygon-invalid` | A `polygon`, or any 2D leaf after transformation under an extrusion or slab, that is self-crossing or zero-area | That leaf is omitted |
 | `scad-polyhedron-face-invalid` | A polyhedron face that cannot be triangulated | The polyhedron is omitted |
 | `scad-linear-extrude-scale` | A negative `scale` component, or exactly one zero component | The extrusion is omitted |
 | `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands in one leaf | The extrusion is omitted |
 | `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis (also a union or a boolean operand that does) | The extrusion is omitted |
 | `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
-| `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder | The affected geometry is omitted; the message is kept |
+| `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder, or an instance whose coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands) | The affected instance is omitted; the message is kept |
 | `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | The renderer's operand check of a difference or an intersection (only `Render`, only when a handler or strict mode is set), mapped from `render3d-csg-*` | Reported at the producing module; the image is still drawn |
 <!-- markdownlint-enable MD013 -->
 

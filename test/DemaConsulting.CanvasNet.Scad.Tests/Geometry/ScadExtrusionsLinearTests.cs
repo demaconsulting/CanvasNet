@@ -368,20 +368,21 @@ public class ScadExtrusionsLinearTests
     }
 
     /// <summary>
-    ///     Validates that an empty first operand of a 2D difference makes the extrusion empty, and that a
-    ///     leaf that is invalid after its transformations is reported as an invalid polygon and left out.
+    ///     Validates that a chain of stretches whose composition would leave the supported coordinate range is
+    ///     rejected by the coordinate guard at the transform that overflows (before any extrusion), reported once as
+    ///     <c>scad-geometry-rejected</c>, with no mesh.
     /// </summary>
     [Fact]
-    public void ScadExtrusionsLinear_InvalidLeafAfterTransform_IsReportedAsInvalidPolygon()
+    public void ScadExtrusionsLinear_OverflowingTransformChain_IsRejectedByTheCoordinateGuard()
     {
-        // Arrange / Act: two stretches by 1e200 along X multiply to infinity when the matrices are composed
+        // Arrange / Act: a stretch by 1e200 along X is outside the range already, before the second one composes it to infinity
         var result = Build("\nlinear_extrude(1) scale([1e200, 1]) scale([1e200, 1]) square(1);");
 
-        // Assert
+        // Assert: reported at the inner stretch, which is the first instance out of range
         Assert.Empty(result.Meshes);
         var report = Assert.Single(result.Unsupported);
-        Assert.Equal("scad-polygon-invalid", report.Feature);
-        Assert.Equal(2, report.Location.Line);
+        Assert.Equal("scad-geometry-rejected", report.Feature);
+        Assert.Equal(new ScadSourceLocation(null, 2, 37), report.Location);
     }
 
     /// <summary>

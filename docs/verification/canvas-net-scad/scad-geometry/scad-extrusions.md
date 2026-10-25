@@ -91,12 +91,13 @@ transformed profile.
 
 ##### CanvasNetScad-ScadGeometry-ScadExtrusions-InvalidProfile: Leaf Invalid After Transformation
 
-**Tests**: `ScadExtrusionsLinearTests.ScadExtrusionsLinear_InvalidLeafAfterTransform_IsReportedAsInvalidPolygon`,
-`ScadExtrusionsMappingTests.ScadExtrusionsMapping_InvalidPolygonInsideBoolean_IsReportedAndTheRestExtrudes`
+**Tests**: `ScadExtrusionsMappingTests.ScadExtrusionsMapping_InvalidPolygonInsideBoolean_IsReportedAndTheRestExtrudes`
 
-Asserts that two stretches that multiply to infinity when composed make the only leaf invalid, which is reported as
-`scad-polygon-invalid` at the leaf's line with no mesh, and that an invalid polygon inside a 2D difference is
-reported while the valid operand is extruded alone with the expected bounds.
+Asserts that an invalid polygon inside a 2D difference is reported as `scad-polygon-invalid` while the valid operand
+is extruded alone with the expected bounds. (Two stretches that would multiply to infinity when composed no longer
+reach the region checks: the coordinate guard rejects the transform as `scad-geometry-rejected`, which
+`ScadExtrusionsLinearTests.ScadExtrusionsLinear_OverflowingTransformChain_IsRejectedByTheCoordinateGuard` and the
+`ScadExtrusionsMappingTests` contract rows pin; see the ScadGeometryBuilder `CoordinateRange` requirement.)
 
 ##### CanvasNetScad-ScadGeometry-ScadExtrusions-RejectedExtrusion: Omission Of The Whole Extrusion
 

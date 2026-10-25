@@ -66,7 +66,7 @@ internal sealed partial class ScadGeometryBuilder
                 var combiner = Enter(child, out var immediate);
                 if (combiner is null)
                 {
-                    top.Results.Add(immediate!);
+                    top.Results.Add(Guard(child, immediate!));
                 }
                 else
                 {
@@ -79,6 +79,11 @@ internal sealed partial class ScadGeometryBuilder
             // All children are visited: combine them and hand the result to the parent
             stack.RemoveAt(stack.Count - 1);
             var geo = top.Combine(top.Node, top.Results, _context);
+            if (top.Node is not null)
+            {
+                geo = Guard(top.Node, geo);
+            }
+
             if (stack.Count == 0)
             {
                 return geo;
@@ -86,6 +91,32 @@ internal sealed partial class ScadGeometryBuilder
 
             stack[^1].Results.Add(geo);
         }
+    }
+
+    /// <summary>
+    ///     Rejects a result whose coordinates are not finite or exceed <see cref="ScadGeo.MaxCoordinate"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Every instance is checked as soon as it is built, so no mesh of the scene can be farther from the origin
+    ///     than the limit (a transform that moves or scales geometry out of range is itself the instance that is
+    ///     rejected), and the camera fitting and the renderer cannot overflow. The check covers the hidden operands of
+    ///     a difference or an intersection too (see <see cref="ScadGeo.Reach"/>).
+    /// </remarks>
+    /// <param name="node">The instance that produced the result.</param>
+    /// <param name="geo">The result.</param>
+    /// <returns>The result, or <see cref="ScadGeo.Empty"/> after reporting <c>scad-geometry-rejected</c> at the instance.</returns>
+    private ScadGeo Guard(ScadInstance node, ScadGeo geo)
+    {
+        if (geo.Kind == ScadGeoKind.Empty || geo.IsWithinSafeRange())
+        {
+            return geo;
+        }
+
+        _context.Reporter.Unsupported(
+            ScadFeatureIds.GeometryRejected,
+            $"{node.Name}: the geometry was rejected: its coordinates are not finite or exceed 1e100 in magnitude; the instance is omitted",
+            node.Location);
+        return ScadGeo.Empty;
     }
 
     /// <summary>

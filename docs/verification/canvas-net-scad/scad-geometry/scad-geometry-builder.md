@@ -1,6 +1,6 @@
 ### ScadGeometryBuilder Unit Verification Design
 
-<!-- cspell:ignore minuend subtrahend subtrahends minkowski -->
+<!-- cspell:ignore minuend subtrahend subtrahends minkowski multmatrix -->
 
 This document describes the unit-level verification strategy for the `ScadGeometryBuilder` unit: the internal
 iterative engine and its supporting types (`ScadGeometryBuilder`, `ScadGeo`, `ScadGeometryContext`, `ScadSceneMap`,
@@ -261,6 +261,27 @@ Asserts that a hostile `$fn` on a sphere, cylinder, circle, and a polygon plus c
 sphere with a million fragments (`2:1: Triangle limit exceeded (limit 5000000)`), that eight cubes of twelve
 triangles fit a budget of 100 and nine fail at 1:17, that a cylinder of 100 fragments fits 400 and fails at 399,
 and that the public `ScadLimits.MaxTriangles` fails `BuildScene` with the located error.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange: Coordinate Range
+
+**Tests**:
+`ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_ExtremeCoordinates_AreRejectedAtTheInstance`,
+`ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_OverflowingScale_IsWarnedAndOmitted`,
+`ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_ExtremeCoordinates_OmitOnlyTheOffendingInstance`,
+`ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_LargeButSafeCoordinates_AreKept`,
+`ScadDocumentCoordinateRangeTests.ScadDocument_ExtremeTranslate_BuildSceneAndRenderAreConsistent`,
+`ScadDocumentCoordinateRangeTests.ScadDocument_Render_ExtremeTransformNextToVisibleSolid_RendersTheVisibleSolid`,
+`ScadDocumentCoordinateRangeTests.ScadDocument_Render_CoordinatesAtTheLimit_DoesNotThrow`,
+`ScadDocumentCoordinateRangeTests.ScadDocument_FitCamera_UnusableBounds_FallsBackToTheUnitCube`,
+`ScadDocumentCoordinateRangeTests.ScadDocument_FitCamera_UsableBounds_FitsTheScene`
+
+Asserts that a finite but extreme translation (`1.7e308`, `2e100`), `multmatrix` entry, extrusion height,
+primitive size, 2D shape, or a scale that pushes a hidden difference operand out of range is reported once as
+`scad-geometry-rejected` at the instance and omitted, leaving the siblings, that an overflowing scale is
+a located warning, that coordinates up to `9e99` are kept and render without throwing in both projections, that
+`BuildScene` and `Render` give the same report outside strict mode and the same `ScadUnsupportedFeatureException`
+in strict mode, that the rejected instances do not change the image of the visible solid, and that the fitted
+camera falls back to the unit-cube framing for bounds beyond the limit while it fits usable bounds exactly.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-FlatSlabs: Top-Level 2D Shapes
 

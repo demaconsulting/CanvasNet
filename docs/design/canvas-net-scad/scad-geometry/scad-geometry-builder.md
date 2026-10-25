@@ -42,8 +42,8 @@ text was consulted.
 The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometryBuilder-*` requirements
 (`NoRecursion`, `ImplicitUnion`, `ShowOnly`, `DegradedModifiers`, `UnsupportedModules`, `Reporting`,
 `StrictMode`, `Difference`, `Intersection`, `BooleanOperands`, `MixedDimensions`, `FlatBooleans`,
-`ResizeBounds`, `TriangleBudget`, `FlatSlabs`, `Cancellation`, `SceneMap`, `SceneOptionsCopy`, and
-`SceneOptionsMapping`) in `docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml`.
+`ResizeBounds`, `TriangleBudget`, `CoordinateRange`, `FlatSlabs`, `Cancellation`, `SceneMap`,
+`SceneOptionsCopy`, and `SceneOptionsMapping`) in `docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml`.
 
 #### Data Model
 
@@ -69,7 +69,10 @@ bound** of the extent of the geometry (a 2D result has a box at Z = 0) computed 
 inside (the box is then the first operand's, respectively the overlap of the operand boxes, and is not
 necessarily the true extent), and `IsTight` is set when the box is exactly the extent of the vertices (lost by a
 rotation that is not a multiple of 90 degrees and by an approximate result; `resize` recomputes exact vertex
-bounds on demand). `FlatLocation` is the location of the first 2D leaf, used to place a mixed-dimension warning.
+bounds on demand). `Reach` is the box of every vertex below the node, **including the operands that a difference or an
+intersection hides** (the union of the operands' reach, transformed with the node's matrix); it is what the
+renderer sees and what the coordinate guard checks. `FlatLocation` is the location of the first 2D leaf, used to
+place a mixed-dimension warning.
 Factories: `Empty`, `FromMesh`, `FromSolid`, `FromRegion`, and `FromShape`. The union of several solids becomes a
 `GroupNode` only when there is more than one, so a deep chain of single-child modules does not grow wrapper
 nodes.
@@ -95,7 +98,7 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | `scad-linear-extrude-scale`                                         | invalid extrusion scale; extrusion omitted   |
 | `scad-linear-extrude-apex-multiple-contours`                        | apex over several contours; omitted          |
 | `scad-rotate-extrude-axis-crossing`, `-axis-contact`                | profile crosses or touches the axis; omitted |
-| `scad-geometry-rejected`                                            | catch-all for a Render3D rejection           |
+| `scad-geometry-rejected`                                            | Render3D rejection; coordinates out of range |
 | `scad-csg-open-mesh`, `-non-manifold-edge`, `-inconsistent-winding` | renderer operand reports mapped back to      |
 | `scad-csg-degenerate-triangle`, `-inverted-mesh`                    | the producing module (see `ScadDocument`)    |
 | `scad-csg-singular-transform`                                       | collapsed world transform of an operand      |
@@ -127,6 +130,21 @@ an unsupported module, an omitted background subtree) or pushes a frame for the 
 frame has visited all its children it is popped, combined, and its result handed to the parent frame; the
 result of the last frame is the result of the forest. Children of primitives, unsupported modules, and `%`
 subtrees are never pushed.
+
+##### `Guard(node, geo)` — the coordinate range
+
+Every result is passed through `Guard` as soon as it is built (a leaf on entry, a container after its combiner;
+the top-level forest needs none, because its children were checked). A non-empty result whose `Bounds` or `Reach`
+is not finite (NaN or infinite, as when a finite matrix overflows) or has a coordinate above
+`ScadGeo.MaxCoordinate` (1e100) in magnitude is replaced by `ScadGeo.Empty` and reported as
+`scad-geometry-rejected` at the instance; only that instance is omitted. The limit lies far below the 1e154 at
+which the squares of the camera fitting overflow and far above any real model. Because `Reach` includes the hidden
+operands and every instance is checked, no mesh of the scene can lie beyond the limit, so `Scene.ComputeBounds`
+is always usable. A scale whose determinant overflows is already rejected by `ScadTransforms` as a singular or
+non-finite transform (a warning); the guard covers everything that stays finite there: translations, extreme
+`multmatrix` entries, rotations and extrusions of large geometry, and 2D shapes. `ScadDocument.Render` additionally
+falls back to the unit-cube framing (see `FitCamera`) for bounds that are unusable, so the fit cannot throw for any
+scene the build returns.
 
 ##### `Enter(node, out immediate)` — dispatch
 

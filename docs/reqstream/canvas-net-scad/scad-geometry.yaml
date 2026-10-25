@@ -169,6 +169,7 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
               - CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentWarnings
               - CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidSolidArguments
               - CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidShapeArguments

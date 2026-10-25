@@ -3399,13 +3399,13 @@ module in a loop is reported once. The identifiers are part of the documented be
 | `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `"transparent"`) | The geometry is drawn opaque |
 | `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | Estimated bounds are used |
 | `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
-| `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself, has no area, or is not finite | That shape is omitted |
+| `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself or has no area | That shape is omitted |
 | `scad-polyhedron-face-invalid` | A polyhedron face that cannot be triangulated | The polyhedron is omitted |
 | `scad-linear-extrude-scale` | A negative `scale` component, or exactly one zero component | The extrusion is omitted |
 | `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands | The extrusion is omitted |
 | `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis | The extrusion is omitted |
 | `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
-| `scad-geometry-rejected` | Any other geometry the Render3D tessellators and extruders reject | The affected geometry is omitted; the message says why |
+| `scad-geometry-rejected` | Any other geometry the Render3D tessellators and extruders reject, or an instance whose coordinates are not finite or exceed 1e100 in magnitude (for example `translate([1.7e308, 0, 0])`) | The affected geometry is omitted; the message says why |
 | `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | `Render` found a defect in an operand of a `difference` or `intersection` (reported only when a handler or strict mode is set) | Reported at the module that produced the mesh; the image is still drawn |
 | `scad-function-<name>`, `scad-search-form` | An unimplemented built-in function (`parent_module`, `textmetrics`, `fontmetrics`) or `search` argument form | The call evaluates to `undef` |
 <!-- markdownlint-enable MD013 -->

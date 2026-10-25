@@ -192,7 +192,7 @@ PngCodec.Save(image, "scene.png");
 ```
 
 Render an OpenSCAD-language model (the `DemaConsulting.CanvasNet.Scad` package parses and evaluates the
-source, builds the solids with `CanvasNetRender3D`, and draws them; it is an independent, clean-room
+source, builds the solids with `DemaConsulting.CanvasNet.Render3D`, and draws them; it is an independent, clean-room
 implementation of the language, not affiliated with the OpenSCAD project):
 
 ```csharp

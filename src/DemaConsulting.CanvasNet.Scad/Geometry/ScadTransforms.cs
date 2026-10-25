@@ -271,7 +271,7 @@ internal static partial class ScadTransforms
         }
 
         var wrapped = new GroupNode([solid.Node!]) { Transform = matrix };
-        return ScadGeo.FromSolid(wrapped, solid.Bounds.Transform(matrix), solid.IsTight && IsAxisAligned(matrix), solid.IsApproximate);
+        return ScadGeo.FromSolid(wrapped, solid.Bounds.Transform(matrix), solid.IsTight && IsAxisAligned(matrix), solid.IsApproximate, solid.Reach.Transform(matrix));
     }
 
     /// <summary>
@@ -315,7 +315,8 @@ internal static partial class ScadTransforms
             flat.Bounds.Transform(planar),
             flat.IsTight && IsAxisAligned(planar),
             flat.IsApproximate,
-            flat.FlatLocation);
+            flat.FlatLocation,
+            flat.Reach.Transform(planar));
     }
 
     /// <summary>
