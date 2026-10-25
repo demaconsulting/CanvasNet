@@ -82,6 +82,9 @@ internal sealed partial class ScadEvaluator
     /// <summary>The number of fallback threads currently running (updated with <see cref="Interlocked"/>).</summary>
     private static int _activeFallbacks;
 
+    /// <summary>The number of callers currently waiting for a fallback slot (updated with <see cref="Interlocked"/>).</summary>
+    private static int _waitingFallbacks;
+
     /// <summary>The largest number of fallback threads that ran at once (updated with <see cref="Interlocked"/>).</summary>
     private static int _peakFallbacks;
 
@@ -140,6 +143,12 @@ internal sealed partial class ScadEvaluator
 
     /// <summary>Gets the largest number of fallback threads that ever ran at once (a test hook).</summary>
     internal static int PeakConcurrentFallbackThreads => Volatile.Read(ref _peakFallbacks);
+
+    /// <summary>Gets the number of callers currently waiting for a fallback slot (a test hook).</summary>
+    internal static int WaitingFallbackCallers => Volatile.Read(ref _waitingFallbacks);
+
+    /// <summary>Gets the semaphore that bounds the fallback threads, so a test can hold slots (a test hook).</summary>
+    internal static SemaphoreSlim FallbackGateForTests => FallbackGate;
 
     /// <summary>
     ///     Gets the managed thread id that completed the most recent evaluation started by the calling thread: the
@@ -207,11 +216,13 @@ internal sealed partial class ScadEvaluator
                 }
             }
 
-            return RunOnEvaluatorThread(() =>
-            {
-                executedOn = Environment.CurrentManagedThreadId;
-                return new ScadEvaluator(unit, settings, sink).RunPass(stackShortageIsRecursionError: true);
-            });
+            return RunOnEvaluatorThread(
+                () =>
+                {
+                    executedOn = Environment.CurrentManagedThreadId;
+                    return new ScadEvaluator(unit, settings, sink).RunPass(stackShortageIsRecursionError: true);
+                },
+                settings.Cancellation);
         }
         finally
         {
@@ -224,22 +235,44 @@ internal sealed partial class ScadEvaluator
     ///     threads bounded.
     /// </summary>
     /// <remarks>
-    ///     The caller first waits for a slot of <see cref="FallbackGate"/>, then blocks until the thread finishes, so
-    ///     the observable behavior is synchronous. An exception thrown by the work is captured and rethrown on the
-    ///     calling thread with <see cref="ExceptionDispatchInfo"/>, which preserves its type and original stack trace.
-    ///     The calling thread's current culture and UI culture are applied to the dedicated thread.
+    ///     <para>
+    ///         The caller first waits for a slot of <see cref="FallbackGate"/>, then blocks until the thread finishes, so
+    ///         the observable behavior is synchronous. The wait for a slot honors <paramref name="cancellation"/>: a
+    ///         canceled token ends the wait with <see cref="OperationCanceledException"/> without acquiring a slot, so a
+    ///         caller queued behind long-running evaluations can always be abandoned (the wait stays outside the
+    ///         <see langword="try"/> block that releases a slot, so a slot is never released that was not acquired). An
+    ///         exception thrown by the work is captured and rethrown on the calling thread with
+    ///         <see cref="ExceptionDispatchInfo"/>, which preserves its type and original stack trace. The calling
+    ///         thread's current culture and UI culture are applied to the dedicated thread.
+    ///     </para>
+    ///     <para>
+    ///         <b>Memory reservation.</b> At most <see cref="MaxConcurrentFallbackThreads"/> (<c>max(2, ProcessorCount)</c>)
+    ///         fallback threads exist at once and each reserves <see cref="EvaluatorStackSize"/> (384 MiB) of address
+    ///         space, so the worst-case reservation is that product (768 MiB on one or two cores, 24 GiB on 64 cores).
+    ///         It is reserved, not committed: the cost of a thread is the memory its stack actually touches. Measured
+    ///         on Windows x64 (Release, .NET 10): a fallback thread adds about 0.1 MiB of private bytes while idle,
+    ///         about 19 to 21 MiB while a recursion of 5,000 or 16,384 frames runs, and nothing after it ends, while
+    ///         the process's virtual size grows by about 767 MiB per thread (the operating system reports roughly
+    ///         twice the requested reservation). This is
+    ///         intended for 64-bit hosts; it is not supported in a 32-bit process (the reservation can fail) nor under
+    ///         strict overcommit accounting (for example <c>vm.overcommit_memory=2</c>) or a tight virtual-memory
+    ///         limit, where thread creation fails with the runtime's own thread-creation exception, which propagates
+    ///         to the caller unchanged.
+    ///     </para>
     /// </remarks>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="work">The work to run.</param>
+    /// <param name="cancellation">The token that ends the wait for a slot.</param>
     /// <returns>The result of the work.</returns>
-    private static T RunOnEvaluatorThread<T>(Func<T> work)
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled before a slot was acquired.</exception>
+    private static T RunOnEvaluatorThread<T>(Func<T> work, CancellationToken cancellation)
     {
         var result = default(T);
         ExceptionDispatchInfo? failure = null;
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
 
-        FallbackGate.Wait();
+        WaitForFallbackSlot(cancellation);
         TrackFallbackStart();
         try
         {
@@ -275,6 +308,24 @@ internal sealed partial class ScadEvaluator
 
         failure?.Throw();
         return result!;
+    }
+
+    /// <summary>
+    ///     Waits for a free fallback slot, counting the callers that are waiting (a test hook) and honoring cancellation.
+    /// </summary>
+    /// <param name="cancellation">The token that ends the wait.</param>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled; no slot was acquired.</exception>
+    private static void WaitForFallbackSlot(CancellationToken cancellation)
+    {
+        Interlocked.Increment(ref _waitingFallbacks);
+        try
+        {
+            FallbackGate.Wait(cancellation);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _waitingFallbacks);
+        }
     }
 
     /// <summary>Records that a fallback thread is starting, keeping the observed peak up to date (a test hook).</summary>

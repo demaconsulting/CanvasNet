@@ -195,9 +195,11 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 - **Deterministic recursion limit and stack safety.** The recursion limit is counted (a frame counter), never
   measured, so a program succeeds or fails identically on every platform and stack size. The pass runs inline
   and, only when the runtime stack guard reports that the caller's stack is too small, is discarded and
-  restarted on a bounded number of dedicated large-stack threads (384 MiB reserved, committed only as touched),
-  exactly as the parser does. The restart is invisible because evaluation has no observable side effect until
-  the buffered events are delivered.
+  restarted on a bounded number of dedicated large-stack threads (`max(2, ProcessorCount)` threads, each reserving
+  384 MiB of address space that is committed only as touched: 768 MiB on one or two cores, 24 GiB on 64 cores; for
+  64-bit hosts, not supported in a 32-bit process or under strict overcommit), exactly as the parser does; a
+  caller waiting for a thread slot can be canceled. The restart is invisible because evaluation has no observable
+  side effect until the buffered events are delivered.
 - **File-access sandbox.** `include` and `use` are resolved before evaluation, on the calling thread, and only
   through the open options: files under the base directory or a library path, or, when a resolver callback is
   supplied, **only** that callback with no file-system access at all. Environment variables are never

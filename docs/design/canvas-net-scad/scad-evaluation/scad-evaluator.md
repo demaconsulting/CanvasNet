@@ -86,8 +86,9 @@ category by category) to the supplied handlers; a null handler is skipped and a 
 **Limit and hook constants.** `EvaluatorStackSize` (384 MiB), `FallbackThreadName` (`ScadEvaluator`),
 `MaxConcurrentFallbackThreads` (`Math.Max(2, Environment.ProcessorCount)`) enforced by a static
 `SemaphoreSlim`, the cancellation poll interval (1,024 steps), and the test hooks `LastRunThreadId` (per
-calling thread: the managed thread that completed that thread's latest evaluation), `FallbackCount`, and
-`PeakConcurrentFallbackThreads`.
+calling thread: the managed thread that completed that thread's latest evaluation), `FallbackCount`,
+`PeakConcurrentFallbackThreads`, `WaitingFallbackCallers` (the callers currently waiting for a slot), and
+`FallbackGateForTests` (the semaphore itself, so a test can hold slots).
 
 #### Key Methods
 
@@ -323,10 +324,14 @@ See _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Stack Safety_) for
 `Evaluate` holds no state between calls; the nominal recursion limit is a **counter**; the
 pass runs inline guarded by `RuntimeHelpers.EnsureSufficientExecutionStack`; and only
 `InsufficientExecutionStackException` (a property of the caller's stack, never of the nominal limit) causes the
-bounded restart on the `ScadEvaluator` thread. `RunOnEvaluatorThread` is a line-for-line mirror of the parser's
-`RunOnParserThread`: it waits for a slot of the static gate, starts a background thread with
-`EvaluatorStackSize`, joins it, releases the slot in `finally`, and rethrows a captured exception with
-`ExceptionDispatchInfo`; the caller's `CurrentCulture` and `CurrentUICulture` are applied to the thread.
+bounded restart on the `ScadEvaluator` thread. `RunOnEvaluatorThread(work, cancellation)` mirrors the parser's
+`RunOnParserThread` with one difference: it waits for a slot of the static gate with
+`SemaphoreSlim.Wait(cancellation)`, so **the wait is cancellable** — a canceled token ends it with
+`OperationCanceledException` before a slot is acquired (the wait is outside the `try` whose `finally` releases the
+slot, so a slot that was never acquired is never released, and a canceled wait leaks nothing). It then starts a
+background thread with `EvaluatorStackSize`, joins it, releases the slot in `finally`, and rethrows a captured
+exception with `ExceptionDispatchInfo`; the caller's `CurrentCulture` and `CurrentUICulture` are applied to the
+thread. The parser's gate has no token (the parser has no cancellation), so its wait is unchanged.
 
 _Measured stack figures._ For each worst-case shape at the ceiling `MaxRecursionDepth = 16,384`, the smallest
 **caller** stack on which the whole pass completes inline with the runtime guard active was found by
@@ -351,6 +356,28 @@ required margin of at least eight times, so `EvaluatorStackSize` is **384 MiB**:
 worst case and about twenty-two times the Release worst case, which also absorbs larger frames on other
 architectures and runtimes. The memory is reserved address space committed only as it is touched, and the
 gate bounds the reservation of a burst of concurrent small-stack callers.
+
+_Memory reservation and cost._ At most `max(2, ProcessorCount)` fallback threads exist at once and each reserves
+**384 MiB** of address space, so the worst-case reservation is the product: **768 MiB on one or two cores, 24 GiB
+on 64 cores**. The range is reserved, not committed. Measured on the development machine (Windows x64, .NET 10,
+Release; `Process.PrivateMemorySize64` and `VirtualMemorySize64` sampled every few milliseconds before, during, and
+after a tiny-stack caller evaluated a function recursion):
+
+| Scenario | Private bytes during (increase) | Virtual size during (increase) | After the thread ends |
+| -------- | ------------------------------- | ------------------------------ | --------------------- |
+| trivial program (recursion of 10) | +0.1 MiB | +771 MiB | back to baseline |
+| recursion of 2,498 levels (the default limit of 5,000 frames), 200 times | +19.3 MiB | +773 MiB | back to baseline |
+| recursion of 8,190 levels (the ceiling of 16,384 frames), 60 times | +20.9 MiB | +772 MiB | back to baseline |
+| plain idle thread created with a 384 MiB stack (no evaluator) | about 0 MiB | +767 MiB | back to baseline |
+
+The committed cost of a fallback thread is therefore about 20 MiB at the deepest legal recursion (consistent with
+the 17 MiB Release figure above) and about nothing for an ordinary program; the virtual size is what the reservation
+costs, and this operating system reports roughly twice the requested stack size. A fallback thread exists only
+while a pass that outgrew the caller's stack runs. The reservation is intended for **64-bit hosts**. It is **not
+supported in a 32-bit process** (the address space cannot hold even one reservation reliably) and may fail under
+strict overcommit accounting (for example `vm.overcommit_memory=2`) or a tight `ulimit -v`: thread creation then
+fails with the runtime's own exception, which propagates to the caller unchanged (a caller with such limits should
+evaluate on a thread that already has a large stack, which never needs the fallback).
 
 **Phase A warnings survive a restart**: the snapshot of the sink's warnings taken before the pass (for
 example `Can't open include file` from file loading) is re-recorded after the reset, a behavior pinned by a

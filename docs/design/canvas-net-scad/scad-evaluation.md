@@ -170,7 +170,8 @@ the calling thread is not acceptable:
 3. Only when that guard reports a short stack (`InsufficientExecutionStackException`, a property of the caller)
    is the pass **discarded and restarted** on a dedicated thread named `ScadEvaluator` with a **384 MiB**
    stack. The number of such threads running at once is bounded by a static `SemaphoreSlim` (`Max(2,
-   ProcessorCount)`), exceptions are rethrown on the caller with `ExceptionDispatchInfo`, and the caller's
+   ProcessorCount)`) that callers wait on **with their cancellation token**, so a queued caller can always be
+   abandoned, exceptions are rethrown on the caller with `ExceptionDispatchInfo`, and the caller's
    culture and UI culture are applied to the thread.
 4. The restart is invisible because phase B only fills the buffering sink, which is reset before the restart;
    the warnings recorded during phase A are re-recorded after the reset, the caller's resolver callback is not
@@ -179,7 +180,11 @@ the calling thread is not acceptable:
 The stack size was derived by measurement and is documented in _ScadEvaluator Unit Design_ (_Measured Stack
 Figures_); the worst case at the ceiling of 16,384 frames needs about 37 MiB in an unoptimized build, so the
 384 MiB reservation (address space committed only as touched) has a margin of about ten times, and the
-per-frame cost stays far below the 8 KiB at which the ceiling would have to be lowered.
+per-frame cost stays far below the 8 KiB at which the ceiling would have to be lowered. The reservation is
+at most `max(2, ProcessorCount)` threads times 384 MiB (768 MiB on one or two cores, 24 GiB on 64 cores) of address
+space; measured, a fallback thread commits about 0.1 MiB for an ordinary program and about 20 MiB at the deepest
+legal recursion. It is meant for 64-bit hosts and is not supported in a 32-bit process or under strict overcommit
+or a tight virtual-memory limit (see _ScadEvaluator Unit Design_, _Memory reservation and cost_).
 
 #### Resource Limits
 

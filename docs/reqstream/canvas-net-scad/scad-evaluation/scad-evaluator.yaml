@@ -558,11 +558,13 @@ sections:
                   the token is already canceled, shall stop promptly when it is canceled during
                   endless recursion, a huge loop, a large matrix product or the formatting of a huge
                   value, throwing OperationCanceledException that is never
-                  wrapped in an evaluation error, shall keep the events recorded before the
+                  wrapped in an evaluation error, shall also stop while it waits for a free
+                  dedicated-thread slot, shall keep the events recorded before the
                   cancellation, and shall evaluate normally when the token is never canceled.
                 justification: |
                   A caller must be able to abandon an evaluation that runs longer than it can afford,
-                  even when the step limit has been raised very high.
+                  even when the step limit has been raised very high, and even when it is queued
+                  behind other evaluations for a dedicated thread.
                 tests:
                   - ScadEvaluatorCancellation_AlreadyCanceled_ThrowsBeforeAnyResolverCall
                   - ScadEvaluatorCancellation_DuringEndlessTailRecursion_StopsAndKeepsEarlierEvents
@@ -571,6 +573,7 @@ sections:
                   - ScadEvaluatorCancellation_DuringLargeFormatting_Stops
                   - ScadEvaluatorCancellation_DuringIncludeLoading_StopsBeforeNextFile
                   - ScadEvaluatorCancellation_NotCanceled_EvaluatesNormally
+                  - ScadEvaluatorStack_Evaluate_CancelWhileWaitingForFallbackSlot_ThrowsOperationCanceled
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety
                 title: >-
@@ -581,7 +584,9 @@ sections:
                   program within the limits - including the largest recursion limit and values nested
                   256 levels deep - evaluates to the same result on any stack size, an over-limit
                   program fails identically, a normal program stays on the caller's thread, and
-                  exceptions and the caller's culture are preserved across the hop.
+                  exceptions and the caller's culture are preserved across the hop; a caller that
+                  finds every dedicated-thread slot taken shall wait for a slot and then proceed,
+                  and a canceled wait shall not leak a slot.
                 justification: |
                   A stack overflow cannot be caught and terminates the host process; the recursion
                   limit must hold regardless of how much stack the calling thread happens to have.
@@ -594,6 +599,8 @@ sections:
                   - ScadEvaluatorStack_Evaluate_NormalProgram_RunsOnCallerThread
                   - ScadEvaluatorStack_Evaluate_OnTinyCallerStack_PreservesExceptionsAndCulture
                   - ScadEvaluatorStack_Evaluate_ConcurrentTinyCallerStacks_BoundFallbackThreads
+                  - ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased
+                  - ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery
                 title: >-

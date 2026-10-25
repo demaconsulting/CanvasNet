@@ -204,7 +204,8 @@ sections:
           - id: CanvasNetScad-ScadEvaluation-Cancellation
             title: >-
               The ScadEvaluation subsystem shall observe a cancellation token during file loading and
-              during evaluation, including endless recursion and huge loops, and shall stop with an
+              during evaluation, including endless recursion, huge loops, and the wait for a
+              dedicated evaluation thread, and shall stop with an
               OperationCanceledException that is not wrapped, without any resolver call when the
               token is canceled beforehand.
             justification: |
