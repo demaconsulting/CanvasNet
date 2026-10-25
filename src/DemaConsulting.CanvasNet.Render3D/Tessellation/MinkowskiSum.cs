@@ -40,8 +40,12 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///     </para>
 ///     <para>
 ///         <b>Work and memory.</b> The sum generates <c>Va * Vb</c> points and hulls them: O(Va * Vb log(Va * Vb))
-///         time and O(Va * Vb) memory, bounded by <see cref="MaxPairwiseSums"/> (about 50 MB at the bound); each
-///         operand's convexity test is one hull of its own vertices. The work polls the cancellation token.
+///         time and O(Va * Vb) memory, bounded by <see cref="MaxPairwiseSums"/>; each operand's convexity test is
+///         one hull of its own vertices. The array of sums is the only copy of the point set (the hull sorts and
+///         de-duplicates it in place), so at the bound it is 2^21 points of 24 bytes (about 50 MB) and the peak is
+///         about 70 MB: that array plus about 9 bytes per point of construction tables (about 20 MB), plus face
+///         tables proportional to the size of the hull (about 70 bytes per hull vertex), which is far smaller
+///         than the point set for typical operands. The work polls the cancellation token.
 ///     </para>
 ///     <para>
 ///         <b>Failure contract.</b> A null operand throws <see cref="ArgumentNullException"/>. An operand
@@ -110,7 +114,80 @@ public static class MinkowskiSum
         cancellationToken.ThrowIfCancellationRequested();
         RequireConvex(b, weldedB, verticesB, nameof(b), cancellationToken);
 
-        // All pairwise sums, then their exact hull
+        return PairwiseHull(verticesA, verticesB, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Verifies once that an operand is a closed convex solid, so that <see cref="ConvexSumOfVerified"/> can
+    ///     skip the check for every sum the operand takes part in.
+    /// </summary>
+    /// <remarks>
+    ///     The checks and the exceptions are those of <see cref="ConvexSum"/> for one operand, including the
+    ///     tolerance; the cost is one convex hull of the operand's own vertices.
+    /// </remarks>
+    /// <param name="mesh">The operand.</param>
+    /// <param name="name">The operand name used in the exception messages.</param>
+    /// <param name="cancellationToken">A token that cancels the test.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the operand has no triangles or no volume.</exception>
+    /// <exception cref="NotSupportedException">Thrown when the operand is not provably a closed convex solid.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
+    internal static void RequireConvexSolid(Mesh mesh, string name, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        cancellationToken.ThrowIfCancellationRequested();
+        var welded = DistinctVertices(mesh, name, out var vertices);
+        cancellationToken.ThrowIfCancellationRequested();
+        RequireConvex(mesh, welded, vertices, name, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Computes the Minkowski sum of two operands that the caller has already verified, without verifying
+    ///     them again.
+    /// </summary>
+    /// <remarks>
+    ///     Verified operands are those that passed <see cref="RequireConvexSolid"/> or that are the output of
+    ///     <see cref="ConvexHull.Hull3D"/> or of a previous sum (convex by construction). The result is the same as
+    ///     <see cref="ConvexSum"/> gives; only the repeated convexity test is skipped. The work bound still applies.
+    /// </remarks>
+    /// <param name="a">The first operand, known to be a closed convex solid.</param>
+    /// <param name="b">The second operand, known to be a closed convex solid.</param>
+    /// <param name="cancellationToken">A token that cancels the computation.</param>
+    /// <returns>The mesh of the Minkowski sum.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an operand is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when an operand has no triangles or the vertex counts multiply to more than <see cref="MaxPairwiseSums"/>.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
+    internal static Mesh ConvexSumOfVerified(Mesh a, Mesh b, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        cancellationToken.ThrowIfCancellationRequested();
+        _ = DistinctVertices(a, nameof(a), out var verticesA);
+        cancellationToken.ThrowIfCancellationRequested();
+        _ = DistinctVertices(b, nameof(b), out var verticesB);
+        cancellationToken.ThrowIfCancellationRequested();
+        if ((long)verticesA.Length * verticesB.Length > MaxPairwiseSums)
+        {
+            throw new ArgumentException(
+                $"The operands have {verticesA.Length} and {verticesB.Length} vertices; their product exceeds the limit of {MaxPairwiseSums} pairwise sums.");
+        }
+
+        return PairwiseHull(verticesA, verticesB, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Computes the hull of all pairwise sums of two vertex sets.
+    /// </summary>
+    /// <remarks>
+    ///     The sums array is the only copy of the point set: it is handed to the hull, which sorts and
+    ///     de-duplicates it in place.
+    /// </remarks>
+    /// <param name="verticesA">The distinct vertices of the first operand.</param>
+    /// <param name="verticesB">The distinct vertices of the second operand.</param>
+    /// <param name="cancellationToken">A token that cancels the computation.</param>
+    /// <returns>The hull mesh.</returns>
+    private static Mesh PairwiseHull(Vector3D[] verticesA, Vector3D[] verticesB, CancellationToken cancellationToken)
+    {
         var sums = new Vector3D[verticesA.Length * verticesB.Length];
         var count = 0;
         var sincePoll = 0;
@@ -129,7 +206,7 @@ public static class MinkowskiSum
             }
         }
 
-        return ConvexHull.Hull3D(sums, cancellationToken);
+        return ConvexHull.Hull3DInPlace(sums, count, cancellationToken);
     }
 
     /// <summary>

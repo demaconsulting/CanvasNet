@@ -133,10 +133,10 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D) or no area (2D) | The hull is omitted |
 | `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
-| `scad-minkowski-nonconvex` | A `minkowski` has a child that is a boolean or a mesh that is not convex (within the Render3D tolerance), also a lone child | The module is omitted; the message carries the reason |
+| `scad-minkowski-nonconvex` | A `minkowski` has a child that is a boolean or a mesh that is not convex (within the Render3D tolerance), also a lone child | The module is omitted; the message names the child by its position and source location |
 | `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
 | `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
-| `scad-minkowski-too-complex` | A child has more than 4,096 convex parts, a fold step needs more than 4,096 convex sums, or two meshes have more than `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums | The module is omitted |
+| `scad-minkowski-too-complex` | A child has more than 4,096 convex parts, a fold step needs more than 4,096 convex sums, two meshes have more than `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums, or the module needs more than that many in total | The module is omitted |
 | `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
 | `scad-modifier-background` | The `%` modifier | The subtree is omitted |
 | `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `transparent`) | The geometry is drawn opaque |

@@ -61,8 +61,11 @@ internal sealed class HullBuilder3D
     /// <summary>The initial number of face slots.</summary>
     private const int InitialCapacity = 64;
 
-    /// <summary>The sorted distinct input points.</summary>
+    /// <summary>The sorted distinct input points; only the first <see cref="_count"/> entries are meaningful.</summary>
     private readonly Vector3D[] _points;
+
+    /// <summary>The number of sorted distinct input points (a prefix of <see cref="_points"/>).</summary>
+    private readonly int _count;
 
     /// <summary>The cancellation token polled during construction.</summary>
     private readonly CancellationToken _cancellationToken;
@@ -131,30 +134,33 @@ internal sealed class HullBuilder3D
     /// <summary>
     ///     Initializes a builder for sorted distinct points.
     /// </summary>
-    /// <param name="points">The sorted, canonicalized, distinct, finite points.</param>
+    /// <param name="points">The array that holds the sorted, canonicalized, distinct, finite points as a prefix.</param>
+    /// <param name="count">The number of points in the prefix.</param>
     /// <param name="cancellationToken">A token that cancels the construction.</param>
-    private HullBuilder3D(Vector3D[] points, CancellationToken cancellationToken)
+    private HullBuilder3D(Vector3D[] points, int count, CancellationToken cancellationToken)
     {
         _points = points;
+        _count = count;
         _cancellationToken = cancellationToken;
-        _startAt = new int[points.Length];
+        _startAt = new int[count];
         Array.Fill(_startAt, -1);
     }
 
     /// <summary>
     ///     Builds the hull mesh of sorted distinct points.
     /// </summary>
-    /// <param name="sortedPoints">The points in ascending lexicographic order without duplicates (finite, no negative zero).</param>
+    /// <param name="sortedPoints">An array whose first <paramref name="count"/> entries are the points in ascending lexicographic order without duplicates (finite, no negative zero); entries beyond the count are ignored.</param>
+    /// <param name="count">The number of points at the start of <paramref name="sortedPoints"/>.</param>
     /// <param name="cancellationToken">A token that cancels the construction.</param>
     /// <returns>The closed, outward-wound hull mesh.</returns>
     /// <exception cref="ArgumentException">Thrown when the points do not span a volume.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the internal closure check fails.</exception>
-    public static Mesh Build(Vector3D[] sortedPoints, CancellationToken cancellationToken)
+    public static Mesh Build(Vector3D[] sortedPoints, int count, CancellationToken cancellationToken)
     {
-        var builder = new HullBuilder3D(sortedPoints, cancellationToken);
+        var builder = new HullBuilder3D(sortedPoints, count, cancellationToken);
         var apex = builder.CreateInitialPolyhedron();
-        for (var i = apex + 1; i < sortedPoints.Length; i++)
+        for (var i = apex + 1; i < count; i++)
         {
             builder.Insert(i);
         }
@@ -171,17 +177,18 @@ internal sealed class HullBuilder3D
     private int CreateInitialPolyhedron()
     {
         var points = _points;
-        if (points.Length < 4)
+        var count = _count;
+        if (count < 4)
         {
             throw new ArgumentException(
-                $"The hull needs at least four distinct points, but only {points.Length} were given (degenerate input).");
+                $"The hull needs at least four distinct points, but only {count} were given (degenerate input).");
         }
 
         // The second point is the first one off the line through the first two points
         var first = points[0];
         var second = points[1];
         var third = -1;
-        for (var i = 2; i < points.Length && third < 0; i++)
+        for (var i = 2; i < count && third < 0; i++)
         {
             Charge(1);
             if (SolidPredicates.NonDegenerateProjection(first, second, points[i]) >= 0)
@@ -197,7 +204,7 @@ internal sealed class HullBuilder3D
 
         // The apex is the first point off the plane of the three; every earlier point lies in that plane
         var apex = -1;
-        for (var i = third + 1; i < points.Length && apex < 0; i++)
+        for (var i = third + 1; i < count && apex < 0; i++)
         {
             Charge(1);
             if (SolidPredicates.Orient3D(first, second, points[third], points[i]) != 0)
@@ -590,7 +597,7 @@ internal sealed class HullBuilder3D
         polygons.Sort(ComparePolygons);
 
         // Fan-triangulate each polygon from its first (lowest-index) corner and collect the used vertices
-        var used = new bool[_points.Length];
+        var used = new bool[_count];
         var triangles = new List<int>(3 * _liveFaces);
         foreach (var polygon in polygons)
         {
@@ -608,7 +615,7 @@ internal sealed class HullBuilder3D
         }
 
         // Map the corners to dense indices in sorted order
-        var map = new int[_points.Length];
+        var map = new int[_count];
         var vertices = new List<Vector3D>();
         for (var i = 0; i < used.Length; i++)
         {

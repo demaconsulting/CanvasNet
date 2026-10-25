@@ -165,3 +165,19 @@ sections:
                   - ConvexHull_Hull3D_LargeInput_CompletesWithEulerCounts
                   - ConvexHull_Hull3D_Canceled_ThrowsOperationCanceledException
                   - ConvexHull_Hull2D_Canceled_ThrowsOperationCanceledException
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-InputCopy
+                title: >-
+                  The ConvexHull Hull3D method shall copy its input exactly once, into a single array
+                  that is validated, canonicalized, sorted and de-duplicated in place (without an
+                  intermediate list or a resized copy), shall give the same mesh for an array, a list,
+                  a set and a lazy sequence of the same points, shall never modify the caller's
+                  collection, and shall allocate on the order of one array and the construction tables
+                  (not several copies of the point set) for a large input.
+                justification: |
+                  The Minkowski sum hulls up to two million points; each transient copy of the point
+                  set is tens of megabytes, so a single copy keeps the peak memory of a library call
+                  predictable.
+                tests:
+                  - ConvexHull_Hull3D_InputSequenceKinds_GiveTheSameMeshAndLeaveTheInputUntouched
+                  - ConvexHull_Hull3D_LargeInput_AllocatesTheInputOnlyOnce

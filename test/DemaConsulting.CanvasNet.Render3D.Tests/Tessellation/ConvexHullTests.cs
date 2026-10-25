@@ -615,6 +615,76 @@ public class ConvexHullTests
     }
 
     /// <summary>
+    ///     Validates that the kind of the input sequence (an array, a list, a set, a lazy sequence without a known
+    ///     count) changes nothing, that the caller's input is never modified, and that the in-place variant gives the
+    ///     same mesh.
+    /// </summary>
+    [Fact]
+    public void ConvexHull_Hull3D_InputSequenceKinds_GiveTheSameMeshAndLeaveTheInputUntouched()
+    {
+        // Arrange: a random cloud with repeated points and negative zeros
+        var random = new Random(7);
+        var cloud = Enumerable.Range(0, 5000).Select(_ => new Vector3D(random.Next(-8, 9), random.Next(-8, 9), random.Next(-8, 9))).ToList();
+        cloud.Add(new Vector3D(-0.0, 0.0, -0.0));
+        var array = cloud.ToArray();
+        var snapshot = array.ToArray();
+        var reference = Fingerprint(Hull3D(array));
+
+        // Act / Assert: the same mesh from every kind of sequence
+        Assert.Equal(reference, Fingerprint(Hull3D(cloud)));
+        Assert.Equal(reference, Fingerprint(Hull3D(new HashSet<Vector3D>(cloud))));
+        Assert.Equal(reference, Fingerprint(Hull3D(cloud.Select(p => p))));
+        Assert.Equal(reference, Fingerprint(Hull3D(Lazy(cloud))));
+
+        // Assert: the caller's array is not sorted, de-duplicated or canonicalized
+        Assert.Equal(snapshot, array);
+        Assert.True(double.IsNegative(array[^1].X));
+
+        // Assert: the in-place variant, which owns its array, gives the same mesh
+        var owned = cloud.ToArray();
+        Assert.Equal(reference, Fingerprint(ConvexHull.Hull3DInPlace(owned, owned.Length, TestContext.Current.CancellationToken)));
+
+        // Assert: the in-place variant processes only the first points of a longer array
+        var padded = cloud.Concat(Enumerable.Repeat(new Vector3D(1000, 1000, 1000), 10)).ToArray();
+        Assert.Equal(reference, Fingerprint(ConvexHull.Hull3DInPlace(padded, cloud.Count, TestContext.Current.CancellationToken)));
+    }
+
+    /// <summary>
+    ///     Validates that a large input is copied exactly once: the hull of an array of points allocates about the one
+    ///     array and the construction tables (roughly 33 bytes per point), where the list, the array copy and the
+    ///     resized copy of the earlier implementation needed more than 55.
+    /// </summary>
+    [Fact]
+    public void ConvexHull_Hull3D_LargeInput_AllocatesTheInputOnlyOnce()
+    {
+        // Arrange: points in a cube (a small hull) held in an array whose count is known
+        const int Count = 100_000;
+        var random = new Random(11);
+        var points = Enumerable.Range(0, Count).Select(_ => new Vector3D(random.NextDouble(), random.NextDouble(), random.NextDouble())).ToArray();
+        _ = Hull3D(points.Take(100).ToArray());
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var hull = Hull3D(points);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        Assert.True(hull.IsClosed);
+        Assert.True(allocated < 42L * Count, $"allocated {allocated} bytes for {Count} points");
+    }
+
+    /// <summary>Enumerates points lazily, so that the sequence has no known count.</summary>
+    /// <param name="points">The points.</param>
+    /// <returns>The points one by one.</returns>
+    private static IEnumerable<Vector3D> Lazy(IEnumerable<Vector3D> points)
+    {
+        foreach (var point in points)
+        {
+            yield return point;
+        }
+    }
+
+    /// <summary>
     ///     Validates that negative zero and exact duplicates are canonicalized: the output contains no negative
     ///     zero and equals the hull of the clean set byte for byte.
     /// </summary>

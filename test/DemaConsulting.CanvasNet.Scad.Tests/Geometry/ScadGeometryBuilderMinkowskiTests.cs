@@ -1,6 +1,8 @@
 // cspell:ignore minkowski Minkowski polyhedron
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.Tessellation;
+using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 
@@ -248,6 +250,206 @@ public class ScadGeometryBuilderMinkowskiTests
             Assert.Equal("scad-minkowski-too-complex", report.Feature);
             Assert.Empty(result.Meshes);
         }
+    }
+
+    /// <summary>
+    ///     Validates that the user-facing message of a non-convex child names the child by its position and source
+    ///     location, in the author's terms: no parameter names or wording of the Render3D exception, and no doubled
+    ///     punctuation.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_NonConvexChild_MessageNamesTheChildInUserTerms()
+    {
+        // Arrange
+        const string LShape = "linear_extrude(1) polygon([[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]])";
+
+        // Act: the second of three children, a lone child, and a boolean child
+        var second = Build($"minkowski() {{\n  cube(1);\n  {LShape};\n  cube(2);\n}}");
+        var lone = Build($"minkowski() {LShape};");
+        var boolean = Build("minkowski() {\n  cube(1);\n  difference() { cube(3); cube(2); }\n}");
+        var ring = Build("minkowski() { cube(1); cube(2); rotate_extrude($fn = 16) translate([3, 0]) square(1); }");
+
+        // Assert
+        var secondReport = Assert.Single(second.Unsupported);
+        Assert.Equal("scad-minkowski-nonconvex", secondReport.Feature);
+        Assert.Equal(
+            "minkowski: child 2 (at 3:3) is not a closed convex solid; only convex operands are supported and the minkowski is omitted",
+            secondReport.Message);
+        var loneReport = Assert.Single(lone.Unsupported);
+        Assert.Contains("child 1 (at 1:13) is not a closed convex solid;", loneReport.Message, StringComparison.Ordinal);
+        var booleanReport = Assert.Single(boolean.Unsupported);
+        Assert.Equal(
+            "minkowski: child 2 (at 3:3) contains a difference or an intersection, which is not provably convex; only convex operands are supported and the minkowski is omitted",
+            booleanReport.Message);
+        var ringReport = Assert.Single(ring.Unsupported);
+        Assert.Contains("child 3 (at 1:", ringReport.Message, StringComparison.Ordinal);
+        foreach (var report in new[] { secondReport, loneReport, booleanReport, ringReport })
+        {
+            Assert.DoesNotContain("'a'", report.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("'b'", report.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("operand '", report.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain(".;", report.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("..", report.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a child without volume (a closed, double-sided flat triangle) is rejected as geometry with a
+    ///     message that names the child, not the Render3D parameter, and that the module is omitted.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_ChildWithoutVolume_IsRejectedNamingTheChild()
+    {
+        // Arrange / Act
+        var result = Build("minkowski() {\n  cube(1);\n  polyhedron([[0, 0, 0], [1, 0, 0], [0, 1, 0]], [[0, 1, 2], [0, 2, 1]]);\n}");
+
+        // Assert
+        var report = Assert.Single(result.Unsupported);
+        Assert.Equal("scad-geometry-rejected", report.Feature);
+        Assert.Equal("minkowski: child 2 (at 3:3) has no volume; the minkowski is omitted", report.Message);
+        Assert.Empty(result.Meshes);
+    }
+
+    /// <summary>
+    ///     Validates that the cumulative work of one module is capped: the pair of two cylinders (1,026 and 2,042
+    ///     vertices, a product just under the 2^21 bound of one pair) is within the per-pair bound, but with the cost of
+    ///     verifying its members the total is over the module's cap, which is reported as too complex with the total in
+    ///     the message before the sum is computed; a fold of smaller steps that stays under the cap is accepted.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_CumulativeWorkAboveTheTotalCap_ReportsTooComplex()
+    {
+        // Arrange / Act
+        var over = Build("minkowski() { cylinder(h = 1, r = 1, $fn = 512); cylinder(h = 1, r = 1, $fn = 1020); }");
+        var within = Build("minkowski() { cylinder(h = 1, r = 1, $fn = 64); cylinder(h = 1, r = 1, $fn = 64); cylinder(h = 1, r = 1, $fn = 64); }");
+
+        // Assert: reported at the module, with the total (not the per-pair message), and omitted whole
+        var report = Assert.Single(over.Unsupported);
+        Assert.Equal("scad-minkowski-too-complex", report.Feature);
+        Assert.Equal(
+            $"minkowski: the children need more than {ScadHulls.MaxMinkowskiWork} pairwise vertex sums in total, which is above the supported work bound; the minkowski is omitted",
+            report.Message);
+        Assert.Empty(over.Meshes);
+        Assert.Equal(2_097_152, ScadHulls.MaxMinkowskiWork);
+        Assert.Empty(within.Features);
+        Assert.True(within.SingleMesh.IsClosed);
+    }
+    /// <summary>
+    ///     Validates the iterative appearance-stripping copy on a shared subtree: with the root holding [X, S], X
+    ///     holding P and P holding S, the second parent to reach S used to be completed before S was copied and the
+    ///     copy threw; every node is now copied once, after all its children, and S is shared by both parents of the
+    ///     copy.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_StripAppearances_SharedSubtree_IsCopiedOnceAndShared()
+    {
+        // Arrange: S is a colored group of one mesh; the root also holds X = [P] and P = [S]
+        var red = new NodeAppearance(new Rgba32(255, 0, 0, 255));
+        var mesh = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+        var leaf = new MeshNode(mesh) { Appearance = red };
+        var shared = new GroupNode([leaf]) { Appearance = red, Transform = Matrix4x4D.CreateTranslation(new Vector3D(1, 0, 0)) };
+        var p = new GroupNode([shared]) { Appearance = red };
+        var x = new GroupNode([p]);
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+
+        foreach (var children in new SceneNode[][] { [x, shared], [shared, x], [x, shared, shared] })
+        {
+            var root = new GroupNode(children) { Appearance = red };
+            var child = ScadGeo.FromSolid(root, mesh.Bounds, true, false);
+
+            // Act
+            var stripped = ScadHulls.StripAppearances(child, context);
+
+            // Assert: no appearance anywhere, same shape, and the shared node is one copy under both parents
+            var copy = Assert.IsType<GroupNode>(stripped.Node);
+            Assert.NotSame(root, copy);
+            Assert.Equal(children.Length, copy.Children.Count);
+            var all = Descendants(copy);
+            Assert.All(all, node => Assert.Null(node.Appearance));
+            var copiedX = Assert.IsType<GroupNode>(copy.Children[Array.IndexOf(children, x)]);
+            var copiedP = Assert.IsType<GroupNode>(Assert.Single(copiedX.Children));
+            var sharedViaP = Assert.IsType<GroupNode>(Assert.Single(copiedP.Children));
+            var sharedViaRoot = Assert.IsType<GroupNode>(copy.Children[Array.IndexOf(children, shared)]);
+            Assert.Same(sharedViaRoot, sharedViaP);
+            Assert.NotSame(shared, sharedViaP);
+            Assert.Equal(shared.Transform, sharedViaP.Transform);
+            Assert.Same(mesh, Assert.IsType<MeshNode>(Assert.Single(sharedViaP.Children)).Mesh);
+
+            // The nodes of the original are untouched
+            Assert.Same(red, shared.Appearance);
+            Assert.Same(shared, p.Children[0]);
+        }
+    }
+
+    /// <summary>
+    ///     Validates the appearance-stripping copy on a deep DAG: a chain of a hundred thousand groups whose two children
+    ///     are the same next group has 2^100000 paths, so the copy must visit each node once (and iteratively), and every
+    ///     copy must be shared by both of its parents.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce()
+    {
+        // Arrange: bottom is a mesh; each level has the level below twice
+        const int Depth = 100_000;
+        var red = new NodeAppearance(new Rgba32(255, 0, 0, 255));
+        SceneNode node = new MeshNode(PrimitiveTessellator.Box(new Vector3D(1, 1, 1))) { Appearance = red };
+        for (var i = 0; i < Depth; i++)
+        {
+            node = new CsgNode(CsgOperation.Union, [node, node]) { Appearance = red };
+        }
+
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+
+        // Act
+        var stripped = ScadHulls.StripAppearances(ScadGeo.FromSolid(node, BoundingBox3D.Empty, true, false), context);
+
+        // Assert: Depth + 1 distinct copies, none with an appearance, each shared by both children of its parent
+        var seen = 0;
+        var current = stripped.Node!;
+        while (current is CsgNode csg)
+        {
+            Assert.Null(csg.Appearance);
+            Assert.Equal(CsgOperation.Union, csg.Operation);
+            Assert.Same(csg.Children[0], csg.Children[1]);
+            current = csg.Children[0];
+            seen++;
+        }
+
+        Assert.Equal(Depth, seen);
+        Assert.Null(Assert.IsType<MeshNode>(current).Appearance);
+    }
+
+    /// <summary>
+    ///     Lists a scene node and everything below it, each distinct node once, walking iteratively.
+    /// </summary>
+    /// <param name="root">The root.</param>
+    /// <returns>The distinct nodes.</returns>
+    private static List<SceneNode> Descendants(SceneNode root)
+    {
+        var seen = new HashSet<SceneNode>(ReferenceEqualityComparer.Instance);
+        var stack = new Stack<SceneNode>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (!seen.Add(node))
+            {
+                continue;
+            }
+
+            var children = node switch
+            {
+                GroupNode group => group.Children,
+                CsgNode csg => csg.Children,
+                _ => [],
+            };
+            foreach (var child in children)
+            {
+                stack.Push(child);
+            }
+        }
+
+        return [.. seen];
     }
 
     /// <summary>

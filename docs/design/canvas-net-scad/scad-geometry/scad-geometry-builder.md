@@ -271,20 +271,42 @@ extruded, or made into a slab, by the unit that charges its exact triangles.
 **`minkowski`.** All flat children are `scad-minkowski-2d` (deferred). Each solid child reduces to its convex
 members: the meshes of its union-only scene tree, each brought into the module's frame with `Mesh.Transform`
 (which reverses the winding of a mirroring transform); a boolean is `scad-minkowski-nonconvex`, and a child with
-more than `MaxMinkowskiCombinations` (4,096) members is `scad-minkowski-too-complex`. The sum is folded from the
+more than `MaxMinkowskiCombinations` (4,096) members is `scad-minkowski-too-complex`. The number of sums of each
+fold step is the running product of the members counts, so a step of more than 4,096 sums is
+`scad-minkowski-too-complex` and is decided before any member is verified. **Every member is then verified once**
+(`MinkowskiSum.RequireConvexSolid`, one hull of the member's vertices; see _MinkowskiSum Unit Design_ in the
+Render3D _Tessellation_ subsystem): a member that is not provably a closed convex solid is
+`scad-minkowski-nonconvex`, and a member without volume is `scad-geometry-rejected`. The sum is folded from the
 left. Because `(A ∪ B) ⊕ C = (A ⊕ C) ∪ (B ⊕ C)`, the members of the accumulated result are summed pairwise with the
-members of the next child with `MinkowskiSum.ConvexSum`; a step of more than 4,096 sums, or a pair of meshes
+members of the next child with `MinkowskiSum.ConvexSumOfVerified`, which skips the repeated verification (the
+operands are verified members or earlier sums, which are hulls and convex by construction). A pair of meshes
 above `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums (decided on the distinct referenced vertices, only when
-the raw counts are over the bound), is `scad-minkowski-too-complex`. `ConvexSum` verifies that both operands are
-convex (see _MinkowskiSum Unit Design_ in the Render3D _Tessellation_ subsystem) and throws
-`NotSupportedException` otherwise (`scad-minkowski-nonconvex` with the reason in the message); any other
-`ArgumentException` (an operand without volume, for example) is `scad-geometry-rejected`. The module is
-all-or-nothing: the first report makes the whole `minkowski` empty, and one report is made. A single child is
-verified the same way by summing each of its members with a small tetrahedron (the sum is discarded: nothing is
-created or charged) and is then returned **unchanged**. The result is one `MeshNode` or a `GroupNode` of mesh
-nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
+the raw counts are over the bound) is `scad-minkowski-too-complex`.
 
-**Budget.** Each sum is charged with its exact triangle count right after `ConvexSum` returns and before its node
+The messages are written for the SCAD author and never embed the text of a Render3D exception: a failing child is
+named by its position among the children and its source location (`minkowski: child 2 (at 5:7) is not a closed
+convex solid; only convex operands are supported and the minkowski is omitted`), and a degenerate `hull` says that
+the points are fewer than four, collinear, or coplanar. The module is all-or-nothing: the first report makes the
+whole `minkowski` empty, and one report is made.
+
+**Cumulative work cap.** The bounds per step and per pair do not bound the total, so one `WorkMeter` per module
+adds up the work in pairwise vertex sums: each member verification costs its vertex count and each sum costs the
+product of its operands' vertex counts (distinct referenced vertices when the raw product is over the per-pair
+bound). A total above `MaxMinkowskiWork` (2^21 = 2,097,152, the bound of one maximal pair, so a module never does
+more pair work than one maximal sum) is reported as
+`scad-minkowski-too-complex` ("the children need more than 2097152 pairwise vertex sums in total") before the
+work that would exceed it is done.
+
+**Lone child.** A single child is verified the same way, member by member (nothing is created or charged), and its
+geometry and transforms are returned. When the child scene carries an appearance (a `color` inside the module),
+**the colors are stripped**: the child scene is copied without its appearances (and the one warning that colors
+inside `minkowski()` are not kept is reported), so that an enclosing `color` applies to the result. The copy
+(`StripAppearances`) is an iterative post-order depth-first walk: a node is copied only after all its children,
+and a node reached through several parents is copied once, so shared subtrees stay shared and the walk is linear
+in nodes plus edges; a child without any appearance is returned as it is. The result is one `MeshNode` or a
+`GroupNode` of mesh nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
+
+**Budget.** Each sum is charged with its exact triangle count right after `ConvexSumOfVerified` returns and before its node
 exists. The sums of every fold step but the last are scene-less temporaries: they are charged while they live (so
 the memory of a fold stays inside the budget) and refunded when the next step has consumed them, and on any
 failure everything not turned into a node is refunded. The operand meshes keep the charge they received when they

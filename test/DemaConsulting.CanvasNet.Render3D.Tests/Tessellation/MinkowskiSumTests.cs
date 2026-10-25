@@ -372,6 +372,49 @@ public class MinkowskiSumTests
     }
 
     /// <summary>
+    ///     Validates the internal pre-verification API a fold uses: <c>RequireConvexSolid</c> applies the checks of
+    ///     <see cref="MinkowskiSum.ConvexSum"/> to one operand, and <c>ConvexSumOfVerified</c> gives the byte-identical
+    ///     sum of verified operands while skipping the convexity test, keeping the argument and work checks.
+    /// </summary>
+    [Fact]
+    public void MinkowskiSum_ConvexSumOfVerified_VerifiedOperands_GiveTheSameSumWithoutTheTest()
+    {
+        // Arrange
+        var token = TestContext.Current.CancellationToken;
+        var sphere = PrimitiveTessellator.Sphere(2.0, 12);
+        var box = Render3DTestHelpers.CreateBoxMesh(new Vector3D(1, 2, 3), new Vector3D(1, 2, 3)).Transform(Matrix4x4D.CreateRotationZ(20.0));
+        var lShape = CreateNonConvex("L-prism");
+        var flat = new Mesh([Vector3D.Zero, Vector3D.UnitX, Vector3D.UnitY], [0, 1, 2, 0, 2, 1]);
+
+        // Act / Assert: verification passes for convex operands and fails like ConvexSum for the others
+        MinkowskiSum.RequireConvexSolid(sphere, "sphere", token);
+        MinkowskiSum.RequireConvexSolid(box, "box", token);
+        var notConvex = Assert.Throws<NotSupportedException>(() => MinkowskiSum.RequireConvexSolid(lShape, "child", token));
+        Assert.Contains("'child'", notConvex.Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() => MinkowskiSum.RequireConvexSolid(flat, "flat", token));
+        Assert.Throws<ArgumentNullException>(() => MinkowskiSum.RequireConvexSolid(null!, "none", token));
+
+        // Assert: the sum of verified operands is the sum, byte for byte, and of a verified sum with an operand too
+        var expected = Sum(sphere, box);
+        Assert.Equal(Fingerprint(expected), Fingerprint(MinkowskiSum.ConvexSumOfVerified(sphere, box, token)));
+        Assert.Equal(Fingerprint(Sum(expected, box)), Fingerprint(MinkowskiSum.ConvexSumOfVerified(expected, box, token)));
+
+        // Assert: no convexity test is made, so a non-convex operand gives the sum of its hull instead of an exception
+        var ofHull = MinkowskiSum.ConvexSumOfVerified(lShape, box, token);
+        Assert.Equal(Fingerprint(Sum(ConvexHull.Hull3D(lShape.Vertices, token), box)), Fingerprint(ofHull));
+
+        // Assert: the argument and work checks remain
+        Assert.Throws<ArgumentNullException>(() => MinkowskiSum.ConvexSumOfVerified(null!, box, token));
+        Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(new Mesh([], []), box, token));
+        var big = PrimitiveTessellator.Sphere(1.0, 60);
+        Assert.Throws<ArgumentException>(() => MinkowskiSum.ConvexSumOfVerified(big, big, token));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        Assert.Throws<OperationCanceledException>(() => MinkowskiSum.ConvexSumOfVerified(sphere, box, canceled.Token));
+        Assert.Throws<OperationCanceledException>(() => MinkowskiSum.RequireConvexSolid(sphere, "sphere", canceled.Token));
+    }
+
+    /// <summary>
     ///     Validates that vertex counts whose product exceeds <see cref="MinkowskiSum.MaxPairwiseSums"/> are rejected
     ///     immediately, before any convexity test or large allocation.
     /// </summary>

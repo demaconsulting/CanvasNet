@@ -105,12 +105,14 @@ sections:
               - CanvasNetRender3D-Tessellation-ConvexHull-ValidOperand
               - CanvasNetRender3D-Tessellation-ConvexHull-Hull2D
               - CanvasNetRender3D-Tessellation-ConvexHull-Bounds
+              - CanvasNetRender3D-Tessellation-ConvexHull-InputCopy
               - CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexSum
               - CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexityDetection
               - CanvasNetRender3D-Tessellation-MinkowskiSum-Validation
               - CanvasNetRender3D-Tessellation-MinkowskiSum-Determinism
               - CanvasNetRender3D-Tessellation-MinkowskiSum-ValidOperand
               - CanvasNetRender3D-Tessellation-MinkowskiSum-Cancellation
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-PreVerified
             tests:
               - Tessellation_ConvexHull_OfPrimitiveVertices_IsClosedAndAValidCsgOperand
               - Tessellation_MinkowskiSum_OfPrimitives_IsClosedValidAndRejectsNonConvexOperands

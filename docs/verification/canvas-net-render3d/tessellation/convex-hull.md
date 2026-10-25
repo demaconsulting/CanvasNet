@@ -156,6 +156,17 @@ Asserts the square, the degenerate results and the one-ulp classification descri
 Asserts the large-input and coplanar-prefix results within a generous time limit, and cancellation before and
 during the computation.
 
+##### CanvasNetRender3D-Tessellation-ConvexHull-InputCopy: The Input Is Copied Once
+
+**Tests**: `ConvexHullTests.ConvexHull_Hull3D_InputSequenceKinds_GiveTheSameMeshAndLeaveTheInputUntouched`,
+`ConvexHullTests.ConvexHull_Hull3D_LargeInput_AllocatesTheInputOnlyOnce`
+
+Asserts that an array, a list, a set, a projected and a lazy sequence of the same points (with duplicates and
+negative zero) give the same mesh, that the caller's array is neither sorted nor canonicalized, that the in-place
+variant gives the same mesh and honors a shorter length than its array, and that hulling 100,000 points allocates
+less than 42 bytes per point (one 24-byte array and about 9 bytes of construction tables, where the list, array and
+resized copies of the earlier implementation needed more than 55).
+
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario above passes without error or exception beyond those

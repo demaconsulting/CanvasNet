@@ -35,12 +35,18 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         <c>(A u B) + C = (A + C) u (B + C)</c> the members of the accumulated result are summed pairwise with
 ///         the members of the next child (at most <see cref="MaxMinkowskiCombinations"/> sums per step, else
 ///         <see cref="ScadFeatureIds.MinkowskiTooComplex"/>, as is a pair of meshes above the
-///         <see cref="MinkowskiSum.MaxPairwiseSums"/> bound). <see cref="MinkowskiSum.ConvexSum"/> proves each
-///         operand convex (within its documented tolerance) or refuses; a child that contains a boolean or a mesh
-///         that is not convex is reported (<see cref="ScadFeatureIds.MinkowskiNonConvex"/>) and the module is
-///         omitted as a whole. A 2D <c>minkowski</c> is deferred (<see cref="ScadFeatureIds.Minkowski2D"/>). A
-///         module with one child is that child's geometry, after its convexity has been verified in the same way and
-///         any child appearances have been stripped.
+///         <see cref="MinkowskiSum.MaxPairwiseSums"/> bound). Each member of each child is verified once, up front
+///         (<see cref="MinkowskiSum.RequireConvexSolid"/> proves it convex within its documented tolerance or
+///         refuses), and the sums then skip the repeated test: the sums of a fold are convex hulls and need none.
+///         The work of the whole module is capped as well: a member verification costs its vertex count and a sum
+///         the product of its operands' vertex counts, and a total above <see cref="MaxMinkowskiWork"/> pairwise
+///         vertex sums is reported as <see cref="ScadFeatureIds.MinkowskiTooComplex"/>, so many steps of moderate
+///         size cannot add up to unbounded work. A child that contains a boolean or a mesh that is not convex is
+///         reported (<see cref="ScadFeatureIds.MinkowskiNonConvex"/>) naming the child by its position and source
+///         location, and the module is omitted as a whole. A 2D <c>minkowski</c> is deferred
+///         (<see cref="ScadFeatureIds.Minkowski2D"/>). A module with one child is that child's geometry and
+///         transforms, after its members have been verified in the same way, with any child appearances stripped (a
+///         warning says so) so that an enclosing <c>color</c> applies.
 ///     </para>
 ///     <para>
 ///         <b>Budget and cancellation.</b> The triangle count of a hull or a sum is known only once it is built
@@ -66,11 +72,33 @@ internal static class ScadHulls
     internal const int MaxMinkowskiCombinations = 4096;
 
     /// <summary>
-    ///     A small convex solid (a tetrahedron) summed with a lone child to verify its convexity; the sum is discarded.
+    ///     The most work, counted in pairwise vertex sums, that one <c>minkowski</c> may do in total (2^21, the bound
+    ///     of one pair of meshes). Every convex sum costs the product of the vertex counts of its two operands and
+    ///     every member verification costs its vertex count, so neither many small steps nor a few large ones can
+    ///     run unbounded: a module does at most the work of one maximal pair. Above it the module is reported as too
+    ///     complex.
     /// </summary>
-    private static readonly Mesh ConvexityProbe = new(
-        [new Vector3D(0.0, 0.0, 0.0), new Vector3D(1.0, 0.0, 0.0), new Vector3D(0.0, 1.0, 0.0), new Vector3D(0.0, 0.0, 1.0)],
-        [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]);
+    internal const long MaxMinkowskiWork = MinkowskiSum.MaxPairwiseSums;
+
+    /// <summary>
+    ///     The running total of the work of one <c>minkowski</c>, in pairwise vertex sums.
+    /// </summary>
+    private sealed class WorkMeter
+    {
+        /// <summary>Gets the work charged so far.</summary>
+        public long Used { get; private set; }
+
+        /// <summary>
+        ///     Charges work.
+        /// </summary>
+        /// <param name="cost">The work in pairwise vertex sums.</param>
+        /// <returns><see langword="true"/> when the total is still within <see cref="MaxMinkowskiWork"/>.</returns>
+        public bool TryCharge(long cost)
+        {
+            Used += cost;
+            return Used <= MaxMinkowskiWork;
+        }
+    }
 
     /// <summary>
     ///     The meshes below a set of children, each with the matrix that takes it into the frame of the module.
@@ -124,7 +152,17 @@ internal static class ScadHulls
     public static ScadGeo Minkowski(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
     {
         var instance = node!;
-        var children = results.Where(r => r.Kind != ScadGeoKind.Empty).ToList();
+        var children = new List<ScadGeo>();
+        var labels = new List<string>();
+        for (var i = 0; i < results.Count; i++)
+        {
+            if (results[i].Kind != ScadGeoKind.Empty)
+            {
+                children.Add(results[i]);
+                labels.Add(DescribeChild(instance, results.Count, i));
+            }
+        }
+
         if (children.Count == 0)
         {
             return ScadGeo.Empty;
@@ -149,8 +187,21 @@ internal static class ScadHulls
             return ScadGeo.Empty;
         }
 
-        return MinkowskiSolids(instance, children, context);
+        return MinkowskiSolids(instance, children, labels, context);
     }
+
+    /// <summary>
+    ///     Describes a child of a module for a message a SCAD author can follow: its position among the children
+    ///     and, when known, the source location of the instance.
+    /// </summary>
+    /// <param name="node">The module instance.</param>
+    /// <param name="resultCount">The number of results of the children (one per child instance).</param>
+    /// <param name="index">The zero-based position of the child.</param>
+    /// <returns>For example <c>child 2 (at 5:7)</c>.</returns>
+    private static string DescribeChild(ScadInstance node, int resultCount, int index) =>
+        node.Children.Count == resultCount
+            ? $"child {index + 1} (at {node.Children[index].Location})"
+            : $"child {index + 1}";
 
     /// <summary>
     ///     Builds the hull of solid children.
@@ -176,11 +227,11 @@ internal static class ScadHulls
         {
             mesh = ConvexHull.Hull3D(points, context.Cancellation);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.Reporter.Unsupported(
                 ScadFeatureIds.HullDegenerate,
-                $"hull: the points do not span a volume ({ex.Message}); the hull is omitted",
+                "hull: the points do not span a volume (fewer than four distinct points, or all on one line or in one plane); the hull is omitted",
                 node.Location);
             return ScadGeo.Empty;
         }
@@ -383,42 +434,65 @@ internal static class ScadHulls
     /// </summary>
     /// <param name="node">The instance.</param>
     /// <param name="children">The solid children (at least one).</param>
+    /// <param name="labels">One description of each child for messages (position and location).</param>
     /// <param name="context">The build context.</param>
     /// <returns>The sum, or nothing after a report.</returns>
-    private static ScadGeo MinkowskiSolids(ScadInstance node, List<ScadGeo> children, ScadGeometryContext context)
+    private static ScadGeo MinkowskiSolids(ScadInstance node, List<ScadGeo> children, List<string> labels, ScadGeometryContext context)
     {
         try
         {
             var members = new List<List<Mesh>>();
             var hasAppearance = false;
-            foreach (var child in children)
+            for (var c = 0; c < children.Count; c++)
             {
-                var parts = Collect([child], context);
+                var parts = Collect([children[c]], context);
                 hasAppearance |= parts.HasAppearance;
                 if (parts.HasBoolean)
                 {
-                    ReportNonConvex(node, context, "a child contains a difference or an intersection, which is not provably convex");
+                    ReportNonConvex(node, context, $"{labels[c]} contains a difference or an intersection, which is not provably convex");
                     return ScadGeo.Empty;
                 }
 
                 if (parts.Meshes.Count > MaxMinkowskiCombinations)
                 {
-                    ReportTooComplex(node, context, $"a child has {parts.Meshes.Count} convex parts");
+                    ReportTooComplex(node, context, $"{labels[c]} has {parts.Meshes.Count} convex parts");
                     return ScadGeo.Empty;
                 }
 
                 members.Add(InFrame(parts, context));
             }
 
+            // Every step multiplies the number of members (a sum is made of every pair), so the last step is the largest
+            long pairs = members[0].Count;
+            for (var step = 1; step < members.Count; step++)
+            {
+                pairs *= members[step].Count;
+                if (pairs > MaxMinkowskiCombinations)
+                {
+                    ReportTooComplex(node, context, $"a step needs {pairs} convex sums");
+                    return ScadGeo.Empty;
+                }
+            }
+
             WarnColors(node, hasAppearance, context);
-            return members.Count == 1
-                ? VerifyLoneChild(node, children[0], members[0], hasAppearance, context)
-                : Fold(node, members, context);
-        }
-        catch (NotSupportedException ex)
-        {
-            ReportNonConvex(node, context, ex.Message);
-            return ScadGeo.Empty;
+
+            // Each member is verified once here; the sums of the fold then skip the repeated test
+            var meter = new WorkMeter();
+            for (var c = 0; c < members.Count; c++)
+            {
+                var label = labels[c];
+                if (members[c].Any(member => !VerifyMember(node, label, member, meter, context)))
+                {
+                    return ScadGeo.Empty;
+                }
+            }
+
+            if (members.Count > 1)
+            {
+                return Fold(node, members, meter, context);
+            }
+
+            return hasAppearance ? StripAppearances(children[0], context) : children[0];
         }
         catch (ArgumentException ex)
         {
@@ -427,6 +501,49 @@ internal static class ScadHulls
                 $"minkowski: the geometry was rejected: {ex.Message}; the minkowski is omitted",
                 node.Location);
             return ScadGeo.Empty;
+        }
+    }
+
+    /// <summary>
+    ///     Verifies that one convex member of a child is a closed convex solid, charging the work of the test.
+    /// </summary>
+    /// <remarks>
+    ///     The test is one hull of the vertices of the member. A lone child needs nothing else: a sum with a point
+    ///     would be the child itself, so a verified lone child is returned as it is (without appearances), nothing
+    ///     is created and nothing is charged against the triangle budget.
+    /// </remarks>
+    /// <param name="node">The instance.</param>
+    /// <param name="label">The description of the child the member belongs to.</param>
+    /// <param name="member">The member.</param>
+    /// <param name="meter">The work meter of the module.</param>
+    /// <param name="context">The build context.</param>
+    /// <returns><see langword="true"/> when the member is verified; <see langword="false"/> after a report.</returns>
+    private static bool VerifyMember(ScadInstance node, string label, Mesh member, WorkMeter meter, ScadGeometryContext context)
+    {
+        context.Poll();
+        if (!meter.TryCharge(member.VertexCount))
+        {
+            ReportTotalWork(node, context);
+            return false;
+        }
+
+        try
+        {
+            MinkowskiSum.RequireConvexSolid(member, "operand", context.Cancellation);
+            return true;
+        }
+        catch (NotSupportedException)
+        {
+            ReportNonConvex(node, context, $"{label} is not a closed convex solid");
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            context.Reporter.Unsupported(
+                ScadFeatureIds.GeometryRejected,
+                $"minkowski: {label} has no volume; the minkowski is omitted",
+                node.Location);
+            return false;
         }
     }
 
@@ -449,59 +566,27 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Verifies that a lone child is convex (a sum with a point would be the child itself) and returns its geometry
-    ///     without child appearances.
-    /// </summary>
-    /// <remarks>
-    ///     The sum with a small tetrahedron makes <see cref="MinkowskiSum.ConvexSum"/> verify the member; the sum is
-    ///     discarded, so nothing is created and nothing is charged. The child scene is cloned iteratively only when
-    ///     it carries an appearance, preserving every mesh, transform, group, and CSG node while removing the
-    ///     appearance wrappers so an enclosing color can apply.
-    /// </remarks>
-    /// <param name="node">The instance.</param>
-    /// <param name="child">The child.</param>
-    /// <param name="members">The convex members of the child.</param>
-    /// <param name="hasAppearance">Whether the child scene carries an appearance.</param>
-    /// <param name="context">The build context.</param>
-    /// <returns>The verified child geometry, or nothing after a report.</returns>
-    private static ScadGeo VerifyLoneChild(
-        ScadInstance node,
-        ScadGeo child,
-        List<Mesh> members,
-        bool hasAppearance,
-        ScadGeometryContext context)
-    {
-        foreach (var member in members)
-        {
-            context.Poll();
-            if (!PairWithinLimit(member, ConvexityProbe))
-            {
-                ReportTooComplex(node, context, "a child has too many vertices to verify");
-                return ScadGeo.Empty;
-            }
-
-            _ = MinkowskiSum.ConvexSum(member, ConvexityProbe, context.Cancellation);
-        }
-
-        return hasAppearance ? StripAppearances(child, context) : child;
-    }
-
-    /// <summary>
     ///     Removes appearances from a lone Minkowski child without changing its geometry or local transforms.
     /// </summary>
     /// <remarks>
-    ///     The geometry builder must remain safe for deeply nested models, so this scene copy uses an explicit
-    ///     post-order stack rather than recursive calls. A reference map also preserves shared group or CSG
-    ///     subtrees if one is present.
+    ///     <para>
+    ///         The geometry builder must remain safe for deeply nested models, so this scene copy is an iterative
+    ///         post-order depth-first walk with an explicit stack rather than recursive calls. The copy of a node is
+    ///         made only after every child has been copied: a node is expanded by pushing its completion frame and
+    ///         then every child that has no copy yet, so a child still waiting deeper in the stack is simply
+    ///         processed first and its stale frame is skipped when it surfaces. A node therefore has exactly one
+    ///         copy however many parents reach it, which preserves shared (DAG-shaped) group or CSG subtrees, and
+    ///         the walk takes time linear in the number of nodes and edges. The scene is immutable, so it has no
+    ///         cycles.
+    ///     </para>
     /// </remarks>
     /// <param name="child">The solid child whose appearances are to be removed.</param>
-    /// <param name="context">The build context.</param>
+    /// <param name="context">The build context (cancellation and the work counter are polled per frame).</param>
     /// <returns>A solid with the same geometry and transforms and no appearances.</returns>
-    private static ScadGeo StripAppearances(ScadGeo child, ScadGeometryContext context)
+    internal static ScadGeo StripAppearances(ScadGeo child, ScadGeometryContext context)
     {
         var root = child.Node!;
         var copies = new Dictionary<SceneNode, SceneNode>(ReferenceEqualityComparer.Instance);
-        var scheduled = new HashSet<SceneNode>(ReferenceEqualityComparer.Instance) { root };
         var stack = new Stack<(SceneNode Node, bool Expanded)>();
         stack.Push((root, false));
 
@@ -509,22 +594,30 @@ internal static class ScadHulls
         {
             context.Tick();
             var (node, expanded) = stack.Pop();
+
+            // A shared node reached again after it was copied (or a duplicate frame of one that was) is done
+            if (copies.ContainsKey(node))
+            {
+                continue;
+            }
+
             if (!expanded)
             {
                 stack.Push((node, true));
                 switch (node)
                 {
                     case GroupNode group:
-                        PushCopyChildren(stack, group.Children, scheduled);
+                        PushPendingChildren(stack, group.Children, copies);
                         break;
                     case CsgNode csg:
-                        PushCopyChildren(stack, csg.Children, scheduled);
+                        PushPendingChildren(stack, csg.Children, copies);
                         break;
                 }
 
                 continue;
             }
 
+            // Every child below the completion frame has been processed, so each one has a copy
             SceneNode copy = node switch
             {
                 MeshNode mesh => new MeshNode(mesh.Mesh) { Transform = mesh.Transform },
@@ -545,19 +638,19 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Pushes scene children in reverse order for the iterative appearance-stripping walk.
+    ///     Pushes, in reverse order, every child that is still pending (has no copy yet) for the iterative appearance-stripping walk.
     /// </summary>
     /// <param name="stack">The walk stack.</param>
     /// <param name="children">The children.</param>
-    /// <param name="scheduled">The nodes already scheduled for copying.</param>
-    private static void PushCopyChildren(
+    /// <param name="copies">The copies made so far.</param>
+    private static void PushPendingChildren(
         Stack<(SceneNode Node, bool Expanded)> stack,
         IReadOnlyList<SceneNode> children,
-        HashSet<SceneNode> scheduled)
+        Dictionary<SceneNode, SceneNode> copies)
     {
         for (var i = children.Count - 1; i >= 0; i--)
         {
-            if (scheduled.Add(children[i]))
+            if (!copies.ContainsKey(children[i]))
             {
                 stack.Push((children[i], false));
             }
@@ -568,27 +661,21 @@ internal static class ScadHulls
     ///     Folds the Minkowski sum over the members of two or more children.
     /// </summary>
     /// <param name="node">The instance.</param>
-    /// <param name="members">The convex members of each child (at least two children).</param>
+    /// <param name="members">The convex members of each child (at least two children), each already verified.</param>
+    /// <param name="meter">The work meter of the module, shared with the verification of the members.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The sum, or nothing after a report.</returns>
-    private static ScadGeo Fold(ScadInstance node, List<List<Mesh>> members, ScadGeometryContext context)
+    private static ScadGeo Fold(ScadInstance node, List<List<Mesh>> members, WorkMeter meter, ScadGeometryContext context)
     {
         var accumulated = members[0];
         var charges = new FoldCharges();
         var completed = false;
         try
         {
+            // The number of sums of each step was bounded before the members were verified
             for (var step = 1; step < members.Count; step++)
             {
-                var next = members[step];
-                var pairs = (long)accumulated.Count * next.Count;
-                if (pairs > MaxMinkowskiCombinations)
-                {
-                    ReportTooComplex(node, context, $"a step needs {pairs} convex sums");
-                    return ScadGeo.Empty;
-                }
-
-                var produced = SumStep(node, accumulated, next, context, charges);
+                var produced = SumStep(node, accumulated, members[step], meter, context, charges);
                 if (produced is null)
                 {
                     return ScadGeo.Empty;
@@ -628,6 +715,7 @@ internal static class ScadHulls
     /// <param name="node">The instance.</param>
     /// <param name="accumulated">The accumulated members.</param>
     /// <param name="next">The members of the next child.</param>
+    /// <param name="meter">The work meter of the module.</param>
     /// <param name="context">The build context.</param>
     /// <param name="charges">The charges of the temporary sums; updated as sums are created and consumed.</param>
     /// <returns>The sums, or <see langword="null"/> after a pair above the work bound was reported.</returns>
@@ -635,6 +723,7 @@ internal static class ScadHulls
         ScadInstance node,
         List<Mesh> accumulated,
         List<Mesh> next,
+        WorkMeter meter,
         ScadGeometryContext context,
         FoldCharges charges)
     {
@@ -645,13 +734,21 @@ internal static class ScadHulls
             foreach (var right in next)
             {
                 context.Poll();
-                if (!PairWithinLimit(left, right))
+                var cost = PairCost(left, right);
+                if (cost > MinkowskiSum.MaxPairwiseSums)
                 {
                     ReportTooComplex(node, context, $"two parts have too many vertices to sum (limit {MinkowskiSum.MaxPairwiseSums} pairwise sums)");
                     return null;
                 }
 
-                var sum = MinkowskiSum.ConvexSum(left, right, context.Cancellation);
+                if (!meter.TryCharge(cost))
+                {
+                    ReportTotalWork(node, context);
+                    return null;
+                }
+
+                // Both operands are verified members or sums (hulls), so the repeated convexity test is skipped
+                var sum = MinkowskiSum.ConvexSumOfVerified(left, right, context.Cancellation);
                 context.ChargeTriangles(sum.TriangleCount, node.Location);
                 charges.Step += sum.TriangleCount;
                 sums.Add(sum);
@@ -690,20 +787,16 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Checks whether the pairwise sums of two meshes are within the documented bound, counting distinct
-    ///     referenced vertices only when the raw vertex counts are over it.
+    ///     Gets the work of summing two meshes in pairwise vertex sums: the product of their vertex counts, with
+    ///     distinct referenced vertices counted only when the raw product is over the bound of one pair.
     /// </summary>
     /// <param name="a">The first mesh.</param>
     /// <param name="b">The second mesh.</param>
-    /// <returns><see langword="true"/> when the number of pairwise sums is at most <see cref="MinkowskiSum.MaxPairwiseSums"/>.</returns>
-    private static bool PairWithinLimit(Mesh a, Mesh b)
+    /// <returns>The number of pairwise sums; above <see cref="MinkowskiSum.MaxPairwiseSums"/> the pair is too large.</returns>
+    private static long PairCost(Mesh a, Mesh b)
     {
-        if ((long)a.VertexCount * b.VertexCount <= MinkowskiSum.MaxPairwiseSums)
-        {
-            return true;
-        }
-
-        return (long)DistinctVertexCount(a) * DistinctVertexCount(b) <= MinkowskiSum.MaxPairwiseSums;
+        var raw = (long)a.VertexCount * b.VertexCount;
+        return raw <= MinkowskiSum.MaxPairwiseSums ? raw : (long)DistinctVertexCount(a) * DistinctVertexCount(b);
     }
 
     /// <summary>
@@ -731,12 +824,20 @@ internal static class ScadHulls
     /// </summary>
     /// <param name="node">The instance.</param>
     /// <param name="context">The build context.</param>
-    /// <param name="reason">The reason.</param>
+    /// <param name="reason">The reason, as a plain description that names the child (it ends without punctuation).</param>
     private static void ReportNonConvex(ScadInstance node, ScadGeometryContext context, string reason) =>
         context.Reporter.Unsupported(
             ScadFeatureIds.MinkowskiNonConvex,
             $"minkowski: {reason}; only convex operands are supported and the minkowski is omitted",
             node.Location);
+
+    /// <summary>
+    ///     Reports that the cumulative work of the module is above the bound.
+    /// </summary>
+    /// <param name="node">The instance.</param>
+    /// <param name="context">The build context.</param>
+    private static void ReportTotalWork(ScadInstance node, ScadGeometryContext context) =>
+        ReportTooComplex(node, context, $"the children need more than {MaxMinkowskiWork} pairwise vertex sums in total");
 
     /// <summary>
     ///     Reports work above the documented bounds.

@@ -34,8 +34,10 @@ namespace DemaConsulting.CanvasNet.Render3D.Tessellation;
 ///         sorted order; an insertion costs time proportional to the faces it replaces plus the faces around
 ///         the previously inserted vertex, which is O(n log n) in total for typical input and O(n * h) in the
 ///         worst case (h = number of hull vertices, for example adversarial cyclic-polytope-like input).
-///         Memory is O(n) and the result has at most <c>2n - 4</c> triangles. The hull is computed in internal
-///         arrays and only then is a <see cref="Mesh"/> allocated. The operation is single-threaded and
+///         Memory is O(n) and the result has at most <c>2n - 4</c> triangles: the input is copied exactly once into
+///         one array of 24 bytes per point, which is validated, sorted and de-duplicated in place (no list, no
+///         second array), and the construction adds about 9 bytes per point plus face tables proportional to the
+///         hull. The hull is computed in internal arrays and only then is a <see cref="Mesh"/> allocated. The operation is single-threaded and
 ///         polls the cancellation token regularly (sorting itself cannot be interrupted).
 ///     </para>
 ///     <para>
@@ -79,8 +81,24 @@ public static class ConvexHull
         cancellationToken.ThrowIfCancellationRequested();
 
         // Reduce to the sorted distinct point set so the result cannot depend on order or repetition
-        var sorted = CopySortedDistinct3D(points, cancellationToken);
-        return HullBuilder3D.Build(sorted, cancellationToken);
+        var copy = Materialize3D(points, cancellationToken, out var length);
+        return Hull3DInPlace(copy, length, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Computes the hull of the first <paramref name="length"/> points of an array the caller hands over: the
+    ///     points are validated, canonicalized, sorted and de-duplicated in place, so no second copy of a large
+    ///     point set exists, and the array content is unspecified afterwards.
+    /// </summary>
+    /// <param name="points">The array that holds the points as a prefix; it belongs to the call.</param>
+    /// <param name="length">The number of points.</param>
+    /// <param name="cancellationToken">A token that cancels the computation.</param>
+    /// <returns>The hull mesh (the same mesh as <see cref="Hull3D"/> gives for these points).</returns>
+    /// <exception cref="ArgumentException">Thrown when a coordinate is not finite or the points span no volume.</exception>
+    internal static Mesh Hull3DInPlace(Vector3D[] points, int length, CancellationToken cancellationToken)
+    {
+        var distinct = SortDistinct3D(points, length, cancellationToken);
+        return HullBuilder3D.Build(points, distinct, cancellationToken);
     }
 
     /// <summary>
@@ -189,48 +207,77 @@ public static class ConvexHull
     }
 
     /// <summary>
-    ///     Copies, validates and canonicalizes a point sequence into a sorted array of distinct points.
+    ///     Copies a point sequence into one array (no intermediate list).
     /// </summary>
     /// <param name="points">The input points.</param>
     /// <param name="cancellationToken">A token that cancels the copy.</param>
-    /// <returns>The distinct points in ascending lexicographic order (X, then Y, then Z).</returns>
-    /// <exception cref="ArgumentException">Thrown when a coordinate is not finite.</exception>
-    private static Vector3D[] CopySortedDistinct3D(IEnumerable<Vector3D> points, CancellationToken cancellationToken)
+    /// <param name="length">Receives the number of points copied, a prefix of the returned array.</param>
+    /// <returns>The one array that holds the points; entries after <paramref name="length"/> are unused.</returns>
+    private static Vector3D[] Materialize3D(IEnumerable<Vector3D> points, CancellationToken cancellationToken, out int length)
     {
-        // Copy while validating; adding zero turns negative zero into positive zero so that equal points compare equal
-        var list = new List<Vector3D>(points is ICollection<Vector3D> collection ? collection.Count : 0);
-        var counter = 0;
+        // One array: sized exactly when the count is known without enumerating, grown by doubling otherwise
+        var array = new Vector3D[points.TryGetNonEnumeratedCount(out var known) ? known : 4];
+        length = 0;
         foreach (var point in points)
         {
+            // Never write past the array, even for a sequence that grows while it is copied
+            if (length == array.Length)
+            {
+                Array.Resize(ref array, Math.Max(4, length * 2));
+            }
+
+            array[length++] = point;
+            if (length % PollInterval == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        return array;
+    }
+
+    /// <summary>
+    ///     Validates, canonicalizes, sorts and de-duplicates the first points of an array, all in place.
+    /// </summary>
+    /// <param name="points">The array; its prefix becomes the sorted distinct points.</param>
+    /// <param name="length">The number of points to process.</param>
+    /// <param name="cancellationToken">A token that cancels the work.</param>
+    /// <returns>The number of distinct points, which now form the prefix of the array in ascending lexicographic order (X, then Y, then Z).</returns>
+    /// <exception cref="ArgumentException">Thrown when a coordinate is not finite.</exception>
+    private static int SortDistinct3D(Vector3D[] points, int length, CancellationToken cancellationToken)
+    {
+        // Adding zero turns negative zero into positive zero so that equal points compare equal
+        for (var i = 0; i < length; i++)
+        {
+            var point = points[i];
             if (!point.IsFinite)
             {
                 throw new ArgumentException("Every point coordinate must be finite.", nameof(points));
             }
 
-            if (++counter % PollInterval == 0)
+            points[i] = new Vector3D(point.X + 0.0, point.Y + 0.0, point.Z + 0.0);
+            if ((i + 1) % PollInterval == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
-
-            list.Add(new Vector3D(point.X + 0.0, point.Y + 0.0, point.Z + 0.0));
         }
 
-        var array = list.ToArray();
         cancellationToken.ThrowIfCancellationRequested();
-        Array.Sort(array, CompareLexicographic);
 
-        // Drop exact duplicates, which are adjacent after sorting
+        // Equal points are identical after canonicalization, so an unstable sort of the used prefix is deterministic
+        points.AsSpan(0, length).Sort(CompareLexicographic);
+
+        // Drop exact duplicates in place, which are adjacent after sorting
         var distinct = 0;
-        for (var i = 0; i < array.Length; i++)
+        for (var i = 0; i < length; i++)
         {
-            if (distinct == 0 || array[distinct - 1] != array[i])
+            if (distinct == 0 || points[distinct - 1] != points[i])
             {
-                array[distinct++] = array[i];
+                points[distinct++] = points[i];
             }
         }
 
-        Array.Resize(ref array, distinct);
-        return array;
+        return distinct;
     }
 
     /// <summary>

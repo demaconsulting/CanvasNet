@@ -213,7 +213,9 @@ is one `scad-hull-csg-operand` report with nothing built, and that a union of th
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_NoChildrenOrEmptyChildren_YieldsNothingWithoutAReport`
 
 Asserts that a single triangle and two coplanar triangles are one `scad-hull-degenerate` report at the hull's
-location, and that a hull without children, with an empty block, or with an invalid cube (which warns by itself)
+location whose message describes the cause in plain words (fewer than four distinct points, or all on one line or
+in one plane) without the text of the Render3D exception or doubled punctuation, and that a hull without
+children, with an empty block, or with an invalid cube (which warns by itself)
 builds nothing and reports nothing of its own.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Minkowski: Minkowski Sum Of Convex Solids
@@ -224,22 +226,36 @@ builds nothing and reports nothing of its own.
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_ConvexityArgumentIsIgnored`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_HullChild_IsConvex`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance`,
-`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance`
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_SharedSubtree_IsCopiedOnceAndShared`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce`
 
 Asserts that a 10 x 6 x 4 block summed with a ball of 16 fragments is a closed mesh with bounds -1..11, -1..7,
 -1..5 and a volume between the block with its faces added and the exact rounded block; that a translated box and a
 quarter-turned box sum to the 4 x 3 x 5 box (volume 60); that a union on either side or both gives two or four
 boxes by distribution; that the `convexity` argument, named or positional, changes nothing; that the output
-of a hull is an accepted operand and a lone convex child keeps its geometry and charge; and that a colored lone
-child warns and is uncolored while preserving its transform, with an enclosing color applying afterward.
+of a hull is an accepted operand and a lone convex child keeps its geometry and charge; that a colored lone
+child warns and is uncolored (its colors are stripped, so that an enclosing color applies) while preserving its
+geometry and transform, with an enclosing color applying afterward; that the appearance-stripping copy of a scene
+in which a node is shared (a root holding `[X, S]` where `X` holds `P` and `P` holds `S`, in three child orders,
+the earlier implementation threw `KeyNotFoundException` for it) makes one copy of the shared node, with the same
+transform and mesh, referenced by both parents, with no appearance anywhere and the original untouched; and that a
+chain of a hundred thousand nodes that each hold the next one twice (2^100000 paths) is copied with one copy per
+node, iteratively.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex: Non-Convex Operands
 
-**Tests**: `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_NonConvexChild_ReportsAndOmits`
+**Tests**: `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_NonConvexChild_ReportsAndOmits`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_NonConvexChild_MessageNamesTheChildInUserTerms`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_ChildWithoutVolume_IsRejectedNamingTheChild`
 
 Asserts that an L-shaped prism, a hollowed block, a ring, a difference, and an intersection, as one of several
 children or alone, are each one `scad-minkowski-nonconvex` report at the module's location with a message that
-names convexity, that nothing is built, and that no warning is added.
+names convexity, that nothing is built, and that no warning is added; that the exact messages name the offending
+child by its position and source location (`child 2 (at 3:3) is not a closed convex solid`, or contains a
+difference or an intersection) and contain no Render3D parameter names (`'a'`, `'b'`), no internal wording and no
+doubled punctuation; and that a closed double-sided flat triangle is one `scad-geometry-rejected` report that says
+the child has no volume.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions: 2D And Mixed Operands
 
@@ -255,11 +271,15 @@ still built.
 
 **Tests**:
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_TooManyPairsOrCombinations_ReportsTooComplex`,
-`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_SumBeyondTheCoordinateRange_IsRejected`
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_SumBeyondTheCoordinateRange_IsRejected`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_CumulativeWorkAboveTheTotalCap_ReportsTooComplex`
 
 Asserts that a child of 4,097 parts, two children of 65 parts (4,225 combinations), and two spheres of 4,902
-vertices each are one `scad-minkowski-too-complex` report with nothing built, and that a sum that leaves the
-1e100 range of two parts that are each inside it is `scad-geometry-rejected`.
+vertices each are one `scad-minkowski-too-complex` report with nothing built, that a sum that leaves the
+1e100 range of two parts that are each inside it is `scad-geometry-rejected`, and that two cylinders of 1,026 and
+2,042 vertices (a product of 2,095,092, inside the bound of one pair) are reported with the exact cumulative
+message (the verification of the members counts toward the 2,097,152 total) before the sum is computed, while three
+small cylinders stay under the cap and build one closed mesh.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget: Exact Charges
 

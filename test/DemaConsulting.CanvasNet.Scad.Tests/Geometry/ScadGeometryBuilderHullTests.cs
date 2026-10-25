@@ -244,6 +244,13 @@ public class ScadGeometryBuilderHullTests
         var report = Assert.Single(single.Unsupported);
         Assert.Equal("scad-hull-degenerate", report.Feature);
         Assert.Equal(new ScadSourceLocation(null, 2, 3), report.Location);
+
+        // The message describes the cause in plain words: no text of the Render3D exception and no doubled punctuation
+        Assert.Contains("do not span a volume", report.Message, StringComparison.Ordinal);
+        Assert.Contains("fewer than four distinct points, or all on one line or in one plane", report.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("degenerate input", report.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(").", report.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("..", report.Message, StringComparison.Ordinal);
         Assert.Empty(single.Meshes);
         Assert.Equal(["scad-hull-degenerate"], coplanar.Features);
         Assert.Empty(coplanar.Meshes);

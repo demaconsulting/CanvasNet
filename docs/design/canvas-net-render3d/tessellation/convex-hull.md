@@ -19,9 +19,13 @@ the OpenSCAD `hull` operation and of `MinkowskiSum`.
 
 #### Data Model
 
-`ConvexHull` is stateless and thread-safe. `Hull3D` copies the input into a sorted array of distinct canonical
-points (finite values only; `-0.0` is canonicalized to `+0.0` by adding zero; exact duplicates are removed after
-sorting by X, then Y, then Z) and hands it to a single-use `HullBuilder3D`. The builder keeps the surface of the
+`ConvexHull` is stateless and thread-safe. `Hull3D` copies the input **once** into a single array (sized exactly
+when the count is known without enumerating, via `TryGetNonEnumeratedCount`, otherwise grown by doubling; no
+intermediate list) and then validates, canonicalizes and sorts that array in place: finite values only, `-0.0`
+canonicalized to `+0.0` by adding zero, sorting by X, then Y, then Z, and exact duplicates removed in place. The
+array and the count of distinct points (a prefix; no resize and no further copy) go to a single-use
+`HullBuilder3D`. The internal `Hull3DInPlace(Vector3D[] points, int length, CancellationToken)` skips the copy for
+a caller that owns a throw-away array (`MinkowskiSum` does) and gives the same mesh. The builder keeps the surface of the
 current hull as **face slots** in parallel arrays: three vertex indices and three neighbor indices per slot
 (neighbor `k` lies across the edge `v[k] -> v[k+1]`), an alive flag, a per-insertion classification stamp and a
 visibility flag, a LIFO free list of dead slots, and the most recently inserted vertex with one incident face.
@@ -110,7 +114,9 @@ returning a defective mesh; the machine check is the exhaustive lattice oracle i
 the visible faces and the horizon, so the construction is O(n log n) in total for typical input and **O(n h)
 worst case** (h = number of hull vertices; adversarial inputs such as points on a moment curve make every
 insertion see a large part of the surface, which is O(n^2)). The canonical reduction is O(F) plus one exact
-coplanarity test per edge. Memory is O(n); the result has at most `2n - 4` triangles. The work is bounded by
+coplanarity test per edge. Memory is O(n): one 24-byte-per-point array (sorted and de-duplicated in place), about
+9 bytes per point of construction tables, and face tables proportional to the hull; the result has at most
+`2n - 4` triangles. The work is bounded by
 the input size and polls the cancellation token every few thousand elementary steps (`Array.Sort` itself
 cannot be interrupted). The hull is built in internal arrays and the `Mesh` is allocated at the end.
 

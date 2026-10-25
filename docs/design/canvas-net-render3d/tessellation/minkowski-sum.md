@@ -29,7 +29,8 @@ source of truth. `ConvexityTolerance` (internal, `1e-9`) is the relative toleran
    `Va * Vb <= MaxPairwiseSums` in `long` arithmetic **before** any large allocation or hull computation.
 2. Verify each operand (see below).
 3. Generate the points `a_i + b_j` (one double addition each, polling the token every few thousand sums) and
-   compute `ConvexHull.Hull3D` of them. The result is the exact hull of the *rounded* sums (an error of at most
+   compute the hull of them with `ConvexHull.Hull3DInPlace`, which takes the array over (no second copy). The
+   result is the exact hull of the *rounded* sums (an error of at most
    one unit in the last place per coordinate). The hull depends only on the point set and IEEE addition is
    commutative, so `ConvexSum(a, b)` and `ConvexSum(b, a)` are byte-identical, and so are results for operands
    with permuted, repeated or unwelded vertices.
@@ -59,9 +60,20 @@ below a tolerance) is unsound: a gently concave bowl built from many facets pass
 the total deviation accumulates (a thousand edges each bending by `1e-3` radian deviate by a full radian), and
 tiny facets pass any angle test. The chosen test is global, so it cannot be fooled by many small local steps.
 
-**Complexity.** O(`Va * Vb` log(`Va * Vb`)) time and O(`Va * Vb`) memory, at most about 50 MB at the bound; each
-operand's convexity test is one hull of its own vertices (at most `2^19` vertices, since the other operand has at
-least four).
+**Complexity.** O(`Va * Vb` log(`Va * Vb`)) time and O(`Va * Vb`) memory. The array of sums is the only copy of the
+point set: `ConvexHull.Hull3DInPlace` sorts and de-duplicates it in place instead of copying it. At the bound
+(2^21 points of 24 bytes) the array is about 50 MB, and the peak is about **70 MB**: that array plus about 9 bytes
+per point of construction tables (about 20 MB; the hull builder's scratch map, and the used-flag and index map of
+the mesh extraction), plus face tables of about 70 bytes per hull vertex, which for typical operands is far
+smaller than the point set. Each operand's convexity test is one hull of its own vertices (at most `2^19`
+vertices, since the other operand has at least four) and is a small fraction of that peak.
+
+**Internal members for callers that sum many pairs.** `RequireConvexSolid(Mesh, string, CancellationToken)`
+(internal, visible to the Scad assembly) performs the exact verification of `ConvexSum` for one operand, and
+`ConvexSumOfVerified(Mesh, Mesh, CancellationToken)` (internal) is `ConvexSum` without the verification, for
+operands that have passed `RequireConvexSolid` or are outputs of `ConvexHull.Hull3D` or of an earlier sum. A fold of
+`k` operands therefore verifies each member once instead of re-verifying the accumulated hull at every pair. The
+work bound and the argument checks are unchanged; the result is identical to `ConvexSum`.
 
 #### Error Handling
 
@@ -82,5 +94,6 @@ the unit tests use `Render3DTestHelpers.AssertValidCsgOperand` (test-only) throu
 
 #### Callers
 
-Callers that need the sum of two convex solids; the Scad geometry builder (`minkowski` module) calls `ConvexSum`
-and reports a `NotSupportedException` as an unsupported feature.
+Callers that need the sum of two convex solids; the Scad geometry builder (`minkowski` module) verifies every member
+once with `RequireConvexSolid`, sums with `ConvexSumOfVerified`, and reports a `NotSupportedException` as an
+unsupported feature.

@@ -105,3 +105,17 @@ sections:
                   The sum can generate millions of points, so a caller must be able to stop it.
                 tests:
                   - MinkowskiSum_ConvexSum_Canceled_ThrowsOperationCanceledException
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-PreVerified
+                title: >-
+                  The MinkowskiSum unit shall provide internal members that verify one operand once
+                  (RequireConvexSolid, with the checks, exceptions and tolerance of ConvexSum) and that
+                  sum two verified operands without repeating the convexity test (ConvexSumOfVerified,
+                  byte-identical to ConvexSum for convex operands, keeping the null, empty, work-bound
+                  and cancellation checks), so that a fold of many sums verifies each member once.
+                justification: |
+                  A fold that sums the accumulated hull with many members would otherwise re-verify the
+                  growing hull with a full hull computation at every pair; verifying once removes that
+                  repeated cost without weakening the test.
+                tests:
+                  - MinkowskiSum_ConvexSumOfVerified_VerifiedOperands_GiveTheSameSumWithoutTheTest

@@ -95,6 +95,16 @@ Applies `AssertValidCsgOperand` and `AssertClosedAndOutward` to five operand pai
 
 Asserts `OperationCanceledException` for a pre-canceled token.
 
+##### CanvasNetRender3D-Tessellation-MinkowskiSum-PreVerified: Operands Are Verified Once
+
+**Tests**: `MinkowskiSumTests.MinkowskiSum_ConvexSumOfVerified_VerifiedOperands_GiveTheSameSumWithoutTheTest`
+
+Asserts that `RequireConvexSolid` accepts convex operands and throws `NotSupportedException` (naming the operand
+it was given), `ArgumentException` and `ArgumentNullException` like `ConvexSum`; that `ConvexSumOfVerified` is
+byte-identical to `ConvexSum` for verified operands and for a sum used as an operand; that it performs no
+convexity test (a non-convex operand gives the sum of its hull); and that the null, empty, work-bound and
+cancellation checks remain.
+
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario above passes without error or exception beyond those
