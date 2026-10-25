@@ -146,8 +146,8 @@ public class ScadBuiltinSearchLimitTests
     }
 
     /// <summary>
-    ///     Validates that a search polls for cancellation at a fixed count of comparisons, so a long scan is
-    ///     interruptible and the number of polls is exactly the comparisons divided by the interval.
+    ///     Validates that a search polls for cancellation at a fixed count of comparisons, so a long scan can be
+    ///     canceled and the number of polls is exactly the comparisons divided by the interval.
     /// </summary>
     /// <param name="form">The search form: a vector source, a string source, or several match elements.</param>
     [Theory]

@@ -126,9 +126,10 @@ public class ScadDocumentEvaluateSafetyTests
     [Fact]
     public void ScadDocument_Evaluate_CanceledDuringRun_StopsPromptlyAndDeliversEarlierEvents()
     {
-        // Arrange
+        // Arrange: the cancellation delay is generous so that a machine busy with other test assemblies still reaches the
+        // first echo before the token fires (an evaluation that starts after the cancellation delivers nothing)
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+        cts.CancelAfter(TimeSpan.FromMilliseconds(2000));
         var document = ScadDocument.Parse("echo(\"started\");\nfunction f(n) = f(n + 1);\necho(f(0));");
         var lines = new List<string>();
         var options = new ScadEvaluationOptions

@@ -199,18 +199,17 @@ public class ScadEvaluatorLimitTests
     [Fact]
     public void ScadEvaluatorLimit_Steps_StringIndexingInLoop_HitsStepLimit()
     {
-        // Arrange: a million-character string with a surrogate pair, indexed near its end a million times
+        // Arrange: a million-character string with a surrogate pair, indexed near its end a hundred thousand times; without
+        // the charge the loop would finish (after minutes) with no error, so the error itself proves the charge, and no
+        // wall-clock bound is asserted (a bound is flaky when the machine is busy running other test assemblies)
         var settings = With(new ScadLimits { MaxEvaluationSteps = 5_000_000 });
         var source = $"s = \"\U0001F600{new string('a', 999_999)}\";\nr = [for (k = [1 : 100000]) s[999000]];";
-        var watch = System.Diagnostics.Stopwatch.StartNew();
 
         // Act
         var ex = Fails(source, settings);
-        watch.Stop();
 
         // Assert
         Assert.Contains("Evaluation step limit exceeded (limit 5000000)", ex.Message, StringComparison.Ordinal);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(20), $"elapsed={watch.Elapsed}");
     }
 
     /// <summary>

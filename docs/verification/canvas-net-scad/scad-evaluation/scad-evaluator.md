@@ -450,7 +450,8 @@ and that scaling a vector is charged before it is allocated. The formatting scen
 vector fails at a one-million-step budget. The string-index scenarios assert the exact extra steps for an index
 99,000 characters into a 100,000-character string (a scan charge for a plain string, a scan plus a walk charge for
 one that starts with a surrogate pair), that an index below 512 costs nothing extra, and that a loop indexing a
-million-character string near its end fails at a five-million-step budget within seconds. The aggregate scenarios
+million-character string near its end fails at a five-million-step budget (asserted by the error, not by a wall-clock
+bound, because a time bound is flaky when other test assemblies keep the machine busy). The aggregate scenarios
 build seven levels of vectors that each hold a thousand references to the level below (every list is short, the
 top one stands for about 10^21 logical elements) and apply `-`, `+`, `*`, `/`, `==`, and `<` to it: under the
 default limits each fails with the ordinary step-limit error, and with `MaxEvaluationSteps = long.MaxValue` each
