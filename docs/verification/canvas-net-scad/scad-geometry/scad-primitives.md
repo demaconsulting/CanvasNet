@@ -242,11 +242,16 @@ with that feature.
 
 ##### CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget: Budget Before Allocation
 
-**Tests**: `ScadPolyhedronTests.ScadPrimitives_Polyhedron_ExceedsTriangleBudget_ThrowsWithLocation`
+**Tests**: `ScadPolyhedronTests.ScadPrimitives_Polyhedron_ExceedsTriangleBudget_ThrowsWithLocation`,
+`ScadPrimitivesShape2DTests.ScadPrimitives_Polygon_Paths_IgnoreUnusedPointsForTriangleBudget`,
+`ScadPrimitivesShape2DTests.ScadPrimitives_Polygon_Paths_LargeReferencedPath_ExceedsTriangleBudget`,
+`ScadPrimitivesShape2DTests.ScadPrimitives_Polygon_Paths_ChargeEqualsCreatedTriangles`
 
 Asserts that a cube polyhedron that needs 12 triangles under a limit of 11 throws a `ScadEvaluationException`
 located at the instance with the text `Triangle limit exceeded (limit 11)`, before the polyhedron is triangulated.
-The charges of the sphere, cylinder, and circle are verified at the builder level by
+It also asserts that 100 unused polygon points do not cause a one-triangle path to exceed a limit of 100, that a
+path referencing all 100 points is rejected by that limit, and that the sparse polygon's charge equals its eight
+created slab triangles. The charges of the sphere, cylinder, and circle are verified at the builder level by
 `ScadGeometryBuilderLimitTests` (cited by the `ScadGeometryBuilder` unit).
 
 ##### CanvasNetScad-ScadGeometry-ScadPrimitives-GeometryRejected: Catch-All Rejection

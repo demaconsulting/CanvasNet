@@ -159,6 +159,57 @@ public class ScadPrimitivesShape2DTests
     }
 
     /// <summary>
+    ///     Validates that unused points do not inflate the triangle-budget pre-check when paths select one triangle.
+    /// </summary>
+    [Fact]
+    public void ScadPrimitives_Polygon_Paths_IgnoreUnusedPointsForTriangleBudget()
+    {
+        // Arrange
+        var source = PolygonWithPaths(100, "[0, 1, 2]");
+
+        // Act
+        var result = Build(source, Settings(maxTriangles: 100));
+
+        // Assert
+        Assert.Equal(8, result.SingleMesh.TriangleCount);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a large path still fails the triangle-budget pre-check even when the point list is valid.
+    /// </summary>
+    [Fact]
+    public void ScadPrimitives_Polygon_Paths_LargeReferencedPath_ExceedsTriangleBudget()
+    {
+        // Arrange
+        var path = $"[{string.Join(", ", Enumerable.Range(0, 100))}]";
+        var source = PolygonWithPaths(100, path);
+
+        // Act
+        var exception = Assert.Throws<ScadEvaluationException>(() => Build(source, Settings(maxTriangles: 100)));
+
+        // Assert
+        Assert.Contains("Triangle limit exceeded (limit 100)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the exact triangle charge for a sparse polygon equals the triangles in the created slab.
+    /// </summary>
+    [Fact]
+    public void ScadPrimitives_Polygon_Paths_ChargeEqualsCreatedTriangles()
+    {
+        // Arrange
+        var source = PolygonWithPaths(100, "[0, 1, 2]");
+
+        // Act
+        var result = Build(source, Settings(maxTriangles: 100));
+
+        // Assert
+        Assert.Equal(result.MeshTriangles, result.TrianglesCharged);
+    }
+
+    /// <summary>
     ///     Validates that a polygon the region validation rejects is reported as the unsupported feature
     ///     <c>scad-polygon-invalid</c> at the instance's location and builds nothing.
     /// </summary>
@@ -284,6 +335,27 @@ public class ScadPrimitivesShape2DTests
         var mesh = result.SingleMesh;
         Assert.Equal(1.0, mesh.SignedVolume, 1e-12);
         Assert.Equal(1.0, mesh.Bounds.Max.Z, 1e-12);
+    }
+
+    /// <summary>
+    ///     Creates a polygon source with a triangle path and a configurable number of points.
+    /// </summary>
+    /// <param name="pointCount">The number of points.</param>
+    /// <param name="path">The path expression.</param>
+    /// <returns>The polygon source.</returns>
+    private static string PolygonWithPaths(int pointCount, string path)
+    {
+        var points = string.Join(
+            ", ",
+            Enumerable.Range(0, pointCount).Select(
+                index => index switch
+                {
+                    0 => "[0, 0]",
+                    1 => "[4, 0]",
+                    2 => "[0, 3]",
+                    _ => $"[{index}, {index}]",
+                }));
+        return $"polygon(points = [{points}], paths = [{path}]);";
     }
 
     /// <summary>

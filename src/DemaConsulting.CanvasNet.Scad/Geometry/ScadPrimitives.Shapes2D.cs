@@ -121,7 +121,8 @@ internal static partial class ScadPrimitives
             }
         }
 
-        return Flat(node, context, points.Length, () => PrimitiveTessellator.Polygon(points, paths), ScadFeatureIds.PolygonInvalid);
+        var vertexEstimate = paths is null ? points.Length : paths.Sum(path => path.Count);
+        return Flat(node, context, vertexEstimate, () => PrimitiveTessellator.Polygon(points, paths), ScadFeatureIds.PolygonInvalid);
     }
 
     /// <summary>

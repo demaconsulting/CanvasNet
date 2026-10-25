@@ -276,6 +276,9 @@ sections:
                   out-of-memory crash.
                 tests:
                   - ScadPrimitives_Polyhedron_ExceedsTriangleBudget_ThrowsWithLocation
+                  - ScadPrimitives_Polygon_Paths_IgnoreUnusedPointsForTriangleBudget
+                  - ScadPrimitives_Polygon_Paths_LargeReferencedPath_ExceedsTriangleBudget
+                  - ScadPrimitives_Polygon_Paths_ChargeEqualsCreatedTriangles
 
               - id: CanvasNetScad-ScadGeometry-ScadPrimitives-GeometryRejected
                 title: >-
