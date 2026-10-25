@@ -111,6 +111,8 @@ and the unary operators.
 `ScadValueArithmeticTests.ScadValue_Binary_MatrixTimesMatrix_ReturnsProduct`,
 `ScadValueArithmeticTests.ScadValue_Binary_IdentityMatrixTimesVector_ReturnsSameVector`,
 `ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_ThrowsBeforeCharging`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_DoesNotCopyOperands`,
+`ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_DoesNotCopyOperands`,
 `ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_ChargesResultElementsPlusScaledWork`,
 `ScadValueProductLimitTests.ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_ThrowsWithoutComputing`,
 `ScadValueProductLimitTests.ScadValueProduct_ProductWork_HugeDimensions_SaturatesWithoutOverflow`,
@@ -126,7 +128,12 @@ product over the step budget throws before it multiplies (no poll happens); the 
 `int.MaxValue` dimensions instead of overflowing; matrix-by-matrix, matrix-by-vector, and vector-by-matrix products
 poll exactly once per 65,536 multiply-adds (counted, so the assertion is exact and independent of timing), a poll
 that throws stops the product, and a single dot product longer than the interval polls inside itself; and, without
-a host, the product is unbounded and returns the same values as before.
+a host, the product is unbounded and returns the same values as before. Two further scenarios multiply
+shared-row 1000 × 1000 matrices (building them allocates almost nothing) and measure the bytes the calling thread
+allocates: a 1000 × 1000 by 1000 × 1001 product (result over the list limit) and a 1000 × 1000 by 1000 × 1000 product
+(over a one-million-step budget) are both refused from the dimensions alone with under 100 KB allocated, where
+copying the operands first took about 16 MB; the measurement is valid because the value-level call runs on the test
+thread.
 
 ##### CanvasNetScad-ScadEvaluation-ScadValue-Indexing: Indexing, Members, And Unicode Scalars
 

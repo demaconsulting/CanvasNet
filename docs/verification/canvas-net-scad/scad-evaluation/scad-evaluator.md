@@ -417,6 +417,16 @@ the over-limit error is identical on every stack size.
 **Tests**: `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_AtLimitSucceeds_OneOverFails`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply`,
+`ScadEvaluatorAggregateLimitTests.ScadEvaluatorAggregateLimit_SharedNestedVectors_DefaultLimits_FailsWithStepLimit`,
+`ScadEvaluatorAggregateLimitTests.ScadEvaluatorAggregateLimit_SharedNestedVectors_UnlimitedSteps_FailsWithAggregateLimit`,
+`ScadEvaluatorAggregateLimitTests.ScadEvaluatorAggregateLimit_SharedNestedVectors_BudgetNearCap_ChoosesTheSmallerLimit`,
+`ScadEvaluatorAggregateLimitTests.ScadEvaluatorAggregateLimit_NestedOperand_WithinCap_IsChargedByElementCount`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_FlatVectors_CountTheirLength`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_NestedVectors_AddsNestedElements`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_AboveCap_StopsEarlyWithValueAboveCap`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_SharedLevels_SaturatesAndUsesTheMemo`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_CanceledToken_ThrowsOnlyOnceTheCountIsLong`,
+`ScadEvaluatorElementCounterTests.ScadEvaluatorElementCounter_Count_ListOfSmallVectors_DoesNotUseTheMemo`,
 `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged`,
 `ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_WorkIsChargedUpFront`,
 `ScadEvaluatorProductLimitTests.ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast`,
@@ -440,7 +450,18 @@ and that scaling a vector is charged before it is allocated. The formatting scen
 vector fails at a one-million-step budget. The string-index scenarios assert the exact extra steps for an index
 99,000 characters into a 100,000-character string (a scan charge for a plain string, a scan plus a walk charge for
 one that starts with a surrogate pair), that an index below 512 costs nothing extra, and that a loop indexing a
-million-character string near its end fails at a five-million-step budget within seconds.
+million-character string near its end fails at a five-million-step budget within seconds. The aggregate scenarios
+build seven levels of vectors that each hold a thousand references to the level below (every list is short, the
+top one stands for about 10^21 logical elements) and apply `-`, `+`, `*`, `/`, `==`, and `<` to it: under the
+default limits each fails with the ordinary step-limit error, and with `MaxEvaluationSteps = long.MaxValue` each
+fails with `Operand too large (limit 67108864 nested elements)` at the operator, both within seconds (the test
+runs the evaluation on a pool thread and fails if it is still running after 20 s, so a runaway count cannot hang
+the run); a budget of one billion steps (above the cap) gets the aggregate error and one million (below it) the
+step error; and an operand of 2,001,000 logical elements is still accepted and charged by its count. The counter
+tests pin the count itself: exact counts for flat and nested vectors, early stop above the cap, saturation at
+`long.MaxValue` for the seven shared levels (counted at once because the counts of shared sub-vectors are
+remembered), a cancellation check only once 65,536 elements were counted, and no memo for a list of small
+vectors.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-LoopLimit: Loop Iterations
 

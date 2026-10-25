@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using DemaConsulting.CanvasNet.Scad.Language;
 
@@ -210,43 +211,45 @@ internal sealed partial class ScadEvaluator
     ///     Charges the extra steps of an operation on a vector: one per element, nested elements included.
     /// </summary>
     /// <remarks>
-    ///     The count stops as soon as it exceeds the remaining step budget, so the check itself is bounded.
+    ///     <para>
+    ///         Vectors are shared by reference, so a few short lists can stand for an astronomically large number of
+    ///         logical nested elements (seven levels of a thousand references each hold about 10^21). Every operator
+    ///         that recurses into nested vectors (negation, element-wise arithmetic, scaling, equality, comparison,
+    ///         <c>echo</c>) allocates or visits that many elements, so the count is charged here, before the operator
+    ///         runs. The count is capped at the smaller of the remaining step budget and
+    ///         <see cref="MaxAggregateElements"/> and remembers the counts of shared sub-vectors
+    ///         (see <see cref="ScadEvaluatorElementCounter"/>), so the check itself is cheap and cannot overflow.
+    ///         A count above the remaining budget is the ordinary step-limit error; a count above
+    ///         <see cref="MaxAggregateElements"/> while the budget would still allow it (an effectively unlimited
+    ///         budget) is the aggregate-size error. Both depend only on the operand, never on stack depth or timing.
+    ///     </para>
+    ///     <para>
+    ///         Shape-preserving operators produce at most as many elements as their operands hold, so the charged
+    ///         count also bounds what the operator allocates.
+    ///     </para>
     /// </remarks>
     /// <param name="value">The operand.</param>
+    /// <exception cref="ScadEvaluationException">Thrown when the count exceeds the step budget or the aggregate cap.</exception>
     private void ChargeDeep(ScadValue value)
     {
-        if (value.Kind == ScadValueKind.Vector)
+        if (value.Kind != ScadValueKind.Vector)
         {
-            Charge(DeepCount(value, _limits.MaxEvaluationSteps - _steps));
-        }
-    }
-
-    /// <summary>
-    ///     Counts the elements of a vector, including those of nested vectors, stopping once the count exceeds a cap.
-    /// </summary>
-    /// <param name="value">The value.</param>
-    /// <param name="cap">The count beyond which counting stops.</param>
-    /// <returns>The count (at least one for a vector), possibly an underestimate once it exceeds the cap.</returns>
-    private static long DeepCount(ScadValue value, long cap)
-    {
-        var items = value.AsVector.AsSpan();
-        long count = Math.Max(1, items.Length);
-        foreach (var item in items)
-        {
-            if (count > cap)
-            {
-                break;
-            }
-
-            if (item.Kind == ScadValueKind.Vector)
-            {
-                RuntimeHelpers.EnsureSufficientExecutionStack();
-                count += DeepCount(item, cap - count);
-            }
+            return;
         }
 
-        return count;
+        // Count no further than anything could ever be afforded: the remaining budget, or the aggregate cap
+        var remaining = _limits.MaxEvaluationSteps - _steps;
+        var count = new ScadEvaluatorElementCounter(_settings.Cancellation).Count(value.AsVector, Math.Min(remaining, MaxAggregateElements));
+
+        // Above the cap with budget to spare is the aggregate error; otherwise the charge reports the step limit
+        if (count > MaxAggregateElements && count <= remaining)
+        {
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Operand too large (limit {MaxAggregateElements} nested elements)"), _lastFrameLocation);
+        }
+
+        Charge(count);
     }
+
 
     /// <summary>
     ///     Gets the source text of a binary operator.

@@ -149,6 +149,54 @@ public class ScadValueProductLimitTests
     }
 
     /// <summary>
+    ///     Validates that a product whose result is over the list limit is refused from the shapes alone: the operands
+    ///     are not copied into arrays first, even when they are large.
+    /// </summary>
+    [Fact]
+    public void ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_DoesNotCopyOperands()
+    {
+        // Arrange: 1000 x 1000 times 1000 x 1001 (rows shared, so building them costs almost nothing) would copy about
+        // two million doubles (16 MB) before the old code looked at the result size; the result has 1,001,000 elements
+        var leftRow = Nums([.. Enumerable.Repeat(1.0, 1000)]);
+        var rightRow = Nums([.. Enumerable.Repeat(1.0, 1001)]);
+        var left = ScadValue.FromVector([.. Enumerable.Repeat(leftRow, 1000)]);
+        var right = ScadValue.FromVector([.. Enumerable.Repeat(rightRow, 1000)]);
+        var host = new ScadTestBuiltinHost { MaxListLength = 1_000_000 };
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => Multiply(left, right, host));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: refused before the step charge, with room for the exception and message only
+        Assert.Contains("List too long (limit 1000000)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(0, host.Steps);
+        Assert.True(allocated < 100_000, $"allocated={allocated}");
+    }
+
+    /// <summary>
+    ///     Validates that a product that does not fit the step budget is also refused before the operands are copied.
+    /// </summary>
+    [Fact]
+    public void ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_DoesNotCopyOperands()
+    {
+        // Arrange: 1000 x 1000 times 1000 x 1000 has a result at the list limit but costs far more than the budget
+        var row = Nums([.. Enumerable.Repeat(1.0, 1000)]);
+        var matrix = ScadValue.FromVector([.. Enumerable.Repeat(row, 1000)]);
+        var host = new ScadTestBuiltinHost { MaxListLength = 1_000_000, MaxSteps = 1_000_000 };
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => Multiply(matrix, matrix, host));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        Assert.Contains("Evaluation step limit exceeded", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(0, host.Polls);
+        Assert.True(allocated < 100_000, $"allocated={allocated}");
+    }
+
+    /// <summary>
     ///     Validates that a single long dot product polls inside itself, not only between dot products.
     /// </summary>
     [Fact]

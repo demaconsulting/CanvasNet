@@ -82,7 +82,8 @@ public sealed class ScadLimits
     ///     Gets the maximum number of evaluation steps (one per expression, statement and loop turn, more for
     ///     built-ins that process lists or strings, for the multiply-add work of matrix products, for the
     ///     formatting work of <c>str</c> and <c>echo</c>, and for string indexing deep into a long string);
-    ///     50,000,000 by default.
+    ///     50,000,000 by default. An operator on vectors also charges the number of nested elements of its operands;
+    ///     an operand with more than 67,108,864 such elements is refused even when this limit is set higher.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxEvaluationSteps

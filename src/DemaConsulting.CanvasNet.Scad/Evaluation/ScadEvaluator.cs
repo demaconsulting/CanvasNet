@@ -73,6 +73,19 @@ internal sealed partial class ScadEvaluator
     /// <summary>The number of steps between two cancellation polls (a power of two).</summary>
     private const int PollInterval = 1024;
 
+    /// <summary>
+    ///     The most logical elements (nested elements included, shared vectors counted once per reference) an operand
+    ///     of a recursive operator may hold: 2^26 = 67,108,864, above the default step limit of 50,000,000 so that it
+    ///     only matters when the step budget is raised far beyond it.
+    /// </summary>
+    /// <remarks>
+    ///     Operators on nested vectors visit and rebuild every logical element, and a handful of vectors that share
+    ///     their children can stand for more elements than any memory could hold. A fixed cap makes the refusal
+    ///     deterministic and independent of the configured step limit, and keeps the result of a shape-preserving
+    ///     operator to about 1.5 GiB at most (24 bytes per element). It is deliberately not a public limit.
+    /// </remarks>
+    internal const long MaxAggregateElements = 1L << 26;
+
     /// <summary>Limits the number of concurrently running fallback threads; callers beyond the limit wait for a slot.</summary>
     private static readonly SemaphoreSlim FallbackGate = new(MaxConcurrentFallbackThreads, MaxConcurrentFallbackThreads);
 

@@ -751,6 +751,7 @@ src/DemaConsulting.CanvasNet.Scad/
     ├── ScadEvaluator.Modules.cs   — ScadEvaluator: modules and children
     ├── ScadEvaluator.Comprehensions.cs — ScadEvaluator: comprehensions and iteration
     ├── ScadEvaluator.Host.cs      — ScadEvaluator: built-in function host
+    ├── ScadEvaluatorElementCounter.cs — ScadEvaluator: capped, memoized count of nested vector elements
     ├── ScadScope.cs               — ScadEvaluator: scopes, cells, special frames, closures
     ├── ScadInstance.cs            — ScadEvaluator: instantiation tree nodes
     ├── ScadBuiltinModules.cs      — ScadEvaluator: recognized built-in module names

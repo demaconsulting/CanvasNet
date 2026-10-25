@@ -110,18 +110,24 @@ sections:
                   undef for mismatched dimensions, and, when evaluated under an evaluation host,
                   shall reject a matrix product whose element count exceeds the list-length limit,
                   charge the result elements and the multiply-add work of a matrix product before
-                  computing it, and poll for cancellation at bounded intervals while computing it.
+                  computing it, and poll for cancellation at bounded intervals while computing it,
+                  deciding the shapes and enforcing the size and work limits before it copies its
+                  operands.
                 justification: |
                   Transformations in parametric models are written as matrix and vector products; the
                   product rules must be explicit and dimension-checked. A matrix product is the one
                   operation whose work and result size exceed the size of its operands, so it must be
-                  bounded before it runs to keep untrusted models from exhausting memory or time.
+                  bounded before it runs, and before it allocates copies of its operands, to keep
+                  untrusted models from exhausting memory or time.
                 tests:
                   - ScadValue_Binary_VectorTimesVector_IsDotProduct
                   - ScadValue_Binary_MatrixTimesVector_ReturnsProduct
                   - ScadValue_Binary_VectorTimesMatrix_ReturnsProduct
                   - ScadValue_Binary_MatrixTimesMatrix_ReturnsProduct
                   - ScadValue_Binary_IdentityMatrixTimesVector_ReturnsSameVector
+                  - ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_ThrowsBeforeCharging
+                  - ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_DoesNotCopyOperands
+                  - ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_DoesNotCopyOperands
                   - ScadValueProduct_Binary_MatrixTimesMatrix_ResultOverListLimit_ThrowsBeforeCharging
                   - ScadValueProduct_Binary_MatrixTimesMatrix_ChargesResultElementsPlusScaledWork
                   - ScadValueProduct_Binary_MatrixTimesMatrix_OverStepBudget_ThrowsWithoutComputing

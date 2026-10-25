@@ -197,6 +197,7 @@ or a tight virtual-memory limit (see _ScadEvaluator Unit Design_, _Memory reserv
 | `MaxListLength` | 1,000,000 | every vector append, `concat`, `rands`, comprehension; also the result elements of a matrix product (checked before it is computed) | `List too long (limit N)` |
 | `MaxStringLength` | 1,048,576 | `str`, `chr`, echo formatting | `String too long (limit N)` |
 | value nesting (constant) | 256 | vector literal, comprehension, and `concat` construction | `List nesting too deep (limit 256)` |
+| operand aggregate cap (internal constant, not a `ScadLimits` member) | 67,108,864 (2^26) logical elements | the operand of an operator on vectors, counted with nested and shared elements, only when the remaining step budget is above it | `Operand too large (limit 67108864 nested elements)` |
 | `MaxIncludeDepth` | 16 (1 to 64) | the resolver | `Include nesting too deep (limit N)` |
 | `MaxIncludedFiles` | 1,000 | the resolver (every expansion and each distinct library) | `Included file limit exceeded (limit N)` |
 | `MaxInstances` | 1,000,000 | every instance created; also the number of statements include expansion may produce (phase A, before any step accounting exists) | `Instance limit exceeded (limit N)`, or `Included statement limit exceeded (limit N)` during expansion |

@@ -119,13 +119,18 @@ exceeds its operands. `Binary` therefore takes an optional trailing `IScadBuilti
 always passes itself, and `null` (value-level use and unit tests only) means the product is unbounded and never
 polled. With a host, `MatrixProduct` does, in this fixed order, so one input always gives the same diagnostic:
 
-1. the shape check (a mismatch is `undef`, as before);
+1. the shape check (a mismatch is `undef`, as before). The shape is decided by looking at the operands (`ShapeOf`:
+   a non-empty vector of numbers, or a non-empty vector of equal-length non-empty numeric vectors) **without
+   copying them**; operands are copied into `double[]` arrays only after steps 2 and 3, so a product that a limit
+   refuses allocates nothing proportional to its operands (a shared-row 1000 × 1000 by 1000 × 1001 product used
+   to copy about two million doubles before the list limit rejected it);
 2. `host.CheckListLength(rows × columns)` — the error `List too long (limit N)` when the result has more
    elements than `MaxListLength`;
 3. `host.Charge(rows × columns + ceil(rows × inner × columns / MultiplyAddsPerStep))` with
    `MultiplyAddsPerStep = 16`; `ProductWork` and `ProductSteps` use saturating `long` arithmetic, so no
    dimension can overflow, and the evaluator's `Charge` itself saturates;
-4. the multiplication, which calls `host.Poll()` (the cancellation token) after every
+4. the copy of the left rows and of the right columns (read straight into contiguous column arrays, with no
+   intermediate row copy) and the multiplication, which calls `host.Poll()` (the cancellation token) after every
    `PollIntervalMultiplyAdds = 65,536` multiply-adds, counted across the whole product and inside long dot
    products. The interval is counted, not timed, so the poll points are deterministic.
 

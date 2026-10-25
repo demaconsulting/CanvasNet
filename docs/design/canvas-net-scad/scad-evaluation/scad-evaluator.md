@@ -299,8 +299,20 @@ These formulas are pinned by tests in `ScadEvaluatorStackTests`, `ScadEvaluatorT
 
 **Steps.** Every expression node, statement, loop turn, and tail-call turn charges **one step**; an `echo`,
 `let`, or other construct that does extra work charges for it. Operations on vectors charge the **deep
-element count** (so shared nested vectors cannot dodge the limit; counting stops once the remaining budget is
-exceeded). A **matrix product** additionally charges its result elements plus its multiply-add work divided by
+element count** before they run (so shared nested vectors cannot dodge the limit). Vectors are shared by
+reference, so a few short lists can stand for far more logical elements than a 64-bit counter or any memory
+holds (seven levels of a thousand references each are about 10^21 elements); `ChargeDeep` therefore counts with
+`ScadEvaluatorElementCounter`, which **saturates**, **stops** as soon as the count exceeds the smaller of the remaining
+step budget and the internal `MaxAggregateElements` (2^26 = 67,108,864, above the default step limit, not a
+public limit), and **remembers** the exact counts of sub-vectors of 1,024 or more elements by reference, so a
+shared structure is counted once instead of once per reference (a list of small vectors never builds the
+memo). A count above the remaining budget is the ordinary step-limit error; a count above the cap while the
+budget would still allow it (a step limit raised far beyond the default) is
+`Operand too large (limit 67108864 nested elements)`. Both are located at the operator, depend only on the
+operand, and are the same on every stack and thread. The count polls cancellation every 65,536 counted
+elements. Because negation, element-wise arithmetic, scaling, equality and comparison keep the shape of their
+operands, the charged count also bounds what they allocate or visit, so no operator allocates more than was
+charged. A **matrix product** additionally charges its result elements plus its multiply-add work divided by
 16, rounded up, before it computes anything (see _ScadValue_, Products and limits). `str`, `echo`, and the
 assert message charge `8` steps per vector element **while** they format (a string element one more per 16
 characters), and indexing a string charges `position / 512` steps for the scan and, when the prefix has a

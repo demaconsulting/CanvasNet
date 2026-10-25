@@ -78,7 +78,8 @@ internal readonly partial struct ScadValue
     /// <remarks>
     ///     Numeric vector by numeric vector of equal length is the dot product (a number); matrix by numeric
     ///     vector, numeric vector by matrix and matrix by matrix give the usual linear-algebra products. Any other
-    ///     combination, or a dimension mismatch, is invalid.
+    ///     combination, or a dimension mismatch, is invalid. The shapes are decided by looking at the operands
+    ///     without copying them, so a product that a limit refuses never materializes its operands.
     /// </remarks>
     /// <param name="left">The left vector.</param>
     /// <param name="right">The right vector.</param>
@@ -87,44 +88,45 @@ internal readonly partial struct ScadValue
     /// <returns>The product, or <c>undef</c> for invalid operands.</returns>
     private static ScadValue ProductOfVectors(ScadVector left, ScadVector right, ref bool typeError, IScadBuiltinHost? host)
     {
-        var leftIsVector = TryAsNumbers(left, out var leftNumbers);
-        var rightIsVector = TryAsNumbers(right, out var rightNumbers);
-        var leftIsMatrix = TryAsMatrix(left, out var leftRows);
-        var rightIsMatrix = TryAsMatrix(right, out var rightRows);
+        var leftShape = ShapeOf(left, out var leftWidth);
+        var rightShape = ShapeOf(right, out var rightWidth);
         long pending = 0;
 
         // Choose the product from the shapes of the two operands
-        if (leftIsVector && rightIsVector && leftNumbers.Length == rightNumbers.Length)
+        if (leftShape == ProductShape.Numbers && rightShape == ProductShape.Numbers && leftWidth == rightWidth)
         {
-            return FromNumber(Dot(leftNumbers, rightNumbers, host, ref pending));
+            return FromNumber(Dot(ReadNumbers(left), ReadNumbers(right), host, ref pending));
         }
 
-        if (leftIsMatrix && rightIsVector && leftRows[0].Length == rightNumbers.Length)
+        if (leftShape == ProductShape.Matrix && rightShape == ProductShape.Numbers && leftWidth == rightWidth)
         {
-            var products = new ScadValue[leftRows.Length];
+            var rows = ReadRows(left);
+            var numbers = ReadNumbers(right);
+            var products = new ScadValue[rows.Length];
             for (var r = 0; r < products.Length; r++)
             {
-                products[r] = FromNumber(Dot(leftRows[r], rightNumbers, host, ref pending));
+                products[r] = FromNumber(Dot(rows[r], numbers, host, ref pending));
             }
 
             return FromVector(products);
         }
 
-        if (leftIsVector && rightIsMatrix && rightRows.Length == leftNumbers.Length)
+        if (leftShape == ProductShape.Numbers && rightShape == ProductShape.Matrix && right.Count == leftWidth)
         {
-            var columns = Transpose(rightRows);
+            var numbers = ReadNumbers(left);
+            var columns = ReadColumns(right, rightWidth);
             var products = new ScadValue[columns.Length];
             for (var c = 0; c < products.Length; c++)
             {
-                products[c] = FromNumber(Dot(leftNumbers, columns[c], host, ref pending));
+                products[c] = FromNumber(Dot(numbers, columns[c], host, ref pending));
             }
 
             return FromVector(products);
         }
 
-        if (leftIsMatrix && rightIsMatrix && leftRows[0].Length == rightRows.Length)
+        if (leftShape == ProductShape.Matrix && rightShape == ProductShape.Matrix && leftWidth == right.Count)
         {
-            return MatrixProduct(leftRows, rightRows, host);
+            return MatrixProduct(left, right, rightWidth, host);
         }
 
         return InvalidOperand(ref typeError);
@@ -135,33 +137,33 @@ internal readonly partial struct ScadValue
     /// </summary>
     /// <remarks>
     ///     With a host, the result element count is checked against the list-length limit first and the work is
-    ///     charged second, both before any multiplication, so one input always gives the same diagnostic.
+    ///     charged second, both from the dimensions alone and before the operands are copied or anything is
+    ///     multiplied, so one input always gives the same diagnostic and a refused product costs no allocation.
     /// </remarks>
     /// <param name="left">The left matrix (rows by inner).</param>
     /// <param name="right">The right matrix (inner by columns).</param>
+    /// <param name="columnCount">The number of columns of the right matrix.</param>
     /// <param name="host">The evaluation host that bounds the product, or <see langword="null"/> for none.</param>
     /// <returns>The product matrix as a vector of numeric vectors.</returns>
-    private static ScadValue MatrixProduct(double[][] left, double[][] right, IScadBuiltinHost? host)
+    private static ScadValue MatrixProduct(ScadVector left, ScadVector right, int columnCount, IScadBuiltinHost? host)
     {
-        var rowCount = (long)left.Length;
-        var innerCount = (long)right.Length;
-        var columnCount = (long)right[0].Length;
         if (host is not null)
         {
-            host.CheckListLength(rowCount * columnCount);
-            host.Charge(ProductSteps(rowCount, innerCount, columnCount));
+            host.CheckListLength((long)left.Count * columnCount);
+            host.Charge(ProductSteps(left.Count, right.Count, columnCount));
         }
 
         // Summing along contiguous arrays keeps the accumulation order and is far kinder to the cache
-        var columns = Transpose(right);
+        var leftRows = ReadRows(left);
+        var columns = ReadColumns(right, columnCount);
         long pending = 0;
-        var rows = new ScadValue[left.Length];
+        var rows = new ScadValue[leftRows.Length];
         for (var r = 0; r < rows.Length; r++)
         {
             var cells = new ScadValue[columns.Length];
             for (var c = 0; c < cells.Length; c++)
             {
-                cells[c] = FromNumber(Dot(left[r], columns[c], host, ref pending));
+                cells[c] = FromNumber(Dot(leftRows[r], columns[c], host, ref pending));
             }
 
             rows[r] = FromVector(cells);
@@ -171,22 +173,42 @@ internal readonly partial struct ScadValue
     }
 
     /// <summary>
-    ///     Builds the columns of a matrix as contiguous arrays.
+    ///     Copies the rows of a matrix into arrays. The vector must have been recognized as a matrix by <see cref="ShapeOf"/>.
     /// </summary>
     /// <param name="matrix">The matrix.</param>
-    /// <returns>One array per column, each holding that column from top to bottom.</returns>
-    private static double[][] Transpose(double[][] matrix)
+    /// <returns>One array per row.</returns>
+    private static double[][] ReadRows(ScadVector matrix)
     {
-        var columns = new double[matrix[0].Length][];
+        var rows = new double[matrix.Count][];
+        for (var r = 0; r < rows.Length; r++)
+        {
+            rows[r] = ReadNumbers((ScadVector)matrix[r]._reference!);
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    ///     Copies the columns of a matrix into arrays (each column from top to bottom), without an intermediate row copy.
+    /// </summary>
+    /// <param name="matrix">The matrix; it must have been recognized as a matrix by <see cref="ShapeOf"/>.</param>
+    /// <param name="width">The number of columns.</param>
+    /// <returns>One array per column.</returns>
+    private static double[][] ReadColumns(ScadVector matrix, int width)
+    {
+        var columns = new double[width][];
         for (var c = 0; c < columns.Length; c++)
         {
-            var column = new double[matrix.Length];
-            for (var r = 0; r < column.Length; r++)
-            {
-                column[r] = matrix[r][c];
-            }
+            columns[c] = new double[matrix.Count];
+        }
 
-            columns[c] = column;
+        for (var r = 0; r < matrix.Count; r++)
+        {
+            var row = (ScadVector)matrix[r]._reference!;
+            for (var c = 0; c < columns.Length; c++)
+            {
+                columns[c][r] = row[c]._number;
+            }
         }
 
         return columns;
@@ -229,61 +251,112 @@ internal readonly partial struct ScadValue
     }
 
     /// <summary>
-    ///     Reads a numeric vector.
+    ///     Classifies a vector for a product without copying it.
     /// </summary>
     /// <param name="vector">The vector.</param>
-    /// <param name="numbers">The numbers when the vector is numeric; otherwise an empty array.</param>
-    /// <returns><see langword="true"/> when the vector is non-empty and every element is a number.</returns>
-    private static bool TryAsNumbers(ScadVector vector, out double[] numbers)
+    /// <param name="width">
+    ///     The element count of a numeric vector, or the common row length of a matrix; zero for any other vector.
+    /// </param>
+    /// <returns>
+    ///     <see cref="ProductShape.Numbers"/> for a non-empty vector of numbers, <see cref="ProductShape.Matrix"/> for a
+    ///     non-empty vector of numeric vectors of one common length, otherwise <see cref="ProductShape.Other"/>.
+    /// </returns>
+    private static ProductShape ShapeOf(ScadVector vector, out int width)
     {
-        numbers = [];
+        width = 0;
+        if (vector.Count == 0)
+        {
+            return ProductShape.Other;
+        }
+
+        // The first element decides which shape is possible; the others must agree with it
+        if (vector[0]._kind == ScadValueKind.Number)
+        {
+            if (!IsNumeric(vector))
+            {
+                return ProductShape.Other;
+            }
+
+            width = vector.Count;
+            return ProductShape.Numbers;
+        }
+
+        if (vector[0]._kind != ScadValueKind.Vector)
+        {
+            return ProductShape.Other;
+        }
+
+        var first = (ScadVector)vector[0]._reference!;
+        for (var i = 0; i < vector.Count; i++)
+        {
+            var element = vector[i];
+            if (element._kind != ScadValueKind.Vector)
+            {
+                return ProductShape.Other;
+            }
+
+            var row = (ScadVector)element._reference!;
+            if (row.Count != first.Count || !IsNumeric(row))
+            {
+                return ProductShape.Other;
+            }
+        }
+
+        width = first.Count;
+        return ProductShape.Matrix;
+    }
+
+    /// <summary>
+    ///     Determines whether a vector is non-empty and holds only numbers.
+    /// </summary>
+    /// <param name="vector">The vector.</param>
+    /// <returns><see langword="true"/> for a numeric vector.</returns>
+    private static bool IsNumeric(ScadVector vector)
+    {
         if (vector.Count == 0)
         {
             return false;
         }
 
-        var values = new double[vector.Count];
-        for (var i = 0; i < values.Length; i++)
+        foreach (var element in vector.AsSpan())
         {
-            if (vector[i]._kind != ScadValueKind.Number)
+            if (element._kind != ScadValueKind.Number)
             {
                 return false;
             }
-
-            values[i] = vector[i]._number;
         }
 
-        numbers = values;
         return true;
     }
 
     /// <summary>
-    ///     Reads a matrix: a non-empty vector of numeric vectors of one common length.
+    ///     Copies a numeric vector into an array.
     /// </summary>
-    /// <param name="vector">The vector.</param>
-    /// <param name="rows">The rows when the vector is a matrix; otherwise an empty array.</param>
-    /// <returns><see langword="true"/> when the vector is a rectangular matrix.</returns>
-    private static bool TryAsMatrix(ScadVector vector, out double[][] rows)
+    /// <param name="vector">The vector; it must have been recognized as numeric by <see cref="ShapeOf"/>.</param>
+    /// <returns>The numbers.</returns>
+    private static double[] ReadNumbers(ScadVector vector)
     {
-        rows = [];
-        if (vector.Count == 0)
+        var values = new double[vector.Count];
+        for (var i = 0; i < values.Length; i++)
         {
-            return false;
+            values[i] = vector[i]._number;
         }
 
-        var result = new double[vector.Count][];
-        for (var i = 0; i < result.Length; i++)
-        {
-            var element = vector[i];
-            if (element._kind != ScadValueKind.Vector
-                || !TryAsNumbers((ScadVector)element._reference!, out result[i])
-                || result[i].Length != result[0].Length)
-            {
-                return false;
-            }
-        }
+        return values;
+    }
 
-        rows = result;
-        return true;
+    /// <summary>
+    ///     The kinds of operand a product distinguishes.
+    /// </summary>
+    private enum ProductShape
+    {
+        /// <summary>Neither a numeric vector nor a rectangular matrix.</summary>
+        Other,
+
+        /// <summary>A non-empty vector of numbers.</summary>
+        Numbers,
+
+        /// <summary>A non-empty vector of numeric vectors of one common length.</summary>
+        Matrix,
     }
 }

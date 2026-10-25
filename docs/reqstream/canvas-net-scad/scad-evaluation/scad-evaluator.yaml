@@ -475,7 +475,9 @@ sections:
                 title: >-
                   The ScadEvaluator unit shall charge evaluation steps for every expression,
                   statement, loop turn, and tail-call turn, more for work proportional to the size of
-                  the vectors it handles (counting shared nested vectors by their full contents), to
+                  the vectors it handles (counting shared nested vectors by their full contents, and
+                  refusing an operand whose count exceeds a fixed aggregate cap even when the step
+                  limit is effectively unlimited), to
                   the multiply-add work of matrix products, to the formatting of values by str and
                   echo (per element, while formatting), to the position of an indexed string
                   character, and to the length of a long scope walk,
@@ -484,10 +486,23 @@ sections:
                 justification: |
                   Time is bounded by counting work, not by wall-clock time, so that the limit is
                   deterministic and cannot be dodged by cheap-looking but expensive constructs.
+                  A few vectors that share their children can stand for more logical elements than
+                  a 64-bit counter or any memory can hold, so the count saturates, stops at the
+                  remaining budget or the aggregate cap, and is refused with a deterministic error.
                 tests:
                   - ScadEvaluatorLimit_Steps_AtLimitSucceeds_OneOverFails
                   - ScadEvaluatorLimit_Steps_VectorArithmetic_IsChargedPerElement
                   - ScadEvaluatorLimit_Steps_SharedNestedVectors_AreChargedDeeply
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_DefaultLimits_FailsWithStepLimit
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_UnlimitedSteps_FailsWithAggregateLimit
+                  - ScadEvaluatorAggregateLimit_SharedNestedVectors_BudgetNearCap_ChoosesTheSmallerLimit
+                  - ScadEvaluatorAggregateLimit_NestedOperand_WithinCap_IsChargedByElementCount
+                  - ScadEvaluatorElementCounter_Count_FlatVectors_CountTheirLength
+                  - ScadEvaluatorElementCounter_Count_NestedVectors_AddsNestedElements
+                  - ScadEvaluatorElementCounter_Count_AboveCap_StopsEarlyWithValueAboveCap
+                  - ScadEvaluatorElementCounter_Count_SharedLevels_SaturatesAndUsesTheMemo
+                  - ScadEvaluatorElementCounter_Count_CanceledToken_ThrowsOnlyOnceTheCountIsLong
+                  - ScadEvaluatorElementCounter_Count_ListOfSmallVectors_DoesNotUseTheMemo
                   - ScadEvaluatorLimit_Steps_LongScopeWalk_IsCharged
                   - ScadEvaluatorLimit_Steps_StrOfLargeVector_IsChargedPerElement
                   - ScadEvaluatorLimit_Steps_EchoOfLargeVector_IsChargedPerElement
