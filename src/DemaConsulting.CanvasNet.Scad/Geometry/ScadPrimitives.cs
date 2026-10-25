@@ -116,7 +116,7 @@ internal static partial class ScadPrimitives
         var radius = FirstValid(1.0, diameter, radiusArgument);
         var fragments = ScadFragmentRule.Fragments(radius, node.Fragments);
         var rings = Math.Max(2, (fragments + 1) / 2);
-        return Solid(node, context, 2L * fragments * rings, () => PrimitiveTessellator.Sphere(radius, fragments));
+        return Solid(node, context, 2L * fragments * (rings - 1), () => PrimitiveTessellator.Sphere(radius, fragments));
     }
 
     /// <summary>
@@ -157,7 +157,9 @@ internal static partial class ScadPrimitives
 
         var centered = args.TryGet("center", out var centerValue) && centerValue.IsTrue;
         var fragments = ScadFragmentRule.Fragments(Math.Max(r1, r2), node.Fragments);
-        return Solid(node, context, 4L * fragments, () => PrimitiveTessellator.Cylinder(height, r1, r2, fragments, centered));
+        // A cylinder has two fans of caps and two wall triangles per fragment; a cone has one fan and one wall triangle
+        var trianglesPerFragment = r1 > 0.0 && r2 > 0.0 ? 4L : 2L;
+        return Solid(node, context, trianglesPerFragment * fragments, () => PrimitiveTessellator.Cylinder(height, r1, r2, fragments, centered));
     }
 
     /// <summary>
@@ -238,7 +240,7 @@ internal static partial class ScadPrimitives
     /// </summary>
     /// <param name="node">The instance.</param>
     /// <param name="context">The build context.</param>
-    /// <param name="triangleEstimate">The upper bound of the triangles the mesh will have.</param>
+    /// <param name="triangleEstimate">The exact number of triangles the mesh will have.</param>
     /// <param name="make">The tessellation.</param>
     /// <returns>A solid, or <see cref="ScadGeo.Empty"/> when the tessellator rejected the input.</returns>
     /// <exception cref="ScadEvaluationException">Thrown when the triangle budget would be exceeded.</exception>
@@ -254,10 +256,12 @@ internal static partial class ScadPrimitives
         }
         catch (ArgumentException ex)
         {
+            context.RefundTriangles(triangleEstimate);
             Rejected(node, context, ex);
             return ScadGeo.Empty;
         }
 
+        context.SettleTriangles(triangleEstimate, mesh.TriangleCount, node.Location);
         return ScadGeo.FromMesh(context.CreateMeshNode(mesh, node.Location));
     }
 

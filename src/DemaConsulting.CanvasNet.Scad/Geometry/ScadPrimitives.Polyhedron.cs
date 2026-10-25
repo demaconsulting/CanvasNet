@@ -76,6 +76,7 @@ internal static partial class ScadPrimitives
         var triangles = TriangulateFaces(points, faces);
         if (triangles is null)
         {
+            context.RefundTriangles(estimate);
             context.Reporter.Unsupported(
                 ScadFeatureIds.PolyhedronFaceInvalid,
                 "polyhedron: a face cannot be triangulated (degenerate or self-intersecting); the polyhedron is omitted",
@@ -90,9 +91,12 @@ internal static partial class ScadPrimitives
         }
         catch (ArgumentException ex)
         {
+            context.RefundTriangles(estimate);
             Rejected(node, context, ex);
             return ScadGeo.Empty;
         }
+
+        context.SettleTriangles(estimate, mesh.TriangleCount, node.Location);
 
         // A closed mesh with negative volume was listed counter-clockwise from outside: turn it right way round
         if (mesh.IsClosed && mesh.SignedVolume < 0.0)

@@ -195,9 +195,10 @@ sections:
           - id: CanvasNetScad-ScadGeometry-Limits
             title: >-
               The ScadGeometry subsystem shall bound the geometry a model generates by the triangle
-              limit, estimating the size of every sphere, cylinder, circle, polyhedron, slab, and
-              extrusion before allocating it and failing with a located ScadEvaluationException when the
-              budget would be exceeded, without arithmetic overflow for hostile arguments.
+              limit, computing the exact triangle count of every sphere, cylinder, polyhedron, slab, and
+              extrusion (including the caps of a profile with holes) before allocating it and failing
+              with a located ScadEvaluationException when the budget would be exceeded, without
+              arithmetic overflow for hostile arguments.
             justification: |
               A model can ask for geometry of any size with a few characters; the budget must hold
               before memory is allocated so that a hostile model cannot exhaust the host.

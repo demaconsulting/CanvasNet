@@ -58,9 +58,10 @@ are 12 and 2, and the floor of the automatic rule is 5.
 | `polygon`    | `points`, `paths`, `convexity`                   |
 
 Two private value types support the length parameters: `LengthState` (`Absent`, `Valid`, `Invalid`) and the
-`Length(State, Value)` record struct, whose value is already scaled (a diameter is halved). The public constant
-`SlabTrianglesPerVertex` (4) is the number of triangles a slab has per region vertex (walls plus both caps); the
-`ScadExtrusions` unit reuses it to charge the slab of a top-level 2D shape.
+`Length(State, Value)` record struct, whose value is already scaled (a diameter is halved). The public method
+`SlabTrianglesLowerBound(vertexCount)` (`8·V / 3`) is the fewest triangles the slab of a region of `V` vertices can
+have (`2V + 2(V + 2H − 2P)` with every contour at least a triangle); `Flat` uses it to refuse a hostile fragment
+count early, while the `ScadExtrusions` unit charges the slab's exact count.
 
 **Results** are `ScadGeo` values defined by the `ScadGeometryBuilder` unit: `ScadGeo.Empty` for a rejected
 instance, `ScadGeo.FromMesh(node)` for a solid, and `ScadGeo.FromRegion(region, location)` for a 2D shape. The
@@ -93,7 +94,9 @@ vector of exactly `count` finite numbers; `TryIndex` accepts a non-negative whol
 
 ##### `ScadFragmentRule.Fragments(radius, fn, fa, fs)` and `Fragments(radius, settings)`
 
-The rule is evaluated in this order:
+The rule is evaluated in this order (the order matters: the tiny-radius rule is applied **before** `$fn` is
+considered, so `$fn = 100` on a circle of radius `1e-9` still has 3 fragments, while radius `1e-7` honors `$fn`;
+pinned by `ScadFragmentRule_Fragments_TinyRadiusRuleComesBeforeFn`):
 
 1. A radius that is non-finite or at most `MinimumRadius` gives 3, whatever the settings.
 2. A positive `$fn` gives `max(3, truncate($fn))`, capped at `MaximumFragments`; NaN is neither positive nor
@@ -110,19 +113,20 @@ is `ScadLimits.MaxTriangles`, not the fragment cap.
 ##### `ScadPrimitives.Cube`, `Sphere`, `Cylinder`
 
 Each builder prepares its arguments (`Begin`: warn when the instance has child objects, then `Bind`), validates
-them, and passes the tessellation to the shared `Solid` helper together with an upper-bound triangle estimate.
+them, and passes the tessellation to the shared `Solid` helper together with the exact triangle count of the mesh.
 
 - **`cube(size, center)`** — `size` is a number (an edge) or a vector of exactly three numbers, default 1; every
   extent must be positive. `center` is true for any truthy value. The mesh is `PrimitiveTessellator.Box`; the
-  estimate is 12 triangles.
+  charge is 12 triangles.
 - **`sphere(r, d)`** — `r` and `d` must be positive numbers; **a diameter overrides the radius** (default radius
   1). The fragment count is `Fragments(radius, node.Fragments)`, the rings are `max(2, (fragments + 1) / 2)`,
-  the mesh is `PrimitiveTessellator.Sphere(radius, fragments)`, and the estimate is `2 * fragments * rings`.
+  the mesh is `PrimitiveTessellator.Sphere(radius, fragments)`, and the charge is `2 * fragments * (rings - 1)`
+  (two pole fans and `rings - 2` bands of two triangles per fragment).
 - **`cylinder(h, r1, r2, center, r, d, d1, d2)`** — `h` must be positive (default 1); the radii and diameters
   must be non-negative numbers. Precedence for each end, weakest to strongest: the default 1, `r`, `d`, the
   per-end `r1`/`r2`, and the per-end `d1`/`d2`. At least one end radius must be greater than zero (a cone has
-  one zero end). The fragment count uses `max(r1, r2)`; the mesh is `PrimitiveTessellator.Cylinder`; the estimate
-  is `4 * fragments`.
+  one zero end). The fragment count uses `max(r1, r2)`; the mesh is `PrimitiveTessellator.Cylinder`; the charge
+  is `4 * fragments` (`2 * fragments` for a cone).
 
 ##### `ScadPrimitives.Square`, `Circle`
 
@@ -171,10 +175,11 @@ the winding of a contour or of a path does not matter.
   and returns `ScadGeo.Empty`.
 - **`ReadLength` and `FirstValid`** read a length-like parameter (`Absent`, `Valid`, or `Invalid`, scaled by 0.5
   for a diameter) and choose the strongest valid argument or a fallback.
-- **`Solid`** charges the triangle budget with the estimate (`ChargeTriangles`), polls cancellation, builds the
-  mesh, and wraps it with `CreateMeshNode`, which records the mesh node's source location in the scene map.
-- **`Flat`** checks that the slab the region may become fits the budget (`EnsureTriangles(4 * vertexEstimate)`)
-  **without charging it**; the charge happens when the slab is made at the root or when the region is extruded.
+- **`Solid`** charges the triangle budget with the exact count (`ChargeTriangles`), polls cancellation, builds the
+  mesh, settles the charge against the mesh's triangle count (`SettleTriangles`; a rejected tessellation is
+  refunded), and wraps it with `CreateMeshNode`, which records the mesh node's source location in the scene map.
+- **`Flat`** checks that the slab the region may become fits the budget (`EnsureTriangles(SlabTrianglesLowerBound(vertexEstimate))`)
+  **without charging it**; the exact charge happens when the slab is made at the root or when the region is extruded.
   It then builds the region, returns `ScadGeo.Empty` for an empty region, and wraps the region with the
   instance's location otherwise. The vertex estimate is 4 for `square`, the fragment count for `circle`, and the
   point count for `polygon`.
@@ -235,7 +240,7 @@ the winding of a contour or of a path does not matter.
 _ScadGeometryBuilder Unit Design_), and the builder consumes the returned `ScadGeo` (a solid, a flat result, or
 empty) according to its dimension rules. The `ScadTransforms` unit (its transform and color builders) and the
 `ScadExtrusions` unit reuse `ScadArguments`; the extrusion unit also reuses `ScadFragmentRule` and the
-`SlabTrianglesPerVertex` constant. The tests in
+`SlabTrianglesLowerBound` method. The tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/` reach the unit through `InternalsVisibleTo`: the
 argument and fragment-rule tests call `ScadArguments.Bind` and `ScadFragmentRule.Fragments` directly, and the
 primitive tests build real programs through the evaluator and `ScadGeometryBuilder` (the helpers of

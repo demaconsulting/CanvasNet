@@ -169,10 +169,11 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadExtrusions-TriangleBudget
                 title: >-
-                  The ScadExtrusions unit shall estimate the triangles of a linear_extrude or rotate_extrude
-                  from the vertices of all its leaves and the slice or segment count, using saturating
-                  arithmetic, and fail with a located ScadEvaluationException before allocating when the
-                  estimate exceeds the remaining triangle budget.
+                  The ScadExtrusions unit shall compute the exact triangles of a linear_extrude or
+                  rotate_extrude (the side walls from the contours and the slice or segment count, and each
+                  cap as V + 2H - 2P triangles for V vertices, H holes, and P solid contours of a leaf),
+                  using saturating arithmetic, and fail with a located ScadEvaluationException before
+                  allocating when the count exceeds the remaining triangle budget.
                 justification: |
                   A hostile slice count, twist, or fragment count must not exhaust memory; the check has to
                   precede the allocation and survive estimates beyond the range of an integer.
@@ -180,14 +181,17 @@ sections:
                   - ScadExtrusionsLinear_HostileSlicesOrTwist_ExceedTheTriangleLimit
                   - ScadExtrusionsLinear_SmallBudget_IsEnforced
                   - ScadExtrusionsRotate_HostileFragmentCount_ExceedsTheTriangleLimit
+                  - ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo
+                  - ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps
 
               - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSweep
                 title: >-
                   The ScadExtrusions unit shall revolve the 2D children of rotate_extrude about the Z axis
                   with profile X as the radius, starting at +X and turning counter-clockwise for a positive
                   angle (default 360, a larger magnitude clamped to a full turn) and clockwise for a
-                  negative one, closing a partial sweep with flat end caps, and mirroring a profile that lies
-                  entirely at x <= 0 onto the positive side so that the sweep always starts at +X.
+                  negative one, closing a partial sweep with flat end caps, and sweeping a profile that lies
+                  entirely at x <= 0 where it lies (a point at (-4, 0) with an angle of 90 sweeps from 180 to
+                  270 degrees, the quadrant x < 0, y < 0), the full turn being that of the mirrored profile.
                 justification: |
                   The sweep start, direction, and clamping are dialect decisions; the exact faceted volume
                   (which approaches the Pappus volume) proves the solid is closed and correctly oriented.
@@ -195,7 +199,8 @@ sections:
                   - ScadExtrusionsRotate_FullRevolution_GivesTheFacetedPappusVolume
                   - ScadExtrusionsRotate_PartialSweep_IsAClosedWedge
                   - ScadExtrusionsRotate_NegativeAndOversizedAngles_ClockwiseAndClamped
-                  - ScadExtrusionsRotate_NegativeSideProfile_IsMirroredToTheSweepStart
+                  - ScadExtrusionsRotate_NegativeSideProfile_PartialSweepLiesInTheNegativeQuadrant
+                  - ScadExtrusionsRotate_NegativeSideProfile_FullTurnEqualsTheMirroredProfile
                   - ScadExtrusionsRotate_Torus_MatchesPappus
 
               - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateArguments
@@ -238,6 +243,7 @@ sections:
                   solid; poles and hollow profiles are ordinary lathe shapes and must keep working.
                 tests:
                   - ScadExtrusionsRotate_AxisCrossing_IsReportedAndOmitted
+                  - ScadExtrusionsRotate_MixedSignProfile_IsReported
                   - ScadExtrusionsRotate_AxisContact_IsReportedAndPolesAreFine
                   - ScadExtrusionsRotate_ProfileWithHole_IsHollow
                   - ScadExtrusionsRotate_StrictMode_ThrowsForAxisCrossing

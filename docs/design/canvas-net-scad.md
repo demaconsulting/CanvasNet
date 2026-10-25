@@ -269,8 +269,9 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   self-referential sequences rejected) and sequences are enumerated exactly once into a snapshot.
 
 - **Bounded geometry.** The geometry a model generates is bounded by `ScadLimits.MaxTriangles`: every sphere,
-  cylinder, circle, polyhedron, slab, and extrusion estimates its triangle count, with saturating arithmetic,
-  before it allocates, and exceeding the budget raises a `ScadEvaluationException` located at the module.
+  cylinder, polyhedron, slab, and extrusion computes the exact triangle count of its mesh (for an extrusion,
+  the caps of a profile with holes included), with saturating arithmetic, before it allocates, and exceeding
+  the budget raises a `ScadEvaluationException` located at the module.
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
   shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested
@@ -470,7 +471,7 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color` | Supported (Phase 6) | See _ScadTransforms Unit Design_; `multmatrix` with a projective row is `scad-multmatrix-projective` |
 | `union`, `render`, implicit unions, `difference`, `intersection`, `intersection_for`, for solids and 2D shapes | Supported (Phase 6) | 2D booleans are symbolic and are distributed over by extrusion; mixed dimensions warn |
 | `linear_extrude`, `rotate_extrude` | Supported (Phase 6) | See _ScadExtrusions Unit Design_; `convexity` is accepted and ignored |
-| `!` (show only) | Supported (Phase 6) | The marked subtrees become the model, without the transforms and colors of their ancestors |
+| `!` (show only) | Supported (Phase 6) | The marked subtree becomes the new root of the design, without the transforms and colors of its ancestors |
 | `#` (highlight) | Degraded (Phase 6) | Built normally and reported as `scad-modifier-highlight` until true highlighting exists |
 | `%` (background) | Degraded (Phase 6) | Omitted and reported as `scad-modifier-background` until true background rendering exists |
 | Color with alpha below 1, `transparent` | Degraded (Phase 6) | Drawn opaque and reported as `scad-color-alpha` |
@@ -545,14 +546,16 @@ _ScadGeometry Subsystem Design_ and the unit designs:
     (4x4, or 3x4); `mirror(v)` reflects through the plane with normal `v`; `resize` scales about the origin.
  4. A positive `twist` turns **clockwise seen from +Z**; `linear_extrude` has the default height 100;
     `rotate_extrude` starts at `+X`, sweeps counter-clockwise, clamps angles beyond 360 degrees, sweeps negative
-    angles clockwise, and mirrors a profile that lies on the negative side of the axis to the positive side.
+    angles clockwise, and sweeps a profile that lies on the negative side of the axis where it is (a point at
+    `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees; a profile with both signs is reported).
  5. An extrusion that cannot be built is **omitted whole** and reported (axis crossing or contact, invalid
     scale, a Render3D rejection), so a boolean over it never silently changes meaning.
  6. A 2D shape that is not extruded is a thin slab (`FlatShapeThickness`); a union that mixes dimensions keeps
     the 3D members, and a difference or intersection keeps the dimension of its first non-empty operand; each
     warns about what it drops.
- 7. The `!` modifier replaces the model by the outermost marked subtrees **without** the transforms and colors
-    of their ancestors; `#` and `%` and a color alpha below 1 are **degraded and reported**.
+ 7. The `!` modifier makes the outermost marked subtrees the new root of the design, **without** the transforms
+    and colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `#` and
+    `%` and a color alpha below 1 are **degraded and reported**.
  8. Rendering is deterministic (byte-identical images for any degree of parallelism) and uses a neutral gray on
     a white background, with a view fitted to the model by default, unless the model or the options say
     otherwise.

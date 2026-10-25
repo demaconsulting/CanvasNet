@@ -181,20 +181,26 @@ still built.
 `ScadExtrusionsRotateTests.ScadExtrusionsRotate_HostileFragmentCount_ExceedsTheTriangleLimit`
 
 Asserts that slices of 1e9 and 1e300, a twist of 1e15 (also with `$fn` of 1e6), and a `$fn` of 1e9 for a revolution
-throw `ScadEvaluationException` ("Triangle limit") located at the extrusion, that the estimate is exact at its
-boundary (808 triangles for four vertices and 100 slices), and that the budget accounts for all leaves.
+throw `ScadEvaluationException` ("Triangle limit") located at the extrusion, that the count is exact at its
+boundary (808 triangles for four vertices and 100 slices; 52 for one outer boundary and two holes of 12 vertices,
+whose two caps have 14 triangles each, so a limit of 51 rejects and 52 accepts), and that the budget accounts for all
+leaves. The exact charge equals the mesh triangle count across a matrix of shapes (see the _ScadGeometryBuilder_
+triangle budget verification).
 
 ##### CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSweep: Angle, Direction, And Sweep Start
 
 **Tests**: `ScadExtrusionsRotateTests.ScadExtrusionsRotate_FullRevolution_GivesTheFacetedPappusVolume`,
 `ScadExtrusionsRotateTests.ScadExtrusionsRotate_PartialSweep_IsAClosedWedge`,
 `ScadExtrusionsRotateTests.ScadExtrusionsRotate_NegativeAndOversizedAngles_ClockwiseAndClamped`,
-`ScadExtrusionsRotateTests.ScadExtrusionsRotate_NegativeSideProfile_IsMirroredToTheSweepStart`,
+`ScadExtrusionsRotateTests.ScadExtrusionsRotate_NegativeSideProfile_PartialSweepLiesInTheNegativeQuadrant`,
+`ScadExtrusionsRotateTests.ScadExtrusionsRotate_NegativeSideProfile_FullTurnEqualsTheMirroredProfile`,
 `ScadExtrusionsRotateTests.ScadExtrusionsRotate_Torus_MatchesPappus`
 
 Asserts the exact faceted volume and bounds of a full revolution and of a 90-degree wedge (closed, with end caps),
 that a negative angle sweeps into negative Y with the same volume, that an angle of 720 is the same solid as 360,
-that a profile at `x <= 0` gives the same bounds and volume as its mirror image for a partial sweep, and that a
+that a profile at `x <= 0` is swept where it lies (a 90-degree sweep of a profile spanning `x` from -4 to -3 has
+bounds `[-4, 0]` in X and Y with a closed, outward mesh of the volume of the mirrored profile, and with `angle = -90` it
+lies at `y >= 0`), that its full turn has the bounds, vertex count, and volume of the mirrored profile, and that a
 torus matches its faceted closed form and the Pappus volume within one percent.
 
 ##### CanvasNetScad-ScadGeometry-ScadExtrusions-RotateArguments: Invalid Angle

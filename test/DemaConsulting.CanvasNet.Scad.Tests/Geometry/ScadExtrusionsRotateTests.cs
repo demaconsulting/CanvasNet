@@ -115,22 +115,63 @@ public class ScadExtrusionsRotateTests
     }
 
     /// <summary>
-    ///     Validates that a profile entirely on the negative side is mirrored to the positive side, so it gives the
-    ///     same solid as the mirrored profile, also for a partial sweep.
+    ///     Validates that a profile entirely on the negative side is swept where it lies: a point at (-4, 0) with a
+    ///     partial angle of 90 sweeps from 180 to 270 degrees, so the wedge lies in the quadrant x &lt; 0, y &lt; 0
+    ///     (not in the quadrant of the mirrored profile), with the volume of the mirrored profile, a closed outward
+    ///     mesh and no report.
     /// </summary>
     [Fact]
-    public void ScadExtrusionsRotate_NegativeSideProfile_IsMirroredToTheSweepStart()
+    public void ScadExtrusionsRotate_NegativeSideProfile_PartialSweepLiesInTheNegativeQuadrant()
     {
         // Arrange / Act
         var negative = Build("rotate_extrude(angle = 90, $fn = 8) translate([-4, 0]) square([1, 2]);");
         var positive = Build("rotate_extrude(angle = 90, $fn = 8) translate([3, 0]) square([1, 2]);");
+        var clockwise = Build("rotate_extrude(angle = -90, $fn = 8) translate([-4, 0]) square([1, 2]);");
+
+        // Assert: from 180 to 270 degrees counter-clockwise, and from 180 to 90 degrees clockwise
+        AssertBounds(negative.WorldMesh.Bounds, new Vector3D(-4, -4, 0), new Vector3D(0, 0, 2), 1e-9);
+        AssertBounds(clockwise.WorldMesh.Bounds, new Vector3D(-4, 0, 0), new Vector3D(0, 4, 2), 1e-9);
+        AssertSolidVolume(negative.WorldMesh, positive.WorldMesh.SignedVolume);
+        AssertSolidVolume(clockwise.WorldMesh, positive.WorldMesh.SignedVolume);
+        Assert.All(negative.WorldMesh.Vertices, v => Assert.True(v.X <= 1e-9 && v.Y <= 1e-9));
+        Assert.Empty(negative.Warnings);
+        Assert.Empty(negative.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a full turn of a profile on the negative side equals the full turn of the mirrored profile
+    ///     (same bounds, vertex count and volume).
+    /// </summary>
+    [Fact]
+    public void ScadExtrusionsRotate_NegativeSideProfile_FullTurnEqualsTheMirroredProfile()
+    {
+        // Arrange / Act
+        var negative = Build("rotate_extrude($fn = 12) translate([-4, 0]) square([1, 2]);");
+        var positive = Build("rotate_extrude($fn = 12) translate([3, 0]) square([1, 2]);");
 
         // Assert
         AssertBounds(negative.WorldMesh.Bounds, positive.WorldMesh.Bounds.Min, positive.WorldMesh.Bounds.Max, 1e-9);
-        AssertBounds(negative.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(4, 4, 2), 1e-9);
+        Assert.Equal(positive.WorldMesh.VertexCount, negative.WorldMesh.VertexCount);
         AssertSolidVolume(negative.WorldMesh, positive.WorldMesh.SignedVolume);
         Assert.Empty(negative.Warnings);
         Assert.Empty(negative.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that profile shapes with vertices on both sides of the axis (mixed signs) are reported as the
+    ///     axis-crossing unsupported feature at the extrusion and omitted.
+    /// </summary>
+    [Fact]
+    public void ScadExtrusionsRotate_MixedSignProfile_IsReported()
+    {
+        // Arrange / Act
+        var result = Build("\n  rotate_extrude() { translate([-3, 0]) square([1, 2]); translate([2, 0]) square([1, 2]); }");
+
+        // Assert
+        Assert.Empty(result.Meshes);
+        var report = Assert.Single(result.Unsupported);
+        Assert.Equal("scad-rotate-extrude-axis-crossing", report.Feature);
+        Assert.Equal(new ScadSourceLocation(null, 2, 3), report.Location);
     }
 
     /// <summary>

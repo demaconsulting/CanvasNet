@@ -74,20 +74,22 @@ public class ScadGeometryBuilderLimitTests
     }
 
     /// <summary>
-    ///     Validates that a 2D shape is charged for the slab it becomes: four triangles per vertex, checked both when
-    ///     the shape is created and when the slab is made.
+    ///     Validates that a 2D shape is charged for the slab it becomes, with the exact count (<c>4V - 4</c> for a
+    ///     shape with one contour of <c>V</c> vertices: <c>2V</c> wall and two caps of <c>V - 2</c> triangles), checked
+    ///     when the slab is made.
     /// </summary>
     [Fact]
     public void ScadGeometryBuilder_Build_FlatShape_IsChargedForItsSlab()
     {
         // Arrange / Act
-        var fits = Build("circle(1, $fn = 1000);", Settings(maxTriangles: 4000));
-        var tooSmall = Assert.Throws<ScadEvaluationException>(() => Build("circle(1, $fn = 1000);", Settings(maxTriangles: 3999)));
+        var fits = Build("circle(1, $fn = 1000);", Settings(maxTriangles: 3996));
+        var tooSmall = Assert.Throws<ScadEvaluationException>(() => Build("circle(1, $fn = 1000);", Settings(maxTriangles: 3995)));
         var twoShapes = Assert.Throws<ScadEvaluationException>(() => Build("square(1); circle(1, $fn = 10);", Settings(maxTriangles: 19)));
 
         // Assert
         Assert.Single(fits.Meshes);
-        Assert.Contains("limit 3999", tooSmall.Message, StringComparison.Ordinal);
+        Assert.Equal(3996, fits.TrianglesCharged);
+        Assert.Contains("limit 3995", tooSmall.Message, StringComparison.Ordinal);
         Assert.Contains("limit 19", twoShapes.Message, StringComparison.Ordinal);
     }
 

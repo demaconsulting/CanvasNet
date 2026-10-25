@@ -107,13 +107,16 @@ report, and that `union` and `render` give one group while a lone child is itsel
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ShowOnly: The `!` Modifier
 
 **Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_ShowOnly_ReplacesModelWithoutAncestors`,
+`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_SeveralShowOnly_UnionInOrderAndNestedMarkIgnored`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing`,
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule`
 
-Asserts that a marked subtree replaces the model without the translation around it and without reports for its
-ancestors, that several marks are combined in document order and a nested mark has no effect, that a mark inside a
+Asserts that a marked subtree is the new root of the design: it replaces the model without the translation around it
+and without reports for its ancestors, so `translate([10, 0, 0]) { !cube(1); }` is a cube at the origin and a mark
+under `color("red") rotate(...) translate(...)` is neither colored nor moved, that several marks are combined in
+document order and a nested mark has no effect, that a mark inside a
 `%` subtree is ignored (the model stays the ordinary instances) and a subtree marked both `!` and `%` yields
 nothing but the background report, that `%{ !x }` with a single child builds nothing and reports the omission, and
 that `!` on an unsupported module makes it the model (it is reported and the rest is dropped).
@@ -254,13 +257,26 @@ plain solids reports nothing, and that a boolean left with one operand stays exa
 `ScadGeometryBuilderLimitTests.ScadGeometryBuilder_Build_HugeSphereUnderDefaultBudget_ThrowsLocatedLimitError`,
 `ScadGeometryBuilderLimitTests.ScadGeometryBuilder_Build_BudgetAccumulatesAcrossLoopIterations`,
 `ScadGeometryBuilderLimitTests.ScadGeometryBuilder_Build_CylinderEstimate_IsFourTrianglesPerFragment`,
-`ScadGeometryBuilderLimitTests.ScadGeometryBuilder_Build_PublicMaxTriangles_FailsBuildScene`
+`ScadGeometryBuilderLimitTests.ScadGeometryBuilder_Build_PublicMaxTriangles_FailsBuildScene`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_ChargesExactlyTheTrianglesCreated`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_LimitAtTheExactCount_AcceptsAndOneBelowRejects`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_ExtrusionOverBudget_FailsWithTheLocation`
 
 Asserts that a hostile `$fn` on a sphere, cylinder, circle, and a polygon plus circle fails with
 `Triangle limit exceeded (limit 1000)` at the right line before allocating, that the default budget alone stops a
 sphere with a million fragments (`2:1: Triangle limit exceeded (limit 5000000)`), that eight cubes of twelve
 triangles fit a budget of 100 and nine fail at 1:17, that a cylinder of 100 fragments fits 400 and fails at 399,
-and that the public `ScadLimits.MaxTriangles` fails `BuildScene` with the located error.
+and that the public `ScadLimits.MaxTriangles` fails `BuildScene` with the located error. It also asserts, over a
+matrix of 43 programs (cubes, spheres, cylinders, cones, polyhedra, flat slabs, linear extrusions with holes, nested
+islands, twist, slices, scale and apex, differences, and rotate extrusions full, partial, with holes, poles, negative
+profiles, and negative angles), that the number of triangles charged equals the triangles of the meshes created; that
+for eight representative programs the limit equal to that number builds and one below fails; that a linear extrusion
+of one outer boundary and two holes (12 vertices) is charged 52 (24 wall triangles and two caps of 14), so a limit
+of 51, or 48 (four per vertex), fails and 52 builds; that a partial `rotate_extrude` of a profile with a hole is
+charged 80 and the slab of a flat shape with two holes 52, each failing one below; and that an extrusion over budget
+fails located at the extrusion.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange: Coordinate Range
 
@@ -290,8 +306,9 @@ camera falls back to the unit-cube framing for bounds beyond the limit while it 
 `ScadPrimitivesShape2DTests.ScadGeometryBuilder_Build_FlatShapeThickness_SetsSlabHeight`
 
 Asserts that the slabs of a 2D difference have the exact footprints (bounds from 0 to 0.1 in Z at the default
-thickness) and volumes, that a circle of 1,000 vertices fits a budget of 4,000 triangles (four per vertex) and
-fails at 3,999, that two shapes of 4 and 10 vertices fail at 19, and that a thickness setting of 2.5 gives a slab
+thickness) and volumes, that a circle of 1,000 vertices is charged its exact slab (3,996 triangles: 2,000 wall
+and two caps of 998), so it fits a budget of 3,996 and fails at 3,995, that two shapes of 4 and 10 vertices fail at 19,
+and that a thickness setting of 2.5 gives a slab
 of height 2.5 and volume `4 * 2.5` (this last scenario resides in the `ScadPrimitives` unit's test file).
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation: Cancellation

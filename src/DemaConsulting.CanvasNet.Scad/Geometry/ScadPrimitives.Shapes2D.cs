@@ -18,8 +18,17 @@ internal static partial class ScadPrimitives
     /// <summary>The parameter names of <c>polygon</c> in positional order.</summary>
     private static readonly string[] PolygonParameters = ["points", "paths", "convexity"];
 
-    /// <summary>The number of triangles of a slab made of a region, per region vertex (walls plus both caps).</summary>
-    public const long SlabTrianglesPerVertex = 4;
+    /// <summary>
+    ///     Gets the fewest triangles the slab of a region of a given number of vertices can have, used only to refuse a
+    ///     hostile fragment count before the region is built; the slab is charged with its exact count later.
+    /// </summary>
+    /// <remarks>
+    ///     A slab has <c>2V + 2(V + 2H - 2P)</c> triangles; with every contour having at least three vertices
+    ///     (<c>P &lt;= V / 3</c>) that is at least <c>8V / 3</c>.
+    /// </remarks>
+    /// <param name="vertexCount">The vertex count (an upper bound is fine).</param>
+    /// <returns>The lower bound of the slab triangles.</returns>
+    public static long SlabTrianglesLowerBound(long vertexCount) => 8L * vertexCount / 3L;
 
     /// <summary>
     ///     Builds a <c>square(size, center)</c>.
@@ -213,8 +222,8 @@ internal static partial class ScadPrimitives
         Func<PolygonRegion> make,
         string? rejectionFeature = null)
     {
-        // The slab this region may become must fit the budget; the charge itself happens when the slab is made
-        context.EnsureTriangles(SlabTrianglesPerVertex * vertexEstimate, node.Location);
+        // The slab this region may become must fit the budget; the exact charge happens when the slab is made
+        context.EnsureTriangles(SlabTrianglesLowerBound(vertexEstimate), node.Location);
         context.Poll();
         PolygonRegion region;
         try

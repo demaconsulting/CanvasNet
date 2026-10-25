@@ -3334,8 +3334,9 @@ A `color()` in the model overrides `SceneOptions.DefaultColor`. `ScadLimits` (in
 resource of a call; besides the evaluation limits (`MaxRecursionDepth`, `MaxEvaluationSteps`,
 `MaxLoopIterations`, `MaxListLength`, `MaxStringLength`, `MaxIncludeDepth`, `MaxIncludedFiles`, `MaxInstances`,
 `MaxOutputLength`, `MaxDiagnostics`) it has `MaxTriangles` (a `long`, default 5,000,000, at least 1), the bound on
-the number of triangles the model's geometry may need. The size of every sphere, cylinder, circle, polyhedron,
-and extrusion is estimated **before** it is allocated, so a hostile model such as `sphere(1, $fn = 100000)`
+the number of triangles the model's geometry may need. The exact number of triangles of every sphere, cylinder,
+polyhedron, slab, and extrusion (including the caps of a profile with holes) is computed **before** it is
+allocated, so a hostile model such as `sphere(1, $fn = 100000)`
 fails with a located `ScadEvaluationException` instead of exhausting memory.
 
 **Variables (`-D`).** `ScadEvaluationOptions.Variables` replaces every top-level assignment of the named variable
@@ -3353,7 +3354,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | Module | Forms | Notes |
 | ------ | ----- | ----- |
 | `cube` | `cube(size, center)`; `size` is a number or `[x, y, z]` | Origin corner unless `center` |
-| `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r` |
+| `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r`; the number of fragments follows `$fn`, `$fa`, and `$fs`, except that a radius of 1e-8 or less always gives 3 fragments, even with `$fn` set |
 | `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
 | `polyhedron` | `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent | Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a warning. Concave planar faces are triangulated; an open shape is kept |
 | `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`) |
@@ -3364,8 +3365,8 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins. A transparency below 1 is drawn opaque and reported |
 | `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
 | `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
-| `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is mirrored to the positive side |
-| `!` (show only) | `!cube(5);` | The marked subtrees become the whole model, **without** the transforms and colors of their ancestors |
+| `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
+| `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
 | `#`, `%` | | Degraded and reported (see the next section) |
 <!-- markdownlint-enable MD013 -->

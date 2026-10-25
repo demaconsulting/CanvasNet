@@ -66,7 +66,8 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ShowOnly
                 title: >-
                   The ScadGeometryBuilder unit shall make the outermost subtrees marked with the show-only
-                  modifier the whole model, built without the transforms and colors of their ancestors and
+                  modifier the new root of the design, built without the transforms and colors of their
+                  ancestors (translate([10, 0, 0]) { !cube(1); } renders the cube at the origin) and
                   combined in document order, ignore a mark nested in a marked subtree or in a background
                   subtree, and build nothing for an instance that is both marked and background.
                 justification: |
@@ -74,6 +75,7 @@ sections:
                   author sees and must be the same in every build.
                 tests:
                   - ScadGeometryBuilder_Build_ShowOnly_ReplacesModelWithoutAncestors
+                  - ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors
                   - ScadGeometryBuilder_Build_SeveralShowOnly_UnionInOrderAndNestedMarkIgnored
                   - ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored
                   - ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing
@@ -236,10 +238,12 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-TriangleBudget
                 title: >-
-                  The ScadGeometryBuilder unit shall charge an upper-bound estimate of the triangles of
-                  each instance against ScadLimits.MaxTriangles before allocating them, accumulating
-                  across the instances of loops, and shall fail with a ScadEvaluationException that names
-                  the offending instance's location and the limit when an estimate does not fit.
+                  The ScadGeometryBuilder unit shall charge the exact number of triangles of each mesh
+                  (including both caps of an extrusion of a profile with holes or several contours)
+                  against ScadLimits.MaxTriangles before allocating them, so that the number charged equals
+                  the number of triangles created, accumulating across the instances of loops, and shall
+                  fail with a ScadEvaluationException that names the offending instance's location and the
+                  limit when the count does not fit.
                 justification: |
                   A hostile fragment count or loop must fail fast with a message that names the source
                   line instead of exhausting memory.
@@ -249,6 +253,11 @@ sections:
                   - ScadGeometryBuilder_Build_BudgetAccumulatesAcrossLoopIterations
                   - ScadGeometryBuilder_Build_CylinderEstimate_IsFourTrianglesPerFragment
                   - ScadGeometryBuilder_Build_PublicMaxTriangles_FailsBuildScene
+                  - ScadGeometryBuilder_Build_ChargesExactlyTheTrianglesCreated
+                  - ScadGeometryBuilder_Build_LimitAtTheExactCount_AcceptsAndOneBelowRejects
+                  - ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo
+                  - ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps
+                  - ScadGeometryBuilder_Build_ExtrusionOverBudget_FailsWithTheLocation
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
                 title: >-
@@ -276,7 +285,7 @@ sections:
                 title: >-
                   The ScadGeometryBuilder unit shall turn a 2D result at the top of the model into one slab
                   per 2D shape, of the configured flat-shape thickness and with the shape's exact footprint,
-                  and shall charge each slab against the triangle budget.
+                  and shall charge each slab against the triangle budget with its exact triangle count.
                 justification: |
                   A bare 2D shape must be visible in a rendering, and its slab costs triangles like any
                   other geometry.

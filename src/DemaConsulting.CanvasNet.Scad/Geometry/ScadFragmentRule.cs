@@ -6,8 +6,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The rule is the public, documented formula of the language: a radius below
-///         <see cref="MinimumRadius"/> gives <see cref="MinimumFragments"/>; a positive <c>$fn</c> gives
+///         The rule is the public, documented formula of the language, applied in this order: first, a radius below
+///         <see cref="MinimumRadius"/> gives <see cref="MinimumFragments"/> whatever <c>$fn</c> says (so
+///         <c>$fn = 100</c> on a circle of radius 1e-9 still has 3 fragments); only then a positive <c>$fn</c> gives
 ///         <c>max($fn, 3)</c> (truncated to a whole number); otherwise the count is
 ///         <c>ceil(max(min(360 / $fa, r * 2 pi / $fs), 5))</c>. Two safety rules are added: <c>$fa</c> and
 ///         <c>$fs</c> are clamped to at least <see cref="MinimumStep"/> (a zero or negative step would otherwise ask

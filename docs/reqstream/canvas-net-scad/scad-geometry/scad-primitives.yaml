@@ -86,7 +86,8 @@ sections:
                 title: >-
                   The ScadPrimitives unit shall let a positive $fn fix the fragment count (truncated,
                   never below 3), shall give 3 fragments for a radius that is non-finite or at or below
-                  1e-8 whatever the settings, shall cap the count at 1,048,576, and shall clamp a zero or
+                  1e-8 whatever the settings (this tiny-radius rule is applied before $fn is
+                  considered), shall cap the count at 1,048,576, and shall clamp a zero or
                   negative $fa or $fs to 0.01 and replace a non-finite one by its default.
                 justification: |
                   Hostile or degenerate settings must neither ask for unbounded detail nor produce an
@@ -95,6 +96,7 @@ sections:
                   - ScadFragmentRule_Fragments_PositiveFn_WinsAndIsClamped
                   - ScadFragmentRule_Fragments_HugeFn_IsCappedAtMaximum
                   - ScadFragmentRule_Fragments_TinyOrInvalidRadius_GivesThree
+                  - ScadFragmentRule_Fragments_TinyRadiusRuleComesBeforeFn
                   - ScadFragmentRule_Fragments_AngleSizeAndInvalidSteps_AreHandled
 
               - id: CanvasNetScad-ScadGeometry-ScadPrimitives-Cube
@@ -264,10 +266,10 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget
                 title: >-
-                  The ScadPrimitives unit shall charge the model's triangle budget with an upper-bound
-                  estimate of the triangles of a primitive before the mesh is allocated, and shall raise
+                  The ScadPrimitives unit shall charge the model's triangle budget with the exact
+                  number of triangles of a primitive before the mesh is allocated, and shall raise
                   a ScadEvaluationException that names the offending instance's location and the limit
-                  when the estimate does not fit, so that a hostile fragment count or face list cannot
+                  when the count does not fit, so that a hostile fragment count or face list cannot
                   exhaust memory.
                 justification: |
                   Resource exhaustion must fail fast and early with a located error instead of an

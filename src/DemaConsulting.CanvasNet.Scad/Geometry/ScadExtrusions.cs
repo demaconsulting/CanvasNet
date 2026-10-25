@@ -151,6 +151,53 @@ internal static partial class ScadExtrusions
     private static long Saturate(double estimate) => (long)Math.Min(estimate, EstimateCeiling);
 
     /// <summary>
+    ///     Counts the triangles of one cap of a region: the triangulation of the region.
+    /// </summary>
+    /// <remarks>
+    ///     The triangulator adds no Steiner point and never drops a vertex, so a region with <c>V</c> vertices,
+    ///     <c>H</c> holes (clockwise contours) and <c>P</c> solid contours (counter-clockwise outer boundaries and
+    ///     islands) has exactly <c>V + 2H - 2P</c> triangles. Contours are normalized by the region (solid
+    ///     counter-clockwise, hole clockwise), so the sign of a contour's area tells them apart; the area is taken
+    ///     relative to the first vertex to keep it accurate far from the origin.
+    /// </remarks>
+    /// <param name="region">The region.</param>
+    /// <returns>The number of triangles of one cap.</returns>
+    private static double CapTriangles(PolygonRegion region)
+    {
+        double solids = 0.0;
+        double holes = 0.0;
+        foreach (var contour in region.Contours)
+        {
+            var origin = contour[0];
+            var twiceArea = 0.0;
+            for (var i = 1; i < contour.Count - 1; i++)
+            {
+                var a = contour[i];
+                var b = contour[i + 1];
+                twiceArea += ((a.X - origin.X) * (b.Y - origin.Y)) - ((a.Y - origin.Y) * (b.X - origin.X));
+            }
+
+            if (twiceArea >= 0.0)
+            {
+                solids++;
+            }
+            else
+            {
+                holes++;
+            }
+        }
+
+        return region.VertexCount + (2.0 * holes) - (2.0 * solids);
+    }
+
+    /// <summary>
+    ///     Counts the triangles of the slab of a region (both caps and one wall slice).
+    /// </summary>
+    /// <param name="region">The region.</param>
+    /// <returns>The number of triangles.</returns>
+    private static long SlabTriangles(PolygonRegion region) => Saturate((2.0 * region.VertexCount) + (2.0 * CapTriangles(region)));
+
+    /// <summary>
     ///     Rebuilds the shape tree as a scene tree from the extruded leaves.
     /// </summary>
     /// <remarks>
@@ -242,15 +289,38 @@ internal static partial class ScadExtrusions
     /// <summary>
     ///     Extrudes every leaf with one function and assembles the solid.
     /// </summary>
+    /// <remarks>
+    ///     The exact triangle count of every leaf is charged before the first mesh is built, so an extrusion over the
+    ///     budget fails without allocating; each leaf's charge is reconciled with its mesh when it is created and
+    ///     refunded when the leaf is not built.
+    /// </remarks>
     /// <param name="job">The job.</param>
     /// <param name="context">The build context.</param>
     /// <param name="node">The instance that owns the extrusion (for reports).</param>
     /// <param name="approximate">Whether the shape contains a difference or intersection.</param>
+    /// <param name="predict">Gives the exact number of triangles the extrusion of a region has.</param>
     /// <param name="extrude">Extrudes one region into a mesh; may throw <see cref="ArgumentException"/>.</param>
     /// <returns>The solid, or <see cref="ScadGeo.Empty"/> when nothing was produced or a leaf was rejected.</returns>
-    private static ScadGeo Extrude(Job job, ScadGeometryContext context, ScadInstance node, bool approximate, Func<PolygonRegion, Mesh> extrude)
+    /// <exception cref="ScadEvaluationException">Thrown when the triangle budget would be exceeded.</exception>
+    private static ScadGeo Extrude(
+        Job job,
+        ScadGeometryContext context,
+        ScadInstance node,
+        bool approximate,
+        Func<PolygonRegion, long> predict,
+        Func<PolygonRegion, Mesh> extrude)
     {
-        var root = Distribute(job.Shape, leaf => ExtrudeLeaf(job, context, node, leaf, extrude));
+        var total = 0.0;
+        foreach (var leaf in job.Shape.EnumerateLeaves().Select(l => l.Leaf))
+        {
+            if (job.Regions.TryGetValue(leaf, out var region))
+            {
+                total += predict(region);
+            }
+        }
+
+        context.ChargeTriangles(Saturate(total), node.Location);
+        var root = Distribute(job.Shape, leaf => ExtrudeLeaf(job, context, node, leaf, predict, extrude));
         if (job.Failed || root is null)
         {
             return ScadGeo.Empty;
@@ -266,12 +336,27 @@ internal static partial class ScadExtrusions
     /// <param name="context">The build context.</param>
     /// <param name="node">The instance that owns the extrusion.</param>
     /// <param name="leaf">The leaf.</param>
+    /// <param name="predict">Gives the exact number of triangles the extrusion of a region has.</param>
     /// <param name="extrude">Extrudes one region into a mesh.</param>
     /// <returns>The mesh node, or <see langword="null"/> when the leaf is invalid or was rejected.</returns>
-    private static SceneNode? ExtrudeLeaf(Job job, ScadGeometryContext context, ScadInstance node, ScadShape2D leaf, Func<PolygonRegion, Mesh> extrude)
+    private static SceneNode? ExtrudeLeaf(
+        Job job,
+        ScadGeometryContext context,
+        ScadInstance node,
+        ScadShape2D leaf,
+        Func<PolygonRegion, long> predict,
+        Func<PolygonRegion, Mesh> extrude)
     {
-        if (job.Failed || !job.Regions.TryGetValue(leaf, out var region))
+        if (!job.Regions.TryGetValue(leaf, out var region))
         {
+            return null;
+        }
+
+        // The charge of a leaf that is not built is returned
+        var charged = predict(region);
+        if (job.Failed)
+        {
+            context.RefundTriangles(charged);
             return null;
         }
 
@@ -279,12 +364,14 @@ internal static partial class ScadExtrusions
         try
         {
             var mesh = extrude(region);
+            context.SettleTriangles(charged, mesh.TriangleCount, node.Location);
             job.Bounds = job.Bounds.Union(mesh.Bounds);
             return mesh.TriangleCount == 0 ? null : context.CreateMeshNode(mesh, node.Location);
         }
         catch (ArgumentException ex)
         {
             job.Failed = true;
+            context.RefundTriangles(charged);
             context.Reporter.Unsupported(
                 ScadFeatureIds.GeometryRejected,
                 $"{node.Name}: the geometry was rejected: {ex.Message}",
@@ -307,12 +394,12 @@ internal static partial class ScadExtrusions
             return new GroupNode([]);
         }
 
-        // Every slab must fit the budget; the location of a slab is the 2D shape that produced it
+        // Every slab must fit the budget, with its exact triangle count; the location of a slab is the 2D shape that produced it
         foreach (var leaf in job.Shape.EnumerateLeaves().Select(l => l.Leaf))
         {
             if (job.Regions.TryGetValue(leaf, out var region))
             {
-                context.ChargeTriangles(ScadPrimitives.SlabTrianglesPerVertex * region.VertexCount, leaf.Location);
+                context.ChargeTriangles(SlabTriangles(region), leaf.Location);
             }
         }
 
@@ -323,13 +410,17 @@ internal static partial class ScadExtrusions
                 return null;
             }
 
+            var charged = SlabTriangles(region);
             context.Poll();
             try
             {
-                return context.CreateMeshNode(Extruder.Linear(region, context.FlatShapeThickness), leaf.Location);
+                var mesh = Extruder.Linear(region, context.FlatShapeThickness);
+                context.SettleTriangles(charged, mesh.TriangleCount, leaf.Location);
+                return context.CreateMeshNode(mesh, leaf.Location);
             }
             catch (ArgumentException ex)
             {
+                context.RefundTriangles(charged);
                 context.Reporter.Unsupported(
                     ScadFeatureIds.GeometryRejected,
                     $"The 2D shape could not be made into a slab: {ex.Message}",

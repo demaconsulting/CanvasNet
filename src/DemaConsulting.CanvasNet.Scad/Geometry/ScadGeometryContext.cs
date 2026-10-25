@@ -22,16 +22,22 @@ internal sealed record ScadGeometrySettings(
 /// </summary>
 /// <param name="Scene">The scene; an empty group when the model produced no geometry.</param>
 /// <param name="Map">The location map of the scene's mesh nodes.</param>
-internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map);
+/// <param name="TrianglesCharged">The triangles charged against the budget, which equals the triangles of all the meshes created.</param>
+internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged);
 
 /// <summary>
 ///     The services every geometry builder uses: reporting, the triangle budget, cancellation and the node map.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         One context serves one build on one thread. The triangle budget is charged with an upper-bound estimate
-///         <i>before</i> a mesh is allocated, so a hostile <c>$fn</c> or loop fails with a
+///         One context serves one build on one thread. The triangle budget is charged with the exact triangle
+///         count of a mesh, computed from its parameters (fragments, profile contours and holes, slices)
+///         <i>before</i> the mesh is allocated, so a hostile <c>$fn</c> or loop fails with a
 ///         <see cref="ScadEvaluationException"/> that names the offending instance instead of exhausting memory.
+///         When the mesh is created, <see cref="SettleTriangles"/> reconciles the charge with the actual triangle
+///         count (they differ only when the tessellator drops a triangle that is degenerate in floating point), so
+///         the total charged always equals the triangles of the meshes created, and a mesh that is rejected is
+///         refunded with <see cref="RefundTriangles"/>.
 ///         Cancellation is polled cheaply on a fixed schedule and explicitly before each heavy tessellation.
 ///     </para>
 /// </remarks>
@@ -95,7 +101,7 @@ internal sealed class ScadGeometryContext
     /// <summary>
     ///     Verifies that an estimated number of triangles fits in the remaining budget without charging it.
     /// </summary>
-    /// <param name="estimate">The upper-bound estimate of the triangles.</param>
+    /// <param name="estimate">The estimate of the triangles (an upper bound or the exact count).</param>
     /// <param name="location">The location of the instance that would create them.</param>
     /// <exception cref="ScadEvaluationException">Thrown when the estimate does not fit.</exception>
     public void EnsureTriangles(long estimate, ScadSourceLocation location)
@@ -109,9 +115,9 @@ internal sealed class ScadGeometryContext
     }
 
     /// <summary>
-    ///     Charges an estimated number of triangles against the budget, failing before anything is allocated.
+    ///     Charges the predicted number of triangles of a mesh against the budget, failing before anything is allocated.
     /// </summary>
-    /// <param name="estimate">The upper-bound estimate of the triangles.</param>
+    /// <param name="estimate">The predicted (exact) number of triangles.</param>
     /// <param name="location">The location of the instance that creates them.</param>
     /// <exception cref="ScadEvaluationException">Thrown when the budget would be exceeded.</exception>
     public void ChargeTriangles(long estimate, ScadSourceLocation location)
@@ -119,6 +125,31 @@ internal sealed class ScadGeometryContext
         EnsureTriangles(estimate, location);
         _triangles += estimate;
     }
+
+    /// <summary>
+    ///     Reconciles a charge with the number of triangles the mesh actually has.
+    /// </summary>
+    /// <param name="charged">The number charged for the mesh before it was created.</param>
+    /// <param name="actual">The triangle count of the created mesh.</param>
+    /// <param name="location">The location of the instance that created the mesh.</param>
+    /// <exception cref="ScadEvaluationException">Thrown when the mesh has more triangles than were charged and the surplus does not fit the budget.</exception>
+    public void SettleTriangles(long charged, long actual, ScadSourceLocation location)
+    {
+        if (actual > charged)
+        {
+            ChargeTriangles(actual - charged, location);
+        }
+        else
+        {
+            _triangles -= charged - actual;
+        }
+    }
+
+    /// <summary>
+    ///     Returns the charge of a mesh that was not created (it was rejected or never attempted).
+    /// </summary>
+    /// <param name="charged">The number charged for the mesh.</param>
+    public void RefundTriangles(long charged) => _triangles -= charged;
 
     /// <summary>
     ///     Creates a mesh node and remembers the location that produced it.

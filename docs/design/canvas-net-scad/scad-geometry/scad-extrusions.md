@@ -87,11 +87,13 @@ difference is a `CsgNode` with `CsgOperation.Difference`, and an intersection a 
 an intersection, and empties a difference when it is the first operand and vanishes otherwise (position matters:
 nothing minus anything is nothing).
 
-##### `Extrude(job, context, node, approximate, extrude)` and `ExtrudeLeaf(...)`
+##### `Extrude(job, context, node, approximate, predict, extrude)` and `ExtrudeLeaf(...)`
 
-`Extrude` distributes one leaf function over the job and wraps the root as a solid whose bounds are the union of
+`Extrude` first charges the exact triangle count of every leaf (`predict`, see the budget rules below), then
+distributes one leaf function over the job and wraps the root as a solid whose bounds are the union of
 the leaf mesh bounds; the result carries the approximate flag of the input shape (set when it contains a
-difference or intersection). `ExtrudeLeaf` polls cancellation, calls the extruder, and creates the mesh node with
+difference or intersection). `ExtrudeLeaf` polls cancellation, calls the extruder, settles the charge against the
+mesh's actual triangle count, and creates the mesh node with
 `ScadGeometryContext.CreateMeshNode`, which records the **extrusion instance's location** for the node (this is
 how a later Render3D report finds its way back to the source). A mesh without triangles is an empty operand. An
 `ArgumentException` from the extruder is the **catch-all mapping** (see _Error Handling_): it sets `Failed`,
@@ -123,10 +125,19 @@ Builds `linear_extrude(height, center, convexity, twist, slices, scale)`:
    `max(1, ceil(Fragments(radius) · |twist| / 360))` where `radius` is the largest distance from the origin of
    any vertex of any leaf and `Fragments` is `ScadFragmentRule.Fragments` with the instance's `$fn`, `$fa`, and
    `$fs`. The twist turns about the origin, so the farthest vertex sweeps the longest arc.
-7. **Budget.** The estimate `2·V·slices + 2·V` (V = total vertices of all valid leaves) is computed in `double`,
-   saturated at 1e18 with `Saturate`, and charged with `ScadGeometryContext.ChargeTriangles` **before** the
-   extruder allocates; the slice count handed to the extruder is clamped to `int.MaxValue` (the budget check has
-   already failed by then for any hostile value).
+7. **Budget.** The **exact** triangle count of every valid leaf is computed from its contours before anything is
+   tessellated and charged with `ScadGeometryContext.ChargeTriangles`: `2·V·slices` wall triangles (`2·V·(slices − 1)
+   - V` with an apex, whose last slice has one triangle per edge) plus `V + 2H − 2P` triangles per cap (an apex
+   has only the bottom cap), where `V` is the vertex count of the leaf, `H` its number of holes (clockwise
+   contours) and `P` its number of solid contours (counter-clockwise outer boundaries and islands); the cap count
+   is the documented triangle count of `PolygonTriangulator`, which adds no Steiner points. The arithmetic is done
+   in`double` and saturated at 1e18 with `Saturate`; the slice count handed to the extruder is clamped to
+   `int.MaxValue` (the budget check has already failed by then for any hostile value). A profile of one outer
+   boundary and two holes with 12 vertices is therefore charged `24 + 2·14 = 52` (a rule of four triangles per
+   vertex would have charged 48). When a leaf's mesh is created, `SettleTriangles` reconciles the charge with the
+   mesh's actual triangle count (it differs only if the tessellator drops a triangle that rounds to degenerate),
+   so the charge always equals the triangles created; the charge of a leaf that is rejected or not attempted is
+   returned with `RefundTriangles`.
 8. Each leaf is extruded with `Extruder.Linear(region, height, center, -twist, slices, scale)`; all leaves share
    the same slice count, so the faceting of the operands of a boolean agrees.
 
@@ -148,10 +159,15 @@ Builds `rotate_extrude(angle, convexity)`:
    contact, the unsupported feature **`scad-rotate-extrude-axis-contact`**, because the swept surfaces would meet
    at a pinched point; the message names the point. There is no tolerance. A vertex on the axis that ends an edge
    along the axis (a **pole**) is fine. Both reports omit the whole extrusion.
-3. **Negative side.** A profile with every vertex at `x <= 0` (and some `x < 0`) is **mirrored to the positive
-   side** (`x → -x`) before it is revolved, so the sweep always starts at +X; the result is identical to the
-   mirrored profile, for a full turn and for a partial one. The literal behavior of the renderer's extruder (which
-   would start the sweep on the negative side) is deliberately not used.
+3. **Negative side.** A profile with every vertex at `x <= 0` (and some `x < 0`) is accepted and **swept where it
+   lies**: it is handed to `Extruder.Rotate` unchanged, whose rotation is literal (azimuth 0 toward `+angle`, with
+   the winding flipped for the negative side, so the mesh is outward and closed). A point at `(-4, 0)` with
+   `angle = 90` therefore sweeps from azimuth 180 to 270 degrees and the wedge lies in the quadrant `x < 0`,
+   `y < 0`; with `angle = -90` it sweeps from 180 down to 90 degrees (`x < 0`, `y > 0`). A full turn equals the
+   full turn of the mirrored profile. Mixed signs are the axis-crossing report of rule 2. Pinned by
+   `ScadExtrusionsRotate_NegativeSideProfile_PartialSweepLiesInTheNegativeQuadrant`,
+   `ScadExtrusionsRotate_NegativeSideProfile_FullTurnEqualsTheMirroredProfile`, and
+   `ScadExtrusionsRotate_MixedSignProfile_IsReported`.
 4. **Segments.** `radius` is the largest `|x|` over all leaves, `fragments = ScadFragmentRule.Fragments(radius, $fn,
    $fa, $fs)`, and `segments = ceil(max(fragments · sweep / 360, 1))` where `sweep = min(|angle|, 360)`. The
    count is then raised to at least `ceil(sweep / 120)`. This honors the **`Extruder.Rotate` step contract**: every
@@ -161,7 +177,10 @@ Builds `rotate_extrude(angle, convexity)`:
    tessellates by fragment count (at least 3 for a full turn) satisfies the bound for a full turn; the extra rule
    covers partial sweeps (for example 121 degrees in one segment) and small `$fn` values. A partial sweep gets flat
    end caps from the extruder; a full turn has no seam.
-5. **Budget.** `2·V·segments + 2·V` saturated and charged before the extruder allocates, as for `linear_extrude`.
+5. **Budget.** The exact count is charged before the extruder allocates, as for `linear_extrude`: per segment two
+   wall triangles for each profile edge with both ends off the axis and one for an edge with exactly one end on the
+   axis (none when both are on it), plus, for a partial sweep only, two caps of `V + 2H − 2P` triangles each (a full
+   turn has no caps). The charge is settled against the actual mesh and refunded for a rejected leaf, as there.
 6. Each leaf is revolved with `Extruder.Rotate(region, sweep, segments)`, with the same segment count for all
    leaves.
 
@@ -169,9 +188,12 @@ Builds `rotate_extrude(angle, convexity)`:
 
 Turns the 2D result at the **top of the model** (called by `ScadGeometryBuilder` for a flat root) into thin solids
 of the configured `FlatShapeThickness` (default 0.1, the `ScadRenderOptions` setting). It applies `Prepare`, charges
-the budget for **every** leaf first (`SlabTrianglesPerVertex` = 4 triangles per vertex; the primitives also check this
-estimate, without charging, when a 2D leaf is created), then distributes `Extruder.Linear(region, thickness)` over
-the tree, so a top-level `difference()` of 2D shapes becomes a difference of slabs of one thickness. The mesh of a
+the budget for **every** leaf first with the slab's exact count (`2·V` wall triangles plus two caps of
+`V + 2H − 2P` triangles; the primitives also check a lower bound of it, `SlabTrianglesLowerBound(V) = 8V / 3`,
+without charging, when a 2D leaf is created, to refuse a hostile `$fn` early), then distributes
+`Extruder.Linear(region, thickness)` over
+the tree, so a top-level `difference()` of 2D shapes becomes a difference of slabs of one thickness. The charge of
+each slab is settled against its mesh (and refunded when it is rejected). The mesh of a
 slab is mapped to the location of the **2D leaf** that produced it. Unlike an extrusion, a slab whose extruder
 rejects it is reported as `scad-geometry-rejected` ("The 2D shape could not be made into a slab") and only that
 leaf is left out. The result is an empty group when nothing could be built.
@@ -207,8 +229,8 @@ capability limits are unsupported features, and only a resource overrun throws.
   (each tested in report mode and in strict mode, with the expected feature and location) are: apex over several
   contours, negative scale, half-zero scale, axis crossing, axis contact, an invalid leaf under `linear_extrude`,
   an invalid leaf under `rotate_extrude`, and the extruder catch-all.
-- **`ScadEvaluationException`** (located at the extrusion, "Triangle limit exceeded (limit N)"): the estimated
-  triangles exceed `MaxTriangles` (extrusions and slabs). The estimates saturate, so a hostile slice count, twist,
+- **`ScadEvaluationException`** (located at the extrusion, "Triangle limit exceeded (limit N)"): the exact
+  triangle count exceeds `MaxTriangles` (extrusions and slabs). The counts saturate, so a hostile slice count, twist,
   or `$fn` fails cleanly without overflow and before any mesh is allocated.
 - **`OperationCanceledException`** — polled for each leaf and before each extruder call; never wrapped.
 - **No recursion.** `EnumerateLeaves`, `ComputeVertexBounds`, `Distribute`, and `CombineOperands` are iterative
@@ -222,7 +244,7 @@ capability limits are unsupported features, and only a resource overrun throws.
   warnings and unsupported features go to the `ScadEvaluationSink` through `ScadReporter`.
 - **Sibling units of the subsystem** — `ScadGeo` (the result union), `ScadGeometryContext` (reporter, budget,
   cancellation, mesh-node creation, and `FlatShapeThickness`), `ScadArguments` and `ScadFragmentRule`
-  (`ScadPrimitives` unit), `ScadBooleans.Union`, `ScadFeatureIds`, and `ScadPrimitives.SlabTrianglesPerVertex`.
+  (`ScadPrimitives` unit), `ScadBooleans.Union`, `ScadFeatureIds`, and `ScadPrimitives.SlabTrianglesLowerBound`.
 - **Render3D public types** — `PolygonRegion`, `Extruder.Linear` and `Extruder.Rotate`, `Mesh`, `MeshNode`,
   `GroupNode`, `CsgNode`, `CsgOperation`, `NodeAppearance`, `SceneNode`, `BoundingBox3D`, `Matrix4x4D`, `Vector2D`,
   and `Vector3D`.

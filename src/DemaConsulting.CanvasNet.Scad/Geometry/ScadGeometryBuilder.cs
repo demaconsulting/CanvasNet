@@ -76,7 +76,7 @@ internal sealed partial class ScadGeometryBuilder
         var showOnly = FindShowOnlyRoots(roots);
         var geo = builder.BuildForest(showOnly.Count > 0 ? showOnly : roots);
         var root = builder.ToSceneRoot(geo);
-        return new ScadBuiltScene(new Scene(root), context.Map);
+        return new ScadBuiltScene(new Scene(root), context.Map, context.TrianglesCharged);
     }
 
     /// <summary>

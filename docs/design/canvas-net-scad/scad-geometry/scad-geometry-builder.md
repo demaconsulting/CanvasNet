@@ -55,8 +55,10 @@ outcome: the `Scene` (an empty group when nothing was built) and the `ScadSceneM
 **`ScadGeometryContext`** holds the services of one build on one thread: the `ScadReporter`, the
 `ScadSceneMap`, the settings, the cancellation schedule, and the triangle counter. `Tick()` counts one visited
 instance and polls cancellation once every 256 instances; `Poll()` polls immediately (before a heavy
-tessellation); `EnsureTriangles(estimate, location)` checks that an estimate fits in the remaining budget without
-charging it; `ChargeTriangles(estimate, location)` checks and then charges; `CreateMeshNode(mesh, location)`
+tessellation); `EnsureTriangles(estimate, location)` checks that a count fits in the remaining budget without
+charging it; `ChargeTriangles(estimate, location)` checks and then charges; `SettleTriangles(charged, actual,
+location)` reconciles a charge with the actual mesh and `RefundTriangles(charged)` returns the charge of a mesh that
+was not built; `CreateMeshNode(mesh, location)`
 creates a `MeshNode` and records its location in the map. The context is single-use and not thread-safe;
 independent builds, each with its own context, can run concurrently.
 
@@ -176,11 +178,15 @@ An explicit-stack depth-first walk that returns the **outermost** instances mark
 never descends into a marked subtree (a `!` nested inside has no further effect) nor into a `%` subtree (that
 subtree is omitted, so a mark inside it does not take part in the model), and it visits every other instance
 regardless of its module, including modules that are not built. The marked subtrees become the whole model
-**without the transforms and colors of their ancestors**, because the engine builds them instead of the roots;
+**without the transforms and colors of their ancestors**: the marked subtree is the **new root of the design**, as if
+the model consisted of it alone. So `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin, and a
+mark under a `color` or a `rotate` is neither colored nor rotated. This holds because the engine builds the marked
+subtrees instead of the roots;
 reports for ancestors and for the unmarked rest of the model are therefore not produced. Because the evaluator
 ORs the modifiers of a one-statement block onto that statement, `%{ ! x }` is a single instance that is both the
 `!` root and omitted: the pre-pass selects it, `Enter` then omits and reports it, and the model is empty (the
-unmarked instances are not used as a fallback). Pinned by `ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing`.
+unmarked instances are not used as a fallback). Pinned by `ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing`
+and, for the new-root rule, by `ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors`.
 
 ##### Modifiers
 
@@ -221,9 +227,14 @@ why 2D booleans are never evaluated into one region).
 
 ##### Triangle budget
 
-The estimates are upper bounds charged **before** a mesh is allocated, by the unit that builds the mesh through
-`ChargeTriangles` (for example four triangles per fragment for a cylinder, and four per vertex —
-`ScadPrimitives.SlabTrianglesPerVertex` — for a 2D leaf and the slab it becomes). An estimate fits when it does
+The charges are the **exact** triangle counts of the meshes, computed from their parameters and charged **before**
+a mesh is allocated, by the unit that builds the mesh through `ChargeTriangles` (for example four triangles per
+fragment for a cylinder, two for a cone, and `2V + 2(V + 2H − 2P)` for a slab or `V + 2H − 2P` per cap of an
+extrusion of a profile with `V` vertices, `H` holes and `P` solid contours). When the mesh exists,
+`SettleTriangles` reconciles the charge with its actual triangle count and `RefundTriangles` returns the charge of a
+mesh that was rejected, so the total charged equals the triangles created (pinned by
+`ScadGeometryBuilder_Build_ChargesExactlyTheTrianglesCreated`). A 2D leaf only checks a lower bound of its slab
+(`ScadPrimitives.SlabTrianglesLowerBound`) when it is created. A count fits when it does
 not exceed the remaining budget, so a model that uses exactly `MaxTriangles` builds. The budget accumulates
 across all instances, including those of loops, and the check uses subtraction, so it cannot overflow. A hostile
 `$fn` or loop therefore fails with a located error instead of exhausting memory.

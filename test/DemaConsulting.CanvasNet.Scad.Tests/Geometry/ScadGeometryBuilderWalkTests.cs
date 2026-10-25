@@ -112,6 +112,26 @@ public class ScadGeometryBuilderWalkTests
     }
 
     /// <summary>
+    ///     Validates that <c>!</c> makes the marked subtree the new root of the design: it is rendered without the
+    ///     transforms and colors of its ancestors, so <c>translate([10, 0, 0]) { !cube(1); }</c> renders the cube at
+    ///     the origin, and a mark under a color and a rotation is neither colored nor rotated.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors()
+    {
+        // Arrange / Act
+        var translated = Build("translate([10, 0, 0]) { !cube(1); }");
+        var nested = Build("color(\"red\") rotate([0, 0, 90]) translate([10, 0, 0]) { cube(5); !cube(1); }");
+
+        // Assert
+        var cube = Assert.Single(translated.Leaves);
+        AssertBounds(cube.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(1, 1, 1), 1e-12);
+        var inner = Assert.Single(nested.Leaves);
+        AssertBounds(inner.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(1, 1, 1), 1e-12);
+        Assert.Null(inner.Appearance);
+    }
+
+    /// <summary>
     ///     Validates that several <c>!</c> marks are combined in document order and that a mark inside a marked
     ///     subtree has no extra effect.
     /// </summary>

@@ -153,8 +153,9 @@ designs.
    determinant that underflows relative to the matrix) is a warning and an empty instance, never a renderer
    report. The mapped `scad-csg-singular-transform` is reached only when the product of several valid
    transforms underflows at render time.
-2. **`rotate_extrude` profiles on the negative side.** A profile whose vertices all have `x <= 0` is mirrored to
-   the positive side, because the sweep always starts at `+X`; a profile on both sides of the axis is
+2. **`rotate_extrude` profiles on the negative side.** A profile whose vertices all have `x <= 0` is swept where
+   it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees, the quadrant `x < 0`,
+   `y < 0`); a profile on both sides of the axis is
    `scad-rotate-extrude-axis-crossing`. A negative `angle` sweeps clockwise (the revolved mesh is mirrored); an
    `angle` beyond 360 degrees in magnitude is clamped to 360; zero is a warning and empty.
 3. **Rejected extrusions are omitted whole.** When an extrusion is rejected (axis crossing or contact, an invalid
@@ -172,8 +173,9 @@ designs.
    `ceil(max(fragments(maxAbsX) * |angle| / 360, 1))`, raised to `ceil(|angle| / 120)`, so that every angular
    step is at most 120 degrees, the contract of `Extruder.Rotate` (see _Extruder Unit Design_ in the Render3D
    _Tessellation_ subsystem). The raise never takes effect for a fragment count of at least three.
-8. **Modifiers.** `!` makes the outermost marked subtrees the whole model without the transforms and colors of
-   their ancestors; `%{ !x }` with a single child is one instance that is both, so it is omitted and the model
+8. **Modifiers.** `!` makes the outermost marked subtrees the new root of the design, without the transforms and
+   colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `%{ !x }` with
+   a single child is one instance that is both, so it is omitted and the model
    is empty.
 9. **Mesh locations.** The meshes of an extrusion are mapped to the location of the extrusion module; the slab of
    a top-level 2D shape is mapped to the location of its 2D leaf.
@@ -192,10 +194,13 @@ twisted `linear_extrude` the largest profile radius. See _ScadPrimitives Unit De
 
 #### Resource Limits
 
-`ScadLimits.MaxTriangles` (default 5,000,000) bounds the geometry of one build. Every unit estimates its
-triangle count before it allocates (a sphere, a cylinder, a circle, a polyhedron, a slab, and an extrusion), with
-saturating arithmetic, and fails with a located `ScadEvaluationException` when the estimate would exceed the
-remaining budget. The budget accumulates across all instances, including loops. The renderer's own resource
+`ScadLimits.MaxTriangles` (default 5,000,000) bounds the geometry of one build. Every unit computes the exact
+triangle count of a mesh from its parameters before it allocates (a sphere, a cylinder, a polyhedron, a slab, and
+an extrusion, whose caps have `V + 2H − 2P` triangles for a profile with `V` vertices, `H` holes and `P` solid
+contours), with saturating arithmetic, and fails with a located `ScadEvaluationException` when the count would
+exceed the remaining budget. The charge is reconciled with the actual mesh when it is created, so the triangles
+charged always equal the triangles of the meshes built. The budget accumulates across all instances, including
+loops. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a
 `ScadEvaluationException` without a location.
 

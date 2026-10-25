@@ -27,7 +27,10 @@ internal static partial class ScadExtrusions
     ///         farthest profile point (<c>ceil(fragments(radius) * |twist| / 360)</c>, the fragment rule of
     ///         <see cref="ScadFragmentRule"/>). <c>scale</c> is a number or a vector <c>[sx, sy]</c>, the scale of
     ///         the top about the origin; both components must be positive, or both zero (a cone-like apex, only for a
-    ///         profile without holes or islands). <c>convexity</c> is accepted and ignored.
+    ///         profile without holes or islands). <c>convexity</c> is accepted and ignored. The triangle budget is
+    ///         charged with the exact count before the mesh is built: two wall triangles per profile vertex and slice
+    ///         (one in the last slice of an apex) plus <c>V + 2H - 2P</c> triangles per cap for a profile with
+    ///         <c>V</c> vertices, <c>H</c> holes and <c>P</c> solid contours.
     ///     </para>
     ///     <para>
     ///         A height that is not a positive number, <c>slices</c> below 1 and a malformed scale are warnings and
@@ -69,15 +72,25 @@ internal static partial class ScadExtrusions
         }
 
         var slices = ChooseSlices(instance, parameters, job);
-        var vertices = job.Regions.Values.Sum(r => (double)r.VertexCount);
-        context.ChargeTriangles(Saturate((2.0 * vertices * slices) + (2.0 * vertices)), instance.Location);
         var sliceCount = (int)Math.Min(slices, int.MaxValue);
+        var apex = scale.X == 0.0 && scale.Y == 0.0;
         Vector2D? topScale = ScadNumbers.AreEqual(scale.X, 1.0) && ScadNumbers.AreEqual(scale.Y, 1.0) ? null : scale;
+
+        // The exact triangle count is charged before anything is built: 2 wall triangles per edge and slice (one in
+        // the last slice of an apex) plus one cap triangulation per cap (an apex has only the bottom cap)
+        long Predict(PolygonRegion region)
+        {
+            var edges = (double)region.VertexCount;
+            var walls = apex ? (2.0 * edges * (slices - 1.0)) + edges : 2.0 * edges * slices;
+            return Saturate(walls + ((apex ? 1.0 : 2.0) * CapTriangles(region)));
+        }
+
         return Extrude(
             job,
             context,
             instance,
             shape.IsApproximate,
+            Predict,
             region => Extruder.Linear(region, parameters.Height, parameters.Center, -parameters.Twist, sliceCount, topScale));
     }
 

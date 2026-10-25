@@ -79,6 +79,27 @@ public class ScadFragmentRuleTests
     }
 
     /// <summary>
+    ///     Validates the order of the rule: the tiny-radius rule comes before <c>$fn</c> is considered, so an explicit
+    ///     <c>$fn</c> cannot raise the fragment count of a vanishing radius, while a radius just above the threshold
+    ///     honors <c>$fn</c>; the same holds through <c>cylinder</c> and <c>circle</c> in a built model.
+    /// </summary>
+    [Fact]
+    public void ScadFragmentRule_Fragments_TinyRadiusRuleComesBeforeFn()
+    {
+        // Arrange / Act
+        var tinyCylinder = ScadGeometryTestSupport.Build("cylinder(h = 1, r = 1e-9, $fn = 100);");
+        var tinyCircle = ScadGeometryTestSupport.Build("linear_extrude(1) circle(1e-9, $fn = 100);");
+        var small = ScadGeometryTestSupport.Build("cylinder(h = 1, r = 1e-7, $fn = 100);");
+
+        // Assert: three fragments for the tiny radius (4 triangles per fragment of a cylinder, 8 for a 3-gon prism), 100 just above the threshold
+        Assert.Equal(3, ScadFragmentRule.Fragments(1e-9, 100.0, 12.0, 2.0));
+        Assert.Equal(100, ScadFragmentRule.Fragments(1e-7, 100.0, 12.0, 2.0));
+        Assert.Equal(12, tinyCylinder.SingleMesh.TriangleCount);
+        Assert.Equal(8, tinyCircle.SingleMesh.TriangleCount);
+        Assert.Equal(400, small.SingleMesh.TriangleCount);
+    }
+
+    /// <summary>
     ///     Validates the angle and size limits and the clamp of a zero or negative step, and the fallback of a
     ///     non-finite step to its default.
     /// </summary>
