@@ -707,6 +707,97 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the convex hull end to end through the public API: the hull of two spheres' vertices is a
+    ///     capsule-like solid whose top view is the stadium outline at analytically expected pixels, and it is a valid
+    ///     constructive-solid-geometry operand (a box cut out of it renders without any report, strict mode included).
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_ConvexHull_HullOfTwoSpheresRendersAndCutsAsAValidOperand()
+    {
+        // Arrange: two spheres of radius 2 centered at x = -6 and x = +6, and a red box cutting a pocket at the center
+        var blue = new Rgba32(30, 60, 220, 255);
+        var red = new Rgba32(220, 40, 40, 255);
+        var sphere = PrimitiveTessellator.Sphere(2.0, 48);
+        var points = sphere.Vertices.Select(v => v + new Vector3D(-6, 0, 0)).Concat(sphere.Vertices.Select(v => v + new Vector3D(6, 0, 0))).ToList();
+        var hull = ConvexHull.Hull3D(points, TestContext.Current.CancellationToken);
+        Render3DTestHelpers.AssertValidCsgOperand(hull);
+        var hullNode = new MeshNode(hull) { Appearance = new NodeAppearance(blue) };
+        var cutter = new MeshNode(PrimitiveTessellator.Box(new Vector3D(2, 2, 3)))
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(-1, -1, 0)),
+            Appearance = new NodeAppearance(red),
+        };
+        var camera = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 24.0);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var flat = new SceneRenderOptions
+        {
+            Lights = [new AmbientLight { Intensity = 1.0f }],
+            Supersampling = 1,
+            UnsupportedFeatureHandler = reports.Add,
+            ThrowOnUnsupportedFeature = true,
+        };
+
+        // Act: the plain hull and the hull with the pocket, at 10 pixels per unit
+        using var plain = SceneRenderer.Render(new Scene(hullNode), camera, 240, 240, flat, TestContext.Current.CancellationToken);
+        using var cut = SceneRenderer.Render(new Scene(new CsgNode(CsgOperation.Difference, [hullNode, cutter])), camera, 240, 240, flat, TestContext.Current.CancellationToken);
+
+        // Assert: the stadium outline - covered between and on the spheres, background beside and beyond it; the area is
+        // the stadium area (pi r^2 + 2 r d = 60.57 square units) up to the polygonal approximation of the circles
+        Assert.Equal(blue, plain[120, 120]);
+        Assert.Equal(blue, plain[120 + 60, 120]);
+        Assert.Equal(blue, plain[120, 120 + 15]);
+        Assert.Equal(White, plain[120, 120 + 30]);
+        Assert.Equal(White, plain[120 + 90, 120]);
+        var area = (240 * 240) - Render3DTestHelpers.CountPixels(plain, White);
+        Assert.InRange(area, 6057 * 0.97, 6057 * 1.01);
+
+        // Assert: the cut surface (2 x 2 units) is red at the center and the rest of the hull stays blue
+        Assert.Empty(reports);
+        Assert.Equal(red, cut[120, 120]);
+        Assert.Equal(blue, cut[120 + 15, 120]);
+        Assert.InRange(Render3DTestHelpers.CountPixels(cut, red), 400 * 0.97, 400 * 1.03);
+    }
+
+    /// <summary>
+    ///     Validates the Minkowski sum end to end through the public API: a cube plus a sphere renders as the rounded
+    ///     box with its analytic top-view outline, and a non-convex operand is rejected instead of approximated.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_MinkowskiSum_RoundedBoxRendersAndNonConvexOperandIsRejected()
+    {
+        // Arrange: a 10 cube plus a unit sphere (a rounded box with edges 12) and a non-convex L-shaped extrusion
+        var blue = new Rgba32(30, 60, 220, 255);
+        var cube = PrimitiveTessellator.Box(new Vector3D(10, 10, 10), center: true);
+        var sphere = PrimitiveTessellator.Sphere(1.0, 48);
+        var rounded = MinkowskiSum.ConvexSum(cube, sphere, TestContext.Current.CancellationToken);
+        var lShape = Extruder.Linear(PrimitiveTessellator.Polygon([new(0, 0), new(2, 0), new(2, 1), new(1, 1), new(1, 2), new(0, 2)]), 1.0);
+        var camera = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 24.0);
+        var flat = new SceneRenderOptions { Lights = [new AmbientLight { Intensity = 1.0f }], Supersampling = 1 };
+
+        // Act
+        using var surface = SceneRenderer.Render(new Scene(new MeshNode(rounded) { Appearance = new NodeAppearance(blue) }), camera, 240, 240, flat, TestContext.Current.CancellationToken);
+
+        // Assert: the sum is a valid operand with the summed extents
+        Render3DTestHelpers.AssertValidCsgOperand(rounded);
+        Render3DTestHelpers.AssertVector(new Vector3D(-6, -6, -6), rounded.Bounds.Min, 1e-9);
+        Render3DTestHelpers.AssertVector(new Vector3D(6, 6, 6), rounded.Bounds.Max, 1e-9);
+
+        // Assert: the top view is the rounded square - the straight edge reaches 6 units, the corner is cut by the
+        // quarter circle around (5,5) with radius 1 (inside at 0.8 units from the corner circle center, outside at 1.2),
+        // and the covered area is 100 + 4 * 10 + pi = 143.14 square units up to the polygonal approximation
+        Assert.Equal(blue, surface[120 + 59, 120]);
+        Assert.Equal(White, surface[120 + 61, 120]);
+        Assert.Equal(blue, surface[120 + 57, 120 - 57]);
+        Assert.Equal(White, surface[120 + 60, 120 - 60]);
+        var area = (240 * 240) - Render3DTestHelpers.CountPixels(surface, White);
+        Assert.InRange(area, 14314 * 0.99, 14314 * 1.005);
+
+        // Assert: a non-convex operand is rejected on either side
+        Assert.Throws<NotSupportedException>(() => MinkowskiSum.ConvexSum(lShape, sphere, TestContext.Current.CancellationToken));
+        Assert.Throws<NotSupportedException>(() => MinkowskiSum.ConvexSum(sphere, lShape, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     ///     Validates cooperative cancellation: a pre-cancelled token throws OperationCanceledException.
     /// </summary>
     [Fact]

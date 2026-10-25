@@ -8,7 +8,8 @@ This document describes the system-level verification strategy for CanvasNetRend
 
 `CanvasNetRender3D` is verified at three tiers. The system tier, described here, exercises the
 library purely through its public API from the perspective of a consumer: it builds scenes with the
-public node types, `MeshBuilder`, `PrimitiveTessellator`, and `Extruder`, renders them with `SceneRenderer`, and
+public node types, `MeshBuilder`, `PrimitiveTessellator`, `Extruder`, `ConvexHull`, and `MinkowskiSum`, renders
+them with `SceneRenderer`, and
 asserts on observable outputs — returned values, thrown exceptions, and pixel values of the returned
 `Surface`. No mocking or stubbing is used. The subsystem tier (see _SceneModel Subsystem
 Verification_, _Tessellation Subsystem Verification_, and _SceneRendering Subsystem Verification_
@@ -106,6 +107,30 @@ unsupported-feature handler and `ThrowOnUnsupportedFeature` set. Asserts that no
 and no report is delivered (the extruded mesh is a valid operand), that the pocket floor appears in
 the subtracted operand's color within three percent of the analytic pixel count, that the rest of
 the plate keeps its color, and that the hole remains open.
+
+### Convex Hull: Hull Of Two Spheres Renders And Cuts As A Valid Operand
+
+**Test**: `CanvasNetRender3D_SystemIntegration_ConvexHull_HullOfTwoSpheresRendersAndCutsAsAValidOperand`
+
+Builds the convex hull of the vertices of two spheres of radius 2 at x = -6 and x = +6 through
+`ConvexHull.Hull3D`, asserts that it is a valid operand, and renders it orthographically from above at 10
+pixels per unit with flat colors, plain and with a box subtracted through the fragment-list path with
+`ThrowOnUnsupportedFeature` set. Asserts the stadium outline (covered at the center and on the sphere axis,
+background beside and beyond it), that the covered-pixel count is within the analytic stadium area
+(`pi r^2 + 2 r d`) up to the polygonal approximation, that no report is delivered and no exception is
+thrown for the cut, that the pocket floor appears in the subtracted operand's color within three percent
+of the analytic pixel count, and that the rest of the hull keeps its color.
+
+### Minkowski Sum: Rounded Box Renders And A Non-Convex Operand Is Rejected
+
+**Test**: `CanvasNetRender3D_SystemIntegration_MinkowskiSum_RoundedBoxRendersAndNonConvexOperandIsRejected`
+
+Computes the sum of a 10-unit cube and a unit sphere through `MinkowskiSum.ConvexSum` and asserts that it is a
+valid operand with the summed extents (plus and minus 6). Renders it from above at 10 pixels per unit and
+asserts the rounded-square outline (the straight edge reaches 6 units, the corner is cut by the quarter circle
+of radius 1 around the corner of the cube) and that the covered area is within the analytic
+`100 + 4 * 10 + pi` square units up to the polygonal approximation. Asserts that an L-shaped extrusion is
+rejected with a `NotSupportedException` as either operand.
 
 ### Render: Cube Silhouette Matches Analytic Coverage
 

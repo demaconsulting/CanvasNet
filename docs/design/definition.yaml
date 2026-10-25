@@ -17,6 +17,8 @@ input-files:
   - docs/design/canvas-net-render3d/tessellation/primitive-tessellator.md
   - docs/design/canvas-net-render3d/tessellation/polygon-triangulator.md
   - docs/design/canvas-net-render3d/tessellation/extruder.md
+  - docs/design/canvas-net-render3d/tessellation/convex-hull.md
+  - docs/design/canvas-net-render3d/tessellation/minkowski-sum.md
   - docs/design/canvas-net-render3d/scene-rendering.md
   - docs/design/canvas-net-render3d/scene-rendering/camera.md
   - docs/design/canvas-net-render3d/scene-rendering/lighting.md

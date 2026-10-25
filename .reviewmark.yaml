@@ -1313,6 +1313,41 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/ExtruderLinearTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/ExtruderRotateTests.cs"  # unit tests
 
+  # CanvasNetRender3D-Tessellation-ConvexHull Review (one per unit)
+  - id: CanvasNetRender3D-Tessellation-ConvexHull
+    title: Review that CanvasNetRender3D Tessellation ConvexHull Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/tessellation.md"
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation/convex-hull.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/tessellation/convex-hull.md"  # unit design
+      - "docs/verification/canvas-net-render3d/tessellation/convex-hull.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation/convex-hull.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/ConvexHull.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/HullBuilder3D.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/SolidPredicates.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/ConvexHullTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/SolidPredicatesTests.cs"  # unit tests
+
+  # CanvasNetRender3D-Tessellation-MinkowskiSum Review (one per unit)
+  - id: CanvasNetRender3D-Tessellation-MinkowskiSum
+    title: Review that CanvasNetRender3D Tessellation MinkowskiSum Implementation is Correct
+    context:
+      - "docs/design/canvas-net-render3d.md"
+      - "docs/reqstream/canvas-net-render3d.yaml"
+      - "docs/design/canvas-net-render3d/tessellation.md"
+      - "docs/reqstream/canvas-net-render3d/tessellation.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-render3d/tessellation/minkowski-sum.yaml"  # unit requirements
+      - "docs/design/canvas-net-render3d/tessellation/minkowski-sum.md"  # unit design
+      - "docs/verification/canvas-net-render3d/tessellation/minkowski-sum.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-render3d/tessellation/minkowski-sum.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Render3D/Tessellation/MinkowskiSum.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/Tessellation/MinkowskiSumTests.cs"  # unit tests
+
   # CanvasNetRender3D-SceneRendering Review (one per subsystem)
   - id: CanvasNetRender3D-SceneRendering
     title: Review that CanvasNetRender3D SceneRendering Subsystem Implementation is Correct
@@ -1756,6 +1791,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadSceneOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFeatureIds.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadBooleans.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadHulls.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryBuilder*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadSceneOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadUnsupportedModuleTests.cs"  # unit tests

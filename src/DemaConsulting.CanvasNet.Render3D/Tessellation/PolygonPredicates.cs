@@ -234,11 +234,12 @@ internal static class PolygonPredicates
 
     /// <summary>
     ///     Converts a finite double into the exact integer <c>value * 2^1074</c> (every finite double is an
-    ///     integer multiple of 2^-1074).
+    ///     integer multiple of 2^-1074). Shared with <see cref="SolidPredicates"/>, whose exact path uses the
+    ///     same scaling.
     /// </summary>
     /// <param name="value">The finite value.</param>
     /// <returns>The exact scaled integer.</returns>
-    private static BigInteger ToScaledInteger(double value)
+    internal static BigInteger ToScaledInteger(double value)
     {
         // Decompose the IEEE 754 representation into sign, biased exponent and fraction
         var bits = BitConverter.DoubleToInt64Bits(value);

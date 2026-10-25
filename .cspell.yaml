@@ -482,7 +482,10 @@ words:
   - tessellator
   - closedness
   - binner
-
+  - Minkowski
+  - polytope
+  - affinely
+  - nonconvex
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

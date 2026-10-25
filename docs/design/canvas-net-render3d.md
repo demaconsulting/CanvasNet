@@ -31,13 +31,16 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   `NodeAppearance`, and the `Scene` root — and the internal `SceneInstance` flattened view. See
   _SceneModel Subsystem Design_ (`canvas-net-render3d/scene-model.md`).
 - **Tessellation** (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`, folder
-  `Tessellation/`): three units. `PrimitiveTessellator` is a static factory for closed, welded,
+  `Tessellation/`): five units. `PrimitiveTessellator` is a static factory for closed, welded,
   outward-oriented box, sphere, and cylinder (including cone and frustum) meshes, for polyhedron
   meshes built from caller-supplied faces whose winding and closure are preserved as given, and for
   2D profile regions (rectangle, ellipse, circle, polygon). `PolygonTriangulator` provides the
   immutable validated `PolygonRegion`, the exact predicates, and the ear-clipping triangulator with
   hole bridging. `Extruder` turns a region into a closed, outward-oriented mesh by linear extrusion
-  (with twist and scale) or by rotation about the Z axis. See
+  (with twist and scale) or by rotation about the Z axis. `ConvexHull` computes the exact convex hull
+  of a point set as a closed, outward-oriented mesh (`Hull3D`) or a strictly convex polygon
+  (`Hull2D`), and `MinkowskiSum` computes the Minkowski sum of two convex solids, rejecting
+  non-convex operands instead of approximating them. See
   _Tessellation Subsystem Design_ (`canvas-net-render3d/tessellation.md`).
 - **SceneRendering** (namespace `DemaConsulting.CanvasNet.Render3D.SceneRendering`, folder
   `SceneRendering/`): the rasterization pipeline, with six units. `Camera` provides the
@@ -71,8 +74,9 @@ The system exposes the following public API:
   `Scene`.
 - **`Tessellation` namespace**: the static `PrimitiveTessellator` with `Box`, `Sphere`, `Cylinder`,
   `Polyhedron`, and the 2D factories `Rectangle`, `Ellipse`, `Circle`, and `Polygon`; the immutable
-  `PolygonRegion`; the static `PolygonTriangulator` (`Triangulate`); and the static `Extruder`
-  (`Linear`, `Rotate`).
+  `PolygonRegion`; the static `PolygonTriangulator` (`Triangulate`); the static `Extruder`
+  (`Linear`, `Rotate`); the static `ConvexHull` (`Hull3D`, `Hull2D`); and the static `MinkowskiSum`
+  (`ConvexSum`, `MaxPairwiseSums`).
 - **`SceneRendering` namespace**: `Camera` and `CameraProjection`; `Light`, `AmbientLight`, and
   `DirectionalLight`; `SceneRenderOptions` (including `MaxFragmentsPerTile`,
   `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`); the diagnostics
@@ -89,6 +93,8 @@ The system exposes the following public API:
 | `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
 | `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
 | `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes (single-contour region only) or positive in both, angle in (0, 360], profile not crossing the axis or touching it at an isolated vertex |
+| `ConvexHull.Hull3D` / `ConvexHull.Hull2D` | Inbound/Outbound | Point sequence, `CancellationToken` / `Mesh` or polygon return | Non-null, finite points; `Hull3D` needs a point set with volume (`ArgumentException` otherwise); exact, order-independent, cancellable |
+| `MinkowskiSum.ConvexSum` | Inbound/Outbound | Two `Mesh` operands, `CancellationToken` / `Mesh` return | Non-null operands with triangles and volume; vertex-count product at most `MaxPairwiseSums` (`ArgumentException`); closed convex solids only (`NotSupportedException` otherwise) |
 | `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
 | `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
 | `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for CSG scenes with an unsuitable operand |
@@ -584,8 +590,14 @@ requirements, design, verification, and tests for its own scope.
    extruded meshes are closed, outward, and valid constructive-solid-geometry operands, so no
    `SceneRendering` change was needed. Polyhedron faces remain convex-only; the triangulator is a
    2D facility.
-4. **Later — Format front ends**, as separate packages that depend on this one.
-5. **Later — Hull and Minkowski operations**, **transparency** (sorted fragment compositing; node
+4. **Phase 7 — Convex hull and Minkowski sum (delivered).** The `Tessellation` subsystem gains the
+   `ConvexHull` unit (exact `Hull3D` and `Hull2D`, with the internal incremental `HullBuilder3D` and the
+   exact 3D orientation predicate `SolidPredicates`) and the `MinkowskiSum` unit (`ConvexSum` of two convex
+   solids, with a sound convexity test that rejects non-convex operands instead of approximating them). All
+   results are closed, outward, valid constructive-solid-geometry operands, so no `SceneRendering` change was
+   needed. Minkowski sums of non-convex solids and of 2D shapes are not part of this phase.
+5. **Later — Format front ends**, as separate packages that depend on this one.
+6. **Later — Transparency** (sorted fragment compositing; node
    alpha is ignored until then), and **performance work** (vectorized edge evaluation and per-tile
    pruning, with equivalence tests against the scalar path; changing the default degree of
    parallelism is a non-breaking, one-line option change).
