@@ -103,11 +103,13 @@ volume within `1e-3` for a per-axis scale with 64 slices.
 
 **Tests**: `ExtruderLinearTests.Extruder_Linear_ScaleZero_IsPyramidWithSingleApex`,
 `ExtruderLinearTests.Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws`,
+`ExtruderLinearTests.Extruder_Linear_UniformScaleApexOnMultiContourRegion_ReportsUniformScaleParameter`,
 `ExtruderLinearTests.Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh`
 
 Asserts the pyramid volume `A h / 3`, a single top vertex, no top cap triangle and no degenerate
 triangle; that an apex over a region with a hole or with two separate islands is rejected with an
-`ArgumentException` naming `scale` (every contour would collapse onto one pinched vertex) while the same
+`ArgumentException` naming `scale` (every contour would collapse onto one pinched vertex; the
+uniform-scale overload names `uniformScale`, as do its invalid-scale exceptions) while the same
 region with a positive scale and a single-contour apex are valid operands; and that a twist combined with an
 apex is a valid closed mesh.
 

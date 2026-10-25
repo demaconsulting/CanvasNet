@@ -84,6 +84,7 @@ sections:
                 tests:
                   - Extruder_Linear_ScaleZero_IsPyramidWithSingleApex
                   - Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws
+                  - Extruder_Linear_UniformScaleApexOnMultiContourRegion_ReportsUniformScaleParameter
                   - Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh
 
               - id: CanvasNetRender3D-Tessellation-Extruder-LinearTwist
