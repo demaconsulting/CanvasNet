@@ -179,6 +179,7 @@ parameter filled with `undef`.
 `ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_LargeVector_ChargesPerElement`,
+`ScadBuiltinStringTests.ScadBuiltinString_Str_ManyLargeStrings_AllocateNoMoreThanLimitPlusOneElement`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_StepLimit_StopsDuringFormatting`,
 `ScadBuiltinStringTests.ScadBuiltinString_Chr_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinRandomTests.ScadBuiltinRandom_Rands_AtLimit_Succeeds_OneOver_Throws`
@@ -186,7 +187,13 @@ parameter filled with `undef`.
 Asserts, for `concat`, `str`, `chr`, and `rands`, that a result exactly at the limit is produced and one more
 throws the limit error before the result is built, and that a `search` that would do too much work or produce too
 large a result throws. For `str`, it asserts that a large vector is charged at least eight steps per element and
-that a step limit stops the call during formatting, not after it. For `search`, the allocation scenarios measure the
+that a step limit stops the call during formatting, not after it. It also asserts, by measuring the bytes allocated on
+the calling thread, that `str` of fifty 100,000-character strings (and of a vector of them) against a limit of
+100,000 allocates under two megabytes (the limit plus one element, not the ten megabytes of building all of them):
+the string-length check runs after every argument and after every vector element, and a string value is itself
+bounded by the limit, so formatting never builds more than the limit plus one element. Formatting a scalar is not
+metered separately because a scalar costs a few hundred nanoseconds at most and the node that produced it was already
+charged. For `search`, the allocation scenarios measure the
 bytes allocated on the calling thread (`GC.GetAllocatedBytesForCurrentThread`), which is deterministic for a given
 implementation: two 100,000-character strings with a budget of 1,000 steps are refused with the step-limit error
 and under a megabyte allocated (the former implementation allocated about nineteen); a match string longer than the

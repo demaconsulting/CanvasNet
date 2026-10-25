@@ -47,7 +47,7 @@ main `ScadSourceUnit`, the `ScadEvaluationSettings`, the `ScadLimits`, the `Scad
 frame depth, and the counters for steps, loop iterations, and instances, plus the unseeded random generator
 (a fresh `ScadRandom` in its fixed initial state for every pass). The static `Evaluate` entry points are safe
 for concurrent use because each call creates its own instance; the only shared state is the thread-safe
-fallback gate and the test-hook counters.
+fallback slot set (a `ScadEvaluatorFallbackSlots`) and the test-hook counters.
 
 **Scope (`ScadScope`).** A scope has a lexical parent, three namespaces (variable cells, function
 definitions, module definitions), the list of lazy cells in source order, and a pointer to the head of the
@@ -84,11 +84,13 @@ location; `Unsupported` returns whether the report was new so the evaluator can 
 category by category) to the supplied handlers; a null handler is skipped and a handler exception propagates.
 
 **Limit and hook constants.** `EvaluatorStackSize` (384 MiB), `FallbackThreadName` (`ScadEvaluator`),
-`MaxConcurrentFallbackThreads` (`Math.Max(2, Environment.ProcessorCount)`) enforced by a static
-`SemaphoreSlim`, the cancellation poll interval (1,024 steps), and the test hooks `LastRunThreadId` (per
+`MaxConcurrentFallbackThreads` (`Math.Max(2, Environment.ProcessorCount)`) enforced by a process-wide
+`ScadEvaluatorFallbackSlots` (a `SemaphoreSlim` plus its own waiting, active, peak, and start counters), the
+cancellation poll interval (1,024 steps), and the test hooks `LastRunThreadId` (per
 calling thread: the managed thread that completed that thread's latest evaluation), `FallbackCount`,
-`PeakConcurrentFallbackThreads`, `WaitingFallbackCallers` (the callers currently waiting for a slot), and
-`FallbackGateForTests` (the semaphore itself, so a test can hold slots).
+`PeakConcurrentFallbackThreads` (the process-wide set's peak), and `SlotsForCurrentThread` (a per-thread seam that
+substitutes a test's own `ScadEvaluatorFallbackSlots` for the process-wide one for evaluations started by that
+thread, so a test can hold slots and observe its own waiting callers without interference from other tests).
 
 #### Key Methods
 
@@ -338,7 +340,8 @@ See _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Stack Safety_) for
 pass runs inline guarded by `RuntimeHelpers.EnsureSufficientExecutionStack`; and only
 `InsufficientExecutionStackException` (a property of the caller's stack, never of the nominal limit) causes the
 bounded restart on the `ScadEvaluator` thread. `RunOnEvaluatorThread(work, cancellation)` mirrors the parser's
-`RunOnParserThread` with one difference: it waits for a slot of the static gate with
+`RunOnParserThread` with one difference: it waits for a slot of the process-wide `ScadEvaluatorFallbackSlots` (or,
+for a thread that a test gave its own set through `SlotsForCurrentThread`, that set) with
 `SemaphoreSlim.Wait(cancellation)`, so **the wait is cancellable** — a canceled token ends it with
 `OperationCanceledException` before a slot is acquired (the wait is outside the `try` whose `finally` releases the
 slot, so a slot that was never acquired is never released, and a canceled wait leaks nothing). It then starts a

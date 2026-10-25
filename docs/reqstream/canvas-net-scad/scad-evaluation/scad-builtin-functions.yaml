@@ -221,6 +221,7 @@ sections:
                   - ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch
                   - ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws
                   - ScadBuiltinString_Str_LargeVector_ChargesPerElement
+                  - ScadBuiltinString_Str_ManyLargeStrings_AllocateNoMoreThanLimitPlusOneElement
                   - ScadBuiltinString_Str_StepLimit_StopsDuringFormatting
                   - ScadBuiltinString_Chr_AtLimit_Succeeds_OneOver_Throws
                   - ScadBuiltinRandom_Rands_AtLimit_Succeeds_OneOver_Throws

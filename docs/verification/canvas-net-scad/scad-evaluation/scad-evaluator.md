@@ -484,7 +484,9 @@ iteration.
 Asserts the list-length, string-length, and 256-level nesting limits at the limit and one over, including inside a
 comprehension; that a matrix product whose result has exactly the list-length limit's elements succeeds and one more
 element fails with `List too long` located at the `*` operator; and that a product whose result would have four
-million elements fails quickly without allocating anything near that size.
+million elements fails quickly without allocating anything near that size (the allocation is measured on the
+calling thread, so it is asserted only when the evaluation ran inline, as `LastRunThreadId` shows; the value-level
+product tests measure the same property deterministically).
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-InstanceLimit: Instance Count
 
@@ -517,9 +519,10 @@ the earlier events are kept, and that an uncanceled token changes nothing. The f
 timer while `str` repeatedly formats a vector of 100,000 numbers with the step limit raised to the maximum. The
 product scenario cancels from a timer while 21 products of 27 million multiply-adds each are running; the
 deterministic proof that a single product polls at fixed intervals is the `ScadValueProduct` poll scenario in the
-unit verification of `ScadValue`. The wait scenario holds every slot of the fallback gate, starts a tiny-stack caller
-that must hop, waits until it is observed waiting, cancels, and asserts that the caller ends with an
-`OperationCanceledException` within 30 seconds while the held slots are untouched.
+unit verification of `ScadValue`. The wait scenario holds every slot of a slot set of its own (so nothing else can
+count against it), starts a tiny-stack caller that must hop, waits until that set shows exactly one waiter, cancels,
+and asserts that the caller ends with an `OperationCanceledException` within 30 seconds while the held slots are
+untouched.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-StackSafety: Restart On A Large Stack
 
@@ -532,18 +535,25 @@ that must hop, waits until it is observed waiting, cancels, and asserts that the
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_OnTinyCallerStack_PreservesExceptionsAndCulture`,
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_ConcurrentTinyCallerStacks_BoundFallbackThreads`,
 `ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased`,
-`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot`
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot`,
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers`
 
 Asserts, over the shapes of function, closure, mutual, module, and `children()` recursion, `let`, `echo`, and
 `assert` chains, ternary chains, nested expressions and vector literals inside recursion, and comprehensions, that
 programs at the limit match the big-stack result on small stacks, that one frame over fails identically, that
 value nesting at 256 levels survives, that a tiny stack hops to the evaluator thread while a normal program does
 not, that exceptions and the culture survive the hop, and that concurrent tiny-stack callers never exceed the bound
-on fallback threads. The slot scenarios take every slot of the fallback gate through the internal
-`FallbackGateForTests` hook (with a 30-second timeout and release in `finally`), start a tiny-stack caller, wait
-until the `WaitingFallbackCallers` hook shows that it is waiting, and then release one slot (the caller completes and
-the fallback count rises) or cancel (see the Cancellation scenario); afterwards every slot is free again. They live
-in the same test class as the concurrent-fallback scenario, so the two never run at the same time.
+on fallback threads. The slot scenarios do not touch the process-wide slot set: each creates its own
+`ScadEvaluatorFallbackSlots` (two slots, with its own waiting, active, peak, and start counters), takes every slot
+on the test thread (with a 30-second timeout on every wait and release in `finally`), starts a tiny-stack caller
+whose thread has the set injected through the per-thread `ScadEvaluator.SlotsForCurrentThread` seam, waits until
+that set's own `Waiting` counter shows exactly one waiter, and then releases one slot (the caller completes and
+the set's start count rises by one) or cancels (see the Cancellation scenario); afterwards every slot of the set
+is free again. Because nothing else can acquire, wait on, or count against the private set, evaluations that other
+tests run in parallel cannot satisfy or disturb the waits (a process-wide waiter counter could be satisfied by
+another test's fallback hop). A further scenario holds two independent sets, waits one caller on each, and asserts
+that each set counts exactly its own waiter. The concurrent-fallback scenario still uses the process-wide set and
+asserts its peak.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery: Invisible Restart
 

@@ -346,15 +346,14 @@ public class ScadEvaluatorStackTests
     [Fact]
     public void ScadEvaluatorStack_Evaluate_CancelWhileWaitingForFallbackSlot_ThrowsOperationCanceled()
     {
-        // Arrange: hold every slot so the next hopping caller has to wait
-        var gate = ScadEvaluator.FallbackGateForTests;
-        var held = AcquireAllSlots(gate);
+        // Arrange: a slot set of this test's own, every slot held, so the next hopping caller has to wait
+        var slots = new ScadEvaluatorFallbackSlots(2);
+        HoldAll(slots);
         try
         {
             using var cts = new CancellationTokenSource();
-            var baseline = ScadEvaluator.WaitingFallbackCallers;
-            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token);
-            Assert.True(SpinWait.SpinUntil(() => ScadEvaluator.WaitingFallbackCallers > baseline, Patience), "the caller never started waiting");
+            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
+            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
 
             // Act
             cts.Cancel();
@@ -363,11 +362,13 @@ public class ScadEvaluatorStackTests
             // Assert: the caller was released by the cancellation, and the slots we hold are still all held
             Assert.True(finished);
             Assert.IsAssignableFrom<OperationCanceledException>(result[0]);
-            Assert.Equal(0, gate.CurrentCount);
+            Assert.Equal(0, slots.FreeSlots);
+            Assert.Equal(0, slots.Waiting);
+            Assert.Equal(slots.Capacity, slots.Started);
         }
         finally
         {
-            gate.Release(held);
+            ReleaseAll(slots);
         }
     }
 
@@ -378,29 +379,32 @@ public class ScadEvaluatorStackTests
     public void ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased()
     {
         // Arrange
-        var gate = ScadEvaluator.FallbackGateForTests;
-        var held = AcquireAllSlots(gate);
+        var slots = new ScadEvaluatorFallbackSlots(2);
+        HoldAll(slots);
         var released = false;
         try
         {
-            var before = ScadEvaluator.FallbackCount;
-            var baseline = ScadEvaluator.WaitingFallbackCallers;
-            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), CancellationToken.None);
-            Assert.True(SpinWait.SpinUntil(() => ScadEvaluator.WaitingFallbackCallers > baseline, Patience), "the caller never started waiting");
+            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), CancellationToken.None, slots);
+            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
 
             // Act
-            gate.Release(1);
+            slots.Release();
             released = true;
             var finished = caller.Join(Patience);
 
-            // Assert
+            // Assert: the caller took the released slot (one more start than the slots we held) and finished cleanly
             Assert.True(finished);
             Assert.Null(result[0]);
-            Assert.True(ScadEvaluator.FallbackCount > before);
+            Assert.Equal(slots.Capacity + 1, slots.Started);
+            Assert.Equal(0, slots.Waiting);
         }
         finally
         {
-            gate.Release(released ? held - 1 : held);
+            // One slot was released inside the test, so release the others
+            for (var i = released ? 1 : 0; i < slots.Capacity; i++)
+            {
+                slots.Release();
+            }
         }
     }
 
@@ -411,25 +415,63 @@ public class ScadEvaluatorStackTests
     public void ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot()
     {
         // Arrange
-        var gate = ScadEvaluator.FallbackGateForTests;
-        var held = AcquireAllSlots(gate);
+        var slots = new ScadEvaluatorFallbackSlots(2);
+        HoldAll(slots);
         try
         {
             using var cts = new CancellationTokenSource();
-            var baseline = ScadEvaluator.WaitingFallbackCallers;
-            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token);
-            Assert.True(SpinWait.SpinUntil(() => ScadEvaluator.WaitingFallbackCallers > baseline, Patience), "the caller never started waiting");
+            var (caller, result) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, slots);
+            Assert.True(SpinWait.SpinUntil(() => slots.Waiting == 1, Patience), "the caller never started waiting");
             cts.Cancel();
             Assert.True(caller.Join(Patience));
             Assert.IsAssignableFrom<OperationCanceledException>(result[0]);
         }
         finally
         {
-            gate.Release(held);
+            ReleaseAll(slots);
         }
 
-        // Act / Assert: every slot becomes free again (other tests may briefly hold one, so allow them time to finish)
-        Assert.True(SpinWait.SpinUntil(() => gate.CurrentCount == ScadEvaluator.MaxConcurrentFallbackThreads, Patience));
+        // Act / Assert: the slot set is private to this test, so every slot is free right away
+        Assert.Equal(slots.Capacity, slots.FreeSlots);
+    }
+
+    /// <summary>
+    ///     Validates that a test's own slot set observes only its own callers: another set, with callers waiting on it
+    ///     at the same time, shows nothing of them (so a counter that other tests' evaluations bump cannot satisfy a
+    ///     wait).
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers()
+    {
+        // Arrange: two independent slot sets, all slots of both held
+        var mine = new ScadEvaluatorFallbackSlots(2);
+        var other = new ScadEvaluatorFallbackSlots(2);
+        HoldAll(mine);
+        HoldAll(other);
+        using var cts = new CancellationTokenSource();
+        try
+        {
+            var (callerOnMine, mineResult) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, mine);
+            Assert.True(SpinWait.SpinUntil(() => mine.Waiting == 1, Patience), "the caller never started waiting");
+
+            // Act: a second caller waits on the other set
+            var (callerOnOther, otherResult) = StartTinyCaller(Shapes["function"].Make(1500), cts.Token, other);
+            Assert.True(SpinWait.SpinUntil(() => other.Waiting == 1, Patience), "the second caller never started waiting");
+
+            // Assert: each set counts exactly its own waiter; the shared set is untouched by both
+            Assert.Equal(1, mine.Waiting);
+            Assert.Equal(1, other.Waiting);
+            cts.Cancel();
+            Assert.True(callerOnMine.Join(Patience));
+            Assert.True(callerOnOther.Join(Patience));
+            Assert.IsAssignableFrom<OperationCanceledException>(mineResult[0]);
+            Assert.IsAssignableFrom<OperationCanceledException>(otherResult[0]);
+        }
+        finally
+        {
+            ReleaseAll(mine);
+            ReleaseAll(other);
+        }
     }
 
     /// <summary>
@@ -453,25 +495,27 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
-    ///     Takes every slot of the fallback gate, so the next caller that has to hop must wait.
+    ///     Takes every slot of a slot set, so the next caller that has to hop on that set must wait.
     /// </summary>
-    /// <param name="gate">The gate.</param>
-    /// <returns>The number of slots taken (to be released by the caller).</returns>
-    private static int AcquireAllSlots(SemaphoreSlim gate)
+    /// <param name="slots">The slot set (private to the test; nothing else competes for it).</param>
+    private static void HoldAll(ScadEvaluatorFallbackSlots slots)
     {
-        var taken = 0;
-        while (taken < ScadEvaluator.MaxConcurrentFallbackThreads)
+        for (var i = 0; i < slots.Capacity; i++)
         {
-            if (!gate.Wait(Patience, TestContext.Current.CancellationToken))
-            {
-                gate.Release(taken);
-                Assert.Fail("the fallback slots were not released in time");
-            }
-
-            taken++;
+            slots.Acquire(TestContext.Current.CancellationToken);
         }
+    }
 
-        return taken;
+    /// <summary>
+    ///     Gives back every slot taken by <see cref="HoldAll"/>.
+    /// </summary>
+    /// <param name="slots">The slot set.</param>
+    private static void ReleaseAll(ScadEvaluatorFallbackSlots slots)
+    {
+        for (var i = 0; i < slots.Capacity; i++)
+        {
+            slots.Release();
+        }
     }
 
     /// <summary>
@@ -479,12 +523,19 @@ public class ScadEvaluatorStackTests
     /// </summary>
     /// <param name="program">The program.</param>
     /// <param name="cancellation">The cancellation token of the evaluation.</param>
+    /// <param name="slots">The slot set the caller uses for the hop (set for that thread only).</param>
     /// <returns>The started thread, and a one-element array that receives the exception it ended with (or stays null).</returns>
-    private static (Thread Caller, Exception?[] Result) StartTinyCaller(string program, CancellationToken cancellation)
+    private static (Thread Caller, Exception?[] Result) StartTinyCaller(string program, CancellationToken cancellation, ScadEvaluatorFallbackSlots slots)
     {
         var result = new Exception?[1];
         var settings = new ScadEvaluationSettings { Cancellation = cancellation };
-        var caller = new Thread(() => result[0] = Record.Exception(() => Run(program, settings)), TinyCallerStackSize);
+        var caller = new Thread(
+            () =>
+            {
+                ScadEvaluator.SlotsForCurrentThread = slots;
+                result[0] = Record.Exception(() => Run(program, settings));
+            },
+            TinyCallerStackSize);
         caller.Start();
         return (caller, result);
     }

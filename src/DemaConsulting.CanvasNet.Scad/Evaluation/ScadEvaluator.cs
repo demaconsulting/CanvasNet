@@ -86,20 +86,15 @@ internal sealed partial class ScadEvaluator
     /// </remarks>
     internal const long MaxAggregateElements = 1L << 26;
 
-    /// <summary>Limits the number of concurrently running fallback threads; callers beyond the limit wait for a slot.</summary>
-    private static readonly SemaphoreSlim FallbackGate = new(MaxConcurrentFallbackThreads, MaxConcurrentFallbackThreads);
+    /// <summary>The process-wide slots that bound the fallback threads; callers beyond the limit wait for a slot.</summary>
+    private static readonly ScadEvaluatorFallbackSlots SharedSlots = new(MaxConcurrentFallbackThreads);
 
     /// <summary>The number of passes restarted on a fallback thread (updated with <see cref="Interlocked"/>).</summary>
     private static long _fallbackCount;
 
-    /// <summary>The number of fallback threads currently running (updated with <see cref="Interlocked"/>).</summary>
-    private static int _activeFallbacks;
-
-    /// <summary>The number of callers currently waiting for a fallback slot (updated with <see cref="Interlocked"/>).</summary>
-    private static int _waitingFallbacks;
-
-    /// <summary>The largest number of fallback threads that ran at once (updated with <see cref="Interlocked"/>).</summary>
-    private static int _peakFallbacks;
+    /// <summary>The slots the current thread uses instead of <see cref="SharedSlots"/>, or <see langword="null"/> (a test seam).</summary>
+    [ThreadStatic]
+    private static ScadEvaluatorFallbackSlots? _slotsForThread;
 
     /// <summary>The managed thread id that completed the most recent evaluation started by the current thread.</summary>
     [ThreadStatic]
@@ -154,14 +149,23 @@ internal sealed partial class ScadEvaluator
     /// <summary>Gets the number of passes that had to be restarted on a fallback thread since process start (a test hook).</summary>
     internal static long FallbackCount => Interlocked.Read(ref _fallbackCount);
 
-    /// <summary>Gets the largest number of fallback threads that ever ran at once (a test hook).</summary>
-    internal static int PeakConcurrentFallbackThreads => Volatile.Read(ref _peakFallbacks);
+    /// <summary>Gets the largest number of process-wide fallback threads that ever ran at once (a test hook).</summary>
+    internal static int PeakConcurrentFallbackThreads => SharedSlots.Peak;
 
-    /// <summary>Gets the number of callers currently waiting for a fallback slot (a test hook).</summary>
-    internal static int WaitingFallbackCallers => Volatile.Read(ref _waitingFallbacks);
-
-    /// <summary>Gets the semaphore that bounds the fallback threads, so a test can hold slots (a test hook).</summary>
-    internal static SemaphoreSlim FallbackGateForTests => FallbackGate;
+    /// <summary>
+    ///     Gets or sets the slots that evaluations started by the <em>calling thread</em> use instead of the
+    ///     process-wide ones; <see langword="null"/> (the default) means the process-wide slots (a test seam).
+    /// </summary>
+    /// <remarks>
+    ///     The setting is per thread, so a test can hold every slot of its own set and observe its own waiting callers
+    ///     without being affected by (or affecting) evaluations that other tests run in parallel. It must be set on the
+    ///     thread that calls <c>Evaluate</c>, which is the thread that waits for a slot.
+    /// </remarks>
+    internal static ScadEvaluatorFallbackSlots? SlotsForCurrentThread
+    {
+        get => _slotsForThread;
+        set => _slotsForThread = value;
+    }
 
     /// <summary>
     ///     Gets the managed thread id that completed the most recent evaluation started by the calling thread: the
@@ -249,7 +253,7 @@ internal sealed partial class ScadEvaluator
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         The caller first waits for a slot of <see cref="FallbackGate"/>, then blocks until the thread finishes, so
+    ///         The caller first waits for a slot of the slot set (see <see cref="ScadEvaluatorFallbackSlots"/>), then blocks until the thread finishes, so
     ///         the observable behavior is synchronous. The wait for a slot honors <paramref name="cancellation"/>: a
     ///         canceled token ends the wait with <see cref="OperationCanceledException"/> without acquiring a slot, so a
     ///         caller queued behind long-running evaluations can always be abandoned (the wait stays outside the
@@ -285,8 +289,8 @@ internal sealed partial class ScadEvaluator
         var culture = CultureInfo.CurrentCulture;
         var uiCulture = CultureInfo.CurrentUICulture;
 
-        WaitForFallbackSlot(cancellation);
-        TrackFallbackStart();
+        var slots = _slotsForThread ?? SharedSlots;
+        slots.Acquire(cancellation);
         try
         {
             Interlocked.Increment(ref _fallbackCount);
@@ -315,41 +319,11 @@ internal sealed partial class ScadEvaluator
         }
         finally
         {
-            Interlocked.Decrement(ref _activeFallbacks);
-            FallbackGate.Release();
+            slots.Release();
         }
 
         failure?.Throw();
         return result!;
-    }
-
-    /// <summary>
-    ///     Waits for a free fallback slot, counting the callers that are waiting (a test hook) and honoring cancellation.
-    /// </summary>
-    /// <param name="cancellation">The token that ends the wait.</param>
-    /// <exception cref="OperationCanceledException">Thrown when the token is canceled; no slot was acquired.</exception>
-    private static void WaitForFallbackSlot(CancellationToken cancellation)
-    {
-        Interlocked.Increment(ref _waitingFallbacks);
-        try
-        {
-            FallbackGate.Wait(cancellation);
-        }
-        finally
-        {
-            Interlocked.Decrement(ref _waitingFallbacks);
-        }
-    }
-
-    /// <summary>Records that a fallback thread is starting, keeping the observed peak up to date (a test hook).</summary>
-    private static void TrackFallbackStart()
-    {
-        var active = Interlocked.Increment(ref _activeFallbacks);
-        int peak;
-        while (active > (peak = Volatile.Read(ref _peakFallbacks)) && Interlocked.CompareExchange(ref _peakFallbacks, active, peak) != peak)
-        {
-            // Another thread raised the peak concurrently; re-read and compare again
-        }
     }
 
     /// <summary>

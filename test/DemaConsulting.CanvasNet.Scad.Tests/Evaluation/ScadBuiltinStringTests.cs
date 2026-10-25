@@ -47,6 +47,36 @@ public class ScadBuiltinStringTests
     }
 
     /// <summary>
+    ///     Validates that str never builds more than the limit plus one element: many large strings and a long vector of
+    ///     large strings both stop at the first element that does not fit.
+    /// </summary>
+    [Fact]
+    public void ScadBuiltinString_Str_ManyLargeStrings_AllocateNoMoreThanLimitPlusOneElement()
+    {
+        // Arrange: fifty arguments of 100,000 characters each against a limit of 100,000 (building them all would take
+        // 50 * 100,000 * 2 bytes = 10 MB for the text alone); the vector holds the same strings, quoted
+        var large = S(new string('a', 100_000));
+        var arguments = Enumerable.Repeat(large, 50).ToArray();
+        var vector = ScadValue.FromVector(arguments);
+        var firstHost = new ScadTestBuiltinHost { MaxStringLength = 100_000 };
+        var secondHost = new ScadTestBuiltinHost { MaxStringLength = 100_000 };
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var arguments1 = Assert.Throws<ScadEvaluationException>(() => firstHost.Call("str", arguments));
+        var afterArguments = GC.GetAllocatedBytesForCurrentThread();
+        var vector1 = Assert.Throws<ScadEvaluationException>(() => secondHost.Call("str", vector));
+        var afterVector = GC.GetAllocatedBytesForCurrentThread();
+
+        // Assert: one result-sized string and one element of overshoot, with room for copies; ten megabytes would
+        // mean the loop kept building after the limit
+        Assert.Contains("String too long (limit 100000)", arguments1.Message, StringComparison.Ordinal);
+        Assert.Contains("String too long (limit 100000)", vector1.Message, StringComparison.Ordinal);
+        Assert.True(afterArguments - before < 2_000_000, $"arguments={afterArguments - before}");
+        Assert.True(afterVector - afterArguments < 2_000_000, $"vector={afterVector - afterArguments}");
+    }
+
+    /// <summary>
     ///     Validates that a step limit stops str while it formats a large vector.
     /// </summary>
     [Fact]

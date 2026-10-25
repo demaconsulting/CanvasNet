@@ -616,6 +616,7 @@ sections:
                   - ScadEvaluatorStack_Evaluate_ConcurrentTinyCallerStacks_BoundFallbackThreads
                   - ScadEvaluatorStack_Evaluate_WaitingForSlot_ProceedsWhenSlotIsReleased
                   - ScadEvaluatorStack_Evaluate_CanceledWait_DoesNotLeakASlot
+                  - ScadEvaluatorStack_Evaluate_InjectedSlots_ObserveOnlyTheirOwnCallers
 
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-BufferedDelivery
                 title: >-

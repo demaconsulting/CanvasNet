@@ -63,11 +63,19 @@ public class ScadEvaluatorProductLimitTests
         var ex = Fails(source, settings);
         watch.Stop();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        var ranInline = ScadEvaluator.LastRunThreadId == Environment.CurrentManagedThreadId;
 
-        // Assert: four million results would take about 100 MB; the operands take well under 20 MB
+        // Assert: four million results would take about 100 MB; the operands take well under 20 MB. The allocation
+        // counter is per thread, so it only sees the evaluation when it ran on this thread: a run that fell back to a
+        // dedicated thread (a caller with a very short stack) is not measured, and the value-level product tests
+        // (ScadValueProductLimitTests) are what pin the allocation in that case.
         Assert.Contains("List too long (limit 2000)", ex.Message, StringComparison.Ordinal);
         Assert.True(watch.Elapsed < Generous, $"elapsed={watch.Elapsed}");
-        Assert.True(allocated < 20_000_000, $"allocated={allocated}");
+        if (ranInline)
+        {
+            Assert.True(allocated < 20_000_000, $"allocated={allocated}");
+        }
+
     }
 
     /// <summary>

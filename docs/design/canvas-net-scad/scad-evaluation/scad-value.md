@@ -182,7 +182,13 @@ are elements 0, 1, and 2; any other member is `undef`.
   evaluation steps' worth, so eight steps per element is the pessimistic end; `[for (k = [0 : 100000])
   len(str(v))]` with a vector of 100,000 numbers, which ran 49.5 s before the step limit tripped, now stops at the
   default step limit after about 1.4–3 s. The constant is pinned by
-  `ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement`.
+  `ScadValueFormat_TryToStr_WithMeter_ChargesPerVisitedElement`. **Scalars and the overshoot bound.** A scalar
+  (number, boolean, string, `undef`) is not metered on its own: a number costs at most a few hundred
+  nanoseconds and the expression node that produced it already charged a step, and a string value is bounded by the
+  string-length limit, so formatting it is one pass over at most that many characters (and `str` charges
+  `1 + length / 16` afterwards). The length check runs after every `str` argument and after every vector element, so
+  formatting never builds more than the limit plus one element (a quoted element at most twice its length), which
+  `ScadBuiltinString_Str_ManyLargeStrings_AllocateNoMoreThanLimitPlusOneElement` pins.
 
 ##### Number formatting (`ScadNumberFormatter.Format`)
 
