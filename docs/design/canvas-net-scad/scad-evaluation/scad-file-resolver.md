@@ -100,7 +100,14 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
   junction targets) and racy; it tightens an earlier rule that allowed a file link whose target was inside a root.
   To use linked content, a caller adds the real directory as a library path. **Residual risk (documented):** an
   attacker who can modify the tree between the check and the open (a time-of-check/time-of-use race) is outside
-  the threat model of an untrusted document plus caller-chosen directories. A directory in place of a file
+  the threat model of an untrusted document plus caller-chosen directories: the link walk and the later
+  `File.Exists`/`File.OpenRead` are separate file-system operations, so a component swapped for a link in
+  between is not noticed. **Hard links cannot be detected:** a hard link is an ordinary directory entry that names
+  the same file as another entry, so it carries no marker the link probe could see (`LinkTarget` is null), and
+  an extra name for a file outside the roots that someone with write access created inside a root is therefore
+  read like any regular file. Keeping the allowed directories free of hard links to files outside them is the
+  caller's responsibility, as is controlling who may write there; neither the requirement nor the tests claim
+  protection against either case. A directory in place of a file
   counts as missing. Files are read with the shared bounded UTF-8 reader of `ScadDocument` (byte-order mark
   detection, at most 4,194,304 characters).
 - **Resolver mode** (`FileResolver` supplied): **no file-system access at all.** Each candidate is a

@@ -142,6 +142,10 @@ and skipped where links cannot be created: `ScadFileResolverLinkTests.ScadFileRe
 `…_RealDirectoryLink_InsideRoot_IsRejected`, `…_RealFileLink_IsRejected` (a file link is rejected even when its
 target is inside the root), `…_RealLinkedBaseDirectoryItself_IsAllowed`, and the end-to-end
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemSandbox_DirectoryLinkEscape_IsRejected`.
+_Not verified, by design:_ the requirement covers symbolic links and junctions only. A hard link has no marker a
+link probe can see, so a hard link inside a root to a file outside it is read like a regular file, and a component
+swapped between the link walk and the open (a check/use race) is not noticed; both are documented residual risks of
+the file-system mode (see the design, _File-system mode_), and no test claims otherwise.
 
 ##### CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback: Resolver Mode
 
