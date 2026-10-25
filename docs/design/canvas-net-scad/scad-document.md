@@ -15,14 +15,18 @@ the program and never opens another file.** A document can then be **evaluated**
 internal `ScadEvaluation` subsystem and returns the echo output, the warnings, the unsupported-feature
 reports, and the number of module instances produced; only evaluation opens other files (the files named
 by `include` and `use`), and only through the document's `ScadOpenOptions` and inside the sandbox
-described in _CanvasNetScad System Design_. The package is an original implementation written from
+described in _CanvasNetScad System Design_. A document can also be **built** into a Render3D `Scene`
+(`BuildScene`) and **rendered** onto a `Surface` (`Render`): both evaluate the document, drive the internal
+`ScadGeometry` subsystem, and (for `Render`) the Render3D renderer, steered by `ScadRenderOptions`. The package is
+an original implementation written from
 general language-design knowledge; see _ScadLexer_ (`scad-language/scad-lexer.md`) for the clean-room
 statement that applies to the whole system. The unit covers the files `ScadDocument.cs`,
 `ScadDocument.Evaluate.cs`, `ScadOpenOptions.cs`, `ScadSourceLocation.cs`, `ScadSyntaxException.cs`,
 `ScadDirective.cs`, `ScadDirectiveKind.cs`, the evaluation contract `ScadEvaluationOptions.cs`,
 `ScadEvaluationResult.cs`, `ScadLimits.cs`, `ScadDiagnostic.cs`, `ScadUnsupportedFeature.cs`,
-`ScadUnsupportedFeatureException.cs`, and `ScadEvaluationException.cs`, and the namespace documentation
-`NamespaceDoc.cs`.
+`ScadUnsupportedFeatureException.cs`, and `ScadEvaluationException.cs`, the geometry and rendering contract
+`ScadDocument.Render.cs` (the `BuildScene` and `Render` methods) and `ScadRenderOptions.cs`, and the namespace
+documentation `NamespaceDoc.cs`.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requirements in
 `docs/reqstream/canvas-net-scad/scad-document.yaml` and, at system level, by `CanvasNetScad-Open`,
@@ -30,7 +34,10 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
 `CanvasNetScad-SyntaxErrors`, `CanvasNetScad-InputLimits`, `CanvasNetScad-Evaluate`,
 `CanvasNetScad-EvaluationOptions`, `CanvasNetScad-Diagnostics`, `CanvasNetScad-UnsupportedFeatures`,
 `CanvasNetScad-EvaluationErrors`, `CanvasNetScad-IncludeUse`, `CanvasNetScad-EvaluationLimits`,
-`CanvasNetScad-Cancellation`, `CanvasNetScad-VariableOverrides`, and `CanvasNetScad-Determinism`.
+`CanvasNetScad-Cancellation`, `CanvasNetScad-VariableOverrides`, `CanvasNetScad-Determinism`,
+`CanvasNetScad-BuildScene`, `CanvasNetScad-Render`, `CanvasNetScad-RenderOptions`,
+`CanvasNetScad-GeometryUnsupported`, `CanvasNetScad-GeometryLimits`, `CanvasNetScad-RenderCancellation`, and
+`CanvasNetScad-RenderDeterminism`.
 
 ### Data Model
 
@@ -39,9 +46,10 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   construction: `Directives`, `ModuleNames`, and `FunctionNames`. The constructor is private; the only
   ways to obtain a document are `Parse` and the two `Open` overloads. The `Program` and
   `Options` properties are `internal` so that the evaluator can consume them without widening the public
-  surface. The class is `partial` only so that `Evaluate` can live in `ScadDocument.Evaluate.cs`. A document
+  surface. The class is `partial` only so that `Evaluate` and the geometry entry points can live in
+  `ScadDocument.Evaluate.cs` and `ScadDocument.Render.cs`. A document
   holds no unmanaged resources, is not disposable, and keeps no state between calls: it is safe for
-  concurrent use, including concurrent `Evaluate` calls.
+  concurrent use, including concurrent `Evaluate`, `BuildScene`, and `Render` calls.
 - **`ScadOpenOptions`** (sealed class, init-only) — `BaseDirectory` (`string?`), `LibraryPaths`
   (`IReadOnlyList<string>`, empty by default), `FileResolver` (`Func<string, Stream?>?`), and
   `SourceName` (`string?`). Every property is validated in its `init` accessor: null is allowed for
@@ -85,12 +93,22 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
 - **`ScadEvaluationResult`** (sealed class, internal constructor, get-only) — `Echo` (each full line,
   including the `ECHO:` prefix), `Diagnostics`, `UnsupportedFeatures`, and `InstanceCount` (module instances,
   groups included). The lists are `ReadOnlyCollection<T>` copies, not castable to a mutable type.
-- **`ScadLimits`** (sealed class, init-only) — ten limits with their defaults and valid ranges:
+- **`ScadLimits`** (sealed class, init-only) — eleven limits with their defaults and valid ranges:
   `MaxRecursionDepth` (5,000; 16 to 16,384), `MaxEvaluationSteps` (50,000,000), `MaxLoopIterations`
   (10,000,000), `MaxListLength` (1,000,000), `MaxStringLength` (1,048,576), `MaxIncludeDepth` (16; 1 to 64),
-  `MaxIncludedFiles` (1,000), `MaxInstances` (1,000,000), `MaxOutputLength` (4,194,304 echo characters), and
-  `MaxDiagnostics` (1,000). Each is validated in its `init` accessor (`ArgumentOutOfRangeException`), and
-  `ScadLimits.Default` is a shared instance.
+  `MaxIncludedFiles` (1,000), `MaxInstances` (1,000,000), `MaxOutputLength` (4,194,304 echo characters),
+  `MaxDiagnostics` (1,000), and `MaxTriangles` (a `long`, 5,000,000; at least 1; the bound on the triangles the
+  geometry of one `BuildScene` or `Render` call may generate). Each is validated in its `init` accessor
+  (`ArgumentOutOfRangeException`), and `ScadLimits.Default` is a shared instance.
+- **`ScadRenderOptions`** (sealed class, init-only) — `Evaluation` (`ScadEvaluationOptions?`, default null: the
+  defaults apply; the single source of the variable overrides, `$t`, the limits, the handlers, and strict mode
+  for every stage), `Camera` (`Camera?`, default null: fit the view to the model), `ViewAzimuthDegrees` (default
+  `Camera.DefaultAzimuthDegrees`, 45) and `ViewElevationDegrees` (default `Camera.DefaultElevationDegrees`, about
+  35.26), both finite else `ArgumentOutOfRangeException`, `Projection` (`CameraProjection`, default
+  `Perspective`, must be a defined value), `SceneOptions` (`SceneRenderOptions?`, default null: the Render3D
+  defaults, a white background and neutral gray surfaces; its unsupported-feature handler and strict flag are
+  ignored), and `FlatShapeThickness` (default 0.1; finite and greater than zero). The options **compose**
+  rather than copy the evaluation options, so there is one definition of strict mode, handlers, and limits.
 - **`ScadDiagnostic`** (sealed record) — `Message` and `Location`; `ToString()` is `{Location}: {Message}` with
   the invariant culture. **`ScadUnsupportedFeature`** (sealed record) — `Feature` (an identifier such as
   `scad-function-textmetrics`), `Message`, and `Location`.
@@ -133,6 +151,29 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   recorded before the failure are still delivered, and an exception thrown by a handler on that path is
   **ignored so that the original failure wins**. The method is synchronous and thread-safe; it never invokes
   a handler or the file resolver on a thread other than the caller's.
+- `ScadDocument.BuildScene(ScadRenderOptions? options = null, CancellationToken cancellationToken = default)` —
+  uses default options when `options` is null and the default `ScadEvaluationOptions` when `Evaluation` is
+  null, throws `OperationCanceledException` before any work when the token is already canceled, creates a
+  buffering `ScadEvaluationSink`, runs the shared evaluation step (`RunEvaluation`, also used by `Evaluate`),
+  and calls `ScadGeometryBuilder.Build` with the roots, `ScadGeometrySettings` (the triangle limit, the
+  flat-shape thickness, strict mode, and the token), and the **same** sink. On success it delivers the buffered
+  events of both stages once, on the calling thread, in order (a handler exception propagates) and returns the
+  scene; on any failure the events recorded so far are still delivered and a handler exception on that path is
+  ignored so that the failure wins. A model without geometry gives a scene with an empty root.
+- `ScadDocument.Render(int width, int height, ScadRenderOptions? options = null, CancellationToken
+  cancellationToken = default)` — first validates the size (`ArgumentOutOfRangeException` for a width or height
+  outside 1 to `Surface.MaxDimension`), then the token, then the camera (an invalid camera is rejected by
+  rendering an empty 1 by 1 scene with it, so the renderer's own rules decide, with `ArgumentException`), all
+  before any evaluation. It then builds the geometry as `BuildScene` does, installs a renderer
+  unsupported-feature handler **only when** the evaluation options have a handler or strict mode (the renderer
+  checks boolean operands only when it has one) that maps each report to a `scad-` identifier and to the source
+  location of the module that produced the mesh (through the node-to-location map), copies the scene options
+  with that handler (`ScadSceneOptions.Create`), fits the camera to the scene bounds with the configured angles
+  and projection unless the caller supplied one, and draws with `SceneRenderer.Render` and the token. The
+  renderer's fragment-budget overflow (`RenderBudgetExceededException`) becomes a `ScadEvaluationException`
+  advising to raise `SceneOptions.MaxFragmentsPerTile` or to simplify the model. Events are delivered as for
+  `BuildScene`; when a handler throws after a successful drawing, the surface is disposed before the exception
+  propagates. The caller owns and disposes the returned surface.
 - `ReadBounded(Stream)` (internal static) — reads UTF-8 with byte-order-mark detection through a
   `StreamReader` (`leaveOpen: true`) in 8,192-character chunks and checks the running length after each
   chunk. As soon as the length exceeds `ScadParser.MaxSourceLength` (4,194,304 UTF-16 characters) it
@@ -177,6 +218,14 @@ document, the options, and the files the options make reachable.
   for cancellation; and `IOException` for a referenced file that cannot be read. Recoverable problems (an
   unknown name, a bad operand, a missing include file) are **warnings** in the result, not exceptions; see
   _ScadEvaluation_ (`scad-evaluation.md`, _Event Classification_).
+- `BuildScene` and `Render` throw everything `Evaluate` throws, plus `ScadEvaluationException` (located) when
+  the triangle limit would be exceeded, `ScadUnsupportedFeatureException` at the first unsupported feature of
+  **any** stage (evaluation, geometry building, or the renderer's operand checks) when strict mode is on, and,
+  for `Render`, `ArgumentOutOfRangeException` for a width or height outside 1 to `Surface.MaxDimension`,
+  `ArgumentException` for an invalid camera, and `ScadEvaluationException` (without a location) for the
+  renderer's fragment-budget overflow. Invalid arguments of a model are warnings, constructs that are not
+  supported are unsupported-feature reports (see _ScadGeometry_, `scad-geometry.md`), and neither stops the
+  build. Cancellation is never wrapped.
 
 ### Dependencies
 
@@ -190,11 +239,17 @@ document, the options, and the files the options make reachable.
   `ScadEvaluator.Evaluate`, `ScadEvaluationSettings`, `ScadEvaluationSink`, `ScadEvaluationOutput`, and
   `ScadValue.TryFromObject` (for the `Variables` of the evaluation options). See _ScadEvaluation_
   (`scad-evaluation.md`).
+- **`ScadGeometry` subsystem** (internal, namespace `DemaConsulting.CanvasNet.Scad.Geometry`) —
+  `ScadGeometryBuilder.Build`, `ScadGeometrySettings`, `ScadBuiltScene`, `ScadSceneMap`, `ScadReporter`, and
+  `ScadSceneOptions` (the copy of the renderer options and the report-identifier mapping). See _ScadGeometry_
+  (`scad-geometry.md`).
+- **`CanvasNetRender3D` package** — `Scene`, `Camera`, `CameraProjection`, `SceneRenderer`,
+  `SceneRenderOptions`, `SceneRenderUnsupportedFeature`, and `RenderBudgetExceededException` (public API only;
+  `Scene`, `Camera`, `CameraProjection`, and `SceneRenderOptions` appear in the public signatures of this unit).
+- **`CanvasNet` core package** — `Surface` (the result of `Render`).
 - **.NET base class library** — `System.IO` (`File`, `Stream`, `StreamReader`, `Path`,
   `InvalidDataException`, `FileNotFoundException`), `System.Text.Encoding.UTF8`, `System.Text.StringBuilder`,
   `System.Threading` (`CancellationToken`), and `System.Linq` for the derived lists.
-- No other `CanvasNet` package is used by the code; the project references the core and `Render3D`
-  packages only in anticipation of the geometry phase.
 
 ### Callers
 
@@ -206,5 +261,7 @@ called directly by consuming applications. Within this repository no other unit 
 the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSourceLocationTests.cs`,
 `ScadSyntaxExceptionTests.cs`, `ScadDocumentEvaluateTests.cs`, `ScadDocumentEvaluateSafetyTests.cs`,
 `ScadEvaluationOptionsTests.cs`, `ScadLimitsTests.cs`, `ScadDiagnosticTests.cs`,
-`ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, and `ScadFixtureEvaluationTests.cs`
-verify the individual types.
+`ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, `ScadFixtureEvaluationTests.cs`,
+`ScadRenderOptionsTests.cs`, `ScadDocumentBuildSceneTests.cs`, `ScadDocumentRenderTests.cs`,
+`ScadDocumentRenderCsgTests.cs`, `ScadDocumentRenderExtrusionTests.cs`, and `ScadDocumentRenderReportTests.cs`
+verify the individual types and the geometry and rendering entry points.

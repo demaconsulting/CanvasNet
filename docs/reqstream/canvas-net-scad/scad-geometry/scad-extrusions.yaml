@@ -1,0 +1,276 @@
+---
+# cspell:ignore tessellators bijectively
+# Software Unit Requirements for ScadExtrusions
+#
+# These requirements describe the design-level behavior of the ScadExtrusions unit: the internal static class
+# that turns the symbolic 2D shape tree of the geometry builder into 3D solids (ScadShape2D, ScadExtrusions,
+# ScadExtrusions.Linear, ScadExtrusions.Rotate) in the DemaConsulting.CanvasNet.Scad.Geometry namespace.
+#
+# The package has no 2D boolean kernel, so a 2D result stays a tree of regions, planar transforms, colors, and
+# booleans. linear_extrude, rotate_extrude, and the slab of a top-level 2D shape are distributed over that tree:
+# each leaf is extruded on its own (with parameters shared across the leaves) and the tree is rebuilt as a 3D
+# scene tree, so the extrusion of a difference is the difference of the extrusions. Argument problems are
+# warnings, constructs the kernel cannot represent are unsupported features that omit the whole extrusion, a
+# rejection by the Render3D tessellators is the catch-all scad-geometry-rejected, and only a resource overrun
+# throws. Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project
+# (ScadExtrusionsLinearTests, ScadExtrusionsRotateTests, and ScadExtrusionsMappingTests); see
+# docs/verification/canvas-net-scad/scad-geometry/scad-extrusions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        sections:
+          - title: ScadExtrusions Requirements
+            requirements:
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-Distribution
+                title: >-
+                  The ScadExtrusions unit shall extrude a 2D shape tree by distributing the extrusion over
+                  it, so that the extrusion of a union, difference, or intersection of 2D shapes is the
+                  union, difference, or intersection of the extrusions of its operands, with one set of
+                  extrusion parameters (and one slice or segment count) shared by every operand.
+                justification: |
+                  The package has no 2D boolean kernel. Because an extrusion maps the profile domain to the
+                  solid bijectively, distributing it over the 2D tree is exact, lets the renderer resolve the
+                  booleans per pixel, and requires the operands to be faceted alike.
+                tests:
+                  - ScadExtrusionsLinear_SeveralChildren_AreExtrudedTogether
+                  - ScadExtrusionsLinear_OverFlatDifference_IsADifferenceOfExtrusions
+                  - ScadExtrusionsLinear_OverNestedBooleans_ShareParameters
+                  - ScadExtrusionsRotate_OverFlatDifference_IsADifferenceOfSolidsWithSharedSegments
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-ProfileTransforms
+                title: >-
+                  The ScadExtrusions unit shall apply the planar transforms and colors of a 2D shape tree to
+                  the profile before extruding it, and shall leave the extrusion itself free to be
+                  transformed and colored in 3D afterwards.
+                justification: |
+                  Translations, rotations, scales, and mirrors inside an extrusion change the profile, not the
+                  solid; authors rely on the profile reaching the extruder exactly as written in the model.
+                tests:
+                  - ScadExtrusionsLinear_ProfileTransformsAndColors_ApplyToTheProfile
+                  - ScadExtrusionsLinear_ThenTransformedAndColoredIn3D_Composes
+                  - ScadExtrusionsRotate_TransformsAndColors_Compose
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-InvalidProfile
+                title: >-
+                  The ScadExtrusions unit shall report a 2D leaf whose transformed points do not form a valid
+                  region as the unsupported feature scad-polygon-invalid at that leaf, leave only that leaf
+                  out, and extrude the remaining leaves.
+                justification: |
+                  A polygon the region checks reject (for example a self-crossing one) must not take the rest
+                  of the model with it; the author must be told which shape was dropped. A transform that
+                  would push a leaf out of the supported coordinate range is rejected earlier, as
+                  scad-geometry-rejected at the transform (see the ScadGeometryBuilder CoordinateRange
+                  requirement), so no non-finite coordinate reaches the region checks.
+                tests:
+                  - ScadExtrusionsMapping_InvalidPolygonInsideBoolean_IsReportedAndTheRestExtrudes
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RejectedExtrusion
+                title: >-
+                  The ScadExtrusions unit shall omit the whole extrusion when any of its leaves is rejected,
+                  and a rejected extrusion shall act as an empty operand of an enclosing boolean (a
+                  rejected subtrahend vanishes, a rejected minuend empties the difference).
+                justification: |
+                  A partial extrusion would silently change the meaning of a boolean; omitting the whole
+                  extrusion, with a report, keeps the result explainable.
+                tests:
+                  - ScadExtrusionsMapping_RejectedOperand_IsAnEmptyOperand
+                  - ScadExtrusionsRotate_AxisCrossing_IsReportedAndOmitted
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-ChildDimensions
+                title: >-
+                  The ScadExtrusions unit shall extrude only 2D children, warning at the extrusion when 3D
+                  children are present (and ignoring them), and shall produce an empty, silent result for an
+                  extrusion without children.
+                justification: |
+                  An extrusion of a solid has no meaning; the author is told that the solid was ignored,
+                  while an empty extrusion is a legitimate result of a loop or conditional.
+                tests:
+                  - ScadExtrusionsLinear_ChildDimensions_AreHandled
+                  - ScadExtrusionsRotate_ChildDimensions_AreHandled
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearHeight
+                title: >-
+                  The ScadExtrusions unit shall extrude the 2D children of linear_extrude along +Z from 0 to
+                  a height that defaults to 100 and is given by name or position, centered on Z = 0 with
+                  center, ignoring convexity, with the volume of the profile area times the height.
+                justification: |
+                  The default height and the argument forms are part of the dialect, and the analytic volume
+                  proves that the extruded mesh is the closed, outward-facing solid of the profile.
+                tests:
+                  - ScadExtrusionsLinear_Square_GivesAreaTimesHeight
+                  - ScadExtrusionsLinear_Arguments_GiveTheExpectedHeightRange
+                  - ScadExtrusionsLinear_Circle_GivesThePolygonPrism
+                  - ScadExtrusionsLinear_PolygonWithHole_HasAThroughHole
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearTwist
+                title: >-
+                  The ScadExtrusions unit shall turn the top of a linear_extrude clockwise seen from +Z for a
+                  positive twist and counter-clockwise for a negative one, keeping the solid closed and its
+                  volume approximately that of the untwisted extrusion.
+                justification: |
+                  The sign of the twist is a dialect decision that is opposite to the renderer's extruder
+                  convention, so the direction needs explicit verification.
+                tests:
+                  - ScadExtrusionsLinear_Twist_PositiveIsClockwiseFromAbove
+                  - ScadExtrusionsLinear_Twist_KeepsVolumeApproximately
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearSlices
+                title: >-
+                  The ScadExtrusions unit shall use the given number of slices (rounded down) for
+                  linear_extrude, and by default one slice without twist or, with a twist, enough slices that
+                  no slice turns by more than one fragment of the circle through the farthest profile point.
+                justification: |
+                  The default slice count bounds the facet error of a twisted extrusion without the author
+                  choosing a number; the rule must be exact so that results are reproducible.
+                tests:
+                  - ScadExtrusionsLinear_Slices_FollowTheDefaultRule
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearScale
+                title: >-
+                  The ScadExtrusions unit shall scale the top of a linear_extrude about the origin by a
+                  scalar or a two-component vector (a frustum), and by zero in both components to a single
+                  apex point (a pyramid).
+                justification: |
+                  Scaled extrusions make tapered parts and cones; exact frustum and pyramid volumes show the
+                  scale is applied to the top only and to the bottom as written.
+                tests:
+                  - ScadExtrusionsLinear_Scale_GivesTheFrustumVolume
+                  - ScadExtrusionsLinear_ScaleZero_GivesAPyramid
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearUnsupportedScale
+                title: >-
+                  The ScadExtrusions unit shall report a linear_extrude with a negative scale component or
+                  exactly one zero component as the unsupported feature scad-linear-extrude-scale, and an
+                  apex scale of zero over a profile with holes or separate islands in one leaf as
+                  scad-linear-extrude-apex-multiple-contours, each located at the extrusion and omitting it
+                  (and throwing in strict mode).
+                justification: |
+                  The extruder cannot collapse the top to a line, pass through zero, or collapse several
+                  contours onto one point; these are capability limits, reported rather than guessed.
+                tests:
+                  - ScadExtrusionsLinear_UnsupportedScale_IsReportedAndOmitted
+                  - ScadExtrusionsLinear_ApexOverSeveralContours_IsReportedAndOmitted
+                  - ScadExtrusionsLinear_StrictMode_ThrowsForUnsupportedScale
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-LinearArguments
+                title: >-
+                  The ScadExtrusions unit shall report a linear_extrude whose height is not a positive
+                  finite number, whose twist is not a number, whose slices is not a number of at least 1, or
+                  whose scale is malformed as a warning at the extrusion that removes the instance, and
+                  shall warn about an unknown argument while still building the extrusion.
+                justification: |
+                  Invalid user arguments are warnings, never exceptions, so a document with a typo still
+                  renders everything else.
+                tests:
+                  - ScadExtrusionsLinear_InvalidArguments_WarnAndRemoveInstance
+                  - ScadExtrusionsLinear_UnknownArgument_WarnsAndStillBuilds
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-TriangleBudget
+                title: >-
+                  The ScadExtrusions unit shall compute the exact triangles of a linear_extrude or
+                  rotate_extrude (the side walls from the contours and the slice or segment count, and each
+                  cap as V + 2H - 2P triangles for V vertices, H holes, and P solid contours of a leaf),
+                  using saturating arithmetic, and fail with a located ScadEvaluationException before
+                  allocating when the count exceeds the remaining triangle budget.
+                justification: |
+                  A hostile slice count, twist, or fragment count must not exhaust memory; the check has to
+                  precede the allocation and survive estimates beyond the range of an integer.
+                tests:
+                  - ScadExtrusionsLinear_HostileSlicesOrTwist_ExceedTheTriangleLimit
+                  - ScadExtrusionsLinear_SmallBudget_IsEnforced
+                  - ScadExtrusionsRotate_HostileFragmentCount_ExceedsTheTriangleLimit
+                  - ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo
+                  - ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSweep
+                title: >-
+                  The ScadExtrusions unit shall revolve the 2D children of rotate_extrude about the Z axis
+                  with profile X as the radius, starting at +X and turning counter-clockwise for a positive
+                  angle (default 360, a larger magnitude clamped to a full turn) and clockwise for a
+                  negative one, closing a partial sweep with flat end caps, and sweeping a profile that lies
+                  entirely at x <= 0 where it lies (a point at (-4, 0) with an angle of 90 sweeps from 180 to
+                  270 degrees, the quadrant x < 0, y < 0), the full turn being that of the mirrored profile.
+                justification: |
+                  The sweep start, direction, and clamping are dialect decisions; the exact faceted volume
+                  (which approaches the Pappus volume) proves the solid is closed and correctly oriented.
+                tests:
+                  - ScadExtrusionsRotate_FullRevolution_GivesTheFacetedPappusVolume
+                  - ScadExtrusionsRotate_PartialSweep_IsAClosedWedge
+                  - ScadExtrusionsRotate_NegativeAndOversizedAngles_ClockwiseAndClamped
+                  - ScadExtrusionsRotate_NegativeSideProfile_PartialSweepLiesInTheNegativeQuadrant
+                  - ScadExtrusionsRotate_NegativeSideProfile_FullTurnEqualsTheMirroredProfile
+                  - ScadExtrusionsRotate_Torus_MatchesPappus
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateArguments
+                title: >-
+                  The ScadExtrusions unit shall report a rotate_extrude whose angle is zero or not a finite
+                  number as a warning at the extrusion that removes the instance, accept and ignore
+                  convexity, and warn about an unknown argument while still building the extrusion.
+                justification: |
+                  A zero sweep has no solid, and a non-number angle is a user error; both must be explained
+                  without stopping the build.
+                tests:
+                  - ScadExtrusionsRotate_InvalidAngle_WarnsAndRemovesInstance
+                  - ScadExtrusionsRotate_ConvexityAndUnknownArguments_AreHandled
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateSegments
+                title: >-
+                  The ScadExtrusions unit shall choose the segment count of a rotate_extrude from the
+                  fragment rule for the largest radius over all leaves, scaled by the share of the full
+                  turn, and raise it where needed so that no angular step exceeds 120 degrees, so that
+                  every angle and fragment count builds a closed solid without a report.
+                justification: |
+                  The renderer's rotational extruder rejects steps wider than 120 degrees; the unit must
+                  honor that contract for every angle, because a fragment count alone does not guarantee it
+                  for partial sweeps.
+                tests:
+                  - ScadExtrusionsRotate_DefaultSegments_FollowTheFragmentRule
+                  - ScadExtrusionsRotate_SeveralLeaves_ShareTheSegmentCountOfTheLargestRadius
+                  - ScadExtrusionsRotate_AnyAngleAndFragmentCount_BuildsAClosedSolid
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-RotateAxis
+                title: >-
+                  The ScadExtrusions unit shall report a rotate_extrude profile with vertices on both sides
+                  of the Z axis (in any leaf, including a difference operand) as the unsupported feature
+                  scad-rotate-extrude-axis-crossing, and a profile that touches the axis at a single vertex
+                  without an edge along the axis as scad-rotate-extrude-axis-contact, each located at the
+                  extrusion and omitting it (and throwing in strict mode), while accepting a profile whose
+                  vertices on the axis end an edge along the axis (a pole) and a profile with a hole.
+                justification: |
+                  A crossing profile would self-overlap and a pinched vertex would make a non-manifold
+                  solid; poles and hollow profiles are ordinary lathe shapes and must keep working.
+                tests:
+                  - ScadExtrusionsRotate_AxisCrossing_IsReportedAndOmitted
+                  - ScadExtrusionsRotate_MixedSignProfile_IsReported
+                  - ScadExtrusionsRotate_AxisContact_IsReportedAndPolesAreFine
+                  - ScadExtrusionsRotate_ProfileWithHole_IsHollow
+                  - ScadExtrusionsRotate_StrictMode_ThrowsForAxisCrossing
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-ErrorMapping
+                title: >-
+                  The ScadExtrusions unit shall map every way an extrusion can be rejected to a specific
+                  unsupported-feature report at the location of the extrusion (or of the 2D leaf for
+                  scad-polygon-invalid), using the catch-all scad-geometry-rejected for any other
+                  ArgumentException of the Render3D extruders, build nothing for the rejected extrusion,
+                  throw the same report in strict mode, and deliver the report to the public handler.
+                justification: |
+                  A tessellator rejection must never crash the build or lose its message; one table of
+                  causes, features, and locations keeps the reports stable for authors and tools.
+                tests:
+                  - ScadExtrusionsMapping_Row_IsReportedWithItsFeatureAndLocation
+                  - ScadExtrusionsMapping_Row_StrictModeThrowsTheSameReport
+                  - ScadExtrusionsMapping_PublicApi_DeliversAndThrows
+
+              - id: CanvasNetScad-ScadGeometry-ScadExtrusions-Robustness
+                title: >-
+                  The ScadExtrusions unit shall, for unusual and extreme extrusion inputs (huge or tiny
+                  heights, scales, twists, angles, and coordinates, degenerate and self-crossing profiles),
+                  either build the solid, report it, or fail with a ScadEvaluationException for a resource
+                  limit, and shall never throw any other exception.
+                justification: |
+                  A document may come from an untrusted source; geometry reasons must never crash the
+                  caller.
+                tests:
+                  - ScadExtrusionsMapping_ExtremeInputs_NeverCrashTheBuild

@@ -13,7 +13,7 @@ The `ScadEvaluation` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Evaluat
 `include` and `use` directives of the program, evaluates it with the semantics of the CanvasNetScad dialect,
 and produces a **geometry-agnostic instantiation tree** together with buffered echo lines, warnings, and
 unsupported-feature reports. It never interprets geometry: a `cube` is a tree node with evaluated arguments,
-and turning nodes into solids is the job of the later geometry phase. The subsystem is **internal**: its types
+and turning nodes into solids is the job of the `ScadGeometry` subsystem. The subsystem is **internal**: its types
 are visible only to the `ScadDocument` unit and, through `InternalsVisibleTo`, to the test assembly, so the
 value model and the instantiation tree can evolve while geometry generation is added. The public entry point
 is `ScadDocument.Evaluate` (see _ScadDocument Unit Design_, `scad-document.md`). The subsystem contains four
@@ -58,8 +58,9 @@ included or used file. The .NET base class library supplies `System.Threading`,
 
 **Consumers**: `ScadDocument.Evaluate`, which converts the public options to settings, creates the sink,
 calls `ScadEvaluator.Evaluate`, delivers the buffered events to the caller's handlers on the calling thread,
-and assembles the public result; and, in a later phase, the geometry builder that converts the instantiation
-tree to a `CanvasNetRender3D` scene.
+and assembles the public result; and `ScadDocument.BuildScene` and `ScadDocument.Render`, which run the same
+evaluation step into a sink that the `ScadGeometry` subsystem then shares, and hand the roots of the
+instantiation tree to `ScadGeometryBuilder`, which converts them into a `CanvasNetRender3D` scene.
 
 ### Design
 
@@ -89,7 +90,7 @@ continues, which type carries the information, and where the caller sees it.
 | Class | Mechanism | Examples | Continues? |
 | ----- | --------- | -------- | ---------- |
 | **Warning** | `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location); capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`) | unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing `include` or `use` file | Yes |
-| **Unsupported feature** | `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a `ScadUnsupportedFeatureException` at the first one | Phase 5 reports only language-level items: the recognized but unimplemented functions `parent_module`, `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search` (`scad-search-form`) | Yes, with `undef`, unless the caller asked to throw |
+| **Unsupported feature** | `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a `ScadUnsupportedFeatureException` at the first one | Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`, `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search` (`scad-search-form`) | Yes, with `undef`, unless the caller asked to throw |
 | **Error** | `ScadEvaluationException` with the location of the offending construct | a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a sandbox violation; an `include` or `use` when the document has no base directory, library path, or resolver | No |
 | **Syntax error in a referenced file** | `ScadSyntaxException` whose location carries the included file's name, propagated unchanged | a parse failure of any file loaded in phase A | No |
 | **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during evaluation or loading | No |
@@ -100,13 +101,14 @@ continues, which type carries the information, and where the caller sees it.
 The rule of thumb is: a _mistake in the model_ that still allows a meaningful result is a warning; something
 this implementation _does not provide_ is an unsupported feature; a problem that makes the result
 _meaningless or dangerous_ is an error. Geometry-level unsupported features (`text`, `offset`, `projection`,
-and similar) are not detected here: the evaluator emits them as ordinary instances and the later geometry
-phase reports them through the same sink.
+and similar) are not detected here: the evaluator emits them as ordinary instances and the `ScadGeometry`
+subsystem reports them through the same sink (see _ScadGeometry Subsystem Design_).
 
-#### The Instantiation Tree (The Phase 5 / Phase 6 Boundary)
+#### The Instantiation Tree (The Evaluation / Geometry Boundary)
 
-The tree is immutable and independent of the syntax tree and of the scopes. The geometry phase never needs
-anything else from evaluation. `ScadEvaluationOutput.Roots` is the list of top-level instances (their implicit
+The tree is immutable and independent of the syntax tree and of the scopes. The geometry subsystem never needs
+anything else from evaluation, and walks the tree iteratively because its depth is bounded only by
+`ScadLimits.MaxRecursionDepth`. `ScadEvaluationOutput.Roots` is the list of top-level instances (their implicit
 union).
 
 <!-- markdownlint-disable MD013 -->

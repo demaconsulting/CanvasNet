@@ -50,6 +50,21 @@ public static partial class Extruder
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the height is not finite and positive, <paramref name="slices"/> is below 1, or the scale is invalid.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="twistDegrees"/> is not finite, <paramref name="scale"/> is an apex (zero) and the region has more than one contour (a hole or separate islands), or the result would exceed the maximum mesh size.</exception>
     public static Mesh Linear(PolygonRegion region, double height, bool center = false, double twistDegrees = 0.0, int slices = 1, Vector2D? scale = null)
+        => LinearCore(region, height, center, twistDegrees, slices, scale, nameof(scale));
+
+    /// <summary>
+    ///     Shared implementation of both <c>Linear</c> overloads; the scale parameter name is passed in so that
+    ///     scale-related exceptions name the parameter the caller actually supplied.
+    /// </summary>
+    /// <param name="region">The region to extrude.</param>
+    /// <param name="height">The extrusion height.</param>
+    /// <param name="center">Whether to center the solid on Z = 0.</param>
+    /// <param name="twistDegrees">The twist of the top relative to the bottom, in degrees.</param>
+    /// <param name="slices">The slice count.</param>
+    /// <param name="scale">The per-axis scale of the top ring; <see langword="null"/> means <c>(1, 1)</c>.</param>
+    /// <param name="scaleParamName">The parameter name reported by scale-related exceptions.</param>
+    /// <returns>The closed, outward-oriented mesh; empty for an empty region.</returns>
+    private static Mesh LinearCore(PolygonRegion region, double height, bool center, double twistDegrees, int slices, Vector2D? scale, string scaleParamName)
     {
         // Validate everything before doing any work
         ArgumentNullException.ThrowIfNull(region);
@@ -65,7 +80,7 @@ public static partial class Extruder
         }
 
         var topScale = scale ?? new Vector2D(1.0, 1.0);
-        var apex = ValidateScale(topScale);
+        var apex = ValidateScale(topScale, scaleParamName);
         if (region.IsEmpty)
         {
             return EmptyMesh();
@@ -77,7 +92,7 @@ public static partial class Extruder
         {
             throw new ArgumentException(
                 "An apex (zero scale) is only valid for a region with a single contour; holes and separate islands would meet at one pinched vertex.",
-                nameof(scale));
+                scaleParamName);
         }
 
         // Upper bounds: V(S+1) vertices; 2VS wall triangles plus two caps of at most V triangles each
@@ -103,20 +118,21 @@ public static partial class Extruder
 
     /// <summary>Validates the top scale and reports whether it collapses the top to an apex.</summary>
     /// <param name="scale">The requested scale.</param>
+    /// <param name="paramName">The parameter name reported by the exceptions.</param>
     /// <returns><see langword="true"/> when both components are zero.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown for non-finite, negative or half-zero scales.</exception>
-    private static bool ValidateScale(Vector2D scale)
+    private static bool ValidateScale(Vector2D scale, string paramName)
     {
         if (!scale.IsFinite || scale.X < 0.0 || scale.Y < 0.0)
         {
-            throw new ArgumentOutOfRangeException(nameof(scale), scale, "The scale must be finite and not negative.");
+            throw new ArgumentOutOfRangeException(paramName, scale, "The scale must be finite and not negative.");
         }
 
         // A single zero component flattens the top to a line (degenerate triangles); only a full collapse is legal
         var apex = !(scale.X > 0.0) && !(scale.Y > 0.0);
         if (!apex && (!(scale.X > 0.0) || !(scale.Y > 0.0)))
         {
-            throw new ArgumentOutOfRangeException(nameof(scale), scale, "The scale must be zero in both axes (apex) or positive in both.");
+            throw new ArgumentOutOfRangeException(paramName, scale, "The scale must be zero in both axes (apex) or positive in both.");
         }
 
         return apex;

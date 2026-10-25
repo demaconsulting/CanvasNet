@@ -260,6 +260,26 @@ public class ExtruderLinearTests
     }
 
     /// <summary>
+    ///     Regression: the uniform-scale overload's apex-over-several-contours rejection must name its own
+    ///     parameter (<c>uniformScale</c>), not the other overload's <c>scale</c>; invalid uniform scales
+    ///     likewise name <c>uniformScale</c>.
+    /// </summary>
+    [Fact]
+    public void Extruder_Linear_UniformScaleApexOnMultiContourRegion_ReportsUniformScaleParameter()
+    {
+        // Arrange
+        var ring = RingRegion();
+
+        // Act / Assert
+        var apex = Assert.Throws<ArgumentException>(() => Extruder.Linear(ring, 3.0, false, 0.0, 1, 0.0));
+        Assert.Equal("uniformScale", apex.ParamName);
+        var negative = Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Linear(ring, 3.0, false, 0.0, 1, -1.0));
+        Assert.Equal("uniformScale", negative.ParamName);
+        var nonFinite = Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Linear(ring, 3.0, false, 0.0, 1, double.NaN));
+        Assert.Equal("uniformScale", nonFinite.ParamName);
+    }
+
+    /// <summary>
     ///     Validates that a scale that is zero in only one axis is rejected for a region with a hole as well.
     /// </summary>
     [Fact]

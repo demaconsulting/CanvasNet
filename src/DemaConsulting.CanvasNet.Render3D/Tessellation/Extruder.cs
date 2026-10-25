@@ -59,7 +59,7 @@ public static partial class Extruder
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="region"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the height, slice count or scale is invalid.</exception>
-    /// <exception cref="ArgumentException">Thrown when the twist is not finite, the scale is zero and the region has more than one contour (a hole or separate islands), or the result would exceed the maximum mesh size.</exception>
+    /// <exception cref="ArgumentException">Thrown when the twist is not finite, the scale is zero and the region has more than one contour (a hole or separate islands; the exception names <c>uniformScale</c>), or the result would exceed the maximum mesh size.</exception>
     public static Mesh Linear(PolygonRegion region, double height, bool center, double twistDegrees, int slices, double uniformScale)
     {
         // Reject the scale here so the exception names this overload's parameter
@@ -68,7 +68,7 @@ public static partial class Extruder
             throw new ArgumentOutOfRangeException(nameof(uniformScale), uniformScale, "The scale must be finite and not negative.");
         }
 
-        return Linear(region, height, center, twistDegrees, slices, (Vector2D?)new Vector2D(uniformScale, uniformScale));
+        return LinearCore(region, height, center, twistDegrees, slices, new Vector2D(uniformScale, uniformScale), nameof(uniformScale));
     }
 
     /// <summary>Rejects values that are not finite and strictly positive.</summary>

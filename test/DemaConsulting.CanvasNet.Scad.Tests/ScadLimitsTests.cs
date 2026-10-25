@@ -25,7 +25,36 @@ public class ScadLimitsTests
         Assert.Equal(1_000_000, limits.MaxInstances);
         Assert.Equal(4_194_304, limits.MaxOutputLength);
         Assert.Equal(1_000, limits.MaxDiagnostics);
+        Assert.Equal(5_000_000, limits.MaxTriangles);
         Assert.Same(ScadLimits.Default, ScadLimits.Default);
+    }
+
+    /// <summary>
+    ///     Validates that the triangle limit accepts any positive value and rejects less than one with the property
+    ///     name.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="valid">Whether it is accepted.</param>
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(long.MaxValue, true)]
+    public void ScadLimits_MaxTriangles_MustBeAtLeastOne(long value, bool valid)
+    {
+        // Arrange / Act
+        var act = () => new ScadLimits { MaxTriangles = value };
+
+        // Assert
+        if (valid)
+        {
+            Assert.Equal(value, act().MaxTriangles);
+        }
+        else
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(act);
+            Assert.Equal(nameof(ScadLimits.MaxTriangles), ex.ParamName);
+        }
     }
 
     /// <summary>

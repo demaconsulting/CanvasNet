@@ -84,6 +84,7 @@ sections:
                 tests:
                   - Extruder_Linear_ScaleZero_IsPyramidWithSingleApex
                   - Extruder_Linear_ScaleZeroWithHoleOrIslands_Throws
+                  - Extruder_Linear_UniformScaleApexOnMultiContourRegion_ReportsUniformScaleParameter
                   - Extruder_Linear_TwistAndScaleToApex_IsValidClosedMesh
 
               - id: CanvasNetRender3D-Tessellation-Extruder-LinearTwist
@@ -182,7 +183,9 @@ sections:
                   the
                   range greater than 0 up to 360 degrees (an angle whose radian value rounds to
                   zero, such as the smallest positive double, with an ArgumentOutOfRangeException), a
-                  segment count below 3 for a full revolution or below 1 for a partial sweep, and a
+                  segment count below 3 for a full revolution or below 1 for a partial sweep, a segment
+                  count for which a single angular step (the angle divided by the segment count) would
+                  exceed 120 degrees, and a
                   result that would exceed the maximum mesh size; it shall also reject, with an
                   ArgumentException, a sweep step too small to separate the rings at a profile vertex's
                   radius, rather than return an open mesh.
@@ -192,6 +195,8 @@ sections:
                   single pinched (non-manifold) vertex; all are rejected rather than silently repaired.
                   A vertex ending an edge on the axis (a pole) stays valid. A sweep that
                   rounds to zero would weld the end ring onto the start ring and leave an open mesh.
+                  A step of 180 degrees or more makes the chord facets flat or inside out, so every
+                  step is bounded by that of the coarsest full revolution (360 degrees in 3 segments).
                 tests:
                   - Extruder_Rotate_ProfileCrossingAxis_Throws
                   - Extruder_Rotate_ProfileOnlyOnAxis_Throws
@@ -200,6 +205,8 @@ sections:
                   - Extruder_Rotate_InvalidArguments_Throw
                   - Extruder_Rotate_TinyAngleRoundingToZeroRadians_Throws
                   - Extruder_Rotate_StepUnresolvableAtRadius_Throws
+                  - Extruder_Rotate_StepWiderThanMaximum_ThrowsArgumentOutOfRangeOnSegments
+                  - Extruder_Rotate_StepAtOrBelowMaximum_IsValidPositiveVolume
 
               - id: CanvasNetRender3D-Tessellation-Extruder-ValidOperand
                 title: >-

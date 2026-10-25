@@ -380,6 +380,60 @@ public class ExtruderRotateTests
     }
 
     /// <summary>
+    ///     Regression: a partial sweep whose single angular step reaches 180 degrees or more produced flat
+    ///     (180), inside-out (200, 270, 359) or near-flat (359 in two segments) meshes; the segment count must
+    ///     now keep every step at most 120 degrees, the step of the coarsest full revolution.
+    /// </summary>
+    /// <param name="angle">The sweep angle in degrees.</param>
+    /// <param name="segments">The (too small) number of angular steps.</param>
+    [Theory]
+    [InlineData(180.0, 1)]
+    [InlineData(200.0, 1)]
+    [InlineData(270.0, 1)]
+    [InlineData(359.0, 1)]
+    [InlineData(359.0, 2)]
+    [InlineData(240.5, 2)]
+    [InlineData(121.0, 1)]
+    public void Extruder_Rotate_StepWiderThanMaximum_ThrowsArgumentOutOfRangeOnSegments(double angle, int segments)
+    {
+        // Arrange: the profile of the reported defect, the square (1,0)-(2,1)
+        var region = new PolygonRegion([Rect(1, 0, 1, 1)]);
+
+        // Act / Assert
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => Extruder.Rotate(region, angle, segments));
+        Assert.Equal("segments", exception.ParamName);
+    }
+
+    /// <summary>
+    ///     Validates that sweeps whose step is exactly at or below the 120 degree maximum are still accepted and
+    ///     yield closed, outward, positive-volume operands with the exact facet volume.
+    /// </summary>
+    /// <param name="angle">The sweep angle in degrees.</param>
+    /// <param name="segments">The number of angular steps.</param>
+    [Theory]
+    [InlineData(90.0, 1)]
+    [InlineData(119.0, 1)]
+    [InlineData(120.0, 1)]
+    [InlineData(180.0, 2)]
+    [InlineData(240.0, 2)]
+    [InlineData(359.0, 3)]
+    [InlineData(360.0, 3)]
+    public void Extruder_Rotate_StepAtOrBelowMaximum_IsValidPositiveVolume(double angle, int segments)
+    {
+        // Arrange
+        var region = new PolygonRegion([Rect(1, 0, 1, 1)]);
+
+        // Act
+        var mesh = Extruder.Rotate(region, angle, segments);
+
+        // Assert
+        Assert.True(mesh.SignedVolume > 0.0);
+        var expected = FacetVolume(region, angle, segments);
+        Assert.Equal(expected, mesh.SignedVolume, expected * 1e-9);
+        Render3DTestHelpers.AssertValidCsgOperand(mesh);
+    }
+
+    /// <summary>
     ///     Validates that every tested profile and sweep yields a closed, outward, valid CSG operand.
     /// </summary>
     /// <param name="name">The profile name.</param>

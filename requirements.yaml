@@ -85,6 +85,11 @@ includes:
   - docs/reqstream/canvas-net-scad/scad-evaluation/scad-evaluator.yaml
   - docs/reqstream/canvas-net-scad/scad-evaluation/scad-builtin-functions.yaml
   - docs/reqstream/canvas-net-scad/scad-evaluation/scad-file-resolver.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry/scad-geometry-builder.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry/scad-primitives.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry/scad-extrusions.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

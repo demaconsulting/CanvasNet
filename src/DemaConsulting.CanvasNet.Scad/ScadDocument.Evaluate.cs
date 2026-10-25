@@ -55,20 +55,12 @@ public sealed partial class ScadDocument
         var effective = options ?? new ScadEvaluationOptions();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var settings = new ScadEvaluationSettings
-        {
-            Limits = effective.Limits,
-            Time = effective.Time,
-            Overrides = effective.Overrides,
-            ThrowOnUnsupportedFeature = effective.ThrowOnUnsupportedFeature,
-            Cancellation = cancellationToken,
-        };
         var sink = new ScadEvaluationSink(effective.Limits);
 
         ScadEvaluationOutput output;
         try
         {
-            output = ScadEvaluator.Evaluate(this, settings, sink);
+            output = RunEvaluation(effective, cancellationToken, sink);
         }
         catch
         {
@@ -85,6 +77,30 @@ public sealed partial class ScadDocument
             Array.AsReadOnly(sink.Diagnostics.ToArray()),
             Array.AsReadOnly(sink.UnsupportedFeatures.ToArray()),
             output.InstanceCount);
+    }
+
+    /// <summary>
+    ///     Runs the evaluator for already-validated options, recording its events in a sink.
+    /// </summary>
+    /// <remarks>
+    ///     Shared by <see cref="Evaluate"/> and the scene builder so that both evaluate with exactly the same
+    ///     settings; the caller owns the sink and delivers its events.
+    /// </remarks>
+    /// <param name="options">The evaluation options.</param>
+    /// <param name="cancellationToken">The token that stops the evaluation.</param>
+    /// <param name="sink">The sink that records echo lines, warnings and unsupported features.</param>
+    /// <returns>The evaluation output, including the instantiation tree.</returns>
+    private ScadEvaluationOutput RunEvaluation(ScadEvaluationOptions options, CancellationToken cancellationToken, ScadEvaluationSink sink)
+    {
+        var settings = new ScadEvaluationSettings
+        {
+            Limits = options.Limits,
+            Time = options.Time,
+            Overrides = options.Overrides,
+            ThrowOnUnsupportedFeature = options.ThrowOnUnsupportedFeature,
+            Cancellation = cancellationToken,
+        };
+        return ScadEvaluator.Evaluate(this, settings, sink);
     }
 
     /// <summary>

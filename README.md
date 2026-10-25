@@ -42,6 +42,8 @@ load/crop/resize/save workflows.
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
 - 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG
   (union/difference/intersection), plus polygon extrusion (linear/rotational)
+- 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
+  booleans, extrusions, `-D` variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
@@ -74,6 +76,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Pptx`     | PowerPoint (`.pptx`) document rendering          |
 | `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
+| `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 
 ## Usage
 
@@ -188,9 +191,41 @@ using var image = SceneRenderer.RenderFitted(scene, 640, 480);
 PngCodec.Save(image, "scene.png");
 ```
 
+Render an OpenSCAD-language model (the `DemaConsulting.CanvasNet.Scad` package parses and evaluates the
+source, builds the solids with `DemaConsulting.CanvasNet.Render3D`, and draws them; it is an independent, clean-room
+implementation of the language, not affiliated with the OpenSCAD project):
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+// Parse a model (or ScadDocument.Open("part.scad") to read a file) and render a fitted isometric view
+var document = ScadDocument.Parse("""
+    size = 20;
+    difference() {
+        cube([size, size, 6], center = true);
+        cylinder(h = 8, r = size / 5, center = true, $fn = 48);
+    }
+    """);
+using var image = document.Render(640, 480);
+PngCodec.Save(image, "part.png");
+
+// Override variables, and be told about anything that could not be built instead of losing it silently
+var options = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions
+    {
+        Variables = new Dictionary<string, object?> { ["size"] = 30.0 },
+        UnsupportedFeatureHandler = feature => Console.WriteLine(feature),
+    },
+};
+using var variant = document.Render(640, 480, options);
+```
+
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
-parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, and SVG and JPEG 2000 decoding.
+parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
+and SVG and JPEG 2000 decoding.
 
 ## Building
 

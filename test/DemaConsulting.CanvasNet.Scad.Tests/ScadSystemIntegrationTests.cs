@@ -1,5 +1,8 @@
 using System.Globalization;
 using System.Text;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests;
 
@@ -94,8 +97,8 @@ public class ScadSystemIntegrationTests
         // Act: open every valid fixture from disk
         var documents = fixtures.Select(path => ScadDocument.Open(path)).ToList();
 
-        // Assert: the ten parse fixtures and the sixteen golden evaluation fixtures, each named by its path
-        Assert.Equal(26, documents.Count);
+        // Assert: the ten parse fixtures, the sixteen golden evaluation fixtures and the twelve render fixtures, each named by its path
+        Assert.Equal(38, documents.Count);
         Assert.Equal(fixtures, documents.Select(d => d.SourceName));
     }
 
@@ -501,6 +504,171 @@ public class ScadSystemIntegrationTests
         Assert.Equal(baseline.Echo, again.Echo);
         Assert.All(cultures, result => Assert.Equal(baseline.Echo, result.Echo));
         Assert.Contains("ECHO: \"fractions\", 0.1, 0.5, 1.5, -2.5, 0.333333, 0.666667, 3.14159, 12345.7", baseline.Echo);
+    }
+
+    /// <summary>
+    ///     Validates the whole pipeline through the public API only: a fixture is opened from disk, rendered with
+    ///     the default fitted camera and with an explicit camera, and the images agree on what the model contains.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_Render_FixtureRendersWithDefaultAndExplicitCameras()
+    {
+        // Arrange
+        var document = ScadDocument.Open(ScadFixtureHelpers.PathOf("render-primitives.scad"));
+        var camera = new Camera
+        {
+            Eye = new Vector3D(22, 6, 100),
+            Target = new Vector3D(22, 6, 0),
+            Up = Vector3D.UnitY,
+            Projection = CameraProjection.Orthographic,
+            OrthographicHeight = 14,
+        };
+
+        // Act
+        using var fitted = document.Render(200, 100, cancellationToken: TestContext.Current.CancellationToken);
+        using var explicitView = document.Render(
+            44,
+            14,
+            new ScadRenderOptions { Camera = camera },
+            TestContext.Current.CancellationToken);
+
+        // Assert: both are the requested size on a white background and show the model
+        Assert.Equal((200, 100), (fitted.Width, fitted.Height));
+        Assert.Equal((44, 14), (explicitView.Width, explicitView.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), fitted[0, 0]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), explicitView[43, 13]);
+        Assert.True(ScadRenderTestHelpers.Count(fitted, p => p != ScadRenderTestHelpers.White) > 0);
+
+        // The cube's top face, in its model color shaded by the default lights, is red-dominant
+        var cube = explicitView[6, 7];
+        Assert.True(cube.R > 100 && cube.R > 2 * cube.G, cube.ToString());
+    }
+
+    /// <summary>
+    ///     Validates that the scene built from a fixture reports the analytic bounds of its geometry.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_BuildScene_BoundsOfTransformFixtureAreAnalytic()
+    {
+        // Arrange
+        var document = ScadDocument.Open(ScadFixtureHelpers.PathOf("render-transforms.scad"));
+
+        // Act
+        var bounds = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+
+        // Assert
+        Assert.Equal(-20, bounds.Min.X, 1e-9);
+        Assert.Equal(-10, bounds.Min.Y, 1e-9);
+        Assert.Equal(0, bounds.Min.Z, 1e-9);
+        Assert.Equal(10, bounds.Max.X, 1e-9);
+        Assert.Equal(25, bounds.Max.Y, 1e-9);
+        Assert.Equal(5, bounds.Max.Z, 1e-9);
+    }
+
+    /// <summary>
+    ///     Validates that unsupported constructs are reported with the identifier and location through the public
+    ///     handler, and fail the call in strict mode.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_Render_UnsupportedFeaturesAreReportedOrThrown()
+    {
+        // Arrange
+        var path = ScadFixtureHelpers.PathOf("render-unsupported.scad");
+        var document = ScadDocument.Open(path);
+        var reports = new List<ScadUnsupportedFeature>();
+        var lenient = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { UnsupportedFeatureHandler = reports.Add } };
+        var strict = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { ThrowOnUnsupportedFeature = true } };
+
+        // Act
+        using var surface = document.Render(32, 32, lenient, TestContext.Current.CancellationToken);
+        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => document.Render(32, 32, strict, TestContext.Current.CancellationToken));
+
+        // Assert: ten reports, each at a distinct line of the fixture; strict mode throws the first of them
+        Assert.Equal(10, reports.Count);
+        Assert.Equal(10, reports.Select(r => r.Location.Line).Distinct().Count());
+        Assert.All(reports, r => Assert.Equal(path, r.Location.File));
+        Assert.Equal(reports[0].Feature, ex.Feature);
+        Assert.Equal(reports[0].Location, ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that overriding a variable changes the rendered model and an invalid size or a canceled token is
+    ///     rejected.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_Render_VariablesChangeTheModelAndBadCallsAreRejected()
+    {
+        // Arrange
+        var document = ScadDocument.Parse("size = 4;\ncube(size);");
+        var bigger = new ScadRenderOptions
+        {
+            Evaluation = new ScadEvaluationOptions { Variables = new Dictionary<string, object?> { ["size"] = 8.0 } },
+        };
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var small = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+        var large = document.BuildScene(bigger, TestContext.Current.CancellationToken).ComputeBounds();
+
+        // Assert
+        Assert.Equal(4, small.Max.X, 1e-9);
+        Assert.Equal(8, large.Max.X, 1e-9);
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 10, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<OperationCanceledException>(() => document.Render(10, 10, cancellationToken: canceled.Token));
+    }
+
+    /// <summary>
+    ///     Validates that the triangle limit bounds the generated geometry through the public API: a model over the
+    ///     limit fails with a located <see cref="ScadEvaluationException"/> and the same model passes with a higher
+    ///     limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_BuildScene_TriangleLimitFailsClosed()
+    {
+        // Arrange: a sphere on line 2 needs far more than 100 triangles
+        var document = ScadDocument.Parse("cube(1);\nsphere(r = 5, $fn = 64);");
+        var tight = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { Limits = new ScadLimits { MaxTriangles = 100 } } };
+        var roomy = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { Limits = new ScadLimits { MaxTriangles = 100_000 } } };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => document.BuildScene(tight, TestContext.Current.CancellationToken));
+        var scene = document.BuildScene(roomy, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, ex.Location.Line);
+        Assert.Equal(5, scene.ComputeBounds().Max.X, 0.2);
+    }
+
+    /// <summary>
+    ///     Validates that the render options have documented defaults, reject invalid values when they are set, and
+    ///     are immutable afterwards.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_RenderOptions_AreValidatedAndImmutable()
+    {
+        // Arrange / Act
+        var defaults = new ScadRenderOptions();
+        var custom = new ScadRenderOptions { ViewAzimuthDegrees = 10, ViewElevationDegrees = 20, Projection = CameraProjection.Orthographic, FlatShapeThickness = 2 };
+
+        // Assert: defaults, accepted values, rejected values, and init-only properties
+        Assert.Null(defaults.Evaluation);
+        Assert.Null(defaults.Camera);
+        Assert.Null(defaults.SceneOptions);
+        Assert.Equal(Camera.DefaultAzimuthDegrees, defaults.ViewAzimuthDegrees);
+        Assert.Equal(Camera.DefaultElevationDegrees, defaults.ViewElevationDegrees);
+        Assert.Equal(CameraProjection.Perspective, defaults.Projection);
+        Assert.Equal(0.1, defaults.FlatShapeThickness);
+        Assert.Equal(CameraProjection.Orthographic, custom.Projection);
+        Assert.Equal(2, custom.FlatShapeThickness);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { ViewAzimuthDegrees = double.NaN });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { ViewElevationDegrees = double.PositiveInfinity });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { Projection = (CameraProjection)99 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { FlatShapeThickness = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScadLimits { MaxTriangles = 0 });
+        Assert.All(
+            typeof(ScadRenderOptions).GetProperties().Where(p => p.CanWrite),
+            property => Assert.True(property.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().Any(m => m.Name == "IsExternalInit"), property.Name));
     }
 
     /// <summary>

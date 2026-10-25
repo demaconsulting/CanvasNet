@@ -3,6 +3,7 @@
 <!-- cspell:ignore lexer lexing tokenization tokenizes tokenized tokenize parsers recursive-descent -->
 <!-- cspell:ignore nupkg unpackable evaluator evaluators polyhedra Minkowski undef reproducibly -->
 <!-- cspell:ignore textmetrics fontmetrics -->
+<!-- cspell:ignore multmatrix tessellators -->
 
 This document provides the system-level design for CanvasNetScad.
 
@@ -13,28 +14,32 @@ This document provides the system-level design for CanvasNetScad.
 CanvasNetScad is a clean-room front end for the OpenSCAD language, delivered incrementally as its own
 NuGet package (`DemaConsulting.CanvasNet.Scad`, root namespace `DemaConsulting.CanvasNet.Scad`),
 independent of the other document systems in this repository. It reads OpenSCAD-language source text
-and, in the current phase (Phase 5), can both **parse** it — validating the source against a documented
+and, in the current phase (Phase 6), can **parse** it — validating the source against a documented
 grammar and reporting what the source declares at file scope, or the first syntax error with its file,
-line, and column — and **evaluate** it: `ScadDocument.Evaluate` runs the program (values, scoping,
+line, and column — **evaluate** it: `ScadDocument.Evaluate` runs the program (values, scoping,
 functions, modules and their children, control flow, comprehensions, built-in functions, `include` and
 `use` resolution inside a sandbox, variable overrides, resource limits, and cancellation) and returns the
-`echo` output, the warnings, the unsupported-feature reports, and the number of module instances produced.
-Evaluation builds an internal, geometry-agnostic instantiation tree but **generates no geometry and renders
-nothing**; those capabilities are the subject of a later phase (see the _Implementation Phase Plan_ below).
-The project is not yet packable: its `IsPackable` property is `false` until Phase 6 delivers the first
-user-visible rendering capability, so that no mid-roadmap release publishes a package without it.
+`echo` output, the warnings, the unsupported-feature reports, and the number of module instances produced —
+**build its geometry**: `ScadDocument.BuildScene` converts the instantiation tree into a
+`CanvasNetRender3D` `Scene` (primitives, 2D shapes, transforms, color, booleans, extrusions, modifiers, and
+the special variables that control curve resolution) — and **render** it: `ScadDocument.Render` draws the scene
+onto a `Surface` (the core `CanvasNet` pixel buffer) with a camera fitted to the model or supplied by the
+caller. Everything that cannot be built is reported, never silently skipped. The package is packable and is
+the first release in which the roadmap's user-visible rendering capability exists; hull, Minkowski sum, text,
+and a few other constructs remain deferred and are reported as unsupported features (see _Supported And
+Deferred Features_).
 
-`CanvasNetScad` consists of one direct unit and two subsystems:
+`CanvasNetScad` consists of one direct unit and three subsystems:
 
 - **ScadDocument** (unit; namespace `DemaConsulting.CanvasNet.Scad`, folder
   `src/DemaConsulting.CanvasNet.Scad/`): the public API. `ScadDocument` offers the entry points
   `Parse(string)`, `Open(string)` (a file path), and `Open(Stream)`, exposes `SourceName`, `Directives`,
-  `ModuleNames`, and `FunctionNames`, and offers `Evaluate`. The supporting public types are
-  `ScadOpenOptions` (immutable, validated open options), `ScadSourceLocation` (file, line, column),
+  `ModuleNames`, and `FunctionNames`, and offers `Evaluate`, `BuildScene`, and `Render`. The supporting public
+  types are `ScadOpenOptions` (immutable, validated open options), `ScadSourceLocation` (file, line, column),
   `ScadSyntaxException` (the parse error type, a `FormatException`), `ScadDirective`, `ScadDirectiveKind`,
-  and the evaluation contract: `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`,
-  `ScadDiagnostic`, `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and
-  `ScadEvaluationException`. See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
+  the evaluation contract (`ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadDiagnostic`,
+  `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`), and the render
+  options `ScadRenderOptions`. See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
 - **ScadLanguage** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Language`, folder
   `Language/`): the language front end, with two units. `ScadLexer` converts source text into a token
   list (the internal `ScadLexer`, `ScadToken`, `ScadTokenKind`). `ScadParser` converts the tokens into
@@ -49,12 +54,24 @@ user-visible rendering capability, so that no mid-roadmap release publishes a pa
   inside a sandbox before evaluation. The subsystem has no public types of its own: the value model and the
   instantiation tree stay internal so that they can evolve with the geometry phase. See _ScadEvaluation
   Subsystem Design_ (`canvas-net-scad/scad-evaluation.md`).
+- **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
+  `Geometry/`): the geometry builder, with four units. `ScadGeometryBuilder` walks the instantiation tree
+  iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the triangle budget,
+  reporting, and the node-to-location map). `ScadPrimitives` builds `cube`, `sphere`, `cylinder`, `polyhedron`,
+  `square`, `circle`, and `polygon` and resolves `$fn`, `$fa`, and `$fs`. `ScadTransforms` applies `translate`,
+  `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color`. `ScadExtrusions` builds `linear_extrude` and
+  `rotate_extrude` over a symbolic 2D shape tree. The subsystem has no public types. See _ScadGeometry
+  Subsystem Design_ (`canvas-net-scad/scad-geometry.md`).
 
 Dependencies inside the system are one-directional: `ScadDocument` calls `ScadParser`, which calls
-`ScadLexer`, and `ScadEvaluator`, which calls `ScadFileResolver` (which calls `ScadParser` for each included
-file), `ScadValue`, and `ScadBuiltinFunctions`; the `ScadLanguage` subsystem never calls back into
+`ScadLexer`, `ScadEvaluator`, which calls `ScadFileResolver` (which calls `ScadParser` for each included
+file), `ScadValue`, and `ScadBuiltinFunctions`, and `ScadGeometryBuilder`, which calls `ScadPrimitives`,
+`ScadTransforms`, and `ScadExtrusions`; the `ScadLanguage` subsystem never calls back into
 `ScadDocument` or `ScadEvaluation` (it uses only the shared `ScadSourceLocation`, `ScadSyntaxException`, and
-`ScadDirectiveKind` value types), and `ScadEvaluation` depends on `ScadLanguage`, never the reverse.
+`ScadDirectiveKind` value types), `ScadEvaluation` depends on `ScadLanguage`, never the reverse, and
+`ScadGeometry` depends on the instantiation tree and sink of `ScadEvaluation`, never the reverse and never on
+`ScadLanguage`. Outside the system, `ScadGeometry` and the `Render` and `BuildScene` methods of `ScadDocument`
+use `CanvasNetRender3D` and the core `CanvasNet` (see _Dependencies_).
 
 ## External Interfaces
 
@@ -63,8 +80,16 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 - **`ScadDocument`** (sealed, immutable, thread-safe, not `IDisposable`): the static
   `Parse(string, ScadOpenOptions?)`, `Open(string, ScadOpenOptions?)`, and
   `Open(Stream, ScadOpenOptions?)` entry points; the `SourceName`, `Directives`, `ModuleNames`, and
-  `FunctionNames` properties; and `Evaluate(ScadEvaluationOptions?, CancellationToken)`, which returns a
-  `ScadEvaluationResult`.
+  `FunctionNames` properties; `Evaluate(ScadEvaluationOptions?, CancellationToken)`, which returns a
+  `ScadEvaluationResult`; `BuildScene(ScadRenderOptions?, CancellationToken)`, which returns a Render3D
+  `Scene`; and `Render(int width, int height, ScadRenderOptions?, CancellationToken)`, which returns a new
+  `Surface` that the caller owns and disposes.
+- **`ScadRenderOptions`** (sealed): init-only `Evaluation` (the `ScadEvaluationOptions` that steer evaluation,
+  reporting, and strict mode for every stage), `Camera` (null fits the view to the model),
+  `ViewAzimuthDegrees` and `ViewElevationDegrees` (the fitted view; the isometric angles by default),
+  `Projection` (the fitted view; perspective by default), `SceneOptions` (the renderer's look-and-feel and
+  performance settings; its handler and strict flag are ignored), and `FlatShapeThickness` (the slab thickness
+  of a 2D shape that is not extruded; 0.1 by default). Every value is validated when set.
 - **`ScadOpenOptions`** (sealed): init-only `BaseDirectory`, `LibraryPaths`, `FileResolver`, and
   `SourceName`. Parsing consumes only `SourceName`; the other three govern `include` and `use`
   resolution when the document is evaluated.
@@ -75,7 +100,8 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
   `Diagnostics`, `UnsupportedFeatures`, and `InstanceCount` (module instances, groups included).
 - **`ScadLimits`** (sealed, init-only): `MaxRecursionDepth`, `MaxEvaluationSteps`, `MaxLoopIterations`,
   `MaxListLength`, `MaxStringLength`, `MaxIncludeDepth`, `MaxIncludedFiles`, `MaxInstances`,
-  `MaxOutputLength`, and `MaxDiagnostics`, with the `Default` instance.
+  `MaxOutputLength`, `MaxDiagnostics`, and `MaxTriangles` (the bound on generated geometry), with the
+  `Default` instance.
 - **`ScadDiagnostic`** and **`ScadUnsupportedFeature`** (sealed records): a warning and an
   unsupported-feature report, each with its location.
 - **`ScadSourceLocation`** (readonly record struct): `File`, one-based `Line`, and one-based `Column`;
@@ -97,20 +123,27 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 | `ScadOpenOptions` properties | Inbound | Text, list, delegate | Each value validated when initialized (text null or non-whitespace; library paths a non-null list without null or whitespace entries, copied); instance therefore always valid |
 | `ScadDocument` properties | Outbound | Names, read-only lists | `Directives`, `ModuleNames`, and `FunctionNames` are file-scope only, in source order, read-only |
 | `ScadDocument.Evaluate(...)` | Inbound and outbound | `ScadEvaluationOptions`, a `CancellationToken`; a `ScadEvaluationResult` | Synchronous; thread-safe on a shared document; options validated when set; handlers run on the calling thread after evaluation; the file resolver callback runs only on the calling thread |
+| `ScadDocument.BuildScene(...)` | Inbound and outbound | `ScadRenderOptions`, a `CancellationToken`; a Render3D `Scene` | Synchronous; thread-safe on a shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack |
+| `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input |
+| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions` | View angles finite, projection defined, thickness finite and positive; instance immutable |
 | `ScadEvaluationOptions.Variables` | Inbound | Name to value dictionary | Names match an optional `$` then ASCII letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw `ArgumentException` when set |
 | `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
 | `ScadEvaluationResult` | Outbound | Read-only lists and a count | Cannot be turned into mutable collections |
 | `ScadSyntaxException` | Outbound | Exception with `Location` | Thrown for the first lexical or grammatical error, for nesting deeper than 256 levels, and for a syntax error in a file loaded by `include` or `use` |
-| `ScadEvaluationException` | Outbound | Exception with `Location` | Thrown for a failed assertion, an exceeded limit, an include cycle or sandbox violation, and a directive with no place to look |
-| `ScadUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set |
-| `OperationCanceledException` | Outbound | Exception | Thrown, never wrapped, when the token is canceled before or during evaluation |
+| `ScadEvaluationException` | Outbound | Exception with `Location` | Thrown for a failed assertion, an exceeded limit (including the triangle limit, with the module's location), an include cycle or sandbox violation, a directive with no place to look, and, without a location, the renderer's fragment budget |
+| `ScadUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set, at the first unsupported feature of any stage (evaluation, geometry, renderer operand checks) |
+| `ArgumentOutOfRangeException`, `ArgumentException` | Outbound | Exception | `Render` throws them, before any work, for a width or height outside 1 to `Surface.MaxDimension` and for an invalid camera |
+| `OperationCanceledException` | Outbound | Exception | Thrown, never wrapped, when the token is canceled before or during evaluation, geometry building, or rendering |
 | `InvalidDataException` | Outbound | Exception | Thrown, not as a `ScadSyntaxException`, when the source or an included file exceeds 4,194,304 characters (no location is meaningful) |
 <!-- markdownlint-enable MD013 -->
 
 Parsing never opens any file named by an `include` or `use` directive: directives are recorded only. Files
-are accessed only by `Evaluate`, only through the open options, and only inside the sandbox described in
-_Risk Control Measures_. The types of the `ScadLanguage` and `ScadEvaluation` subsystems are internal and
-visible only to the test assembly through `InternalsVisibleTo`. See the unit and subsystem design documents
+are accessed only by `Evaluate`, `BuildScene`, and `Render` (which evaluate), only through the open options,
+and only inside the sandbox described in _Risk Control Measures_. The types of the `ScadLanguage`,
+`ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
+`InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
+`scad-modifier-*`, `scad-color-alpha`, `scad-csg-*`, and the others) are listed with their triggers in
+_ScadGeometry Subsystem Design_ and in the user guide. See the unit and subsystem design documents
 for every type's complete constructor, property, and exception detail.
 
 ## Dependencies
@@ -119,15 +152,20 @@ for every type's complete constructor, property, and exception detail.
 project references in
 `src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj`:
 
-- `CanvasNet` (its own package, `DemaConsulting.CanvasNet`), for the future `Surface`/`Rgba32` output
-- `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose `Scene` the later
-  phases will build from evaluated geometry
+- `CanvasNet` (its own package, `DemaConsulting.CanvasNet`), for the `Surface` that `Render` returns and the
+  `Rgba32` colors of the scene and the renderer options
+- `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
+  (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
+  extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`), and renderer
+  (`SceneRenderer`, `Camera`, `SceneRenderOptions`) the `ScadGeometry` subsystem and the `BuildScene` and
+  `Render` methods of `ScadDocument` use
 
-**In Phases 4 and 5 no type from either system is used by any code.** The references are architectural
-scaffolding added now so that the project graph does not have to be restructured when Phase 6
-renders a document through `CanvasNetRender3D`; they are modeled in the SysML2 model as the
-`usesCanvas` and `usesRender3D` dependencies. Consequently the Phase 4 and Phase 5 behavior is independent
-of both systems.
+Both are consumed as public API only and are declared as the package dependencies of
+`DemaConsulting.CanvasNet.Scad` (the package therefore pulls in both packages on every target framework); the
+public API of `CanvasNetScad` exposes the Render3D types `Scene`, `Camera`, `CameraProjection`, and
+`SceneRenderOptions` and the core `Surface`. The `ScadLanguage` and `ScadEvaluation` subsystems use neither
+system, so parsing and evaluation behave independently of both. The dependencies are modeled in the SysML2 model
+as the `usesCanvas` and `usesRender3D` dependencies.
 
 **`CanvasNetScad` must never reference `DemaConsulting.CanvasNet.Svg`, `DemaConsulting.CanvasNet.Pdf`,
 `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Vsdx`, or `DemaConsulting.CanvasNet.Charts`.**
@@ -230,6 +268,26 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   options are initialized (names, kinds, nesting depth 256, at most 1,000,000 elements, and endless or
   self-referential sequences rejected) and sequences are enumerated exactly once into a snapshot.
 
+- **Bounded geometry.** The geometry a model generates is bounded by `ScadLimits.MaxTriangles`: every sphere,
+  cylinder, polyhedron, slab, and extrusion computes the exact triangle count of its mesh (for an extrusion,
+  the caps of a profile with holes included), with saturating arithmetic, before it allocates, and exceeding
+  the budget raises a `ScadEvaluationException` located at the module.
+  The renderer's per-tile fragment budget is mapped to the same exception.
+- **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
+  shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested
+  thousands of levels deep builds identically on a caller thread with a 64 KiB stack. The renderer is likewise
+  iterative for deep scenes.
+- **Nothing is silently skipped.** Invalid arguments are warnings, constructs that are recognized but not built
+  are unsupported-feature reports with stable identifiers, and a Render3D rejection that argument validation did
+  not anticipate, and an instance whose coordinates are not finite or exceed 1e100 in magnitude, are reported as
+  `scad-geometry-rejected`; the geometry builder never throws an
+  `ArgumentException` out of the library. All reports of evaluation, geometry building, and the renderer's
+  operand checks share one buffer, one ordering, one de-duplication, one cap, and one strict-mode switch, and are
+  delivered once on the calling thread.
+- **Validated render arguments.** The size and the camera of `Render` are validated before any evaluation, so an
+  invalid call fails without doing work; the returned surface is disposed when a handler throws after the
+  drawing succeeded.
+
 ## Data Flow
 
 **Parse path (`ScadDocument.Parse`, `Open(string)`, `Open(Stream)`):**
@@ -271,6 +329,30 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
    `ScadEvaluationResult` is assembled from the sink and the instance count.
 6. **Output**: the result, or the first error as a typed exception.
 
+**Build and render path (`ScadDocument.BuildScene`, `ScadDocument.Render`):**
+
+1. **Validate** (`Render` only): the width and height (1 to `Surface.MaxDimension`) and the camera (rejected by
+   rendering an empty scene with it, so the renderer's own rules decide), then the token; `BuildScene` checks
+   only the token.
+2. **Evaluate**: steps 2 to 4 of the evaluate path, into a fresh sink that is kept open (nothing is delivered
+   yet).
+3. **Build geometry**: `ScadGeometryBuilder.Build` receives the roots, the triangle limit, the flat-shape
+   thickness, strict mode, and the token, and the **same** sink. It finds the `!` roots, walks the tree
+   iteratively, dispatches each instance to the primitive, transform, color, boolean, or extrusion builder (or
+   reports it as unsupported), and returns the `Scene` and the node-to-location map. A model without geometry is a
+   scene with an empty root.
+4. **Fit the camera and render** (`Render` only): the camera is the caller's, or fitted to the bounds of the
+   scene with the configured azimuth, elevation, and projection (an unusable box, which the coordinate guard
+   of the geometry builder makes impossible, falls back to the unit-cube framing instead of throwing); the
+   renderer options are the caller's scene
+   options copied with a handler that maps the renderer's operand reports into the sink (installed only when a
+   handler or strict mode exists); `SceneRenderer.Render` draws the scene with the token. The renderer's
+   fragment-budget overflow becomes a `ScadEvaluationException`.
+5. **Deliver**: the sink replays the events of all stages to the caller's handlers, in order, once, on the
+   calling thread (on a failure too, with a handler exception on that path ignored so that the failure wins; on
+   success a handler exception propagates and `Render` disposes its surface first).
+6. **Output**: the scene or the surface, or the first error as a typed exception.
+
 ## Design Constraints
 
 - **Simplicity**: Minimal functionality kept easy to understand and extend
@@ -292,8 +374,13 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   `name(arguments) children` statement is a module instantiation, so an unknown or unsupported name
   never produces a syntax error; resolving names is the job of the evaluation subsystem
 - **Geometry-agnostic evaluation**: The evaluator recognizes the names of built-in modules but never
-  interprets them; it emits a tree of instances with evaluated arguments for a later phase to convert to
-  geometry, and that later phase reports geometry-level unsupported features through the same channel
+  interprets them; it emits a tree of instances with evaluated arguments, and the geometry subsystem
+  converts the tree to a scene and reports geometry-level unsupported features through the same channel
+- **Geometry by construction, not by kernel**: There is no 2D boolean kernel and no mesh-boolean kernel in this
+  system; 2D results are symbolic trees that extrusion distributes over, and solid booleans are scene nodes that
+  the renderer resolves per pixel, so the system never needs to repair or classify a mesh itself
+- **Fail-visible**: Nothing the model asks for may disappear without a report; see _Event Classification_ in
+  _ScadEvaluation Subsystem Design_ and _ScadGeometry Subsystem Design_
 - **Event classification**: A mistake in a model that still allows a meaningful result is a warning, a
   feature this implementation does not provide is an unsupported-feature report, and a problem that makes
   the result meaningless or dangerous is an error (see _ScadEvaluation Subsystem Design_)
@@ -326,12 +413,13 @@ the source.
 
 ### Integration Patterns
 
-- **NuGet Packaging**: Standard .NET library packaging and distribution, enabled in Phase 6
+- **NuGet Packaging**: Standard .NET library packaging and distribution; the package is packable from Phase 6
+  and declares `DemaConsulting.CanvasNet` and `DemaConsulting.CanvasNet.Render3D` as dependencies
 - **CI/CD Integration**: Automated build, test, and quality validation
 - **Requirements Traceability**: All features linked to passing tests
-- **Front-end role**: A later phase converts the instantiation tree of an evaluated `ScadDocument` into a
-  `CanvasNetRender3D` `Scene` and renders it; neither the parser nor the evaluator ever calls into the
-  renderer, and the renderer has no knowledge of the OpenSCAD language
+- **Front-end role**: `ScadDocument.BuildScene` converts the instantiation tree of an evaluated document into a
+  `CanvasNetRender3D` `Scene` and `ScadDocument.Render` draws it; neither the parser nor the evaluator ever
+  calls into the renderer, and the renderer has no knowledge of the OpenSCAD language
 
 ### Clean-Room Provenance
 
@@ -348,9 +436,12 @@ decisions**, written down in the design documents and pinned by in-repo tests, a
 behavior of any other implementation. The test fixtures
 (`test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/`) — including the evaluation fixtures
 `eval-*.scad` and their golden `.txt` expectation files (echo, diagnostics, unsupported features, and
-instance trees) — are original works authored for this repository and licensed with it; their `README.md`
-records their provenance. Exact parity with the behavior of any existing implementation is an explicit
-non-goal.
+instance trees) — and the Phase 6 render fixtures `render-*.scad`, whose assertions are analytic (areas, bounds,
+pixel rectangles, exact volumes) rather than golden images, are original works authored for this repository and
+licensed with it; their `README.md` records their provenance. The table of named colors is the CSS table that the
+repository's own SVG codec already carries (a public W3C table authored in this repository), not material from
+OpenSCAD. Exact parity with the behavior of any existing implementation (pixels, tessellation, edge cases) is an
+explicit non-goal.
 
 The provenance statement is repeated in the namespace documentation, the project description, the
 fixture README, and the purpose of each unit design, and every `CanvasNetScad` review-set checks it
@@ -376,11 +467,19 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `include`/`use` file resolution, file-access sandbox, library paths, resolver callback | Supported (Phase 5) | Environment variables are never consulted |
 | Variable overrides (`-D` style), special-variable overrides, animation time | Supported (Phase 5) | `ScadEvaluationOptions.Variables` and `Time` |
 | Resource limits, cancellation, deterministic recursion limit | Supported (Phase 5) | `ScadLimits`, `CancellationToken` |
-| Primitive solids and 2D shapes, transforms, boolean operations, extrusions | Deferred (Phase 6) | Mapped onto `CanvasNetRender3D`; the evaluator already emits them as instances |
-| Public render entry point, render options, geometry-level unsupported-feature reporting | Deferred (Phase 6) | Adds `Render`, `ScadRenderOptions`, `MaxTriangles` and the geometry diagnostics |
-| Packaging as a NuGet package, README and user guide | Deferred (Phase 6) | `IsPackable` is `false` until then |
-| Hull and Minkowski operations | Deferred (Phase 7) | Depends on `CanvasNetRender3D` support |
-| Text and external-file import | Deferred (later) | `text` and `import` are emitted as instances and reported by the geometry phase |
+| `cube`, `sphere`, `cylinder` (cones and frusta), `polyhedron`, `square`, `circle`, `polygon`; `$fn`, `$fa`, `$fs` | Supported (Phase 6) | See _ScadPrimitives Unit Design_; the fragment rule is public and documented |
+| `translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color` | Supported (Phase 6) | See _ScadTransforms Unit Design_; `multmatrix` with a projective row is `scad-multmatrix-projective` |
+| `union`, `render`, implicit unions, `difference`, `intersection`, `intersection_for`, for solids and 2D shapes | Supported (Phase 6) | 2D booleans are symbolic and are distributed over by extrusion; mixed dimensions warn |
+| `linear_extrude`, `rotate_extrude` | Supported (Phase 6) | See _ScadExtrusions Unit Design_; `convexity` is accepted and ignored |
+| `!` (show only) | Supported (Phase 6) | The marked subtree becomes the new root of the design, without the transforms and colors of its ancestors |
+| `#` (highlight) | Degraded (Phase 6) | Built normally and reported as `scad-modifier-highlight` until true highlighting exists |
+| `%` (background) | Degraded (Phase 6) | Omitted and reported as `scad-modifier-background` until true background rendering exists |
+| Color with alpha below 1, `transparent` | Degraded (Phase 6) | Drawn opaque and reported as `scad-color-alpha` |
+| `ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles` | Supported (Phase 6) | Evaluation options, strict mode, and handlers cover every stage |
+| Geometry-level unsupported-feature reporting | Supported (Phase 6) | Identifier table in _ScadGeometry Subsystem Design_ |
+| Packaging as a NuGet package, README and user guide | Delivered (Phase 6) | `IsPackable` is enabled |
+| `hull` and `minkowski` | Deferred (Phase 7) | Reported as `scad-module-hull` and `scad-module-minkowski`; omitted |
+| `text`, `import`, `offset`, `projection`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
 | Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
 <!-- markdownlint-enable MD013 -->
 
@@ -433,12 +532,41 @@ unit design documents:
  9. Environment variables, including search-path variables used by other implementations, are ignored; a
     document with `include` or `use` and no base directory, library path, or resolver is an error.
 
+The geometry phase adds the following dialect decisions, each pinned by a test and described in
+_ScadGeometry Subsystem Design_ and the unit designs:
+
+ 1. Invalid arguments (a non-positive size, a wrong type, a non-finite number) are a **warning at the
+    instance's location and an empty instance**; things the language allows but this implementation cannot
+    build are **unsupported-feature reports**; resource exhaustion is an **error**. A singular transform is a
+    warning and an empty instance, not a renderer report.
+ 2. `$fn`, `$fa`, and `$fs` follow the public fragment rule (`$fn` wins; otherwise
+    `ceil(max(min(360 / $fa, 2 pi r / $fs), 5))`, at least three); a radius of 1 gives 5 fragments and 10 gives 30
+    with the defaults.
+ 3. `rotate([x, y, z])` applies the X rotation first, then Y, then Z; `multmatrix` takes a column-vector matrix
+    (4x4, or 3x4); `mirror(v)` reflects through the plane with normal `v`; `resize` scales about the origin.
+ 4. A positive `twist` turns **clockwise seen from +Z**; `linear_extrude` has the default height 100;
+    `rotate_extrude` starts at `+X`, sweeps counter-clockwise, clamps angles beyond 360 degrees, sweeps negative
+    angles clockwise, and sweeps a profile that lies on the negative side of the axis where it is (a point at
+    `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees; a profile with both signs is reported).
+ 5. An extrusion that cannot be built is **omitted whole** and reported (axis crossing or contact, invalid
+    scale, a Render3D rejection), so a boolean over it never silently changes meaning.
+ 6. A 2D shape that is not extruded is a thin slab (`FlatShapeThickness`); a union that mixes dimensions keeps
+    the 3D members, and a difference or intersection keeps the dimension of its first non-empty operand; each
+    warns about what it drops.
+ 7. The `!` modifier makes the outermost marked subtrees the new root of the design, **without** the transforms
+    and colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `#` and
+    `%` and a color alpha below 1 are **degraded and reported**.
+ 8. Rendering is deterministic (byte-identical images for any degree of parallelism) and uses a neutral gray on
+    a white background, with a view fitted to the model by default, unless the model or the options say
+    otherwise.
+
 ### Determinism And Immutability
 
 Every public result type is immutable. A `ScadDocument` and its internal syntax tree can be shared
 between threads, and parsing the same text any number of times, on any thread, in any culture, yields
-equal trees and identical errors. `ScadDocument.Evaluate` holds no state between calls, so a document may be
-evaluated from several threads at once, and each call gives the same result for the same options.
+equal trees and identical errors. `ScadDocument.Evaluate`, `BuildScene`, and `Render` hold no state between
+calls, so a document may be evaluated, built, or rendered from several threads at once, and each call gives the
+same result for the same options (a render is byte-identical for every degree of parallelism).
 
 ## Implementation Phase Plan
 
@@ -458,12 +586,17 @@ requirements, design, verification, and tests for its own scope.
    `ScadDocument.Evaluate` with `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`,
    `ScadDiagnostic`, `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and
    `ScadEvaluationException`; original golden evaluation fixtures; and the complete companion documentation.
-3. **Phase 6 — Geometry and rendering (planned).** Mapping the instantiation tree onto `CanvasNetRender3D`
-   scenes, a public render entry point (`BuildScene` and `Render`) and `ScadRenderOptions`, which composes
-   or copies the evaluation options, the additive `MaxTriangles` limit and the geometry-level
-   unsupported-feature reports, the flip of `IsPackable`, and the README and user guide. The geometry builder
-   must traverse the instantiation tree iteratively (see _ScadEvaluation Subsystem Design_).
+3. **Phase 6 — Geometry and rendering (delivered).** The `ScadGeometry` subsystem (`ScadGeometryBuilder`,
+   `ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`) mapping the instantiation tree onto `CanvasNetRender3D`
+   scenes iteratively; the public `ScadDocument.BuildScene` and `ScadDocument.Render` and `ScadRenderOptions`,
+   which composes the evaluation options; the additive `ScadLimits.MaxTriangles` limit; the geometry-level
+   unsupported-feature reports; original render fixtures and analytic system tests; the flip of `IsPackable`; and
+   the README, the user guide, and the complete companion documentation. The phase also tightened the Render3D
+   rotational extruder to reject sweeps whose angular step exceeds 120 degrees, which the `rotate_extrude`
+   segment rule always satisfies.
 4. **Phase 7 — Hull and Minkowski (planned)**, depending on `CanvasNetRender3D` support.
-5. **Later — Text and external-file import.**
+5. **Phase 8 — Highlight, background, and transparency (planned)**, replacing the degraded `#`, `%`, and color
+   alpha behavior and removing their reports.
+6. **Later — Text and external-file import.**
 
 Every later phase adds members and types rather than changing the signatures delivered here.

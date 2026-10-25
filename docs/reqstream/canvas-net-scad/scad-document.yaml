@@ -1,5 +1,5 @@
 ---
-# cspell:ignore uncatchable
+# cspell:ignore uncatchable Underflowing
 # Software Unit Requirements for ScadDocument
 #
 # These requirements describe the design-level behavior of the ScadDocument unit, the sole direct
@@ -8,12 +8,17 @@
 # points, SourceName, Directives, ModuleNames, FunctionNames, and the Evaluate method), ScadOpenOptions,
 # ScadSourceLocation, ScadSyntaxException (a FormatException), ScadDirective, ScadDirectiveKind, and the
 # Phase 5 evaluation contract - ScadEvaluationOptions, ScadEvaluationResult, ScadLimits, ScadDiagnostic,
-# ScadUnsupportedFeature, ScadUnsupportedFeatureException, and ScadEvaluationException.
+# ScadUnsupportedFeature, ScadUnsupportedFeatureException, and ScadEvaluationException - and the Phase 6
+# geometry and rendering contract: the BuildScene and Render methods (ScadDocument.Render.cs) and the
+# ScadRenderOptions class (camera, view, scene options, flat-shape thickness, composed evaluation
+# options); ScadLimits additionally bounds the generated geometry (MaxTriangles).
 #
-# Delivery status: Phase 4 delivered parsing; Phase 5 adds Evaluate (headless evaluation: echo,
-# diagnostics, unsupported features, and the number of module instances; no geometry). Every "tests"
-# entry below cites an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
-# docs/verification/canvas-net-scad/scad-document.md for the test-evidence mapping.
+# Delivery status: Phase 4 delivered parsing; Phase 5 added Evaluate (headless evaluation: echo,
+# diagnostics, unsupported features, and the number of module instances; no geometry); Phase 6 adds
+# BuildScene and Render, which build a Render3D scene (through the internal ScadGeometry subsystem) and
+# draw it to a Surface. Every "tests" entry below cites an existing test method in the
+# DemaConsulting.CanvasNet.Scad.Tests project; see docs/verification/canvas-net-scad/scad-document.md for
+# the test-evidence mapping.
 
 sections:
   - title: CanvasNetScad Requirements
@@ -317,22 +322,24 @@ sections:
             title: >-
               The ScadLimits class shall be immutable with init-only limits for recursion depth,
               evaluation steps, loop iterations, list length, string length, include depth, included
-              files, instances, output length, and diagnostics, with documented defaults, shall reject
-              a value outside its permitted range when it is set, and the Evaluate method shall fail
-              with a located ScadEvaluationException when any limit is exceeded while accepting a
-              program exactly at the limit.
+              files, instances, output length, diagnostics, and generated triangles, with documented
+              defaults, shall reject a value outside its permitted range when it is set, and the
+              Evaluate method shall fail with a located ScadEvaluationException when any limit is
+              exceeded while accepting a program exactly at the limit.
             justification: |
               The caller owns the trade-off between permissiveness and safety; limits must be
               validated, immutable, and enforced at their exact values.
             tests:
               - ScadLimits_Default_HasDocumentedValues
               - ScadLimits_Initialization_AcceptsValidValues
+              - ScadLimits_MaxTriangles_MustBeAtLeastOne
               - ScadLimits_MaxRecursionDepth_IsRangeChecked
               - ScadLimits_MaxIncludeDepth_IsRangeChecked
               - ScadLimits_PositiveLimits_RejectZeroAndNegative
               - ScadLimits_Properties_AreInitOnly
               - ScadDocument_Evaluate_Limit_ThrowsEvaluationExceptionWithLocation
               - ScadDocument_Evaluate_Limit_AtLimitSucceedsOneOverFails
+              - ScadDocument_BuildScene_Limits_ArePassedThrough
 
           - id: CanvasNetScad-ScadDocument-StackSafety
             title: >-
@@ -407,3 +414,175 @@ sections:
               - ScadEvaluationException_UnknownLocation_MessageHasNoPrefix
               - ScadEvaluationException_StandardConstructors_SetMessageAndInnerException
               - ScadDocument_Evaluate_Limit_ThrowsEvaluationExceptionWithLocation
+
+          - id: CanvasNetScad-ScadDocument-BuildScene
+            title: >-
+              The ScadDocument BuildScene method shall evaluate the document and return a Render3D
+              scene of its geometry - the implicit union of the top-level instances, or of the marked
+              subtrees when the program uses the show-only modifier - using the variable overrides and
+              animation time of the supplied evaluation options, applying the flat-shape thickness to
+              2D shapes that are not extruded, returning a scene with an empty root for a model without
+              geometry, and returning a new, independent scene from each call, including when called
+              concurrently.
+            justification: |
+              The scene is the interchange form between the language front end and the renderer; a
+              caller that wants to inspect, measure, or render the model itself needs it without a
+              surface, and the result must depend only on the document and the options.
+            tests:
+              - ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel
+              - ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry
+              - ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight
+              - ScadDocument_BuildScene_ConcurrentBuilds_AreEqual
+
+          - id: CanvasNetScad-ScadDocument-Render
+            title: >-
+              The ScadDocument Render method shall validate the requested size (1 to the maximum
+              surface dimension in each direction, ArgumentOutOfRangeException otherwise) and the
+              supplied camera (ArgumentException when invalid) before evaluating anything, and shall
+              draw the model onto a new surface of exactly the requested size that the caller owns -
+              with the view fitted to the model when no camera is supplied (an isometric perspective
+              view by default, equal to the renderer's fitted view of the same scene, adjustable by
+              azimuth, elevation, and projection), with the supplied camera otherwise, and with a
+              white background and neutral gray surfaces unless the model or the scene options say
+              otherwise - and a model without geometry shall render as the background only.
+            justification: |
+              Rendering a model to pixels in one call is the purpose of the package; invalid
+              arguments must fail before any expensive work, and the default view must show the whole
+              model without the caller computing a camera.
+            tests:
+              - ScadDocument_Render_InvalidSize_ThrowsBeforeEvaluating
+              - ScadDocument_Render_InvalidCamera_ThrowsBeforeEvaluating
+              - ScadDocument_Render_EmptyModel_IsBackgroundOnlyAtRequestedSize
+              - ScadDocument_Render_DefaultFittedView_EqualsRenderFittedOfSameMesh
+              - ScadDocument_Render_ExplicitOrthographicTopCamera_CoversExactFootprint
+              - ScadDocument_Render_FittedViewOptions_ChangeTheImage
+              - ScadDocument_Render_DefaultColorOption_IsHonored
+
+          - id: CanvasNetScad-ScadDocument-RenderOptions
+            title: >-
+              The ScadRenderOptions class shall be immutable with init-only properties Evaluation,
+              Camera, ViewAzimuthDegrees, ViewElevationDegrees, Projection, SceneOptions, and
+              FlatShapeThickness, shall default to no evaluation options (the defaults apply), a
+              fitted view at the isometric azimuth and elevation with a perspective projection, the
+              default scene options, and a flat-shape thickness of 0.1, and shall reject a non-finite
+              view angle, an undefined projection, and a flat-shape thickness that is not finite and
+              positive when it is set.
+            justification: |
+              Options validated at initialization let the document trust every instance, and
+              immutability makes a shared options instance safe to use from several threads; composing
+              the evaluation options keeps one definition of variables, limits, handlers, and strict
+              mode.
+            tests:
+              - ScadRenderOptions_New_HasDocumentedDefaults
+              - ScadRenderOptions_Initialization_AcceptsValidValues
+              - ScadRenderOptions_ViewAngles_NonFinite_Throw
+              - ScadRenderOptions_Projection_Undefined_Throws
+              - ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive
+              - ScadRenderOptions_Properties_AreInitOnly
+              - ScadRenderOptions_Evaluation_IsComposedAndOptional
+
+          - id: CanvasNetScad-ScadDocument-RenderReporting
+            title: >-
+              The ScadDocument BuildScene and Render methods shall deliver the echo lines, warnings,
+              and unsupported-feature reports of every stage (evaluation, geometry building, and, for
+              Render, the renderer's operand checks) to the handlers of the evaluation options, once,
+              in the order they occurred, on the calling thread, mapping a renderer report back to the
+              source location of the module that produced the mesh; shall also deliver the events
+              recorded before a failure while letting the failure win over an exception thrown by a
+              handler; shall let a handler exception on success propagate (disposing the surface
+              Render had drawn); shall stop at the first unsupported feature of any stage, after
+              delivering the earlier events, when the options ask for it; shall ignore the
+              unsupported-feature handler and strict flag of the scene options; and shall report the
+              renderer's fragment-budget overflow as a ScadEvaluationException.
+            justification: |
+              Every problem the model has must reach the caller through one channel with one
+              ordering and one strict-mode switch, regardless of which stage found it, and caller code
+              in a handler must never mask the real failure or leak a surface.
+            tests:
+              - ScadDocument_BuildScene_Handlers_ReceiveAllStagesOnceInOrder
+              - ScadDocument_BuildScene_StrictMode_ThrowsAndStillDeliversEvents
+              - ScadDocument_BuildScene_FailingHandler_PropagatesOnlyOnSuccess
+              - ScadDocument_Render_ReportsThroughEvaluationHandlersOnly
+              - ScadDocument_Render_StrictMode_ThrowsForUnsupportedFeature
+              - ScadDocument_Render_EvaluationFailure_PropagatesAfterDeliveringEvents
+              - ScadDocument_Render_FailingHandlerOnSuccess_Propagates
+              - ScadDocumentRenderReport_AllStages_AreDeliveredInOrderOnTheCallingThread
+              - ScadDocumentRenderReport_StrictMode_ThrowsTheMappedOperandReport
+              - ScadDocumentRenderReport_FragmentBudgetExceeded_IsAnEvaluationException
+
+          - id: CanvasNetScad-ScadDocument-RenderOperandReports
+            title: >-
+              The ScadDocument Render method shall, when a handler is set or strict mode is on and the
+              model has a difference or intersection, report each operand defect the renderer finds
+              (open mesh, non-manifold edge, inconsistent winding, degenerate triangle, inverted mesh,
+              and collapsed world transform) as an unsupported feature whose identifier replaces the
+              renderer's prefix with scad- and whose location is that of the module that produced the
+              mesh (including the file of a used or included library), reporting a repeated operand
+              once, and shall report nothing when there is no boolean, no handler, or only BuildScene
+              is called.
+            justification: |
+              A boolean on a mesh the renderer cannot resolve faithfully gives a wrong picture; the
+              author needs to know which module in which file to fix, not an internal mesh node.
+            tests:
+              - ScadDocumentRenderReport_OpenPolyhedronInDifference_IsReportedAtThePolyhedron
+              - ScadDocumentRenderReport_MeshDefects_AreMappedWithTheirFeature
+              - ScadDocumentRenderReport_InvertedShellNextToCorrectShell_IsReported
+              - ScadDocumentRenderReport_UnderflowingWorldTransform_IsReportedPerOperand
+              - ScadDocumentRenderReport_RepeatedOperand_IsReportedOnce
+              - ScadDocumentRenderReport_DefectInUsedFile_CarriesTheFile
+              - ScadDocumentRenderReport_NoBooleanOrNoHandler_ReportsNothing
+              - ScadDocumentRenderReport_BuildScene_DoesNotValidateOperands
+              - ScadDocumentRenderReport_MapFeature_MapsEveryRenderToken
+
+          - id: CanvasNetScad-ScadDocument-RenderCancellation
+            title: >-
+              The ScadDocument BuildScene and Render methods shall throw OperationCanceledException
+              before any work (and before any resolver call) when the cancellation token is already
+              canceled, and shall stop promptly when it is canceled during the evaluation, the
+              geometry building, or the rendering.
+            justification: |
+              Building and drawing a large model can take long; a caller must be able to abandon it.
+            tests:
+              - ScadDocument_BuildScene_AlreadyCanceled_ThrowsBeforeAnyResolverCall
+              - ScadDocument_Render_AlreadyCanceled_ThrowsBeforeAnyResolverCall
+              - ScadDocumentRenderReport_CanceledDuringEvaluation_StopsBuildAndRender
+              - ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender
+
+          - id: CanvasNetScad-ScadDocument-RenderDeterminism
+            title: >-
+              The ScadDocument Render method shall produce byte-identical images for the same document
+              and options when called repeatedly, concurrently, and with any degree of parallelism,
+              including for models with boolean operations and extrusions, and shall not overflow the
+              call stack when a deeply nested model is built and drawn on a thread with a small stack.
+            justification: |
+              Reproducible pixels make image comparison, caching, and cross-machine use possible, and
+              callers invoke Render from threads of any stack size; an uncatchable stack overflow
+              would terminate their process.
+            tests:
+              - ScadDocument_Render_IsDeterministicForEveryParallelism
+              - ScadDocument_Render_ConcurrentRenders_AreIdentical
+              - ScadDocument_Render_DeepModuleChain_OnSmallStack_MatchesBigStack
+              - ScadDocument_Render_CsgModel_IsDeterministicForEveryParallelism
+              - ScadDocument_Render_DeepDifferenceChain_OnSmallStack_MatchesBigStack
+
+          - id: CanvasNetScad-ScadDocument-RenderGeometry
+            title: >-
+              The ScadDocument Render method shall draw boolean models, extruded 2D shapes, and
+              revolved profiles so that a difference shows its cut-out, an intersection shows only the
+              overlap, a color applies to the geometry it wraps, an extruded difference of 2D shapes
+              looks the same as the difference of the extruded shapes, and a revolved profile has the
+              silhouette of the profile.
+            justification: |
+              The pixels are the product of the package; the boolean and extrusion semantics must be
+              visible in the picture, not only in the scene.
+            tests:
+              - ScadDocument_Render_CubeWithCylinderHole_ShowsTheHole
+              - ScadDocument_Render_FlatDifference_ShowsTheHole
+              - ScadDocument_Render_FlatIntersection_ShowsTheOverlapOnly
+              - ScadDocument_Render_CubeSphereIntersection_IsClippedByTheCube
+              - ScadDocument_Render_ColoredDifference_UsesTheColor
+              - ScadDocument_Render_ExtrudedRing_ShowsTheAnnulus
+              - ScadDocument_Render_RevolvedVase_HasTheProfileSilhouette
+              - ScadDocument_Render_ExtrudedDifference_EqualsTheHandBuiltDifferenceOfExtrusions
+              - ScadDocument_Render_RevolvedDifference_EqualsTheHandBuiltDifferenceOfRevolutions
+              - ScadDocument_Render_ColoredAndTwistedExtrusions_AreVisible

@@ -64,10 +64,12 @@ constituent software items, specifically:
   (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
   System Verification_ (`canvas-net-render3d.md`)
 - **CanvasNetScad (System)** — A separate software system providing a clean-room front end for the
-  OpenSCAD language that parses and evaluates models, containing a single direct unit, `ScadDocument`
-  (the public parse and evaluate API, options, limits, locations, and exceptions), an internal
-  `ScadLanguage` subsystem with the units `ScadLexer` and `ScadParser`, and an internal `ScadEvaluation`
-  subsystem with the units `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`, and `ScadFileResolver` —
+  OpenSCAD language that parses, evaluates, builds the geometry of, and renders models, containing a single
+  direct unit, `ScadDocument` (the public parse, evaluate, build, and render API, options, limits, locations, and
+  exceptions), an internal `ScadLanguage` subsystem with the units `ScadLexer` and `ScadParser`, an internal
+  `ScadEvaluation` subsystem with the units `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`, and
+  `ScadFileResolver`, and an internal `ScadGeometry` subsystem with the units `ScadGeometryBuilder`,
+  `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` —
   see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
 
 The following OTS items are also covered:

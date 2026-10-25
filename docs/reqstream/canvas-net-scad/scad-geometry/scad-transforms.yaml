@@ -1,0 +1,285 @@
+---
+# cspell:ignore multmatrix Multmatrix newsize unmirrored rrggbbaa
+# Software Unit Requirements for ScadTransforms
+#
+# These requirements describe the design-level behavior of the ScadTransforms unit: the internal static class
+# that builds the transform modules translate, rotate, scale, mirror, multmatrix and resize, and the color
+# module with its color parsing and named-color table (ScadTransforms, ScadTransforms.Resize, ScadColors,
+# ScadColorTable) in the DemaConsulting.CanvasNet.Scad.Geometry namespace.
+#
+# A transform applies to the implicit union of its children and is represented as a wrapper node carrying the
+# matrix (an identity adds none); a 2D shape gets the in-plane part of the matrix. An invalid argument is a
+# warning and the instance yields nothing, except for the documented cases where the children are kept
+# untransformed or uncolored; a capability limit (a projective multmatrix, a color alpha below 1) is reported
+# as an unsupported feature. Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.Scad.Tests project (ScadTransformsTests.cs, ScadResizeTests.cs, and
+# ScadColorsTests.cs in the Geometry folder); see
+# docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        sections:
+          - title: ScadTransforms Requirements
+            requirements:
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Translate
+                title: >-
+                  The ScadTransforms unit shall build translate as a move of the union of its children by a
+                  vector of one to three numbers (missing components are 0), given positionally or as v, and
+                  shall treat translate without v, or without children, as the identity or as nothing.
+                justification: |
+                  Translation is the most common transform; its accepted argument forms and the handling of
+                  a missing argument or missing children must be exact so that models place parts where the
+                  author expects.
+                tests:
+                  - ScadTransforms_Translate_Forms_MoveTheSolid
+                  - ScadTransforms_Translate_SeveralChildren_MovesThemTogether
+                  - ScadTransforms_Translate_NoChildren_IsSilentlyEmpty
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Rotate
+                title: >-
+                  The ScadTransforms unit shall build rotate in degrees as a rotation about X, then Y, then Z
+                  for a vector of one to three angles, about Z for a single number, and about the axis v by the
+                  right-hand rule for a number with a three-component v; a zero axis shall warn and leave the
+                  children unrotated, a vector angle together with an axis shall warn that the axis is ignored,
+                  and rotate without an angle shall change nothing.
+                justification: |
+                  The Euler order and the axis-angle form decide the orientation of every rotated part; an
+                  asymmetric solid must expose any mistake in the order, and the documented exceptions must
+                  never lose the children.
+                tests:
+                  - ScadTransforms_Rotate_EulerVector_AppliesXThenYThenZ
+                  - ScadTransforms_Rotate_Scalar_RotatesAboutZ
+                  - ScadTransforms_Rotate_AxisAngle_RotatesAboutTheAxis
+                  - ScadTransforms_Rotate_ZeroAxis_WarnsAndDoesNotRotate
+                  - ScadTransforms_RotateAndMirror_AxisWhoseLengthOverflows_IsADirection
+                  - ScadTransforms_Rotate_TinyAxis_IsADirection
+                  - ScadTransforms_Rotate_HugeAngle_EqualsTheReducedAngle
+                  - ScadTransforms_Rotate_NonFiniteOrUndefinedValues_WarnAndRemoveInstance
+                  - ScadTransforms_Rotate_VectorAngleWithAxis_WarnsAndUsesEuler
+                  - ScadTransforms_Rotate_NoAngle_IsIdentity
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Scale
+                title: >-
+                  The ScadTransforms unit shall build scale as a scaling about the origin by a number or by a
+                  vector of one to three factors (missing components are 1), and a negative factor shall mirror
+                  the children while keeping them closed and outward oriented.
+                justification: |
+                  Scale is about the origin, not about the children's center, and a negative factor is a
+                  reflection that must not turn the solid inside out.
+                tests:
+                  - ScadTransforms_Scale_Forms_ScaleAboutTheOrigin
+                  - ScadTransforms_Scale_Negative_MirrorsAndKeepsOrientation
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Mirror
+                title: >-
+                  The ScadTransforms unit shall build mirror as a reflection through the plane through the
+                  origin whose normal is v (any length, one to three components), keeping the children closed
+                  and outward oriented; a zero normal shall warn and leave the children unmirrored, and mirror
+                  without v shall change nothing.
+                justification: |
+                  A reflection flips the winding of a mesh; the unit must deliver a correctly oriented solid
+                  for coordinate and oblique planes, and a degenerate normal must not remove the geometry.
+                tests:
+                  - ScadTransforms_Mirror_Planes_ReflectAndKeepOrientation
+                  - ScadTransforms_Mirror_ZeroNormal_WarnsAndDoesNotMirror
+                  - ScadTransforms_Mirror_InvalidAndAbsent_AreHandled
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Multmatrix
+                title: >-
+                  The ScadTransforms unit shall build multmatrix from a four-by-four matrix in the
+                  column-vector convention (translation in the fourth column), or from its first three rows,
+                  so that the result equals the same transform written with translate, rotate, or a shear.
+                justification: |
+                  The language multiplies column vectors while the renderer multiplies row vectors; a
+                  transposition mistake would silently produce a wrong model, and the three-row form is a
+                  common way to write an affine matrix.
+                tests:
+                  - ScadTransforms_Multmatrix_TranslationColumn_IsTransposedCorrectly
+                  - ScadTransforms_Multmatrix_RotationMatrix_EqualsRotate
+                  - ScadTransforms_Multmatrix_ThreeRows_IsAffine
+                  - ScadTransforms_Multmatrix_Shear_ShearsTheSolid
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-MultmatrixProjective
+                title: >-
+                  The ScadTransforms unit shall report a multmatrix whose bottom row is not [0, 0, 0, 1] as the
+                  unsupported feature scad-multmatrix-projective at the location of the instance, omit its
+                  children, and report no warning.
+                justification: |
+                  A projective transform cannot be represented by the renderer; the capability limit must be
+                  visible (and fatal in strict mode) rather than silently producing an affine approximation.
+                tests:
+                  - ScadTransforms_Multmatrix_ProjectiveRow_IsReportedAndOmitted
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Identity
+                title: >-
+                  The ScadTransforms unit shall add no wrapper node for a transform whose matrix is the
+                  identity, returning the union of the children itself.
+                justification: |
+                  Deep chains of no-op transforms would otherwise grow the scene without effect; the scene
+                  of an identity transform must be the scene of its children.
+                tests:
+                  - ScadTransforms_Translate_Identity_AddsNoWrapper
+                  - ScadTransforms_Multmatrix_Identity_AddsNoWrapper
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Composition
+                title: >-
+                  The ScadTransforms unit shall compose nested transforms child first (the innermost transform
+                  applies first), shall apply a transform to the union of everything its children produce,
+                  including module calls and loops, and shall scale about the origin.
+                justification: |
+                  The order of nested transforms is the core of the language's geometric meaning; it must
+                  hold for every combination and through the structural constructs between the transforms.
+                tests:
+                  - ScadTransforms_Nesting_AppliesInnermostFirst
+                  - ScadTransforms_Nesting_ScaleIsAboutTheOrigin
+                  - ScadTransforms_Transform_AppliesThroughModulesAndLoops
+                  - ScadTransforms_Translate_SeveralChildren_MovesThemTogether
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-InvalidArguments
+                title: >-
+                  The ScadTransforms unit shall report a supplied argument of the wrong type, a non-finite
+                  number, a vector of the wrong length, or a malformed matrix (and an invalid resize newsize
+                  or auto) as a warning at the location of the instance and yield nothing for it, shall warn
+                  about unknown and surplus arguments while still applying the transform, and shall ignore
+                  special variables such as $fn silently.
+                justification: |
+                  A typo or a wrong value must be visible instead of producing degenerate geometry, and a
+                  special variable is a legitimate setting that every module may receive.
+                tests:
+                  - ScadTransforms_Translate_InvalidVector_WarnsAndRemovesInstance
+                  - ScadTransforms_RotateAndScale_InvalidArguments_WarnAndRemoveInstance
+                  - ScadTransforms_Mirror_InvalidAndAbsent_AreHandled
+                  - ScadTransforms_Multmatrix_Malformed_WarnsAndRemovesInstance
+                  - ScadTransforms_Arguments_UnknownAndSurplus_Warn
+                  - ScadTransforms_Arguments_SpecialVariable_IsIgnoredSilently
+                  - ScadResize_InvalidArguments_WarnAndRemoveInstance
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Singular
+                title: >-
+                  The ScadTransforms unit shall report a transform whose matrix is singular (a zero or
+                  negligible determinant) or not finite as a warning at the location of the instance and
+                  yield nothing for it, never throwing.
+                justification: |
+                  A transform that collapses space would give the renderer a degenerate instance; a visible
+                  warning and an empty result keep the scene valid and tell the author why a part is missing.
+                tests:
+                  - ScadTransforms_Scale_Singular_WarnsAndRemovesInstance
+                  - ScadTransforms_Multmatrix_Singular_WarnsAndRemovesInstance
+                  - ScadTransforms_NonFiniteMatrix_WarnsAndRemovesInstance
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-FlatTransforms
+                title: >-
+                  The ScadTransforms unit shall apply a transform to a 2D shape by its in-plane part so that the
+                  shape (including holes) is moved, rotated, scaled, or mirrored in its plane, shall warn when
+                  the matrix couples the Z axis and use the in-plane part, and shall report a collapsed
+                  in-plane part as a warning and yield nothing.
+                justification: |
+                  2D shapes live in the XY plane; a transform that cannot be honored there must say so rather
+                  than silently dropping its Z part, and the transformed shape must remain well formed.
+                tests:
+                  - ScadTransforms_Flat_TransformsBecomeTheExpectedSlab
+                  - ScadTransforms_Flat_OutOfPlaneParts_AreIgnoredWithWarning
+                  - ScadTransforms_Flat_ShapeWithHole_KeepsItsHole
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-Resize
+                title: >-
+                  The ScadTransforms unit shall build resize as a scaling about the origin so that the
+                  bounding box of the children gets the requested size per axis, where a zero component keeps
+                  its axis unless auto (a flag, or a vector of flags) makes it follow the proportions of the
+                  first requested axis, and shall accept and ignore convexity.
+                justification: |
+                  Resize is expressed in the size of the result rather than a factor; the factor derivation
+                  and the auto rule must be exact, and the scaling center is the origin, as for scale.
+                tests:
+                  - ScadResize_AllAxes_GivesTheRequestedSize
+                  - ScadResize_AutoAndZero_KeepOrFollowProportions
+                  - ScadResize_OffsetChild_ScalesAboutTheOrigin
+                  - ScadResize_Convexity_IsAcceptedSilently
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ResizeBounds
+                title: >-
+                  The ScadTransforms unit shall size a resize from the exact extent of the whole union of its
+                  children, recomputed from the vertices when a rotation that is not a multiple of 90 degrees
+                  made the propagated box loose, shall use only X and Y for 2D shapes, and shall report
+                  nothing for children that are exact.
+                justification: |
+                  The result of a resize must have precisely the requested size; using the box of a rotated
+                  box would make rotated children too small.
+                tests:
+                  - ScadResize_RotatedChild_UsesExactVertexExtent
+                  - ScadResize_Union_UsesTheWholeExtent
+                  - ScadResize_ExactChildren_ReportNothing
+                  - ScadResize_Flat_ResizesInThePlane
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ResizeDegenerate
+                title: >-
+                  The ScadTransforms unit shall warn at the location of the instance and skip an axis along
+                  which the children have no extent, shall treat resize without newsize as the identity, and
+                  shall leave empty children empty without a warning.
+                justification: |
+                  A size cannot be imposed on an axis without extent; the author must be told, and the
+                  other axes must still be resized.
+                tests:
+                  - ScadResize_AxisWithoutExtent_WarnsAndSkipsIt
+                  - ScadResize_NoSizeOrNoChildren_IsHarmless
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorForms
+                title: >-
+                  The ScadTransforms unit shall build color from a name of the CSS named-color table (all 148
+                  names and transparent, case-insensitive), a hexadecimal string # rgb, # rgba,  # rrggbb, or
+                  # rrggbbaa, or a vector of three or four numbers from 0 to 1 (clamped and rounded to the
+                  nearest of 256 levels), given positionally or as c.
+                justification: |
+                  Color values are the visible output of the module; every table entry, every hexadecimal
+                  form, and the clamping and rounding rule must be exact.
+                tests:
+                  - ScadColorTable_Colors_HoldTheCssNamesAndTransparent
+                  - ScadColors_EveryName_RendersAsItsTableEntry
+                  - ScadColors_Forms_GiveTheExpectedOpaqueColor
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorInvalid
+                title: >-
+                  The ScadTransforms unit shall report an invalid color value (an unknown name, a malformed
+                  hexadecimal string, a vector of the wrong length or with a non-number, or any other type) as
+                  a warning at the location of the instance and keep the children uncolored, shall warn about
+                  an invalid alpha while still applying the color, and shall change nothing and report nothing
+                  for color without a value or without children.
+                justification: |
+                  A color typo must be visible without losing the geometry that the author drew.
+                tests:
+                  - ScadColors_InvalidColor_WarnsAndLeavesChildrenUncolored
+                  - ScadColors_InvalidAlpha_WarnsAndAppliesTheColor
+                  - ScadColors_NoColorOrNoChildren_IsSilent
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorNesting
+                title: >-
+                  The ScadTransforms unit shall color every child of the module, 2D shapes (including a
+                  transformed 2D tree) and solids alike, shall keep the color through transforms in either
+                  order, and shall let the innermost color win without affecting siblings.
+                justification: |
+                  Color follows the structure of the model; a nested color must override an outer one and
+                  never leak to unrelated geometry.
+                tests:
+                  - ScadColors_Nesting_InnermostWinsAndSiblingsAreUnaffected
+                  - ScadColors_SeveralChildren_AreAllColored
+                  - ScadColors_ThroughTransforms_IsKept
+                  - ScadColors_FlatShape_ColorsTheSlab
+                  - ScadColors_AroundTransformedFlatShape_ColorsTheSlab
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha
+                title: >-
+                  The ScadTransforms unit shall draw a color with an alpha below 1 (from a vector, a
+                  hexadecimal string, the alpha argument, or transparent) opaque and report the unsupported
+                  feature scad-color-alpha once at the location of the instance, shall let the alpha argument
+                  override the alpha of the color value, shall report nothing for an alpha of 1 or more, shall
+                  report an alpha without a color but color nothing, and shall throw in strict mode.
+                justification: |
+                  Transparency is not rendered yet; the degradation must be visible, and strict mode must be
+                  able to refuse it.
+                tests:
+                  - ScadColors_AlphaBelowOne_ReportsAndDrawsOpaque
+                  - ScadColors_FullAlpha_IsNotReportedAndAlphaArgumentOverrides
+                  - ScadColors_AlphaOnly_ReportsWithoutColoring
+                  - ScadColors_StrictMode_ThrowsForAlpha

@@ -1,6 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
+<!-- cspell:ignore multmatrix Minkowski -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -191,12 +192,13 @@ software items, specifically:
   Plan. `CanvasNetRender3D` depends on the `CanvasNet` system's `Canvas`
   subsystem only (for `Surface` and `Rgba32`), and must never reference `CanvasNetSvg`,
   `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, or `CanvasNetCharts`
-- **CanvasNetScad (System)** — A separate software system (not yet packable) providing a clean-room
-  front end for the OpenSCAD language that parses and evaluates (but does not yet render) models. It
-  contains one direct unit, `ScadDocument` (the public `Parse`/`Open`/`Evaluate` API with
-  `ScadOpenOptions`, `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadSourceLocation`,
-  `ScadSyntaxException`, `ScadEvaluationException`, and the recorded `include`/`use` directives, module
-  names, and function names), and two internal subsystems. The `ScadLanguage` subsystem has two units:
+- **CanvasNetScad (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Scad`)
+  providing a clean-room front end for the OpenSCAD language that parses, evaluates, builds the geometry of,
+  and renders models. It contains one direct unit, `ScadDocument` (the public `Parse`/`Open`/`Evaluate`/
+  `BuildScene`/`Render` API with `ScadOpenOptions`, `ScadEvaluationOptions`, `ScadEvaluationResult`,
+  `ScadRenderOptions`, `ScadLimits`, `ScadSourceLocation`, `ScadSyntaxException`, `ScadEvaluationException`,
+  and the recorded `include`/`use` directives, module names, and function names), and three internal
+  subsystems. The `ScadLanguage` subsystem has two units:
   `ScadLexer` (tokens with one-based locations) and `ScadParser` (recursive-descent statements and
   precedence-climbing expressions into an immutable syntax tree, with fail-fast single-error reporting and
   bounded nesting and source size). The `ScadEvaluation` subsystem has four units: `ScadValue` (the value
@@ -204,11 +206,16 @@ software items, specifically:
   modules and children, control flow, comprehensions, and a geometry-agnostic instantiation tree, with
   deterministic, stack-independent resource limits), `ScadBuiltinFunctions` (the built-in function library
   and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
-  resolution inside a sandbox). Geometry generation, rendering, and packaging are deferred to later phases — see
-  _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full supported/deferred
-  boundary and its Implementation Phase Plan. `CanvasNetScad` references the `CanvasNet` system and
-  `CanvasNetRender3D` as architectural scaffolding for later phases but uses no type from either in
-  its current phase, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
+  resolution inside a sandbox). The `ScadGeometry` subsystem has four units: `ScadGeometryBuilder` (the
+  iterative, recursion-free walk that combines the instantiation tree into a Render3D scene, with modifiers,
+  booleans, the triangle budget, reporting, and the node-to-location map), `ScadPrimitives` (cube, sphere,
+  cylinder, polyhedron, square, circle, polygon, and the fragment rule), `ScadTransforms` (translate, rotate,
+  scale, mirror, multmatrix, resize, and color), and `ScadExtrusions` (linear and rotational extrusion over a
+  symbolic 2D shape tree). Hull, Minkowski, text, and a few other constructs are deferred and reported as
+  unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
+  supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` uses the `CanvasNet` system
+  (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
+  public API, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
 
 The following OTS items are also covered:
@@ -320,15 +327,16 @@ architectural boundary. The root namespace contains no types. See the Folder Lay
 and _CanvasNetRender3D System Design_ (`canvas-net-render3d.md`).
 
 A further sibling top-level system, `CanvasNetScad`, likewise lives in this same repository
-alongside `CanvasNet` (and is intended to be distributed as its own NuGet package, which is not yet
-enabled). It is a clean-room front end for the OpenSCAD language that parses and evaluates models (it does
-not yet render them): its direct unit, `ScadDocument` (namespace `DemaConsulting.CanvasNet.Scad`), is the
-public API, its internal `ScadLanguage` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Language`) holds
-the `ScadLexer` and `ScadParser` units, and its internal `ScadEvaluation` subsystem (namespace
-`DemaConsulting.CanvasNet.Scad.Evaluation`) holds the `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`,
-and `ScadFileResolver` units. It references the `CanvasNet` system and `CanvasNetRender3D` only as
-architectural scaffolding for the later rendering phase. See the Folder Layout
-section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+alongside `CanvasNet` and is distributed as its own NuGet package. It is a clean-room front end for the OpenSCAD
+language that parses, evaluates, builds the geometry of, and renders models: its direct unit, `ScadDocument`
+(namespace `DemaConsulting.CanvasNet.Scad`), is the public API, its internal `ScadLanguage` subsystem
+(namespace `DemaConsulting.CanvasNet.Scad.Language`) holds the `ScadLexer` and `ScadParser` units, its internal
+`ScadEvaluation` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Evaluation`) holds the `ScadValue`,
+`ScadEvaluator`, `ScadBuiltinFunctions`, and `ScadFileResolver` units, and its internal `ScadGeometry`
+subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGeometryBuilder`,
+`ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units. It uses the `CanvasNet` system (`Surface`,
+`Rgba32`) and `CanvasNetRender3D` (the scene model, tessellation, and renderer) through their public API. See
+the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 ## Folder Layout
 
@@ -691,18 +699,20 @@ src/DemaConsulting.CanvasNet.Render3D/
 `Canvas` subsystem (`Surface`, `Rgba32`) — see _CanvasNetRender3D System Design_
 (`canvas-net-render3d.md`).
 
-The `CanvasNetScad` system lives in the `src/DemaConsulting.CanvasNet.Scad/` project folder (a
-separate `DemaConsulting.CanvasNet.Scad` package that is not yet packable). The `ScadDocument` unit
-occupies the project root; the internal `ScadLanguage` and `ScadEvaluation` subsystems occupy the
-`Language/` and `Evaluation/` sub-folders, whose names equal their sub-namespaces; no unit has a nested
-sub-folder of its own (see _CanvasNetScad System Design_, `canvas-net-scad.md`):
+The `CanvasNetScad` system lives in the `src/DemaConsulting.CanvasNet.Scad/` project folder (the separate
+`DemaConsulting.CanvasNet.Scad` package). The `ScadDocument` unit
+occupies the project root; the internal `ScadLanguage`, `ScadEvaluation`, and `ScadGeometry` subsystems occupy the
+`Language/`, `Evaluation/`, and `Geometry/` sub-folders, whose names equal their sub-namespaces; no unit has a
+nested sub-folder of its own (see _CanvasNetScad System Design_, `canvas-net-scad.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Scad/
-├── DemaConsulting.CanvasNet.Scad.csproj — Project definition (net8.0/net9.0/net10.0; IsPackable false)
+├── DemaConsulting.CanvasNet.Scad.csproj — Package definition (net8.0/net9.0/net10.0; packable)
 ├── NamespaceDoc.cs                — Namespace-level XML documentation (incl. clean-room statement)
 ├── ScadDocument.cs                — ScadDocument: Parse/Open entry points and file-scope facts
 ├── ScadDocument.Evaluate.cs       — ScadDocument: Evaluate (headless evaluation, handler delivery)
+├── ScadDocument.Render.cs         — ScadDocument: BuildScene and Render (geometry, rendering, delivery)
+├── ScadRenderOptions.cs           — ScadDocument: immutable, validated render options
 ├── ScadOpenOptions.cs             — ScadDocument: immutable, validated open options
 ├── ScadSourceLocation.cs          — ScadDocument: file, line, and column value
 ├── ScadSyntaxException.cs         — ScadDocument: syntax error exception with location
@@ -728,6 +738,32 @@ src/DemaConsulting.CanvasNet.Scad/
 │   ├── ScadParser.Statements.cs   — ScadParser: statement productions
 │   ├── ScadParser.Expressions.cs  — ScadParser: expression productions
 │   └── ScadTreeDepth.cs           — ScadParser: iterative syntax-tree height verification
+├── Geometry/                      — ScadGeometry subsystem (internal)
+│   ├── NamespaceDoc.cs            — ScadGeometry: namespace-level XML documentation
+│   ├── ScadGeometryBuilder.cs     — ScadGeometryBuilder: Build entry point and scene root
+│   ├── ScadGeometryBuilder.Walk.cs — ScadGeometryBuilder: iterative post-order engine
+│   ├── ScadGeometryBuilder.Modifiers.cs — ScadGeometryBuilder: show-only pre-pass
+│   ├── ScadGeometryBuilder.Unsupported.cs — ScadGeometryBuilder: dispatch and unsupported-module tables
+│   ├── ScadGeo.cs                 — ScadGeometryBuilder: result of building one subtree, with bounds
+│   ├── ScadGeometryContext.cs     — ScadGeometryBuilder: per-build services, settings, built scene
+│   ├── ScadSceneMap.cs            — ScadGeometryBuilder: mesh node to source location map
+│   ├── ScadReporter.cs            — ScadGeometryBuilder: single reporting channel and strict mode
+│   ├── ScadSceneOptions.cs        — ScadGeometryBuilder: renderer options copy and report mapping
+│   ├── ScadFeatureIds.cs          — ScadGeometryBuilder: stable unsupported-feature identifiers
+│   ├── ScadBooleans.cs            — ScadGeometryBuilder: union, difference, and intersection combiners
+│   ├── ScadArguments.cs           — ScadPrimitives: argument binder and typed readers
+│   ├── ScadFragmentRule.cs        — ScadPrimitives: fragment count from $fn, $fa, and $fs
+│   ├── ScadPrimitives.cs          — ScadPrimitives: cube, sphere, and cylinder
+│   ├── ScadPrimitives.Shapes2D.cs — ScadPrimitives: square, circle, and polygon
+│   ├── ScadPrimitives.Polyhedron.cs — ScadPrimitives: polyhedron and face triangulation
+│   ├── ScadTransforms.cs          — ScadTransforms: translate, rotate, scale, mirror, and multmatrix
+│   ├── ScadTransforms.Resize.cs   — ScadTransforms: resize
+│   ├── ScadColors.cs              — ScadTransforms: color
+│   ├── ScadColorTable.cs          — ScadTransforms: named color table
+│   ├── ScadShape2D.cs             — ScadExtrusions: symbolic 2D shape tree
+│   ├── ScadExtrusions.cs          — ScadExtrusions: distribution over the 2D tree and slabs
+│   ├── ScadExtrusions.Linear.cs   — ScadExtrusions: linear_extrude
+│   └── ScadExtrusions.Rotate.cs   — ScadExtrusions: rotate_extrude
 └── Evaluation/                    — ScadEvaluation subsystem (internal)
     ├── NamespaceDoc.cs            — Namespace-level XML documentation
     ├── ScadValueKind.cs           — ScadValue: value kind enumeration
@@ -773,8 +809,9 @@ src/DemaConsulting.CanvasNet.Scad/
     └── ScadFileResolver.Paths.cs  — ScadFileResolver: path normalization and sandbox
 ```
 
-In its current phase `CanvasNetScad` uses no type from the rest of this repository; its project
-references to the `CanvasNet` system and `CanvasNetRender3D` are scaffolding for later phases — see
+`CanvasNetScad` uses the `CanvasNet` system (`Surface`, `Rgba32`) and `CanvasNetRender3D` (scene model,
+tessellation, rendering) through their public API from the `ScadGeometry` subsystem and the `BuildScene` and
+`Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 ## Document Conventions

@@ -34,6 +34,11 @@ input-files:
   - docs/design/canvas-net-scad/scad-evaluation/scad-evaluator.md
   - docs/design/canvas-net-scad/scad-evaluation/scad-builtin-functions.md
   - docs/design/canvas-net-scad/scad-evaluation/scad-file-resolver.md
+  - docs/design/canvas-net-scad/scad-geometry.md
+  - docs/design/canvas-net-scad/scad-geometry/scad-geometry-builder.md
+  - docs/design/canvas-net-scad/scad-geometry/scad-primitives.md
+  - docs/design/canvas-net-scad/scad-geometry/scad-transforms.md
+  - docs/design/canvas-net-scad/scad-geometry/scad-extrusions.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md
