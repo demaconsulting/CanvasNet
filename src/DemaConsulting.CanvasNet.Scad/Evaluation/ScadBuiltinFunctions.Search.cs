@@ -24,13 +24,21 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 ///         list-length limit, and the comparison work (match elements times candidates) is charged before the first
 ///         comparison. The source is read in place (a string is walked by scalar and compared by ordinal comparison, a vector
 ///         is read by element or row column) and no list of per-scalar strings is built, and the list-length limit
-///         is checked while the indices of a multi-match search are collected.
+///         is checked while the indices of a multi-match search are collected. The charge alone cannot interrupt a
+///         scan that fits the budget, so the scan also counts its candidate comparisons (across all match elements)
+///         and polls the host for cancellation every <see cref="SearchPollInterval"/> of them.
 ///     </para>
 /// </remarks>
 internal static partial class ScadBuiltinFunctions
 {
     /// <summary>The stable identifier of the unsupported-feature report for unsupported <c>search</c> forms.</summary>
     internal const string SearchFormFeature = "scad-search-form";
+
+    /// <summary>
+    ///     The number of candidate comparisons between two cancellation polls inside a <c>search</c>.
+    /// </summary>
+    /// <remarks>The interval is counted, not timed, so the poll points are deterministic; it mirrors the matrix product's interval.</remarks>
+    internal const long SearchPollInterval = 65_536;
 
     /// <summary>
     ///     Implements <c>search</c>.
@@ -72,12 +80,13 @@ internal static partial class ScadBuiltinFunctions
         var entries = new ScadValue[matchCount];
         var position = 0;
         long collected = 0;
+        var poll = new SearchPoll(host);
         for (var i = 0; i < entries.Length; i++)
         {
             var key = NextSearchKey(match, i, ref position);
             entries[i] = returns == 1
-                ? FirstMatchEntry(key, table)
-                : AllMatchesEntry(key, table, returns, host, ref collected);
+                ? FirstMatchEntry(key, table, ref poll)
+                : AllMatchesEntry(key, table, returns, host, ref collected, ref poll);
         }
 
         return ScadValue.FromVector(entries);
@@ -171,12 +180,13 @@ internal static partial class ScadBuiltinFunctions
     /// </summary>
     /// <param name="key">The match element.</param>
     /// <param name="table">The source.</param>
+    /// <param name="poll">The comparison counter that polls for cancellation; updated.</param>
     /// <returns>The index as a number, or the empty vector when nothing matches.</returns>
-    private static ScadValue FirstMatchEntry(SearchKey key, SearchTable table)
+    private static ScadValue FirstMatchEntry(SearchKey key, SearchTable table, ref SearchPoll poll)
     {
         var index = 0;
         var position = 0;
-        return table.TryFindNext(key, ref index, ref position, out var found)
+        return table.TryFindNext(key, ref index, ref position, out var found, ref poll)
             ? ScadValue.FromNumber(found)
             : ScadValue.FromVector(Array.Empty<ScadValue>());
     }
@@ -190,19 +200,48 @@ internal static partial class ScadBuiltinFunctions
     /// <param name="returns">The returns-per-match option: 0 for all matches, otherwise the maximum number to find.</param>
     /// <param name="host">The evaluator services.</param>
     /// <param name="collected">The number of indices collected for all match elements so far; updated.</param>
+    /// <param name="poll">The comparison counter that polls for cancellation; updated.</param>
     /// <returns>The vector of matching indices in ascending order.</returns>
-    private static ScadValue AllMatchesEntry(SearchKey key, SearchTable table, int returns, IScadBuiltinHost host, ref long collected)
+    private static ScadValue AllMatchesEntry(SearchKey key, SearchTable table, int returns, IScadBuiltinHost host, ref long collected, ref SearchPoll poll)
     {
         var indices = new List<ScadValue>();
         var index = 0;
         var position = 0;
-        while ((returns == 0 || indices.Count < returns) && table.TryFindNext(key, ref index, ref position, out var found))
+        while ((returns == 0 || indices.Count < returns) && table.TryFindNext(key, ref index, ref position, out var found, ref poll))
         {
             host.CheckListLength(++collected);
             indices.Add(ScadValue.FromNumber(found));
         }
 
         return ScadValue.FromVector(indices.ToArray());
+    }
+
+    /// <summary>
+    ///     Counts the candidate comparisons of one search and polls the host for cancellation at a fixed interval.
+    /// </summary>
+    /// <remarks>
+    ///     The comparison work is charged up front (so the step limit stops a huge search at once), but the charge
+    ///     alone never polls inside the scan, so a long scan within the budget could not be canceled. Counting the
+    ///     comparisons, not timing them, keeps the poll points deterministic.
+    /// </remarks>
+    /// <param name="host">The host to poll.</param>
+    private struct SearchPoll(IScadBuiltinHost host)
+    {
+        /// <summary>The comparisons made since the last poll.</summary>
+        private long _pending;
+
+        /// <summary>
+        ///     Records one comparison and polls the host when <see cref="SearchPollInterval"/> comparisons have passed.
+        /// </summary>
+        /// <exception cref="OperationCanceledException">Thrown by the host's poll when cancellation was requested.</exception>
+        public void Compared()
+        {
+            if (++_pending >= SearchPollInterval)
+            {
+                _pending = 0;
+                host.Poll();
+            }
+        }
     }
 
     /// <summary>
@@ -272,19 +311,21 @@ internal static partial class ScadBuiltinFunctions
         /// <param name="index">The index of the next candidate to examine; advanced past the match.</param>
         /// <param name="position">The UTF-16 position of that candidate in a string source; advanced past the match.</param>
         /// <param name="found">The index of the match.</param>
+        /// <param name="poll">The comparison counter that polls for cancellation; updated for every candidate examined.</param>
         /// <returns><see langword="true"/> when a further match exists.</returns>
-        public bool TryFindNext(SearchKey key, ref int index, ref int position, out int found)
+        public bool TryFindNext(SearchKey key, ref int index, ref int position, out int found, ref SearchPoll poll)
         {
             found = -1;
             if (_text is not null)
             {
-                return TryFindNextScalar(_text, key, ref index, ref position, out found);
+                return TryFindNextScalar(_text, key, ref index, ref position, out found, ref poll);
             }
 
             // A row contributes its column, a shorter row nothing (undef never matches), any other element itself
             while (index < _items!.Count)
             {
                 var current = index++;
+                poll.Compared();
                 var item = _items[current];
                 var candidate = item.Kind == ScadValueKind.Vector ? RowColumn(item.AsVector) : item;
                 if (key.Matches(candidate))
@@ -312,8 +353,9 @@ internal static partial class ScadBuiltinFunctions
         /// <param name="index">The scalar index of the next candidate; advanced past the match.</param>
         /// <param name="position">The UTF-16 position of that scalar; advanced past the match.</param>
         /// <param name="found">The scalar index of the match.</param>
+        /// <param name="poll">The comparison counter that polls for cancellation; updated for every scalar examined.</param>
         /// <returns><see langword="true"/> when a further match exists.</returns>
-        private static bool TryFindNextScalar(string text, SearchKey key, ref int index, ref int position, out int found)
+        private static bool TryFindNextScalar(string text, SearchKey key, ref int index, ref int position, out int found, ref SearchPoll poll)
         {
             found = -1;
 
@@ -329,6 +371,7 @@ internal static partial class ScadBuiltinFunctions
                 var length = ScadText.ScalarLength(text, start);
                 var current = index++;
                 position += length;
+                poll.Compared();
                 if (length == key.Length && text.AsSpan(start, length).SequenceEqual(key.Text.AsSpan(key.Start, key.Length)))
                 {
                     found = current;

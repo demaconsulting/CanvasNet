@@ -146,6 +146,56 @@ public class ScadBuiltinSearchLimitTests
     }
 
     /// <summary>
+    ///     Validates that a search polls for cancellation at a fixed count of comparisons, so a long scan is
+    ///     interruptible and the number of polls is exactly the comparisons divided by the interval.
+    /// </summary>
+    /// <param name="form">The search form: a vector source, a string source, or several match elements.</param>
+    [Theory]
+    [InlineData("vector-source")]
+    [InlineData("string-source")]
+    [InlineData("several-match-elements")]
+    [InlineData("all-matches")]
+    public void ScadBuiltinSearchLimit_Search_Scans_PollAtFixedComparisonIntervals(string form)
+    {
+        // Arrange: each form examines a known number of candidates in total
+        var (args, comparisons) = form switch
+        {
+            "vector-source" => (new[] { N(7), Nums([.. Enumerable.Repeat(1.0, 200_000)]) }, 200_000L),
+            "string-source" => (new[] { S("z"), S(new string('a', 200_000)) }, 200_000L),
+            "several-match-elements" => (new[] { Nums(7, 8, 9, 10), Nums([.. Enumerable.Repeat(1.0, 40_000)]) }, 160_000L),
+            _ => (new[] { N(1), Nums([.. Enumerable.Repeat(1.0, 100_000)]), N(0) }, 100_000L),
+        };
+        var host = new ScadTestBuiltinHost { MaxListLength = 1_000_000 };
+
+        // Act
+        host.Call("search", args);
+
+        // Assert: the interval is counted, not timed, so the assertion is exact
+        Assert.Equal(comparisons / ScadBuiltinFunctions.SearchPollInterval, host.Polls);
+        Assert.Equal(65_536, ScadBuiltinFunctions.SearchPollInterval);
+    }
+
+    /// <summary>
+    ///     Validates that a poll that throws stops a long search, and that a short search never polls.
+    /// </summary>
+    [Fact]
+    public void ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch()
+    {
+        // Arrange: 200,000 candidates would poll three times; the second poll cancels
+        var source = Nums([.. Enumerable.Repeat(1.0, 200_000)]);
+        var canceling = new ScadTestBuiltinHost { MaxListLength = 1_000_000, CancelAfterPolls = 2 };
+        var quiet = new ScadTestBuiltinHost { MaxListLength = 1_000_000 };
+
+        // Act
+        quiet.Call("search", N(7), Nums(1, 2, 3));
+
+        // Assert
+        Assert.Throws<OperationCanceledException>(() => canceling.Call("search", N(7), source));
+        Assert.Equal(2, canceling.Polls);
+        Assert.Equal(0, quiet.Polls);
+    }
+
+    /// <summary>
     ///     Validates that the preprocessing of both arguments is charged linearly, in addition to the comparison work.
     /// </summary>
     [Fact]

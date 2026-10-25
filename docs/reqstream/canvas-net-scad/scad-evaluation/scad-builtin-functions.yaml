@@ -200,7 +200,8 @@ sections:
                   The ScadBuiltinFunctions unit shall check the list-length and string-length limits
                   before building a result and shall charge the evaluation budget for work
                   proportional to its input (for str, per element while it formats; for search, the
-                  preprocessing of its arguments before it builds any intermediate list), so that a
+                  preprocessing of its arguments before it builds any intermediate list, and
+                  cancellation polls at a fixed count of comparisons while it scans), so that a
                   function such as concat, str, chr, rands, or
                   search that would exceed a limit fails with the limit error instead of consuming
                   memory or time, while a result exactly at a limit succeeds.
@@ -216,6 +217,8 @@ sections:
                   - ScadBuiltinSearchLimit_Search_AllMatches_ExceedingListLimit_StopsDuringCollection
                   - ScadBuiltinSearchLimit_Search_VectorSource_RowsAndColumns_ResultsUnchanged
                   - ScadBuiltinSearchLimit_Search_ChargeIncludesLinearPreprocessing
+                  - ScadBuiltinSearchLimit_Search_Scans_PollAtFixedComparisonIntervals
+                  - ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch
                   - ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws
                   - ScadBuiltinString_Str_LargeVector_ChargesPerElement
                   - ScadBuiltinString_Str_StepLimit_StopsDuringFormatting

@@ -175,6 +175,8 @@ parameter filled with `undef`.
 `ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_AllMatches_ExceedingListLimit_StopsDuringCollection`,
 `ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_VectorSource_RowsAndColumns_ResultsUnchanged`,
 `ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_ChargeIncludesLinearPreprocessing`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_Scans_PollAtFixedComparisonIntervals`,
+`ScadBuiltinSearchLimitTests.ScadBuiltinSearchLimit_Search_CancellationDuringScan_StopsTheSearch`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_AtLimit_Succeeds_OneOver_Throws`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_LargeVector_ChargesPerElement`,
 `ScadBuiltinStringTests.ScadBuiltinString_Str_StepLimit_StopsDuringFormatting`,
@@ -194,3 +196,8 @@ instead of after the whole index list was built. The charge scenario asserts the
 size` plus the comparison work, and the regression theory pins ten result forms (number against string, empty
 operands, NaN, a lone surrogate, a surrogate pair as one scalar, rows mixed with plain elements, string elements
 against scalars, a column of rows, bounded counts) that gave the same results before the in-place implementation.
+The polling scenarios use the recording host (which counts `Poll` calls): a vector source of 200,000 candidates, a
+string source of 200,000 scalars, four match elements against 40,000 candidates (160,000 comparisons, counted across
+match elements), and an all-matches search over 100,000 candidates poll exactly `comparisons / 65,536` times (3, 3,
+2, and 1), so the poll points are counted and not timed; a poll that throws stops the search after exactly two
+polls, and a short search never polls.

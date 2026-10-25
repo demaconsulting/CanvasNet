@@ -211,7 +211,8 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   number of statements include expansion may produce are bounded. A document with `include` or `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.
 - **Cancellation.** A `CancellationToken` is honored before any work (and before any resolver call), between
-  files, every 1,024 evaluation steps, every 65,536 multiply-adds of a matrix product, and at every loop turn; the
+  files, every 1,024 evaluation steps, every 65,536 multiply-adds of a matrix product, every 65,536 candidate
+  comparisons of a `search`, every 65,536 elements counted for an operand, and at every loop turn; the
   exception is never wrapped, so even a program with the step limit raised to the maximum can be abandoned.
 - **Buffered, ordered event delivery.** Echo lines, warnings, and unsupported-feature reports are buffered
   while evaluating and delivered to the caller's handlers afterwards, in order, on the calling thread only

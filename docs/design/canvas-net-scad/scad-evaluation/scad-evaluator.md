@@ -328,7 +328,8 @@ matrix product).
 turn), checked against `MaxLoopIterations`, and each turn also polls cancellation. **Instances** are counted at
 creation. **Cancellation** is polled whenever the step count crosses a multiple of 1,024, at every loop turn,
 at every file load, at entry, and (through the host's `Poll`) every 65,536 multiply-adds inside a matrix
-product.
+product and every 65,536 candidate comparisons inside a `search`; counting an operand's elements polls every
+65,536 counted elements.
 
 ##### Stack Safety: Restart On A Large Stack
 

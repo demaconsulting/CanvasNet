@@ -203,7 +203,7 @@ or a tight virtual-memory limit (see _ScadEvaluator Unit Design_, _Memory reserv
 | `MaxInstances` | 1,000,000 | every instance created; also the number of statements include expansion may produce (phase A, before any step accounting exists) | `Instance limit exceeded (limit N)`, or `Included statement limit exceeded (limit N)` during expansion |
 | `MaxOutputLength` | 4,194,304 | the echo sink (cumulative characters after the prefix) | `Echo output limit exceeded (limit N)` |
 | `MaxDiagnostics` | 1,000 | the warning sink | not an error: collapsed into one notice |
-| cancellation | — | every 1,024 steps (so inside `str`/`echo` formatting), every 65,536 multiply-adds of a matrix product, every loop turn, every file load, entry | `OperationCanceledException` |
+| cancellation | — | every 1,024 steps (so inside `str`/`echo` formatting), every 65,536 multiply-adds of a matrix product, every 65,536 candidate comparisons of a `search`, every loop turn, every file load, entry | `OperationCanceledException` |
 <!-- markdownlint-enable MD013 -->
 
 #### Determinism
