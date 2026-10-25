@@ -783,7 +783,8 @@ public class Render3DSystemIntegrationTests
         Render3DTestHelpers.AssertVector(new Vector3D(6, 6, 6), rounded.Bounds.Max, 1e-9);
 
         // Assert: the top view is the rounded square - the straight edge reaches 6 units, the corner is cut by the
-        // quarter circle around (5,5) with radius 1 (inside at 0.8 units from the corner circle center, outside at 1.2),
+        // quarter circle around (5,5) with radius 1 (at 10 pixels per unit, the sample (5.7, 5.7) is 0.99 from the
+        // corner circle center and inside, the sample (6, 6) is 1.41 from it and outside),
         // and the covered area is 100 + 4 * 10 + pi = 143.14 square units up to the polygonal approximation
         Assert.Equal(blue, surface[120 + 59, 120]);
         Assert.Equal(White, surface[120 + 61, 120]);

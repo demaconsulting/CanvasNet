@@ -55,6 +55,12 @@ computed from the hull of the operand's vertices, so for an accepted operand the
 hull. Models with a huge offset relative to their size (more than about `1e6` times the feature size) can fail
 the test through coordinate rounding; they are reported, never approximated.
 
+**Non-finite measurements.** For coordinates beyond about `1e102` the volume and area overflow, and every comparison
+with NaN is false, so a tolerance test written as "reject if the difference is above the limit" would accept the
+operand. The volume, area and error bounds of the operand and of its hull are therefore checked to be finite first
+(otherwise `NotSupportedException`, "too large to measure"), and the positivity and tolerance tests are written as
+negated acceptance conditions, so that any remaining NaN fails the check instead of passing it.
+
 **Why a local (per-edge) tolerance was rejected.** A local test (every edge's dihedral angle or height deviation
 below a tolerance) is unsound: a gently concave bowl built from many facets passes any per-edge tolerance while
 the total deviation accumulates (a thousand edges each bending by `1e-3` radian deviate by a full radian), and

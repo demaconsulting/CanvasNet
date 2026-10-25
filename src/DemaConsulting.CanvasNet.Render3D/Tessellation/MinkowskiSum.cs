@@ -291,16 +291,28 @@ public static class MinkowskiSum
         }
 
         var volume = MeshTopology.SignedVolume(mesh.VertexSpan, mesh.IndexSpan, mesh.Bounds.Center, out var volumeError);
-        if (volume <= volumeError)
+        var hullVolume = MeshTopology.SignedVolume(hull.VertexSpan, hull.IndexSpan, hull.Bounds.Center, out var hullError);
+        var area = MeshTopology.SurfaceArea(mesh.VertexSpan, mesh.IndexSpan);
+        var hullArea = MeshTopology.SurfaceArea(hull.VertexSpan, hull.IndexSpan);
+
+        // A measurement that overflows (coordinates beyond about 1e102) is NaN or infinite, and every comparison with
+        // NaN is false, so it must be rejected explicitly instead of passing the tolerance test
+        if (!double.IsFinite(volume) || !double.IsFinite(volumeError) || !double.IsFinite(hullVolume)
+            || !double.IsFinite(hullError) || !double.IsFinite(area) || !double.IsFinite(hullArea))
+        {
+            throw new NotSupportedException(
+                $"The operand '{name}' is too large to measure (its volume or area is not a finite number), so its convexity cannot be verified.");
+        }
+
+        if (!(volume > volumeError))
         {
             throw new NotSupportedException($"The operand '{name}' has no determinable positive volume.");
         }
 
-        var hullVolume = MeshTopology.SignedVolume(hull.VertexSpan, hull.IndexSpan, hull.Bounds.Center, out var hullError);
-        var area = MeshTopology.SurfaceArea(mesh.VertexSpan, mesh.IndexSpan);
-        var hullArea = MeshTopology.SurfaceArea(hull.VertexSpan, hull.IndexSpan);
         var volumeLimit = (ConvexityTolerance * hullVolume) + volumeError + hullError;
-        if (Math.Abs(volume - hullVolume) > volumeLimit || Math.Abs(area - hullArea) > ConvexityTolerance * hullArea)
+        var volumeFits = Math.Abs(volume - hullVolume) <= volumeLimit;
+        var areaFits = Math.Abs(area - hullArea) <= ConvexityTolerance * hullArea;
+        if (!(volumeFits && areaFits))
         {
             throw new NotSupportedException(
                 $"The operand '{name}' is not convex: it differs from its convex hull by more than {ConvexityTolerance:G} of the hull volume or area, so it is not approximated.");

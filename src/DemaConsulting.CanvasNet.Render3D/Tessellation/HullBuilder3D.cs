@@ -184,7 +184,7 @@ internal sealed class HullBuilder3D
                 $"The hull needs at least four distinct points, but only {count} were given (degenerate input).");
         }
 
-        // The second point is the first one off the line through the first two points
+        // The third point is the first one off the line through the first two points
         var first = points[0];
         var second = points[1];
         var third = -1;

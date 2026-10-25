@@ -936,7 +936,7 @@ public class ScadRenderSystemTests
     [Fact]
     public void ScadRenderSystem_Minkowski_RoundsTheCubeAndKeepsItsExtents()
     {
-        // Arrange: the rounded block x -2..12, y -2..8 and the hexagon view x 38..52 (14 units around 45.013) and
+        // Arrange: the rounded block x -1..11, y -1..7 inside a view of x -2..12, y -2..8, and the hexagon view x 38..52 (14 units around 45.013) and
         // y -1.5..10.5 (12 units around 4.507) holding the hexagon, shifted off the
         // edges, and the two blocks x 18..36, y -1..7 aligned to the pixels
         var roundedView = ScadOrthoView.Top(5.013, 3.007, 14, 10, 4);

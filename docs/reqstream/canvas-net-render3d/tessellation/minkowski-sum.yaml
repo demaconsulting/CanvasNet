@@ -47,7 +47,8 @@ sections:
                   prism with a hole, two disjoint cubes, two cubes touching at an edge or a vertex, a
                   chord-triangulated octahedron, and a double-wound apex), while accepting
                   rounding-level and sub-tolerance deviations; the tolerance is relative to the volume
-                  and area of the hull.
+                  and area of the hull. An operand whose measured volume or area is not a finite number
+                  (coordinates around 1e103 and beyond) shall be rejected, never accepted.
                 justification: |
                   The hull of the vertex sums is only the Minkowski sum for convex operands, so a
                   non-convex operand would silently produce a wrong solid; a global comparison with the
@@ -58,6 +59,7 @@ sections:
                   - MinkowskiSum_ConvexSum_NonConvexOperand_ThrowsNotSupported
                   - MinkowskiSum_ConvexSum_OpenOrInvertedOperand_ThrowsNotSupported
                   - MinkowskiSum_ConvexSum_ToleranceBoundary_RejectsDentsAboveTauAndAcceptsRoundingNoise
+                  - MinkowskiSum_ConvexSum_NonFiniteMeasurements_AreRejected
 
               - id: CanvasNetRender3D-Tessellation-MinkowskiSum-Validation
                 title: >-

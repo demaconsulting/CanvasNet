@@ -66,9 +66,13 @@ Asserts the analytic sums and the acceptance of rotated, mirrored and hull-outpu
 
 **Tests**: `MinkowskiSumTests.MinkowskiSum_ConvexSum_NonConvexOperand_ThrowsNotSupported`,
 `MinkowskiSumTests.MinkowskiSum_ConvexSum_OpenOrInvertedOperand_ThrowsNotSupported`,
-`MinkowskiSumTests.MinkowskiSum_ConvexSum_ToleranceBoundary_RejectsDentsAboveTauAndAcceptsRoundingNoise`
+`MinkowskiSumTests.MinkowskiSum_ConvexSum_ToleranceBoundary_RejectsDentsAboveTauAndAcceptsRoundingNoise`,
+`MinkowskiSumTests.MinkowskiSum_ConvexSum_NonFiniteMeasurements_AreRejected`
 
-Asserts the rejection catalogue, the defect messages and the tolerance boundary described above.
+Asserts the rejection catalogue, the defect messages and the tolerance boundary described above, and that
+non-convex operands (an L-prism, a dented cube, a ring) and a convex cube scaled by 1e103, whose volume and area
+overflow to infinity or NaN, are rejected with a "too large to measure" `NotSupportedException` by the sum (on either
+side) and by the pre-verification, while operands at 1e90 are still verified.
 
 ##### CanvasNetRender3D-Tessellation-MinkowskiSum-Validation: Arguments And The Work Bound Are Checked
 

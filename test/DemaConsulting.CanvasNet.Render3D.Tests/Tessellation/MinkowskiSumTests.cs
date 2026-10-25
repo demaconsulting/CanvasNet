@@ -351,6 +351,41 @@ public class MinkowskiSumTests
     }
 
     /// <summary>
+    ///     Validates that operands whose measured volume or area overflows (coordinates around 1e103, where the
+    ///     volume is about 1e309) are rejected with <see cref="NotSupportedException"/> and never accepted: the
+    ///     comparison against the tolerance is false for NaN, so a non-convex operand used to pass.
+    /// </summary>
+    [Fact]
+    public void MinkowskiSum_ConvexSum_NonFiniteMeasurements_AreRejected()
+    {
+        // Arrange: non-convex operands and a convex one at a scale where volume and area are not finite, and a unit cube
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+        var scale = Matrix4x4D.CreateScale(1e103);
+        var operands = new[]
+        {
+            CreateNonConvex("L-prism").Transform(scale),
+            CreateNonConvex("dented-cube").Transform(scale),
+            CreateNonConvex("ring").Transform(scale),
+            cube.Transform(scale),
+        };
+
+        foreach (var operand in operands)
+        {
+            // Act / Assert: rejected on either side by the sum and by the pre-verification
+            Assert.Throws<NotSupportedException>(() => Sum(operand, cube));
+            Assert.Throws<NotSupportedException>(() => Sum(cube, operand));
+            Assert.Throws<NotSupportedException>(() => MinkowskiSum.RequireConvexSolid(operand, "huge", TestContext.Current.CancellationToken));
+        }
+
+        // Assert: the message says the operand cannot be measured, and a large but measurable operand is still verified
+        var message = Assert.Throws<NotSupportedException>(() => Sum(cube.Transform(scale), cube)).Message;
+        Assert.Contains("too large to measure", message, StringComparison.Ordinal);
+        Assert.Contains("'a'", message, StringComparison.Ordinal);
+        Assert.Throws<NotSupportedException>(() => Sum(CreateNonConvex("L-prism").Transform(Matrix4x4D.CreateScale(1e90)), cube));
+        Assert.True(Sum(cube.Transform(Matrix4x4D.CreateScale(1e90)), cube).SignedVolume > 0.0);
+    }
+
+    /// <summary>
     ///     Validates the argument contract: null operands, operands without triangles and operands without
     ///     volume.
     /// </summary>
