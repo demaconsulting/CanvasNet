@@ -38,6 +38,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </remarks>
 internal static partial class ScadExtrusions
 {
+    /// <summary>The largest triangle estimate the planning arithmetic hands to the budget check (keeps the arithmetic far from overflow).</summary>
+    private const double EstimateCeiling = 1e18;
+
     /// <summary>
     ///     The state of one extrusion while its leaves are being extruded.
     /// </summary>
@@ -59,6 +62,29 @@ internal static partial class ScadExtrusions
 
         /// <summary>Gets the transformed regions of the valid leaves, by leaf node (reference equality).</summary>
         public Dictionary<ScadShape2D, PolygonRegion> Regions { get; }
+
+        /// <summary>Gets or sets a value indicating whether a leaf was rejected, so the whole extrusion is omitted.</summary>
+        public bool Failed { get; set; }
+
+        /// <summary>Gets or sets the union of the bounds of the meshes created so far.</summary>
+        public BoundingBox3D Bounds { get; set; } = BoundingBox3D.Empty;
+    }
+
+    /// <summary>
+    ///     Gets the 2D shape under an extrusion from the results of its children, warning about 3D children.
+    /// </summary>
+    /// <param name="node">The extrusion instance.</param>
+    /// <param name="results">The results of its children.</param>
+    /// <param name="context">The build context.</param>
+    /// <returns>The union of the 2D children, or <see cref="ScadGeo.Empty"/>.</returns>
+    private static ScadGeo CollectShape(ScadInstance node, List<ScadGeo> results, ScadGeometryContext context)
+    {
+        if (results.Any(r => r.Kind == ScadGeoKind.Solid))
+        {
+            context.Reporter.Warn($"{node.Name}: only 2D children can be extruded; the 3D children are ignored", node.Location);
+        }
+
+        return ScadBooleans.Union(node, results.Where(r => r.Kind == ScadGeoKind.Flat).ToList(), context);
     }
 
     /// <summary>
@@ -115,6 +141,13 @@ internal static partial class ScadExtrusions
 
         return new PolygonRegion(contours);
     }
+
+    /// <summary>
+    ///     Estimates a triangle count in double precision and turns it into a charge that cannot overflow.
+    /// </summary>
+    /// <param name="estimate">The estimate.</param>
+    /// <returns>The estimate as a <see cref="long"/>, saturated far below the maximum.</returns>
+    private static long Saturate(double estimate) => (long)Math.Min(estimate, EstimateCeiling);
 
     /// <summary>
     ///     Rebuilds the shape tree as a scene tree from the extruded leaves.
@@ -202,6 +235,60 @@ internal static partial class ScadExtrusions
                 }
 
                 return present.Count == 1 ? present[0] : new CsgNode(CsgOperation.Intersection, present);
+        }
+    }
+
+    /// <summary>
+    ///     Extrudes every leaf with one function and assembles the solid.
+    /// </summary>
+    /// <param name="job">The job.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="node">The instance that owns the extrusion (for reports).</param>
+    /// <param name="approximate">Whether the shape contains a difference or intersection.</param>
+    /// <param name="extrude">Extrudes one region into a mesh; may throw <see cref="ArgumentException"/>.</param>
+    /// <returns>The solid, or <see cref="ScadGeo.Empty"/> when nothing was produced or a leaf was rejected.</returns>
+    private static ScadGeo Extrude(Job job, ScadGeometryContext context, ScadInstance node, bool approximate, Func<PolygonRegion, Mesh> extrude)
+    {
+        var root = Distribute(job.Shape, leaf => ExtrudeLeaf(job, context, node, leaf, extrude));
+        if (job.Failed || root is null)
+        {
+            return ScadGeo.Empty;
+        }
+
+        return ScadGeo.FromSolid(root, job.Bounds, true, approximate);
+    }
+
+    /// <summary>
+    ///     Extrudes one leaf, mapping a tessellator rejection to the catch-all report.
+    /// </summary>
+    /// <param name="job">The job.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="node">The instance that owns the extrusion.</param>
+    /// <param name="leaf">The leaf.</param>
+    /// <param name="extrude">Extrudes one region into a mesh.</param>
+    /// <returns>The mesh node, or <see langword="null"/> when the leaf is invalid or was rejected.</returns>
+    private static SceneNode? ExtrudeLeaf(Job job, ScadGeometryContext context, ScadInstance node, ScadShape2D leaf, Func<PolygonRegion, Mesh> extrude)
+    {
+        if (job.Failed || !job.Regions.TryGetValue(leaf, out var region))
+        {
+            return null;
+        }
+
+        context.Poll();
+        try
+        {
+            var mesh = extrude(region);
+            job.Bounds = job.Bounds.Union(mesh.Bounds);
+            return mesh.TriangleCount == 0 ? null : context.CreateMeshNode(mesh, node.Location);
+        }
+        catch (ArgumentException ex)
+        {
+            job.Failed = true;
+            context.Reporter.Unsupported(
+                ScadFeatureIds.GeometryRejected,
+                $"{node.Name}: the geometry was rejected: {ex.Message}",
+                node.Location);
+            return null;
         }
     }
 

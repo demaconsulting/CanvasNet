@@ -71,6 +71,32 @@ public class ScadUnsupportedModuleTests
     }
 
     /// <summary>
+    ///     Validates the whole table: of every recognized built-in module, exactly the eight unsupported ones are
+    ///     reported as unsupported features, so a module added to the evaluator's list cannot be silently dropped.
+    /// </summary>
+    [Fact]
+    public void ScadUnsupportedModule_Table_CoversExactlyTheDocumentedModules()
+    {
+        // Arrange
+        var reported = new SortedSet<string>(StringComparer.Ordinal);
+
+        // Act
+        foreach (var name in ScadBuiltinModules.Names)
+        {
+            foreach (var feature in Build($"{name}();").Features)
+            {
+                Assert.Equal($"scad-module-{name}", feature);
+                reported.Add(name);
+            }
+        }
+
+        // Assert
+        Assert.Equal(
+            new[] { "hull", "import", "minkowski", "offset", "projection", "roof", "surface", "text" },
+            reported.ToArray());
+    }
+
+    /// <summary>
     ///     Validates that an unsupported module under transforms and booleans yields nothing there: a transform of
     ///     nothing is nothing, and a difference whose first operand is unsupported is empty.
     /// </summary>

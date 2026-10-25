@@ -18,7 +18,7 @@ public class ScadGeometryBuilderWalkTests
     private static readonly HashSet<string> Implemented =
         [
             "cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "union", "render", "difference", "intersection",
-            "translate", "rotate", "scale", "mirror", "multmatrix", "resize", "color",
+            "translate", "rotate", "scale", "mirror", "multmatrix", "resize", "color", "linear_extrude", "rotate_extrude",
         ];
 
     /// <summary>Gets the recognized built-in module names that are not built yet, as theory data.</summary>

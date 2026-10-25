@@ -178,6 +178,74 @@ public class ScadGeometryBuilderStackTests
     }
 
     /// <summary>
+    ///     Builds a hand-made extrusion of a nest of 2D differences (each removes a square from the previous result).
+    /// </summary>
+    /// <param name="depth">The number of nested 2D differences.</param>
+    /// <returns>The mesh count, the scene depth and whether the root is a boolean node.</returns>
+    private static (int Meshes, int Depth, bool RootIsCsg) BuildExtrudedBooleanChain(int depth)
+    {
+        ScadInstance Square() =>
+            new(ScadInstanceKind.BuiltinModule, "square", [new ScadInstanceArgument(null, N(1))], [], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+
+        var node = Square();
+        for (var i = 0; i < depth; i++)
+        {
+            node = new ScadInstance(ScadInstanceKind.BuiltinModule, "difference", [], [node, Square()], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+        }
+
+        var extrusion = new ScadInstance(ScadInstanceKind.BuiltinModule, "linear_extrude", [new ScadInstanceArgument(null, N(1))], [node], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+        var built = ScadGeometryBuilder.Build([extrusion], Settings(), new ScadEvaluationSink(ScadLimits.Default));
+        return (MeshNodes(built.Scene).Count, Depth(built.Scene), built.Scene.Root is CsgNode);
+    }
+
+    /// <summary>
+    ///     Validates that extruding a 20,000-level nest of 2D differences (the distribution over the 2D tree) works
+    ///     on 64 KiB and 256 KiB callers and gives the scene a big stack gives.
+    /// </summary>
+    /// <param name="stackSize">The caller's stack size in bytes.</param>
+    [Theory]
+    [InlineData(TinyStack)]
+    [InlineData(SmallStack)]
+    public void ScadGeometryBuilder_Build_DeepExtrudedBooleanChain_OnSmallStack_MatchesBigStack(int stackSize)
+    {
+        // Arrange
+        const int Levels = 20_000;
+
+        // Act
+        var big = OnSmallStack(() => BuildExtrudedBooleanChain(Levels), BigStack);
+        var small = OnSmallStack(() => BuildExtrudedBooleanChain(Levels), stackSize);
+
+        // Assert
+        Assert.Equal(big, small);
+        Assert.Equal((Levels + 1, Levels + 1, true), big);
+    }
+
+    /// <summary>
+    ///     Validates that a deep chain of 2D transforms written in source, extruded linearly and by rotation, builds
+    ///     through the whole front end on small caller stacks.
+    /// </summary>
+    /// <param name="stackSize">The caller's stack size in bytes.</param>
+    [Theory]
+    [InlineData(TinyStack)]
+    [InlineData(SmallStack)]
+    public void ScadGeometryBuilder_Build_DeepFlatTransformChainFromSource_OnSmallStack_Extrudes(int stackSize)
+    {
+        // Arrange
+        const string linear = "module t(n) { if (n > 0) translate([1, 0]) t(n - 1); else square(1); }\nlinear_extrude(1) t(3000);";
+        const string rotate = "module t(n) { if (n > 0) translate([1, 0]) t(n - 1); else square(1); }\nrotate_extrude($fn = 3) t(3000);";
+        var evaluation = new ScadEvaluationSettings { Limits = new ScadLimits { MaxRecursionDepth = 16_384 } };
+
+        // Act
+        var linearBounds = OnSmallStack(() => Build(linear, evaluation: evaluation).Scene.ComputeBounds(), stackSize);
+        var rotateBounds = OnSmallStack(() => Build(rotate, evaluation: evaluation).Scene.ComputeBounds(), stackSize);
+
+        // Assert
+        Assert.Equal(3000.0, linearBounds.Min.X, 1e-9);
+        Assert.Equal(3001.0, linearBounds.Max.X, 1e-9);
+        Assert.Equal(3001.0, rotateBounds.Max.X, 1e-9);
+    }
+
+    /// <summary>
     ///     Describes a built scene by its mesh count, depth and total volume.
     /// </summary>
     /// <param name="result">The build result.</param>

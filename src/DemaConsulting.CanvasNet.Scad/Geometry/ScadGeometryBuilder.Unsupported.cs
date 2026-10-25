@@ -53,6 +53,8 @@ internal sealed partial class ScadGeometryBuilder
             ["multmatrix"] = ScadTransforms.Multmatrix,
             ["resize"] = ScadTransforms.Resize,
             ["color"] = ScadColors.Color,
+            ["linear_extrude"] = ScadExtrusions.LinearExtrude,
+            ["rotate_extrude"] = ScadExtrusions.RotateExtrude,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
