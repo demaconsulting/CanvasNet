@@ -9,6 +9,7 @@
 <!-- cspell:ignore asvg -->
 <!-- cspell:ignore Visio NURBS -->
 <!-- cspell:ignore visio -->
+<!-- cspell:ignore multmatrix newsize rrggbbaa minkowski tessellators textmetrics fontmetrics -->
 
 ## Purpose
 
@@ -2854,7 +2855,10 @@ The `Rotate` method:
   from azimuth 0 toward `+angleDegrees` (counter-clockwise as seen from +Z).
 - `angleDegrees` must be in `(0, 360]`, and not so small that its radian value rounds to zero
   (`double.Epsilon` is rejected). Exactly 360 is a full revolution (`segments` at least 3, no
-  end caps); a smaller angle is a partial sweep (`segments` at least 1) with end caps at both ends.
+  end caps); a smaller angle is a partial sweep (`segments` at least 1) with end caps at both ends. In
+  every case each angular step, `angleDegrees / segments`, must be at most **120 degrees** (the step of
+  the coarsest full revolution); wider steps give flat or inside-out facets and are rejected. For
+  example `(90, 1)`, `(180, 2)`, and `(359, 3)` are valid, while `(180, 1)` and `(359, 2)` are not.
 - The whole profile must lie on **one side of the axis**: every vertex with `x >= 0`, or every
   vertex with `x <= 0`. A profile that **crosses the axis** (vertices with both signs) throws
   `ArgumentException`, as does a profile lying only on the axis. There is no tolerance: `x == 0`
@@ -2871,8 +2875,8 @@ The `Rotate` method:
 
 - `ArgumentNullException`: Thrown for a null region.
 - `ArgumentOutOfRangeException`: Thrown for a height that is not finite and positive, fewer than one
-  slice, an invalid scale, an angle outside `(0, 360]` (or one whose radian value is zero), or too few
-  segments.
+  slice, an invalid scale, an angle outside `(0, 360]` (or one whose radian value is zero), too few
+  segments, or a sweep step (`angleDegrees / segments`) wider than 120 degrees.
 - `ArgumentException`: Thrown for a non-finite twist, an apex (zero scale) over a region with a hole or
   several contours, a profile that crosses or lies on the rotation axis or touches it at an isolated
   vertex, a sweep step too small to resolve at a profile vertex's radius, or a result too
@@ -3228,12 +3232,193 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
   operand is not a closed, outward-oriented solid.
 
-### OpenSCAD Documents and the Include Sandbox
+### ScadDocument
 
-`ScadDocument` parses an OpenSCAD-language source (`Parse`, `Open`) and `Evaluate` runs it to an
-instantiation tree with echo output, warnings, and a report of unsupported features. `include` and `use`
-are resolved before evaluation and only through `ScadOpenOptions`: files under `BaseDirectory` or a
-`LibraryPaths` entry, or, when a `FileResolver` callback is supplied, only that callback with no file-system
+`ScadDocument` (namespace `DemaConsulting.CanvasNet.Scad`) is distributed via the separate
+`DemaConsulting.CanvasNet.Scad` NuGet package, which references the core `DemaConsulting.CanvasNet` and the
+`DemaConsulting.CanvasNet.Render3D` packages - see the Installation section of the project README. It is the single
+entry point for OpenSCAD-language models. A document is **immutable and thread-safe**: it is created from source
+text, checked for syntax once, and can then be evaluated, built into a scene, or rendered any number of times (and
+from several threads at once), each call giving the same result for the same options. The package is an
+independent, clean-room implementation of the language, not affiliated with the OpenSCAD project; it follows its
+own documented dialect (described below) and does not aim for pixel or tessellation parity with any other
+implementation.
+
+```csharp
+public sealed partial class ScadDocument
+{
+    public static ScadDocument Parse(string source, ScadOpenOptions? options = null);
+    public static ScadDocument Open(string path, ScadOpenOptions? options = null);
+    public static ScadDocument Open(Stream stream, ScadOpenOptions? options = null);
+
+    public string? SourceName { get; }
+    public IReadOnlyList<ScadDirective> Directives { get; }
+    public IReadOnlyList<string> ModuleNames { get; }
+    public IReadOnlyList<string> FunctionNames { get; }
+
+    public ScadEvaluationResult Evaluate(
+        ScadEvaluationOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public Scene BuildScene(
+        ScadRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public Surface Render(
+        int width,
+        int height,
+        ScadRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+- `Parse` and the two `Open` overloads read UTF-8 source (at most 4,194,304 characters) and throw a
+  `ScadSyntaxException` with the file, line, and column of the first syntax error. `Open(string)` names the source
+  by the path and uses the file's folder as the base directory for `include` and `use`; a string or stream document
+  has no base directory unless `ScadOpenOptions` supplies one (or a `FileResolver`).
+- `Evaluate` runs the program without generating geometry and returns the `echo` lines, the warnings, the
+  unsupported-feature reports, and the number of module instances.
+- `BuildScene` evaluates the program and returns a Render3D `Scene` in right-handed, Z-up model space, so you can
+  measure it (`scene.ComputeBounds()`), combine it with other scenes, or render it with your own camera and
+  `SceneRenderer`. Every call returns a new scene; a model without geometry gives a scene that renders as the
+  background.
+- `Render` evaluates, builds, and draws the model onto a new `Surface` of exactly `width` by `height` pixels. The
+  caller owns, and must dispose, the returned surface. Without a camera the view is **fitted to the model**: an
+  isometric perspective view (azimuth 45 degrees, elevation about 35.26 degrees) on a white background, with
+  neutral gray surfaces unless the model uses `color()`. The result is the same as `SceneRenderer.RenderFitted`
+  of the scene `BuildScene` returns, and rendering is deterministic: two renders of one document with the same
+  options are byte-identical, for every degree of parallelism.
+
+**Exceptions** (`BuildScene` and `Render`; `Evaluate` throws the same, except the render-only ones):
+
+- `ArgumentOutOfRangeException`: Thrown by `Render`, before anything is evaluated, when `width` or `height` is
+  outside 1 to `Surface.MaxDimension`.
+- `ArgumentException`: Thrown by `Render`, before anything is evaluated, when `ScadRenderOptions.Camera` is invalid
+  (for example eye equal to target).
+- `ScadSyntaxException`: Thrown when an included or used file contains a syntax error (its location names that
+  file).
+- `ScadEvaluationException`: Thrown, with the source location in the message, when an `assert` fails, a limit is
+  exceeded (including the triangle limit), an `include` or `use` violates the sandbox, or, without a location,
+  when the renderer's `MaxFragmentsPerTile` budget is exceeded by a model with booleans.
+- `ScadUnsupportedFeatureException`: Thrown at the first unsupported feature of any stage when
+  `ScadEvaluationOptions.ThrowOnUnsupportedFeature` is set (see *Unsupported Features and Strict Mode*).
+- `OperationCanceledException`: Thrown, never wrapped, when `cancellationToken` is canceled before or during the
+  work; with an already canceled token nothing is evaluated.
+- `InvalidDataException` and `IOException`: Thrown when an included or used file is longer than 4,194,304
+  characters or cannot be read.
+
+Nothing the model asks for is skipped silently: an invalid argument is a **warning** at the module's location and
+yields nothing for that instance, a construct this package recognizes but cannot build is an **unsupported
+feature** with a stable identifier, and an exhausted resource is an **error**. Warnings, unsupported features, and
+`echo` output of all stages are delivered to the handlers of `ScadEvaluationOptions` once, in the order they
+occurred, on the calling thread, before the method returns or throws.
+
+### ScadRenderOptions
+
+`ScadRenderOptions` is an immutable class; every property is init-only and validated when set, so one instance can
+be shared between threads and calls.
+
+<!-- markdownlint-disable MD013 -->
+| Property | Default | Meaning |
+| -------- | ------- | ------- |
+| `Evaluation` | `null` (default `ScadEvaluationOptions`) | The options of the evaluation: `-D`-style `Variables`, `Time` (`$t`), `Limits`, the `EchoHandler`, `WarningHandler`, and `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`. It is the single place that decides how problems are reported, for evaluation, geometry building, and rendering alike |
+| `Camera` | `null` | A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected by `Render` before evaluation. `BuildScene` ignores it |
+| `ViewAzimuthDegrees` | 45 | Azimuth of the fitted view (rotation about +Z); finite. Used only without a `Camera` |
+| `ViewElevationDegrees` | about 35.26 | Elevation of the fitted view; finite. Used only without a `Camera` |
+| `Projection` | `Perspective` | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera` |
+| `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
+| `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
+<!-- markdownlint-enable MD013 -->
+
+A `color()` in the model overrides `SceneOptions.DefaultColor`. `ScadLimits` (in `Evaluation.Limits`) bounds every
+resource of a call; besides the evaluation limits (`MaxRecursionDepth`, `MaxEvaluationSteps`,
+`MaxLoopIterations`, `MaxListLength`, `MaxStringLength`, `MaxIncludeDepth`, `MaxIncludedFiles`, `MaxInstances`,
+`MaxOutputLength`, `MaxDiagnostics`) it has `MaxTriangles` (a `long`, default 5,000,000, at least 1), the bound on
+the number of triangles the model's geometry may need. The size of every sphere, cylinder, circle, polyhedron,
+and extrusion is estimated **before** it is allocated, so a hostile model such as `sphere(1, $fn = 100000)`
+fails with a located `ScadEvaluationException` instead of exhausting memory.
+
+**Variables (`-D`).** `ScadEvaluationOptions.Variables` replaces every top-level assignment of the named variable
+in the document (and creates the variable when it is absent), including special variables such as `$fn`; values
+may be `null`, booleans, numbers, strings, or sequences of these (a sequence becomes a vector). Names must be
+ordinary identifiers (optionally starting with `$`).
+
+### Supported OpenSCAD Subset
+
+Everything below is built to a Render3D scene by `BuildScene` and `Render`. Arguments follow the OpenSCAD-language
+forms (positional or named); an unknown, surplus, or repeated argument is a warning, and `$fn`, `$fa`, `$fs`
+(see *Curve Resolution*) apply to the curved primitives. `convexity` arguments are accepted and ignored.
+
+<!-- markdownlint-disable MD013 -->
+| Module | Forms | Notes |
+| ------ | ----- | ----- |
+| `cube` | `cube(size, center)`; `size` is a number or `[x, y, z]` | Origin corner unless `center` |
+| `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r` |
+| `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
+| `polyhedron` | `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent | Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a warning. Concave planar faces are triangulated; an open shape is kept |
+| `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`) |
+| `translate`, `scale`, `mirror` | `translate(v)`, `scale(v)` with a number or vector, `mirror(v)` (reflection through the plane with normal `v`) | Work on solids and 2D shapes |
+| `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
+| `multmatrix` | `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix | A bottom row other than `[0, 0, 0, 1]` is `scad-multmatrix-projective` |
+| `resize` | `resize(newsize, auto)` | Scales about the origin so the children reach `newsize`; `auto` keeps proportions |
+| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins. A transparency below 1 is drawn opaque and reported |
+| `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
+| `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
+| `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is mirrored to the positive side |
+| `!` (show only) | `!cube(5);` | The marked subtrees become the whole model, **without** the transforms and colors of their ancestors |
+| `*` (disable) | `*cube(5);` | The subtree is ignored |
+| `#`, `%` | | Degraded and reported (see the next section) |
+<!-- markdownlint-enable MD013 -->
+
+Language features (variables, functions, modules with `children()`, `for`, `if`, `let`, comprehensions, `echo`,
+`assert`, `include` and `use`, and the built-in functions) are evaluated by the evaluator described in
+*ScadDocument* above; the geometry builder never interprets them again.
+
+#### Curve Resolution
+
+The number of segments of a circle of radius `r` follows a public, deterministic rule: a positive `$fn` gives
+`max(3, $fn)`; otherwise it is `ceil(max(min(360 / $fa, 2 * pi * r / $fs), 5))`, never below 3. With the defaults
+(`$fa = 12`, `$fs = 2`) a radius of 1 gives 5 segments and a radius of 10 gives 30. A sphere uses its own radius, a
+cylinder the larger of its two radii, and `rotate_extrude` and a twisted `linear_extrude` the largest radius of
+their profile. Increase `$fn` for smooth curves, for example `$fn = 64`; the triangle limit bounds the cost.
+
+### Unsupported Features and Strict Mode
+
+A construct the package recognizes but cannot build is reported as a `ScadUnsupportedFeature` with a stable,
+lower-case `Feature` identifier, a message, and the `ScadSourceLocation` of the module (the file is named for
+included and used files), and the rest of the model is still built. Reports are de-duplicated per location, so a
+module in a loop is reported once. The identifiers are part of the documented behavior of the package:
+
+<!-- markdownlint-disable MD013 -->
+| Identifier | Trigger | Effect |
+| ---------- | ------- | ------ |
+| `scad-module-text`, `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-module-hull`, `scad-module-minkowski` | Not supported yet | The module and its children are omitted |
+| `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
+| `scad-modifier-background` | The `%` modifier | The subtree is omitted |
+| `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `"transparent"`) | The geometry is drawn opaque |
+| `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | Estimated bounds are used |
+| `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
+| `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself, has no area, or is not finite | That shape is omitted |
+| `scad-polyhedron-face-invalid` | A polyhedron face that cannot be triangulated | The polyhedron is omitted |
+| `scad-linear-extrude-scale` | A negative `scale` component, or exactly one zero component | The extrusion is omitted |
+| `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands | The extrusion is omitted |
+| `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis | The extrusion is omitted |
+| `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
+| `scad-geometry-rejected` | Any other geometry the Render3D tessellators and extruders reject | The affected geometry is omitted; the message says why |
+| `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | `Render` found a defect in an operand of a `difference` or `intersection` (reported only when a handler or strict mode is set) | Reported at the module that produced the mesh; the image is still drawn |
+| `scad-function-<name>`, `scad-search-form` | An unimplemented built-in function (`parent_module`, `textmetrics`, `fontmetrics`) or `search` argument form | The call evaluates to `undef` |
+<!-- markdownlint-enable MD013 -->
+
+Pass a handler to receive the reports (and the warnings) as they are delivered, or set
+`ThrowOnUnsupportedFeature` to refuse a partial result: the first unsupported feature of any stage, after the
+earlier events were delivered, is thrown as a `ScadUnsupportedFeatureException` that carries the `Feature` and the
+`Location`. See Examples 23 to 25.
+
+### OpenSCAD Include Sandbox
+
+`include` and `use` are resolved before evaluation and only through `ScadOpenOptions`: files under `BaseDirectory`
+or a `LibraryPaths` entry, or, when a `FileResolver` callback is supplied, only that callback with no file-system
 access at all. Absolute paths, drive letters, and `..` above the root are rejected with a
 `ScadEvaluationException`, and a symbolic link or junction below a root is never followed.
 
@@ -3926,6 +4111,170 @@ var scene = new Scene(new GroupNode(
 
 using var image = SceneRenderer.RenderFitted(scene, 800, 400);
 PngCodec.Save(image, "extrusions.png");
+```
+
+## Example 23: Rendering an OpenSCAD Model
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+// A small bracket: a plate with two through-holes and a rounded boss. The model is plain OpenSCAD-language
+// source; ScadDocument.Open("bracket.scad") would read the same text from a file.
+var document = ScadDocument.Parse("""
+    $fn = 48;
+    module boss(r, h) { cylinder(r = r, h = h); }
+
+    difference() {
+        union() {
+            cube([40, 24, 4], center = true);
+            translate([0, 0, 2]) boss(8, 6);
+        }
+        for (x = [-14, 14]) translate([x, 0, 0]) cylinder(r = 2.5, h = 10, center = true);
+        cylinder(r = 4, h = 20, center = true);
+    }
+    """);
+
+// Render a fitted isometric view; the caller owns the surface. Surfaces are neutral gray on white by default.
+using var image = document.Render(800, 600);
+PngCodec.Save(image, "bracket.png");
+
+// Or build the Render3D scene to measure it, or to render it yourself with another camera. (The bounds of a
+// scene include every operand of a boolean, so the cutters count towards the height; X and Y are the plate.)
+var scene = document.BuildScene();
+var bounds = scene.ComputeBounds();
+Console.WriteLine($"{bounds.Max.X - bounds.Min.X} x {bounds.Max.Y - bounds.Min.Y}");
+// Output: 40 x 24
+```
+
+## Example 24: Customizing the View, Colors, and Variables
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    pegs = 3;      // can be overridden from outside, like a command-line -D pegs=5
+    pitch = 10;
+    $fn = 32;
+
+    color("steelblue") cube([pegs * pitch, pitch, 4]);
+    for (i = [0 : pegs - 1])
+        color(i % 2 == 0 ? "tomato" : "gold")
+            translate([pitch / 2 + i * pitch, pitch / 2, 4]) cylinder(r = 3, h = 6);
+    """);
+
+// 1. A fitted view from the front-right, in orthographic projection, on a dark background with smooth edges
+var look = new ScadRenderOptions
+{
+    ViewAzimuthDegrees = 20,
+    ViewElevationDegrees = 25,
+    Projection = CameraProjection.Orthographic,
+    SceneOptions = new SceneRenderOptions
+    {
+        BackgroundColor = new Rgba32(32, 34, 40, 255),
+        Supersampling = 4,
+    },
+};
+using var front = document.Render(800, 400, look);
+PngCodec.Save(front, "pegs-front.png");
+
+// 2. An explicit camera looking straight down at the model (a top view, model units)
+var top = new ScadRenderOptions
+{
+    Camera = new Camera
+    {
+        Eye = new Vector3D(25, 5, 100),
+        Target = new Vector3D(25, 5, 0),
+        Up = Vector3D.UnitY,
+        Projection = CameraProjection.Orthographic,
+        OrthographicHeight = 20,
+    },
+};
+using var plan = document.Render(800, 400, top);
+PngCodec.Save(plan, "pegs-top.png");
+
+// 3. Override variables from outside the source (the same as -D pegs=5 -D pitch=12), including special variables
+var variant = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions
+    {
+        Variables = new Dictionary<string, object?> { ["pegs"] = 5, ["pitch"] = 12, ["$fn"] = 64 },
+    },
+};
+using var longer = document.Render(800, 400, variant);
+PngCodec.Save(longer, "pegs-five.png");
+
+// 4. Bound the work for models you do not control: at most 200,000 triangles, and give up after 10 seconds
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+var bounded = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions { Limits = new ScadLimits { MaxTriangles = 200_000 } },
+};
+using var safe = document.Render(400, 200, bounded, timeout.Token);
+```
+
+## Example 25: Handling Unsupported Features and Strict Mode
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    cube(10);
+    translate([20, 0, 0]) text("label");
+    hull() { sphere(3); translate([8, 0, 0]) sphere(3); }
+    cube(-1);
+    %cube(2);
+    """, new ScadOpenOptions { SourceName = "model.scad" });
+
+// Lenient: everything that can be built is drawn, and every problem is reported once, in order, on this
+// thread, before Render returns
+var warnings = new List<ScadDiagnostic>();
+var unsupported = new List<ScadUnsupportedFeature>();
+var lenient = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions
+    {
+        WarningHandler = warnings.Add,
+        UnsupportedFeatureHandler = unsupported.Add,
+    },
+};
+using var image = document.Render(320, 240, lenient);
+
+foreach (var warning in warnings)
+{
+    Console.WriteLine(warning); // Output: model.scad:4:1: cube: size must be positive; the instance is ignored
+}
+
+foreach (var feature in unsupported)
+{
+    Console.WriteLine($"{feature.Location} {feature.Feature}");
+}
+// Output:
+// model.scad:2:23 scad-module-text
+// model.scad:3:1 scad-module-hull
+// model.scad:5:2 scad-modifier-background
+
+// Strict: refuse a partial result. The first unsupported feature of any stage throws, after the events that
+// preceded it were delivered to the handlers
+var strict = new ScadRenderOptions
+{
+    Evaluation = new ScadEvaluationOptions { ThrowOnUnsupportedFeature = true },
+};
+
+try
+{
+    using var never = document.Render(320, 240, strict);
+}
+catch (ScadUnsupportedFeatureException ex)
+{
+    Console.WriteLine($"{ex.Location}: {ex.Feature}"); // Output: model.scad:2:23: scad-module-text
+}
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)
