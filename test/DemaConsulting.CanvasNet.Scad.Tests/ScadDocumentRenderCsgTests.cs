@@ -137,6 +137,27 @@ public class ScadDocumentRenderCsgTests
     }
 
     /// <summary>
+    ///     Validates that a boolean model renders byte-identically twice and for every degree of parallelism.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Render_CsgModel_IsDeterministicForEveryParallelism()
+    {
+        // Arrange
+        var document = ScadDocument.Parse("difference() { cube(10); translate([5, 5, -1]) cylinder(r = 3, h = 12, $fn = 24); rotate([0, 0, 30]) translate([8, 0, 5]) sphere(3, $fn = 16); }");
+        ScadRenderOptions Options(int parallelism) => new() { SceneOptions = new SceneRenderOptions { MaxDegreeOfParallelism = parallelism } };
+
+        // Act
+        using var first = document.Render(48, 48, Options(1), TestContext.Current.CancellationToken);
+        using var second = document.Render(48, 48, Options(1), TestContext.Current.CancellationToken);
+        using var many = document.Render(48, 48, Options(-1), TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertSurfacesIdentical(first, second);
+        AssertSurfacesIdentical(first, many);
+        Assert.True(CountNon(first, White) > 100);
+    }
+
+    /// <summary>
     ///     Validates that a deeply nested difference, written in source, renders on 64 KiB and 256 KiB caller stacks
     ///     to exactly the image a big stack gives.
     /// </summary>

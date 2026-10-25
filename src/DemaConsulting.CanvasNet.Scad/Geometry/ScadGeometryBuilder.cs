@@ -17,15 +17,20 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///     <para>
 ///         <b>Dispatch.</b> A group (a user module, <c>for</c>, a modifier wrapper) and the <c>union</c> and
 ///         <c>render</c> modules combine their children as an implicit union; a recognized primitive builds a
-///         leaf; every other recognized module is reported as an unsupported feature (see
-///         <see cref="ScadFeatureIds"/>) and yields nothing, so nothing is silently skipped. Modifiers: <c>!</c>
-///         replaces the model with the outermost marked subtrees (without the transforms and colors of their
-///         ancestors), <c>#</c> renders normally and is reported as degraded, <c>%</c> omits the subtree and is
-///         reported.
+///         leaf; <c>difference</c>, <c>intersection</c>, the transforms (<c>translate</c>, <c>rotate</c>,
+///         <c>scale</c>, <c>mirror</c>, <c>multmatrix</c>, <c>resize</c>), <c>color</c> and the extrusions
+///         (<c>linear_extrude</c>, <c>rotate_extrude</c>) build from the results of their children (see the
+///         container table in <c>ScadGeometryBuilder.Unsupported.cs</c>); every other recognized module
+///         (<c>text</c>, <c>offset</c>, <c>projection</c>, <c>surface</c>, <c>import</c>, <c>roof</c>, <c>hull</c>,
+///         <c>minkowski</c>) is reported as an unsupported feature (see <see cref="ScadFeatureIds"/>) and yields
+///         nothing, so nothing is silently skipped. Modifiers: <c>!</c> replaces the model with the outermost
+///         marked subtrees (without the transforms and colors of their ancestors), <c>#</c> renders normally and is
+///         reported as degraded, <c>%</c> omits the subtree and is reported.
 ///     </para>
 ///     <para>
-///         <b>Dimensions.</b> The union of 2D shapes is a 2D shape; mixing 2D and 3D children in one union keeps the
-///         3D ones and warns about the dropped 2D ones. A 2D result at the top of the model becomes a thin slab of
+///         <b>Dimensions.</b> A 2D result is a symbolic <see cref="ScadShape2D"/> tree (booleans, planar transforms and
+///         colors over 2D leaves); an extrusion distributes over it. Mixing 2D and 3D children in one union keeps the
+///         3D ones and warns about the dropped 2D ones. A 2D result at the top of the model becomes thin slabs of
 ///         <see cref="ScadGeometrySettings.FlatShapeThickness"/> so that it is visible.
 ///     </para>
 ///     <para>

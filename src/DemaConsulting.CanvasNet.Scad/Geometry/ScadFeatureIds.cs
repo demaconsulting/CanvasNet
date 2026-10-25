@@ -50,6 +50,24 @@ internal static class ScadFeatureIds
     /// <summary>A <c>rotate_extrude</c> profile that touches the axis at an isolated vertex was omitted.</summary>
     public const string RotateExtrudeAxisContact = "scad-rotate-extrude-axis-contact";
 
+    /// <summary>The renderer found an open mesh (boundary edges) as an operand of a boolean (mapped from <c>render3d-csg-open-mesh</c>).</summary>
+    public const string CsgOpenMesh = "scad-csg-open-mesh";
+
+    /// <summary>The renderer found an edge shared by three or more triangles in a boolean operand (mapped from <c>render3d-csg-non-manifold-edge</c>).</summary>
+    public const string CsgNonManifoldEdge = "scad-csg-non-manifold-edge";
+
+    /// <summary>The renderer found inconsistently wound triangles in a boolean operand (mapped from <c>render3d-csg-inconsistent-winding</c>).</summary>
+    public const string CsgInconsistentWinding = "scad-csg-inconsistent-winding";
+
+    /// <summary>The renderer found degenerate triangles in a boolean operand (mapped from <c>render3d-csg-degenerate-triangle</c>).</summary>
+    public const string CsgDegenerateTriangle = "scad-csg-degenerate-triangle";
+
+    /// <summary>The renderer found a shell wound inside out in a boolean operand (mapped from <c>render3d-csg-inverted-mesh</c>).</summary>
+    public const string CsgInvertedMesh = "scad-csg-inverted-mesh";
+
+    /// <summary>The composed transform of a boolean operand is singular (mapped from <c>render3d-csg-singular-transform</c>).</summary>
+    public const string CsgSingularTransform = "scad-csg-singular-transform";
+
     /// <summary>
     ///     Gets the identifier of a module that is recognized but not built.
     /// </summary>
