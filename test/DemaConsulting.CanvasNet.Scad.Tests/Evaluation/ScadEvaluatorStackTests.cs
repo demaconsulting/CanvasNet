@@ -533,7 +533,14 @@ public class ScadEvaluatorStackTests
             () =>
             {
                 ScadEvaluator.SlotsForCurrentThread = slots;
-                result[0] = Record.Exception(() => Run(program, settings));
+                try
+                {
+                    result[0] = Record.Exception(() => Run(program, settings));
+                }
+                finally
+                {
+                    ScadEvaluator.SlotsForCurrentThread = null;
+                }
             },
             TinyCallerStackSize);
         caller.Start();
