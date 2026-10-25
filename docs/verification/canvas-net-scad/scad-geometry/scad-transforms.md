@@ -73,6 +73,10 @@ a translate without children builds nothing and reports nothing.
 `ScadTransformsTests.ScadTransforms_Rotate_Scalar_RotatesAboutZ`,
 `ScadTransformsTests.ScadTransforms_Rotate_AxisAngle_RotatesAboutTheAxis`,
 `ScadTransformsTests.ScadTransforms_Rotate_ZeroAxis_WarnsAndDoesNotRotate`,
+`ScadTransformsTests.ScadTransforms_RotateAndMirror_AxisWhoseLengthOverflows_IsADirection`,
+`ScadTransformsTests.ScadTransforms_Rotate_TinyAxis_IsADirection`,
+`ScadTransformsTests.ScadTransforms_Rotate_HugeAngle_EqualsTheReducedAngle`,
+`ScadTransformsTests.ScadTransforms_Rotate_NonFiniteOrUndefinedValues_WarnAndRemoveInstance`,
 `ScadTransformsTests.ScadTransforms_Rotate_VectorAngleWithAxis_WarnsAndUsesEuler`,
 `ScadTransformsTests.ScadTransforms_Rotate_NoAngle_IsIdentity`
 
@@ -81,7 +85,11 @@ Asserts that every combination of 90-degree turns in the vector form identifies 
 scalar angle turns about Z in both directions, that the axis-angle form follows the right-hand rule for coordinate
 and oblique axes, that an axis of any length works and a zero angle or a full turn is the identity, that a zero
 axis warns at the instance and leaves the box untouched, that an axis given with a vector angle warns and the Euler
-rotation applies, and that `rotate()` changes nothing.
+rotation applies, and that `rotate()` changes nothing. It also asserts that an axis or a mirror normal whose length
+overflows (`[1.7e308, 1.7e308, 0]`) or whose square rounds to zero (`[0, 0, 1e-300]`) is a direction rather than a zero
+vector, that angles of 1e20, -1e20, and 1e308 degrees rotate exactly like the same angle modulo 360 in the scalar,
+Euler, and axis-angle forms, and that a non-finite or undefined angle or axis component warns and removes the
+instance.
 
 ##### CanvasNetScad-ScadGeometry-ScadTransforms-Scale: Scaling
 

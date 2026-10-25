@@ -25,8 +25,10 @@ internal sealed partial class ScadGeometryBuilder
     ///     </para>
     /// </remarks>
     /// <param name="roots">The top-level instances.</param>
+    /// <param name="context">The build context, which polls cancellation on its fixed schedule once per visited instance.</param>
     /// <returns>The marked instances in document order; empty when the model has no <c>!</c>.</returns>
-    private static List<ScadInstance> FindShowOnlyRoots(IReadOnlyList<ScadInstance> roots)
+    /// <exception cref="OperationCanceledException">Thrown when the token of the build is canceled during the walk.</exception>
+    private static List<ScadInstance> FindShowOnlyRoots(IReadOnlyList<ScadInstance> roots, ScadGeometryContext context)
     {
         var found = new List<ScadInstance>();
         var stack = new Stack<ScadInstance>();
@@ -38,6 +40,7 @@ internal sealed partial class ScadGeometryBuilder
         while (stack.Count > 0)
         {
             var node = stack.Pop();
+            context.Tick();
             if ((node.Modifiers & ScadModifiers.ShowOnly) != 0)
             {
                 found.Add(node);

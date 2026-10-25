@@ -262,8 +262,16 @@ plain solids reports nothing, and that a boolean left with one operand stays exa
 `ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_LimitAtTheExactCount_AcceptsAndOneBelowRejects`,
 `ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo`,
 `ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps`,
-`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_ExtrusionOverBudget_FailsWithTheLocation`
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_ExtrusionOverBudget_FailsWithTheLocation`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_HugeSlicesWithTwoLeaves_IsRefusedWhateverTheBudget`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_ManySaturatedLeaves_AreRefusedNotWrapped`,
+`ScadGeometryBuilderTriangleChargeTests.ScadGeometryBuilder_Build_RejectedExtrusion_RefundsItsWholeCharge`
 
+Also asserts that `linear_extrude(height = 1, slices = 1e308)` over two profile leaves is refused with the triangle
+limit error at the extrusion for a budget of 5,000,000 and for `long.MaxValue` (a saturated estimate is never
+charged, so it cannot be refunded leaf by leaf into a negative counter), that twelve saturated leaves are refused
+instead of overflowing their sum, and that a `rotate_extrude` the extruder rejects refunds both of its leaves, so
+that two cubes of exactly the remaining 24 triangles still fit and the charge equals the triangles of the scene.
 Asserts that a hostile `$fn` on a sphere, cylinder, circle, and a polygon plus circle fails with
 `Triangle limit exceeded (limit 1000)` at the right line before allocating, that the default budget alone stops a
 sphere with a million fragments (`2:1: Triangle limit exceeded (limit 5000000)`), that eight cubes of twelve
@@ -282,7 +290,6 @@ fails located at the extrusion.
 
 **Tests**:
 `ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_ExtremeCoordinates_AreRejectedAtTheInstance`,
-`ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_OverflowingScale_IsWarnedAndOmitted`,
 `ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_ExtremeCoordinates_OmitOnlyTheOffendingInstance`,
 `ScadDocumentCoordinateRangeTests.ScadGeometryBuilder_LargeButSafeCoordinates_AreKept`,
 `ScadDocumentCoordinateRangeTests.ScadDocument_ExtremeTranslate_BuildSceneAndRenderAreConsistent`,
@@ -316,12 +323,16 @@ of height 2.5 and volume `4 * 2.5` (this last scenario resides in the `ScadPrimi
 **Tests**: `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_AlreadyCanceled_ThrowsBeforeTessellating`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_AlreadyCanceled_StopsWalkOverManyUnsupportedInstances`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NothingToDo_IgnoresCanceledToken`,
-`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink`
+`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink`,
+`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass`,
+`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes`
 
 Asserts that a canceled token throws `OperationCanceledException` before the first tessellation, that a walk over
 1,000 instances is stopped at the polling schedule, that an empty model completes even with a canceled token and an
-uncanceled token never interferes, and that the warning reported by the first instance is still in the sink after
-the build is canceled at the 256th instance.
+uncanceled token never interferes, that the warning reported by the first instance is still in the sink after
+the build is canceled (the show-only pre-pass of about 140 instances and the build share one 256-instance schedule), and
+that a canceled token stops the `!` pre-pass over 1,000 unmarked instances before the marked (unsupported) module is
+built or reported, while an uncanceled token lets the same model complete.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap: Location Map
 

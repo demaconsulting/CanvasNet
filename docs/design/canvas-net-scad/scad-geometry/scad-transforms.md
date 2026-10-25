@@ -76,17 +76,21 @@ Each module reads its arguments, builds a `Matrix4x4D`, and hands it to `Apply`:
   is an axis-angle rotation by the right-hand rule (`CreateFromAxisAngle`; an axis of any length is
   normalized by the Render3D factory). A vector `a` of one to three angles in degrees is the Euler form: the
   matrix is `Rx * Ry * Rz` in row-vector order, so **X is applied first, then Y, then Z**. A `v` given with a
-  vector `a` is ignored with the warning `rotate: v is ignored when a is a vector`. A zero (or non-finite
-  length) axis warns `rotate: the axis v is zero; the children are not rotated` and uses the identity, so the
-  children are kept. An absent `a` is the identity. A `v` that is not a vector of three numbers is an invalid
-  argument.
+  vector `a` is ignored with the warning `rotate: v is ignored when a is a vector`. An axis whose components are
+  all zero warns `rotate: the axis v is zero; the children are not rotated` and uses the identity, so the
+  children are kept; the test is on the components, not on the length, so an axis whose length overflows (such
+  as `[1.7e308, 1.7e308, 1.7e308]`) or whose square underflows is a perfectly good direction. An angle of huge
+  magnitude (1e15 degrees or more) is reduced modulo 360 (exact for doubles) before the matrix is built, so the
+  rotation is the same on every platform. An absent `a` is the identity. A `v` that is not a vector of three
+  numbers, and an angle that is not a finite number, is an invalid argument.
 - **`Scale`** — a number is a uniform factor; a vector of one to three numbers gives the per-axis factors,
   missing components are 1. A negative factor is a reflection: the wrapper's matrix has a negative determinant
   and Render3D flips the winding of such an instance itself, so the world mesh stays closed and outward
   oriented.
 - **`Mirror`** — `CreateMirror(v)`, a reflection through the plane through the origin with normal `v` (any
-  length); missing components are 0. A zero or non-finite normal warns `mirror: the normal v is zero; the
-  children are not mirrored` and uses the identity, so the children are kept.
+  length); missing components are 0. A normal whose components are all zero warns `mirror: the normal v is zero;
+  the children are not mirrored` and uses the identity, so the children are kept (a normal whose length merely
+  overflows is a direction, as for `rotate`).
 - **`Multmatrix`** — `m` is a vector of three or four rows of exactly four finite numbers. A fourth row other
   than `[0, 0, 0, 1]` (tested exactly for the first three entries and with `ScadNumbers.AreEqual` for the last)
   is **projective**: it cannot be rendered, so it is reported as the unsupported feature

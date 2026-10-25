@@ -192,6 +192,87 @@ public class ScadTransformsTests
     }
 
     /// <summary>
+    ///     Validates that an axis or a mirror normal whose length overflows (but whose direction is perfectly
+    ///     defined) is a direction, not a zero vector: the children are rotated or mirrored and no warning is given.
+    /// </summary>
+    [Fact]
+    public void ScadTransforms_RotateAndMirror_AxisWhoseLengthOverflows_IsADirection()
+    {
+        // Arrange / Act: a half turn about (1, 1, 0) swaps X and Y and negates Z; the mirror through the plane
+        // x + y = 0 maps (x, y) to (-y, -x)
+        var rotated = Build("rotate(180, [1.7e308, 1.7e308, 0]) cube(1);");
+        var mirrored = Build("mirror([1.7e308, 1.7e308, 0]) cube(1);");
+
+        // Assert
+        Assert.Empty(rotated.Warnings);
+        AssertBounds(rotated.WorldMesh.Bounds, new Vector3D(0, 0, -1), new Vector3D(1, 1, 0));
+        Assert.Empty(mirrored.Warnings);
+        AssertBounds(mirrored.WorldMesh.Bounds, new Vector3D(-1, -1, 0), new Vector3D(0, 0, 1));
+    }
+
+    /// <summary>
+    ///     Validates that an axis so small that its square rounds to zero is still a direction.
+    /// </summary>
+    [Fact]
+    public void ScadTransforms_Rotate_TinyAxis_IsADirection()
+    {
+        // Arrange / Act
+        var result = Build("rotate(90, [0, 0, 1e-300]) cube([1, 2, 3]);");
+
+        // Assert
+        Assert.Empty(result.Warnings);
+        AssertBounds(result.WorldMesh.Bounds, new Vector3D(-2, 0, 0), new Vector3D(0, 1, 3));
+    }
+
+    /// <summary>
+    ///     Validates that a huge finite angle rotates exactly like the same angle reduced modulo 360 (the result is
+    ///     the same on every platform and finite), in each of the forms of <c>rotate</c>.
+    /// </summary>
+    /// <param name="form">The rotate call with the placeholder <c>{0}</c> for the angle.</param>
+    [Theory]
+    [InlineData("rotate({0})")]
+    [InlineData("rotate([0, 0, {0}])")]
+    [InlineData("rotate({0}, [0, 0, 1])")]
+    public void ScadTransforms_Rotate_HugeAngle_EqualsTheReducedAngle(string form)
+    {
+        // Arrange: 1e20 and 1e308 are whole numbers of degrees, so the remainder is exact
+        foreach (var huge in new[] { 1e20, -1e20, 1e308 })
+        {
+            var reduced = huge % 360.0;
+            var expected = Build(string.Format(System.Globalization.CultureInfo.InvariantCulture, form, reduced.ToString("R", System.Globalization.CultureInfo.InvariantCulture)) + " cube([1, 2, 3]);");
+
+            // Act
+            var actual = Build(string.Format(System.Globalization.CultureInfo.InvariantCulture, form, huge.ToString("R", System.Globalization.CultureInfo.InvariantCulture)) + " cube([1, 2, 3]);");
+
+            // Assert
+            Assert.Empty(actual.Warnings);
+            AssertBounds(actual.WorldMesh.Bounds, expected.WorldMesh.Bounds.Min, expected.WorldMesh.Bounds.Max, 1e-6);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that an angle that is not finite is an invalid argument: a warning, and the instance is ignored.
+    /// </summary>
+    /// <param name="call">The rotate call.</param>
+    [Theory]
+    [InlineData("rotate(1 / 0)")]
+    [InlineData("rotate(-1 / 0)")]
+    [InlineData("rotate(0 / 0)")]
+    [InlineData("rotate([0, 0, 1 / 0])")]
+    [InlineData("rotate(90, [0, 0, 1 / 0])")]
+    [InlineData("rotate(1 / 0, [0, 0, 1])")]
+    [InlineData("rotate([0, undef, 90])")]
+    public void ScadTransforms_Rotate_NonFiniteOrUndefinedValues_WarnAndRemoveInstance(string call)
+    {
+        // Arrange / Act
+        var result = Build($"{call} cube(1);");
+
+        // Assert
+        Assert.Empty(result.Meshes);
+        Assert.Single(result.Warnings);
+    }
+
+    /// <summary>
     ///     Validates that an axis given together with a vector angle is ignored with a warning.
     /// </summary>
     [Fact]

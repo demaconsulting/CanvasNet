@@ -53,6 +53,10 @@ sections:
                   - ScadTransforms_Rotate_Scalar_RotatesAboutZ
                   - ScadTransforms_Rotate_AxisAngle_RotatesAboutTheAxis
                   - ScadTransforms_Rotate_ZeroAxis_WarnsAndDoesNotRotate
+                  - ScadTransforms_RotateAndMirror_AxisWhoseLengthOverflows_IsADirection
+                  - ScadTransforms_Rotate_TinyAxis_IsADirection
+                  - ScadTransforms_Rotate_HugeAngle_EqualsTheReducedAngle
+                  - ScadTransforms_Rotate_NonFiniteOrUndefinedValues_WarnAndRemoveInstance
                   - ScadTransforms_Rotate_VectorAngleWithAxis_WarnsAndUsesEuler
                   - ScadTransforms_Rotate_NoAngle_IsIdentity
 

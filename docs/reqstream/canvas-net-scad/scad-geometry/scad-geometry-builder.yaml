@@ -258,6 +258,9 @@ sections:
                   - ScadGeometryBuilder_Build_LinearExtrudeOfOuterWithTwoHoles_ChargesFiftyTwo
                   - ScadGeometryBuilder_Build_RotateExtrudeAndSlabWithHoles_ChargeTheExactCaps
                   - ScadGeometryBuilder_Build_ExtrusionOverBudget_FailsWithTheLocation
+                  - ScadGeometryBuilder_Build_HugeSlicesWithTwoLeaves_IsRefusedWhateverTheBudget
+                  - ScadGeometryBuilder_Build_ManySaturatedLeaves_AreRefusedNotWrapped
+                  - ScadGeometryBuilder_Build_RejectedExtrusion_RefundsItsWholeCharge
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
                 title: >-
@@ -273,7 +276,6 @@ sections:
                   and consistent between BuildScene, Render, and strict mode.
                 tests:
                   - ScadGeometryBuilder_ExtremeCoordinates_AreRejectedAtTheInstance
-                  - ScadGeometryBuilder_OverflowingScale_IsWarnedAndOmitted
                   - ScadGeometryBuilder_ExtremeCoordinates_OmitOnlyTheOffendingInstance
                   - ScadGeometryBuilder_LargeButSafeCoordinates_AreKept
                   - ScadDocument_ExtremeTranslate_BuildSceneAndRenderAreConsistent
@@ -308,6 +310,8 @@ sections:
                   - ScadGeometryBuilder_Build_AlreadyCanceled_StopsWalkOverManyUnsupportedInstances
                   - ScadGeometryBuilder_Build_NothingToDo_IgnoresCanceledToken
                   - ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink
+                  - ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass
+                  - ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap
                 title: >-

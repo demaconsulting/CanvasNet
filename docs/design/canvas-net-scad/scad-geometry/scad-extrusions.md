@@ -134,10 +134,17 @@ Builds `linear_extrude(height, center, convexity, twist, slices, scale)`:
    in`double` and saturated at 1e18 with `Saturate`; the slice count handed to the extruder is clamped to
    `int.MaxValue` (the budget check has already failed by then for any hostile value). A profile of one outer
    boundary and two holes with 12 vertices is therefore charged `24 + 2·14 = 52` (a rule of four triangles per
-   vertex would have charged 48). When a leaf's mesh is created, `SettleTriangles` reconciles the charge with the
-   mesh's actual triangle count (it differs only if the tessellator drops a triangle that rounds to degenerate),
-   so the charge always equals the triangles created; the charge of a leaf that is rejected or not attempted is
-   returned with `RefundTriangles`.
+   vertex would have charged 48). The charge of each leaf is computed **once**, kept in the job, and is the very
+   value that is charged, settled against the mesh, or refunded, so the three always agree. Leaf charges are
+   whole numbers (saturated at 1e18 by `Saturate`); a leaf whose count is saturated, or a total that would reach
+   1e18, cannot be built whatever the budget and is refused with the triangle-limit error before anything is
+   charged or allocated (the slice count handed to the extruder is clamped to`int.MaxValue`, but the check has
+   already failed by then for any hostile value). The aggregate is therefore the exact sum of the leaf charges,
+   a refund can never exceed what was charged, and the counter (also floored at zero by`RefundTriangles`) can
+   never go negative and let later geometry bypass`MaxTriangles`. When a leaf's mesh is created,
+   `SettleTriangles` reconciles the charge with the mesh's actual triangle count (it differs only if the
+   tessellator drops a triangle that rounds to degenerate), so the charge always equals the triangles created;
+   the charge of a leaf that is rejected or not attempted is returned with `RefundTriangles`.
 8. Each leaf is extruded with `Extruder.Linear(region, height, center, -twist, slices, scale)`; all leaves share
    the same slice count, so the faceting of the operands of a boolean agrees.
 
@@ -230,8 +237,9 @@ capability limits are unsupported features, and only a resource overrun throws.
   contours, negative scale, half-zero scale, axis crossing, axis contact, an invalid leaf under `linear_extrude`,
   an invalid leaf under `rotate_extrude`, and the extruder catch-all.
 - **`ScadEvaluationException`** (located at the extrusion, "Triangle limit exceeded (limit N)"): the exact
-  triangle count exceeds `MaxTriangles` (extrusions and slabs). The counts saturate, so a hostile slice count, twist,
-  or `$fn` fails cleanly without overflow and before any mesh is allocated.
+  triangle count exceeds `MaxTriangles` (extrusions and slabs). The counts saturate and a saturated count is
+  refused outright (see the budget step), so a hostile slice count, twist, or `$fn` fails cleanly without overflow
+  and before any mesh is allocated, even when `MaxTriangles` is `long.MaxValue`.
 - **`OperationCanceledException`** — polled for each leaf and before each extruder call; never wrapped.
 - **No recursion.** `EnumerateLeaves`, `ComputeVertexBounds`, `Distribute`, and `CombineOperands` are iterative
   (explicit stacks), and the builder never recurses either, so a deeply nested 2D tree (thousands of transforms or

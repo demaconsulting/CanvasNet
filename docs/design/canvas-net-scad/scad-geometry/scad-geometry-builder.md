@@ -172,9 +172,11 @@ The tables are `FrozenDictionary` instances keyed by ordinal module name:
 `intersection_for` reaches the builder as the built-in `intersection` whose children are one group per iteration
 (the evaluator's decision), so it needs no entry of its own.
 
-##### `FindShowOnlyRoots(roots)` — the `!` pre-pass
+##### `FindShowOnlyRoots(roots, context)` — the `!` pre-pass
 
 An explicit-stack depth-first walk that returns the **outermost** instances marked `!` in document order. It
+calls `context.Tick()` for every instance it visits, so cancellation is polled on the same fixed schedule as the
+rest of the build and a canceled build stops during the pre-pass of a large model. It
 never descends into a marked subtree (a `!` nested inside has no further effect) nor into a `%` subtree (that
 subtree is omitted, so a mark inside it does not take part in the model), and it visits every other instance
 regardless of its module, including modules that are not built. The marked subtrees become the whole model

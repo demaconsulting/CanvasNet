@@ -126,7 +126,7 @@ internal static partial class ScadTransforms
         }
 
         // Row-vector convention: the left factor is applied first, so this is X, then Y, then Z
-        var euler = Matrix4x4D.CreateRotationX(angles[0]) * Matrix4x4D.CreateRotationY(angles[1]) * Matrix4x4D.CreateRotationZ(angles[2]);
+        var euler = Matrix4x4D.CreateRotationX(ReduceAngle(angles[0])) * Matrix4x4D.CreateRotationY(ReduceAngle(angles[1])) * Matrix4x4D.CreateRotationZ(ReduceAngle(angles[2]));
         return Apply(instance, results, context, euler);
     }
 
@@ -182,7 +182,7 @@ internal static partial class ScadTransforms
         }
 
         var normal = new Vector3D(v[0], v[1], v[2]);
-        if (normal.Length <= 0.0 || !double.IsFinite(normal.Length))
+        if (IsZero(normal))
         {
             context.Reporter.Warn("mirror: the normal v is zero; the children are not mirrored", instance.Location);
             return Apply(instance, results, context, Matrix4x4D.Identity);
@@ -331,18 +331,42 @@ internal static partial class ScadTransforms
     {
         if (axis is null)
         {
-            return Matrix4x4D.CreateRotationZ(degrees);
+            return Matrix4x4D.CreateRotationZ(ReduceAngle(degrees));
         }
 
         var direction = new Vector3D(axis[0], axis[1], axis[2]);
-        if (!(direction.Length > 0.0) || !double.IsFinite(direction.Length))
+        if (IsZero(direction))
         {
             context.Reporter.Warn("rotate: the axis v is zero; the children are not rotated", node.Location);
             return Matrix4x4D.Identity;
         }
 
-        return Matrix4x4D.CreateFromAxisAngle(direction, degrees);
+        return Matrix4x4D.CreateFromAxisAngle(direction, ReduceAngle(degrees));
     }
+
+    /// <summary>
+    ///     Decides whether a finite vector is the zero vector.
+    /// </summary>
+    /// <remarks>
+    ///     The test is on the components, not on the length: the length of a finite vector can overflow to infinity
+    ///     (for example <c>[1.7e308, 1.7e308, 1.7e308]</c>), which must not be mistaken for a missing direction.
+    /// </remarks>
+    /// <param name="v">The vector (finite components).</param>
+    /// <returns><see langword="true"/> when every component is zero.</returns>
+    private static bool IsZero(Vector3D v) => v.X == 0.0 && v.Y == 0.0 && v.Z == 0.0;
+
+    /// <summary>
+    ///     Brings a huge finite angle into a range where the rotation builders convert it the same way on every
+    ///     platform.
+    /// </summary>
+    /// <remarks>
+    ///     The remainder after a division by 360 is exact for doubles, so the rotation is unchanged; without it, the
+    ///     snapping of near-quarter-turns converts the quarter count to an integer that does not fit, which is not
+    ///     defined identically everywhere.
+    /// </remarks>
+    /// <param name="degrees">The angle in degrees.</param>
+    /// <returns>The angle itself when it is moderate, otherwise its remainder modulo 360.</returns>
+    internal static double ReduceAngle(double degrees) => Math.Abs(degrees) < 1e15 ? degrees : degrees % 360.0;
 
     /// <summary>
     ///     Reports an invalid argument as a warning and returns the empty result.

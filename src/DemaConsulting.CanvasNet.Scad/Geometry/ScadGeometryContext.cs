@@ -108,11 +108,20 @@ internal sealed class ScadGeometryContext
     {
         if (estimate > _settings.MaxTriangles - _triangles)
         {
-            throw new ScadEvaluationException(
-                string.Create(CultureInfo.InvariantCulture, $"Triangle limit exceeded (limit {_settings.MaxTriangles})"),
-                location);
+            FailTriangleLimit(location);
         }
     }
+
+    /// <summary>
+    ///     Fails the build with the triangle-limit error, for an estimate that is over the budget or too large to
+    ///     be represented (and so can never be built).
+    /// </summary>
+    /// <param name="location">The location of the instance that would create the triangles.</param>
+    /// <exception cref="ScadEvaluationException">Always thrown.</exception>
+    public void FailTriangleLimit(ScadSourceLocation location) =>
+        throw new ScadEvaluationException(
+            string.Create(CultureInfo.InvariantCulture, $"Triangle limit exceeded (limit {_settings.MaxTriangles})"),
+            location);
 
     /// <summary>
     ///     Charges the predicted number of triangles of a mesh against the budget, failing before anything is allocated.
@@ -141,15 +150,20 @@ internal sealed class ScadGeometryContext
         }
         else
         {
-            _triangles -= charged - actual;
+            RefundTriangles(charged - actual);
         }
     }
 
     /// <summary>
     ///     Returns the charge of a mesh that was not created (it was rejected or never attempted).
     /// </summary>
+    /// <remarks>
+    ///     Every caller refunds exactly what it charged, so the counter never goes below zero; the floor only
+    ///     guarantees that an accounting mistake could never turn into a negative counter that lets later geometry
+    ///     bypass the limit.
+    /// </remarks>
     /// <param name="charged">The number charged for the mesh.</param>
-    public void RefundTriangles(long charged) => _triangles -= charged;
+    public void RefundTriangles(long charged) => _triangles = Math.Max(0L, _triangles - Math.Max(0L, charged));
 
     /// <summary>
     ///     Creates a mesh node and remembers the location that produced it.

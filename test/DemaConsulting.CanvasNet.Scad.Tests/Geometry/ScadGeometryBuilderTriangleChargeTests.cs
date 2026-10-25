@@ -166,4 +166,65 @@ public class ScadGeometryBuilderTriangleChargeTests
         Assert.Equal(new ScadSourceLocation(null, 2, 3), ex.Location);
         Assert.Contains("Triangle limit exceeded (limit 51)", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Validates that a hostile slice count over several profile leaves is refused before anything is
+    ///     allocated, whatever the budget: the aggregate estimate saturates, and it must neither be charged nor be
+    ///     refunded leaf by leaf (which would drive the counter negative and let later geometry bypass the limit).
+    /// </summary>
+    /// <param name="maxTriangles">The triangle budget, down to the largest representable one.</param>
+    [Theory]
+    [InlineData(5_000_000L)]
+    [InlineData(long.MaxValue)]
+    public void ScadGeometryBuilder_Build_HugeSlicesWithTwoLeaves_IsRefusedWhateverTheBudget(long maxTriangles)
+    {
+        // Arrange
+        const string Source = "\n  linear_extrude(height = 1, slices = 1e308) { square(1); translate([5, 0]) square(1); }";
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => Build(Source, Settings(maxTriangles: maxTriangles)));
+
+        // Assert
+        Assert.Equal(new ScadSourceLocation(null, 2, 3), ex.Location);
+        Assert.Contains("Triangle limit exceeded", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that many leaves whose saturated charges would overflow a sum are refused as over the limit,
+    ///     not charged with a wrapped-around (possibly negative) total.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_ManySaturatedLeaves_AreRefusedNotWrapped()
+    {
+        // Arrange: twelve leaves of 1e18 each would sum past the range of a long
+        var leaves = string.Join(' ', Enumerable.Range(0, 12).Select(i => $"translate([{i * 3}, 0]) square(1);"));
+        var source = $"linear_extrude(height = 1, slices = 1e308) {{ {leaves} }}";
+
+        // Act / Assert
+        Assert.Throws<ScadEvaluationException>(() => Build(source, Settings(maxTriangles: long.MaxValue)));
+    }
+
+    /// <summary>
+    ///     Validates that the charge of an extrusion the renderer's extruder rejects is returned in full (every
+    ///     leaf, the rejected one and the ones never attempted), so that the counter equals the triangles of the
+    ///     meshes that exist and the budget is still available to the geometry that follows.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_RejectedExtrusion_RefundsItsWholeCharge()
+    {
+        // Arrange: an angle too small for the extruder (reported as rejected); the two leaves charge 24 triangles
+        // together, and the two cubes that follow need exactly 24, so the budget is only enough when all is refunded
+        const string Source =
+            "rotate_extrude(angle = 5e-324) { translate([1, 0]) square(1); translate([4, 0]) square(1); }\n" +
+            "cube(1); translate([3, 0, 0]) cube(1);";
+
+        // Act
+        var result = Build(Source, Settings(maxTriangles: 24));
+
+        // Assert
+        Assert.Contains("scad-geometry-rejected", result.Features);
+        Assert.Equal(2, result.Meshes.Count);
+        Assert.Equal(24, result.MeshTriangles);
+        Assert.Equal(result.MeshTriangles, result.TrianglesCharged);
+    }
 }

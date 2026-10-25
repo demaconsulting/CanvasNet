@@ -72,14 +72,56 @@ public class ScadGeometryBuilderCancellationTests
         var sink = new ScadEvaluationSink(ScadLimits.Default);
         using var cts = new CancellationTokenSource();
         var evaluation = new ScadEvaluationSettings();
-        var output = ScadEvaluatorTestSupport.Run("cube(0);\nfor (i = [1:600]) translate([i, 0, 0]) cube(1);", evaluation, null, sink);
+        var output = ScadEvaluatorTestSupport.Run("cube(0);\nfor (i = [1:70]) translate([i, 0, 0]) cube(1);", evaluation, null, sink);
         cts.Cancel();
 
         // Act
         Assert.Throws<OperationCanceledException>(
             () => ScadGeometryBuilder.Build(output.Roots, Settings(cancellation: cts.Token), sink));
 
-        // Assert: cube(0) already warned before the cancellation point of the 256th instance
+        // Assert: the show-only pre-pass visits about 140 instances (under the 256 of one poll interval) and the build
+        // continues the count, so the first poll falls in the build, after cube(0) already warned
         Assert.Contains(sink.Diagnostics, d => d.Message.Contains("size must be positive", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates that the <c>!</c> pre-pass polls cancellation on the same fixed schedule as the build: a canceled
+    ///     token stops the walk over a large model before the marked subtree is found and built (the marked subtree
+    ///     here is an unsupported module, which would never poll by itself).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass()
+    {
+        // Arrange: 1,000 unmarked instances, then a marked module that is not built
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+        var output = ScadEvaluatorTestSupport.Run(
+            "for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!text(\"x\");",
+            new ScadEvaluationSettings(),
+            null,
+            sink);
+
+        // Act
+        Assert.Throws<OperationCanceledException>(
+            () => ScadGeometryBuilder.Build(output.Roots, Settings(cancellation: cts.Token), sink));
+
+        // Assert: nothing was built or reported, so the stop came from the pre-pass
+        Assert.Empty(sink.UnsupportedFeatures);
+    }
+
+    /// <summary>
+    ///     Validates that an uncanceled token lets the same model through the pre-pass: only the marked module is
+    ///     built (and reported as unsupported).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes()
+    {
+        // Arrange / Act
+        var result = Build("for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!text(\"x\");");
+
+        // Assert
+        Assert.Empty(result.Meshes);
+        Assert.Contains("scad-module-text", result.Features);
     }
 }

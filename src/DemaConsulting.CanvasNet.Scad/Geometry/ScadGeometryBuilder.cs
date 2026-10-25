@@ -73,7 +73,7 @@ internal sealed partial class ScadGeometryBuilder
         var builder = new ScadGeometryBuilder(context);
 
         // A model that contains '!' is just the marked subtrees; otherwise it is the union of the top-level instances
-        var showOnly = FindShowOnlyRoots(roots);
+        var showOnly = FindShowOnlyRoots(roots, context);
         var geo = builder.BuildForest(showOnly.Count > 0 ? showOnly : roots);
         var root = builder.ToSceneRoot(geo);
         return new ScadBuiltScene(new Scene(root), context.Map, context.TrianglesCharged);

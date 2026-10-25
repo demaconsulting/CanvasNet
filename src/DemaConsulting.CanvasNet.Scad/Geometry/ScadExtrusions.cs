@@ -64,6 +64,12 @@ internal static partial class ScadExtrusions
         /// <summary>Gets the transformed regions of the valid leaves, by leaf node (reference equality).</summary>
         public Dictionary<ScadShape2D, PolygonRegion> Regions { get; }
 
+        /// <summary>
+        ///     Gets the number of triangles charged for each leaf (by leaf node, reference equality): the one value
+        ///     that is charged, settled and refunded, so the three always agree.
+        /// </summary>
+        public Dictionary<ScadShape2D, long> Charges { get; } = new(ReferenceEqualityComparer.Instance);
+
         /// <summary>Gets or sets a value indicating whether a leaf was rejected, so the whole extrusion is omitted.</summary>
         public bool Failed { get; set; }
 
@@ -292,7 +298,10 @@ internal static partial class ScadExtrusions
     /// <remarks>
     ///     The exact triangle count of every leaf is charged before the first mesh is built, so an extrusion over the
     ///     budget fails without allocating; each leaf's charge is reconciled with its mesh when it is created and
-    ///     refunded when the leaf is not built.
+    ///     refunded when the leaf is not built. The charge of a leaf is computed once and is the very value that is
+    ///     settled or refunded, and an estimate too large to represent (a saturated leaf, or a sum reaching the
+    ///     ceiling) is rejected as over the limit before anything is charged, so the counter stays exact and never
+    ///     goes negative.
     /// </remarks>
     /// <param name="job">The job.</param>
     /// <param name="context">The build context.</param>
@@ -310,17 +319,28 @@ internal static partial class ScadExtrusions
         Func<PolygonRegion, long> predict,
         Func<PolygonRegion, Mesh> extrude)
     {
-        var total = 0.0;
+        var total = 0L;
         foreach (var leaf in job.Shape.EnumerateLeaves().Select(l => l.Leaf))
         {
-            if (job.Regions.TryGetValue(leaf, out var region))
+            if (!job.Regions.TryGetValue(leaf, out var region))
             {
-                total += predict(region);
+                continue;
             }
+
+            // A leaf whose count is saturated, or a sum that reaches the ceiling, cannot be built whatever the
+            // budget: reject it before anything is allocated, so every charge below is exact and refundable
+            var charge = predict(region);
+            if (charge >= EstimateCeiling || total > EstimateCeiling - charge)
+            {
+                context.FailTriangleLimit(node.Location);
+            }
+
+            job.Charges[leaf] = charge;
+            total += charge;
         }
 
-        context.ChargeTriangles(Saturate(total), node.Location);
-        var root = Distribute(job.Shape, leaf => ExtrudeLeaf(job, context, node, leaf, predict, extrude));
+        context.ChargeTriangles(total, node.Location);
+        var root = Distribute(job.Shape, leaf => ExtrudeLeaf(job, context, node, leaf, extrude));
         if (job.Failed || root is null)
         {
             return ScadGeo.Empty;
@@ -336,7 +356,6 @@ internal static partial class ScadExtrusions
     /// <param name="context">The build context.</param>
     /// <param name="node">The instance that owns the extrusion.</param>
     /// <param name="leaf">The leaf.</param>
-    /// <param name="predict">Gives the exact number of triangles the extrusion of a region has.</param>
     /// <param name="extrude">Extrudes one region into a mesh.</param>
     /// <returns>The mesh node, or <see langword="null"/> when the leaf is invalid or was rejected.</returns>
     private static SceneNode? ExtrudeLeaf(
@@ -344,7 +363,6 @@ internal static partial class ScadExtrusions
         ScadGeometryContext context,
         ScadInstance node,
         ScadShape2D leaf,
-        Func<PolygonRegion, long> predict,
         Func<PolygonRegion, Mesh> extrude)
     {
         if (!job.Regions.TryGetValue(leaf, out var region))
@@ -352,8 +370,8 @@ internal static partial class ScadExtrusions
             return null;
         }
 
-        // The charge of a leaf that is not built is returned
-        var charged = predict(region);
+        // The charge of a leaf that is not built is returned: exactly the amount that was charged for it
+        var charged = job.Charges[leaf];
         if (job.Failed)
         {
             context.RefundTriangles(charged);
@@ -399,18 +417,26 @@ internal static partial class ScadExtrusions
         {
             if (job.Regions.TryGetValue(leaf, out var region))
             {
-                context.ChargeTriangles(SlabTriangles(region), leaf.Location);
+                var charge = SlabTriangles(region);
+                if (charge >= EstimateCeiling)
+                {
+                    context.FailTriangleLimit(leaf.Location);
+                }
+
+                job.Charges[leaf] = charge;
+                context.ChargeTriangles(charge, leaf.Location);
             }
         }
 
         var root = Distribute(job.Shape, leaf =>
         {
-            if (!job.Regions.TryGetValue(leaf, out var region))
+            if (!job.Regions.ContainsKey(leaf))
             {
                 return null;
             }
 
-            var charged = SlabTriangles(region);
+            var charged = job.Charges[leaf];
+            var region = job.Regions[leaf];
             context.Poll();
             try
             {
