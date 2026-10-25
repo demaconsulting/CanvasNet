@@ -155,7 +155,7 @@ sections:
               - ScadOpenOptions_NullLibraryPaths_ThrowArgumentNullException
               - ScadOpenOptions_NullTextValues_AreAccepted
               - ScadOpenOptions_LibraryPaths_AreCopied
-              - ScadOpenOptions_AcceptedButNotConsumedYet_DoNotAffectParse
+              - ScadOpenOptions_EvaluationOnlySettings_DoNotAffectParse
               - ScadOpenOptions_Properties_AreInitOnly
 
           - id: CanvasNetScad-ScadDocument-SourceLimit

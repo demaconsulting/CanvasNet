@@ -162,7 +162,7 @@ that the default value has line and column zero and no file and renders as `?`.
 `ScadOpenOptionsTests.ScadOpenOptions_NullLibraryPaths_ThrowArgumentNullException`,
 `ScadOpenOptionsTests.ScadOpenOptions_NullTextValues_AreAccepted`,
 `ScadOpenOptionsTests.ScadOpenOptions_LibraryPaths_AreCopied`,
-`ScadOpenOptionsTests.ScadOpenOptions_AcceptedButNotConsumedYet_DoNotAffectParse`,
+`ScadOpenOptionsTests.ScadOpenOptions_EvaluationOnlySettings_DoNotAffectParse`,
 `ScadOpenOptionsTests.ScadOpenOptions_Properties_AreInitOnly`
 
 Asserts that a new instance has unset base directory, source name, and file resolver and an empty library path

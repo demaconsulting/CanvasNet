@@ -110,8 +110,7 @@ public class ScadEvaluatorEntryPointTests
     }
 
     /// <summary>
-    ///     Validates that the document's source name and base options reach the resolver: an unnamed document resolved
-    ///     with no base directory, library path or resolver cannot include.
+    ///     Validates that an include fails when no base directory, library path or resolver is available.
     /// </summary>
     [Fact]
     public void ScadEvaluatorEntryPoint_Evaluate_IncludeWithoutAnySource_IsAnEvaluationError()

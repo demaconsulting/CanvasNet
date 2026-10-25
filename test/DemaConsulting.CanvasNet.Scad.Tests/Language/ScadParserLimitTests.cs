@@ -487,6 +487,7 @@ public class ScadParserLimitTests
         Assert.All(errors, e => Assert.Equal(1, e.Location.Line));
         Assert.Single(program.Statements);
     }
+
     /// <summary>
     ///     Validates that the fallback path keeps exception type, location and stack trace, the caller's culture,
     ///     and the nesting error for input over the limit.

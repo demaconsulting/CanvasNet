@@ -91,6 +91,7 @@ public class ScadEvaluatorDeterminismTests
         Assert.Equal("ECHO: true, true", Assert.Single(output.Echo));
         Assert.Empty(output.Diagnostics);
     }
+
     /// <summary>
     ///     Validates that concurrent evaluations of the same program from several threads give identical results.
     /// </summary>

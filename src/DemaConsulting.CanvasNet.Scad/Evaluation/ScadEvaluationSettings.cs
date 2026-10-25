@@ -4,7 +4,8 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 ///     The inputs of one evaluation, already validated and converted.
 /// </summary>
 /// <remarks>
-///     The public options type is built on top of this in a later phase; tests construct it directly.
+///     <see cref="ScadDocument.Evaluate(ScadEvaluationOptions?, CancellationToken)"/> converts the public
+///     <see cref="ScadEvaluationOptions"/> into these internal settings; tests construct them directly.
 /// </remarks>
 internal sealed class ScadEvaluationSettings
 {
