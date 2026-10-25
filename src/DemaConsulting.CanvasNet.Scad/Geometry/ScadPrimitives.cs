@@ -258,7 +258,7 @@ internal static partial class ScadPrimitives
             return ScadGeo.Empty;
         }
 
-        return ScadGeo.FromSolid(context.CreateMeshNode(mesh, node.Location));
+        return ScadGeo.FromMesh(context.CreateMeshNode(mesh, node.Location));
     }
 
     /// <summary>

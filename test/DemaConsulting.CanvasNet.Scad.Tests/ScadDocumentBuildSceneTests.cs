@@ -103,14 +103,14 @@ public class ScadDocumentBuildSceneTests
         };
 
         // Act
-        ScadDocument.Parse("echo(1);\ncube(0);\ntranslate([1, 0, 0]) cube(1);").BuildScene(options, TestContext.Current.CancellationToken);
+        ScadDocument.Parse("echo(1);\ncube(0);\nhull() cube(1);").BuildScene(options, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(
             [
                 "echo ECHO: 1",
                 "warn 2:1 cube: size must be positive; the instance is ignored",
-                "unsupported 3:1 scad-module-translate",
+                "unsupported 3:1 scad-module-hull",
             ],
             events);
     }
@@ -137,13 +137,13 @@ public class ScadDocumentBuildSceneTests
 
         // Act
         var ex = Assert.Throws<ScadUnsupportedFeatureException>(
-            () => ScadDocument.Parse("echo(\"before\");\nrotate(1) cube(1);").BuildScene(options, TestContext.Current.CancellationToken));
+            () => ScadDocument.Parse("echo(\"before\");\nhull() cube(1);").BuildScene(options, TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.Equal("scad-module-rotate", ex.Feature);
+        Assert.Equal("scad-module-hull", ex.Feature);
         Assert.Equal(new ScadSourceLocation(null, 2, 1), ex.Location);
         Assert.Equal(["ECHO: \"before\""], echoes);
-        Assert.Equal(["scad-module-rotate"], features);
+        Assert.Equal(["scad-module-hull"], features);
     }
 
     /// <summary>

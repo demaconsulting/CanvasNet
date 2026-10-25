@@ -101,7 +101,7 @@ internal static partial class ScadPrimitives
             context.Reporter.Warn("polyhedron: the faces appear to be listed counter-clockwise when seen from outside; the winding was reversed", node.Location);
         }
 
-        return ScadGeo.FromSolid(context.CreateMeshNode(mesh, node.Location));
+        return ScadGeo.FromMesh(context.CreateMeshNode(mesh, node.Location));
     }
 
     /// <summary>

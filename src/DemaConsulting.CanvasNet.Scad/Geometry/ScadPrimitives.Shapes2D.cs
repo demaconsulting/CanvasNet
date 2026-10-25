@@ -230,6 +230,6 @@ internal static partial class ScadPrimitives
             return ScadGeo.Empty;
         }
 
-        return region.IsEmpty ? ScadGeo.Empty : ScadGeo.FromFlat([new ScadFlatLeaf(region, node.Location)]);
+        return region.IsEmpty ? ScadGeo.Empty : ScadGeo.FromRegion(region, node.Location);
     }
 }

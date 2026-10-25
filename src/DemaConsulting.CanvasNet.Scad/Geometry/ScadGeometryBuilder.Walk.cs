@@ -1,11 +1,10 @@
-using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Geometry;
 
 /// <content>
-///     The iterative post-order engine and the implicit union.
+///     The iterative post-order engine.
 /// </content>
 internal sealed partial class ScadGeometryBuilder
 {
@@ -17,19 +16,29 @@ internal sealed partial class ScadGeometryBuilder
         /// <summary>
         ///     Initializes a frame.
         /// </summary>
+        /// <param name="node">The instance the frame belongs to; <see langword="null"/> for the top-level forest.</param>
         /// <param name="children">The children to visit.</param>
-        public Frame(IReadOnlyList<ScadInstance> children)
+        /// <param name="combine">Combines the results of the children into the result of the node.</param>
+        public Frame(ScadInstance? node, IReadOnlyList<ScadInstance> children, ContainerBuilder combine)
         {
+            Node = node;
             Children = children;
+            Combine = combine;
         }
+
+        /// <summary>Gets the instance of the frame, or <see langword="null"/> for the top-level forest.</summary>
+        public ScadInstance? Node { get; }
 
         /// <summary>Gets the children to visit.</summary>
         public IReadOnlyList<ScadInstance> Children { get; }
 
+        /// <summary>Gets the function that combines the children's results.</summary>
+        public ContainerBuilder Combine { get; }
+
         /// <summary>Gets or sets the index of the next child to visit.</summary>
         public int Next { get; set; }
 
-        /// <summary>Gets the results of the children visited so far, in order.</summary>
+        /// <summary>Gets the results of the children visited so far, in order (one per child, empty ones included).</summary>
         public List<ScadGeo> Results { get; } = [];
     }
 
@@ -37,15 +46,16 @@ internal sealed partial class ScadGeometryBuilder
     ///     Builds the implicit union of a list of sibling instances.
     /// </summary>
     /// <remarks>
-    ///     The walk is a loop over an explicit stack of frames: a leaf is built in place, a group or union pushes a
-    ///     frame for its children, and a finished frame is combined and its result handed to the parent frame. The
-    ///     location of a frame's own instance is not needed once it is combined, so frames hold none.
+    ///     The walk is a loop over an explicit stack of frames: a leaf is built in place, a container (a group, a
+    ///     boolean, a transform or an extrusion) pushes a frame for its children, and a finished frame is combined by
+    ///     the container's builder and its result handed to the parent frame. Nothing recurses, so the depth of the
+    ///     tree is limited by memory only.
     /// </remarks>
     /// <param name="roots">The sibling instances, in order.</param>
     /// <returns>The union of their results.</returns>
     private ScadGeo BuildForest(IReadOnlyList<ScadInstance> roots)
     {
-        var stack = new List<Frame> { new(roots) };
+        var stack = new List<Frame> { new(null, roots, ScadBooleans.Union) };
         while (true)
         {
             var top = stack[^1];
@@ -53,15 +63,14 @@ internal sealed partial class ScadGeometryBuilder
             {
                 var child = top.Children[top.Next++];
                 _context.Tick();
-                var immediate = Enter(child);
-                if (immediate is null)
+                var combiner = Enter(child, out var immediate);
+                if (combiner is null)
                 {
-                    // A union-like node: visit its children first
-                    stack.Add(new Frame(child.Children));
+                    top.Results.Add(immediate!);
                 }
                 else
                 {
-                    top.Results.Add(immediate);
+                    stack.Add(new Frame(child, child.Children, combiner));
                 }
 
                 continue;
@@ -69,7 +78,7 @@ internal sealed partial class ScadGeometryBuilder
 
             // All children are visited: combine them and hand the result to the parent
             stack.RemoveAt(stack.Count - 1);
-            var geo = CombineUnion(top.Results);
+            var geo = top.Combine(top.Node, top.Results, _context);
             if (stack.Count == 0)
             {
                 return geo;
@@ -84,12 +93,16 @@ internal sealed partial class ScadGeometryBuilder
     ///     its children must be visited.
     /// </summary>
     /// <param name="node">The instance.</param>
+    /// <param name="immediate">The result when the instance needed no children; otherwise <see langword="null"/>.</param>
     /// <returns>
-    ///     The result when the instance needed no children (a leaf, an unsupported module or an omitted
-    ///     background subtree); <see langword="null"/> when its children are to be combined as an implicit union.
+    ///     <see langword="null"/> when the instance was handled in place (a leaf, an unsupported module or an
+    ///     omitted background subtree) and <paramref name="immediate"/> is its result; otherwise the function that
+    ///     combines the results of the instance's children.
     /// </returns>
-    private ScadGeo? Enter(ScadInstance node)
+    private ContainerBuilder? Enter(ScadInstance node, out ScadGeo? immediate)
     {
+        immediate = null;
+
         // A highlighted subtree renders normally; the degradation is reported once per location
         if ((node.Modifiers & ScadModifiers.Highlight) != 0)
         {
@@ -106,56 +119,24 @@ internal sealed partial class ScadGeometryBuilder
                 ScadFeatureIds.ModifierBackground,
                 "The '%' modifier is not supported; the subtree is omitted",
                 node.Location);
-            return ScadGeo.Empty;
-        }
-
-        if (node.Kind == ScadInstanceKind.Group || UnionModules.Contains(node.Name))
-        {
+            immediate = ScadGeo.Empty;
             return null;
         }
 
-        return LeafModules.TryGetValue(node.Name, out var builder)
+        // A group (user module, for, modifier wrapper) is the implicit union of its children, whatever its name
+        if (node.Kind == ScadInstanceKind.Group)
+        {
+            return ScadBooleans.Union;
+        }
+
+        if (ContainerModules.TryGetValue(node.Name, out var container))
+        {
+            return container;
+        }
+
+        immediate = LeafModules.TryGetValue(node.Name, out var builder)
             ? builder(node, _context)
             : ReportUnsupportedModule(node, _context);
-    }
-
-    /// <summary>
-    ///     Combines the results of sibling instances into their implicit union.
-    /// </summary>
-    /// <remarks>
-    ///     Empty results vanish. Solids become one <see cref="GroupNode"/> (or the single solid itself); 2D shapes
-    ///     concatenate. When both dimensions are present the 2D shapes are dropped with a warning at the location
-    ///     of the first dropped shape, so a mixed union is never silently mis-rendered.
-    /// </remarks>
-    /// <param name="results">The results to combine, in order.</param>
-    /// <returns>The union.</returns>
-    private ScadGeo CombineUnion(List<ScadGeo> results)
-    {
-        List<SceneNode>? solids = null;
-        List<ScadFlatLeaf>? leaves = null;
-        foreach (var result in results)
-        {
-            if (result.Kind == ScadGeoKind.Solid)
-            {
-                (solids ??= []).Add(result.Node!);
-            }
-            else if (result.Kind == ScadGeoKind.Flat)
-            {
-                (leaves ??= []).AddRange(result.Leaves!);
-            }
-        }
-
-        if (solids is not null)
-        {
-            // Mixed dimensions: keep the 3D members and say what was dropped
-            if (leaves is not null)
-            {
-                _context.Reporter.Warn("A union mixes 2D and 3D objects; the 2D objects are ignored", leaves[0].Location);
-            }
-
-            return ScadGeo.FromSolid(solids.Count == 1 ? solids[0] : new GroupNode(solids));
-        }
-
-        return leaves is null ? ScadGeo.Empty : ScadGeo.FromFlat(leaves);
+        return null;
     }
 }

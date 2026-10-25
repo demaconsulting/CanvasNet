@@ -29,6 +29,27 @@ internal static class ScadFeatureIds
     /// <summary>Catch-all for a Render3D rejection of an input the argument checks accepted.</summary>
     public const string GeometryRejected = "scad-geometry-rejected";
 
+    /// <summary>A <c>color</c> with alpha below 1 was drawn opaque.</summary>
+    public const string ColorAlpha = "scad-color-alpha";
+
+    /// <summary>A <c>resize</c> of children that contain a difference or an intersection used estimated bounds.</summary>
+    public const string ResizeApproximate = "scad-resize-approximate";
+
+    /// <summary>A <c>multmatrix</c> with a projective (non-affine) bottom row was omitted.</summary>
+    public const string MultmatrixProjective = "scad-multmatrix-projective";
+
+    /// <summary>A <c>linear_extrude</c> with <c>scale = 0</c> over a profile with holes or islands was omitted.</summary>
+    public const string LinearExtrudeApexMultipleContours = "scad-linear-extrude-apex-multiple-contours";
+
+    /// <summary>A <c>linear_extrude</c> with a negative scale component, or exactly one zero component, was omitted.</summary>
+    public const string LinearExtrudeScale = "scad-linear-extrude-scale";
+
+    /// <summary>A <c>rotate_extrude</c> profile that lies on both sides of the axis was omitted.</summary>
+    public const string RotateExtrudeAxisCrossing = "scad-rotate-extrude-axis-crossing";
+
+    /// <summary>A <c>rotate_extrude</c> profile that touches the axis at an isolated vertex was omitted.</summary>
+    public const string RotateExtrudeAxisContact = "scad-rotate-extrude-axis-contact";
+
     /// <summary>
     ///     Gets the identifier of a module that is recognized but not built.
     /// </summary>

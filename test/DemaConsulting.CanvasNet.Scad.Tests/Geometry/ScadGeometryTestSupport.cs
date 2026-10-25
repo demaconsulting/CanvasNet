@@ -47,6 +47,38 @@ internal sealed record ScadBuildResult(
             return meshes[0].Mesh;
         }
     }
+
+    /// <summary>
+    ///     Gets the mesh leaves of the scene with their world transforms and appearances.
+    /// </summary>
+    public IReadOnlyList<SceneLeaf> Leaves => ScadGeometryTestSupport.Leaves(Scene);
+
+    /// <summary>
+    ///     Gets the only leaf of the scene as a mesh in world space, asserting that the scene holds exactly one leaf.
+    /// </summary>
+    public Mesh WorldMesh
+    {
+        get
+        {
+            var leaves = Leaves;
+            Assert.Single(leaves);
+            return leaves[0].WorldMesh;
+        }
+    }
+}
+
+/// <summary>
+///     A mesh of a scene together with the transform that takes it to world space and its inherited appearance.
+/// </summary>
+/// <param name="Node">The mesh node.</param>
+/// <param name="World">The composed world transform.</param>
+/// <param name="Appearance">The innermost appearance, or <see langword="null"/>.</param>
+internal sealed record SceneLeaf(MeshNode Node, Matrix4x4D World, NodeAppearance? Appearance)
+{
+    /// <summary>
+    ///     Gets the mesh in world space (winding corrected for a mirroring transform).
+    /// </summary>
+    public Mesh WorldMesh => Node.Mesh.Transform(World);
 }
 
 /// <summary>
@@ -119,6 +151,74 @@ internal static class ScadGeometryTestSupport
                 case CsgNode csg:
                     PushReversed(stack, csg.Children);
                     break;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Asserts the bounds of a mesh or scene with a tolerance.
+    /// </summary>
+    /// <param name="bounds">The actual bounds.</param>
+    /// <param name="min">The expected minimum corner.</param>
+    /// <param name="max">The expected maximum corner.</param>
+    /// <param name="tolerance">The absolute tolerance of every coordinate.</param>
+    public static void AssertBounds(BoundingBox3D bounds, Vector3D min, Vector3D max, double tolerance = 1e-9)
+    {
+        Assert.Equal(min.X, bounds.Min.X, tolerance);
+        Assert.Equal(min.Y, bounds.Min.Y, tolerance);
+        Assert.Equal(min.Z, bounds.Min.Z, tolerance);
+        Assert.Equal(max.X, bounds.Max.X, tolerance);
+        Assert.Equal(max.Y, bounds.Max.Y, tolerance);
+        Assert.Equal(max.Z, bounds.Max.Z, tolerance);
+    }
+
+    /// <summary>
+    ///     Asserts that a mesh is closed and outward oriented (positive volume) and has the given volume.
+    /// </summary>
+    /// <param name="mesh">The mesh.</param>
+    /// <param name="volume">The expected volume.</param>
+    /// <param name="relativeTolerance">The relative tolerance of the volume.</param>
+    public static void AssertSolidVolume(Mesh mesh, double volume, double relativeTolerance = 1e-9)
+    {
+        Assert.True(mesh.IsClosed);
+        Assert.Equal(volume, mesh.SignedVolume, Math.Abs(volume) * relativeTolerance);
+    }
+
+    /// <summary>
+    ///     Lists the mesh leaves of a scene in document order with their world transforms and appearances, walking
+    ///     iteratively.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The leaves.</returns>
+    public static IReadOnlyList<SceneLeaf> Leaves(Scene scene)
+    {
+        var result = new List<SceneLeaf>();
+        var stack = new Stack<(SceneNode Node, Matrix4x4D Parent, NodeAppearance? Appearance)>();
+        stack.Push((scene.Root, Matrix4x4D.Identity, null));
+        while (stack.Count > 0)
+        {
+            var (node, parent, inherited) = stack.Pop();
+            var world = node.Transform * parent;
+            var appearance = node.Appearance ?? inherited;
+            IReadOnlyList<SceneNode> children = [];
+            switch (node)
+            {
+                case MeshNode mesh:
+                    result.Add(new SceneLeaf(mesh, world, appearance));
+                    break;
+                case GroupNode group:
+                    children = group.Children;
+                    break;
+                case CsgNode csg:
+                    children = csg.Children;
+                    break;
+            }
+
+            for (var i = children.Count - 1; i >= 0; i--)
+            {
+                stack.Push((children[i], world, appearance));
             }
         }
 

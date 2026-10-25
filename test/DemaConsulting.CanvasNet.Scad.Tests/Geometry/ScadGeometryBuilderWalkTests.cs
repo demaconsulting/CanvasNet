@@ -16,7 +16,10 @@ public class ScadGeometryBuilderWalkTests
 {
     /// <summary>The built-in modules the geometry builder builds (or combines) in this phase.</summary>
     private static readonly HashSet<string> Implemented =
-        ["cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "union", "render"];
+        [
+            "cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "union", "render",
+            "translate", "rotate", "scale", "mirror", "multmatrix", "resize", "color",
+        ];
 
     /// <summary>Gets the recognized built-in module names that are not built yet, as theory data.</summary>
     public static TheoryData<string> UnsupportedModules
@@ -245,7 +248,7 @@ public class ScadGeometryBuilderWalkTests
     public void ScadGeometryBuilder_Build_RepeatedUnsupportedInstance_ReportedOnce()
     {
         // Arrange / Act
-        var result = Build("for (i = [1:3]) translate([i, 0, 0]) cube(1);");
+        var result = Build("for (i = [1:3]) hull() cube(1);");
 
         // Assert
         Assert.Single(result.Unsupported);
@@ -258,7 +261,7 @@ public class ScadGeometryBuilderWalkTests
     public void ScadGeometryBuilder_Build_UnsupportedInUsedFile_CarriesFileLocation()
     {
         // Arrange
-        var files = new ScadVirtualFiles(("lib.scad", "\nmodule m() { translate([1, 0, 0]) cube(1); }\n"));
+        var files = new ScadVirtualFiles(("lib.scad", "\nmodule m() { hull() cube(1); }\n"));
 
         // Act
         var result = Build("use <lib.scad>\nm();", files: files);
@@ -280,12 +283,12 @@ public class ScadGeometryBuilderWalkTests
 
         // Act
         var ex = Assert.Throws<ScadUnsupportedFeatureException>(
-            () => Build("cube(1);\n  translate([1, 0, 0]) cube(1);\nrotate(5) cube(1);", Settings(strict: true), sink: sink));
+            () => Build("cube(1);\n  hull() cube(1);\nminkowski() cube(1);", Settings(strict: true), sink: sink));
 
         // Assert
-        Assert.Equal("scad-module-translate", ex.Feature);
+        Assert.Equal("scad-module-hull", ex.Feature);
         Assert.Equal(new ScadSourceLocation(null, 2, 3), ex.Location);
-        Assert.Equal(["scad-module-translate"], sink.UnsupportedFeatures.Select(u => u.Feature).ToArray());
+        Assert.Equal(["scad-module-hull"], sink.UnsupportedFeatures.Select(u => u.Feature).ToArray());
     }
 
     /// <summary>
@@ -314,7 +317,7 @@ public class ScadGeometryBuilderWalkTests
         var order = new List<string>();
 
         // Act
-        Build("assert(true);\necho(1);\ntranslate([1,0,0]) cube(1);\ncube(1, bogus = 1);", sink: sink);
+        Build("assert(true);\necho(1);\nhull() cube(1);\ncube(1, bogus = 1);", sink: sink);
         sink.Deliver(e => order.Add("echo"), w => order.Add("warn"), u => order.Add("unsupported"));
 
         // Assert

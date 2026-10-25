@@ -85,38 +85,9 @@ internal sealed partial class ScadGeometryBuilder
             case ScadGeoKind.Solid:
                 return geo.Node!;
             case ScadGeoKind.Flat:
-                return MakeSlabs(geo.Leaves!);
+                return ScadExtrusions.MakeSlabs(geo, _context);
             default:
                 return new GroupNode([]);
         }
-    }
-
-    /// <summary>
-    ///     Turns the 2D leaves of a flat model into slabs of the configured thickness.
-    /// </summary>
-    /// <param name="leaves">The leaves.</param>
-    /// <returns>A group of one slab per leaf (or the slab itself for a single leaf).</returns>
-    private SceneNode MakeSlabs(IReadOnlyList<ScadFlatLeaf> leaves)
-    {
-        var slabs = new List<SceneNode>(leaves.Count);
-        foreach (var leaf in leaves)
-        {
-            _context.ChargeTriangles(ScadPrimitives.SlabTrianglesPerVertex * leaf.Region.VertexCount, leaf.Location);
-            _context.Poll();
-            try
-            {
-                var mesh = Extruder.Linear(leaf.Region, _context.FlatShapeThickness);
-                slabs.Add(_context.CreateMeshNode(mesh, leaf.Location));
-            }
-            catch (ArgumentException ex)
-            {
-                _context.Reporter.Unsupported(
-                    ScadFeatureIds.GeometryRejected,
-                    $"The 2D shape could not be made into a slab: {ex.Message}",
-                    leaf.Location);
-            }
-        }
-
-        return slabs.Count == 1 ? slabs[0] : new GroupNode(slabs);
     }
 }
