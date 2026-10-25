@@ -432,8 +432,9 @@ the over-limit error is identical on every stack size.
 Asserts the exact step limit, that vector arithmetic is charged per element, that a nested vector shared many times
 is charged by its full contents, and that a long scope walk is charged. The product scenarios assert that a matrix
 product is charged at least `n³ / 16` steps beyond its operands and that a smaller budget fails at the operator; that
-two 1000 × 1000 matrices (about the cost that ran for minutes before the work was charged) fail under the default
-limits in well under a second of work; that matrix-by-vector, vector-by-matrix, and dot products keep their results;
+two 1000 × 1000 matrices (about the cost that ran for minutes before the work was charged; built from one shared
+row, so the setup costs a thousand steps and the test does not depend on how busy the machine is) fail under the
+default limits in well under a second of work; that matrix-by-vector, vector-by-matrix, and dot products keep their results;
 and that scaling a vector is charged before it is allocated. The formatting scenarios assert that `str` and `echo` of a
 2,000-number vector are charged at least eight steps per element, and that a 100,000-turn loop that formats such a
 vector fails at a one-million-step budget. The string-index scenarios assert the exact extra steps for an index

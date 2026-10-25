@@ -98,12 +98,14 @@ public class ScadEvaluatorProductLimitTests
     [Fact]
     public void ScadEvaluatorProductLimit_MatrixTimesMatrix_DefaultLimits_LargeProductFailsFast()
     {
-        // Arrange: two 1000 x 1000 matrices, each within the default list limit
-        var source = MatrixSource("m", 1000, 1000) + "w = [for (k = [1 : 50]) m * m];";
+        // Arrange: two 1000 x 1000 matrices, each within the default list limit. The rows are one shared value, so the
+        // matrices cost a thousand steps to build instead of a million, which keeps the test independent of how busy
+        // the machine is: what is measured is that the product is refused, not how fast a large literal is evaluated.
+        const string Source = "row = [for (j = [1 : 1000]) 1];\nm = [for (i = [1 : 1000]) row];\nw = [for (k = [1 : 50]) m * m];";
         var watch = Stopwatch.StartNew();
 
         // Act
-        var ex = Fails(source);
+        var ex = Fails(Source);
         watch.Stop();
 
         // Assert
