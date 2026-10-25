@@ -283,7 +283,7 @@ internal sealed partial class ScadParser
     /// </summary>
     /// <returns>A plain <see cref="InvalidDataException"/> (no location is meaningful for an oversize source).</returns>
     internal static InvalidDataException CreateSourceTooLongException() =>
-        new($"Source exceeds the maximum length of {MaxSourceLength} characters");
+        new(string.Create(CultureInfo.InvariantCulture, $"Source exceeds the maximum length of {MaxSourceLength} characters"));
 
     /// <summary>
     ///     Parses the whole program and verifies the tree height.
@@ -305,7 +305,7 @@ internal sealed partial class ScadParser
         catch (InsufficientExecutionStackException) when (stackShortageIsSyntaxError)
         {
             // Not expected with a parser-sized stack; report it like the depth counter would
-            throw Error(Current, $"Nesting too deep (limit {MaxNestingDepth})");
+            throw Error(Current, string.Create(CultureInfo.InvariantCulture, $"Nesting too deep (limit {MaxNestingDepth})"));
         }
 
         // Left-associative chains do not recurse in the parser, so the finished tree is measured as well
@@ -398,7 +398,7 @@ internal sealed partial class ScadParser
         _depth++;
         if (_depth > MaxNestingDepth)
         {
-            throw Error(Current, $"Nesting too deep (limit {MaxNestingDepth})");
+            throw Error(Current, string.Create(CultureInfo.InvariantCulture, $"Nesting too deep (limit {MaxNestingDepth})"));
         }
 
         RuntimeHelpers.EnsureSufficientExecutionStack();

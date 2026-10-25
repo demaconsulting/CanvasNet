@@ -104,7 +104,17 @@ internal static class ScadEvaluationTestHelpers
     /// <param name="cultureName">The culture name, for example <c>de-DE</c>.</param>
     /// <param name="function">The function to run.</param>
     /// <returns>The result.</returns>
-    public static T WithCulture<T>(string cultureName, Func<T> function)
+    public static T WithCulture<T>(string cultureName, Func<T> function) =>
+        WithCulture(CultureInfo.GetCultureInfo(cultureName), function);
+
+    /// <summary>
+    ///     Runs a function with a specific current culture object on a dedicated thread, so no other test is affected.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="culture">The culture, which may be a synthetic one.</param>
+    /// <param name="function">The function to run.</param>
+    /// <returns>The result.</returns>
+    public static T WithCulture<T>(CultureInfo culture, Func<T> function)
     {
         T? result = default;
         Exception? error = null;
@@ -112,7 +122,6 @@ internal static class ScadEvaluationTestHelpers
         {
             try
             {
-                var culture = CultureInfo.GetCultureInfo(cultureName);
                 CultureInfo.CurrentCulture = culture;
                 CultureInfo.CurrentUICulture = culture;
                 result = function();

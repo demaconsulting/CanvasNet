@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DemaConsulting.CanvasNet.Scad.Language;
 
 /// <summary>
@@ -28,7 +30,7 @@ internal static class ScadTreeDepth
             var (node, depth) = pending.Pop();
             if (depth > limit)
             {
-                throw new ScadSyntaxException($"Nesting too deep (limit {limit})", node.Location);
+                throw new ScadSyntaxException(string.Create(CultureInfo.InvariantCulture, $"Nesting too deep (limit {limit})"), node.Location);
             }
 
             foreach (var child in Children(node).OfType<ScadNode>())

@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -185,7 +186,7 @@ internal sealed partial class ScadEvaluator
     {
         if (scope.Specials is { } frame && frame.Depth > _limits.MaxRecursionDepth)
         {
-            throw Fail($"Recursion too deep (limit {_limits.MaxRecursionDepth})", location);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Recursion too deep (limit {_limits.MaxRecursionDepth})"), location);
         }
     }
 

@@ -544,7 +544,17 @@ null handlers and propagating a handler exception.
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_UnderOtherCultures_GivesIdenticalResults`,
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation`,
 `ScadEvaluatorDeterminismTests.ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults`,
-`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible`
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible`,
+`ScadEvaluatorCultureTests.ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture`,
+`ScadEvaluatorCultureTests.ScadEvaluatorCulture_ParserAndLimitsMessages_AreIdenticalInEveryCulture`
 
 Asserts identical echo, diagnostics, and tree dumps for the same program evaluated twice, under other cultures,
-concurrently, with unseeded random numbers, and after a forced restart.
+concurrently, with unseeded random numbers, and after a forced restart. The culture scenarios produce the text of
+each resource-limit error (recursion, steps, loops, list, string, instances, output, nesting, the matrix-product list
+size, include depth, included files, and included statements) and of the parser nesting, lexer escape, source size,
+limits-range, built-in argument-count, and suppressed-diagnostics messages under the invariant culture, five named
+cultures (`de-DE`, `fr-FR`, `tr-TR`, `ar-SA`, `sv-SE`), and a synthetic culture (another negative sign, Arabic-Indic
+native digits with native digit substitution), and assert that the text is identical in all of them and contains
+the documented message. Honest scope: for non-negative integers .NET output does not vary between cultures, so the
+scenarios are a regression guard; the invariance itself is guaranteed by construction (the invariant-culture
+formatting of every numeric message, audited site by site).

@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
@@ -149,7 +150,7 @@ internal static partial class ScadBuiltinFunctions
 
         if (slots.Count < descriptor.MinArgs)
         {
-            host.Warn($"Function '{descriptor.Name}' expects {DescribeArity(descriptor)} arguments, got {slots.Count}");
+            host.Warn(string.Create(CultureInfo.InvariantCulture, $"Function '{descriptor.Name}' expects {DescribeArity(descriptor)} arguments, got {slots.Count}"));
             return null;
         }
 
@@ -185,12 +186,12 @@ internal static partial class ScadBuiltinFunctions
     {
         if (descriptor.MaxArgs < 0)
         {
-            return $"at least {descriptor.MinArgs}";
+            return string.Create(CultureInfo.InvariantCulture, $"at least {descriptor.MinArgs}");
         }
 
         return descriptor.MinArgs == descriptor.MaxArgs
-            ? $"{descriptor.MinArgs}"
-            : $"{descriptor.MinArgs} to {descriptor.MaxArgs}";
+            ? descriptor.MinArgs.ToString(CultureInfo.InvariantCulture)
+            : string.Create(CultureInfo.InvariantCulture, $"{descriptor.MinArgs} to {descriptor.MaxArgs}");
     }
 
     /// <summary>

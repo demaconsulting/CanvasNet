@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -255,7 +256,7 @@ internal sealed partial class ScadEvaluator
     /// <param name="location">The location of the list.</param>
     /// <returns>The exception to throw.</returns>
     private static ScadEvaluationException NestingTooDeep(ScadSourceLocation location) =>
-        Fail($"List nesting too deep (limit {ScadValue.MaxNestingDepth})", location);
+        Fail(string.Create(CultureInfo.InvariantCulture, $"List nesting too deep (limit {ScadValue.MaxNestingDepth})"), location);
 
     /// <summary>
     ///     Accumulates the elements of a vector under the list-length, nesting and step limits.
@@ -291,7 +292,7 @@ internal sealed partial class ScadEvaluator
         {
             if (_items.Count >= _owner._limits.MaxListLength)
             {
-                throw Fail($"List too long (limit {_owner._limits.MaxListLength})", _location);
+                throw Fail(string.Create(CultureInfo.InvariantCulture, $"List too long (limit {_owner._limits.MaxListLength})"), _location);
             }
 
             if (value.Depth >= ScadValue.MaxNestingDepth)

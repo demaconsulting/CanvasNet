@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
 /// <summary>
@@ -39,7 +41,7 @@ internal sealed partial class ScadEvaluator : IScadBuiltinHost
     {
         if (length > _limits.MaxListLength)
         {
-            throw Fail($"List too long (limit {_limits.MaxListLength})", _hostLocation);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"List too long (limit {_limits.MaxListLength})"), _hostLocation);
         }
     }
 
@@ -48,7 +50,7 @@ internal sealed partial class ScadEvaluator : IScadBuiltinHost
     {
         if (length > _limits.MaxStringLength)
         {
-            throw Fail($"String too long (limit {_limits.MaxStringLength})", _hostLocation);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"String too long (limit {_limits.MaxStringLength})"), _hostLocation);
         }
     }
 

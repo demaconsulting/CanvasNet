@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Scad.Language;
 
@@ -195,7 +196,7 @@ internal sealed partial class ScadEvaluator
     {
         if (++_instances > _limits.MaxInstances)
         {
-            throw Fail($"Instance limit exceeded (limit {_limits.MaxInstances})", location);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Instance limit exceeded (limit {_limits.MaxInstances})"), location);
         }
 
         var fragments = CurrentFragments(scope);
@@ -255,7 +256,7 @@ internal sealed partial class ScadEvaluator
 
             if (!value.TryToEchoText(_limits.MaxStringLength, out var text, this) || (line.Length - EchoPrefix.Length) + text.Length > _limits.MaxStringLength)
             {
-                throw Fail($"String too long (limit {_limits.MaxStringLength})", location);
+                throw Fail(string.Create(CultureInfo.InvariantCulture, $"String too long (limit {_limits.MaxStringLength})"), location);
             }
 
             line.Append(text);
@@ -310,7 +311,7 @@ internal sealed partial class ScadEvaluator
 
         if (!message.Value.TryToStr(_limits.MaxStringLength, out var text, this))
         {
-            throw Fail($"String too long (limit {_limits.MaxStringLength})", _lastFrameLocation);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"String too long (limit {_limits.MaxStringLength})"), _lastFrameLocation);
         }
 
         return $"Assertion failed: {text}";

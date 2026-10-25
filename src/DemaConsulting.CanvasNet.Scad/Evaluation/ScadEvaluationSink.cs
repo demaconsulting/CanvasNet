@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
 /// <summary>
@@ -100,7 +102,7 @@ internal sealed class ScadEvaluationSink
         // The limit counts characters; a line that would cross it is rejected before it is stored
         if (_echoLength + line.Length > _limits.MaxOutputLength)
         {
-            throw new ScadEvaluationException($"Echo output limit exceeded (limit {_limits.MaxOutputLength})", location);
+            throw new ScadEvaluationException(string.Create(CultureInfo.InvariantCulture, $"Echo output limit exceeded (limit {_limits.MaxOutputLength})"), location);
         }
 
         _echoLength += line.Length;
@@ -212,7 +214,7 @@ internal sealed class ScadEvaluationSink
         }
 
         _suppressionReported = true;
-        AddWarning(new ScadDiagnostic($"Further diagnostics suppressed (limit {_limits.MaxDiagnostics})", location));
+        AddWarning(new ScadDiagnostic(string.Create(CultureInfo.InvariantCulture, $"Further diagnostics suppressed (limit {_limits.MaxDiagnostics})"), location));
     }
 
     /// <summary>

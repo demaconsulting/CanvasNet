@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -149,7 +150,7 @@ internal sealed partial class ScadFileResolver
         // Repeated inclusion copies statement references, so the total is bounded to stop an include blow-up
         if (++_expandedStatements > _limits.MaxInstances)
         {
-            throw new ScadEvaluationException($"Included statement limit exceeded (limit {_limits.MaxInstances})", statement.Location);
+            throw new ScadEvaluationException(string.Create(CultureInfo.InvariantCulture, $"Included statement limit exceeded (limit {_limits.MaxInstances})"), statement.Location);
         }
 
         unit.AddStatement(statement);
@@ -210,7 +211,7 @@ internal sealed partial class ScadFileResolver
 
         if (depth + 1 > _limits.MaxIncludeDepth)
         {
-            throw new ScadEvaluationException($"Include nesting too deep (limit {_limits.MaxIncludeDepth})", location);
+            throw new ScadEvaluationException(string.Create(CultureInfo.InvariantCulture, $"Include nesting too deep (limit {_limits.MaxIncludeDepth})"), location);
         }
 
         CountInclusion(location);
@@ -248,7 +249,7 @@ internal sealed partial class ScadFileResolver
     {
         if (++_inclusions > _limits.MaxIncludedFiles)
         {
-            throw new ScadEvaluationException($"Included file limit exceeded (limit {_limits.MaxIncludedFiles})", location);
+            throw new ScadEvaluationException(string.Create(CultureInfo.InvariantCulture, $"Included file limit exceeded (limit {_limits.MaxIncludedFiles})"), location);
         }
 
         _cancellation.ThrowIfCancellationRequested();

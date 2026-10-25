@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DemaConsulting.CanvasNet.Scad;
 
 /// <summary>
@@ -202,7 +204,7 @@ public sealed class ScadLimits
     {
         if (value < minimum || value > maximum)
         {
-            throw new ArgumentOutOfRangeException(propertyName, value, $"The value must be between {minimum} and {maximum}.");
+            throw new ArgumentOutOfRangeException(propertyName, value, string.Create(CultureInfo.InvariantCulture, $"The value must be between {minimum} and {maximum}."));
         }
 
         return value;

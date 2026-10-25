@@ -627,7 +627,9 @@ sections:
                   The ScadEvaluator unit shall be deterministic: evaluating the same program with the
                   same settings any number of times, concurrently, in any culture, or after a restart
                   on a larger stack shall produce identical echo output, diagnostics, and
-                  instantiation tree, including for programs that draw random numbers without a seed.
+                  instantiation tree, including for programs that draw random numbers without a seed,
+                  and the text of every diagnostic (limit, parser, lexer, and argument messages)
+                  shall not vary with the culture.
                 justification: |
                   Reproducible output is what makes golden tests, caching, and cross-platform use of
                   the results possible.
@@ -637,3 +639,5 @@ sections:
                   - ScadEvaluatorDeterminism_Rands_AreReproduciblePerEvaluation
                   - ScadEvaluatorDeterminism_ConcurrentEvaluations_GiveIdenticalResults
                   - ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible
+                  - ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture
+                  - ScadEvaluatorCulture_ParserAndLimitsMessages_AreIdenticalInEveryCulture

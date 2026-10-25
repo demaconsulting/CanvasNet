@@ -367,7 +367,7 @@ internal sealed partial class ScadEvaluator
         catch (InsufficientExecutionStackException) when (stackShortageIsRecursionError)
         {
             // Not expected with an evaluator-sized stack; report it like the frame counter would
-            throw Fail($"Recursion too deep (limit {_limits.MaxRecursionDepth})", _lastFrameLocation);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Recursion too deep (limit {_limits.MaxRecursionDepth})"), _lastFrameLocation);
         }
     }
 
@@ -383,7 +383,7 @@ internal sealed partial class ScadEvaluator
         _lastFrameLocation = location;
         if (_depth > _limits.MaxRecursionDepth)
         {
-            throw Fail($"Recursion too deep (limit {_limits.MaxRecursionDepth})", location);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Recursion too deep (limit {_limits.MaxRecursionDepth})"), location);
         }
 
         RuntimeHelpers.EnsureSufficientExecutionStack();
@@ -405,7 +405,7 @@ internal sealed partial class ScadEvaluator
         _steps = steps > long.MaxValue - _steps ? long.MaxValue : _steps + steps;
         if (_steps > _limits.MaxEvaluationSteps)
         {
-            throw Fail($"Evaluation step limit exceeded (limit {_limits.MaxEvaluationSteps})", _lastFrameLocation);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Evaluation step limit exceeded (limit {_limits.MaxEvaluationSteps})"), _lastFrameLocation);
         }
 
         if ((_steps / PollInterval) != (_lastPoll / PollInterval))
@@ -424,7 +424,7 @@ internal sealed partial class ScadEvaluator
     {
         if (++_loopIterations > _limits.MaxLoopIterations)
         {
-            throw Fail($"Loop iteration limit exceeded (limit {_limits.MaxLoopIterations})", location);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Loop iteration limit exceeded (limit {_limits.MaxLoopIterations})"), location);
         }
 
         _settings.Cancellation.ThrowIfCancellationRequested();
@@ -441,7 +441,7 @@ internal sealed partial class ScadEvaluator
     {
         if (count > _limits.MaxLoopIterations - _loopIterations)
         {
-            throw Fail($"Loop iteration limit exceeded (limit {_limits.MaxLoopIterations})", location);
+            throw Fail(string.Create(CultureInfo.InvariantCulture, $"Loop iteration limit exceeded (limit {_limits.MaxLoopIterations})"), location);
         }
     }
 

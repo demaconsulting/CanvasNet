@@ -213,7 +213,14 @@ comparers everywhere (analyzers CA1305, CA1307, and CA1309 enforce this); an own
 `double.ToString`; an own PRNG (SplitMix64) with a fixed unseeded state; no iteration order of any hash
 container reaching the output (overrides are applied in ordinal key order and frozen registries are
 lookup-only); IEEE-exact operations (`%`, `Floor`, `Ceiling`, `Sqrt`) and no fused multiply-add; and results
-that never depend on `Environment.ProcessorCount` (only the number of fallback threads does). The
+that never depend on `Environment.ProcessorCount` (only the number of fallback threads does). The **text of every
+diagnostic** is culture-free too: each message that interpolates a number (every limit message, the built-in
+argument-count warnings, the parser and lexer messages, the range message of `ScadLimits`) is built with
+`string.Create(CultureInfo.InvariantCulture, $"…")`, as `ScadSourceLocation` already does. The analyzers do not flag
+an interpolated string, so this is held by an audit of every `$"…"` site and by `ScadEvaluatorCultureTests`. For
+non-negative integers .NET output does not vary between the standard cultures, so that test is a regression guard
+(messages identical under several cultures and under a synthetic culture with another negative sign and native
+digits); invariance itself is by construction. The
 transcendental functions of `System.Math` can differ in the last bit between runtimes, so trigonometry is exact
 at multiples of 90 degrees and the tests compare six-digit text or use tolerances elsewhere.
 
