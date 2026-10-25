@@ -170,11 +170,13 @@ public class SolidPredicatesTests
         double Extreme() => (random.NextDouble() - 0.5) * Math.Pow(10.0, random.Next(-320, 308));
         for (var i = 0; i < 2000; i++)
         {
-            var a = new Vector3D(Extreme(), Extreme(), Extreme());
-            var b2 = new Vector3D(Extreme(), Extreme(), Extreme());
-            var c2 = new Vector3D(Extreme(), Extreme(), Extreme());
-            var d = new Vector3D(Extreme(), Extreme(), Extreme());
-            Assert.Equal(SolidPredicates.Orient3DExact(a, b2, c2, d), SolidPredicates.Orient3D(a, b2, c2, d));
+            var firstRandomPoint = new Vector3D(Extreme(), Extreme(), Extreme());
+            var secondRandomPoint = new Vector3D(Extreme(), Extreme(), Extreme());
+            var thirdRandomPoint = new Vector3D(Extreme(), Extreme(), Extreme());
+            var fourthRandomPoint = new Vector3D(Extreme(), Extreme(), Extreme());
+            Assert.Equal(
+                SolidPredicates.Orient3DExact(firstRandomPoint, secondRandomPoint, thirdRandomPoint, fourthRandomPoint),
+                SolidPredicates.Orient3D(firstRandomPoint, secondRandomPoint, thirdRandomPoint, fourthRandomPoint));
         }
     }
 

@@ -2958,7 +2958,7 @@ public static class MinkowskiSum
   concave bowl of many facets passes any per-edge height tolerance), which is why the test is global. Models
   whose offset is huge compared with their size (more than about a million times the feature size) can fail
   the test through coordinate rounding and are rejected as well.
-- The work is O(Va *Vb* log(Va *Vb)) with O(Va* Vb) memory (the array of sums, 24 bytes per point and about
+- The work is O(`Va * Vb` * log(`Va * Vb`)) with O(`Va * Vb`) memory (the array of sums, 24 bytes per point and about
   50 MB at the bound, is sorted in place, so the peak is about 70 MB), where `Va` and
   `Vb` are the numbers of distinct vertices; the product is limited to `MaxPairwiseSums` (2^21).
 

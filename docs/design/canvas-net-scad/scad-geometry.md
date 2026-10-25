@@ -193,11 +193,14 @@ designs.
     transformed positions (a union of children is one point set), or, for 2D children, of the vertices of every leaf
     shape; it is built on `ConvexHull`, whose result is a closed, outward-wound mesh of the strictly extreme vertices.
     A `minkowski` is folded from the left; each child is the list of the meshes of its union-only scene tree, the sum
-    distributes over a union, and each pairwise sum is `MinkowskiSum.ConvexSum`, which verifies that both operands are
-    convex (within its documented tolerance) or refuses. Nothing is approximated: a boolean below a `hull`, a
+    distributes over a union, and each pairwise sum is `MinkowskiSum.ConvexSumOfVerified`, after every member has been
+    verified once with `MinkowskiSum.RequireConvexSolid` (convex within its documented tolerance, or refused). Nothing
+    is approximated: a boolean below a `hull`, a
     boolean or a non-convex mesh below a `minkowski`, mixed dimensions, degenerate points and the 2D Minkowski
-    sum are reported (`scad-hull-*`, `scad-minkowski-*`) and the module is omitted whole. A lone `minkowski` child is
-    verified the same way (by a discarded sum with a small tetrahedron) and returned unchanged. The `convexity`
+    sum are reported (`scad-hull-*`, `scad-minkowski-*`) and the module is omitted whole. A lone `minkowski` child has
+    its members checked directly with `MinkowskiSum.RequireConvexSolid` (nothing is created or charged) and its
+    geometry and transforms are returned, with its colors stripped and a warning so that an enclosing color applies.
+    The `convexity`
     argument is ignored, and a color inside either module is dropped with a warning (the result takes the enclosing
     `color`). The result of both modules is a new scene mesh at the module's location, so it is a valid operand of
     later booleans, transforms and extrusions.

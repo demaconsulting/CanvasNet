@@ -285,11 +285,11 @@ internal static class ScadHulls
         {
             return ScadGeo.FromRegion(new PolygonRegion([hull]), node.Location);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.Reporter.Unsupported(
                 ScadFeatureIds.GeometryRejected,
-                $"hull: the shape was rejected: {ex.Message}",
+                "hull: the hull outline is not a valid planar shape (for example a coordinate is outside the supported range); the hull is omitted",
                 node.Location);
             return ScadGeo.Empty;
         }
@@ -494,11 +494,11 @@ internal static class ScadHulls
 
             return hasAppearance ? StripAppearances(children[0], context) : children[0];
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.Reporter.Unsupported(
                 ScadFeatureIds.GeometryRejected,
-                $"minkowski: the geometry was rejected: {ex.Message}; the minkowski is omitted",
+                "minkowski: the sum is not valid geometry (for example a coordinate of the sum is outside the supported range); the minkowski is omitted",
                 node.Location);
             return ScadGeo.Empty;
         }
@@ -620,7 +620,7 @@ internal static class ScadHulls
             // Every child below the completion frame has been processed, so each one has a copy
             SceneNode copy = node switch
             {
-                MeshNode mesh => new MeshNode(mesh.Mesh) { Transform = mesh.Transform },
+                MeshNode mesh => CopyMeshNode(mesh, context),
                 GroupNode group => new GroupNode(group.Children.Select(childNode => copies[childNode]))
                 {
                     Transform = group.Transform,
@@ -635,6 +635,20 @@ internal static class ScadHulls
         }
 
         return ScadGeo.FromSolid(copies[root], child.Bounds, child.IsTight, child.IsApproximate, child.Reach);
+    }
+
+    /// <summary>
+    ///     Copies a mesh node without its appearance and records the copy in the location map under the location of
+    ///     the original, so that a render-time report about the copy points at the instance that produced the mesh.
+    /// </summary>
+    /// <param name="original">The mesh node to copy.</param>
+    /// <param name="context">The build context that owns the location map.</param>
+    /// <returns>The copy, which shares the mesh and keeps the transform.</returns>
+    private static MeshNode CopyMeshNode(MeshNode original, ScadGeometryContext context)
+    {
+        var copy = new MeshNode(original.Mesh) { Transform = original.Transform };
+        context.Map.Add(copy, context.Map.Find(original));
+        return copy;
     }
 
     /// <summary>

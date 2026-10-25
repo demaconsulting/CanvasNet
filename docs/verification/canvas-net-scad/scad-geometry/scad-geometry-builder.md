@@ -228,7 +228,8 @@ builds nothing and reports nothing of its own.
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance`,
 `ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_SharedSubtree_IsCopiedOnceAndShared`,
-`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce`
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce`,
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_StripAppearances_CopiesKeepTheOriginalSourceLocation`
 
 Asserts that a 10 x 6 x 4 block summed with a ball of 16 fragments is a closed mesh with bounds -1..11, -1..7,
 -1..5 and a volume between the block with its faces added and the exact rounded block; that a translated box and a
@@ -241,7 +242,8 @@ in which a node is shared (a root holding `[X, S]` where `X` holds `P` and `P` h
 the earlier implementation threw `KeyNotFoundException` for it) makes one copy of the shared node, with the same
 transform and mesh, referenced by both parents, with no appearance anywhere and the original untouched; and that a
 chain of a hundred thousand nodes that each hold the next one twice (2^100000 paths) is copied with one copy per
-node, iteratively.
+node, iteratively; and that every stripped mesh copy is recorded in the location map under the location of its original
+node (the cube instance, not the `minkowski`), so a render-time report about the copy is locatable.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex: Non-Convex Operands
 

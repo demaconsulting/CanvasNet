@@ -420,6 +420,39 @@ public class ScadGeometryBuilderMinkowskiTests
     }
 
     /// <summary>
+    ///     Validates that the mesh node of a stripped copy is recorded in the location map under the location of the
+    ///     original node, so that a render-time report about it points at the instance that produced the mesh; every
+    ///     copy of a larger stripped scene is recorded too.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_StripAppearances_CopiesKeepTheOriginalSourceLocation()
+    {
+        // Arrange: the lone colored child is a union of two cubes at known columns of line 2
+        const string Line = "  minkowski() color(\"red\") union() { cube(1); translate([5, 0, 0]) cube(1); }";
+        var firstColumn = Line.IndexOf("cube(1)", StringComparison.Ordinal) + 1;
+        var secondColumn = Line.LastIndexOf("cube(1)", StringComparison.Ordinal) + 1;
+
+        // Act
+        var result = Build($"\n{Line}");
+
+        // Assert: the copies (no appearance) are mapped to their original cubes, not to the minkowski or to nothing
+        var leaves = result.Leaves;
+        Assert.Equal(2, leaves.Count);
+        Assert.All(leaves, leaf => Assert.Null(leaf.Appearance));
+        Assert.Equal(new ScadSourceLocation(null, 2, firstColumn), result.Map.Find(leaves[0].Node));
+        Assert.Equal(new ScadSourceLocation(null, 2, secondColumn), result.Map.Find(leaves[1].Node));
+
+        // Assert: the copy made directly from a node of the map carries that node's location as well
+        var original = new MeshNode(PrimitiveTessellator.Box(new Vector3D(1, 1, 1)));
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+        var location = new ScadSourceLocation("file.scad", 7, 9);
+        context.Map.Add(original, location);
+        var copy = Assert.IsType<MeshNode>(ScadHulls.StripAppearances(ScadGeo.FromSolid(original, original.Mesh.Bounds, true, false), context).Node);
+        Assert.NotSame(original, copy);
+        Assert.Equal(location, context.Map.Find(copy));
+    }
+
+    /// <summary>
     ///     Lists a scene node and everything below it, each distinct node once, walking iteratively.
     /// </summary>
     /// <param name="root">The root.</param>

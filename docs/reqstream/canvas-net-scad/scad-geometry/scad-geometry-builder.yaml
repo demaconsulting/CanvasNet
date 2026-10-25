@@ -211,6 +211,7 @@ sections:
                   - ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance
                   - ScadGeometryBuilder_Minkowski_StripAppearances_SharedSubtree_IsCopiedOnceAndShared
                   - ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce
+                  - ScadGeometryBuilder_Minkowski_StripAppearances_CopiesKeepTheOriginalSourceLocation
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
                 title: >-

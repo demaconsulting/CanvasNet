@@ -231,11 +231,11 @@ internal static partial class ScadPrimitives
         {
             region = make();
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.Reporter.Unsupported(
                 rejectionFeature ?? ScadFeatureIds.GeometryRejected,
-                $"{node.Name}: the shape was rejected: {ex.Message}",
+                $"{node.Name}: the shape was rejected (it is not a valid planar shape, for example because a contour crosses itself or a coordinate is outside the supported range)",
                 node.Location);
             return ScadGeo.Empty;
         }

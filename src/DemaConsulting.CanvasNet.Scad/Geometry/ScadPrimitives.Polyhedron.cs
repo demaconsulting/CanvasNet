@@ -89,10 +89,10 @@ internal static partial class ScadPrimitives
         {
             mesh = PrimitiveTessellator.Polyhedron(points, triangles);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.RefundTriangles(estimate);
-            Rejected(node, context, ex);
+            Rejected(node, context);
             return ScadGeo.Empty;
         }
 
