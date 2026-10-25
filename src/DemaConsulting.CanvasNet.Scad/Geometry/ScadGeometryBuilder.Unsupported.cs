@@ -44,6 +44,8 @@ internal sealed partial class ScadGeometryBuilder
         {
             ["union"] = ScadBooleans.Union,
             ["render"] = ScadBooleans.Union,
+            ["difference"] = ScadBooleans.Difference,
+            ["intersection"] = ScadBooleans.Intersection,
             ["translate"] = ScadTransforms.Translate,
             ["rotate"] = ScadTransforms.Rotate,
             ["scale"] = ScadTransforms.Scale,

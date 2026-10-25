@@ -132,6 +132,52 @@ public class ScadGeometryBuilderStackTests
     }
 
     /// <summary>
+    ///     Builds a hand-made nest of differences (each removes a cube from the previous result) and describes it.
+    /// </summary>
+    /// <param name="name">The boolean module name.</param>
+    /// <param name="depth">The number of nested booleans.</param>
+    /// <returns>The mesh count, the scene depth and whether the root is a boolean node.</returns>
+    private static (int Meshes, int Depth, bool RootIsCsg) BuildBooleanChain(string name, int depth)
+    {
+        ScadInstance Cube() =>
+            new(ScadInstanceKind.BuiltinModule, "cube", [new ScadInstanceArgument(null, N(1))], [], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+
+        var node = Cube();
+        for (var i = 0; i < depth; i++)
+        {
+            node = new ScadInstance(ScadInstanceKind.BuiltinModule, name, [], [node, Cube()], ScadModifiers.None, Defaults, new ScadSourceLocation(null, 1, 1));
+        }
+
+        var built = ScadGeometryBuilder.Build([node], Settings(), new ScadEvaluationSink(ScadLimits.Default));
+        return (MeshNodes(built.Scene).Count, Depth(built.Scene), built.Scene.Root is CsgNode);
+    }
+
+    /// <summary>
+    ///     Validates that a 20,000-level nest of differences or intersections builds on 64 KiB and 256 KiB callers to
+    ///     exactly the scene a big stack gives (a node per level and an operand per level).
+    /// </summary>
+    /// <param name="name">The boolean module.</param>
+    /// <param name="stackSize">The caller's stack size in bytes.</param>
+    [Theory]
+    [InlineData("difference", TinyStack)]
+    [InlineData("difference", SmallStack)]
+    [InlineData("intersection", TinyStack)]
+    [InlineData("intersection", SmallStack)]
+    public void ScadGeometryBuilder_Build_DeepBooleanChain_OnSmallStack_MatchesBigStack(string name, int stackSize)
+    {
+        // Arrange
+        const int Levels = 20_000;
+
+        // Act
+        var big = OnSmallStack(() => BuildBooleanChain(name, Levels), BigStack);
+        var small = OnSmallStack(() => BuildBooleanChain(name, Levels), stackSize);
+
+        // Assert
+        Assert.Equal(big, small);
+        Assert.Equal((Levels + 1, Levels + 1, true), big);
+    }
+
+    /// <summary>
     ///     Describes a built scene by its mesh count, depth and total volume.
     /// </summary>
     /// <param name="result">The build result.</param>

@@ -17,7 +17,7 @@ public class ScadGeometryBuilderWalkTests
     /// <summary>The built-in modules the geometry builder builds (or combines) in this phase.</summary>
     private static readonly HashSet<string> Implemented =
         [
-            "cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "union", "render",
+            "cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "union", "render", "difference", "intersection",
             "translate", "rotate", "scale", "mirror", "multmatrix", "resize", "color",
         ];
 
