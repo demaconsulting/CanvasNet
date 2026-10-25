@@ -96,7 +96,9 @@ public static class MinkowskiSum
 
         // Distinct vertex positions and the work bound, both before any large allocation
         var weldedA = DistinctVertices(a, nameof(a), out var verticesA);
+        cancellationToken.ThrowIfCancellationRequested();
         var weldedB = DistinctVertices(b, nameof(b), out var verticesB);
+        cancellationToken.ThrowIfCancellationRequested();
         if ((long)verticesA.Length * verticesB.Length > MaxPairwiseSums)
         {
             throw new ArgumentException(
@@ -105,6 +107,7 @@ public static class MinkowskiSum
 
         // Only convex operands have a Minkowski sum equal to the hull of the vertex sums
         RequireConvex(a, weldedA, verticesA, nameof(a), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         RequireConvex(b, weldedB, verticesB, nameof(b), cancellationToken);
 
         // All pairwise sums, then their exact hull
