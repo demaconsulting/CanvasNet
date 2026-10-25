@@ -27,10 +27,14 @@ tests are fast; the frame accounting is pinned by a formula test (`f(n) = n == 0
 frames per level plus four, so a limit of 104 admits depth 50 and rejects 51), and the module, `children()`, and
 block accounting by their own formulas. Stack safety is verified by running programs from caller threads with a
 64 KiB (tiny), 256 KiB or 1 MiB (small), and 256 MiB (big) stack: the result at the limit must match the big-stack
-result, the over-limit failure must have the identical message and location on every stack size, a tiny stack must
-hop to the evaluator thread (observed through `LastRunThreadId` and `FallbackCount`), a normal program must stay on
-the caller's thread, exceptions and the culture must survive the hop, a restart must record each event once and
-keep the warnings recorded while files were loaded, and a burst of tiny-stack callers must not exceed the bound on
+result and the over-limit failure must have the identical message and location on every stack size (only outcomes
+are asserted for these, because how small a stack a platform actually grants differs, so whether a given caller
+hops is not asserted). The fallback path itself is exercised deterministically through the internal
+`ScadEvaluator.ForceFallbackForCurrentThread` seam, which makes the stack-guard check report an insufficient stack for
+the calling thread: a forced evaluation must hop to the evaluator thread (observed through `LastRunThreadId` and
+`FallbackCount`), a normal program must stay on the caller's thread, exceptions and the culture must survive the
+hop, a restart must record each event once and
+keep the warnings recorded while files were loaded, and a burst of forced callers must not exceed the bound on
 concurrent fallback threads. Cancellation is verified with tokens that are canceled beforehand, after a short
 delay during endless tail recursion and a huge loop (with the step limit raised to the maximum), and by the
 resolver during file loading, always with a generous timeout. Determinism is verified by evaluating twice, under the
@@ -58,7 +62,9 @@ project, in the `Evaluation` folder, with the shared helpers in `ScadEvaluatorTe
 - **Mocking**: None required; the in-memory `ScadVirtualFiles` resolver is a real implementation of the callback
 - **Files**: The authored fixtures in `ScadFixtures/` (read only) for the fixture scenarios
 - **Threads**: The stack-safety scenarios run the evaluation from a caller thread with a 64 KiB, 256 KiB, 1 MiB, or
-  256 MiB stack and join it before asserting; the cancellation scenarios cancel from a timer or from the resolver;
+  256 MiB stack and join it before asserting, and the fallback scenarios force the fallback through the per-thread
+  `ScadEvaluator.ForceFallbackForCurrentThread` seam instead of relying on a small stack; the cancellation scenarios
+  cancel from a timer or from the resolver;
   the concurrency scenarios start several threads at once
 - **Cultures**: The determinism scenarios set the current culture for the duration of the call and restore it
 - **Isolation**: Each test evaluates its own sources and settings
@@ -538,7 +544,8 @@ timer while `str` repeatedly formats a vector of 100,000 numbers with the step l
 product scenario cancels from a timer while 21 products of 27 million multiply-adds each are running; the
 deterministic proof that a single product polls at fixed intervals is the `ScadValueProduct` poll scenario in the
 unit verification of `ScadValue`. The wait scenario holds every slot of a slot set of its own (so nothing else can
-count against it), starts a tiny-stack caller that must hop, waits until that set shows exactly one waiter, cancels,
+count against it), starts a caller whose fallback is forced (so that it must hop), waits until that set shows
+exactly one waiter, cancels,
 and asserts that the caller ends with an `OperationCanceledException` within 30 seconds while the held slots are
 untouched.
 
@@ -562,11 +569,12 @@ untouched.
 Asserts, over the shapes of function, closure, mutual, module, and `children()` recursion, `let`, `echo`, and
 `assert` chains, ternary chains, nested expressions and vector literals inside recursion, and comprehensions, that
 programs at the limit match the big-stack result on small stacks, that one frame over fails identically, that
-value nesting at 256 levels survives, that a tiny stack hops to the evaluator thread while a normal program does
-not, that exceptions and the culture survive the hop, and that concurrent tiny-stack callers never exceed the bound
+value nesting at 256 levels survives, that a forced fallback hops to the evaluator thread while a normal program does
+not, that exceptions and the culture survive the hop, and that concurrent forced callers never exceed the bound
 on fallback threads. The slot scenarios do not touch the process-wide slot set: each creates its own
 `ScadEvaluatorFallbackSlots` (two slots, with its own waiting, active, peak, and start counters), takes every slot
-on the test thread (with a 30-second timeout on every wait and release in `finally`), starts a tiny-stack caller
+on the test thread (with a 30-second timeout on every wait and release in `finally`), starts a caller with the
+fallback forced
 whose thread has the set injected through the per-thread `ScadEvaluator.SlotsForCurrentThread` seam, waits until
 that set's own `Waiting` counter shows exactly one waiter, and then releases one slot (the caller completes and
 the set's start count rises by one) or cancels (see the Cancellation scenario); afterwards every slot of the set
@@ -575,7 +583,8 @@ tests run in parallel cannot satisfy or disturb the waits (a process-wide waiter
 another test's fallback hop). A further scenario holds two independent sets, waits one caller on each, and asserts
 that each set counts exactly its own waiter. The thread-start failure scenarios inject an
 `OutOfMemoryException` through the per-thread `ScadEvaluator.ThreadStarterForCurrentThread` seam (which replaces
-`Thread.Start` for the calling thread) and assert that a tiny-stack caller gets a `ScadEvaluationException` naming the
+`Thread.Start` for the calling thread) and assert that a forced-fallback caller gets a `ScadEvaluationException`
+naming the
 dedicated thread and the 32-bit limitation with the `OutOfMemoryException` as its inner exception, that five failures
 in a row on a two-slot set leave every slot free and a later evaluation (seam removed) still succeeds, and that a
 pass-through starter is actually used for the hop. Out-of-memory conditions raised by the evaluation itself cannot be

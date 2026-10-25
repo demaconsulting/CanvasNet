@@ -55,8 +55,8 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
-    ///     Validates that every shape recursing exactly to the nominal limit succeeds on a 256 KiB caller (by hopping to
-    ///     the evaluator thread) with exactly the result, diagnostics and tree it has on a big stack.
+    ///     Validates that every shape recursing exactly to the nominal limit succeeds on a 256 KiB caller (hopping to
+    ///     the evaluator thread if the platform's stack guard requires it) with exactly the result, diagnostics and tree it has on a big stack.
     /// </summary>
     /// <param name="shape">The shape name.</param>
     /// <param name="limit">The recursion limit.</param>
@@ -74,8 +74,6 @@ public class ScadEvaluatorStackTests
         var small = OnSmallStack(() => RunAndDescribe(program, settings));
 
         // Assert
-        Assert.True(big.Inline);
-        Assert.False(small.Inline);
         Assert.Equal(big.Text, small.Text);
     }
 
@@ -178,8 +176,8 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
-    ///     Validates that a caller below the guard's reserve really hops: the evaluation completes on another thread
-    ///     and the fallback is counted.
+    ///     Validates that a forced fallback (the stack guard reporting an insufficient stack) completes the evaluation
+    ///     on another thread and counts the fallback.
     /// </summary>
     [Fact]
     public void ScadEvaluatorStack_Evaluate_TinyCallerStack_FallsBackToDedicatedThread()
@@ -189,13 +187,12 @@ public class ScadEvaluatorStackTests
         var program = Shapes["function"].Make(1000);
 
         // Act
-        var (output, callerThread, evaluatorThread) = OnSmallStack(
+        var (output, callerThread, evaluatorThread) = OnForcedFallback(
             () =>
             {
                 var result = Run(program);
                 return (result, Environment.CurrentManagedThreadId, ScadEvaluator.LastRunThreadId);
-            },
-            TinyCallerStackSize);
+            });
 
         // Assert
         Assert.Equal("ECHO: 1000", Assert.Single(output.Echo));
@@ -228,7 +225,7 @@ public class ScadEvaluatorStackTests
         var deep = Shapes["function"].Make(ScadLimits.Default.MaxRecursionDepth);
 
         // Act
-        var (error, hopped, text) = OnSmallStack(
+        var (error, hopped, text) = OnForcedFallback(
             () =>
             {
                 CultureInfo.CurrentCulture = new CultureInfo("de-DE");
@@ -236,8 +233,7 @@ public class ScadEvaluatorStackTests
                 var failedElsewhere = ScadEvaluator.LastRunThreadId != Environment.CurrentManagedThreadId;
                 var echo = Run("echo(1.5, 1e-5);\n" + Shapes["function"].Make(2000)).Echo[0];
                 return (caught, failedElsewhere, echo);
-            },
-            TinyCallerStackSize);
+            });
 
         // Assert
         var evaluation = Assert.IsType<ScadEvaluationException>(error);
@@ -258,7 +254,7 @@ public class ScadEvaluatorStackTests
         var sink = new ScadEvaluationSink(ScadLimits.Default);
 
         // Act
-        var output = OnSmallStack(() => Run(Source, null, null, sink), TinyCallerStackSize);
+        var output = OnForcedFallback(() => Run(Source, null, null, sink));
 
         // Assert
         Assert.Equal(["ECHO: \"start\"", "ECHO: 2000"], output.Echo);
@@ -277,7 +273,7 @@ public class ScadEvaluatorStackTests
         var source = "include <missing.scad>\n" + Shapes["function"].Make(2000);
 
         // Act
-        var output = OnSmallStack(() => Run(source, null, files), TinyCallerStackSize);
+        var output = OnForcedFallback(() => Run(source, null, files));
 
         // Assert
         Assert.Equal("ECHO: 2000", Assert.Single(output.Echo));
@@ -296,7 +292,7 @@ public class ScadEvaluatorStackTests
         var source = "use <lib.scad>\n" + Shapes["function"].Make(2000) + "\necho(twice(4));";
 
         // Act
-        var (output, callerThread) = OnSmallStack(() => (Run(source, null, files), Environment.CurrentManagedThreadId), TinyCallerStackSize);
+        var (output, callerThread) = OnForcedFallback(() => (Run(source, null, files), Environment.CurrentManagedThreadId));
 
         // Assert
         Assert.Equal(["ECHO: 2000", "ECHO: 8"], output.Echo);
@@ -319,7 +315,7 @@ public class ScadEvaluatorStackTests
         for (var i = 0; i < callers.Length; i++)
         {
             var index = i;
-            callers[i] = new Thread(() => failures[index] = Record.Exception(() => Run(program)), TinyCallerStackSize);
+            callers[i] = new Thread(() => failures[index] = Record.Exception(() => OnForcedFallbackHere(() => Run(program))), TinyCallerStackSize);
         }
 
         // Act
@@ -486,11 +482,11 @@ public class ScadEvaluatorStackTests
 
         // Act
         var inline = OnSmallStack(() => RunAndDescribe(source, null), BigCallerStackSize);
-        var hopped = OnSmallStack(() => RunAndDescribe(source, null), TinyCallerStackSize);
+        var (hopped, ranElsewhere) = OnForcedFallback(
+            () => (RunAndDescribe(source, null), ScadEvaluator.LastRunThreadId != Environment.CurrentManagedThreadId));
 
         // Assert
-        Assert.True(inline.Inline);
-        Assert.False(hopped.Inline);
+        Assert.True(ranElsewhere);
         Assert.Equal(inline.Text, hopped.Text);
     }
 
@@ -506,7 +502,7 @@ public class ScadEvaluatorStackTests
         var slots = new ScadEvaluatorFallbackSlots(2);
 
         // Act
-        var ex = OnSmallStack(
+        var ex = OnForcedFallback(
             () =>
             {
                 ScadEvaluator.SlotsForCurrentThread = slots;
@@ -520,8 +516,7 @@ public class ScadEvaluatorStackTests
                     ScadEvaluator.ThreadStarterForCurrentThread = null;
                     ScadEvaluator.SlotsForCurrentThread = null;
                 }
-            },
-            SmallCallerStackSize);
+            });
 
         // Assert
         Assert.Contains("dedicated thread", ex.Message, StringComparison.Ordinal);
@@ -541,7 +536,7 @@ public class ScadEvaluatorStackTests
         var slots = new ScadEvaluatorFallbackSlots(2);
 
         // Act
-        var (failures, output) = OnSmallStack(
+        var (failures, output) = OnForcedFallback(
             () =>
             {
                 ScadEvaluator.SlotsForCurrentThread = slots;
@@ -563,8 +558,7 @@ public class ScadEvaluatorStackTests
                     ScadEvaluator.ThreadStarterForCurrentThread = null;
                     ScadEvaluator.SlotsForCurrentThread = null;
                 }
-            },
-            SmallCallerStackSize);
+            });
 
         // Assert
         Assert.Equal(5, failures);
@@ -584,7 +578,7 @@ public class ScadEvaluatorStackTests
         var started = 0;
 
         // Act
-        var output = OnSmallStack(
+        var output = OnForcedFallback(
             () =>
             {
                 ScadEvaluator.ThreadStarterForCurrentThread = thread =>
@@ -600,8 +594,7 @@ public class ScadEvaluatorStackTests
                 {
                     ScadEvaluator.ThreadStarterForCurrentThread = null;
                 }
-            },
-            SmallCallerStackSize);
+            });
 
         // Assert
         Assert.Equal(1, started);
@@ -632,7 +625,7 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
-    ///     Starts a caller with a tiny stack that evaluates a program and so has to hop to a fallback thread.
+    ///     Starts a caller (with a small stack and the fallback forced) that evaluates a program and so has to hop to a fallback thread.
     /// </summary>
     /// <param name="program">The program.</param>
     /// <param name="cancellation">The cancellation token of the evaluation.</param>
@@ -646,12 +639,14 @@ public class ScadEvaluatorStackTests
             () =>
             {
                 ScadEvaluator.SlotsForCurrentThread = slots;
+                ScadEvaluator.ForceFallbackForCurrentThread = true;
                 try
                 {
                     result[0] = Record.Exception(() => Run(program, settings));
                 }
                 finally
                 {
+                    ScadEvaluator.ForceFallbackForCurrentThread = false;
                     ScadEvaluator.SlotsForCurrentThread = null;
                 }
             },
@@ -661,17 +656,36 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
+    ///     Runs a function with the fallback forced for the calling thread, which is restored afterwards.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="function">The function.</param>
+    /// <returns>The result.</returns>
+    private static T OnForcedFallbackHere<T>(Func<T> function)
+    {
+        ScadEvaluator.ForceFallbackForCurrentThread = true;
+        try
+        {
+            return function();
+        }
+        finally
+        {
+            ScadEvaluator.ForceFallbackForCurrentThread = false;
+        }
+    }
+
+    /// <summary>
     ///     Runs a program and describes everything observable about the result.
     /// </summary>
     /// <param name="program">The program.</param>
     /// <param name="settings">The settings, or <see langword="null"/>.</param>
-    /// <returns>The description and whether the evaluation completed on the calling thread.</returns>
+    /// <returns>The description of the result.</returns>
     private static Described RunAndDescribe(string program, ScadEvaluationSettings? settings)
     {
         var output = Run(program, settings);
         var text = $"echo=[{string.Join('|', output.Echo)}] diag=[{string.Join('|', output.Diagnostics.Select(d => $"{d.Location}: {d.Message}"))}] "
             + $"tree={ScadInstanceDumper.Dump(output.Roots)} steps={output.Steps} loops={output.LoopIterations} instances={output.InstanceCount}";
-        return new Described(text, [.. output.Echo], ScadEvaluator.LastRunThreadId == Environment.CurrentManagedThreadId);
+        return new Described(text, [.. output.Echo]);
     }
 
     /// <summary>
@@ -697,8 +711,7 @@ public class ScadEvaluatorStackTests
     /// <summary>The observable result of a successful run.</summary>
     /// <param name="Text">The full description.</param>
     /// <param name="Echo">The echo lines.</param>
-    /// <param name="Inline">Whether the run completed on the calling thread.</param>
-    private sealed record Described(string Text, string[] Echo, bool Inline);
+    private sealed record Described(string Text, string[] Echo);
 
     /// <summary>The observable result of a failed run.</summary>
     /// <param name="Message">The exception message.</param>

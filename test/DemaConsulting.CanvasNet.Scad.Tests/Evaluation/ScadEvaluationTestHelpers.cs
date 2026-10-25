@@ -98,6 +98,30 @@ internal static class ScadEvaluationTestHelpers
     }
 
     /// <summary>
+    ///     Runs a function on a new thread whose evaluations are forced onto the dedicated fallback thread
+    ///     (as if the runtime stack guard had reported an insufficient stack), so the fallback path is exercised
+    ///     deterministically whatever stack size the platform really grants. The seam is per thread and is reset when
+    ///     the function ends.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="function">The function to run.</param>
+    /// <returns>The result.</returns>
+    public static T OnForcedFallback<T>(Func<T> function) =>
+        OnSmallStack(
+            () =>
+            {
+                ScadEvaluator.ForceFallbackForCurrentThread = true;
+                try
+                {
+                    return function();
+                }
+                finally
+                {
+                    ScadEvaluator.ForceFallbackForCurrentThread = false;
+                }
+            });
+
+    /// <summary>
     ///     Runs a function with a specific current culture on a dedicated thread, so no other test is affected.
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>

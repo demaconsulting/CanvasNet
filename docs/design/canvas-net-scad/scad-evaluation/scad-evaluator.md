@@ -90,7 +90,9 @@ cancellation poll interval (1,024 steps), and the test hooks `LastRunThreadId` (
 calling thread: the managed thread that completed that thread's latest evaluation), `FallbackCount`,
 `PeakConcurrentFallbackThreads` (the process-wide set's peak), and `SlotsForCurrentThread` (a per-thread seam that
 substitutes a test's own `ScadEvaluatorFallbackSlots` for the process-wide one for evaluations started by that
-thread, so a test can hold slots and observe its own waiting callers without interference from other tests).
+thread, so a test can hold slots and observe its own waiting callers without interference from other tests), and
+`ForceFallbackForCurrentThread` (a per-thread seam that makes the inline attempt report an insufficient stack, so a
+test reaches the fallback path deterministically instead of depending on how small a stack the platform grants).
 
 #### Key Methods
 

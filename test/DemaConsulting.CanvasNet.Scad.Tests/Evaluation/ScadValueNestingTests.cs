@@ -99,9 +99,10 @@ public class ScadValueNestingTests
     [Fact]
     public void ScadValue_Equals_ExtremeDepthOnTinyStack_ThrowsInsufficientStackNotCrash()
     {
-        // Arrange: a value nested 20,000 deep (far beyond the evaluator's bound) compared on a 64 KiB stack
-        var deep = Nested(20_000);
-        var other = Nested(20_000);
+        // Arrange: a value nested 500,000 deep, far more than any platform's stack can recurse through, compared on a
+        // 64 KiB request (a platform may round that up, so the depth alone must be enough to trip the guard)
+        var deep = Nested(500_000);
+        var other = Nested(500_000);
 
         // Act / Assert
         Assert.Throws<InsufficientExecutionStackException>(

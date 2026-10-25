@@ -334,17 +334,17 @@ public class ScadDocumentEvaluateTests
 
     /// <summary>
     ///     Validates that the handlers run on the calling thread, also when the evaluation had to be restarted on a
-    ///     large-stack thread because the caller's stack is small, and that every event is delivered exactly once.
+    ///     large-stack thread (forced here, as when the caller's stack is small), and that every event is delivered exactly once.
     /// </summary>
     [Fact]
     public void ScadDocument_Evaluate_Handlers_RunOnCallerThread_EvenAfterStackRestart()
     {
-        // Arrange: a recursion deep enough to exhaust a 64 KiB stack and a warning and echo around it
+        // Arrange: a document with a warning and echo around a recursion, evaluated with the fallback forced
         var document = ScadDocument.Parse(
             "function f(n) = n == 0 ? 0 : 1 + f(n - 1);\necho(\"start\");\necho(nope);\necho(f(2000));");
 
         // Act
-        var (callerThread, evaluatorThread, handlerThreads, lines, warnings) = OnSmallStack(
+        var (callerThread, evaluatorThread, handlerThreads, lines, warnings) = OnForcedFallback(
             () =>
             {
                 var threads = new List<int>();
@@ -365,8 +365,7 @@ public class ScadDocumentEvaluateTests
                 };
                 document.Evaluate(options, CancellationToken.None);
                 return (Environment.CurrentManagedThreadId, ScadEvaluator.LastRunThreadId, threads, echoed, warned);
-            },
-            64 * 1024);
+            });
 
         // Assert: the pass ran elsewhere, the handlers did not, and nothing was duplicated by the restart
         Assert.NotEqual(callerThread, evaluatorThread);

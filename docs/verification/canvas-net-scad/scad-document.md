@@ -49,9 +49,11 @@ the `DemaConsulting.CanvasNet.Scad.Tests` project; the shared fixture and syntax
 - **Mocking**: None required; the internal parser and evaluation subsystem are exercised for real
 - **Files**: The `ScadFixtures/` folder copied to the test output directory (read only); the file-system sandbox
   scenarios create and delete a per-test temporary directory
-- **Threads**: The small-stack scenarios run `Evaluate` from a caller thread with a 64 KiB or 256 KiB stack (below
-  or near the stack guard's reserve, so that the evaluator must restart on its own thread) and join it before
-  asserting; the handler-thread scenario compares the thread on which each handler ran with the caller's
+- **Threads**: The small-stack scenarios run `Evaluate` from a caller thread with a 64 KiB or 256 KiB stack and join
+  it before asserting (only outcomes are asserted there, because the stack size a platform really grants differs);
+  the handler-thread scenario forces the evaluator's fallback through the internal
+  `ScadEvaluator.ForceFallbackForCurrentThread` seam, so that the evaluator must restart on its own thread, and
+  compares the thread on which each handler ran with the caller's
 - **Isolation**: Each test constructs its own sources, streams, options, and temporary files
 
 ### Acceptance Criteria
@@ -228,8 +230,8 @@ unsupported-feature lists refuse mutation and cannot be cast to a mutable collec
 
 Asserts that the three handlers receive exactly the events of the result in chronological order; that when
 evaluation fails the events recorded before the failure are still delivered; that a handler exception on success
-propagates but on a failure path the evaluation failure wins; that with a recursion deep enough to force a restart
-on a 64 KiB caller stack the evaluator ran on a different thread while every handler ran on the caller's thread and
+propagates but on a failure path the evaluation failure wins; that with a forced restart (through the internal
+fallback seam) the evaluator ran on a different thread while every handler ran on the caller's thread and
 each event was delivered once; and that with `ThrowOnUnsupportedFeature` the first unsupported feature throws after
 the earlier events were delivered.
 

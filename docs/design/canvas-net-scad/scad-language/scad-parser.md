@@ -157,7 +157,8 @@ never constant-folded: `-5` is `ScadUnaryExpression(Negate, ScadNumberLiteral(5)
   the fallback stands in for (`Nesting cannot be checked: the dedicated 16 MiB parser thread could not be started
   (not enough memory or address space)`), and the slot is released. The internal seam
   `ScadParser.ThreadStarterForCurrentThread` replaces `Thread.Start` for the calling thread so a test can simulate
-  the failure.
+  the failure, and `ScadParser.ForceFallbackForCurrentThread` makes the inline attempt report an insufficient stack
+  for the calling thread so a test reaches the fallback path deterministically.
 - `ParseProgramGuarded(bool stackShortageIsSyntaxError)` — runs `ParseProgram()`; when the argument is true
   (the fallback thread) a tripped stack guard is converted into the `Nesting too deep` error, otherwise
   `InsufficientExecutionStackException` escapes to `ParseTokens`. It then calls `ScadTreeDepth.Verify` on

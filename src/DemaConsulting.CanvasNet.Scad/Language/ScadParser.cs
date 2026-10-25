@@ -95,6 +95,22 @@ internal sealed partial class ScadParser
     [ThreadStatic]
     private static Action<Thread>? _threadStarterForThread;
 
+    /// <summary>Whether the current thread's parses skip the inline attempt and go straight to the fallback thread (a test seam).</summary>
+    [ThreadStatic]
+    private static bool _forceFallbackForThread;
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether parses started by the <em>calling thread</em> skip the inline
+    ///     attempt and run on the dedicated fallback thread, exactly as if the runtime stack guard had reported an
+    ///     insufficient stack (a test seam; <see langword="false"/> by default). It makes the fallback path
+    ///     deterministic, because how small a caller stack the platform really grants is not.
+    /// </summary>
+    internal static bool ForceFallbackForCurrentThread
+    {
+        get => _forceFallbackForThread;
+        set => _forceFallbackForThread = value;
+    }
+
     /// <summary>
     ///     Gets or sets the action that parses started by the <em>calling thread</em> use to start a fallback thread
     ///     instead of <see cref="Thread.Start()"/>; <see langword="null"/> (the default) starts it normally (a test
@@ -201,6 +217,11 @@ internal sealed partial class ScadParser
         {
             try
             {
+                if (_forceFallbackForThread)
+                {
+                    throw new InsufficientExecutionStackException();
+                }
+
                 return new ScadParser(tokens).ParseProgramGuarded(stackShortageIsSyntaxError: false);
             }
             catch (InsufficientExecutionStackException)
