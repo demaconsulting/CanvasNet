@@ -84,14 +84,33 @@ sections:
           - DiscoveryCommands_Info_JsonOutput_MatchesGoldenDocument
           - DiscoveryCommands_Info_JpegOrientation_IsReportedOnlyWhenPresent
 
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoPages
+        title: >-
+          The info command shall describe a PDF, PPTX, or VSDX document by its number of pages and the
+          size of one page (the first, the one chosen with the page option, or every page with the
+          all-pages option) in pixels at 96 dots per inch and in points, with the rotation of a PDF
+          page and the name of a VSDX page, as text and as the document object of the JSON document,
+          shall accept the page options for a single image as well, and shall reject both page options
+          together and a page that does not exist.
+        justification: |
+          An agent decides which page to render, and at what resolution, from what the document says
+          about its pages; one command answers that for every kind of document.
+        tests:
+          - DiscoveryCommands_Info_PdfText_DescribesFileAndFirstPage
+          - DiscoveryCommands_Info_PageOptions_ChoosePagesToDescribe
+          - DiscoveryCommands_Info_DocumentJson_ListsPageCountAndPages
+          - DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors
+          - DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage
+
       - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         title: >-
-          The info command shall report a missing, corrupt, or unsupported input as an expected error,
-          shall report a missing input, extra inputs, or an unknown option as a usage error, and shall
-          reject null arguments.
+          The info command shall report a missing, corrupt, or unsupported input (including a damaged
+          document) as an expected error, shall report a missing input, extra inputs, or an unknown
+          option as a usage error, and shall reject null arguments.
         justification: |
           Mistakes must produce stable, actionable errors rather than silent or partial results.
         tests:
           - DiscoveryCommands_Info_BadInput_ThrowsToolException
+          - DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput
           - DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError
           - DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException

@@ -232,8 +232,8 @@ software items, specifically:
   `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command and its alias `convert`; further command units are added as the
   commands are implemented) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
-  BMP, TIFF, GIF, JPEG 2000, and SVG files, and the `ImageWriter` unit, which writes PNG, JPEG, BMP, and TIFF
-  files). It uses
+  BMP, TIFF, GIF, JPEG 2000, and SVG files and the pages of PDF, PPTX, and VSDX documents, and the `ImageWriter`
+  unit, which writes PNG, JPEG, BMP, and TIFF files). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
@@ -882,6 +882,10 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Detect.cs     — SourceLoader: format detection
     ├── SourceLoader.Raster.cs     — SourceLoader: PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 sources
     ├── SourceLoader.Svg.cs        — SourceLoader: SVG sources
+    ├── SourceLoader.Documents.cs  — SourceLoader: the page-based sources' shared sizing and rendering
+    ├── SourceLoader.Pdf.cs        — SourceLoader: PDF documents
+    ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
+    ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
     ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
     └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy

@@ -71,6 +71,7 @@ sections:
         children:
           - CanvasNetTool-Commands-DiscoveryCommands-Info
           - CanvasNetTool-Commands-DiscoveryCommands-InfoJson
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoPages
           - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         tests:
           - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
@@ -87,6 +88,8 @@ sections:
         children:
           - CanvasNetTool-Commands-RenderCommand-Options
           - CanvasNetTool-Commands-RenderCommand-Source
+          - CanvasNetTool-Commands-RenderCommand-Pages
+          - CanvasNetTool-Commands-RenderCommand-Strict
           - CanvasNetTool-Commands-RenderCommand-Output
           - CanvasNetTool-Commands-RenderCommand-Result
           - CanvasNetTool-Commands-RenderCommand-Overwrite

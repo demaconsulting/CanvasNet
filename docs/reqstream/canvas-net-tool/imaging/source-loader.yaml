@@ -2,10 +2,12 @@
 # Software Unit Requirements for the SourceLoader Class
 #
 # The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
-# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG. It recognizes the format, applies the size
-# policy (including the maximum image size), the EXIF orientation of a JPEG, and the background color, and
-# maps the library exceptions that mean "bad input" to expected errors. The EXIF reader and the
-# orientation transform (ExifOrientation) and the small SurfaceOperations helpers are part of this unit.
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, and VSDX. It recognizes the format,
+# applies the size policy (including the maximum image size), the page and resolution of a document, the
+# EXIF orientation of a JPEG, and the background color, collects the notes about features the libraries
+# cannot draw, and maps the library exceptions that mean "bad input" to expected errors. The EXIF reader
+# and the orientation transform (ExifOrientation) and the small SurfaceOperations helpers are part of
+# this unit.
 
 sections:
   - title: SourceLoader Unit Requirements
@@ -13,9 +15,10 @@ sections:
       - id: CanvasNetTool-Imaging-SourceLoader-Detect
         title: >-
           The SourceLoader class shall recognize the format of a file from its signature bytes (PNG,
-          JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from SVG text, then from its file name
-          extension, so that the content wins over the extension and a damaged file with a known
-          extension is still attributed to its format.
+          JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from the entries of a ZIP package
+          (a presentation or a drawing; any other archive is not supported), then from SVG text, then
+          from its file name extension, so that the content wins over the extension and a damaged file
+          with a known extension is still attributed to its format.
         justification: |
           Agents rename and mislabel files; trusting the content first avoids decoding a file with the
           wrong codec, and falling back to the extension lets an empty or truncated file be reported as
@@ -26,6 +29,7 @@ sections:
           - SourceLoader_Detect_SvgTextWithoutExtension_ReturnsSvg
           - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
           - SourceLoader_Detect_ZipPackage_UsesExtension
+          - SourceLoader_Detect_ZipPackages_UsesEntriesOverExtension
           - SourceLoader_Detect_OtherSignatures_ReturnsKind
           - SourceLoader_Detect_TextStartingWithBm_IsNotBmp
           - SourceLoader_ExtensionKinds_AreWellFormed
@@ -47,7 +51,9 @@ sections:
         title: >-
           The SourceLoader class shall report the format, file size, pixel size, channels, transparency,
           decodability, and frame count of a file from its header, and the EXIF orientation of a JPEG,
-          without rendering it.
+          without rendering it; and for a PDF, PPTX, or VSDX document the number of pages and, for every
+          page, its size in points and in pixels at 96 dots per inch, the rotation of a PDF page, and
+          the name of a VSDX page.
         justification: |
           Knowing what a file is before committing to rendering it lets an agent choose sizes and
           options, and keeps the information commands cheap.
@@ -55,6 +61,9 @@ sections:
           - SourceLoader_Probe_EachKind_ReportsHeaderFacts
           - SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha
           - SourceLoader_Probe_JpegWithExif_ReportsOrientation
+          - SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation
+          - SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize
+          - SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes
 
       - id: CanvasNetTool-Imaging-SourceLoader-Raster
         title: >-
@@ -78,19 +87,91 @@ sections:
           - SourceLoader_Load_Svg_RendersNaturalSizeOverWhite
           - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
 
+      - id: CanvasNetTool-Imaging-SourceLoader-Documents
+        title: >-
+          The SourceLoader class shall render a page of a PDF file, a slide of a PPTX file, or a page of
+          a VSDX file directly at the target size, over the background color (white by default), at 96
+          dots per inch when no size is given, taking the displayed size of a rotated PDF page and
+          opening the document once however many pages are loaded from it.
+        justification: |
+          Pages and slides are what agents are asked to look at; rendering them at their final size is
+          sharper than resampling, and opening the document once keeps the rendering of every page of a
+          long document affordable.
+        tests:
+          - SourceLoader_Load_FirstPage_RendersOverWhiteAt96Dpi
+          - SourceLoader_Load_SecondPage_RendersThatPage
+          - SourceLoader_OpenPages_EveryPage_MatchesLoadingEachAlone
+
+      - id: CanvasNetTool-Imaging-SourceLoader-PageSelection
+        title: >-
+          The SourceLoader class shall choose the page to load by its number counted from 1 (the first
+          by default), and shall report a page that does not exist, for a document or for a single
+          image, with the error code page-out-of-range.
+        justification: |
+          One numbering for every source lets an agent ask for page 3 without knowing the format, and a
+          page that is not there is a mistake that needs a stable code and a message naming the file.
+        tests:
+          - SourceLoader_Load_SecondPage_RendersThatPage
+          - SourceLoader_Load_PageThatDoesNotExist_ThrowsPageOutOfRange
+          - SourceLoader_OpenPages_EveryPage_MatchesLoadingEachAlone
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Resolution
+        title: >-
+          The SourceLoader class shall size a page of a document from its size in points and the
+          resolution in dots per inch (96 by default), rounded to the nearest pixel, with the pixels
+          the library renders at that resolution; shall take a whole number of dots per inch for a
+          VSDX page; and shall refuse a resolution that is not greater than zero.
+        justification: |
+          The resolution is the way to ask for a sharper or smaller page without computing pixels; the
+          result must be what the library produces so that the tool adds no second opinion about it.
+        tests:
+          - SourceLoader_Load_Dpi_SizesThePage
+          - SourceLoader_Load_Dpi_MatchesTheLibraryRender
+          - SourceLoader_Load_DpiNotUsable_ThrowsUsageError
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Diagnostics
+        title: >-
+          The SourceLoader class shall report, with the loaded page, a note (source, severity, stable
+          code, message, and page) for each picture of a PPTX slide and each construct of a VSDX page
+          that the library skips or approximates, and shall report no notes for a PDF, whose library has
+          no such channel.
+        justification: |
+          A page that is drawn with something missing must say so; otherwise an agent trusts an image
+          that is not what the document shows.
+        tests:
+          - SourceLoader_Load_PptxMetafilePicture_IsSkippedAndReported
+          - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
+          - SourceLoader_Load_PdfStrict_HasNoDiagnostics
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Strict
+        title: >-
+          The SourceLoader class shall, in strict mode, report a picture or construct that the library
+          would skip or approximate as an unsupported-feature error naming the file and the feature,
+          and shall report a construct the library cannot draw at all as the same error in both modes.
+        justification: |
+          A caller who needs a faithful image wants a failure instead of a silent approximation.
+        tests:
+          - SourceLoader_Load_PptxMetafilePictureStrict_ThrowsUnsupportedFeature
+          - SourceLoader_Load_PptxUnsupportedShape_ThrowsUnsupportedFeature
+          - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
+
       - id: CanvasNetTool-Imaging-SourceLoader-Sizing
         title: >-
           The SourceLoader class shall derive the target size from the natural size and the scale,
           width, and height options (a scale multiplies both sides, one side keeps the aspect ratio,
-          two sides are exact, rounded to the nearest pixel, never below one pixel), and shall resize a
-          raster source to it.
+          two sides are exact, rounded to the nearest pixel, never below one pixel), shall resize a
+          raster source to it, and shall fit a page of a document inside two sides given together,
+          centered over the background, without stretching it.
         justification: |
           One predictable size policy shared by every source lets an agent ask for an image of a given
-          width or scale without computing the other side.
+          width or scale without computing the other side, and a page that is never stretched keeps its
+          proportions.
         tests:
           - SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy
           - SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio
           - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+          - SourceLoader_Load_SizeOptions_ActOnTheNaturalSize
+          - SourceLoader_Load_WidthAndHeight_FitsThePageInsideTheBox
 
       - id: CanvasNetTool-Imaging-SourceLoader-SizeLimit
         title: >-
@@ -104,17 +185,20 @@ sections:
           - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
           - SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding
           - SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption
+          - SourceLoader_Load_SizeBeyondMaximum_ThrowsSizeLimit
 
       - id: CanvasNetTool-Imaging-SourceLoader-Background
         title: >-
           The SourceLoader class shall flatten transparency over the background color for an SVG source
-          (white by default, none when the background has no alpha) and for a raster source only when a
-          background color is given.
+          (white by default, none when the background has no alpha), render a page of a document over
+          the background color (white by default, transparent when the background has no alpha), and
+          flatten a raster source only when a background color is given.
         justification: |
           Flattening a drawing over white is the safe default for viewing; a raster source keeps its own
           transparency unless the caller asks otherwise.
         tests:
           - SourceLoader_Load_SvgBackground_TransparentKeepsAlphaColorFlattens
+          - SourceLoader_Load_Background_IsWhatThePageIsRenderedOver
           - SourceLoader_Load_RasterBackground_FlattensOnlyWhenAsked
           - SourceLoader_FormatColor_OpaqueAndTranslucent_FormatsHex
 
@@ -143,16 +227,20 @@ sections:
       - id: CanvasNetTool-Imaging-SourceLoader-CorruptInput
         title: >-
           The SourceLoader class shall report a truncated, empty, or corrupt file of any supported
-          format, and a file the library cannot decode, as an expected error (corrupt-input,
-          unsupported-feature, or input-unreadable) by mapping an explicit list of library exception
-          types, and shall let every other exception propagate.
+          format (including a document damaged anywhere in its pages, parts, or archive), and a file
+          the library cannot decode or draw, as an expected error (corrupt-input, unsupported-feature,
+          or input-unreadable) by mapping an explicit list of library exception types, and shall let
+          every other exception propagate.
         justification: |
           A user mistake must produce a concise, stable error, while an unexpected exception is a defect
           that must not be hidden by a blanket catch.
         tests:
           - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
+          - SourceLoader_Load_DamagedDocument_ThrowsToolExceptionOrLoads
           - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
           - SourceLoader_Load_MalformedSvg_ThrowsCorruptInput
+          - SourceLoader_Load_PdfWithBadContentOrEncryption_ThrowsExpectedErrors
+          - SourceLoader_Load_PackageWithBrokenPart_ThrowsCorruptInput
           - SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes
           - SourceLoader_Read_MultiLineMessage_IsReducedToOneLine
           - SourceLoader_Read_UnexpectedExceptions_Propagate
@@ -163,3 +251,4 @@ sections:
           A null path or option set is a defect of the caller and must fail fast and clearly.
         tests:
           - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException
+          - SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException

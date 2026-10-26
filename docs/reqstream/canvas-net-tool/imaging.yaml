@@ -13,8 +13,9 @@ sections:
     requirements:
       - id: CanvasNetTool-Imaging-Load
         title: >-
-          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, or SVG file into
-          pixels at the size the options ask for, and shall report the facts of a file without
+          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, or
+          VSDX file (a chosen page of a document) into pixels at the size and resolution the options ask
+          for, and shall report the facts of a file, including the pages of a document, without
           decoding it.
         justification: |
           Every command needs one place that recognizes a file, reads its header, and produces the
@@ -24,6 +25,11 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-Probe
           - CanvasNetTool-Imaging-SourceLoader-Raster
           - CanvasNetTool-Imaging-SourceLoader-Svg
+          - CanvasNetTool-Imaging-SourceLoader-Documents
+          - CanvasNetTool-Imaging-SourceLoader-PageSelection
+          - CanvasNetTool-Imaging-SourceLoader-Resolution
+          - CanvasNetTool-Imaging-SourceLoader-Diagnostics
+          - CanvasNetTool-Imaging-SourceLoader-Strict
           - CanvasNetTool-Imaging-SourceLoader-Sizing
           - CanvasNetTool-Imaging-SourceLoader-Background
           - CanvasNetTool-Imaging-SourceLoader-Exif
@@ -31,6 +37,7 @@ sections:
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
+          - Imaging_Convert_DocumentPages_WritesEachPageWithItsPixels
 
       - id: CanvasNetTool-Imaging-Write
         title: >-
@@ -64,7 +71,7 @@ sections:
       - id: CanvasNetTool-Imaging-Errors
         title: >-
           The Imaging subsystem shall report a missing, unsupported, truncated, corrupt, or oversized
-          input as an expected error before anything is written.
+          input, and a page that does not exist, as an expected error before anything is written.
         justification: |
           A failed conversion must not leave a partial output, and the failure must be a stable,
           concise error that a caller can act on.
@@ -74,3 +81,4 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-CorruptInput
         tests:
           - Imaging_Convert_CorruptInput_LeavesNoOutput
+          - Imaging_Convert_PageOutOfRange_LeavesNoOutput

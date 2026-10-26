@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore canvasnet -->
+<!-- cspell:ignore canvasnet dpi pptx vsdx -->
 
 This document describes the system-level verification strategy for CanvasNetTool.
 
@@ -24,7 +24,8 @@ packaged tool in each operating system and .NET runtime of its matrix and runs `
 results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`) are the
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
-`CanvasNetTool_Info`, and `CanvasNetTool_RenderSvg`), which generate their own inputs and are evidence for the
+`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, and `CanvasNetTool_PdfMinimal`), which generate their own inputs and
+are evidence for the
 validation requirements.
 The same job guards the package contents (no dependency on sibling CanvasNet packages, library assemblies
 bundled for every target framework).
@@ -50,9 +51,10 @@ belong to the "Sequential" collection because console redirection is process-wid
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, and SVG) with the documented defaults (overwrite, flatten over white, EXIF orientation, 8192-pixel limit),
-  the same bytes for the same input, and a stable error for every bad input; `info` describes a file without
-  rendering it.
+  JPEG 2000, SVG, and the pages of PDF, PPTX, and VSDX documents) with the documented defaults (overwrite, flatten
+  over white, EXIF orientation, 96 dpi, 8192-pixel limit), the same bytes for the same input, and a stable error for
+  every bad input; a document page, or every page, is chosen with `--page` and `--all-pages`; `info` describes a
+  file, and the pages of a document, without rendering it.
 
 ## Test Scenarios
 
@@ -150,8 +152,27 @@ average, for JPEG).
 **CanvasNetTool_Info_Requested_DescribesFile**: `info` on a BMP as a real process, as text and as JSON; the line starts
 with the path, format, and size, and the document has the same facts.
 
-**CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable**: a source of every kind is rendered to a PNG in-process;
+**CanvasNetTool_Info_DocumentPages_DescribesPages**: `info` on the two-page PDF as a real process with `--all-pages`
+as text (the page count, and both pages with their size in pixels and points and the rotation of the second) and
+with `--page 2 --json` (the `document` object with the page count and the one page, with its rotation).
+
+**CanvasNetTool_InputFormats_EveryFormat_AreReadable**: a source of every kind is rendered to a PNG in-process;
 each succeeds with a result line, nothing on standard error, and an image of the size the source has.
+
+**CanvasNetTool_Documents_EveryFormat_WritesDecodableFile**: page 2 of the PDF, the presentation, and the drawing is
+rendered at 72 dpi to PNG, JPEG, BMP, and TIFF in-process; each succeeds with a result line that names the page, and
+the file decodes to the size of the page in points.
+
+**CanvasNetTool_Documents_RenderPageAndDpi_WritesPageAtSize**: page 1 of the PDF is rendered at 192 dpi as a real
+process; the one-line result names the page and `384x256 png`, and the image has the red and blue rectangles where
+the document puts them and white elsewhere.
+
+**CanvasNetTool_Documents_AllPages_WritesEveryPage**: every page of each document is rendered with `--all-pages` to
+`{page}.png` in a directory; the result lists one output per page, and each file decodes to the size of its page.
+
+**CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails**: a presentation with an EMF picture and a
+drawing with a geometry row of an unknown kind render with one diagnostic naming the source; with `--strict` the exit
+code is 1 with an `unsupported-feature` document and message and no output.
 
 **CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat**: the six extensions select their formats in the
 JSON result, and `--format bmp` on an output named `.png` writes a BMP.
@@ -163,15 +184,23 @@ JSON result, and `--format bmp` on an output named `.png` writes a BMP.
 **CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg**: an SVG renders over white; a PNG with a
 transparent edge keeps its transparency as a PNG and is white there as a JPEG.
 
+**CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent**: a page the document does not paint is white
+by default, transparent in a PNG with `--background transparent`, and white again in a JPEG, for each document.
+
 **CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright**: a JPEG with the EXIF orientation 8 is written upright (8x12)
 by default, as stored (12x8) with `--no-auto-orient`, and the upright pixels are the stored pixels turned.
 
 **CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding**: a PNG declaring 9000x9000 pixels is refused with
 exit code 1, a `size-limit` document and message, and no output.
 
-**CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, and an SVG are rendered twice to
-every output format at a given width; the two files are byte-identical.
+**CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, and
+a drawing are rendered twice to every output format at a given width; the two files are byte-identical.
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
 and garbage of every supported format are rendered in-process; each returns exit code 1 (an unexpected exception would
 escape and fail the test) with the stable error code in the message and in the JSON document, and no output exists.
+
+**CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors**: a page that does not exist, a Word-like
+archive named `.pptx`, a presentation and a drawing with a broken part, a PDF with an unsupported encryption handler,
+a presentation with a shape that does not exist, and `--page` with `--all-pages` are rendered in-process; each returns
+exit code 1 with its stable error code in the message and in the JSON document, and no output exists.

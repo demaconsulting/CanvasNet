@@ -11,9 +11,9 @@ sections:
     requirements:
       - id: CanvasNetTool-Commands-RenderCommand-Options
         title: >-
-          The render command shall declare its options (scale, width, height, size, background,
-          no-auto-orient, output, format, quality, and no-clobber) in one table that also drives the
-          help, and shall be registered under the names render and convert.
+          The render command shall declare its options (page, all-pages, dpi, scale, width, height,
+          size, background, no-auto-orient, strict, output, format, quality, and no-clobber) in one
+          table that also drives the help, and shall be registered under the names render and convert.
         justification: |
           Declaring the options once keeps the help from drifting from what the command accepts, and the
           alias lets users who think in terms of conversion find the command.
@@ -24,9 +24,9 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-
           The render command shall pass the size options (scale, width, height, or an exact size), the
-          background color, and the auto-orientation switch to the source loader, and shall reject a
-          size option combined with another way of choosing the size, a malformed or out-of-range
-          value, and a size larger than 8192 pixels.
+          background color, the auto-orientation switch, the page, the resolution, and the strict
+          switch to the source loader, and shall reject a size option combined with another way of
+          choosing the size, a malformed or out-of-range value, and a size larger than 8192 pixels.
         justification: |
           The options must reach the loader unchanged, and contradictory or malformed ones must be
           reported as usage errors before any work is done.
@@ -37,6 +37,40 @@ sections:
           - RenderCommand_Run_SizeBeyondMaximum_ThrowsSizeLimit
           - RenderCommand_Run_BackgroundTransparent_KeepsAlpha
           - RenderCommand_Run_JpegWithExif_AutoOrientUnlessDisabled
+          - RenderCommand_Run_DpiAndSizeOptions_SizeThePage
+          - RenderCommand_Run_TransparentBackground_KeepsAlphaInPngAndFlattensJpeg
+
+      - id: CanvasNetTool-Commands-RenderCommand-Pages
+        title: >-
+          The render command shall render the page chosen with the page option (the first by default),
+          or every page with the all-pages option, where the output names a directory (files named
+          after the input and the page) or contains the placeholder {page}, which is replaced by the
+          page number; and shall report a page that does not exist, both page options together, and an
+          output that would be the same file for every page, before any page is rendered.
+        justification: |
+          Agents look at one slide or at every page of a document; one run with a predictable file
+          naming spares them a loop, and checking every output first leaves no half-written set of
+          pages.
+        tests:
+          - RenderCommand_Run_DocumentDefaults_WritesFirstPage
+          - RenderCommand_Run_AllPagesWithPlaceholder_WritesOneFilePerPage
+          - RenderCommand_Run_AllPagesToDirectory_NamesFilesAfterInputAndPage
+          - RenderCommand_Run_AllPagesWithoutPlaceholder_ThrowsUsageError
+          - RenderCommand_Run_AllPagesOfSingleImage_WritesTheOutputAsGiven
+          - RenderCommand_Run_PlaceholderWithPage_IsReplacedByThatPage
+          - RenderCommand_Run_AllPagesWithOneExistingOutputAndNoClobber_WritesNothing
+          - RenderCommand_Run_BadPageOptions_ThrowExpectedErrors
+
+      - id: CanvasNetTool-Commands-RenderCommand-Strict
+        title: >-
+          The render command shall report the notes about pictures and constructs the libraries skip or
+          approximate in the diagnostics of the result, with the page of each, and with the strict
+          option shall fail with the error code unsupported-feature instead and write no output.
+        justification: |
+          A caller must be able to choose between an image that is drawn as well as it can be, with a
+          list of what is missing, and no image at all.
+        tests:
+          - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
 
       - id: CanvasNetTool-Commands-RenderCommand-Output
         title: >-
@@ -54,9 +88,10 @@ sections:
 
       - id: CanvasNetTool-Commands-RenderCommand-Result
         title: >-
-          The render command shall report the result as one text line naming the output, its size,
-          format, and bytes, and the input; or, with the JSON option, as one document with the tool, the
-          input, the operations applied, the outputs, the diagnostics, and the echoed text.
+          The render command shall report the result as one text line for each output naming the
+          output, its size, format, and bytes, the input, and for a document the page; or, with the JSON
+          option, as one document with the tool, the input (with the page and the page count of a
+          document), the operations applied, the outputs, the diagnostics, and the echoed text.
         justification: |
           A person needs a one-line confirmation, and an agent needs a stable structure that says what
           was done to produce the image.
@@ -64,6 +99,8 @@ sections:
           - RenderCommand_Run_PngToPng_WritesFileAndTextLine
           - RenderCommand_Run_Json_HasDocumentedShape
           - RenderCommand_Run_SvgJson_ListsRenderAndFlattenOperations
+          - RenderCommand_Run_DocumentJson_DescribesPageAndOperations
+          - RenderCommand_Run_RasterJson_HasNoPageFields
 
       - id: CanvasNetTool-Commands-RenderCommand-Overwrite
         title: >-
@@ -80,7 +117,8 @@ sections:
 
       - id: CanvasNetTool-Commands-RenderCommand-Errors
         title: >-
-          The render command shall report a missing, corrupt, or unsupported input as an expected error
+          The render command shall report a missing, corrupt, or unsupported input (including a damaged
+          document) as an expected error
           and write no output, shall report a missing output, a wrong number of inputs, or an unknown
           option as a usage error, and shall reject null arguments.
         justification: |
@@ -88,5 +126,6 @@ sections:
           output.
         tests:
           - RenderCommand_Run_BadInput_ThrowsToolExceptionAndWritesNothing
+          - RenderCommand_Run_TruncatedDocument_ThrowsCorruptInputAndWritesNothing
           - RenderCommand_Run_CommandLineMistakes_ThrowUsageError
           - RenderCommand_Run_NullArguments_ThrowsArgumentNullException

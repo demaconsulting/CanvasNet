@@ -299,9 +299,10 @@ sections:
 
       - id: CanvasNetTool-System-Info
         title: >-
-          The tool shall describe an image or drawing file (its format, pixel size, channels,
-          transparency, size in bytes, and, when they apply, frame count and EXIF orientation) without
-          rendering it when the `info` command is run, as text or as JSON.
+          The tool shall describe an image, drawing, or document file (its format, pixel size,
+          channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
+          and the number and size of the pages of a PDF, PPTX, or VSDX document) without rendering it
+          when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
           A caller needs to know what a file is before deciding how to render it, and the answer must
@@ -310,6 +311,7 @@ sections:
           - CanvasNetTool-Commands-Info
         tests:
           - CanvasNetTool_Info_Requested_DescribesFile
+          - CanvasNetTool_Info_DocumentPages_DescribesPages
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -329,16 +331,46 @@ sections:
 
       - id: CanvasNetTool-System-InputFormats
         title: >-
-          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, recognizing the
-          format from the content before the file name extension.
+          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, and VSDX files,
+          recognizing the format from the content before the file name extension.
         tags: [system]
         justification: |
-          Agents work with whatever files they are given; reading the common raster formats and SVG
-          drawings, whatever they are named, means they rarely need another tool first.
+          Agents work with whatever files they are given; reading the common raster formats, SVG
+          drawings, and the documents that carry diagrams and slides, whatever they are named, means
+          they rarely need another tool first.
         children:
           - CanvasNetTool-Imaging-Load
         tests:
-          - CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable
+          - CanvasNetTool_InputFormats_EveryFormat_AreReadable
+          - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Documents
+        title: >-
+          The tool shall render the page or slide of a PDF, PPTX, or VSDX file chosen with `--page`
+          (counted from 1, the first by default), or every page with `--all-pages` into files named by
+          `{page}` or into a directory, at 96 dots per inch or the `--dpi` given (and at the size the
+          size options ask for), over white unless `--background` says otherwise.
+        tags: [system]
+        justification: |
+          Agents are handed documents and presentations and need to look at one page or all of them;
+          one numbering, one naming rule, and one resolution option work the same for every kind of
+          document, so a page that is wanted at a higher resolution can be asked for again.
+        tests:
+          - CanvasNetTool_Documents_RenderPageAndDpi_WritesPageAtSize
+          - CanvasNetTool_Documents_AllPages_WritesEveryPage
+          - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Diagnostics
+        title: >-
+          The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
+          skip or approximate in the `diagnostics` of the JSON result, and with `--strict` shall fail
+          with the error code unsupported-feature and write no output instead.
+        tags: [system]
+        justification: |
+          An image that silently lacks part of the document misleads the agent that looks at it; the
+          note says what is missing, and strict mode is for callers that cannot accept the gap.
+        tests:
+          - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
 
       - id: CanvasNetTool-System-OutputFormats
         title: >-
@@ -357,9 +389,9 @@ sections:
       - id: CanvasNetTool-System-Defaults
         title: >-
           The tool shall by default overwrite an existing output file (refusing with `--no-clobber`),
-          refuse an output that is the input, flatten transparency over white for SVG sources and for
-          JPEG output, turn a JPEG upright by its EXIF orientation, and refuse an image larger than
-          8192 pixels on a side before decoding it.
+          refuse an output that is the input, flatten transparency over white for SVG sources, for
+          pages of documents, and for JPEG output, turn a JPEG upright by its EXIF orientation, and
+          refuse an image larger than 8192 pixels on a side before decoding it.
         tags: [system]
         justification: |
           Defaults chosen for people and agents that iterate on an image: replacing the output is what
@@ -370,6 +402,9 @@ sections:
         tests:
           - CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy
           - CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg
+          - CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent
+          - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
           - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
 
@@ -387,7 +422,8 @@ sections:
 
       - id: CanvasNetTool-System-InputErrors
         title: >-
-          The tool shall report a missing, unsupported, truncated, or corrupt input file, and an image
+          The tool shall report a missing, unsupported, truncated, or corrupt input file (including a
+          document with a missing page or a broken part), a page that does not exist, and an image
           larger than the maximum size, as an expected failure with a stable error code and exit code
           1, never as an unexpected error, and shall write no output.
         tags: [system]
@@ -398,4 +434,5 @@ sections:
           - CanvasNetTool-Imaging-Errors
         tests:
           - CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors
+          - CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding

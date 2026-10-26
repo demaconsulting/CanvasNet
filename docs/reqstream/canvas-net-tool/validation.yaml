@@ -70,12 +70,12 @@ sections:
 
       - id: CanvasNetTool-Validation-ImagingSelfTests
         title: >-
-          The Validation class shall run the imaging self-tests, which generate a PNG and an SVG and
-          run the render, convert, and info commands on them in-process, checking the decoded pixels,
-          sizes, and JSON documents.
+          The Validation class shall run the imaging self-tests, which generate a PNG, an SVG, and a
+          PDF document and run the render, convert, and info commands on them in-process, checking the
+          decoded pixels, sizes, and JSON documents.
         justification: |
-          The imaging self-tests prove, in the deployment environment, that the codecs, the SVG
-          renderer, the loader, the writer, and the commands work together; their names are a contract
+          The imaging self-tests prove, in the deployment environment, that the codecs, the SVG and PDF
+          renderers, the loader, the writer, and the commands work together; their names are a contract
           with the qualification evidence.
         tests:
           - Validation_Run_ImagingSelfTests_PassAndAreRecorded
@@ -83,3 +83,4 @@ sections:
           - CanvasNetTool_ConvertFormats
           - CanvasNetTool_Info
           - CanvasNetTool_RenderSvg
+          - CanvasNetTool_PdfMinimal

@@ -1,14 +1,16 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg -->
+<!-- cspell:ignore canvasnet jpeg pptx vsdx dpi -->
 
 #### Verification Approach
 
-`DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs`. The `formats` command is run
+`DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs` and
+`DiscoveryCommandsDocumentTests.cs` (the page options and the documents). The `formats` command is run
 in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
 build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
-into a JPEG) and on the original SVG fixture, and its JSON output is compared with the exact expected document. The
+into a JPEG, and the PDF, presentation, and drawing the test project writes) and on the original SVG fixture, and
+its JSON output is compared with the exact expected document. The
 format tables are checked against `SourceKind`, `OutputFormat`, `SourceLoader.ExtensionKinds`, and
 `ImageWriter.ExtensionFormats`, so a listed format is one the code knows. The tests create a `Context` with
 controlled arguments and capture the console with the `ToolHost` helper.
@@ -26,7 +28,7 @@ console.
 - A stray argument or option is a usage error.
 - The format tables name exactly the source kinds and output formats the code implements, in order.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
-  has one, and reports a bad input as an expected error.
+  has one, describes the pages of a document, and reports a bad input as an expected error.
 
 #### Test Scenarios
 
@@ -59,7 +61,7 @@ with the extensions the loader maps to that kind; the output table has one row p
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
-command is named `info`, has no aliases and no options of its own, and has a usage line with examples; the default
+command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default
 registry offers it.
 
 **DiscoveryCommands_Info_TextOutput_DescribesFile**: one line for a PNG (`png, 12x8 px, 4 channels with alpha`, the
@@ -73,7 +75,22 @@ document.
 one without has no such key, three channels, and no alpha; each readable kind reports its format name, a size, and
 that it can be decoded.
 
-**DiscoveryCommands_Info_BadInput_ThrowsToolException**, **DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError**,
-and **DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a missing file, a truncated PNG, and a PDF are
-`input-not-found`, `corrupt-input`, and `unsupported-format`; no input, two inputs, and an unknown option are usage
-errors; null arguments throw.
+**DiscoveryCommands_Info_PdfText_DescribesFileAndFirstPage** and
+**DiscoveryCommands_Info_PageOptions_ChoosePagesToDescribe**: the text for the two-page PDF is exactly the file line and
+the line of page 1 (pixels at 96 dpi, points, rotation 0); `--page 2` describes only the rotated second page;
+`--all-pages` of a presentation lists its slides (called slides) and of a drawing its pages with their names.
+
+**DiscoveryCommands_Info_DocumentJson_ListsPageCountAndPages**: a document has a `document` object and no `image`
+object; the default is the first page, `--all-pages` lists both, `--page 2` of the drawing lists the page with its
+name and no rotation, each page object equal to the exact text.
+
+**DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors** and **DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage**:
+a page that does not exist (for a document or for a PNG) is `page-out-of-range`; both options together are a usage
+error; a PNG described with `--page 1` or `--all-pages` gives the same text as without.
+
+**DiscoveryCommands_Info_BadInput_ThrowsToolException**, **DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput**,
+**DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError**,
+and **DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a missing file, a truncated PNG, a PDF with
+no pages, and a text file are `input-not-found`, `corrupt-input`, `corrupt-input`, and `unsupported-format`; each
+document cut after 300 bytes is `corrupt-input`; no input, two inputs, and an unknown option are usage errors; null
+arguments throw.

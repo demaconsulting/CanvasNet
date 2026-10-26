@@ -45,8 +45,10 @@ consists of six direct units and two subsystems:
   command and its alias `convert`). See _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
   turns files into pixels and pixels into files, free of command-line concerns. It holds `SourceLoader` (format
-  detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG, with the size policy,
-  EXIF orientation, background flattening, and the mapping of library exceptions to expected errors) and
+  detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG and of the pages of PDF,
+  PPTX, and VSDX documents, with the size policy,
+  page and resolution handling, EXIF orientation, background flattening, and the mapping of library exceptions to
+  expected errors) and
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy). It is a
   subsystem because later releases add units for transformation, comparison, and montage. See _Imaging
   Subsystem Design_ (`canvas-net-tool/imaging.md`).
@@ -111,8 +113,9 @@ released.
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad`
   systems. The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG, BMP, TIFF, GIF, and
-  JPEG 2000 codecs, and the `CanvasNetSvg` system's `SvgCodec`; the commands that read and render documents and
-  models will call the others. The references are declared now so that the packaging design is fixed from the
+  JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, and the `PdfDocument`, `PptxDocument`, and
+  `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems; the commands that
+  render models will call the others. The references are declared now so that the packaging design is fixed from the
   start. Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool
   package, and the package declares no NuGet dependency on them. The reasons are that a tool install must
