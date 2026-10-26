@@ -231,8 +231,7 @@ software items, specifically:
   output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
   `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
-  `rotate`, `flip`, and `pad`; further command units are added as the
-  commands are implemented) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
+  `rotate`, `flip`, and `pad`) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
   BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
   models, the `ImagePipeline` unit, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options
   were written, and the `ImageWriter`
@@ -369,7 +368,8 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
 grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `DiscoveryCommands`, and
-`RenderCommand` units and, as they are added, further command units, and its `Imaging` subsystem (namespace
+`RenderCommand` units (the `formats`, `info`, `render`, `convert`, `crop`, `resize`, `rotate`, `flip`, and `pad`
+commands), and its `Imaging` subsystem (namespace
 `DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, and `ImageWriter` units that turn
 files into pixels, transform pixels, and turn pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through

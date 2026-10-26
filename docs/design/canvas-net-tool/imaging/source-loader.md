@@ -31,8 +31,7 @@ kind, path, and line; empty for every other kind).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
-(default `true`), and `Scad` (a nullable `ScadViewOptions`; the defaults when absent). Properties for further source
-kinds are added here.
+(default `true`), and `Scad` (a nullable `ScadViewOptions`; the defaults when absent).
 
 **ScadViewOptions** (record, all properties `init`): `View` (a name from `ScadViews`, `iso` by default), `Azimuth`
 and `Elevation` (nullable; they replace the angles of the view), `Perspective` (default `false`), `Defines` (the

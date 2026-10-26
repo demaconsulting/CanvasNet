@@ -11,9 +11,9 @@ The `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Imaging`, fold
 files. It is free of command-line concerns: it knows nothing of `Context` or the commands, and the dependency runs
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
-subsystem rather than a single unit because later releases add units for comparison and montage behind the same
-pixel interfaces. As of this release it
-contains three units: `SourceLoader`, which recognizes a file, reads its header, and loads it (PNG, JPEG, BMP,
+subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
+distinct requirements and tests. It contains three units: `SourceLoader`, which recognizes a file, reads its
+header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
 and `ImageWriter`, which writes PNG,

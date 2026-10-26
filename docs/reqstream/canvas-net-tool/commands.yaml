@@ -6,7 +6,7 @@
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
 #   (formats and info) and RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
-#   and pad); further command units are added to the subsystem as the commands are implemented
+#   and pad)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:

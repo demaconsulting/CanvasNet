@@ -10,7 +10,8 @@
 # - System requirements are validated through tests that exercise the built tool end-to-end
 #   (as a real process via dotnet, or in-process through the program entry point where
 #   standard output and standard error must be examined separately)
-# - Requirements for the individual commands are added together with the commands
+# - Requirements for the individual commands are system requirements of their own, with the
+#   command units' requirements as their children
 
 sections:
   - title: CanvasNetTool System-Level Requirements
@@ -241,8 +242,8 @@ sections:
         justification: |
           People and AI agents drive the tool from the command line; one forgiving but unambiguous
           grammar shared by every command, with actionable errors, lets them get a command right
-          without reading a manual. The typed grammars are verified at unit level and reach the
-          system tests as the commands that use them are added.
+          without reading a manual. The typed grammars are verified at unit level, and the system
+          tests of the commands that use them exercise them end to end.
         children:
           - CanvasNetTool-ArgumentReader-OptionForms
           - CanvasNetTool-ArgumentReader-OrderedOptions

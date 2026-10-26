@@ -40,23 +40,21 @@ consists of six direct units and two subsystems:
   _PathHelpers Unit Design_ (`canvas-net-tool/path-helpers.md`).
 - **Commands** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder `Commands/`): the
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
-  the individual command units are added to it as the commands are implemented; as of this release it holds
+  each family of commands is its own unit behind the shared command contract; it holds
   `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), and `RenderCommand` (the `render`
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`). See
   _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
   turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
-  holds `SourceLoader` (format
-  detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG, of the pages of PDF,
-  PPTX, and VSDX documents, and of a view of an OpenSCAD model, with the size policy,
-  page and resolution handling, the views and variables of a model, EXIF orientation, background flattening, and
-  the mapping of library exceptions to
-  expected errors),
-  `ImagePipeline` (the ordered crop, resize, fit, rotate, flip, and pad operations, which the `render` command and the
-  verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share) and
+  holds `SourceLoader` (format detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000,
+  and SVG, of the pages of PDF, PPTX, and VSDX documents, and of a view of an OpenSCAD model, with the size
+  policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
+  flattening, and the mapping of library exceptions to expected errors),
+  `ImagePipeline` (the ordered crop, resize, fit, rotate, flip, and pad operations, which the `render` command
+  and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share) and
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy). It is a
-  subsystem because later releases add units for comparison and montage. See _Imaging
-  Subsystem Design_ (`canvas-net-tool/imaging.md`).
+  subsystem because loading, transforming, and writing are separate responsibilities that are reviewed and
+  tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,
 `Commands`, `ResultWriter`, and `Validation`; `Validation` calls back into `Program.Run` (to exercise the tool
@@ -122,9 +120,7 @@ released.
   JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
-  `CanvasNetRender3D` system, which draws the model); the commands that
-  transform images will call the others. The references are declared now so that the packaging design is fixed from the
-  start. Each
+  `CanvasNetRender3D` system, which draws the model). Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool
   package, and the package declares no NuGet dependency on them. The reasons are that a tool install must
   not require sibling packages (which may not be published at the same time) and that the tool and the
@@ -166,7 +162,8 @@ drawing is rendered, which bounds memory use.
 
 - Platform: multi-targets `net8.0`, `net9.0`, and `net10.0` on Windows, Linux, and macOS; the platform
   requirements are proven by the self-validation results that the installed tool writes in each job of the
-  integration-test matrix.
+  integration-test matrix. The same job also smoke-tests the installed tool (`formats --json`, an SVG `render`, and
+  a `crop`) so that the bundled libraries are proven to load on every platform.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
   bundled (see _Dependencies_). The package readme is the repository README, so README links must be
   absolute URLs.

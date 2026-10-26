@@ -19,10 +19,9 @@ private test methods. The names of the self-tests are a contract with the platfo
 changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`. Each is
+`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad` (eleven in total). Each is
 recorded as a `TestResult` with
-`ClassName` "Validation" and `CodeBase` "CanvasNetTool". Further self-tests are added together with the commands
-they exercise.
+`ClassName` "Validation" and `CodeBase` "CanvasNetTool".
 
 ### Key Methods
 

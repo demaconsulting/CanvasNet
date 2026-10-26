@@ -8,8 +8,8 @@ The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, fo
 `src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because the individual
-command units are added to it as the commands are implemented, behind the same contract and registry. As of
-this release it contains three units: `CommandRegistry`, which also documents the supporting types `ICommand` and
+each family of commands is its own unit behind the same contract and registry. It contains three units:
+`CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; and `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb).
@@ -28,7 +28,7 @@ recording the command name on it.
 **CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
-ships with (as of this release, `formats`, `info`, `render` with its alias `convert`, and the verbs `crop`,
+ships with (`formats`, `info`, `render` with its alias `convert`, and the verbs `crop`,
 `resize`, `rotate`, `flip`, and `pad`, each registered as its own `RenderCommand` instance).
 
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's

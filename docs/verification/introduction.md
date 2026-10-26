@@ -75,8 +75,8 @@ constituent software items, specifically:
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
-  `DiscoveryCommands`, and `RenderCommand` units, and an `Imaging` subsystem with the `SourceLoader` and
-  `ImageWriter` units — see _CanvasNetTool System
+  `DiscoveryCommands`, and `RenderCommand` units, and an `Imaging` subsystem with the `SourceLoader`,
+  `ImagePipeline`, and `ImageWriter` units — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
