@@ -286,10 +286,18 @@ public class ImageWriterTests
     }
 
     /// <summary>
-    ///     Test that a failure while publishing a later output rolls every output back.
+    ///     Test that a failure of one step of publishing one output rolls every output back, including the output
+    ///     whose step failed.
     /// </summary>
-    [Fact]
-    public void ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything()
+    /// <param name="failOnMove"><see langword="true"/> to fail the move into place, else the rename to the backup.</param>
+    /// <param name="failIndex">The index of the output whose step fails.</param>
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    [InlineData(false, 0)]
+    [InlineData(false, 2)]
+    public void ImageWriter_PublishAll_FailureOnStep_RestoresEverything(bool failOnMove, int failIndex)
     {
         // Arrange: three staged outputs, of which the first and third already exist
         using var directory = new TempDirectory();
@@ -302,25 +310,96 @@ public class ImageWriterTests
         var staged = new[] { first, second, third }
             .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
             .ToList();
+        var failingStep = failOnMove ? ImageWriter.PublishStep.Move : ImageWriter.PublishStep.Backup;
 
-        // Act: the move of the third output fails
+        // Act: the chosen step of the chosen output fails
         var exception = Assert.Throws<ToolException>(
             () => ImageWriter.PublishAll(
                 staged,
-                index =>
+                (step, index) =>
                 {
-                    if (index == 2)
+                    if (step == failingStep && index == failIndex)
                     {
                         throw new IOException("injected failure");
                     }
                 }));
 
-        // Assert: the error is the expected one, previous files are byte-identical, the new file is gone, and nothing else is left
+        // Assert: the error is the expected one, previous files are byte-identical at their names, no new file is
+        // left, and no temporary or backup file is left
         Assert.Equal(ErrorCodes.OutputWriteFailed, exception.Code);
         Assert.Equal([1, 2, 3], File.ReadAllBytes(first));
         Assert.Equal([4, 5, 6], File.ReadAllBytes(third));
         Assert.False(File.Exists(second));
-        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+        Assert.Equal(
+            [first, third],
+            Directory.GetFileSystemEntries(directory.Path).Order().ToArray());
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that a failing move into place over a target that has just been renamed to its backup restores the
+    ///     previous file even when something else already occupies the target name.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup()
+    {
+        // Arrange: one staged output over an existing target
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var target = directory.Combine("a.png");
+        File.WriteAllBytes(target, [1, 2, 3]);
+        var staged = new List<ImageWriter.StagedOutput> { ImageWriter.Stage(surface, target, "in.png", WriteOptions.Default) };
+
+        // Act: a partial file appears under the target name before the move fails
+        Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                (step, _) =>
+                {
+                    if (step == ImageWriter.PublishStep.Move)
+                    {
+                        File.WriteAllBytes(target, [9, 9]);
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the original content is back and nothing else is left
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(target));
+        Assert.Equal([target], Directory.GetFileSystemEntries(directory.Path));
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that a target listed twice is rolled back to its original content.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal()
+    {
+        // Arrange: the same existing target staged twice, followed by a third output
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var target = directory.Combine("a.png");
+        var other = directory.Combine("b.png");
+        File.WriteAllBytes(target, [1, 2, 3]);
+        var staged = new[] { target, target, other }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+
+        // Act: the move of the last output fails
+        Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                (step, index) =>
+                {
+                    if (step == ImageWriter.PublishStep.Move && index == 2)
+                    {
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the original content is back and nothing else is left
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(target));
+        Assert.Equal([target], Directory.GetFileSystemEntries(directory.Path));
         staged.ForEach(output => output.Dispose());
     }
 

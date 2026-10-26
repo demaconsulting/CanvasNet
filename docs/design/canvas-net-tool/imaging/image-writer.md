@@ -66,8 +66,11 @@ the size of the encoded file). A failure while staging deletes the temporary fil
 **ImageWriter.PublishAll(outputs)**: publishes staged outputs all or nothing. For each target in order, an
 existing target is renamed to a unique backup in the same directory (`.canvasnet-{guid}.bak`, a short fixed name like
 the temporary files) and the temporary file is moved into place (a target that appeared under `--no-clobber` is
-`output-exists`). When any step fails, each target already published is deleted and its backup restored, the remaining
-temporary files are deleted, and the original error is reported (`output-write-failed` or `output-exists`); on success
+`output-exists`). When any step fails, every target that was touched is rolled back, including the one whose step
+failed (its backup is restored over whatever now holds the name, a target that did not exist stays absent, and a failed
+backup rename leaves nothing to restore): each published new file is deleted and its backup restored, every restore is
+attempted even if another fails, the remaining temporary files are deleted, and the original error is reported
+(`output-write-failed` or `output-exists`); on success
 the backups are deleted, and failing to delete one is ignored. The residual case is a failure to restore a backup: the
 error then also names the backup that still holds the previous content. **StagedOutput.Commit()** publishes one output
 through `PublishAll` and returns the `WriteResult`. **StagedOutput.Dispose()**: deletes the temporary file unless

@@ -390,9 +390,11 @@ internal static class ImageWriter
     ///     Publishes every staged output, all or nothing.
     /// </summary>
     /// <param name="outputs">The staged outputs, in the order they are published; every one is already encoded.</param>
-    /// <param name="beforeMove">
-    ///     A test seam called with the index of an output just before its temporary file is moved into place; a
-    ///     failure it throws is handled like a failed move.
+    /// <param name="beforeStep">
+    ///     A test seam called with the step and the index of an output just before an existing target is renamed to
+    ///     its backup (<see cref="PublishStep.Backup"/>, only when the target exists) and just before its temporary
+    ///     file is moved into place (<see cref="PublishStep.Move"/>); a failure it throws is handled like a failure
+    ///     of that step.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="outputs"/> is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
@@ -403,27 +405,33 @@ internal static class ImageWriter
     ///     <para>
     ///         For each target in order, an existing target is first renamed to a unique backup in the same
     ///         directory (<c>.canvasnet-{guid}.bak</c>) and then the temporary file is moved into place. When any step
-    ///         fails, every target already published is deleted and its backup restored, the remaining temporary files
-    ///         are deleted, and the original error is reported, so the set is published completely or not at all. On
-    ///         success the backups are deleted; failing to delete one is ignored.
+    ///         fails, every target that was touched, including the one whose step failed, is rolled back: a published
+    ///         new file is deleted and a backup is restored over whatever now holds the name (a target that did not
+    ///         exist is left absent, and one whose backup rename failed has nothing to restore). Every restore is
+    ///         attempted even when another fails. The remaining temporary files are deleted and the original error
+    ///         is reported, so the set is published completely or not at all. On success the backups are deleted;
+    ///         failing to delete one is ignored.
     ///     </para>
     ///     <para>
     ///         The one residual case is a failure to restore a backup: the error then also names the backup file, which
     ///         still holds the previous content of that target.
     ///     </para>
     /// </remarks>
-    internal static void PublishAll(IReadOnlyList<StagedOutput> outputs, Action<int>? beforeMove = null)
+    internal static void PublishAll(IReadOnlyList<StagedOutput> outputs, Action<PublishStep, int>? beforeStep = null)
     {
         ArgumentNullException.ThrowIfNull(outputs);
 
-        // The backup of each target that existed, and whether its temporary file reached the target
+        // Per target: the backup of its previous file (set only once the rename succeeded), and whether its temporary
+        // file reached the target. A target is touched from the moment its step starts, so the one that fails is
+        // rolled back too.
         var backups = new string?[outputs.Count];
         var published = new bool[outputs.Count];
-        var attempted = 0;
+        var touched = 0;
         ToolException? failure = null;
-        for (; attempted < outputs.Count && failure == null; attempted++)
+        for (var index = 0; index < outputs.Count && failure == null; index++)
         {
-            var output = outputs[attempted];
+            touched = index + 1;
+            var output = outputs[index];
             try
             {
                 if (File.Exists(output.FullPath))
@@ -437,13 +445,14 @@ internal static class ImageWriter
                     }
 
                     var backup = Path.Combine(Path.GetDirectoryName(output.FullPath)!, $".canvasnet-{Guid.NewGuid():N}.bak");
+                    beforeStep?.Invoke(PublishStep.Backup, index);
                     File.Move(output.FullPath, backup);
-                    backups[attempted] = backup;
+                    backups[index] = backup;
                 }
 
-                beforeMove?.Invoke(attempted);
+                beforeStep?.Invoke(PublishStep.Move, index);
                 File.Move(output.Temporary, output.FullPath, overwrite: false);
-                published[attempted] = true;
+                published[index] = true;
             }
             catch (ToolException ex)
             {
@@ -483,8 +492,9 @@ internal static class ImageWriter
         }
 
         // Roll back: undo what was published, put every previous file back, and remove what is left of the temporaries
+        // (in reverse, so a target listed twice unwinds correctly); every restore is attempted even when one fails
         var notRestored = new List<string>();
-        for (var i = attempted - 1; i >= 0; i--)
+        for (var i = touched - 1; i >= 0; i--)
         {
             var backup = backups[i];
             try
@@ -496,6 +506,7 @@ internal static class ImageWriter
 
                 if (backup != null)
                 {
+                    // Replaces whatever now occupies the name, such as a partial file
                     File.Move(backup, outputs[i].FullPath, overwrite: true);
                 }
             }
@@ -522,6 +533,18 @@ internal static class ImageWriter
             $"{failure.Message} Rolling back also failed for {string.Join(", ", notRestored)}.",
             failure.Hint,
             failure);
+    }
+
+    /// <summary>
+    ///     The steps of publishing one output that the test seam of <see cref="PublishAll"/> can fail.
+    /// </summary>
+    internal enum PublishStep
+    {
+        /// <summary>Renaming an existing target to its backup.</summary>
+        Backup,
+
+        /// <summary>Moving the temporary file into place.</summary>
+        Move,
     }
 
     /// <summary>

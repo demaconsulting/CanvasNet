@@ -113,7 +113,7 @@ page 2 fails the run with a `usage-error` after page 1 was encoded (a render fai
 existing page 1 output keeps its content, no
 other file (and no temporary file) is in the folder, and a new folder holds no file; when every page succeeds both
 outputs are published (an existing one replaced) as complete images and no temporary file remains. A failure of the final
-per-target move is covered by **ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything** (see the ImageWriter
+per-target move is covered by **ImageWriter_PublishAll_FailureOnStep_RestoresEverything** (see the ImageWriter
 verification).
 
 **RenderCommand_Run_DpiAndSizeOptions_SizeThePage** and

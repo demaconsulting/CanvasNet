@@ -48,12 +48,16 @@ and **ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed**: an e
 image and the directory then holds only the output; a missing directory path is created; a blocked directory (a file
 where a folder should be) is `output-write-failed` naming the output and the file in the way.
 
-**ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything** and
+**ImageWriter_PublishAll_FailureOnStep_RestoresEverything**,
+**ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup**,
+**ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal** and
 **ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups**: with three staged outputs, of which the first and
-third exist, a failure injected (through the internal seam) on the move of the third is reported as
-`output-write-failed`, the two existing files are byte-identical to before, the new second file is gone, and no
-temporary or backup file remains; when every move succeeds all outputs are the new image and no backup remains. _Not
-verified, by design:_ a failure to restore a backup itself (the error then names the backup file).
+third exist, a failure injected (through the internal seam) on the move of the first, second or third output, or on the
+backup rename of the first or third, is reported as `output-write-failed`; the two existing files are byte-identical to
+before at their original names, the new second file is gone, and no temporary or backup file remains. When the move
+fails after something else (a partial file) took the target name, the backup still replaces it; a target listed twice
+is restored to its original content; when every move succeeds all outputs are the new image and no backup remains.
+_Not verified, by design:_ a failure to restore a backup itself (the error then names the backup file).
 
 **ImageWriter_Write_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile** and
 **ImageWriter_Write_NoClobberAndNewOutput_WritesFile**: no-clobber refuses an existing file, leaves it untouched and

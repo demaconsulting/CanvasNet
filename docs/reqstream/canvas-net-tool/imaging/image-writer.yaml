@@ -70,7 +70,8 @@ sections:
         title: >-
           The ImageWriter class shall publish several staged outputs all or nothing: an existing target
           is first renamed to a unique backup in its directory and the temporary file is moved into
-          place, and when any step fails every published target is removed, every backup is restored,
+          place, and when any step fails every touched target, including the one whose step failed,
+          is rolled back (a published new file is removed and every backup is restored),
           the temporary files are deleted, and the original error is reported; on success the backups
           are deleted.
         justification: |
@@ -78,7 +79,9 @@ sections:
           a mix of new and old files when one move fails. Only a failure to restore a backup itself can
           leave a previous file under its backup name, which is reported.
         tests:
-          - ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything
+          - ImageWriter_PublishAll_FailureOnStep_RestoresEverything
+          - ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup
+          - ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal
           - ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups
 
       - id: CanvasNetTool-Imaging-ImageWriter-Overwrite
