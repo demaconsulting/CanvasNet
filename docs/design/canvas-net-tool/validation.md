@@ -16,7 +16,8 @@ environment, and the per-platform and per-runtime evidence that the platform req
 
 `Validation` holds no instance state. The class is `internal static`; all state is local to `Run` and the
 private test methods. The names of the self-tests are a contract with the platform requirements and are never
-changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`. Each is recorded as a `TestResult` with
+changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
+`CanvasNetTool_Formats`. Each is recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool". Further self-tests are added together with the commands
 they exercise.
 
@@ -39,6 +40,11 @@ self-tests, prints the totals (using `WriteError` for the failed count when any 
 `--silent --log {path} --version` or `--help`, reads the log, and checks it: the version log must contain a
 dotted version number; the help log must contain both "Usage:" and "Options:". Any exception is recorded as a
 test failure by `HandleTestException`.
+
+**RunFormatsTest**: the same pattern for the `formats` command: it runs the tool in-process with
+`--silent --log {path} formats --json`, then `FormatsDocumentIsValid` parses the log as JSON and checks the schema
+version, the success flag, the command name, and that `png` is listed as an input and as an output format. This
+exercises command dispatch, `ArgumentReader`, and `ResultWriter` together in the deployment environment.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

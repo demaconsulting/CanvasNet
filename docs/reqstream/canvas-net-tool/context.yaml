@@ -138,3 +138,14 @@ sections:
           programmatically via the process exit code, even when --silent suppresses the message.
         tests:
           - Context_WriteError_SetsErrorExitCode
+
+      - id: CanvasNetTool-Context-Json
+        title: >-
+          The Context class shall expose whether the JSON option was given, honoring it in any
+          position and removing it from the command arguments.
+        justification: |
+          A command decides between text and JSON output from the context, and the option must work
+          wherever an agent happens to put it.
+        tests:
+          - Context_Create_JsonFlag_SetsJsonTrue
+          - Context_Create_JsonFlagAfterCommand_IsHonoredAndRemovedFromArguments

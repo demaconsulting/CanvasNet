@@ -55,3 +55,15 @@ sections:
           configuration errors automatically.
         tests:
           - Validation_Run_WithUnsupportedResultsFormat_DoesNotWriteFile
+
+      - id: CanvasNetTool-Validation-Formats
+        title: >-
+          The Validation class shall run the formats self-test, which runs the formats command with
+          JSON output in-process and checks that the document is valid and lists PNG.
+        justification: |
+          The formats self-test proves, in the deployment environment, that command dispatch, the
+          argument reader, and the JSON result writer work together; its name is a contract with
+          the qualification evidence.
+        tests:
+          - Validation_Run_FormatsSelfTest_PassesAndIsRecorded
+          - CanvasNetTool_Formats

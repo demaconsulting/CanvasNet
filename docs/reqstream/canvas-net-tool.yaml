@@ -54,6 +54,7 @@ sections:
         children:
           - CanvasNetTool-Program-Validate
           - CanvasNetTool-Validation-Qualification
+          - CanvasNetTool-Validation-Formats
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 
@@ -226,3 +227,71 @@ sections:
         tests:
           - CanvasNetTool_CommandDispatch_GlobalFlagsAnywhere_RunsCommandWithItsArguments
           - CanvasNetTool_UnknownCommand_Provided_ReturnsConciseUsageError
+
+      - id: CanvasNetTool-System-CommandLineGrammar
+        title: >-
+          The tool shall read the options of a command in the forms `--name value`, `--name=value`,
+          and `-a value`, keep repeated options in command-line order, reject an unknown option with
+          a usage error that suggests the closest option, and parse typed option values (sizes,
+          rectangles, colors, angles, flip axes, border widths, resolutions, page numbers, and
+          definitions) with documented grammars.
+        tags: [system]
+        justification: |
+          People and AI agents drive the tool from the command line; one forgiving but unambiguous
+          grammar shared by every command, with actionable errors, lets them get a command right
+          without reading a manual. The typed grammars are verified at unit level and reach the
+          system tests as the commands that use them are added.
+        children:
+          - CanvasNetTool-ArgumentReader-OptionForms
+          - CanvasNetTool-ArgumentReader-OrderedOptions
+          - CanvasNetTool-ArgumentReader-UnknownOption
+          - CanvasNetTool-ArgumentReader-MissingValue
+          - CanvasNetTool-ArgumentReader-Numbers
+          - CanvasNetTool-ArgumentReader-Size
+          - CanvasNetTool-ArgumentReader-Geometry
+          - CanvasNetTool-ArgumentReader-Color
+          - CanvasNetTool-ArgumentReader-Transforms
+          - CanvasNetTool-ArgumentReader-Defines
+        tests:
+          - CanvasNetTool_CommandLineGrammar_OptionForms_ReadByCommand
+          - CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError
+
+      - id: CanvasNetTool-System-Json
+        title: >-
+          The tool shall write the result of a command as one deterministic JSON document, starting
+          with the schema version and a success flag, to standard output when the `--json` option is
+          given, and shall write an expected failure in the same envelope with a stable error code
+          (unless `--silent` is given).
+        tags: [system]
+        justification: |
+          AI agents and scripts need a stable, versioned, machine-readable contract: parsing text
+          meant for people breaks whenever the wording changes. A failure arrives in the same
+          envelope as a success so that one parser handles both, and the exit code stays the
+          template's 0 or 1.
+        children:
+          - CanvasNetTool-Context-Json
+          - CanvasNetTool-Program-JsonErrors
+          - CanvasNetTool-ResultWriter-SchemaVersion
+          - CanvasNetTool-ResultWriter-SuccessEnvelope
+          - CanvasNetTool-ResultWriter-ErrorEnvelope
+          - CanvasNetTool-ResultWriter-DeterministicOutput
+          - CanvasNetTool-ResultWriter-Escaping
+        tests:
+          - CanvasNetTool_Formats_JsonRequested_WritesJsonDocument
+          - CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage
+          - CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument
+          - CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument
+
+      - id: CanvasNetTool-System-Formats
+        title: >-
+          The tool shall list the input formats, the output formats, the limits, and the versions
+          when the `formats` command is run, as text or as JSON.
+        tags: [system]
+        justification: |
+          A caller must be able to discover what the installed tool supports without reading
+          documentation that may describe another version.
+        children:
+          - CanvasNetTool-Commands-Formats
+        tests:
+          - CanvasNetTool_Formats_Requested_ListsFormats
+          - CanvasNetTool_Formats_JsonRequested_WritesJsonDocument

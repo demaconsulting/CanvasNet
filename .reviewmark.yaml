@@ -1934,6 +1934,34 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Context.cs"                # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ContextTests.cs"    # unit tests
 
+  # CanvasNetTool-ArgumentReader Review (one per direct unit)
+  - id: CanvasNetTool-ArgumentReader
+    title: Review that CanvasNetTool ArgumentReader Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/argument-reader.yaml"         # unit requirements
+      - "docs/design/canvas-net-tool/argument-reader.md"              # unit design
+      - "docs/verification/canvas-net-tool/argument-reader.md"        # unit verification
+      - "docs/sysml2/model/canvas-net-tool/argument-reader.sysml"     # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/ArgumentReader*.cs"        # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/ArgumentReaderTests.cs"  # unit tests
+
+  # CanvasNetTool-ResultWriter Review (one per direct unit)
+  - id: CanvasNetTool-ResultWriter
+    title: Review that CanvasNetTool ResultWriter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/result-writer.yaml"           # unit requirements
+      - "docs/design/canvas-net-tool/result-writer.md"                # unit design
+      - "docs/verification/canvas-net-tool/result-writer.md"          # unit verification
+      - "docs/sysml2/model/canvas-net-tool/result-writer.sysml"       # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/ResultWriter.cs"           # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/ResultWriterTests.cs"  # unit tests
+
   # CanvasNetTool-Validation Review (one per direct unit)
   - id: CanvasNetTool-Validation
     title: Review that CanvasNetTool Validation Implementation is Correct
@@ -1991,6 +2019,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/ICommand.cs"      # unit source (ICommand, OptionSpec)
       - "src/DemaConsulting.CanvasNet.Tool/Commands/CommandRegistry.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandRegistryTests.cs"  # unit tests
+
+  # CanvasNetTool-Commands-DiscoveryCommands Review (one per unit)
+  - id: CanvasNetTool-Commands-DiscoveryCommands
+    title: Review that CanvasNetTool Commands DiscoveryCommands Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/discovery-commands.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/discovery-commands.md"  # unit design
+      - "docs/verification/canvas-net-tool/commands/discovery-commands.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/discovery-commands.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/DiscoveryCommands.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/DiscoveryCommandsTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

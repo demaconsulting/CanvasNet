@@ -14,9 +14,10 @@ box and assert only on observable behavior.
   execution, and output - and validating the exit code and the combined console output. `Runner.Run` merges
   standard output and standard error, so assertions about one stream alone cannot be made at this level.
 - **In-process tests** run `Program.Execute` through the `ToolHost` helper with a command registry that holds
-  a purpose-made `TestCommand`. They cover behavior that needs the two streams examined separately, or a
-  command that fails or misbehaves on demand: the clean-output rule, the concise error report, command
-  dispatch with global options in any position, and the re-throw of an unexpected exception.
+  a purpose-made `TestCommand` (or with the default registry). They cover behavior that needs the two streams
+  examined separately, or a command that fails or misbehaves on demand: the clean-output rule, the concise error
+  report, the JSON failure document, command dispatch with global options in any position, the option forms read
+  through `ArgumentReader`, and the re-throw of an unexpected exception.
 
 Platform and runtime support is proven differently: the integration-test job of the build workflow installs the
 packaged tool in each operating system and .NET runtime of its matrix and runs `canvasnet --validate` with a
@@ -43,6 +44,8 @@ belong to the "Sequential" collection because console redirection is process-wid
 - A command's standard output contains only the command's own output.
 - Results files are created at the requested paths when `--results` is used with `--validate`.
 - Silent mode produces no console output.
+- With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
+  written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
 
 ## Test Scenarios
 
@@ -99,3 +102,28 @@ message, and hint, and no stack trace.
 **CanvasNetTool_UnexpectedError_CommandThrowsUnexpectedException_IsReThrown**: a command throws an exception
 that is not an expected failure; the same exception escapes the entry point and `Unexpected error:` was
 written to standard error first.
+
+**CanvasNetTool_Formats_Requested_ListsFormats**: `formats` is run as a real process; the output starts with the
+input formats listing, names PNG and PDF, lists the output formats and the maximum image dimension, and has no
+banner; exit code 0.
+
+**CanvasNetTool_Formats_JsonRequested_WritesJsonDocument**: `formats --json` is run as a real process; the whole
+output is one line that parses as a JSON document with schema version 1, `ok` true, the command name, PDF among
+the inputs, PNG among the outputs, and the maximum dimension 8192.
+
+**CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage**: a command fails with a `ToolException`
+and `--json` is given; exit code 1, standard output is the failure document (schema version, `ok` false, command,
+code, message, hint, no exit-code field), and standard error still carries the text report.
+
+**CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument**: `--json --bogus` fails before any command is known;
+standard output is a `usage-error` document with a null command.
+
+**CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument**: a failing `formats extra --json --silent` returns exit
+code 1 with nothing on standard output.
+
+**CanvasNetTool_CommandLineGrammar_OptionForms_ReadByCommand**: a command reads options in the separate, equals,
+short, and attached forms plus a repeated option and positional arguments through `ArgumentReader`; the options
+are in command-line order under their canonical names and the positionals are in order.
+
+**CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError**: `formats --bogus` is run as a real process;
+exit code 1 and a concise `usage-error` naming the option and the command, with no stack trace.

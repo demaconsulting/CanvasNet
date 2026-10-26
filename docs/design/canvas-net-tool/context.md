@@ -17,8 +17,9 @@ and the optional log file), and derive the exit code from whether any error was 
 
 **_hasErrors**: `bool` - Set to `true` on the first `WriteError` call; it never returns to `false`.
 
-**Version**, **Help**, **Silent**, **Validate**: `bool` - `true` when `-v`/`--version`, `-?`/`-h`/`--help`,
-`--silent`, or `--validate` was present anywhere on the command line.
+**Version**, **Help**, **Silent**, **Validate**, **Json**: `bool` - `true` when `-v`/`--version`, `-?`/`-h`/`--help`,
+`--silent`, `--validate`, or `--json` was present anywhere on the command line. `Json` asks a command to write its
+result as one JSON document (see _ResultWriter Unit Design_) instead of text.
 
 **ResultsFile**: `string?` - Path supplied after `--results` or its legacy alias `--result`, or `null`.
 
@@ -37,13 +38,14 @@ or its value, in the original order. Tokens that look like options but are not g
 
 **Create**: Factory method that parses the arguments and returns a fully initialized `Context`.
 
-- *Parameters*: `string[] args` - raw command-line arguments.
-- *Returns*: `Context` - a new instance with all properties set.
-- *Preconditions*: `args` is not null.
-- *Postconditions*: the properties reflect the parsed command line; the log file is open if `--log` was given.
+- _Parameters_: `string[] args` - raw command-line arguments.
+- _Returns_: `Context` - a new instance with all properties set.
+- _Preconditions_: `args` is not null.
+- _Postconditions_: the properties reflect the parsed command line; the log file is open if `--log` was given.
 
 A private `ArgumentParser` walks the tokens once. A global option is recognized in any position and consumes its
-value when it takes one (`--log`, `--results`, `--result`, `--depth`). Any other token goes to
+value when it takes one (`--log`, `--results`, `--result`, `--depth`); the flags are `-v`/`--version`,
+`-?`/`-h`/`--help`, `--silent`, `--validate`, and `--json`. Any other token goes to
 `AcceptCommandToken`: after the command name has been seen it is appended to the command arguments; before it,
 a token that starts with a dash (and is longer than one character) is rejected with an `ArgumentException`
 ("Unsupported argument '{token}'"), and any other token becomes the command name. After parsing, `OpenLogFile`
@@ -73,6 +75,7 @@ reports them as expected failures. `WriteLine` and `WriteError` do not throw. `D
 
 - **Program** - creates `Context` via `Context.Create` and reads the flags, the command name, and the exit code.
 - **CommandRegistry** - reads `Command` and `CommandArguments` to dispatch.
-- **Commands** - receive the `Context` and call `WriteLine` and `WriteError`.
+- **Commands** - receive the `Context` and call `WriteLine` and `WriteError`, and read `Json` to choose the output
+  form.
 - **Validation** - receives the `Context` from `Program` and calls `WriteLine`, `WriteError`, and reads
   `ResultsFile` and `HeadingDepth`; it also creates short-lived contexts to run the tool in-process.

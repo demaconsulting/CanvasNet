@@ -23,8 +23,8 @@ output.
 
 #### Test Scenarios
 
-**CommandRegistry_CreateDefault_ReturnsRegistry**: the default registry exists and every command in it
-resolves by its own name.
+**CommandRegistry_CreateDefault_ReturnsRegistry**: the default registry exists, contains the `formats` command, and
+every command in it resolves by its own name.
 
 **CommandRegistry_Register_TwoCommands_KeepsRegistrationOrder**: the command list is in registration order.
 
@@ -63,7 +63,8 @@ the typed command.
 help, or the top-level help.
 
 **CommandRegistry_RenderHelp_NoCommand_ListsCommandsAndGlobalOptions**: the top-level help starts with the usage,
-lists commands with aliases and summaries, lists every global option, and has no trailing newline.
+lists commands with aliases and summaries, lists every global option (including `--json`), and has no trailing
+newline.
 
 **CommandRegistry_RenderHelp_EmptyRegistry_OmitsCommandSection**: with no command the command section is
 omitted.

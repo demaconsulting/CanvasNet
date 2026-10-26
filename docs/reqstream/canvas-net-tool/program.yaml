@@ -106,3 +106,21 @@ sections:
           and crash dumps, following the DEMA Consulting tool template.
         tests:
           - Program_Execute_UnexpectedException_ReportsAndRethrows
+
+      - id: CanvasNetTool-Program-JsonErrors
+        title: >-
+          The Program class shall, when the command line contains the JSON option and not the silent
+          option, also write an expected failure to standard output as a JSON failure document, for
+          failures that occur before a command is selected as well as for failures of a command, and
+          shall write no document for an unexpected exception.
+        justification: |
+          Agents that request JSON results parse standard output; a failure must arrive in the same
+          machine-readable form as a success. The command line is scanned directly because a
+          malformed global option fails before a context exists, and an unexpected exception is a
+          defect whose report belongs to the runtime, not to the result contract.
+        tests:
+          - Program_Execute_JsonToolException_WritesErrorDocumentToStdOut
+          - Program_Execute_JsonBadGlobalOption_WritesErrorDocumentWithNullCommand
+          - Program_Execute_JsonInvalidOperationException_ReportsOperationFailedForCommand
+          - Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument
+          - Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows

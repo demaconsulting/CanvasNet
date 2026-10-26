@@ -18,17 +18,21 @@ line for the command list), `Options` (`IReadOnlyList<OptionSpec>`), `Usage` (th
 
 **OptionSpec** (`internal sealed record`): `Name` (canonical option name including its dashes, for example
 `--output`), `Aliases` (other spellings such as `-o`), `TakesValue`, `Description`, and `ValueName` (the
-placeholder shown in help). Later units use the same table to parse options.
+placeholder shown in help). `ArgumentReader` uses the same table to parse a command's options.
 
 **_commands**: `List<ICommand>` - the registered commands in registration order, exposed read-only as
 `Commands`.
 
-**GlobalOptions**: a static `OptionSpec` table of the global options, shown in every help screen.
+**GlobalOptions**: a static `OptionSpec` table of the global options (version, help, silent, validate, json,
+results, depth, and log), shown in every help screen.
 
 #### Key Methods
 
-**CreateDefault**: creates a registry with every command the tool ships with. A command is added to this method
-in the change that implements it.
+**CreateDefault**: creates a registry with every command the tool ships with: as of this release, `formats`
+(`DiscoveryCommands.Formats`). A command is added to this method in the change that implements it.
+
+**EditDistance(string, string)** (`internal static`): the Levenshtein distance used to suggest the closest command
+name; `ArgumentReader` uses it to suggest the closest option.
 
 **Register(ICommand)**: adds a command. Every name the command answers to (its name and aliases) must be unique
 across the registry and within the command, compared ignoring case, and must not be the reserved name `help`;

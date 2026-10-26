@@ -2,12 +2,14 @@
 
 ### Verification Approach
 
-The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry` (see _CommandRegistry
-Unit Verification Design_ under `commands/`) verify the registry in isolation. The subsystem tests in
+The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry` and `DiscoveryCommands` (see
+_CommandRegistry Unit Verification Design_ and _DiscoveryCommands Unit Verification Design_ under `commands/`)
+verify the registry and the `formats` command in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
-unknown-command report, and help. The shipped commands are verified by their own unit tests.
+unknown-command report, and help; and, with the default registry, that the shipped `formats` command is
+registered, runs, and is listed in the help. The shipped commands are verified by their own unit tests.
 
 ### Test Environment
 
@@ -44,3 +46,9 @@ the command's usage and options, and the command itself does not run.
 
 **CommandsSubsystem_Help_UnknownCommand_ReportsUsageError**: `help nothing` returns exit code 1 with a usage
 error.
+
+**CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand**: with the default registry, `formats` writes the
+text listing (no banner, nothing on standard error) and `formats --json` writes the success document.
+
+**CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp**: the top-level help lists `formats` with its summary,
+and `formats --help` shows its usage and JSON example.

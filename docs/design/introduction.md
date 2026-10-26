@@ -223,11 +223,14 @@ software items, specifically:
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, and transform
   images and documents with the CanvasNet libraries and offers a small, stable error contract (exit codes 0
-  and 1, concise error text, stable error codes). It follows the DEMA Consulting tool template and contains four
+  and 1, concise error text, stable error codes, and a versioned JSON result contract). It follows the DEMA
+  Consulting tool template and contains six
   direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
-  (command line, command capture, output channels), `Validation` (the `--validate` self-test and results
-  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract and
-  the `CommandRegistry` unit; the individual command units are added as the commands are implemented). It uses
+  (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
+  `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
+  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract, the
+  `CommandRegistry` unit, and the `DiscoveryCommands` unit with the `formats` command; further command units are
+  added as the commands are implemented). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
@@ -356,10 +359,11 @@ the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-s
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
 Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
-direct units `Program`, `Context`, `Validation`, and `PathHelpers` (namespace
-`DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the self-validation,
-and the safe path helper, and its `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds
-the `CommandRegistry` unit and, as they are added, the command units. It uses the `CanvasNet`, `CanvasNetSvg`,
+direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation`, and `PathHelpers` (namespace
+`DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
+grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
+(namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry` and `DiscoveryCommands` units
+and, as they are added, further command units. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
 their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
@@ -846,7 +850,7 @@ tessellation, rendering) through their public API from the `ScadGeometry` subsys
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
-`DemaConsulting.CanvasNet.Tool` dotnet tool package). The four direct units occupy the project root, and the
+`DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
 `Commands` subsystem occupies the `Commands/` sub-folder, whose name equals its sub-namespace (see
 _CanvasNetTool System Design_, `canvas-net-tool.md`):
 
@@ -856,11 +860,15 @@ src/DemaConsulting.CanvasNet.Tool/
 ├── Program.cs                     — Program: entry point, dispatch, and the error policy
 ├── ToolException.cs               — Program: ToolException and the stable ErrorCodes
 ├── Context.cs                     — Context: global options, command capture, and output channels
+├── ArgumentReader.cs              — ArgumentReader: option reading and the value types
+├── ArgumentReader.Values.cs       — ArgumentReader: the value grammars (size, geometry, color, and others)
+├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
 ├── Validation.cs                  — Validation: --validate self-test and results output
 ├── PathHelpers.cs                 — PathHelpers: safe path combination
 └── Commands/                      — Commands subsystem
     ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
-    └── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
+    ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
+    └── DiscoveryCommands.cs       — DiscoveryCommands: the formats command and the format tables
 ```
 
 ## Document Conventions

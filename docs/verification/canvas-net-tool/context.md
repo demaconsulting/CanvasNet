@@ -32,6 +32,10 @@ file, heading depth 1, no command, no command arguments, and exit code 0.
 **Context_Create_ValidateFlag_SetsValidateTrue**: each flag sets its property; the version flag is not mistaken
 for a command.
 
+**Context_Create_JsonFlag_SetsJsonTrue** and **Context_Create_JsonFlagAfterCommand_IsHonoredAndRemovedFromArguments**:
+`--json` sets the property and is not a command; after the command name it is honored and removed from the command
+arguments, which keep their order.
+
 **Context_Create_ResultsFlag_SetsResultsFile** and **Context_Create_ResultAliasFlag_SetsResultsFile**: both
 spellings capture the results file.
 

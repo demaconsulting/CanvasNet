@@ -44,10 +44,13 @@ input-files:
   - docs/design/canvas-net-tool.md
   - docs/design/canvas-net-tool/program.md
   - docs/design/canvas-net-tool/context.md
+  - docs/design/canvas-net-tool/argument-reader.md
+  - docs/design/canvas-net-tool/result-writer.md
   - docs/design/canvas-net-tool/validation.md
   - docs/design/canvas-net-tool/path-helpers.md
   - docs/design/canvas-net-tool/commands.md
   - docs/design/canvas-net-tool/commands/command-registry.md
+  - docs/design/canvas-net-tool/commands/discovery-commands.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md

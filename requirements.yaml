@@ -96,10 +96,13 @@ includes:
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml
   - docs/reqstream/canvas-net-tool/context.yaml
+  - docs/reqstream/canvas-net-tool/argument-reader.yaml
+  - docs/reqstream/canvas-net-tool/result-writer.yaml
   - docs/reqstream/canvas-net-tool/validation.yaml
   - docs/reqstream/canvas-net-tool/path-helpers.yaml
   - docs/reqstream/canvas-net-tool/commands.yaml
   - docs/reqstream/canvas-net-tool/commands/command-registry.yaml
+  - docs/reqstream/canvas-net-tool/commands/discovery-commands.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

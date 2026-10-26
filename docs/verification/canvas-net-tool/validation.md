@@ -21,8 +21,11 @@ console.
 ### Test Scenarios
 
 **Validation_Run_NotSilent_PrintsSummary**: the output contains the header, a passed line for
-`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`, the "Total Tests:" and "Passed:" lines, and
-"Failed: 0".
+`CanvasNetTool_VersionDisplay`, `CanvasNetTool_HelpDisplay`, and `CanvasNetTool_Formats`, the "Total Tests:" and
+"Passed:" lines, and "Failed: 0".
+
+**Validation_Run_FormatsSelfTest_PassesAndIsRecorded**: the formats self-test passes (exit code 0) and its name is
+in the TRX file.
 
 **Validation_Run_WithSilentContext_ExitCodeIsZero**: a silent run leaves exit code 0.
 
@@ -31,7 +34,7 @@ console.
 **Validation_Run_WithDepth_UsesHeadingDepth**: with `--depth 3` the report heading has three hashes.
 
 **Validation_Run_WithTrxResultsFile_WritesTrxFile**: a `.trx` results path produces a TRX document that names
-both contractual self-tests.
+the contractual self-tests.
 
 **Validation_Run_WithXmlResultsFile_WritesXmlFile**: an `.xml` results path produces a JUnit document.
 

@@ -43,3 +43,18 @@ sections:
           - CommandsSubsystem_Help_TopLevel_ListsRegisteredCommands
           - CommandsSubsystem_Help_CommandHelp_ShownByFlagAndByHelpCommand
           - CommandsSubsystem_Help_UnknownCommand_ReportsUsageError
+
+      - id: CanvasNetTool-Commands-Formats
+        title: >-
+          The Commands subsystem shall provide the formats command, which lists what the tool can
+          read and write as text, or as one JSON document when the JSON option is given.
+        justification: |
+          Before using a tool, people and agents need to know what it supports; the formats command
+          answers that from the tool itself, so the answer always matches the installed version.
+        children:
+          - CanvasNetTool-Commands-DiscoveryCommands-Formats
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
+        tests:
+          - CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand
+          - CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp

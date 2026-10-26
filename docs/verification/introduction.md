@@ -73,8 +73,9 @@ constituent software items, specifically:
   `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` —
   see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
-  tool package (command `canvasnet`), containing four direct units, `Program`, `Context`, `Validation`, and
-  `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry` unit — see _CanvasNetTool System
+  tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
+  `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry` and
+  `DiscoveryCommands` units — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:

@@ -1,0 +1,46 @@
+---
+# Software Unit Requirements for the DiscoveryCommands Class
+#
+# The DiscoveryCommands class holds the read-only commands that tell a caller what the tool can
+# do. As of this release it provides the formats command; the table of input and output formats is
+# data owned by this unit.
+
+sections:
+  - title: DiscoveryCommands Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-DiscoveryCommands-Formats
+        title: >-
+          The formats command shall list the input formats (with kind, extensions, page and scaling
+          capabilities), the output formats (with extensions, alpha, and quality capabilities), the
+          maximum image dimension, the JPEG quality range, and the tool and library versions as
+          text.
+        justification: |
+          A person or an agent must be able to ask the tool what it can read and write instead of
+          guessing from documentation that may belong to another version.
+        tests:
+          - DiscoveryCommands_Formats_Metadata_DescribesCommand
+          - DiscoveryCommands_Formats_TextOutput_ListsFormatsLimitsAndVersions
+          - DiscoveryCommands_Formats_DefaultVersions_ReportsRunningVersions
+          - DiscoveryCommands_FormatTables_AreWellFormed
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
+        title: >-
+          The formats command shall write the same information as one JSON success document with
+          the keys `tool`, `library`, `inputs`, `outputs`, `quality`, and `maxDimension` when the
+          JSON option is given.
+        justification: |
+          Agents consume the listing programmatically; the document layout is part of the tool's
+          machine contract and is verified byte for byte.
+        tests:
+          - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
+        title: >-
+          The formats command shall reject positional arguments and options with a usage error.
+        justification: |
+          The command takes no arguments of its own; anything else on the command line is a mistake
+          that must not be ignored silently.
+        tests:
+          - DiscoveryCommands_Formats_PositionalArgument_ThrowsUsageError
+          - DiscoveryCommands_Formats_UnknownOption_ThrowsUsageError
+          - DiscoveryCommands_Formats_NullArguments_ThrowsArgumentNullException

@@ -70,3 +70,19 @@ two lines, `Error: {code}: {message}` and `Hint: {hint}`; exit code 1.
 
 **Program_Execute_UnexpectedException_ReportsAndRethrows**: a `NotSupportedException` from a command escapes
 `Execute` unchanged, after `Unexpected error: {message}` was written to standard error.
+
+**Program_Execute_JsonToolException_WritesErrorDocumentToStdOut**: with `--json`, a `ToolException` with a hint
+is also written to standard output as exactly the expected failure document (code, message, hint, command, no
+exit code), while the text report is still on standard error; exit code 1.
+
+**Program_Execute_JsonBadGlobalOption_WritesErrorDocumentWithNullCommand**: `--json --bogus` fails before any
+command is selected; the document is a `usage-error` with `"command":null`.
+
+**Program_Execute_JsonInvalidOperationException_ReportsOperationFailedForCommand**: a plain
+`InvalidOperationException` is `operation-failed`, and the command name comes from the command line.
+
+**Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument**: with `--silent`, or without `--json`, standard output
+stays empty (the text report on standard error is unaffected); exit code 1.
+
+**Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows**: with `--json`, an unexpected exception
+still escapes, is reported on standard error, and no document is written.

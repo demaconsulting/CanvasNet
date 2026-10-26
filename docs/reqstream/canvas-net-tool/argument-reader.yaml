@@ -1,0 +1,160 @@
+---
+# cspell:ignore rrggbbaa
+# Software Unit Requirements for the ArgumentReader Class
+#
+# The ArgumentReader class reads the options and positional arguments of one command's argument
+# list from the command's OptionSpec table, and parses the typed values that options and operands
+# carry (sizes, rectangles, colors, angles, flip axes, border widths, resolutions, page numbers, and
+# name=value definitions). It is the single place where the command-line grammar of the tool lives.
+
+sections:
+  - title: ArgumentReader Unit Requirements
+    requirements:
+      - id: CanvasNetTool-ArgumentReader-OptionForms
+        title: >-
+          The ArgumentReader class shall read an option as `--name value`, `--name=value`, `-a value`,
+          or with a one-letter alias and its value attached (`-aValue`, `-a=Value`), accept a value that
+          starts with a dash, record every option under its canonical name, and treat a lone dash, a
+          negative number, and every token after a bare `--` as a positional argument.
+        justification: |
+          People and AI agents write options in several equivalent spellings; accepting all of them,
+          and never mistaking a negative number such as an angle for an option, keeps the command
+          line forgiving without being ambiguous. Recording the canonical name means a command never
+          has to know which alias was typed.
+        tests:
+          - ArgumentReader_Parse_SeparateValue_ReadsValue
+          - ArgumentReader_Parse_EqualsValue_ReadsValue
+          - ArgumentReader_Parse_ShortAlias_RecordsCanonicalName
+          - ArgumentReader_Parse_AttachedShortValue_ReadsValue
+          - ArgumentReader_Parse_ValueStartingWithDash_IsTheValue
+          - ArgumentReader_Parse_Flag_IsPresentWithoutValue
+          - ArgumentReader_Parse_Positionals_KeptInOrder
+          - ArgumentReader_Parse_DashAndNegativeNumber_ArePositional
+          - ArgumentReader_Parse_DoubleDash_EndsOptions
+
+      - id: CanvasNetTool-ArgumentReader-OrderedOptions
+        title: >-
+          The ArgumentReader class shall keep every occurrence of every option, in command-line order,
+          and shall return the values of a repeated option in order, or the last one.
+        justification: |
+          Image operations such as crop, resize, and pad are applied in the order the user wrote
+          them, and an option may be repeated, so the command needs the full ordered list rather than
+          one value per option. Asking for an option the command does not declare is a defect of the
+          command and is reported as one, not as a user error.
+        tests:
+          - ArgumentReader_Parse_RepeatedOptions_KeptInCommandLineOrder
+          - ArgumentReader_Lookup_UndeclaredOption_ThrowsKeyNotFoundException
+
+      - id: CanvasNetTool-ArgumentReader-UnknownOption
+        title: >-
+          The ArgumentReader class shall reject an option that the command does not declare with a
+          usage error that names the option and suggests the closest declared option.
+        justification: |
+          A mistyped option must never be ignored silently, because the command would then do
+          something other than what was asked; a suggestion lets an agent correct itself in one step.
+        tests:
+          - ArgumentReader_Parse_UnknownOption_SuggestsClosestOption
+          - ArgumentReader_Parse_UnknownOptionNoSuggestion_PointsAtHelp
+
+      - id: CanvasNetTool-ArgumentReader-MissingValue
+        title: >-
+          The ArgumentReader class shall reject an option that lacks its value, a value given to a
+          flag, and a number of positional arguments that a command does not accept, each with a
+          usage error.
+        justification: |
+          A truncated command line is a mistake that must be reported rather than guessed at.
+        tests:
+          - ArgumentReader_Parse_MissingValue_ThrowsUsageError
+          - ArgumentReader_Parse_FlagWithValue_ThrowsUsageError
+          - ArgumentReader_Parse_NullArguments_ThrowsArgumentNullException
+          - ArgumentReader_RequirePositionals_CountInRange_DoesNotThrow
+          - ArgumentReader_RequirePositionals_CountOutOfRange_ThrowsUsageError
+
+      - id: CanvasNetTool-ArgumentReader-Numbers
+        title: >-
+          The ArgumentReader class shall parse integers, finite numbers, page numbers, and
+          resolutions within a range, always with the invariant culture, and reject anything else
+          with a usage error.
+        justification: |
+          Numbers on the command line must mean the same on every machine: a decimal point is the
+          decimal separator and a comma is never a thousands separator, whatever the user's locale.
+        tests:
+          - ArgumentReader_GetInt_ValidValue_ReturnsValue
+          - ArgumentReader_GetInt_InvalidValue_ThrowsUsageError
+          - ArgumentReader_GetDouble_ValidValue_ReturnsValue
+          - ArgumentReader_GetDouble_InvalidValue_ThrowsUsageError
+          - ArgumentReader_ParseInt_ValidAndInvalid_ParsesOrThrows
+          - ArgumentReader_ParseNumber_GermanCulture_UsesInvariantCulture
+          - ArgumentReader_ParseDpiAndPage_ValidAndInvalid_ParsesOrThrows
+          - ArgumentReader_Parsers_NullText_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-ArgumentReader-Size
+        title: >-
+          The ArgumentReader class shall parse an image size written `WxH` in whole pixels, reject a
+          malformed size with a usage error, and reject a side larger than the maximum image
+          dimension with the size-limit error.
+        justification: |
+          Sizes are the most common typed value (resize, fit, render size); one grammar with one set
+          of error messages serves every command, and an oversized request is distinguished from a
+          malformed one so that a caller can react to it.
+        tests:
+          - ArgumentReader_ParseSize_ValidSize_ReturnsWidthAndHeight
+          - ArgumentReader_ParseSize_Malformed_ThrowsUsageError
+          - ArgumentReader_ParseSize_BeyondMaxDimension_ThrowsSizeLimit
+
+      - id: CanvasNetTool-ArgumentReader-Geometry
+        title: >-
+          The ArgumentReader class shall parse a rectangle written `x,y,w,h` or `WxH+X+Y`, each value
+          in whole pixels (optionally with `px`) or in percent, and reject a malformed rectangle or
+          one without area with a usage error.
+        justification: |
+          Cropping needs both the plain comma form that scripts generate and the widely known
+          `WxH+X+Y` form; percentages let one command work for images of unknown size.
+        tests:
+          - ArgumentReader_ParseGeometry_ValidForms_ReturnsRectangle
+          - ArgumentReader_ParseGeometry_Malformed_ThrowsUsageError
+
+      - id: CanvasNetTool-ArgumentReader-Color
+        title: >-
+          The ArgumentReader class shall parse a color written `#RGB`, `#RGBA`, `#RRGGBB`, or
+          `#RRGGBBAA` (CSS order, alpha last, `#` optional), as a color name, or as `transparent`,
+          and reject anything else with a usage error.
+        justification: |
+          Background and padding colors are specified in the notation people already know from CSS;
+          the alpha pair comes last, unlike the leading alpha of the core library's own parser, and
+          the optional `#` avoids the shell treating it as the start of a comment.
+        tests:
+          - ArgumentReader_ParseColor_HexForms_ReturnsColorWithAlphaLast
+          - ArgumentReader_ParseColor_NamesAndTransparent_ReturnsColor
+          - ArgumentReader_ParseColor_Invalid_ThrowsUsageError
+
+      - id: CanvasNetTool-ArgumentReader-Transforms
+        title: >-
+          The ArgumentReader class shall parse an angle in degrees (normalized to at least 0 and less
+          than 360), a flip axis (`h`, `v`, or `both`), and border widths (`N` or `l,t,r,b`), and
+          reject anything else with a usage error, or a border wider than the maximum image
+          dimension with the size-limit error.
+        justification: |
+          The rotate, flip, and pad operations share these value grammars with the options that
+          request the same operations, so that both spellings behave identically.
+        tests:
+          - ArgumentReader_ParseDegrees_ValidAngle_ReturnsNormalizedAngle
+          - ArgumentReader_ParseDegrees_Invalid_ThrowsUsageError
+          - ArgumentReader_ParseFlip_ValidAxis_ReturnsAxis
+          - ArgumentReader_ParseFlip_Invalid_ThrowsUsageError
+          - ArgumentReader_ParsePad_ValidForms_ReturnsWidths
+          - ArgumentReader_ParsePad_Malformed_ThrowsUsageError
+          - ArgumentReader_ParsePad_BeyondMaxDimension_ThrowsSizeLimit
+
+      - id: CanvasNetTool-ArgumentReader-Defines
+        title: >-
+          The ArgumentReader class shall parse `name=value` definitions into numbers, booleans, and
+          strings, let a later definition replace an earlier one, and reject a definition without a
+          valid name or with a vector value with a usage error.
+        justification: |
+          Parametric models are customized with named variables; typed values keep numbers and
+          booleans from being passed to the model as text.
+        tests:
+          - ArgumentReader_ParseDefines_LiteralTypes_ParsedByType
+          - ArgumentReader_ParseDefines_NonFiniteNumber_IsString
+          - ArgumentReader_ParseDefines_Malformed_ThrowsUsageError

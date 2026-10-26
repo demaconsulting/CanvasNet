@@ -42,9 +42,10 @@ and `budget-exceeded`. A value is never changed once released; new values may be
 - *Returns*: `int` - 0 for success, 1 for an expected failure.
 - *Postconditions*: the `Context` is disposed.
 
-Creates a `Context` using `Context.Create(args)`, calls `Run(context, registry)`, and returns
-`context.ExitCode`. Catches `ArgumentException` and `InvalidOperationException` (which includes
-`ToolException`), reports them through `ReportExpected`, and returns 1. Catches any other `Exception`, writes
+Creates a `Context` using `Context.Create(args)`, remembers the command name, calls `Run(context, registry)`, and
+returns `context.ExitCode`. Catches `ArgumentException` and `InvalidOperationException` (which includes
+`ToolException`), reports them through `ReportExpected` (passing the raw arguments and the command name, if one was
+seen), and returns 1. Catches any other `Exception`, writes
 `Unexpected error: {message}` to standard error, and re-throws so the runtime can record it.
 
 **Run**: Dispatches execution based on the parsed flags. The overload `Run(Context)` uses the default
@@ -61,9 +62,16 @@ named, otherwise the help of that command; (3) the validate flag prints the bann
 `Usage: canvasnet <command> [options] (try --help)` are written. The banner is therefore printed only for
 help, self-validation, and an empty command line.
 
-**ReportExpected**: Writes an expected failure to standard error. A `ToolException` becomes the line
-`Error: {code}: {message}` followed, when the exception has a hint, by the line `Hint: {hint}`; any other
-expected exception becomes the template's `Error: {message}`. No stack trace is written.
+**ReportExpected(args, commandName, exception)**: Writes an expected failure to standard error. A `ToolException`
+becomes the line `Error: {code}: {message}` followed, when the exception has a hint, by the line
+`Hint: {hint}`; any other expected exception becomes the template's `Error: {message}`. No stack trace is written.
+Then, when the raw argument array contains `--json` and does not contain `--silent`, it also writes the JSON failure
+document (`ResultWriter.Failure`) as one line to standard output. The command named in the document is the
+`ToolException.Command` when set, otherwise the command name seen on the command line, otherwise `null`. The
+arguments are scanned directly rather than read from the `Context` because the failure may happen before a
+`Context` exists (a malformed global option); the scan is exact-match, so a `--json` that is the value of another
+option is also seen, which is accepted. A failure document is written only for expected failures: an unexpected
+exception is a defect, written as `Unexpected error:` and re-thrown, with no document.
 
 **PrintBanner**: Writes the tool name and version and the copyright line to `context`.
 
@@ -81,6 +89,7 @@ defects stay visible. `Run`, `PrintBanner`, and `ReportExpected` do not catch ex
 - **Context** - parsed flags, command name, and the output channels.
 - **CommandRegistry** (Commands subsystem) - command dispatch and help text.
 - **Validation** - `Validation.Run(context)` for `--validate`.
+- **ResultWriter** - the JSON failure document.
 
 ### Callers
 
