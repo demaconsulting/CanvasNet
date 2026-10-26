@@ -152,7 +152,18 @@ internal static class ImageWriter
         ArgumentNullException.ThrowIfNull(inputPath);
 
         CheckPathIsUsable(outputPath);
+        CheckNotInput(outputPath, inputPath);
+        CheckWritable(outputPath, noClobber);
+    }
 
+    /// <summary>
+    ///     Checks that an output is not the same file as an input.
+    /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="inputPath">The input path.</param>
+    /// <exception cref="ToolException">Thrown with code <c>same-input-output</c> when the paths name the same file.</exception>
+    private static void CheckNotInput(string outputPath, string inputPath)
+    {
         if (IsSameFile(outputPath, inputPath))
         {
             throw new ToolException(
@@ -160,7 +171,16 @@ internal static class ImageWriter
                 $"The output '{outputPath}' is the same file as the input.",
                 "Choose a different output path.");
         }
+    }
 
+    /// <summary>
+    ///     Checks that an output is not a directory and, with <paramref name="noClobber"/>, does not exist.
+    /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="noClobber"><see langword="true"/> to refuse an existing output.</param>
+    /// <exception cref="ToolException">Thrown with code <c>output-write-failed</c> or <c>output-exists</c>.</exception>
+    private static void CheckWritable(string outputPath, bool noClobber)
+    {
         if (Directory.Exists(outputPath))
         {
             throw new ToolException(ErrorCodes.OutputWriteFailed, $"The output '{outputPath}' is a directory, not a file.");
@@ -172,6 +192,51 @@ internal static class ImageWriter
                 ErrorCodes.OutputExists,
                 $"The output '{outputPath}' already exists.",
                 "Remove --no-clobber to overwrite it, or choose a different output path.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that every output of a command may be written, without writing anything.
+    /// </summary>
+    /// <param name="outputPaths">The output paths; none may be the same file as another or as any input.</param>
+    /// <param name="inputPaths">The input paths; no output may be the same file as any of them.</param>
+    /// <param name="noClobber"><see langword="true"/> to refuse an existing output.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument or an element of a list is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown for every failure of <see cref="CheckTarget"/> applied to each output and each input, and with code
+    ///     <c>usage-error</c> when two outputs name the same file.
+    /// </exception>
+    /// <remarks>
+    ///     A command with several inputs and outputs calls this once before it loads anything, so that every mistake in
+    ///     the targets is reported before any work is done. Outputs are checked in the order given, each against every
+    ///     input in the order given, then against the outputs before it.
+    /// </remarks>
+    public static void CheckTargets(IReadOnlyList<string> outputPaths, IReadOnlyList<string> inputPaths, bool noClobber)
+    {
+        ArgumentNullException.ThrowIfNull(outputPaths);
+        ArgumentNullException.ThrowIfNull(inputPaths);
+
+        for (var i = 0; i < outputPaths.Count; i++)
+        {
+            var output = outputPaths[i] ?? throw new ArgumentNullException(nameof(outputPaths));
+            CheckPathIsUsable(output);
+            foreach (var input in inputPaths)
+            {
+                CheckNotInput(output, input ?? throw new ArgumentNullException(nameof(inputPaths)));
+            }
+
+            CheckWritable(output, noClobber);
+
+            for (var earlier = 0; earlier < i; earlier++)
+            {
+                if (IsSameFile(output, outputPaths[earlier]))
+                {
+                    throw new ToolException(
+                        ErrorCodes.UsageError,
+                        $"The outputs '{outputPaths[earlier]}' and '{output}' are the same file.",
+                        "Give each output its own path.");
+                }
+            }
         }
     }
 

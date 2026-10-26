@@ -148,6 +148,23 @@ public class PathHelpersTests
     }
 
     /// <summary>
+    ///     Test that SafePathCombine accepts a double-dot segment that stays under the base directory.
+    /// </summary>
+    [Fact]
+    public void PathHelpers_SafePathCombine_DotDotThatStaysUnderBase_CombinesCorrectly()
+    {
+        // Arrange: setup a relative path whose double-dot segment cancels a preceding directory
+        var basePath = "/home/user/project";
+        var relativePath = "a/../b";
+
+        // Act: execute the operation being tested
+        var result = PathHelpers.SafePathCombine(basePath, relativePath);
+
+        // Assert: the combined path is unchanged because it never leaves the base directory
+        Assert.Equal(Path.Combine(basePath, relativePath), result);
+    }
+
+    /// <summary>
     ///     Test that SafePathCombine throws ArgumentNullException when basePath is null.
     /// </summary>
     [Fact]

@@ -2087,6 +2087,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SurfaceOperations.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SurfaceOperationsTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageWriter

@@ -50,6 +50,12 @@ internal static class ErrorCodes
 
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
+
+    /// <summary>The two images to compare have different sizes and no size normalization was requested.</summary>
+    public const string SizeMismatch = "size-mismatch";
+
+    /// <summary>A comparison completed but at least one requested quality threshold was not met.</summary>
+    public const string ThresholdFailed = "threshold-failed";
 }
 
 /// <summary>
@@ -97,4 +103,16 @@ internal sealed class ToolException : InvalidOperationException
     ///     commands do not need to know their own name when throwing.
     /// </remarks>
     public string? Command { get; set; }
+
+    /// <summary>
+    ///     Gets the optional writer of additional top-level JSON fields to append to the failure document, or
+    ///     <see langword="null"/> when the failure carries none.
+    /// </summary>
+    /// <remarks>
+    ///     A command whose failure still produced a result (for example a comparison that completed but missed a
+    ///     threshold) sets this so that the <c>ok: false</c> document also carries the result's fields. The writer
+    ///     must write complete properties only; <see cref="ResultWriter.Failure(string?, Exception)"/> calls it after
+    ///     the <c>error</c> object.
+    /// </remarks>
+    public Action<System.Text.Json.Utf8JsonWriter>? ResultFields { get; init; }
 }

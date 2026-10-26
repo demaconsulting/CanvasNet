@@ -334,6 +334,97 @@ public class ImageWriterTests
     }
 
     /// <summary>
+    ///     Test that CheckTargets refuses an output that is any one of the inputs, whatever its position.
+    /// </summary>
+    /// <param name="inputIndex">The index of the input that is also the output.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput(int inputIndex)
+    {
+        // Arrange: three inputs, and an output that names one of them through a different spelling
+        using var directory = new TempDirectory();
+        string[] inputs = [directory.Combine("a.png"), directory.Combine("b.png"), directory.Combine("c.png")];
+        var output = Path.Combine(directory.Path, ".", Path.GetFileName(inputs[inputIndex]));
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([directory.Combine("fresh.png"), output], inputs, false));
+
+        // Assert: refused as the same file as an input
+        Assert.Equal(ErrorCodes.SameInputOutput, exception.Code);
+    }
+
+    /// <summary>
+    ///     Test that CheckTargets refuses two outputs that are the same file, however the path is spelled.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError()
+    {
+        // Arrange: two spellings of one output: a dot segment, and (where the file system ignores case) another case
+        using var directory = new TempDirectory();
+        var first = directory.Combine("out.png");
+        var dotted = Path.Combine(directory.Path, ".", "out.png");
+        string[] inputs = [directory.Combine("in.png")];
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([first, dotted], inputs, false));
+
+        // Assert: a usage error that names the problem
+        Assert.Equal(ErrorCodes.UsageError, exception.Code);
+        Assert.Contains("same file", exception.Message);
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+        {
+            var upper = Assert.Throws<ToolException>(
+                () => ImageWriter.CheckTargets([first, directory.Combine("OUT.PNG")], inputs, false));
+            Assert.Equal(ErrorCodes.UsageError, upper.Code);
+        }
+    }
+
+    /// <summary>
+    ///     Test that distinct outputs that are not inputs pass, including an existing output that may be overwritten.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_DistinctPaths_Passes()
+    {
+        // Arrange: two inputs, two new outputs, and one existing output
+        using var directory = new TempDirectory();
+        var existing = directory.Combine("existing.png");
+        File.WriteAllText(existing, "x");
+        string[] inputs = [directory.Combine("a.png"), directory.Combine("b.png")];
+
+        // Act / Assert: nothing is thrown, with and without outputs
+        ImageWriter.CheckTargets([directory.Combine("one.png"), directory.Combine("two.png"), existing], inputs, false);
+        ImageWriter.CheckTargets([directory.Combine("one.png")], inputs, true);
+        ImageWriter.CheckTargets([], inputs, true);
+    }
+
+    /// <summary>
+    ///     Test that no-clobber refuses an existing output and that the other target problems are reported too.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists()
+    {
+        // Arrange: an existing output and a directory named like an output
+        using var directory = new TempDirectory();
+        var existing = directory.Combine("existing.png");
+        File.WriteAllText(existing, "old content");
+        var folder = directory.Combine("folder.png");
+        Directory.CreateDirectory(folder);
+        string[] inputs = [directory.Combine("in.png")];
+
+        // Act
+        var exists = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([directory.Combine("new.png"), existing], inputs, true));
+        var isDirectory = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([folder], inputs, false));
+
+        // Assert: output-exists naming the file, which is untouched; a directory is output-write-failed
+        Assert.Equal(ErrorCodes.OutputExists, exists.Code);
+        Assert.Contains("existing.png", exists.Message);
+        Assert.Equal("old content", File.ReadAllText(existing));
+        Assert.Equal(ErrorCodes.OutputWriteFailed, isDirectory.Code);
+    }
+
+    /// <summary>
     ///     Test that an output reaching the input through a symbolic link to its directory is refused.
     /// </summary>
     [Fact]

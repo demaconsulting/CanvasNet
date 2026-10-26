@@ -42,6 +42,7 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-Background
           - CanvasNetTool-Imaging-SourceLoader-Exif
           - CanvasNetTool-Imaging-SourceLoader-Arguments
+          - CanvasNetTool-Imaging-SourceLoader-BoxFit
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
@@ -62,6 +63,7 @@ sections:
           - CanvasNetTool-Imaging-ImageWriter-AtomicWrite
           - CanvasNetTool-Imaging-ImageWriter-Overwrite
           - CanvasNetTool-Imaging-ImageWriter-SamePath
+          - CanvasNetTool-Imaging-ImageWriter-MultipleTargets
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_TransparentPng_FlattensOnlyForJpeg

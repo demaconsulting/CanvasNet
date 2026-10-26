@@ -278,6 +278,7 @@ sections:
           - CanvasNetTool-ResultWriter-SchemaVersion
           - CanvasNetTool-ResultWriter-SuccessEnvelope
           - CanvasNetTool-ResultWriter-ErrorEnvelope
+          - CanvasNetTool-ResultWriter-ErrorEnvelopeWithResult
           - CanvasNetTool-ResultWriter-DeterministicOutput
           - CanvasNetTool-ResultWriter-Escaping
         tests:

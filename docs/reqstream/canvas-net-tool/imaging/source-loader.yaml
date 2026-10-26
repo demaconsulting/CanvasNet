@@ -289,6 +289,30 @@ sections:
           - SourceLoader_Load_SizeOptions_ActOnTheNaturalSize
           - SourceLoader_Load_WidthAndHeight_FitsThePageInsideTheBox
 
+      - id: CanvasNetTool-Imaging-SourceLoader-BoxFit
+        title: >-
+          The SourceLoader class shall provide the options that load a source into a box of a given size
+          (a vector source is rendered natively at the box by setting its width and height and clearing
+          its scale, a raster source keeps its options), and the SurfaceOperations helpers shall find the
+          largest aspect-preserving size that fits a box (rounded to the nearest pixel, never below one
+          pixel nor above the box) and fit a raster surface into a box either by containing it, scaled to
+          the limiting side and centered on a fill color, or by stretching it to exactly the box.
+        justification: |
+          Commands that put several images into one size (comparison, contact sheets) must render a
+          vector source sharply at the final size instead of resampling pixels, and must fit a raster
+          source by one shared rule, so that the same image is placed the same way everywhere.
+        tests:
+          - SourceLoader_BoxOptions_VectorKinds_SetBoxAndClearScale
+          - SourceLoader_BoxOptions_RasterKinds_AreUnchanged
+          - SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException
+          - SourceLoader_Load_VectorWithBox_RendersNativelyAtBox
+          - SurfaceOperations_FitInside_RoundsAndClamps
+          - SurfaceOperations_FitInside_NonPositiveSize_ThrowsArgumentOutOfRange
+          - SurfaceOperations_FitInto_Contain_ScalesToLimitingSideAndCenters
+          - SurfaceOperations_FitInto_Stretch_ResamplesToExactBox
+          - SurfaceOperations_FitInto_SameSize_ReturnsEqualPixels
+          - SurfaceOperations_FitInto_InvalidArguments_Throw
+
       - id: CanvasNetTool-Imaging-SourceLoader-SizeLimit
         title: >-
           The SourceLoader class shall refuse, with the error code size-limit, an image or a requested

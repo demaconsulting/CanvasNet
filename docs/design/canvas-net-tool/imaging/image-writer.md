@@ -44,6 +44,13 @@ long, a format the system does not support), or has a file where one of its fold
 not exist is fine: `Write` creates it), and `output-exists` when it exists and `noClobber` is set. Commands call it
 before loading the input so that an output mistake is reported before any work is done; `Write` calls it again.
 
+**CheckTargets(outputPaths, inputPaths, noClobber)**: the check of a command with several outputs and inputs, without
+writing anything. For each output, in order: the path must be usable (`output-write-failed`), must not be the same
+file as any input (`same-input-output`, by the same `IsSameFile` comparison as `CheckTarget`), must not be an existing
+directory (`output-write-failed`) and, with `noClobber`, must not exist (`output-exists`); then it must not be the same
+file as an output before it (`usage-error`: two outputs cannot share a file). Null arguments or elements throw
+`ArgumentNullException`. `CheckTarget` and `CheckTargets` share the private helpers that make these checks.
+
 **Write(surface, outputPath, inputPathForGuard, options)**: stages the output with `Stage` and commits it at once
 (`Stage(...)` then `Commit()`), so a single output is written atomically.
 
@@ -82,4 +89,5 @@ check while `NoClobber` is set and the target now exists (another process create
 
 #### Callers
 
+- **CompareCommand** and **MontageCommand** - check all their targets once with `CheckTargets` before loading anything.
 - **RenderCommand** - checks every target, stages each page's result, and commits them all once every page has succeeded.

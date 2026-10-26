@@ -32,6 +32,8 @@ rooted; (5) return the unresolved candidate from step 2.
 The containment check uses `Path.GetRelativePath` rather than string inspection so that root paths, platform
 case sensitivity, and separator normalization are handled natively. A double-dot segment counts as escaping
 only when it is the entire relative result or is followed by a separator, so names such as `..data` are valid.
+The rule is escape-based, not segment-based: a relative path containing `..` segments that stay under the base
+directory (such as `a/../b`) is allowed, because the normalized result is still contained.
 
 ### Error Handling
 

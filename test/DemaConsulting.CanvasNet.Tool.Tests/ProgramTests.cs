@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet rmse
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;
@@ -396,6 +396,36 @@ public class ProgramTests
             + Environment.NewLine,
             stdOut);
         Assert.Contains("Error: output-exists: Output 'a.png' exists.", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that a threshold failure carrying result fields is written as a failure document with those fields, and
+    ///     that the exit code is still 1.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_ThresholdFailedWithJson_WritesFailureDocumentWithResultFieldsAndReturnsOne()
+    {
+        // Arrange: a command that throws threshold-failed with the fields of its result
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand(
+            "check",
+            (_, _) => throw new ToolException(ErrorCodes.ThresholdFailed, "rmse 3 is above the limit 1", "Raise the limit.")
+            {
+                ResultFields = writer => writer.WriteNumber("rmse", 3)
+            }));
+
+        // Act: execute the command with --json
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "check", "--json");
+
+        // Assert: exit code 1; one document with ok:false, the error, and the result field; the text report is on standard error
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"check\","
+            + "\"error\":{\"code\":\"threshold-failed\",\"message\":\"rmse 3 is above the limit 1\",\"hint\":\"Raise the limit.\"},"
+            + "\"rmse\":3}"
+            + Environment.NewLine,
+            stdOut);
+        Assert.Contains("Error: threshold-failed: rmse 3 is above the limit 1", stdErr);
     }
 
     /// <summary>

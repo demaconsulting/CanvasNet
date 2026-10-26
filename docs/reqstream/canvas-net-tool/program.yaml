@@ -142,3 +142,4 @@ sections:
           - Program_Execute_JsonInvalidOperationException_ReportsOperationFailedForCommand
           - Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument
           - Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows
+          - Program_Execute_ThresholdFailedWithJson_WritesFailureDocumentWithResultFieldsAndReturnsOne

@@ -37,10 +37,14 @@ A failure document has no exit-code field: every failure exits with code 1.
 - *Returns*: `string` - the document, without a trailing newline.
 - *Preconditions*: neither argument is null.
 
-**Failure(command, code, message, hint)**: writes the failure document.
+**Failure(command, code, message, hint)**: writes the failure document. An overload with a fifth parameter,
+`Action<Utf8JsonWriter>? resultFields`, calls it after the `error` object so that the document also carries the
+fields of a result (it must write complete properties only); the four-parameter form passes `null`.
 
 **Failure(command, exception)**: derives the code from the exception: a `ToolException` contributes its own code and
-hint; an `ArgumentException` is `usage-error`; anything else is `operation-failed`.
+hint and its `ResultFields`; an `ArgumentException` is `usage-error`; anything else is `operation-failed`. A failure
+document with result fields is `{"schemaVersion":1,"ok":false,"command":...,"error":{...},<result fields>}`: the
+fields are additive and follow the error object, so a consumer of the plain failure document is unaffected.
 
 **Write** (private): writes the top-level object with `Utf8JsonWriter` using `Indented = false` and the relaxed
 escaping encoder (so ASCII text such as an apostrophe stays readable), then escapes every non-ASCII UTF-16 code unit

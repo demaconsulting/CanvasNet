@@ -99,6 +99,23 @@ sections:
           - ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile
           - ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed
 
+      - id: CanvasNetTool-Imaging-ImageWriter-MultipleTargets
+        title: >-
+          The ImageWriter class shall check every output of a command against every input in one step,
+          without writing anything, refusing an output that is any one of the inputs
+          (same-input-output), two outputs that are the same file (usage-error), an existing output when
+          no-clobber is requested (output-exists), and an output that is a directory or not a usable
+          path (output-write-failed).
+        justification: |
+          A command with several inputs and outputs (a comparison writing three images, a contact sheet
+          of many files) must report every mistake in its targets before it loads or writes anything,
+          and must never write one output over another or over any of its inputs.
+        tests:
+          - ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput
+          - ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError
+          - ImageWriter_CheckTargets_DistinctPaths_Passes
+          - ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists
+
       - id: CanvasNetTool-Imaging-ImageWriter-Deterministic
         title: >-
           The ImageWriter class shall write the same bytes for the same pixels and options.

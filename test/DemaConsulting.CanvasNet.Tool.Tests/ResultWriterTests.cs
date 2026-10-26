@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet rmse
 using System.Globalization;
 using System.Text.Json;
 
@@ -115,6 +115,56 @@ public class ResultWriterTests
             "{\"schemaVersion\":1,\"ok\":false,\"command\":null,"
             + "\"error\":{\"code\":\"operation-failed\",\"message\":\"Bad state.\"}}",
             operation);
+    }
+
+    /// <summary>
+    ///     Test that a failure document built from a ToolException with result fields appends them after the error object.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_Failure_ExceptionWithResultFields_AppendsFieldsAfterError()
+    {
+        // Arrange: a tool exception that carries two result fields
+        var exception = new ToolException(ErrorCodes.ThresholdFailed, "rmse 5 is above the limit 1", "Raise the limit.")
+        {
+            ResultFields = writer =>
+            {
+                writer.WriteNumber("size", 3);
+                writer.WriteStartObject("metrics");
+                writer.WriteNumber("rmse", 5.5);
+                writer.WriteEndObject();
+            }
+        };
+
+        // Act
+        var json = ResultWriter.Failure("compare", exception);
+
+        // Assert: the envelope and error first, then the fields, byte for byte, as one parseable line
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"compare\","
+            + "\"error\":{\"code\":\"threshold-failed\",\"message\":\"rmse 5 is above the limit 1\",\"hint\":\"Raise the limit.\"},"
+            + "\"size\":3,\"metrics\":{\"rmse\":5.5}}",
+            json);
+        using var document = JsonDocument.Parse(json);
+        Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
+    }
+
+    /// <summary>
+    ///     Test that a ToolException without result fields gives the plain failure document.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_Failure_ExceptionWithoutResultFields_IsUnchanged()
+    {
+        // Arrange: an exception with no result fields, and the same failure written without an exception
+        var exception = new ToolException(ErrorCodes.SizeMismatch, "The sizes differ.", "Use --resize-to.");
+
+        // Act
+        var fromException = ResultWriter.Failure("compare", exception);
+        var plain = ResultWriter.Failure("compare", ErrorCodes.SizeMismatch, "The sizes differ.", "Use --resize-to.");
+
+        // Assert: identical, ending with the error object
+        Assert.Null(exception.ResultFields);
+        Assert.Equal(plain, fromException);
+        Assert.EndsWith("\"hint\":\"Use --resize-to.\"}}", fromException);
     }
 
     /// <summary>

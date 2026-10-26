@@ -58,6 +58,28 @@ internal sealed partial class RenderCommand
     ];
 
     /// <summary>
+    ///     Selects option declarations of <see cref="OptionTable"/> by name, so that another command can accept the
+    ///     same option with the same grammar and help text.
+    /// </summary>
+    /// <param name="names">The long names of the options, for example <c>--page</c>.</param>
+    /// <returns>The declarations, in the order of <paramref name="names"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="names"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when a name is not declared by <see cref="OptionTable"/>.</exception>
+    internal static IReadOnlyList<OptionSpec> SpecsFor(params string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        var specs = new List<OptionSpec>(names.Length);
+        foreach (var name in names)
+        {
+            specs.Add(OptionTable.FirstOrDefault(spec => spec.Name == name)
+                      ?? throw new ArgumentException($"The option {name} is not declared by the render command.", nameof(names)));
+        }
+
+        return specs;
+    }
+
+    /// <summary>
     ///     The settings of one invocation, read from the command line.
     /// </summary>
     /// <param name="Input">The input path.</param>
@@ -160,7 +182,7 @@ internal sealed partial class RenderCommand
     /// <summary>
     ///     The options that only apply to an OpenSCAD model.
     /// </summary>
-    private static readonly string[] ScadOptionNames =
+    internal static readonly string[] ScadOptionNames =
     [
         "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color", "--max-triangles"
     ];
@@ -174,7 +196,7 @@ internal sealed partial class RenderCommand
     ///     Thrown with code <c>usage-error</c> when the view is not one of the views, a value is malformed or out of range,
     ///     or a definition is not <c>name=value</c>.
     /// </exception>
-    private static ScadViewOptions? ReadScadOptions(ArgumentReader reader)
+    internal static ScadViewOptions? ReadScadOptions(ArgumentReader reader)
     {
         if (!ScadOptionNames.Any(reader.Has))
         {
