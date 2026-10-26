@@ -1,6 +1,6 @@
 ## Validation
 
-<!-- cspell:ignore Postconditions scad openscad -->
+<!-- cspell:ignore Postconditions scad openscad rmse ssim -->
 
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
@@ -19,7 +19,9 @@ private test methods. The names of the self-tests are a contract with the platfo
 changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad` (eleven in total). Each is
+`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
+`CanvasNetTool_CompareIdentical`, `CanvasNetTool_CompareDifferent`, and `CanvasNetTool_Montage` (fourteen in total).
+Each is
 recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool".
 
@@ -75,6 +77,19 @@ degrees (a 6x8 image whose right column is the original top row), flips it horiz
 with `2,1,0,3` in red, requiring the exact pixels and sizes. These exercise the
 codecs, the SVG, PDF, and SCAD renderers, the source loader, the image pipeline, the image writer, and the commands
 together.
+
+**RunCompareIdenticalTest**, **RunCompareDifferentTest**, and **RunMontageTest**: the comparison self-tests, run
+through `RunSelfTest` and `RunCommand` like the imaging self-tests, on the 8x6 gradient PNG that the other self-tests
+generate. `CanvasNetTool_CompareIdentical` compares the PNG with an identical copy using `--json` and two thresholds
+that only identical images meet (`rmse=0`, `ssim=1`), requiring success, `identical`, an MAE of 0, a similarity of 1, a
+null PSNR, no differing pixel, and passing thresholds; `CanvasNetTool_CompareDifferent` compares it with a copy whose
+4x3 region at 2,1 has a blue channel 50 higher, with `--diff` and `--side-by-side` and a threshold that is met,
+requiring a largest channel difference of 50, 12 differing pixels, the exact MAE, a similarity below 1, a difference
+picture that is black at (0,0) and not at (3,2), and a side-by-side picture that is 40x6; `CanvasNetTool_Montage`
+composes two copies of the PNG into 32x32 cells in two columns with labels and requires an 88x70 sheet in the result
+and in the file, white padding at the corner, the image fitted and centered in the first cell, and text pixels in its
+label strip. None relies on a failing exit code, so `RunCommand` is used unchanged. These exercise the comparison, the
+contact sheet with its bundled-font labels, the picture creators, and the commands together.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

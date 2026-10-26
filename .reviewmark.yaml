@@ -1866,7 +1866,7 @@ reviews:
       - "docs/design/canvas-net-tool.md"                              # system design (packaging, template deviations)
       - "docs/verification/introduction.md"                           # verification introduction
       - "docs/verification/canvas-net-tool.md"                        # system verification
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests*.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/AssemblyInfo.cs"    # sequential test collection
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Runner.cs"          # out-of-process test runner
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ToolHost.cs"        # in-process console capture helper

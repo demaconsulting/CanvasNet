@@ -8,11 +8,12 @@ The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, fo
 `src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because each family of
-commands is its own unit behind the same contract and registry. It contains three units:
+commands is its own unit behind the same contract and registry. It contains five units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
-`OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; and `RenderCommand`, which
+`OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
-(the same class, constructed with a verb).
+(the same class, constructed with a verb); `CompareCommand`, which provides `compare`; and `MontageCommand`, which
+provides `montage`.
 
 ### Interfaces
 
@@ -28,14 +29,25 @@ recording the command name on it.
 **CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
-ships with (`formats`, `info`, `render` with its alias `convert`, and the verbs `crop`,
-`resize`, `rotate`, `flip`, and `pad`, each registered as its own `RenderCommand` instance).
+ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,
+`resize`, `rotate`, `flip`, and `pad`, each registered as its own `RenderCommand` instance, then `compare` and
+`montage`).
 
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
 
-**Imaging** (consumed): the `info`, `render`, and verb commands read, transform, and write files only through the
-`Imaging` subsystem (`SourceLoader`, `ImagePipeline`, and `ImageWriter`); a command never calls a codec directly.
+**Imaging** (consumed): the `info`, `render`, verb, `compare`, and `montage` commands read, compare, compose,
+transform, and write files only through the `Imaging` subsystem (`SourceLoader`, `ImagePipeline`,
+`ImageComparison`, `ContactSheet`, and `ImageWriter`); a command never calls a codec directly.
+
+**Shared option declarations**: `CompareCommand` and `MontageCommand` take the declarations of the options they share
+with `render` (`--page`, `--dpi`, the options of an OpenSCAD model, `--filter`, `--quality`, `--no-clobber`, and so on)
+from `RenderCommand.OptionTable` through `RenderCommand.SpecsFor`, and read the model options with
+`RenderCommand.ReadScadOptions`, so the grammar and the help text of a shared option are the same in every command.
+
+**Expected failure after a result**: a command whose failure still produced a result (`compare` with a threshold that
+is not met) writes the result and then throws a `ToolException` whose `ResultFields` write the result into the JSON
+failure document; the exit code is 1 like every expected failure.
 
 ### Design
 

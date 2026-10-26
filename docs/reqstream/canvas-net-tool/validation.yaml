@@ -87,3 +87,19 @@ sections:
           - CanvasNetTool_RenderScad
           - CanvasNetTool_CropResize
           - CanvasNetTool_RotateFlipPad
+
+      - id: CanvasNetTool-Validation-CompareMontageSelfTests
+        title: >-
+          The Validation class shall run the compare and montage self-tests, which generate PNG images and run
+          the compare command on identical and on differing images (checking the metrics, the difference
+          picture, and the side-by-side picture) and the montage command on two images (checking the sheet
+          geometry, the placement of the cells, and the label) in-process.
+        justification: |
+          The compare and montage self-tests prove, in the deployment environment, that the comparison
+          metrics, the picture creators, the contact sheet with its bundled-font labels, and the commands
+          work together; their names are a contract with the qualification evidence.
+        tests:
+          - Validation_Run_CompareMontageSelfTests_PassAndAreRecorded
+          - CanvasNetTool_CompareIdentical
+          - CanvasNetTool_CompareDifferent
+          - CanvasNetTool_Montage

@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet pdf endobj endstream xref startxref
+// cspell:ignore canvasnet pdf endobj endstream xref startxref rmse ssim
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -52,6 +52,9 @@ internal static class Validation
         RunRenderScadTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
+        RunCompareIdenticalTest(context, testResults);
+        RunCompareDifferentTest(context, testResults);
+        RunMontageTest(context, testResults);
         var totalTests = testResults.Results.Count;
         var passedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Passed);
         var failedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Failed);
@@ -592,6 +595,160 @@ internal static class Validation
                    && padded[2, 1] == original[0, 0]
                 ? null
                 : "The padded image has the wrong size or pixels";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that compares a generated PNG with an identical copy and checks that the result says so.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunCompareIdenticalTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_CompareIdentical", directory =>
+        {
+            var first = PathHelpers.SafePathCombine(directory, "first.png");
+            var second = PathHelpers.SafePathCombine(directory, "second.png");
+            using (var original = CreateTestSurface())
+            {
+                PngCodec.Save(original, first);
+                PngCodec.Save(original, second);
+            }
+
+            // Identical images have no error, a similarity of one, and no PSNR; thresholds that only identical images meet pass
+            var json = RunCommand(
+                directory, "compare", first, second, "--threshold", "rmse=0", "--threshold", "ssim=1", "--json");
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            var metrics = root.GetProperty("metrics");
+            return root.GetProperty("ok").GetBoolean()
+                   && metrics.GetProperty("identical").GetBoolean()
+                   && Math.Abs(metrics.GetProperty("mae").GetDouble()) < 0.0001
+                   && Math.Abs(metrics.GetProperty("ssim").GetDouble() - 1) < 0.0001
+                   && metrics.GetProperty("psnrDb").ValueKind == JsonValueKind.Null
+                   && metrics.GetProperty("diffPixels").GetInt64() == 0
+                   && root.GetProperty("thresholds").GetProperty("passed").GetBoolean()
+                ? null
+                : "The comparison of identical images did not report them as identical";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that compares a generated PNG with a copy that differs in a known region and checks the metrics
+    ///     and the pictures of the differences.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunCompareDifferentTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_CompareDifferent", directory =>
+        {
+            // The copy has 12 pixels (4x3 at 2,1) whose blue channel is 50 higher: every other pixel is the same
+            var first = PathHelpers.SafePathCombine(directory, "first.png");
+            var second = PathHelpers.SafePathCombine(directory, "second.png");
+            using (var original = CreateTestSurface())
+            {
+                PngCodec.Save(original, first);
+                using var changed = CreateTestSurface();
+                for (var y = 1; y < 4; y++)
+                {
+                    for (var x = 2; x < 6; x++)
+                    {
+                        var pixel = changed[x, y];
+                        changed[x, y] = new Rgba32(pixel.R, pixel.G, (byte)(pixel.B + 50), 255);
+                    }
+                }
+
+                PngCodec.Save(changed, second);
+            }
+
+            var diff = PathHelpers.SafePathCombine(directory, "diff.png");
+            var sideBySide = PathHelpers.SafePathCombine(directory, "side-by-side.png");
+            var json = RunCommand(
+                directory, "compare", first, second, "--diff", diff, "--side-by-side", sideBySide, "--threshold", "rmse=255", "--json");
+            using var document = JsonDocument.Parse(json);
+            var metrics = document.RootElement.GetProperty("metrics");
+            if (metrics.GetProperty("identical").GetBoolean()
+                || metrics.GetProperty("maxChannelDiff").GetInt32() != 50
+                || metrics.GetProperty("diffPixels").GetInt64() != 12
+                || Math.Abs(metrics.GetProperty("mae").GetDouble() - (12 * 50 / (3.0 * TestImageWidth * TestImageHeight))) > 0.0001
+                || metrics.GetProperty("ssim").GetDouble() >= 1)
+            {
+                return "The metrics of the changed region are wrong";
+            }
+
+            // The difference picture is black where the images agree and not black inside the region
+            using var difference = PngCodec.Load(diff);
+            var black = new Rgba32(0, 0, 0, 255);
+            if (difference.Width != TestImageWidth || difference.Height != TestImageHeight
+                || difference[0, 0] != black || difference[3, 2] == black)
+            {
+                return "The difference picture does not show the changed region";
+            }
+
+            // The side-by-side picture is the two images and the differences with a gap of 8 pixels between them
+            using var sheet = PngCodec.Load(sideBySide);
+            return sheet.Width == (3 * TestImageWidth) + 16 && sheet.Height == TestImageHeight
+                ? null
+                : "The side-by-side picture has the wrong size";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that composes two generated PNGs into a labeled contact sheet and checks the geometry and the cells.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunMontageTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_Montage", directory =>
+        {
+            var first = PathHelpers.SafePathCombine(directory, "first.png");
+            var second = PathHelpers.SafePathCombine(directory, "second.png");
+            using (var original = CreateTestSurface())
+            {
+                PngCodec.Save(original, first);
+                PngCodec.Save(original, second);
+            }
+
+            // Two 32x32 cells in two columns, 8 pixels of padding and spacing, a 22-pixel label strip: 88x70
+            var output = PathHelpers.SafePathCombine(directory, "sheet.png");
+            var json = RunCommand(
+                directory, "montage", first, second, "--cell", "32x32", "--columns", "2", "--labels", "-o", output, "--json");
+            using var document = JsonDocument.Parse(json);
+            var sheetObject = document.RootElement.GetProperty("sheet");
+            if (sheetObject.GetProperty("width").GetInt32() != 88 || sheetObject.GetProperty("height").GetInt32() != 70
+                || document.RootElement.GetProperty("cells").GetArrayLength() != 2)
+            {
+                return "The contact sheet has the wrong geometry in the result";
+            }
+
+            using var sheet = PngCodec.Load(output);
+            var white = new Rgba32(255, 255, 255, 255);
+            if (sheet.Width != 88 || sheet.Height != 70 || sheet[0, 0] != white)
+            {
+                return "The contact sheet has the wrong size or padding";
+            }
+
+            // The 8x6 image is contained in the 32x32 cell (scaled to 32x24, 4 pixels from the top of the cell at 8,8)
+            if (sheet[8 + 16, 8 + 16] == white || sheet[8 + 16, 8 + 1] != white)
+            {
+                return "The first cell does not hold the image fitted and centered";
+            }
+
+            // The label strip below the first cell (y 40 to 61) has text pixels
+            for (var y = 40; y < 62; y++)
+            {
+                for (var x = 8; x < 40; x++)
+                {
+                    if (sheet[x, y] != white)
+                    {
+                        return null;
+                    }
+                }
+            }
+
+            return "The first cell has no label";
         });
     }
 

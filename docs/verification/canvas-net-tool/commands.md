@@ -2,16 +2,18 @@
 
 ### Verification Approach
 
-The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `DiscoveryCommands`, and
-`RenderCommand` (see _CommandRegistry Unit Verification Design_, _DiscoveryCommands Unit Verification Design_, and
-_RenderCommand Unit Verification Design_ under `commands/`)
+The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `DiscoveryCommands`,
+`RenderCommand`, `CompareCommand`, and `MontageCommand` (see
+_CommandRegistry Unit Verification Design_, _DiscoveryCommands Unit Verification Design_, _RenderCommand Unit
+Verification Design_, _CompareCommand Unit Verification Design_, and _MontageCommand Unit Verification Design_
+under `commands/`)
 verify the registry and the commands in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
-unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`, and
-transform verb commands are registered, run, and are listed in the help. The shipped commands are verified by their
-own unit tests.
+unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
+transform verb, `compare`, and `montage` commands are registered, run, and are listed in the help. The shipped
+commands are verified by their own unit tests.
 
 ### Test Environment
 
@@ -65,3 +67,12 @@ with their summaries; `render --help`, `help convert`, and `info --help` show th
 `resize`, `rotate`, `flip`, and `pad` on a generated PNG each succeed with one result line and nothing on standard
 error (with the sizes 6x4, 8x12, and 16x12 for the crop, the rotation, and the border); `help pad` shows its usage line
 and the top-level help lists the verbs with their summaries.
+
+**CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage**: with the default registry, `compare` with a
+threshold that is met and `montage` on two generated PNG images each succeed with their own output (no banner,
+nothing on standard error; the sheet is 88x48 for two 32x32 cells), and `compare` with a threshold that is not met
+returns exit code 1 with the expected error `threshold-failed` on standard error.
+
+**CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp**: the top-level help lists `compare` and `montage` with
+their summaries; `help compare` and `montage --help` show the usage and the options (`--resize-to <a|b|WxH>`,
+`-o, --output <file>`).

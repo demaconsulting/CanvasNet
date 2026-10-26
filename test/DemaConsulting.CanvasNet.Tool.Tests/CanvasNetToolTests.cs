@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 ///     standard output and standard error can be examined separately.
 /// </summary>
 [Collection("Sequential")]
-public class CanvasNetToolTests
+public partial class CanvasNetToolTests
 {
     /// <summary>
     ///     The path of the tool assembly in the test output directory.

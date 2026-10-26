@@ -1,14 +1,16 @@
 ---
-# cspell:ignore scad openscad
+# cspell:ignore scad openscad ssim
 # Imaging Subsystem Requirements
 #
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Imaging subsystem
-# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), and
+# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), compares
+#   two images and draws their differences (ImageComparison), composes a contact sheet (ContactSheet), and
 #   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
 #   the operations
-# - Subsystem requirements describe the externally visible load and write behavior and are verified by
-#   the subsystem tests, which run the loader and the writer together on every input and output format
+# - Subsystem requirements describe the externally visible load, compare, compose, and write behavior and are
+#   verified by the subsystem tests, which run the loader, the comparison and the contact sheet, and the writer
+#   together on every input and output format
 
 sections:
   - title: Imaging Subsystem Requirements
@@ -87,6 +89,51 @@ sections:
           - CanvasNetTool-Imaging-ImagePipeline-Arguments
         tests:
           - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
+
+      - id: CanvasNetTool-Imaging-Compare
+        title: >-
+          The Imaging subsystem shall compare two loaded images of the same size, giving exact, repeatable
+          error and similarity measures, the error of each cell of a grid, and the check of those measures
+          against thresholds, and shall create a difference image, an overlay, and a side-by-side image that
+          the image writer writes as files, loading a vector source at the size of the reference.
+        justification: |
+          Comparing a redraw with its reference is the same chain for every command: the loader produces
+          pixels of one size, the comparison measures and draws them, and the writer writes the pictures, so
+          that the numbers and the pictures agree between commands and runs.
+        children:
+          - CanvasNetTool-Imaging-ImageComparison-ErrorMetrics
+          - CanvasNetTool-Imaging-ImageComparison-Ssim
+          - CanvasNetTool-Imaging-ImageComparison-DiffPixels
+          - CanvasNetTool-Imaging-ImageComparison-Grid
+          - CanvasNetTool-Imaging-ImageComparison-DiffImage
+          - CanvasNetTool-Imaging-ImageComparison-Overlay
+          - CanvasNetTool-Imaging-ImageComparison-SideBySide
+          - CanvasNetTool-Imaging-ImageComparison-Thresholds
+          - CanvasNetTool-Imaging-ImageComparison-Arguments
+          - CanvasNetTool-Imaging-ImageComparison-Deterministic
+        tests:
+          - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
+          - Imaging_Compare_SameInputsTwice_WriteIdenticalBytes
+
+      - id: CanvasNetTool-Imaging-Montage
+        title: >-
+          The Imaging subsystem shall compose loaded sources of several kinds into one contact sheet, one
+          source at a time, in cells whose layout is calculated from the number of sources and the options,
+          with labels drawn in the bundled font, and shall refuse a sheet larger than the maximum image size
+          before any source is loaded.
+        justification: |
+          A contact sheet is built from whatever the loader can open; composing one source at a time keeps the
+          memory in use to the sheet plus one source, and a fixed layout lets a caller find a cell.
+        children:
+          - CanvasNetTool-Imaging-ContactSheet-Layout
+          - CanvasNetTool-Imaging-ContactSheet-SizeLimit
+          - CanvasNetTool-Imaging-ContactSheet-Placement
+          - CanvasNetTool-Imaging-ContactSheet-Labels
+          - CanvasNetTool-Imaging-ContactSheet-Appearance
+          - CanvasNetTool-Imaging-ContactSheet-Arguments
+          - CanvasNetTool-Imaging-ContactSheet-Deterministic
+        tests:
+          - Imaging_Montage_LoadedSourcesAreComposedAndWritten
 
       - id: CanvasNetTool-Imaging-Determinism
         title: >-

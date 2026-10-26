@@ -5,8 +5,8 @@
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
-#   (formats and info) and RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
-#   and pad)
+#   (formats and info), RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
+#   and pad), CompareCommand (compare), and MontageCommand (montage)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -113,3 +113,51 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Verbs
         tests:
           - CommandsSubsystem_TransformVerbs_DefaultRegistry_RunAndAreListedInHelp
+
+      - id: CanvasNetTool-Commands-Compare
+        title: >-
+          The Commands subsystem shall provide the compare command, which measures how much two images,
+          drawings, or document pages differ (error measures, structural similarity, and the error of each
+          cell of a grid), optionally writes pictures of the differences, and fails with the expected error
+          threshold-failed, after writing its result, when a requested threshold is not met, reporting the
+          result as text or as one JSON document when the JSON option is given.
+        justification: |
+          Checking a redraw against a reference is a central task of an agent that produces images; one
+          command that returns the numbers, the pictures, and a gate in one run serves it.
+        children:
+          - CanvasNetTool-Commands-CompareCommand-Options
+          - CanvasNetTool-Commands-CompareCommand-Sources
+          - CanvasNetTool-Commands-CompareCommand-Sizing
+          - CanvasNetTool-Commands-CompareCommand-Metrics
+          - CanvasNetTool-Commands-CompareCommand-Grid
+          - CanvasNetTool-Commands-CompareCommand-Outputs
+          - CanvasNetTool-Commands-CompareCommand-Thresholds
+          - CanvasNetTool-Commands-CompareCommand-Result
+          - CanvasNetTool-Commands-CompareCommand-Overwrite
+          - CanvasNetTool-Commands-CompareCommand-Errors
+          - CanvasNetTool-Commands-CompareCommand-Determinism
+        tests:
+          - CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage
+          - CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Montage
+        title: >-
+          The Commands subsystem shall provide the montage command, which composes images, drawings, and the
+          pages of documents into one labeled contact sheet and reports it as text or as one JSON document
+          when the JSON option is given.
+        justification: |
+          Looking at many images or every page of a deck at once is a frequent need; one command with one
+          grammar serves every input kind.
+        children:
+          - CanvasNetTool-Commands-MontageCommand-Options
+          - CanvasNetTool-Commands-MontageCommand-Inputs
+          - CanvasNetTool-Commands-MontageCommand-Layout
+          - CanvasNetTool-Commands-MontageCommand-Fit
+          - CanvasNetTool-Commands-MontageCommand-Labels
+          - CanvasNetTool-Commands-MontageCommand-Result
+          - CanvasNetTool-Commands-MontageCommand-Overwrite
+          - CanvasNetTool-Commands-MontageCommand-Errors
+          - CanvasNetTool-Commands-MontageCommand-Determinism
+        tests:
+          - CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage
+          - CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp
