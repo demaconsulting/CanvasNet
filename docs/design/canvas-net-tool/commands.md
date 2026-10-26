@@ -9,8 +9,9 @@ The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, fo
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because the individual
 command units are added to it as the commands are implemented, behind the same contract and registry. As of
-this release it contains two units: `CommandRegistry`, which also documents the supporting types `ICommand` and
-`OptionSpec`, and `DiscoveryCommands`, which provides the `formats` command.
+this release it contains three units: `CommandRegistry`, which also documents the supporting types `ICommand` and
+`OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; and `RenderCommand`, which
+provides `render` and its alias `convert`.
 
 ### Interfaces
 
@@ -26,10 +27,13 @@ recording the command name on it.
 **CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
-ships with (as of this release, `formats`).
+ships with (as of this release, `formats`, `info`, and `render` with its alias `convert`).
 
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
+
+**Imaging** (consumed): the `info` and `render` commands read and write files only through the `Imaging`
+subsystem (`SourceLoader` and `ImageWriter`); a command never calls a codec directly.
 
 ### Design
 

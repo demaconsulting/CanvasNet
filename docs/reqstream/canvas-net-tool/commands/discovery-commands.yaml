@@ -2,8 +2,8 @@
 # Software Unit Requirements for the DiscoveryCommands Class
 #
 # The DiscoveryCommands class holds the read-only commands that tell a caller what the tool can
-# do. As of this release it provides the formats command; the table of input and output formats is
-# data owned by this unit.
+# do or what a file is: the formats command and the info command. The table of input and output
+# formats is data owned by this unit.
 
 sections:
   - title: DiscoveryCommands Unit Requirements
@@ -44,3 +44,54 @@ sections:
           - DiscoveryCommands_Formats_PositionalArgument_ThrowsUsageError
           - DiscoveryCommands_Formats_UnknownOption_ThrowsUsageError
           - DiscoveryCommands_Formats_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatTables
+        title: >-
+          The tables of input and output formats shall name exactly the source kinds and output formats
+          the imaging code implements, in the same order, with the file name extensions that the source
+          loader detects and the image writer accepts, and the quality range the writer enforces.
+        justification: |
+          The formats command is how an agent discovers what the tool supports; a listing that drifts
+          from the implementation would send the agent down paths that fail.
+        tests:
+          - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
+          - DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter
+          - DiscoveryCommands_FormatTables_QualityRangeMatchesWriter
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-Info
+        title: >-
+          The info command shall describe one file from its header, without rendering it, as one text
+          line with its path, format, pixel size, channels, transparency, size in bytes, and, when they
+          apply, its frame count, EXIF orientation, and whether it can be decoded.
+        justification: |
+          A person or an agent needs to know what a file is, and how large, before deciding how to
+          render it; reading only the header keeps the answer cheap.
+        tests:
+          - DiscoveryCommands_Info_Metadata_DescribesCommand
+          - DiscoveryCommands_Info_DefaultRegistry_RegistersInfo
+          - DiscoveryCommands_Info_TextOutput_DescribesFile
+          - DiscoveryCommands_Info_EachKind_ReportsFormatAndSize
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoJson
+        title: >-
+          The info command shall write the same facts as one JSON success document with the keys
+          input (path, format, bytes) and image (width, height, channels, hasAlpha, canDecode,
+          frameCount, and exifOrientation when the file has one) when the JSON option is given.
+        justification: |
+          Agents consume the facts programmatically; the document layout is part of the tool's machine
+          contract and is verified byte for byte.
+        tests:
+          - DiscoveryCommands_Info_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_Info_JpegOrientation_IsReportedOnlyWhenPresent
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
+        title: >-
+          The info command shall report a missing, corrupt, or unsupported input as an expected error,
+          shall report a missing input, extra inputs, or an unknown option as a usage error, and shall
+          reject null arguments.
+        justification: |
+          Mistakes must produce stable, actionable errors rather than silent or partial results.
+        tests:
+          - DiscoveryCommands_Info_BadInput_ThrowsToolException
+          - DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError
+          - DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException

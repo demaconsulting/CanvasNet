@@ -1871,6 +1871,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Runner.cs"          # out-of-process test runner
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ToolHost.cs"        # in-process console capture helper
       - "test/DemaConsulting.CanvasNet.Tool.Tests/TestCommand.cs"     # configurable test command
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/FixtureFactory.cs"  # generated test inputs and temporary directory
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/SurfaceAssert.cs"   # pixel assertions
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Fixtures/README.md"  # fixture provenance and licensing
       - "src/DemaConsulting.CanvasNet.Tool/DemaConsulting.CanvasNet.Tool.csproj"  # tool package project file
       - "test/DemaConsulting.CanvasNet.Tool.Tests/DemaConsulting.CanvasNet.Tool.Tests.csproj"  # test project
 
@@ -2035,6 +2038,71 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/discovery-commands.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/DiscoveryCommands.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/DiscoveryCommandsTests.cs"  # unit tests
+
+  # CanvasNetTool-Commands-RenderCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-RenderCommand
+    title: Review that CanvasNetTool Commands RenderCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/render-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/render-command.md"      # unit design
+      - "docs/verification/canvas-net-tool/commands/render-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/render-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommandTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging Review (one per subsystem)
+  - id: CanvasNetTool-Imaging
+    title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"                 # subsystem requirements
+      - "docs/design/canvas-net-tool/imaging.md"                      # subsystem design
+      - "docs/verification/canvas-net-tool/imaging.md"                # subsystem verification
+      - "docs/sysml2/model/canvas-net-tool/imaging.sysml"             # subsystem SysML2 model
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagingSubsystemTests.cs"  # subsystem tests
+
+  # CanvasNetTool-Imaging-SourceLoader Review (one per unit)
+  - id: CanvasNetTool-Imaging-SourceLoader
+    title: Review that CanvasNetTool Imaging SourceLoader Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/source-loader.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/source-loader.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/source-loader.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/source-loader.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceLoader*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceModels.cs"   # unit source (model types)
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ExifOrientation.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SurfaceOperations.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageWriter
+    title: Review that CanvasNetTool Imaging ImageWriter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-writer.yaml"    # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-writer.md"         # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-writer.md"   # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-writer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageWriter.cs"    # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageWriterTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

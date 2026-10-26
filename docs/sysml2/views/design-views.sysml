@@ -60,6 +60,10 @@ package CanvasNet {
         expose Commands;
     }
 
+    view ImagingView {
+        expose Imaging;
+    }
+
     view ScadLanguageView {
         expose ScadLanguage;
     }

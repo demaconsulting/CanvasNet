@@ -2,14 +2,15 @@
 
 ### Verification Approach
 
-The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry` and `DiscoveryCommands` (see
-_CommandRegistry Unit Verification Design_ and _DiscoveryCommands Unit Verification Design_ under `commands/`)
-verify the registry and the `formats` command in isolation. The subsystem tests in
+The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `DiscoveryCommands`, and
+`RenderCommand` (see _CommandRegistry Unit Verification Design_, _DiscoveryCommands Unit Verification Design_, and
+_RenderCommand Unit Verification Design_ under `commands/`)
+verify the registry and the commands in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
-unknown-command report, and help; and, with the default registry, that the shipped `formats` command is
-registered, runs, and is listed in the help. The shipped commands are verified by their own unit tests.
+unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, and `render`
+commands are registered, run, and are listed in the help. The shipped commands are verified by their own unit tests.
 
 ### Test Environment
 
@@ -52,3 +53,9 @@ text listing (no banner, nothing on standard error) and `formats --json` writes 
 
 **CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp**: the top-level help lists `formats` with its summary,
 and `formats --help` shows its usage and JSON example.
+
+**CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender**: with the default registry, `info`, `render`, and
+`convert` on a generated PNG each succeed with their own output (no banner, nothing on standard error).
+
+**CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp**: the top-level help lists `render, convert` and `info`
+with their summaries; `render --help`, `help convert`, and `info --help` show the usage and options.

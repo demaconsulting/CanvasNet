@@ -28,8 +28,9 @@ results, depth, and log), shown in every help screen.
 
 #### Key Methods
 
-**CreateDefault**: creates a registry with every command the tool ships with: as of this release, `formats`
-(`DiscoveryCommands.Formats`). A command is added to this method in the change that implements it.
+**CreateDefault**: creates a registry with every command the tool ships with: `formats`
+(`DiscoveryCommands.Formats`), `info` (`DiscoveryCommands.Info`), and `render` with its alias `convert`
+(`RenderCommand`). A command is added to this method in the change that implements it.
 
 **EditDistance(string, string)** (`internal static`): the Levenshtein distance used to suggest the closest command
 name; `ArgumentReader` uses it to suggest the closest option.

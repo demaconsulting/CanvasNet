@@ -1,16 +1,15 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg tiff pptx vsdx scad -->
+<!-- cspell:ignore canvasnet jpeg tiff pptx vsdx scad Visio -->
 
 ![Commands Structure](CommandsView.svg)
 
 #### Purpose
 
-`DiscoveryCommands` holds the read-only commands that tell a caller what the tool can do. Its single
-responsibility is to answer "what do you support?" without reading or writing any image. As of this release it
-provides one command, `formats`, implemented as the nested class `DiscoveryCommands.Formats`; commands that
-describe a given file are added to this unit as they are implemented. The table of formats is data owned by this
-unit.
+`DiscoveryCommands` holds the read-only commands that tell a caller what the tool can do or what a file is. Its
+single responsibility is to answer "what do you support?" and "what is this file?" without writing any image. It
+provides two commands, `formats` and `info`, implemented as the nested classes `DiscoveryCommands.Formats` and
+`DiscoveryCommands.Info`. The table of formats is data owned by this unit.
 
 #### Data Model
 
@@ -19,18 +18,25 @@ unit.
 (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages or slides
 rendered at any requested size; `model`: a 3D model rendered from a viewpoint), `Extensions` (lower case, with the
 dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
-rather than decoded at its own size).
+rather than decoded at its own size). The rows are the `SourceKind` members in order, and their extensions are those
+that `SourceLoader.ExtensionKinds` maps to the kind; a test keeps the table consistent with the enumeration and the
+loader, so a listed format is one the code knows. (Formats that are recognized but not yet readable - the PDF,
+PowerPoint, Visio, and OpenSCAD kinds - are listed from the start and are reported as unsupported by `info` and
+`render` until they are implemented.)
 
 **OutputFormats** (`IReadOnlyList<OutputFormatInfo>`): `png`, `jpeg`, `bmp`, `tiff`. A row has `Name` (also the value
-of the `--format` option), `Extensions`, `Alpha` (keeps transparency), and `Lossy` (takes a quality setting).
+of the `--format` option), `Extensions`, `Alpha` (keeps transparency), and `Lossy` (takes a quality setting). The
+rows are the `OutputFormat` members in order, with the extensions that `ImageWriter.ExtensionFormats` accepts.
 
 **Formats**: `ICommand` named `formats`, with no aliases and no options of its own. It holds the tool version and the
 CanvasNet library version it reports. The public constructor reads them from the assemblies'
 informational versions (falling back to the assembly version, then `0.0.0`); an `internal` constructor takes them as
 arguments so that tests can produce output that does not depend on the build.
 
-**Constants**: the JPEG quality range (`1` to `100`) and default (`90`), and the maximum image dimension, which is
-`Surface.MaxDimension` (8192).
+**Info**: `ICommand` named `info`, with no aliases and no options of its own (`--json` is global). It holds no state.
+
+**Constants**: the JPEG quality range (`1` to `100`) and default (`90`), which are those of `ImageWriter`, and the
+maximum image dimension, which is `Surface.MaxDimension` (8192).
 
 #### Key Methods
 
@@ -56,21 +62,43 @@ this order:
 | `maxDimension` | number |
 <!-- markdownlint-enable MD013 -->
 
+**Info.Run(context, args)**: reads the arguments with `ArgumentReader` (against an empty option table) and requires
+exactly one positional argument, the input. Calls `SourceLoader.Probe` and writes either the JSON document (when
+`context.Json`) or one text line through `context.WriteLine`. Nothing is decoded and no file is written.
+
+**Info text line**: `{path}: {format}, {width}x{height} px[ (intrinsic size)], {channels} channel[s][ with alpha],
+{bytes} bytes`, followed when they apply by `, {n} frames (the first is used)` (an animated GIF),
+`, EXIF orientation {n}` (a JPEG that has one), and `, cannot be decoded`. The size is the stored size, before any
+EXIF orientation.
+
+**Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
+
+<!-- markdownlint-disable MD013 -->
+| Key | Value |
+| --- | ----- |
+| `input` | object: `path`, `format`, `bytes` |
+| `image` | object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and `exifOrientation` only when the file has one |
+<!-- markdownlint-enable MD013 -->
+
 #### Error Handling
 
 An argument or option on the `formats` command line throws a `ToolException` with the code `usage-error` (from
-`ArgumentReader`). Null arguments throw `ArgumentNullException`. The command does not touch the file system and has
-no other failure mode.
+`ArgumentReader`); so does a missing input, an extra input, or an unknown option on the `info` command line. The
+`info` command's failures to read the file come from `SourceLoader.Probe` (`input-not-found`, `input-unreadable`,
+`unsupported-format`, `corrupt-input`, `unsupported-feature`). Null arguments throw `ArgumentNullException`. The
+`formats` command does not touch the file system and has no other failure mode.
 
 #### Dependencies
 
 - **ArgumentReader** - argument validation.
-- **ResultWriter** - the JSON document.
+- **ResultWriter** - the JSON documents.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version.
+- **SourceLoader** and **ImageWriter** (Imaging) - the `info` command's probe, and the format and quality
+  definitions that the tables and constants must agree with.
 - **CanvasNet core** - `Surface.MaxDimension` and the library version.
 
 #### Callers
 
-- **CommandRegistry** - `CreateDefault` registers `Formats`; the registry dispatches to it.
-- **Validation** - the `CanvasNetTool_Formats` self-test runs it in-process.
+- **CommandRegistry** - `CreateDefault` registers `Formats` and `Info`; the registry dispatches to them.
+- **Validation** - the `CanvasNetTool_Formats` and `CanvasNetTool_Info` self-tests run them in-process.

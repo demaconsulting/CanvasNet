@@ -1,0 +1,76 @@
+---
+# Imaging Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetTool Imaging subsystem
+# - The Imaging subsystem turns files into pixels (SourceLoader) and pixels into files (ImageWriter); it
+#   is free of command-line concerns
+# - Subsystem requirements describe the externally visible load and write behavior and are verified by
+#   the subsystem tests, which run the loader and the writer together on every input and output format
+
+sections:
+  - title: Imaging Subsystem Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-Load
+        title: >-
+          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, or SVG file into
+          pixels at the size the options ask for, and shall report the facts of a file without
+          decoding it.
+        justification: |
+          Every command needs one place that recognizes a file, reads its header, and produces the
+          pixels, so that the formats behave consistently.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-Detect
+          - CanvasNetTool-Imaging-SourceLoader-Probe
+          - CanvasNetTool-Imaging-SourceLoader-Raster
+          - CanvasNetTool-Imaging-SourceLoader-Svg
+          - CanvasNetTool-Imaging-SourceLoader-Sizing
+          - CanvasNetTool-Imaging-SourceLoader-Background
+          - CanvasNetTool-Imaging-SourceLoader-Exif
+          - CanvasNetTool-Imaging-SourceLoader-Arguments
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_RequestedSize_WritesThatSize
+
+      - id: CanvasNetTool-Imaging-Write
+        title: >-
+          The Imaging subsystem shall write pixels as a PNG, JPEG, BMP, or TIFF file, with transparency
+          flattened for JPEG, through a temporary file, honoring the overwrite policy.
+        justification: |
+          Every command writes images the same way, so that formats, quality, and overwrite behavior are
+          the same everywhere.
+        children:
+          - CanvasNetTool-Imaging-ImageWriter-FormatResolution
+          - CanvasNetTool-Imaging-ImageWriter-Lossless
+          - CanvasNetTool-Imaging-ImageWriter-Jpeg
+          - CanvasNetTool-Imaging-ImageWriter-AtomicWrite
+          - CanvasNetTool-Imaging-ImageWriter-Overwrite
+          - CanvasNetTool-Imaging-ImageWriter-SamePath
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_TransparentPng_FlattensOnlyForJpeg
+
+      - id: CanvasNetTool-Imaging-Determinism
+        title: >-
+          The Imaging subsystem shall produce the same output bytes when the same input is loaded and
+          written twice with the same options.
+        justification: |
+          Reproducible output makes results comparable and lets scripts detect real change.
+        children:
+          - CanvasNetTool-Imaging-ImageWriter-Deterministic
+        tests:
+          - Imaging_Convert_SameInputTwice_WritesIdenticalBytes
+
+      - id: CanvasNetTool-Imaging-Errors
+        title: >-
+          The Imaging subsystem shall report a missing, unsupported, truncated, corrupt, or oversized
+          input as an expected error before anything is written.
+        justification: |
+          A failed conversion must not leave a partial output, and the failure must be a stable,
+          concise error that a caller can act on.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-DetectErrors
+          - CanvasNetTool-Imaging-SourceLoader-SizeLimit
+          - CanvasNetTool-Imaging-SourceLoader-CorruptInput
+        tests:
+          - Imaging_Convert_CorruptInput_LeavesNoOutput

@@ -22,7 +22,10 @@ box and assert only on observable behavior.
 Platform and runtime support is proven differently: the integration-test job of the build workflow installs the
 packaged tool in each operating system and .NET runtime of its matrix and runs `canvasnet --validate` with a
 results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`) are the
-evidence for the platform requirements, selected by the source filters in the platform requirements file.
+evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
+run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
+`CanvasNetTool_Info`, and `CanvasNetTool_RenderSvg`), which generate their own inputs and are evidence for the
+validation requirements.
 The same job guards the package contents (no dependency on sibling CanvasNet packages, library assemblies
 bundled for every target framework).
 
@@ -46,6 +49,10 @@ belong to the "Sequential" collection because console redirection is process-wid
 - Silent mode produces no console output.
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
+- `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
+  JPEG 2000, and SVG) with the documented defaults (overwrite, flatten over white, EXIF orientation, 8192-pixel limit),
+  the same bytes for the same input, and a stable error for every bad input; `info` describes a file without
+  rendering it.
 
 ## Test Scenarios
 
@@ -127,3 +134,44 @@ are in command-line order under their canonical names and the positionals are in
 
 **CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError**: `formats --bogus` is run as a real process;
 exit code 1 and a concise `usage-error` naming the option and the command, with no stack trace.
+
+**CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine**: the SVG fixture is rendered as a real process at twice
+its natural size; exit code 0, the one-line result names the output, `200x160 png`, its byte count, and the input;
+the image has the red square where the drawing puts it and white where the drawing is empty.
+
+**CanvasNetTool_Render_JsonRequested_WritesJsonDocument**: a PNG is rendered to a JPEG with `--quality 80 --json` as
+a real process; the whole output is one line that parses as a success document for `render` describing the PNG input
+and the JPEG output with its byte count.
+
+**CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile**: a PNG is converted through the `convert` alias to PNG,
+BMP, TIFF, and JPEG as real processes; each file decodes with the codec of its format to the source pixels (on
+average, for JPEG).
+
+**CanvasNetTool_Info_Requested_DescribesFile**: `info` on a BMP as a real process, as text and as JSON; the line starts
+with the path, format, and size, and the document has the same facts.
+
+**CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable**: a source of every kind is rendered to a PNG in-process;
+each succeeds with a result line, nothing on standard error, and an image of the size the source has.
+
+**CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat**: the six extensions select their formats in the
+JSON result, and `--format bmp` on an output named `.png` writes a BMP.
+
+**CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy**: `--no-clobber` refuses an existing output with
+`output-exists` and keeps it; by default it is overwritten; the input as the output is refused with
+`same-input-output`.
+
+**CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg**: an SVG renders over white; a PNG with a
+transparent edge keeps its transparency as a PNG and is white there as a JPEG.
+
+**CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright**: a JPEG with the EXIF orientation 8 is written upright (8x12)
+by default, as stored (12x8) with `--no-auto-orient`, and the upright pixels are the stored pixels turned.
+
+**CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding**: a PNG declaring 9000x9000 pixels is refused with
+exit code 1, a `size-limit` document and message, and no output.
+
+**CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, and an SVG are rendered twice to
+every output format at a given width; the two files are byte-identical.
+
+**CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
+and garbage of every supported format are rendered in-process; each returns exit code 1 (an unexpected exception would
+escape and fail the test) with the stable error code in the message and in the JSON document, and no output exists.

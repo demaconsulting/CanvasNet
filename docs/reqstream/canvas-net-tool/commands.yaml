@@ -4,7 +4,8 @@
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
-#   table, resolution, dispatch, and help rendering); the individual command units are added to
+#   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
+#   (formats and info) and RenderCommand (render and convert); further command units are added to
 #   the subsystem as the commands are implemented
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
@@ -55,6 +56,41 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-Formats
           - CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
           - CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatTables
         tests:
           - CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand
           - CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Info
+        title: >-
+          The Commands subsystem shall provide the info command, which describes one file without
+          rendering it, as text or as one JSON document when the JSON option is given.
+        justification: |
+          Before rendering a file, people and agents need to know what it is and how large it is; the
+          info command answers that from the file header.
+        children:
+          - CanvasNetTool-Commands-DiscoveryCommands-Info
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoJson
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
+        tests:
+          - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
+          - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Render
+        title: >-
+          The Commands subsystem shall provide the render command (alias convert), which loads an
+          image or drawing and writes it as PNG, JPEG, BMP, or TIFF, reporting the result as text or as
+          one JSON document when the JSON option is given.
+        justification: |
+          Rendering and converting an image is the tool's central task; one command with one grammar
+          serves both names and every input format.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-Options
+          - CanvasNetTool-Commands-RenderCommand-Source
+          - CanvasNetTool-Commands-RenderCommand-Output
+          - CanvasNetTool-Commands-RenderCommand-Result
+          - CanvasNetTool-Commands-RenderCommand-Overwrite
+          - CanvasNetTool-Commands-RenderCommand-Errors
+        tests:
+          - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
+          - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp

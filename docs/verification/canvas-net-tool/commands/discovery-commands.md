@@ -6,8 +6,12 @@
 
 `DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs`. The `formats` command is run
 in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
-build version; the JSON output is compared byte for byte with a golden document. The tests create a `Context`
-with controlled arguments and capture the console with the `ToolHost` helper.
+build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
+in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
+into a JPEG) and on the original SVG fixture, and its JSON output is compared with the exact expected document. The
+format tables are checked against `SourceKind`, `OutputFormat`, `SourceLoader.ExtensionKinds`, and
+`ImageWriter.ExtensionFormats`, so a listed format is one the code knows. The tests create a `Context` with
+controlled arguments and capture the console with the `ToolHost` helper.
 
 #### Test Environment
 
@@ -20,6 +24,9 @@ console.
 - The text listing shows the input and output formats, the limits, and the versions.
 - The JSON document equals the golden document exactly.
 - A stray argument or option is a usage error.
+- The format tables name exactly the source kinds and output formats the code implements, in order.
+- `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
+  has one, and reports a bad input as an expected error.
 
 #### Test Scenarios
 
@@ -44,3 +51,29 @@ dot, and are unique within a table; every input kind is one of the four document
 `usage-error` naming the command.
 
 **DiscoveryCommands_Formats_NullArguments_ThrowsArgumentNullException**: null arguments are rejected.
+
+**DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds**,
+**DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter**, and
+**DiscoveryCommands_FormatTables_QualityRangeMatchesWriter**: the input table has one row per `SourceKind`, in order,
+with the extensions the loader maps to that kind; the output table has one row per `OutputFormat`, in order, with the
+extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's.
+
+**DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
+command is named `info`, has no aliases and no options of its own, and has a usage line with examples; the default
+registry offers it.
+
+**DiscoveryCommands_Info_TextOutput_DescribesFile**: one line for a PNG (`png, 12x8 px, 4 channels with alpha`, the
+byte count) and one for the SVG fixture (`svg, 100x80 px (intrinsic size)`).
+
+**DiscoveryCommands_Info_JsonOutput_MatchesGoldenDocument**: the JSON for the SVG fixture is exactly the documented
+document.
+
+**DiscoveryCommands_Info_JpegOrientation_IsReportedOnlyWhenPresent** and
+**DiscoveryCommands_Info_EachKind_ReportsFormatAndSize**: a JPEG with an EXIF orientation reports it in text and JSON,
+one without has no such key, three channels, and no alpha; each readable kind reports its format name, a size, and
+that it can be decoded.
+
+**DiscoveryCommands_Info_BadInput_ThrowsToolException**, **DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError**,
+and **DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a missing file, a truncated PNG, and a PDF are
+`input-not-found`, `corrupt-input`, and `unsupported-format`; no input, two inputs, and an unknown option are usage
+errors; null arguments throw.

@@ -228,9 +228,12 @@ software items, specifically:
   direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
-  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract, the
-  `CommandRegistry` unit, and the `DiscoveryCommands` unit with the `formats` command; further command units are
-  added as the commands are implemented). It uses
+  output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
+  `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
+  `RenderCommand` unit with the `render` command and its alias `convert`; further command units are added as the
+  commands are implemented) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
+  BMP, TIFF, GIF, JPEG 2000, and SVG files, and the `ImageWriter` unit, which writes PNG, JPEG, BMP, and TIFF
+  files). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
@@ -361,9 +364,11 @@ its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet
 Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
 direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation`, and `PathHelpers` (namespace
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
-grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
-(namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry` and `DiscoveryCommands` units
-and, as they are added, further command units. It uses the `CanvasNet`, `CanvasNetSvg`,
+grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
+(namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `DiscoveryCommands`, and
+`RenderCommand` units and, as they are added, further command units, and its `Imaging` subsystem (namespace
+`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader` and `ImageWriter` units that turn files into
+pixels and pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
 their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
@@ -851,8 +856,8 @@ _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
-`Commands` subsystem occupies the `Commands/` sub-folder, whose name equals its sub-namespace (see
-_CanvasNetTool System Design_, `canvas-net-tool.md`):
+`Commands` and `Imaging` subsystems occupy the `Commands/` and `Imaging/` sub-folders, whose names equal their
+sub-namespaces (see _CanvasNetTool System Design_, `canvas-net-tool.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Tool/
@@ -865,10 +870,21 @@ src/DemaConsulting.CanvasNet.Tool/
 ├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
 ├── Validation.cs                  — Validation: --validate self-test and results output
 ├── PathHelpers.cs                 — PathHelpers: safe path combination
-└── Commands/                      — Commands subsystem
-    ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
-    ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
-    └── DiscoveryCommands.cs       — DiscoveryCommands: the formats command and the format tables
+├── Commands/                      — Commands subsystem
+│   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
+│   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
+│   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
+│   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
+│   └── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+└── Imaging/                       — Imaging subsystem
+    ├── SourceModels.cs            — SourceLoader: source kinds, output formats, and the load model types
+    ├── SourceLoader.cs            — SourceLoader: probe, load, size policy, and the exception mapping
+    ├── SourceLoader.Detect.cs     — SourceLoader: format detection
+    ├── SourceLoader.Raster.cs     — SourceLoader: PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 sources
+    ├── SourceLoader.Svg.cs        — SourceLoader: SVG sources
+    ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
+    ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
+    └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
 ```
 
 ## Document Conventions

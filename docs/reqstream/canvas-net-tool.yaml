@@ -55,6 +55,7 @@ sections:
           - CanvasNetTool-Program-Validate
           - CanvasNetTool-Validation-Qualification
           - CanvasNetTool-Validation-Formats
+          - CanvasNetTool-Validation-ImagingSelfTests
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 
@@ -295,3 +296,106 @@ sections:
         tests:
           - CanvasNetTool_Formats_Requested_ListsFormats
           - CanvasNetTool_Formats_JsonRequested_WritesJsonDocument
+
+      - id: CanvasNetTool-System-Info
+        title: >-
+          The tool shall describe an image or drawing file (its format, pixel size, channels,
+          transparency, size in bytes, and, when they apply, frame count and EXIF orientation) without
+          rendering it when the `info` command is run, as text or as JSON.
+        tags: [system]
+        justification: |
+          A caller needs to know what a file is before deciding how to render it, and the answer must
+          be cheap enough to ask for every file.
+        children:
+          - CanvasNetTool-Commands-Info
+        tests:
+          - CanvasNetTool_Info_Requested_DescribesFile
+
+      - id: CanvasNetTool-System-Render
+        title: >-
+          The tool shall render or convert an input file to an image file when the `render` command
+          (alias `convert`) is run, at the size and with the background and quality the options ask
+          for, and report the result as one text line or one JSON document.
+        tags: [system]
+        justification: |
+          Rendering and converting images is the purpose of the tool; people and agents need one
+          command with one grammar and a result they can read or parse.
+        children:
+          - CanvasNetTool-Commands-Render
+        tests:
+          - CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine
+          - CanvasNetTool_Render_JsonRequested_WritesJsonDocument
+          - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-InputFormats
+        title: >-
+          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, recognizing the
+          format from the content before the file name extension.
+        tags: [system]
+        justification: |
+          Agents work with whatever files they are given; reading the common raster formats and SVG
+          drawings, whatever they are named, means they rarely need another tool first.
+        children:
+          - CanvasNetTool-Imaging-Load
+        tests:
+          - CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable
+
+      - id: CanvasNetTool-System-OutputFormats
+        title: >-
+          The tool shall write PNG, JPEG, BMP, and TIFF files, choosing the format from the output
+          file extension or the `--format` option, with a JPEG quality of 1 to 100.
+        tags: [system]
+        justification: |
+          These are the formats that image viewers, documents, and the models that look at images
+          accept; the choice must follow what the caller typed.
+        children:
+          - CanvasNetTool-Imaging-Write
+        tests:
+          - CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat
+          - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Defaults
+        title: >-
+          The tool shall by default overwrite an existing output file (refusing with `--no-clobber`),
+          refuse an output that is the input, flatten transparency over white for SVG sources and for
+          JPEG output, turn a JPEG upright by its EXIF orientation, and refuse an image larger than
+          8192 pixels on a side before decoding it.
+        tags: [system]
+        justification: |
+          Defaults chosen for people and agents that iterate on an image: replacing the output is what
+          they mean, white avoids the black background of a transparent drawing, upright photos are
+          what they look at, and a size limit protects memory. The unit requirements that implement the
+          defaults are children of the render command and Imaging requirements; this requirement is
+          proven end to end.
+        tests:
+          - CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy
+          - CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg
+          - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
+
+      - id: CanvasNetTool-System-Determinism
+        title: >-
+          The tool shall write the same output bytes when the same input and options are rendered twice
+          on the same machine with the same tool version.
+        tags: [system]
+        justification: |
+          Reproducible output lets scripts and agents detect real change and cache results.
+        children:
+          - CanvasNetTool-Imaging-Determinism
+        tests:
+          - CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes
+
+      - id: CanvasNetTool-System-InputErrors
+        title: >-
+          The tool shall report a missing, unsupported, truncated, or corrupt input file, and an image
+          larger than the maximum size, as an expected failure with a stable error code and exit code
+          1, never as an unexpected error, and shall write no output.
+        tags: [system]
+        justification: |
+          Agents hand the tool files of every quality; a bad file is a user mistake that must produce a
+          concise, actionable error, not a crash.
+        children:
+          - CanvasNetTool-Imaging-Errors
+        tests:
+          - CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding

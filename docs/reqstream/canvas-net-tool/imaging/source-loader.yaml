@@ -1,0 +1,165 @@
+---
+# Software Unit Requirements for the SourceLoader Class
+#
+# The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG. It recognizes the format, applies the size
+# policy (including the maximum image size), the EXIF orientation of a JPEG, and the background color, and
+# maps the library exceptions that mean "bad input" to expected errors. The EXIF reader and the
+# orientation transform (ExifOrientation) and the small SurfaceOperations helpers are part of this unit.
+
+sections:
+  - title: SourceLoader Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-SourceLoader-Detect
+        title: >-
+          The SourceLoader class shall recognize the format of a file from its signature bytes (PNG,
+          JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from SVG text, then from its file name
+          extension, so that the content wins over the extension and a damaged file with a known
+          extension is still attributed to its format.
+        justification: |
+          Agents rename and mislabel files; trusting the content first avoids decoding a file with the
+          wrong codec, and falling back to the extension lets an empty or truncated file be reported as
+          corrupt rather than as an unknown format.
+        tests:
+          - SourceLoader_Detect_EachKind_ReturnsKind
+          - SourceLoader_Detect_SignatureAndExtensionDisagree_TrustsSignature
+          - SourceLoader_Detect_SvgTextWithoutExtension_ReturnsSvg
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_Detect_ZipPackage_UsesExtension
+          - SourceLoader_Detect_OtherSignatures_ReturnsKind
+          - SourceLoader_Detect_TextStartingWithBm_IsNotBmp
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetTool-Imaging-SourceLoader-DetectErrors
+        title: >-
+          The SourceLoader class shall report a missing file as input-not-found, a directory as
+          input-unreadable, a file in an unrecognized format as unsupported-format, and a recognized
+          format that it cannot load yet as unsupported-format.
+        justification: |
+          Each cause needs its own stable error code so that a caller can tell a typo from an
+          unsupported file and act on it.
+        tests:
+          - SourceLoader_Detect_UnknownFormat_ThrowsUnsupportedFormat
+          - SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError
+          - SourceLoader_ProbeAndLoad_KindNotLoadableYet_ThrowsUnsupportedFormat
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Probe
+        title: >-
+          The SourceLoader class shall report the format, file size, pixel size, channels, transparency,
+          decodability, and frame count of a file from its header, and the EXIF orientation of a JPEG,
+          without rendering it.
+        justification: |
+          Knowing what a file is before committing to rendering it lets an agent choose sizes and
+          options, and keeps the information commands cheap.
+        tests:
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+          - SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha
+          - SourceLoader_Probe_JpegWithExif_ReportsOrientation
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Raster
+        title: >-
+          The SourceLoader class shall decode a PNG, JPEG, BMP, TIFF, GIF, or JPEG 2000 file at its own
+          size with the pixels its codec decodes.
+        justification: |
+          The loader must add nothing to and take nothing from the pixels of a raster source unless an
+          option asks for it.
+        tests:
+          - SourceLoader_Load_LosslessRaster_KeepsEveryPixel
+          - SourceLoader_Load_GifJpegAndJpeg2000_MatchTheCodecs
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Svg
+        title: >-
+          The SourceLoader class shall render an SVG file directly at the target size, over white by
+          default, at its intrinsic size when no size is given.
+        justification: |
+          A vector drawing is sharper rendered at its final size than resampled, and a transparent
+          drawing is shown on black by many viewers, so white is the default background.
+        tests:
+          - SourceLoader_Load_Svg_RendersNaturalSizeOverWhite
+          - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Sizing
+        title: >-
+          The SourceLoader class shall derive the target size from the natural size and the scale,
+          width, and height options (a scale multiplies both sides, one side keeps the aspect ratio,
+          two sides are exact, rounded to the nearest pixel, never below one pixel), and shall resize a
+          raster source to it.
+        justification: |
+          One predictable size policy shared by every source lets an agent ask for an image of a given
+          width or scale without computing the other side.
+        tests:
+          - SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy
+          - SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio
+          - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+
+      - id: CanvasNetTool-Imaging-SourceLoader-SizeLimit
+        title: >-
+          The SourceLoader class shall refuse, with the error code size-limit, an image or a requested
+          size with a side larger than 8192 pixels, before decoding or rendering wherever the file
+          header gives the size.
+        justification: |
+          An image of that size can exhaust memory; refusing it early with an actionable message is
+          cheaper and clearer than failing during the decode.
+        tests:
+          - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
+          - SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding
+          - SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Background
+        title: >-
+          The SourceLoader class shall flatten transparency over the background color for an SVG source
+          (white by default, none when the background has no alpha) and for a raster source only when a
+          background color is given.
+        justification: |
+          Flattening a drawing over white is the safe default for viewing; a raster source keeps its own
+          transparency unless the caller asks otherwise.
+        tests:
+          - SourceLoader_Load_SvgBackground_TransparentKeepsAlphaColorFlattens
+          - SourceLoader_Load_RasterBackground_FlattensOnlyWhenAsked
+          - SourceLoader_FormatColor_OpaqueAndTranslucent_FormatsHex
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Exif
+        title: >-
+          The SourceLoader class shall read the EXIF orientation of a JPEG (either byte order, no
+          exception for malformed data) and shall turn the image upright by it unless auto-orientation is
+          switched off, applying the requested size to the upright image.
+        justification: |
+          Cameras record rotation in metadata that the JPEG codec ignores; without applying it, photos
+          appear sideways to the agent that looks at them.
+        tests:
+          - ExifOrientation_Read_ExifSegment_ReturnsOrientation
+          - ExifOrientation_Read_NoExifSegment_ReturnsNull
+          - ExifOrientation_Read_NotJpeg_ReturnsNull
+          - ExifOrientation_Read_ValueOutOfRange_ReturnsNull
+          - ExifOrientation_Read_TruncatedAtEveryLength_NeverThrows
+          - ExifOrientation_Read_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation
+          - ExifOrientation_Read_Path_ReadsFile
+          - ExifOrientation_Read_NullStream_ThrowsArgumentNullException
+          - ExifOrientation_Apply_Orientation_MapsPixels
+          - ExifOrientation_Apply_InvalidArguments_Throw
+          - SourceLoader_Load_JpegWithExif_AppliesOrientationUnlessDisabled
+          - SourceLoader_Load_JpegWithExifAndWidth_SizesTheOrientedImage
+
+      - id: CanvasNetTool-Imaging-SourceLoader-CorruptInput
+        title: >-
+          The SourceLoader class shall report a truncated, empty, or corrupt file of any supported
+          format, and a file the library cannot decode, as an expected error (corrupt-input,
+          unsupported-feature, or input-unreadable) by mapping an explicit list of library exception
+          types, and shall let every other exception propagate.
+        justification: |
+          A user mistake must produce a concise, stable error, while an unexpected exception is a defect
+          that must not be hidden by a blanket catch.
+        tests:
+          - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+          - SourceLoader_Load_MalformedSvg_ThrowsCorruptInput
+          - SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes
+          - SourceLoader_Read_MultiLineMessage_IsReducedToOneLine
+          - SourceLoader_Read_UnexpectedExceptions_Propagate
+
+      - id: CanvasNetTool-Imaging-SourceLoader-Arguments
+        title: The SourceLoader class shall reject null arguments.
+        justification: |
+          A null path or option set is a defect of the caller and must fail fast and clearly.
+        tests:
+          - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException

@@ -17,7 +17,8 @@ environment, and the per-platform and per-runtime evidence that the platform req
 `Validation` holds no instance state. The class is `internal static`; all state is local to `Run` and the
 private test methods. The names of the self-tests are a contract with the platform requirements and are never
 changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
-`CanvasNetTool_Formats`. Each is recorded as a `TestResult` with
+`CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
+`CanvasNetTool_Info`, and `CanvasNetTool_RenderSvg`. Each is recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool". Further self-tests are added together with the commands
 they exercise.
 
@@ -45,6 +46,19 @@ test failure by `HandleTestException`.
 `--silent --log {path} formats --json`, then `FormatsDocumentIsValid` parses the log as JSON and checks the schema
 version, the success flag, the command name, and that `png` is listed as an input and as an output format. This
 exercises command dispatch, `ArgumentReader`, and `ResultWriter` together in the deployment environment.
+
+**RunRenderPngTest**, **RunConvertFormatsTest**, **RunInfoTest**, and **RunRenderSvgTest**: the imaging
+self-tests. Each runs through `RunSelfTest`, which creates a `TemporaryDirectory`, calls the test body with the
+directory (the body returns `null` for a pass or a description of the failure), records the outcome, and records
+an exception as a failure. The bodies generate their own inputs - a small opaque gradient PNG written with
+`PngCodec`, and a small SVG text file - and run the `render`, `convert`, and `info` commands in-process through
+`RunCommand` (`--silent --log {path} {command ...}`, returning the log text and throwing when the exit code is not
+0). `CanvasNetTool_RenderPng` renders the PNG to a PNG and requires every pixel unchanged and a PNG output in the
+JSON result; `CanvasNetTool_ConvertFormats` converts it to BMP, TIFF, JPEG, and PNG through the `convert` alias
+and requires the right size from each codec and every pixel of the lossless outputs; `CanvasNetTool_Info`
+requires the format and size in the JSON document; `CanvasNetTool_RenderSvg` renders an 8x8 SVG with a red square
+at width 16 and requires a 16x16 image with the red square and white (flattened) background. These exercise the
+codecs, the SVG renderer, the source loader, the image writer, and the commands together.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

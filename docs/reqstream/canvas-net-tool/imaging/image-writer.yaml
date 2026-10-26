@@ -1,0 +1,95 @@
+---
+# Software Unit Requirements for the ImageWriter Class
+#
+# The ImageWriter class writes pixels to a PNG, JPEG, BMP, or TIFF file. It decides the format from the
+# --format option or the file name extension, flattens transparency for JPEG, writes through a temporary
+# file so that an output is never half written, and applies the overwrite policy: an existing output is
+# replaced unless no-clobber is requested, and an output that is the input is always refused.
+
+sections:
+  - title: ImageWriter Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-ImageWriter-FormatResolution
+        title: >-
+          The ImageWriter class shall take the output format from the format option when it is given
+          (png, jpeg, jpg, bmp, tiff, or tif, in any case) and otherwise from the file name extension,
+          and shall report an unknown format name, a missing extension, or an unknown extension as a
+          usage error.
+        justification: |
+          The output format must be predictable from what the caller typed, and a mistake must be
+          reported before any work is done.
+        tests:
+          - ImageWriter_ResolveFormat_Extension_SelectsFormat
+          - ImageWriter_ResolveFormat_FormatOption_WinsOverExtension
+          - ImageWriter_ResolveFormat_UnknownFormat_ThrowsUsageError
+          - ImageWriter_ExtensionFormats_AreWellFormed
+          - ImageWriter_Write_FormatOption_EncodesThatFormat
+
+      - id: CanvasNetTool-Imaging-ImageWriter-Lossless
+        title: >-
+          The ImageWriter class shall write PNG, BMP, and TIFF files that decode to exactly the pixels
+          written, including transparency.
+        justification: |
+          The lossless formats exist to preserve pixels; any change would make comparison and iteration
+          on an image unreliable.
+        tests:
+          - ImageWriter_Write_LosslessFormat_KeepsEveryPixelIncludingAlpha
+
+      - id: CanvasNetTool-Imaging-ImageWriter-Jpeg
+        title: >-
+          The ImageWriter class shall write JPEG files at the requested quality (1 to 100, default 90),
+          flattening transparent pixels over the flatten background (white by default) because JPEG has
+          no transparency, and shall reject a quality outside that range.
+        justification: |
+          JPEG is the compact format for photographs; flattening avoids the black background that some
+          encoders produce for transparent pixels.
+        tests:
+          - ImageWriter_Write_JpegOfOpaqueImage_IsCloseAndNotFlattened
+          - ImageWriter_Write_JpegOfTransparentImage_FlattensOverBackground
+          - ImageWriter_Write_JpegQuality_ChangesFileSize
+          - ImageWriter_WriteOptionsDefault_HasDocumentedDefaults
+          - ImageWriter_Write_InvalidArguments_Throw
+
+      - id: CanvasNetTool-Imaging-ImageWriter-AtomicWrite
+        title: >-
+          The ImageWriter class shall encode to a temporary file in the target directory and move it
+          over the target, leaving no temporary file behind, creating a missing target directory, and
+          reporting a file or directory that cannot be written as output-write-failed.
+        justification: |
+          A failed write must never leave a half-written output or clutter the directory, and an
+          existing output must only ever be replaced by a complete one.
+        tests:
+          - ImageWriter_Write_ExistingOutput_IsOverwrittenWithoutLeftovers
+          - ImageWriter_Write_MissingDirectory_IsCreated
+          - ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed
+
+      - id: CanvasNetTool-Imaging-ImageWriter-Overwrite
+        title: >-
+          The ImageWriter class shall overwrite an existing output by default, and shall refuse it with
+          the error code output-exists, leaving the file untouched, when no-clobber is requested.
+        justification: |
+          Agents iterate on an output file, so replacing it is the useful default; no-clobber protects a
+          file that must not be lost.
+        tests:
+          - ImageWriter_Write_ExistingOutput_IsOverwrittenWithoutLeftovers
+          - ImageWriter_Write_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile
+          - ImageWriter_Write_NoClobberAndNewOutput_WritesFile
+
+      - id: CanvasNetTool-Imaging-ImageWriter-SamePath
+        title: >-
+          The ImageWriter class shall refuse an output that is the same file as the input, and an output
+          that is an existing directory, before writing anything, and shall offer the same check without
+          writing so that a command can report it before loading the input.
+        justification: |
+          Writing over the input would destroy it before the render is complete.
+        tests:
+          - ImageWriter_Write_OutputIsInput_ThrowsSameInputOutput
+          - ImageWriter_CheckTarget_Problems_AreReported
+
+      - id: CanvasNetTool-Imaging-ImageWriter-Deterministic
+        title: >-
+          The ImageWriter class shall write the same bytes for the same pixels and options.
+        justification: |
+          Reproducible output makes results comparable and lets scripts detect real change.
+        tests:
+          - ImageWriter_Write_SamePixelsTwice_WritesIdenticalBytes

@@ -1,0 +1,92 @@
+---
+# Software Unit Requirements for the RenderCommand Class
+#
+# The RenderCommand class is the render command (alias convert): it loads an input file, applies the
+# source options, and writes the result as PNG, JPEG, BMP, or TIFF, reporting it as one text line or one
+# JSON document. The options of further source kinds and of the image pipeline are added to it as they
+# are implemented.
+
+sections:
+  - title: RenderCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-RenderCommand-Options
+        title: >-
+          The render command shall declare its options (scale, width, height, size, background,
+          no-auto-orient, output, format, quality, and no-clobber) in one table that also drives the
+          help, and shall be registered under the names render and convert.
+        justification: |
+          Declaring the options once keeps the help from drifting from what the command accepts, and the
+          alias lets users who think in terms of conversion find the command.
+        tests:
+          - RenderCommand_Metadata_DescribesCommandAndOptions
+          - RenderCommand_DefaultRegistry_RegistersRenderAndConvert
+
+      - id: CanvasNetTool-Commands-RenderCommand-Source
+        title: >-
+          The render command shall pass the size options (scale, width, height, or an exact size), the
+          background color, and the auto-orientation switch to the source loader, and shall reject a
+          size option combined with another way of choosing the size, a malformed or out-of-range
+          value, and a size larger than 8192 pixels.
+        justification: |
+          The options must reach the loader unchanged, and contradictory or malformed ones must be
+          reported as usage errors before any work is done.
+        tests:
+          - RenderCommand_Run_SizeOption_ResizesRaster
+          - RenderCommand_Run_WidthAndHeightWithEquals_AreExact
+          - RenderCommand_Run_InvalidSizeOrBackground_ThrowsUsageError
+          - RenderCommand_Run_SizeBeyondMaximum_ThrowsSizeLimit
+          - RenderCommand_Run_BackgroundTransparent_KeepsAlpha
+          - RenderCommand_Run_JpegWithExif_AutoOrientUnlessDisabled
+
+      - id: CanvasNetTool-Commands-RenderCommand-Output
+        title: >-
+          The render command shall write the output in the format of the output extension or of the
+          format option, at the quality given (1 to 100, default 90), creating a missing output
+          directory, and shall flatten transparency over the background (white by default) for JPEG.
+        justification: |
+          The output must be exactly what the caller asked for, and a JPEG has no transparency.
+        tests:
+          - RenderCommand_Run_PngToPng_WritesFileAndTextLine
+          - RenderCommand_Run_Quality_ChangesJpegSizeAndIsValidated
+          - RenderCommand_Run_FormatOption_OverridesExtension
+          - RenderCommand_Run_TransparentToJpeg_FlattensOverBackground
+          - RenderCommand_Run_OutputInNewDirectory_CreatesDirectory
+
+      - id: CanvasNetTool-Commands-RenderCommand-Result
+        title: >-
+          The render command shall report the result as one text line naming the output, its size,
+          format, and bytes, and the input; or, with the JSON option, as one document with the tool, the
+          input, the operations applied, the outputs, the diagnostics, and the echoed text.
+        justification: |
+          A person needs a one-line confirmation, and an agent needs a stable structure that says what
+          was done to produce the image.
+        tests:
+          - RenderCommand_Run_PngToPng_WritesFileAndTextLine
+          - RenderCommand_Run_Json_HasDocumentedShape
+          - RenderCommand_Run_SvgJson_ListsRenderAndFlattenOperations
+
+      - id: CanvasNetTool-Commands-RenderCommand-Overwrite
+        title: >-
+          The render command shall overwrite an existing output by default, refuse it when no-clobber is
+          given, refuse an output that is the input, and report an output problem before decoding the
+          input.
+        justification: |
+          Agents iterate on an output file, but must never lose the input or a file they asked to keep;
+          reporting the problem first avoids wasted work.
+        tests:
+          - RenderCommand_Run_ExistingOutput_OverwrittenUnlessNoClobber
+          - RenderCommand_Run_OutputProblemWithHugeInput_ReportsOutputProblemFirst
+          - RenderCommand_Run_OutputIsInput_ThrowsSameInputOutput
+
+      - id: CanvasNetTool-Commands-RenderCommand-Errors
+        title: >-
+          The render command shall report a missing, corrupt, or unsupported input as an expected error
+          and write no output, shall report a missing output, a wrong number of inputs, or an unknown
+          option as a usage error, and shall reject null arguments.
+        justification: |
+          Mistakes must produce stable, actionable errors, and a failed render must not leave a partial
+          output.
+        tests:
+          - RenderCommand_Run_BadInput_ThrowsToolExceptionAndWritesNothing
+          - RenderCommand_Run_CommandLineMistakes_ThrowUsageError
+          - RenderCommand_Run_NullArguments_ThrowsArgumentNullException
