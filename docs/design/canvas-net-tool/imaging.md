@@ -22,7 +22,8 @@ structural similarity, a per-cell grid, and threshold checks) and creates differ
 pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
 the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
 fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels), and `ImageGeometry`, which rotates pixels by
-any angle onto an expanded canvas with a fill color and finds the content bounds inside a uniform border. The supporting
+any angle onto an expanded canvas with a fill color, finds the content bounds inside a uniform border, and estimates the
+skew of near-horizontal lines. The supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -54,9 +55,10 @@ helpers (provided to the pipeline and the analysis): adjust the pixels of a surf
 calculate luma, histograms, the Otsu threshold, and the levels, brightness, and contrast tables.
 
 **ImageGeometry.CheckRotatedSize(width, height, degrees)**, **ImageGeometry.RotateArbitrary(source, degrees, fill,
-nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, and **ImageGeometry.Trim(surface, tolerance)**
-(provided to the pipeline): size and refuse a rotated canvas, rotate by any angle onto an expanded canvas with a fill
-color, and find or crop to the content inside a uniform border.
+nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, **ImageGeometry.Trim(surface, tolerance)**, and
+**ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas, rotate by any angle
+onto an expanded canvas with a fill color, find or crop to the content inside a uniform border, and estimate the skew of
+the near-horizontal lines of an image with a confidence.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to

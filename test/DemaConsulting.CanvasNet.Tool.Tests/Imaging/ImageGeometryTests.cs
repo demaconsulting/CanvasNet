@@ -507,6 +507,7 @@ public class ImageGeometryTests
         Assert.Throws<ArgumentNullException>(() => ImageGeometry.RotateArbitrary(null!, 10, White, nearest: false));
         Assert.Throws<ArgumentNullException>(() => ImageGeometry.FindTrimBounds(null!, 8));
         Assert.Throws<ArgumentNullException>(() => ImageGeometry.Trim(null!, 8));
+        Assert.Throws<ArgumentNullException>(() => ImageGeometry.EstimateSkew(null!));
 
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotateArbitrary(surface, double.NaN, White, nearest: false));
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotateArbitrary(surface, double.PositiveInfinity, White, nearest: true));

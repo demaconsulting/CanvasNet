@@ -161,12 +161,14 @@ sections:
       - id: CanvasNetTool-Imaging-Geometry
         title: >-
           The Imaging subsystem shall rotate pixels by any angle onto an expanded canvas with a chosen fill color
-          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size) and shall find the
-          bounds of the content inside a uniform border, with exact, repeatable results that do not depend on the
-          number of cores.
+          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size), shall find the
+          bounds of the content inside a uniform border, and shall estimate the skew of the dominant
+          near-horizontal lines of an image, with exact, repeatable results that do not depend on the number of
+          cores.
         justification: |
-          A photograph of a sketch is rarely level or tightly framed; rotating by an arbitrary angle without losing
-          corners and cropping to the content are the geometric steps that turn it into a usable picture.
+          A photograph of a sketch is rarely level or tightly framed; estimating its tilt, rotating by an arbitrary
+          angle without losing corners, and cropping to the content are the geometric steps that turn it into a
+          usable picture.
         children:
           - CanvasNetTool-Imaging-ImageGeometry-RotatedSize
           - CanvasNetTool-Imaging-ImageGeometry-RotateMapping
@@ -174,6 +176,9 @@ sections:
           - CanvasNetTool-Imaging-ImageGeometry-RotateFilter
           - CanvasNetTool-Imaging-ImageGeometry-RotateLimit
           - CanvasNetTool-Imaging-ImageGeometry-Trim
+          - CanvasNetTool-Imaging-ImageGeometry-SkewEstimate
+          - CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
+          - CanvasNetTool-Imaging-ImageGeometry-SkewDeterministic
           - CanvasNetTool-Imaging-ImageGeometry-Arguments
 
       - id: CanvasNetTool-Imaging-Determinism

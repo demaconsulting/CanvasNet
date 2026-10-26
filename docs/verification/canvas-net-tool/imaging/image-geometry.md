@@ -1,6 +1,6 @@
 ### ImageGeometry
 
-<!-- cspell:ignore canvasnet bilinear premultiplied deskew -->
+<!-- cspell:ignore canvasnet bilinear premultiplied deskew downscales -->
 
 #### Verification Approach
 
@@ -12,7 +12,10 @@ function exactly, so rotating by 3 degrees and back differs only by rounding), o
 and on fills of every kind (opaque, transparent, semi-transparent), where the expected edge pixels are recomputed from
 their own alpha with the premultiplied formula. The fast paths are checked by rendering the same random, partly
 translucent image at eight angles and three fills with and without them and requiring identical pixels. The trim bounds
-are checked on small surfaces whose content box is known. The unit needs no files and no mocking.
+are checked on small surfaces whose content box is known. The skew estimation is checked on generated pictures of ruled
+lines at known tilts (drawn with plain arithmetic, not with the rotation code under test), with a bright and dark ground,
+on a large picture that is analyzed on a reduced plane, and on blank and noise pictures that must not give a confident
+answer; the tie-break is checked directly on its helper. The unit needs no files and no mocking.
 
 #### Test Environment
 
@@ -31,6 +34,9 @@ N/A - standard test environment; the tests use only in-memory surfaces.
 - The trim box follows the corner-majority background, the tolerance, and the transparent-pixel rule; an image without
   content has no box and is copied unchanged.
 - Invalid arguments are rejected.
+- The skew of ruled lines is estimated to within 0.15 degrees for tilts from -12 to 14.5 degrees, with the correct sign,
+  on a large image, and under uneven lighting; a blank image is not estimated; random noise has a confidence below the
+  threshold the pipeline applies; the same pixels give the same estimate.
 
 #### Test Scenarios
 
@@ -93,5 +99,34 @@ tolerance, and a 1 by 1 image have no box, and `Trim` returns an equal copy that
 
 **ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage**: content pixels on all four edges give the whole image.
 
-**ImageGeometry_NullOrInvalidArguments_Throw**: null surfaces, a NaN or infinite angle, a width or height of 0, and
-tolerances of -1 and 256 throw.
+**ImageGeometry_NullOrInvalidArguments_Throw**: null surfaces (for rotation, trim, and skew estimation), a NaN or infinite
+angle, a width or height of 0, and tolerances of -1 and 256 throw.
+
+**ImageGeometry_EstimateSkew_TiltedLines_FindsAngleWithinTolerance**: 400 by 300 pictures of eight ruled lines
+(`FixtureFactory.SketchPhoto`, drawn with plain arithmetic independent of the rotation code) tilted by -12, -3, 0, 2.5,
+7, and 14.5 degrees are estimated within 0.15 degrees, with a confidence of at least twice `MinConfidence` (0.4).
+
+**ImageGeometry_EstimateSkew_SignConvention_DescendingToRightIsPositive**: after checking that the generated picture
+really has its line higher at the left edge than at the right, lines tilted by 5 degrees have an estimate above 4.5 and
+lines tilted by -5 degrees one below -4.5.
+
+**ImageGeometry_EstimateSkew_LargeImage_DownscalesAndStillFindsAngle**: 3000 by 2000 thick lines tilted by 4 degrees
+(analyzed on a 1000 by 667 plane) are estimated within 0.15 degrees with a high confidence.
+
+**ImageGeometry_EstimateSkew_LightGroundUnevenLighting_StillFindsAngle**: lines tilted by -6 degrees on paper that
+brightens by 80 levels from left to right, the ink 70 levels darker than the paper at every place, are estimated within
+0.15 degrees.
+
+**ImageGeometry_EstimateSkew_BlankImage_IsNotEstimated**: uniform paper, paper with 30 dark pixels (fewer than the 100
+needed), and a transparent surface give 0 degrees, confidence 0, and not estimated.
+
+**ImageGeometry_EstimateSkew_RandomNoise_HasLowConfidence**: noise of 400 by 300, 800 by 800, 1000 by 250, and 300 by
+900 pixels is estimated but with a confidence below `MinConfidence`; this pins the constant together with the line tests
+above.
+
+**ImageGeometry_EstimateSkew_SameInputTwice_ReturnsIdenticalResult**: a picture, and an exact copy of it, give identical
+estimates every time.
+
+**ImageGeometry_EstimateSkew_EqualScores_PrefersSmallerAbsoluteAngle**: the tie-break rule is checked on its own: a
+higher score wins, equal scores go to the angle closer to 0, equal scores at the same distance go to the more negative
+angle, and an angle is not better than itself.

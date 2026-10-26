@@ -7,9 +7,11 @@
 #### Purpose
 
 `ImageGeometry` holds the geometry of a surface that the pipeline needs beyond right-angle moves: rotation by any angle
-onto an expanded canvas with a fill color, and the bounds of the content inside a uniform border (trim). Its single
+onto an expanded canvas with a fill color, the bounds of the content inside a uniform border (trim), and the estimation
+of the skew of a scanned or photographed page. Its single
 responsibility is that geometry; it knows nothing of files, command-line options, or how a surface was loaded, so the
-pipeline decides when and with what fill it runs. The unit is the static class `ImageGeometry`.
+pipeline decides when and with what fill it runs. The unit is the static partial class `ImageGeometry`, in the files
+`ImageGeometry.cs` (rotation and trim) and `ImageGeometry.Deskew.cs` (skew estimation and the record `SkewEstimate`).
 
 #### Conventions
 
@@ -81,6 +83,64 @@ pixel (an all-background image, or a 1 by 1 image) the result is `null`.
 **Trim(surface, tolerance)**: `surface.Crop` of the bounds, or a copy of the whole surface when `FindTrimBounds` is
 `null`, so nothing is trimmed from an image without content.
 
+**EstimateSkew(surface)** (in `ImageGeometry.Deskew.cs`, the same static partial class): finds the clockwise rotation
+`φ` of the dominant near-horizontal structure (text lines, table rules, sketch baselines, page edges) within **15
+degrees** either way; `φ` is positive when the lines descend to the right, so the image is levelled by rotating it by
+`-φ` clockwise. Dark marks on a lighter ground are assumed (invert first for light marks on a dark ground). The result is
+the record `SkewEstimate(Degrees, Confidence, Estimated)`.
+
+1. **Analysis plane.** `f = ceil(max(W, H) / 1024)` (1 for an image of up to 1024 pixels). The plane is
+   `ceil(W / f)` by `ceil(H / f)`; each pixel is the integer mean `(sum + n / 2) / n` of `ImageAdjustments.Luma` over its
+   (possibly partial, at the edges) `f` by `f` block, `n` being the number of pixels in it, so transparency is flattened
+   over white. Rows are computed in parallel into disjoint output.
+2. **Dark marks** (immune to uneven lighting): from an integral image (`long`), a pixel of value `v` whose window of
+   radius 8 (clipped to the plane) holds `count` pixels with the sum `sum` is a mark when `sum - v * count > 10 * count`,
+   that is when it is at least 10 levels darker than the local mean (exact integers). The marks are collected once into
+   two `int` arrays.
+3. **Too few marks.** With fewer than `max(100, 0.0005 * w * h)` marks the result is `SkewEstimate(0, 0, false)`.
+4. **Score of an angle.** The angle is held as an integer number of hundredths of a degree `k`, `φ = k / 100`.
+   `cosQ = Round(cos φ * 2^20)` and `sinQ = Round(sin φ * 2^20)` are fixed-point numbers, so that last-bit differences of
+   `Math.Cos` and `Math.Sin` between platforms cannot move a mark to another bin. Each mark `(x, y)` goes to the bin
+   `floor(y cos φ - x sin φ) = (y * cosQ - x * sinQ) >> 20` plus an offset (this projection is constant along a line that
+   descends at the angle `φ`); the score is the sum over the bins of the **squared count**, accumulated as `2 c + 1` each
+   time a bin holding `c` marks gains one (`long`; maximizing it maximizes the variance of the profile). One array of bins
+   is reused and cleared for every angle, so nothing allocates per mark. The bins are **whole pixels**: the first design
+   used half-pixel bins (`floor(2 r)`), which at exactly 0 degrees leave every other bin empty and so double the score of
+   that one angle (a picture tilted by 0.3 degrees was estimated as 0, and random noise scored a confidence of 0.5).
+5. **Coarse to fine search** over `k`: every 100 (1 degree) from -1500 to 1500 (31 angles); then
+   `k1 + {-100, -75, ..., 100}`
+   around the best `k1` (angles beyond 15 degrees are skipped); then `k2 + {-25, -20, ..., 25}` around the best `k2`. About
+   51 evaluations. **Ties**: a higher score wins; equal scores prefer the smaller `|k|`; still equal, the smaller `k` (more
+   negative).
+6. **Result.** `Degrees = k / 100.0` (exactly the hundredths, no accumulated error). `Confidence =
+   (best - median) / best` where `median` is the 16th smallest of the 31 first-stage scores (a flat profile, which is
+   what an image without line structure gives, is near 0; strong lines give a value near 1), 0 when `best` is 0, rounded
+   to 3 decimals.
+
+**Confidence constants (pinned here).** `MinConfidence = 0.4` and `MinCorrectedSkew = 0.05` (degrees) are used by the
+pipeline: an estimate is applied only when `|Degrees| >= 0.05` and `Confidence >= 0.4`. The plan's first guess of 0.03
+did not separate noise from lines: the rectangle of the image favors a horizontal profile (the profile of a rectangle
+is a sharp box at 0 degrees and a spread trapezoid at other angles), so even noise has a baseline confidence that grows
+with the aspect ratio of the image. Measured values with the whole-pixel bins (synthetic pictures made by
+`FixtureFactory.SketchPhoto` and in the same style):
+
+- 400 by 300 ruled lines, tilts -14.5, -12, -7, -3, -0.5, 0, 0.3, 2.5, 5, 7, and 14.5: the estimate is within 0.07
+  degrees of the tilt, the confidence 0.925 to 0.939.
+- 160 by 100 ruled lines (1 to 4 lines), tilt 3: 2.95 to 3.15 degrees, confidence 0.885 to 0.902.
+- 3000 by 2000 thick lines, tilt 4: 4.00 degrees, confidence 0.96.
+- 8192 by 6000 lines, tilt 2.5: 2.50 degrees, confidence 0.90, in about 190 ms.
+- 400 by 300 lines, tilt -6, paper shaded by 80 levels across the picture, ink 70 levels darker than the paper: -6.00
+  degrees, confidence 0.925.
+- 400 by 300 dashed text-like lines, tilt 5: 5.05 degrees, confidence 0.735.
+- 400 by 300 with 40 random strokes in random directions: no meaningful angle, confidence 0.20 to 0.30.
+- Random noise: confidence 0.053 (400 by 300), 0.037 (800 by 800), 0.009 (300 by 900), 0.179 (1000 by 250), and 0.304
+  (2000 by 300).
+- Uniform paper: not estimated, confidence 0.
+
+0.4 is above everything that has no dominant line direction (at most 0.30) and below the weakest line structure tried
+(0.735). A very wide image with random content can still approach it, so the user guide states that the confidence is in
+the JSON result and that the angle should be checked.
+
 #### Error Handling
 
 A rotation that would be too large is a `ToolException` with code `size-limit`, an expected error. Everything else is a
@@ -91,8 +151,9 @@ angle that is not finite, a width or height below 1, or a tolerance outside 0 to
 #### Dependencies
 
 - **ToolException** and **ErrorCodes** - the `size-limit` error.
+- **ImageAdjustments** - `Luma`, for the analysis plane.
 - **CanvasNet core library** - `Surface` and `Rgba32`.
 
 #### Callers
 
-- **ImagePipeline** - the rotate and trim operations.
+- **ImagePipeline** - the rotate, deskew, and trim operations.

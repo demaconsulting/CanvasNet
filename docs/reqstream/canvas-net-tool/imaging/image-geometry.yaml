@@ -1,10 +1,11 @@
 ---
-# cspell:ignore bilinear premultiplied deskew
+# cspell:ignore bilinear premultiplied deskew downscales
 # Software Unit Requirements for the ImageGeometry Class
 #
 # The ImageGeometry class holds the geometry of a surface that the pipeline needs beyond right-angle moves: rotation
 # by any angle onto an expanded canvas with a fill color (nearest or bilinear sampling), and the bounds of the content
-# inside a uniform border (trim). It works on surfaces only: it knows nothing of files, options, or commands. Every
+# inside a uniform border (trim), and the estimation of the skew of near-horizontal lines (deskew). It works on
+# surfaces only: it knows nothing of files, options, or commands. Every
 # pixel of a rotation is computed from its own coordinates and rows are processed in parallel with disjoint output, so
 # the results are the same on any number of cores.
 
@@ -101,6 +102,51 @@ sections:
           - ImageGeometry_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner
           - ImageGeometry_FindTrimBounds_AllBackground_ReturnsNull
           - ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-SkewEstimate
+        title: >-
+          The ImageGeometry class shall estimate the skew of the dominant near-horizontal structure of an image,
+          within 15 degrees either way, as the angle (in hundredths of a degree, positive when the lines descend to
+          the right) that maximizes the sum of the squared counts of the whole-pixel profile bins of its dark marks,
+          searching every degree and then refining to 0.25 and 0.05 degrees, where the marks are the pixels of a gray
+          analysis plane of at most 1024 pixels on its longest side that are at least 10 levels darker than the mean
+          of the window of radius 8 around them, so that uneven lighting does not hide the lines.
+        justification: |
+          A photographed sketch or page is rarely level; the lines of its writing or ruling give the tilt, a local
+          comparison finds the ink under uneven lighting, and a coarse-to-fine search on a reduced plane finds the
+          angle to a twentieth of a degree in milliseconds.
+        tests:
+          - ImageGeometry_EstimateSkew_TiltedLines_FindsAngleWithinTolerance
+          - ImageGeometry_EstimateSkew_SignConvention_DescendingToRightIsPositive
+          - ImageGeometry_EstimateSkew_LargeImage_DownscalesAndStillFindsAngle
+          - ImageGeometry_EstimateSkew_LightGroundUnevenLighting_StillFindsAngle
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
+        title: >-
+          The ImageGeometry class shall report an image with fewer dark marks than the larger of 100 and 0.05 percent
+          of the pixels of the analysis plane as not estimated, with the skew 0 and the confidence 0, and shall
+          report the confidence of an estimate as the best score less the median of the 31 first-stage scores, over
+          the best score, so that an image without line structure has a confidence below the 0.4 the pipeline
+          requires and ruled or text-like lines have one well above it.
+        justification: |
+          A wrong angle is worse than none: an image of noise, a blank page, or a drawing without dominant lines must
+          be left alone, and the caller needs a number that says how much the estimate can be trusted.
+        tests:
+          - ImageGeometry_EstimateSkew_BlankImage_IsNotEstimated
+          - ImageGeometry_EstimateSkew_RandomNoise_HasLowConfidence
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-SkewDeterministic
+        title: >-
+          The ImageGeometry class shall give the same estimate when the same pixels are analyzed twice, by using
+          exact integer arithmetic for the marks, the bins, and the scores, a fixed-point cosine and sine so that
+          last-bit differences of the library functions cannot move a pixel to another bin, and, for equal scores,
+          the angle closest to 0 and then the smaller angle.
+        justification: |
+          The estimated angle is reported to the user and decides how the image is rotated; it must not depend on
+          floating-point rounding or on how a tie happens to fall.
+        tests:
+          - ImageGeometry_EstimateSkew_SameInputTwice_ReturnsIdenticalResult
+          - ImageGeometry_EstimateSkew_EqualScores_PrefersSmallerAbsoluteAngle
 
       - id: CanvasNetTool-Imaging-ImageGeometry-Arguments
         title: >-
