@@ -69,7 +69,15 @@ any case; another name is a `usage-error` whose hint lists the views), `--azimut
 normalize, so that -90 is the bottom view), `--projection` (`ortho` or `orthographic`, or `perspective`; another word
 is a `usage-error`), every `--define` with `ArgumentReader.ParseDefines` (numbers, `true` and `false`, and text; a
 later definition of a name wins), `--time` as a number from -1e9 to 1e9, `--max-triangles` as a whole number from 1
-up to 2,147,483,647, and `--default-color` with `ParseColor`. The result is a `ScadViewOptions`.
+up to 2,147,483,647, and `--default-color` with `ParseColor`. The result is a `ScadViewOptions`. `ReadScadOptions` and
+the table `ScadOptionNames` are `internal` so that `CompareCommand` and `MontageCommand` read the model options with the
+same code; the view name is checked by the `internal` method `ParseScadView`, which they use for `--a-view` and
+`--b-view` too.
+
+**SpecsFor(names)**: `internal`; returns the declarations of `OptionTable` with the given long names, in that order
+(`ArgumentException` for a name the table does not declare), so that another command accepts an option with the same
+grammar and the same help text. `CompareCommand` and `MontageCommand` build their option tables from it. `WriteField`,
+which writes one parameter of an operation to a JSON object, is `internal` for `CompareCommand`.
 
 **Run(context, args)**: parses the arguments, reads the settings, then reports every mistake about the input, the
 pages, and the outputs before decoding anything: `SourceLoader.Probe` (missing, unreadable, unsupported, or corrupt
@@ -79,7 +87,7 @@ another kind of input is a `usage-error` naming the kind, rather than being igno
 `ImageWriter.CheckTarget` for every output. Then opens the source once (`SourceLoader.OpenPages`), and for each page
 loads it (`ReadPage`), runs it through `TransformAndStage`, and disposes the pixels before the next page. Each page's
 result is encoded to a temporary file next to its target, and no target is touched until every page has been rendered
-and encoded; then the temporary files are moved into place one at a time (`StagedOutput.Commit`, overwriting unless
+and encoded; then all the outputs are published together (`ImageWriter.PublishAll`, overwriting unless
 `--no-clobber`), and a `finally` block deletes every temporary file that was not committed. The result is
 written through `context.WriteLine`: as one text line per output when `context.Json` is false, or as one JSON
 document. The diagnostics and the echo of a model are part of the JSON document only; the text result is the one
@@ -114,10 +122,11 @@ format (`.png` unless `--format` says otherwise); an output that has no `{page}`
 Because every target is planned and checked first, a mistake in any of them (for example an existing file with
 `--no-clobber`) is reported before any page is rendered. Rendering and encoding of every page completes before any
 target is touched: a failure while a later page is loaded, transformed, or encoded (for example an unsupported feature
-with `--strict`) leaves no new or partial output and every existing output untouched. The final per-target moves are
-best-effort and not transactional (no rollback is attempted): if a move itself fails (for example a target became
-no longer writable, or appeared while `--no-clobber` is set), the targets moved before it remain, each complete,
-and the error is reported.
+with `--strict`) leaves no new or partial output and every existing output untouched. The outputs are then published
+all or nothing by `ImageWriter.PublishAll`: if a move fails (for example a target became no longer writable, or
+appeared while `--no-clobber` is set), the targets published before it are removed, every replaced target is restored
+from its backup, and the error is reported. Only when restoring a backup itself fails does a previous file remain
+under its backup name, which the error then reports.
 
 **Text result**: `wrote {output} ({width}x{height} {format}, {bytes} bytes) from {input}`, with `page {n}`
 appended for a document, for example `wrote out.png (816x1056 png, 41208 bytes) from in.svg` and
@@ -169,3 +178,5 @@ every `ToolException`.
 
 - **CommandRegistry** - `CreateDefault` registers the command under `render` and `convert`, and one instance for each
   verb (`crop`, `resize`, `rotate`, `flip`, and `pad`).
+- **CompareCommand** and **MontageCommand** - the option declarations (`SpecsFor`), `ReadScadOptions`,
+  `ScadOptionNames`, `ParseScadView`, and `WriteField`.

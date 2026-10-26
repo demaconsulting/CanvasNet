@@ -286,6 +286,152 @@ public class ImageWriterTests
     }
 
     /// <summary>
+    ///     Test that a failure of one step of publishing one output rolls every output back, including the output
+    ///     whose step failed.
+    /// </summary>
+    /// <param name="failOnMove"><see langword="true"/> to fail the move into place, else the rename to the backup.</param>
+    /// <param name="failIndex">The index of the output whose step fails.</param>
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    [InlineData(false, 0)]
+    [InlineData(false, 2)]
+    public void ImageWriter_PublishAll_FailureOnStep_RestoresEverything(bool failOnMove, int failIndex)
+    {
+        // Arrange: three staged outputs, of which the first and third already exist
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var first = directory.Combine("a.png");
+        var second = directory.Combine("b.png");
+        var third = directory.Combine("c.png");
+        File.WriteAllBytes(first, [1, 2, 3]);
+        File.WriteAllBytes(third, [4, 5, 6]);
+        var staged = new[] { first, second, third }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+        var failingStep = failOnMove ? ImageWriter.PublishStep.Move : ImageWriter.PublishStep.Backup;
+
+        // Act: the chosen step of the chosen output fails
+        var exception = Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                (step, index) =>
+                {
+                    if (step == failingStep && index == failIndex)
+                    {
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the error is the expected one, previous files are byte-identical at their names, no new file is
+        // left, and no temporary or backup file is left
+        Assert.Equal(ErrorCodes.OutputWriteFailed, exception.Code);
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(first));
+        Assert.Equal([4, 5, 6], File.ReadAllBytes(third));
+        Assert.False(File.Exists(second));
+        Assert.Equal(
+            [first, third],
+            Directory.GetFileSystemEntries(directory.Path).Order().ToArray());
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that a failing move into place over a target that has just been renamed to its backup restores the
+    ///     previous file even when something else already occupies the target name.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup()
+    {
+        // Arrange: one staged output over an existing target
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var target = directory.Combine("a.png");
+        File.WriteAllBytes(target, [1, 2, 3]);
+        var staged = new List<ImageWriter.StagedOutput> { ImageWriter.Stage(surface, target, "in.png", WriteOptions.Default) };
+
+        // Act: a partial file appears under the target name before the move fails
+        Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                (step, _) =>
+                {
+                    if (step == ImageWriter.PublishStep.Move)
+                    {
+                        File.WriteAllBytes(target, [9, 9]);
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the original content is back and nothing else is left
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(target));
+        Assert.Equal([target], Directory.GetFileSystemEntries(directory.Path));
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that a target listed twice is rolled back to its original content.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal()
+    {
+        // Arrange: the same existing target staged twice, followed by a third output
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var target = directory.Combine("a.png");
+        var other = directory.Combine("b.png");
+        File.WriteAllBytes(target, [1, 2, 3]);
+        var staged = new[] { target, target, other }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+
+        // Act: the move of the last output fails
+        Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                (step, index) =>
+                {
+                    if (step == ImageWriter.PublishStep.Move && index == 2)
+                    {
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the original content is back and nothing else is left
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(target));
+        Assert.Equal([target], Directory.GetFileSystemEntries(directory.Path));
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that publishing replaces every output and leaves no backup.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups()
+    {
+        // Arrange: two staged outputs, of which the first exists
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var first = directory.Combine("a.png");
+        var second = directory.Combine("b.png");
+        File.WriteAllText(first, "old content");
+        var staged = new[] { first, second }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+
+        // Act
+        ImageWriter.PublishAll(staged);
+        staged.ForEach(output => output.Dispose());
+
+        // Assert: both are the new image, and the directory holds only them
+        using var decodedFirst = PngCodec.Load(first);
+        using var decodedSecond = PngCodec.Load(second);
+        SurfaceAssert.Equal(surface, decodedFirst);
+        SurfaceAssert.Equal(surface, decodedSecond);
+        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+    }
+
+    /// <summary>
     ///     Test that an output that is the input is refused before anything is written.
     /// </summary>
     [Fact]
@@ -331,6 +477,97 @@ public class ImageWriterTests
         Assert.Equal(ErrorCodes.OutputExists, exists.Code);
         ImageWriter.CheckTarget(directory.Combine("fresh.png"), "in.png", true);
         ImageWriter.CheckTarget(existing, "in.png", false);
+    }
+
+    /// <summary>
+    ///     Test that CheckTargets refuses an output that is any one of the inputs, whatever its position.
+    /// </summary>
+    /// <param name="inputIndex">The index of the input that is also the output.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput(int inputIndex)
+    {
+        // Arrange: three inputs, and an output that names one of them through a different spelling
+        using var directory = new TempDirectory();
+        string[] inputs = [directory.Combine("a.png"), directory.Combine("b.png"), directory.Combine("c.png")];
+        var output = Path.Combine(directory.Path, ".", Path.GetFileName(inputs[inputIndex]));
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([directory.Combine("fresh.png"), output], inputs, false));
+
+        // Assert: refused as the same file as an input
+        Assert.Equal(ErrorCodes.SameInputOutput, exception.Code);
+    }
+
+    /// <summary>
+    ///     Test that CheckTargets refuses two outputs that are the same file, however the path is spelled.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError()
+    {
+        // Arrange: two spellings of one output: a dot segment, and (where the file system ignores case) another case
+        using var directory = new TempDirectory();
+        var first = directory.Combine("out.png");
+        var dotted = Path.Combine(directory.Path, ".", "out.png");
+        string[] inputs = [directory.Combine("in.png")];
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([first, dotted], inputs, false));
+
+        // Assert: a usage error that names the problem
+        Assert.Equal(ErrorCodes.UsageError, exception.Code);
+        Assert.Contains("same file", exception.Message);
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+        {
+            var upper = Assert.Throws<ToolException>(
+                () => ImageWriter.CheckTargets([first, directory.Combine("OUT.PNG")], inputs, false));
+            Assert.Equal(ErrorCodes.UsageError, upper.Code);
+        }
+    }
+
+    /// <summary>
+    ///     Test that distinct outputs that are not inputs pass, including an existing output that may be overwritten.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_DistinctPaths_Passes()
+    {
+        // Arrange: two inputs, two new outputs, and one existing output
+        using var directory = new TempDirectory();
+        var existing = directory.Combine("existing.png");
+        File.WriteAllText(existing, "x");
+        string[] inputs = [directory.Combine("a.png"), directory.Combine("b.png")];
+
+        // Act / Assert: nothing is thrown, with and without outputs
+        ImageWriter.CheckTargets([directory.Combine("one.png"), directory.Combine("two.png"), existing], inputs, false);
+        ImageWriter.CheckTargets([directory.Combine("one.png")], inputs, true);
+        ImageWriter.CheckTargets([], inputs, true);
+    }
+
+    /// <summary>
+    ///     Test that no-clobber refuses an existing output and that the other target problems are reported too.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists()
+    {
+        // Arrange: an existing output and a directory named like an output
+        using var directory = new TempDirectory();
+        var existing = directory.Combine("existing.png");
+        File.WriteAllText(existing, "old content");
+        var folder = directory.Combine("folder.png");
+        Directory.CreateDirectory(folder);
+        string[] inputs = [directory.Combine("in.png")];
+
+        // Act
+        var exists = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([directory.Combine("new.png"), existing], inputs, true));
+        var isDirectory = Assert.Throws<ToolException>(() => ImageWriter.CheckTargets([folder], inputs, false));
+
+        // Assert: output-exists naming the file, which is untouched; a directory is output-write-failed
+        Assert.Equal(ErrorCodes.OutputExists, exists.Code);
+        Assert.Contains("existing.png", exists.Message);
+        Assert.Equal("old content", File.ReadAllText(existing));
+        Assert.Equal(ErrorCodes.OutputWriteFailed, isDirectory.Code);
     }
 
     /// <summary>

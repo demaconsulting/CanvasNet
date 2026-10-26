@@ -1,5 +1,5 @@
 ---
-# cspell:ignore canvasnet scad openscad
+# cspell:ignore canvasnet scad openscad psnr rmse ssim
 # CanvasNetTool System-Level Requirements
 # CanvasNetTool System-Level Requirements
 #
@@ -43,6 +43,7 @@ sections:
           - CanvasNetTool-Commands-Help
         tests:
           - CanvasNetTool_HelpFlag_Provided_OutputsUsageInformation
+          - CanvasNetTool_Help_ListsCompareAndMontage
 
       - id: CanvasNetTool-System-Validate
         title: The tool shall execute self-validation tests when the validate flag is provided.
@@ -58,6 +59,7 @@ sections:
           - CanvasNetTool-Validation-Qualification
           - CanvasNetTool-Validation-Formats
           - CanvasNetTool-Validation-ImagingSelfTests
+          - CanvasNetTool-Validation-CompareMontageSelfTests
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 
@@ -136,6 +138,21 @@ sections:
         tests:
           - CanvasNetTool_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero
 
+      - id: CanvasNetTool-System-ValidateTemporaryFiles
+        title: >-
+          The tool shall build the path of every temporary file that its self-validation creates under a
+          private temporary directory and refuse a relative path that would escape it.
+        tags: [system]
+        justification: |
+          Self-validation writes generated inputs and outputs to disk; keeping every one of them under a
+          directory of its own, with a combination of paths that cannot escape it, means that running the
+          tool's qualification can never touch a file elsewhere. The path-combination rule is proven at
+          unit level; the self-validation run proves that every self-test works within it.
+        children:
+          - CanvasNetTool-PathHelpers-SafeCombine
+        tests:
+          - CanvasNetTool_ValidateFlag_Provided_RunsValidation
+
       - id: CanvasNetTool-System-ErrorHandling
         title: >-
           The tool shall return exit code 1 for unrecognized arguments, unknown commands, and
@@ -153,6 +170,8 @@ sections:
           - CanvasNetTool_UnknownArgument_Provided_ReturnsError
           - CanvasNetTool_UnknownCommand_Provided_ReturnsConciseUsageError
           - CanvasNetTool_ExpectedFailure_CommandThrowsToolException_ReportsConciseError
+          - CanvasNetTool_Compare_Errors_AreReportedAsExpectedErrors
+          - CanvasNetTool_Montage_Errors_AreReportedAsExpectedErrors
 
       - id: CanvasNetTool-System-ErrorMessage
         title: >-
@@ -278,6 +297,7 @@ sections:
           - CanvasNetTool-ResultWriter-SchemaVersion
           - CanvasNetTool-ResultWriter-SuccessEnvelope
           - CanvasNetTool-ResultWriter-ErrorEnvelope
+          - CanvasNetTool-ResultWriter-ErrorEnvelopeWithResult
           - CanvasNetTool-ResultWriter-DeterministicOutput
           - CanvasNetTool-ResultWriter-Escaping
         tests:
@@ -285,6 +305,7 @@ sections:
           - CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage
           - CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument
           - CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument
+          - CanvasNetTool_Compare_ThresholdNotMetWithJson_WritesFailureDocumentWithMetrics
 
       - id: CanvasNetTool-System-Formats
         title: >-
@@ -372,6 +393,113 @@ sections:
           - CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent
           - CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage
           - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-Compare
+        title: >-
+          The tool shall compare two images, drawings, pages of documents, or models when the `compare`
+          command is run, reporting the mean absolute error, the root mean square error, the peak
+          signal-to-noise ratio, the structural similarity, the largest channel difference, and the
+          fraction of pixels that differ by more than a tolerance, the root mean square error of each cell
+          of a grid, and the worst cells, as text or as one JSON document, with every metric computed
+          exactly from the pixels so that the same inputs give the same numbers.
+        tags: [system]
+        justification: |
+          An agent that redraws an image, a diagram, or a model needs to know how close the redraw is to
+          the reference and where it differs; numbers it can compare between iterations, and a grid that
+          says which part of the picture to fix, are what let it improve the redraw without a person
+          looking at it. The measures are defined exactly so that two runs, and two tool versions, agree.
+        children:
+          - CanvasNetTool-Commands-Compare
+          - CanvasNetTool-Imaging-Compare
+        tests:
+          - CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference
+          - CanvasNetTool_Compare_DifferentImages_ReportsMetricsAndGridAsJson
+
+      - id: CanvasNetTool-System-CompareImages
+        title: >-
+          The tool shall write, when `compare` is given `--diff`, `--side-by-side`, or `--overlay`, a
+          picture of the differences (a heat map or the absolute difference of each channel, amplified by
+          `--gain`), the two images and the differences side by side, and a blend of the two images
+          weighted by `--overlay-weight`, in the format of each file's extension.
+        tags: [system]
+        justification: |
+          Numbers say how much two images differ; a picture says where and how, to an agent that can look
+          at images and to the person who reads its report. The pictures are produced in the same run as
+          the numbers, from the same pixels.
+        tests:
+          - CanvasNetTool_Compare_ImageOutputs_WriteDiffSideBySideAndOverlay
+
+      - id: CanvasNetTool-System-CompareSizing
+        title: >-
+          The tool shall refuse to compare images of different sizes with the error code size-mismatch
+          unless `--resize-to` (`a`, `b`, or `WxH`) says which size to use, shall load a vector source (SVG,
+          a page of a document, an OpenSCAD model) directly at that size, shall fit a raster source into
+          it by `--fit contain` or `--fit stretch`, and shall accept per-side options (`--a-page`,
+          `--b-page`, `--a-dpi`, `--b-dpi`, `--a-view`, `--b-view`, `--a-define`, `--b-define`) that
+          override the shared options for one input.
+        tags: [system]
+        justification: |
+          A redraw rarely has the size of its reference. Resampling without being asked hides a mistake of
+          aspect ratio, so the default is a coded, actionable failure; asking for the reference size draws
+          a vector redraw sharply at that size instead of enlarging a small picture, so the numbers measure
+          the drawing and not the resampling. Per-side options let one command compare a page of a
+          document, or a view of a model, with a picture.
+        tests:
+          - CanvasNetTool_Compare_VectorAgainstReference_RendersVectorAtReferenceSize
+          - CanvasNetTool_Compare_Errors_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-CompareThresholds
+        title: >-
+          The tool shall check the measures against the limits given by repeatable `--threshold
+          metric=value` options (`mae`, `rmse`, `max-diff`, `cell-rmse`, `diff-ratio`, `psnr`, `ssim`),
+          write the result and every requested picture whether or not a limit is met, and when a limit
+          is not met exit with code 1 and the error code threshold-failed, writing in the JSON failure
+          document the measures and the checks as well as the error.
+        tags: [system]
+        justification: |
+          A gate that a script or an agent can branch on turns the comparison into a test of a redraw. The
+          exit code stays the tool's 0 or 1, the error code says why, and because the failure document
+          carries the metrics the caller needs one invocation and one parse, not a second run, to see how
+          far from the limit the redraw is.
+        tests:
+          - CanvasNetTool_Compare_ThresholdMet_ExitsZero
+          - CanvasNetTool_Compare_ThresholdNotMet_ExitsOneAfterWritingResultAndImages
+          - CanvasNetTool_Compare_ThresholdNotMetWithJson_WritesFailureDocumentWithMetrics
+
+      - id: CanvasNetTool-System-Montage
+        title: >-
+          The tool shall compose images, drawings, and the pages of documents into one contact sheet
+          written to the file named by `-o` when the `montage` command is run, with every page of a
+          document in order when `--all-pages` is given, in the columns, cells, spacing, padding,
+          background, and fit the options ask for, and report the sheet and its cells as one text line or
+          one JSON document; and shall refuse a sheet larger than the maximum image size before it loads
+          any input.
+        tags: [system]
+        justification: |
+          Looking at many images, or at every page of a deck, one after the other is slow for a person and
+          expensive for an agent; one picture of all of them, with a layout that says where each cell is,
+          shows them at a glance. The size is checked first because a sheet that cannot be written must
+          not cost the time of loading its inputs.
+        children:
+          - CanvasNetTool-Commands-Montage
+          - CanvasNetTool-Imaging-Montage
+        tests:
+          - CanvasNetTool_Montage_Images_WritesContactSheet
+          - CanvasNetTool_Montage_DocumentAllPagesWithLabels_WritesCellPerPage
+          - CanvasNetTool_Montage_Errors_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-MontageLabels
+        title: >-
+          The tool shall draw, when `montage` is given `--labels`, the file name of each input (and the
+          page number of a page of a document) in the bundled font under its cell, in black on a light
+          background and in white on a dark one, so that the labels look the same on every machine.
+        tags: [system]
+        justification: |
+          A cell without a name cannot be mapped back to the file or the page that it shows; labels in a
+          font that ships with the tool, instead of one that happens to be installed, keep the sheet
+          deterministic from one machine to the next.
+        tests:
+          - CanvasNetTool_Montage_DocumentAllPagesWithLabels_WritesCellPerPage
 
       - id: CanvasNetTool-System-InputFormats
         title: >-
@@ -496,6 +624,8 @@ sections:
         tests:
           - CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
+          - CanvasNetTool_Compare_SameInputsTwice_WriteIdenticalBytes
+          - CanvasNetTool_Montage_SameInputsTwice_WriteIdenticalBytes
 
       - id: CanvasNetTool-System-InputErrors
         title: >-

@@ -109,6 +109,17 @@ internal static class SourceKindExtensions
     {
         return kind == SourceKind.Scad;
     }
+
+    /// <summary>
+    ///     Determines whether a source kind is a vector source, which is rendered at the size it is asked for instead of
+    ///     being resampled from pixels.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, and OpenSCAD.</returns>
+    public static bool IsVector(this SourceKind kind)
+    {
+        return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad;
+    }
 }
 
 /// <summary>

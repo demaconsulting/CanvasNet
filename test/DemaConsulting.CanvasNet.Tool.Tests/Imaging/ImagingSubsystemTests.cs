@@ -439,4 +439,137 @@ public class ImagingSubsystemTests
         SurfaceAssert.Equal(before, loaded.Surface);
         Assert.Equal(new Rgba32(0, 0, 255, 255), decoded[0, 0]);
     }
+
+    /// <summary>
+    ///     Compares the SVG fixture with a raster copy of it that differs in one pixel, and writes the three pictures.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="tag">A name that makes the files of one run different from those of another.</param>
+    /// <returns>The result, and the paths of the three pictures.</returns>
+    private static (ComparisonResult Result, string[] Pictures) CompareFixtureAndWrite(TempDirectory directory, string tag)
+    {
+        var svg = FixtureFactory.FixturePath("shapes.svg");
+        var raster = directory.Combine("raster.png");
+        if (!File.Exists(raster))
+        {
+            using var rendered = SourceLoader.Load(svg, new SourceOptions());
+            rendered.Surface[50, 40] = new Rgba32(0, 0, 0, 255);
+            PngCodec.Save(rendered.Surface, raster);
+        }
+
+        // The raster is loaded at its own size; the SVG is rendered into a box of that size, sharply
+        var rasterInfo = SourceLoader.Probe(raster);
+        using var reference = SourceLoader.Load(rasterInfo, new SourceOptions());
+        var svgInfo = SourceLoader.Probe(svg);
+        var options = SourceLoader.BoxOptions(svgInfo, new SourceOptions(), reference.Surface.Width, reference.Surface.Height);
+        using var drawing = SourceLoader.Load(svgInfo, options);
+
+        var result = ImageComparison.Compare(reference.Surface, drawing.Surface, ImageComparison.DefaultTolerance, 2, 2);
+        string[] pictures = [directory.Combine($"diff-{tag}.png"), directory.Combine($"sbs-{tag}.png"), directory.Combine($"overlay-{tag}.png")];
+        using (var diff = ImageComparison.CreateDiff(reference.Surface, drawing.Surface, DiffStyle.Heat, ImageComparison.DefaultGain))
+        {
+            ImageWriter.Write(diff, pictures[0], raster, WriteOptions.Default);
+            using var sheet = ImageComparison.CreateSideBySide(reference.Surface, drawing.Surface, diff);
+            ImageWriter.Write(sheet, pictures[1], raster, WriteOptions.Default);
+        }
+
+        using (var overlay = ImageComparison.CreateOverlay(reference.Surface, drawing.Surface, ImageComparison.DefaultOverlayWeight))
+        {
+            ImageWriter.Write(overlay, pictures[2], raster, WriteOptions.Default);
+        }
+
+        return (result, pictures);
+    }
+
+    /// <summary>
+    ///     Test that sources loaded by the loader are compared, the differences are drawn, and the writer writes the pictures.
+    /// </summary>
+    [Fact]
+    public void Imaging_Compare_LoadedSourcesAreComparedAndVisualized()
+    {
+        // Arrange / Act: the SVG fixture against its raster, which has one black pixel at 50,40
+        using var directory = new TempDirectory();
+        var (result, pictures) = CompareFixtureAndWrite(directory, "one");
+
+        // Assert: exactly one pixel differs, and it is in the grid cell that holds it
+        Assert.Equal((100, 80), (result.Width, result.Height));
+        Assert.False(result.Metrics.Identical);
+        Assert.Equal(1, result.Metrics.DifferingPixels);
+        var cell = Assert.Single(result.WorstCells(3));
+        Assert.Equal((1, 1), (cell.Column, cell.Row));
+
+        // Assert: the pictures were written with the sizes of the design, and the difference is a single bright pixel
+        using var diff = PngCodec.Load(pictures[0]);
+        using var sheet = PngCodec.Load(pictures[1]);
+        using var overlay = PngCodec.Load(pictures[2]);
+        Assert.Equal((100, 80), (diff.Width, diff.Height));
+        Assert.Equal((316, 80), (sheet.Width, sheet.Height));
+        Assert.Equal((100, 80), (overlay.Width, overlay.Height));
+        Assert.NotEqual(new Rgba32(0, 0, 0, 255), diff[50, 40]);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), diff[0, 0]);
+    }
+
+    /// <summary>
+    ///     Test that a comparison done twice writes the same picture bytes.
+    /// </summary>
+    [Fact]
+    public void Imaging_Compare_SameInputsTwice_WriteIdenticalBytes()
+    {
+        // Arrange / Act: the same comparison, twice
+        using var directory = new TempDirectory();
+        var (firstResult, first) = CompareFixtureAndWrite(directory, "first");
+        var (secondResult, second) = CompareFixtureAndWrite(directory, "second");
+
+        // Assert: equal results and equal bytes of every picture
+        Assert.Equal(firstResult.Metrics, secondResult.Metrics);
+        Assert.Equal(firstResult.Cells, secondResult.Cells);
+        for (var i = 0; i < first.Length; i++)
+        {
+            Assert.Equal(File.ReadAllBytes(first[i]), File.ReadAllBytes(second[i]));
+        }
+    }
+
+    /// <summary>
+    ///     Test that sources of several kinds are loaded into cells, composed onto one sheet, and written.
+    /// </summary>
+    [Fact]
+    public void Imaging_Montage_LoadedSourcesAreComposedAndWritten()
+    {
+        // Arrange: an SVG, a page of a PDF, and a PNG, in cells of 64x64 with labels
+        using var directory = new TempDirectory();
+        var paths = new[] { "svg", "pdf", "png" }.Select(key => FixtureFactory.WriteSource(directory.Path, key)).ToList();
+        var options = new SheetOptions(2, 64, 64, 4, 4, new Rgba32(255, 255, 255, 255), true, FitMode.Contain, ResamplingMode.Auto);
+
+        // Act: each source is opened, loaded into its cell, added to the sheet, and disposed in turn
+        using var sheet = new ContactSheet(paths.Count, options);
+        foreach (var path in paths)
+        {
+            var info = SourceLoader.Probe(path);
+            using var source = SourceLoader.OpenPages(info, SourceLoader.BoxOptions(info, new SourceOptions(), 64, 64));
+            using var loaded = source.ReadPage(1);
+            sheet.Add(loaded.Surface, Path.GetFileName(path));
+        }
+
+        var output = directory.Combine("sheet.png");
+        using (var surface = sheet.Detach())
+        {
+            ImageWriter.Write(surface, output, paths[0], WriteOptions.Default);
+        }
+
+        // Assert: the layout (2 columns, 2 rows of 64 + 22, spacing and padding 4), and a cell with pixels for every source
+        Assert.Equal((2, 2, 140, 184), (sheet.Layout.Columns, sheet.Layout.Rows, sheet.Layout.Width, sheet.Layout.Height));
+        using var decoded = PngCodec.Load(output);
+        Assert.Equal((140, 184), (decoded.Width, decoded.Height));
+        for (var index = 0; index < paths.Count; index++)
+        {
+            var (x, y) = sheet.Layout.CellOrigin(index);
+            var drawn = false;
+            for (var row = y; row < y + 64 && !drawn; row++)
+            {
+                drawn = decoded.GetRowSpan(row).Slice(x, 64).ToArray().Any(pixel => pixel != new Rgba32(255, 255, 255, 255));
+            }
+
+            Assert.True(drawn, $"Cell {index} is empty");
+        }
+    }
 }

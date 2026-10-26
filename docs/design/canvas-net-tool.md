@@ -1,6 +1,6 @@
 # System Design
 
-<!-- cspell:ignore canvasnet Visio scad openscad -->
+<!-- cspell:ignore canvasnet Visio scad openscad psnr rmse ssim -->
 
 This document provides the system-level design for CanvasNetTool.
 
@@ -17,7 +17,9 @@ contract (exit codes, error text, stable error codes) is small, fixed, and docum
 The tool follows the DEMA Consulting tool template (a `Program` entry point, a `Context` that owns the
 command line and the output channels, a self-validation mode, and safe path helpers) and adds a
 `Commands` subsystem that dispatches the first non-option argument to a registered command, and an `Imaging`
-subsystem that turns files into pixels and pixels into files. The system
+subsystem that turns files into pixels and pixels into files. Its commands inspect (`formats`, `info`), render and
+transform (`render`, `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`), compare (`compare`), and compose
+(`montage`) images. The system
 consists of six direct units and two subsystems:
 
 - **Program** (unit; `Program.cs` and `ToolException.cs`): the entry point. `Main` delegates to `Execute`,
@@ -41,8 +43,11 @@ consists of six direct units and two subsystems:
 - **Commands** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder `Commands/`): the
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
-  `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), and `RenderCommand` (the `render`
-  command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`). See
+  `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
+  command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
+  `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
+  threshold gating), and `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
+  pages). See
   _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
   turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
@@ -51,10 +56,13 @@ consists of six direct units and two subsystems:
   policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
   flattening, and the mapping of library exceptions to expected errors),
   `ImagePipeline` (the ordered crop, resize, fit, rotate, flip, and pad operations, which the `render` command
-  and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share) and
-  `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy). It is a
-  subsystem because loading, transforming, and writing are separate responsibilities that are reviewed and
-  tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
+  and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share),
+  `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy),
+  `ImageComparison` (the exact error metrics, the windowed structural similarity, the per-cell grid, the threshold
+  checks, and the difference, overlay, and side-by-side pictures of two images of the same size), and
+  `ContactSheet` (the layout and composition of a contact sheet, with labels drawn in the bundled font). It is a
+  subsystem because loading, transforming, comparing, composing, and writing are separate responsibilities that are
+  reviewed and tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,
 `Commands`, `ResultWriter`, and `Validation`; `Validation` calls back into `Program.Run` (to exercise the tool
@@ -84,7 +92,11 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
   emitted by `Program.Execute`, which scans the raw arguments, so it also covers failures that happen before a
   `Context` exists. An unexpected exception produces no document.
 - **Exit codes.** As in the template: 0 for success and 1 for any failure; there is no finer table. The
-  stable error code in the message (and in the failure document) distinguishes failure kinds.
+  stable error code in the message (and in the failure document) distinguishes failure kinds. A threshold that
+  `compare` is asked to check and does not meet is such a failure (`threshold-failed`, exit code 1), raised only
+  after the result and the requested pictures were written; with `--json` the failure document then carries the
+  command's result fields (the metrics, the checks, and the outputs) after the `error` object, through
+  `ToolException.ResultFields`, so that a caller needs one parse to see both the failure and the measures.
 - **Unexpected exceptions.** As in the template, an unexpected exception is reported on standard error
   and re-thrown. Library and I/O exceptions that mean "bad or unsupported user input" are mapped to
   `ToolException` at the boundary where the input is read, using an explicit list of exception types;
@@ -97,7 +109,7 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 | --------- | --------- | ------ | ----------- |
 | Command line | Inbound | `canvasnet [global options] <command> [command arguments]` | Global options are `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`), `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value is the command name; unknown options before the command name are an error. A command's own options are written `--name value`, `--name=value`, or `-a value`, and may be repeated; see _ArgumentReader Unit Design_ |
 | Exit code | Outbound | Integer | 0 for success; 1 for any failure; an unexpected exception terminates the process through the runtime's unhandled-exception path |
-| Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":1,"ok":true,"command":"...", ...}`; an expected failure is written as `{"schemaVersion":1,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
+| Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":1,"ok":true,"command":"...", ...}`; an expected failure is written as `{"schemaVersion":1,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
 | Standard error | Outbound | UTF-8 text | `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console; suppressed by `--silent` (the runtime's own report of an unexpected exception is not) except when no context could be created (a malformed global option, or a log file that cannot be opened), when the report is always written |
 | Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure; truncated at open; failure to open is an expected failure |
 | Results file | Outbound | TRX (`.trx`) or JUnit XML (`.xml`) | Written by `--validate --results <file>`; any other extension is an error and no file is written |
@@ -105,7 +117,8 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`,
-`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, and `budget-exceeded`
+`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `budget-exceeded`, `size-mismatch`, and
+`threshold-failed`
 (the `ErrorCodes` supporting type documented in _Program Unit Design_). A code is never changed once
 released.
 
@@ -120,7 +133,9 @@ released.
   JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
-  `CanvasNetRender3D` system, which draws the model). Each
+  `CanvasNetRender3D` system, which draws the model). The core `Fonts` and `Rendering` subsystems also supply the
+  bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
+  never depend on the fonts installed on a machine. Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool
   package, and the package declares no NuGet dependency on them. The reasons are that a tool install must
   not require sibling packages (which may not be published at the same time) and that the tool and the
@@ -141,9 +156,12 @@ refuses an output that is the input (by path, after link resolution; a hard link
 read first and an output is moved over its name as a new file), writes through a temporary file so that a failure
 while encoding never leaves a partial
 output, and overwrites an existing output only when overwriting is allowed. A command that writes several outputs
-touches no target until every one is encoded; its final moves are best-effort (see RenderCommand). The maximum image size
+touches no target until every one is encoded and then publishes them all or nothing
+(`ImageWriter.PublishAll`, with rollback). The maximum image size
 (`Surface.MaxDimension`, 8192 pixels per side) is enforced by `SourceLoader` before a file is decoded or a
-drawing is rendered, which bounds memory use.
+drawing is rendered, which bounds memory use. `compare` holds the two loaded images and one picture at a time, and
+`montage` holds the sheet plus one source at a time; a sheet larger than the limit is refused before any input is
+loaded.
 
 ## Data Flow
 
@@ -181,7 +199,8 @@ drawing is rendered, which bounds memory use.
   redirect each independently. Expected-failure messages never contain a stack trace.
 - Determinism: for the same inputs, tool version, and machine, command output is deterministic; JSON documents
   are additionally independent of the current culture and the console code page (numbers use the invariant
-  culture and non-ASCII characters are escaped); output that
+  culture and non-ASCII characters are escaped); the metrics of `compare` are computed from exact integer sums with
+  one final division, so they do not vary from run to run, and the labels of `montage` use the bundled font; output that
   depends on installed fonts (text in SVG, PDF, PowerPoint, and Visio documents) may differ between machines.
 - Path safety: caller-supplied path components used for temporary files are validated by
   `PathHelpers.SafePathCombine`.

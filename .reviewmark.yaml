@@ -1866,7 +1866,7 @@ reviews:
       - "docs/design/canvas-net-tool.md"                              # system design (packaging, template deviations)
       - "docs/verification/introduction.md"                           # verification introduction
       - "docs/verification/canvas-net-tool.md"                        # system verification
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests*.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/AssemblyInfo.cs"    # sequential test collection
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Runner.cs"          # out-of-process test runner
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ToolHost.cs"        # in-process console capture helper
@@ -2055,6 +2055,38 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommand*Tests.cs"  # unit tests
 
+  # CanvasNetTool-Commands-CompareCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-CompareCommand
+    title: Review that CanvasNetTool Commands CompareCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/compare-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/compare-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/compare-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/compare-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/CompareCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CompareCommand*Tests.cs"  # unit tests
+
+  # CanvasNetTool-Commands-MontageCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-MontageCommand
+    title: Review that CanvasNetTool Commands MontageCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/montage-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/montage-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/montage-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/montage-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommand*Tests.cs"  # unit tests
+
   # CanvasNetTool-Imaging Review (one per subsystem)
   - id: CanvasNetTool-Imaging
     title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct
@@ -2087,6 +2119,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SurfaceOperations.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SurfaceOperationsTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageWriter
@@ -2120,6 +2153,38 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImagePipeline.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageOperations.cs"  # unit source (operation records)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageComparison Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageComparison
+    title: Review that CanvasNetTool Imaging ImageComparison Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-comparison.md"     # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-comparison.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-comparison.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageComparison*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageComparisonTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ContactSheet Review (one per unit)
+  - id: CanvasNetTool-Imaging-ContactSheet
+    title: Review that CanvasNetTool Imaging ContactSheet Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/contact-sheet.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/contact-sheet.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/contact-sheet.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/contact-sheet.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

@@ -81,6 +81,28 @@ internal static class ResultWriter
     /// </remarks>
     public static string Failure(string? command, string code, string message, string? hint)
     {
+        return Failure(command, code, message, hint, null);
+    }
+
+    /// <summary>
+    ///     Creates the failure document of an expected failure that also carries result fields.
+    /// </summary>
+    /// <param name="command">
+    ///     The canonical name of the command that failed, or <see langword="null"/> when the failure happened
+    ///     before a command was selected (written as JSON <c>null</c>).
+    /// </param>
+    /// <param name="code">The stable error code; one of the <see cref="ErrorCodes"/> constants.</param>
+    /// <param name="message">The concise error message.</param>
+    /// <param name="hint">The optional suggestion for correcting the failure; omitted from the document when <see langword="null"/>.</param>
+    /// <param name="resultFields">
+    ///     Writes additional complete top-level properties after the <c>error</c> object, or <see langword="null"/>
+    ///     for none.
+    /// </param>
+    /// <returns>The document, without a trailing newline.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="code"/> or <paramref name="message"/> is <see langword="null"/>.</exception>
+    public static string Failure(
+        string? command, string code, string message, string? hint, Action<Utf8JsonWriter>? resultFields)
+    {
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(message);
 
@@ -98,6 +120,7 @@ internal static class ResultWriter
             }
 
             writer.WriteEndObject();
+            resultFields?.Invoke(writer);
         });
     }
 
@@ -109,7 +132,8 @@ internal static class ResultWriter
     /// <returns>The document, without a trailing newline.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="ex"/> is <see langword="null"/>.</exception>
     /// <remarks>
-    ///     A <see cref="ToolException"/> contributes its own code and hint; an <see cref="ArgumentException"/>
+    ///     A <see cref="ToolException"/> contributes its own code and hint, and its <see cref="ToolException.ResultFields"/>
+    ///     (written after the <c>error</c> object); an <see cref="ArgumentException"/>
     ///     is reported as <c>usage-error</c>; any other exception as <c>operation-failed</c>.
     /// </remarks>
     public static string Failure(string? command, Exception ex)
@@ -118,7 +142,8 @@ internal static class ResultWriter
 
         return ex switch
         {
-            ToolException toolException => Failure(command, toolException.Code, toolException.Message, toolException.Hint),
+            ToolException toolException => Failure(
+                command, toolException.Code, toolException.Message, toolException.Hint, toolException.ResultFields),
             ArgumentException => Failure(command, ErrorCodes.UsageError, ex.Message, null),
             _ => Failure(command, ErrorCodes.OperationFailed, ex.Message, null)
         };

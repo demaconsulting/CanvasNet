@@ -222,6 +222,32 @@ internal static partial class SourceLoader
     }
 
     /// <summary>
+    ///     Gets the options that load a source into a box of a given size.
+    /// </summary>
+    /// <param name="info">The facts about the source.</param>
+    /// <param name="options">The loading options.</param>
+    /// <param name="width">The width of the box in pixels.</param>
+    /// <param name="height">The height of the box in pixels.</param>
+    /// <returns>
+    ///     For a vector source (see <see cref="SourceKindExtensions.IsVector"/>), a copy of <paramref name="options"/>
+    ///     whose <see cref="SourceOptions.Width"/> and <see cref="SourceOptions.Height"/> are the box and whose
+    ///     <see cref="SourceOptions.Scale"/> is cleared, so that the source is rendered sharply at the box (a document
+    ///     page is fitted inside it and centered, an SVG follows its own aspect-ratio rule, and a model fills it).
+    ///     For a raster source, <paramref name="options"/> unchanged: the caller fits the loaded pixels with
+    ///     <see cref="SurfaceOperations.FitInto"/>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="info"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
+    internal static SourceOptions BoxOptions(SourceInfo info, SourceOptions options, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(options);
+
+        return info.Format.IsVector()
+            ? options with { Width = width, Height = height, Scale = null }
+            : options;
+    }
+
+    /// <summary>
     ///     Checks that a page exists in a source.
     /// </summary>
     /// <param name="info">The facts about the file.</param>

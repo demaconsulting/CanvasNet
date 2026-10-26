@@ -58,6 +58,28 @@ internal sealed partial class RenderCommand
     ];
 
     /// <summary>
+    ///     Selects option declarations of <see cref="OptionTable"/> by name, so that another command can accept the
+    ///     same option with the same grammar and help text.
+    /// </summary>
+    /// <param name="names">The long names of the options, for example <c>--page</c>.</param>
+    /// <returns>The declarations, in the order of <paramref name="names"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="names"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when a name is not declared by <see cref="OptionTable"/>.</exception>
+    internal static IReadOnlyList<OptionSpec> SpecsFor(params string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        var specs = new List<OptionSpec>(names.Length);
+        foreach (var name in names)
+        {
+            specs.Add(OptionTable.FirstOrDefault(spec => spec.Name == name)
+                      ?? throw new ArgumentException($"The option {name} is not declared by the render command.", nameof(names)));
+        }
+
+        return specs;
+    }
+
+    /// <summary>
     ///     The settings of one invocation, read from the command line.
     /// </summary>
     /// <param name="Input">The input path.</param>
@@ -160,7 +182,7 @@ internal sealed partial class RenderCommand
     /// <summary>
     ///     The options that only apply to an OpenSCAD model.
     /// </summary>
-    private static readonly string[] ScadOptionNames =
+    internal static readonly string[] ScadOptionNames =
     [
         "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color", "--max-triangles"
     ];
@@ -174,22 +196,14 @@ internal sealed partial class RenderCommand
     ///     Thrown with code <c>usage-error</c> when the view is not one of the views, a value is malformed or out of range,
     ///     or a definition is not <c>name=value</c>.
     /// </exception>
-    private static ScadViewOptions? ReadScadOptions(ArgumentReader reader)
+    internal static ScadViewOptions? ReadScadOptions(ArgumentReader reader)
     {
         if (!ScadOptionNames.Any(reader.Has))
         {
             return null;
         }
 
-        var view = SourceLoader.DefaultScadView;
-        if (reader.Get("--view") is { } viewText)
-        {
-            view = SourceLoader.ScadViews.FirstOrDefault(v => string.Equals(v.Name, viewText, StringComparison.OrdinalIgnoreCase))?.Name
-                   ?? throw new ToolException(
-                       ErrorCodes.UsageError,
-                       $"'{viewText}' is not a view.",
-                       $"The views are: {string.Join(", ", SourceLoader.ScadViews.Select(v => v.Name))}.");
-        }
+        var view = reader.Get("--view") is { } viewText ? ParseScadView(viewText) : SourceLoader.DefaultScadView;
 
         var perspective = false;
         if (reader.Get("--projection") is { } projectionText)
@@ -216,6 +230,23 @@ internal sealed partial class RenderCommand
             MaxTriangles = reader.GetInt("--max-triangles", 1, int.MaxValue),
             DefaultColor = reader.Get("--default-color") is { } colorText ? ArgumentReader.ParseColor(colorText, "--default-color") : null
         };
+    }
+
+    /// <summary>
+    ///     Finds the name of a viewpoint of an OpenSCAD model.
+    /// </summary>
+    /// <param name="text">The name as typed; compared without regard to case.</param>
+    /// <returns>The lower-case name of the view.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is not one of the views.</exception>
+    internal static string ParseScadView(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return SourceLoader.ScadViews.FirstOrDefault(v => string.Equals(v.Name, text, StringComparison.OrdinalIgnoreCase))?.Name
+               ?? throw new ToolException(
+                   ErrorCodes.UsageError,
+                   $"'{text}' is not a view.",
+                   $"The views are: {string.Join(", ", SourceLoader.ScadViews.Select(v => v.Name))}.");
     }
 
     /// <summary>

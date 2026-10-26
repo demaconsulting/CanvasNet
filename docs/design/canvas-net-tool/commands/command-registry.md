@@ -29,8 +29,10 @@ results, depth, and log), shown in every help screen.
 #### Key Methods
 
 **CreateDefault**: creates a registry with every command the tool ships with: `formats`
-(`DiscoveryCommands.Formats`), `info` (`DiscoveryCommands.Info`), and `render` with its alias `convert`
-(`RenderCommand`). A command is added to this method in the change that implements it.
+(`DiscoveryCommands.Formats`), `info` (`DiscoveryCommands.Info`), `render` with its alias `convert`
+(`RenderCommand`), the verbs `crop`, `resize`, `rotate`, `flip`, and `pad` (each a `RenderCommand` constructed with the
+verb), `compare` (`CompareCommand`), and `montage` (`MontageCommand`), in that order. A command is added to this method
+in the change that implements it.
 
 **EditDistance(string, string)** (`internal static`): the Levenshtein distance used to suggest the closest command
 name; `ArgumentReader` uses it to suggest the closest option.

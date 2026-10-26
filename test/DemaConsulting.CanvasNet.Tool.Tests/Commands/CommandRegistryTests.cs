@@ -21,7 +21,9 @@ public class CommandRegistryTests
         // Assert: it exists, the shipped commands are registered (render also as convert), and every registered
         // command resolves by its own name
         Assert.NotNull(registry);
-        Assert.Equal(["formats", "info", "render", "crop", "resize", "rotate", "flip", "pad"], registry.Commands.Select(c => c.Name));
+        Assert.Equal(
+            ["formats", "info", "render", "crop", "resize", "rotate", "flip", "pad", "compare", "montage"],
+            registry.Commands.Select(c => c.Name));
         Assert.Same(registry.Find("render"), registry.Find("convert"));
         Assert.All(registry.Commands, command => Assert.Same(command, registry.Find(command.Name)));
     }

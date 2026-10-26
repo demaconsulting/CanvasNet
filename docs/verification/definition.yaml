@@ -52,10 +52,14 @@ input-files:
   - docs/verification/canvas-net-tool/commands/command-registry.md
   - docs/verification/canvas-net-tool/commands/discovery-commands.md
   - docs/verification/canvas-net-tool/commands/render-command.md
+  - docs/verification/canvas-net-tool/commands/compare-command.md
+  - docs/verification/canvas-net-tool/commands/montage-command.md
   - docs/verification/canvas-net-tool/imaging.md
   - docs/verification/canvas-net-tool/imaging/source-loader.md
   - docs/verification/canvas-net-tool/imaging/image-writer.md
   - docs/verification/canvas-net-tool/imaging/image-pipeline.md
+  - docs/verification/canvas-net-tool/imaging/image-comparison.md
+  - docs/verification/canvas-net-tool/imaging/contact-sheet.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

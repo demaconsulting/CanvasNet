@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet rmse
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -282,5 +282,52 @@ public class CommandsSubsystemTests
         Assert.Contains("(16x12 png,", pad.StdOut);
         Assert.Contains("Usage: canvasnet pad <input> <border> -o <output> [options]", help.StdOut);
         Assert.Contains("Add a border around an image", top.StdOut);
+    }
+
+    /// <summary>
+    ///     Test that the default registry runs the compare and montage commands.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage()
+    {
+        // Arrange: two PNG images in a temporary directory
+        using var directory = new TempDirectory();
+        var (a, b) = CompareCommandTests.SavePair(directory);
+        var sheet = directory.Combine("sheet.png");
+
+        // Act: run each command through the default registry, then a failing compare
+        var compare = ToolHost.Invoke("compare", a, b, "--threshold", "rmse=10");
+        var montage = ToolHost.Invoke("montage", a, b, "--cell", "32x32", "-o", sheet);
+        var failing = ToolHost.Invoke("compare", a, b, "--threshold", "rmse=1");
+
+        // Assert: each succeeds with nothing on standard error; the failing compare is an expected error naming its command
+        Assert.Equal(0, compare.ExitCode);
+        Assert.StartsWith("compared ", compare.StdOut);
+        Assert.Equal(string.Empty, compare.StdErr);
+        Assert.Equal(0, montage.ExitCode);
+        Assert.Equal($"wrote {sheet} (88x48 png, {new FileInfo(sheet).Length} bytes): 2 images in 2 columns{Environment.NewLine}", montage.StdOut);
+        Assert.Equal(string.Empty, montage.StdErr);
+        Assert.Equal(1, failing.ExitCode);
+        Assert.Contains("Error: threshold-failed:", failing.StdErr);
+    }
+
+    /// <summary>
+    ///     Test that the default registry lists the compare and montage commands in the help, each with its own help.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp()
+    {
+        // Act
+        var top = ToolHost.Invoke("--help");
+        var compare = ToolHost.Invoke("help", "compare");
+        var montage = ToolHost.Invoke("montage", "--help");
+
+        // Assert: both are listed with their summaries, and each has its usage and options
+        Assert.Contains("Measure how much two images differ", top.StdOut);
+        Assert.Contains("Compose images and document pages into one contact sheet", top.StdOut);
+        Assert.Contains("Usage: canvasnet compare <a> <b> [options]", compare.StdOut);
+        Assert.Contains("--resize-to <a|b|WxH>", compare.StdOut);
+        Assert.Contains("Usage: canvasnet montage <inputs...> -o <output> [options]", montage.StdOut);
+        Assert.Contains("-o, --output <file>", montage.StdOut);
     }
 }

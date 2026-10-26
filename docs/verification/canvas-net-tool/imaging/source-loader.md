@@ -127,6 +127,19 @@ scale, width, and height act on the page's size at the resolution; two sides giv
 box without stretching it, centered over the background (white or green), recording a `fit` operation, and need no
 fitting when the box has the page's aspect ratio.
 
+**SourceLoader_BoxOptions_VectorKinds_SetBoxAndClearScale**, **SourceLoader_BoxOptions_RasterKinds_AreUnchanged**,
+**SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException**, and **SourceLoader_Load_VectorWithBox_RendersNativelyAtBox**:
+for each vector kind the box options carry the box and no scale and keep every other option; for each raster kind the
+very same options come back; null arguments throw; an SVG loaded with the box options is exactly the box, and a 480x360
+slide loaded into a 300x300 box is 300x225 centered with bands of the background above and below.
+
+**SurfaceOperations_FitInside_RoundsAndClamps**, **SurfaceOperations_FitInside_NonPositiveSize_ThrowsArgumentOutOfRange**,
+**SurfaceOperations_FitInto_Contain_ScalesToLimitingSideAndCenters**, **SurfaceOperations_FitInto_Stretch_ResamplesToExactBox**,
+**SurfaceOperations_FitInto_SameSize_ReturnsEqualPixels**, and **SurfaceOperations_FitInto_InvalidArguments_Throw**: the
+fitted size follows the limiting side, enlarges a small image, rounds half away from zero, and never leaves 1 to the
+box; a contain fit centers the scaled image on the fill color and a stretch fills the box; an image that already has the
+box size is an equal, independent copy in both modes; a null source or an undefined mode throws.
+
 **SourceLoader_Load_Background_IsWhatThePageIsRenderedOver**: a transparent background leaves an unpainted pixel
 transparent and black gives black, for each document; the `render` operation names the background.
 

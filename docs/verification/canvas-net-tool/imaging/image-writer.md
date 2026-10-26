@@ -21,6 +21,7 @@ N/A - standard test environment; the tests write only to temporary directories t
 - PNG, BMP, and TIFF outputs decode to exactly the pixels written, including alpha; JPEG outputs are close.
 - Transparency is flattened over the background for JPEG only.
 - An existing output is overwritten by default and kept with no-clobber; an output that is the input is refused.
+- The targets of a command with several outputs and inputs are checked in one step, without writing.
 - No temporary file is ever left behind; the same pixels give the same bytes.
 
 #### Test Scenarios
@@ -47,6 +48,17 @@ and **ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed**: an e
 image and the directory then holds only the output; a missing directory path is created; a blocked directory (a file
 where a folder should be) is `output-write-failed` naming the output and the file in the way.
 
+**ImageWriter_PublishAll_FailureOnStep_RestoresEverything**,
+**ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup**,
+**ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal** and
+**ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups**: with three staged outputs, of which the first and
+third exist, a failure injected (through the internal seam) on the move of the first, second or third output, or on the
+backup rename of the first or third, is reported as `output-write-failed`; the two existing files are byte-identical to
+before at their original names, the new second file is gone, and no temporary or backup file remains. When the move
+fails after something else (a partial file) took the target name, the backup still replaces it; a target listed twice
+is restored to its original content; when every move succeeds all outputs are the new image and no backup remains.
+_Not verified, by design:_ a failure to restore a backup itself (the error then names the backup file).
+
 **ImageWriter_Write_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile** and
 **ImageWriter_Write_NoClobberAndNewOutput_WritesFile**: no-clobber refuses an existing file, leaves it untouched and
 leaves no temporary file, and still writes a new one.
@@ -66,6 +78,13 @@ folder is accepted; the tests skip themselves only where the operating system re
 **ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed**: an empty path, a path with a null character, and a path
 below a file are `output-write-failed` (the last names the file that is in the way); a folder that does not exist is
 accepted.
+
+**ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput**, **ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError**,
+**ImageWriter_CheckTargets_DistinctPaths_Passes**, and **ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists**:
+an output that is the first, middle, or last of three inputs (spelled with a dot segment) is `same-input-output`;
+two outputs that are one file (a dot segment, and another case where the file system ignores case) are a
+`usage-error`; distinct outputs, an existing output that may be overwritten, and an empty output list pass; with
+no-clobber an existing output is `output-exists` (and is untouched), and a directory is `output-write-failed`.
 
 **ImageWriter_Write_LongFileName_IsWritten**: a file name of 244 characters is written and the folder holds only the
 output, because the temporary file does not take its name from the target.

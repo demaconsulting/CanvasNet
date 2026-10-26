@@ -4,9 +4,11 @@
 
 ### Verification Approach
 
-The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, and `ImageWriter`
-(see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, and _ImageWriter Unit
-Verification Design_ under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
+The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
+`ImageComparison`, and `ContactSheet`
+(see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
+Verification Design_, _ImageComparison Unit Verification Design_, and _ContactSheet Unit Verification Design_
+under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
 and SCAD) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output matrix of 44
@@ -30,6 +32,9 @@ N/A - standard test environment; the tests write only to temporary directories t
 - Every page of a document loaded from one opened source is written with the pixels the library renders for it.
 - The same input gives the same output bytes on every run, for a lossless and for the lossy output.
 - A bad input, or a page that does not exist, is an expected error and leaves no output.
+- Sources loaded by the loader (a vector source into a box of the reference's size) are compared exactly, the pictures of
+  the differences are written, and the same comparison gives the same bytes.
+- Sources of several kinds are composed one at a time into a contact sheet with the documented layout and written.
 
 ### Test Scenarios
 
@@ -66,3 +71,16 @@ written.
 natural size, taken through a crop of the left half, a quarter turn, and a blue border by the pipeline, and written as
 PNG: the three operations are reported in order, the file decodes to exactly the transformed surface, which equals the
 same operations applied by hand to the cropped load, the border pixel is blue, and the loaded surface is unchanged.
+
+**Imaging_Compare_LoadedSourcesAreComparedAndVisualized**: the SVG fixture is loaded at its natural size and compared
+with a raster copy of it that has one black pixel at 50,40, the vector being loaded into a box of the raster's size with
+`SourceLoader.BoxOptions`: exactly one pixel differs and it is in the grid cell that holds it; the difference,
+side-by-side, and overlay pictures are written with `ImageWriter` and decode at 100x80, 316x80, and 100x80, and the
+difference picture is black at 0,0 and not at the changed pixel.
+
+**Imaging_Compare_SameInputsTwice_WriteIdenticalBytes**: the same comparison and pictures twice give equal metrics and
+grid cells and identical bytes of every picture.
+
+**Imaging_Montage_LoadedSourcesAreComposedAndWritten**: an SVG, the first page of the PDF, and a PNG are each opened,
+loaded into a 64x64 cell with `BoxOptions`, added to a labeled `ContactSheet` of two columns, and disposed in turn; the
+sheet is written as PNG, has the layout of the design (140x184), and every cell has pixels other than the background.

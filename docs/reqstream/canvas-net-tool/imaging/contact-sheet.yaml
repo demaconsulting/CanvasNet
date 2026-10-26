@@ -1,0 +1,103 @@
+---
+# cspell:ignore ellipsis
+# Software Unit Requirements for the ContactSheet Class
+#
+# The ContactSheet class composes a contact sheet: a grid of images, each fitted into a cell of the same size, with
+# optional labels drawn in the bundled font. It calculates the layout from the number of images and the options,
+# refuses a sheet larger than the maximum image size before anything is allocated, and composes one image at a time
+# so that the memory in use is the sheet plus one image. It works on surfaces only: it knows nothing of files,
+# options, or commands.
+
+sections:
+  - title: ContactSheet Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-ContactSheet-Layout
+        title: >-
+          The ContactSheet class shall lay cells out in row-major order in the given number of columns (the
+          ceiling of the square root of the number of images when none is given, at most 64), with rows equal
+          to the ceiling of the count over the columns, a sheet width of twice the padding plus the columns
+          times the cell width plus the spacing between columns, a sheet height of twice the padding plus the
+          rows times the cell height plus the label strip (22 pixels with labels, none without) plus the
+          spacing between rows, and the origin of cell i at the padding plus its column and row times the
+          cell size, the label strip, and the spacing.
+        justification: |
+          A contact sheet is read by position; an exact, documented layout lets a caller predict where each
+          image is and lets tests and agents locate a cell without measuring the output.
+        tests:
+          - ContactSheet_CalculateLayout_ColumnsAndCount_ComputesRowsAndSheetSize
+          - ContactSheet_CalculateLayout_AutomaticColumns_IsCeilingOfSquareRoot
+          - ContactSheet_CalculateLayout_WithLabels_AddsLabelStripPerRow
+          - ContactSheet_CellOrigin_RowMajor_UsesPaddingAndSpacing
+
+      - id: CanvasNetTool-Imaging-ContactSheet-SizeLimit
+        title: >-
+          The ContactSheet class shall refuse, with the error code size-limit and a hint to use a smaller cell
+          or more columns, a sheet that would be larger than 8192 pixels on a side, when the layout is
+          calculated and before any image is loaded or any pixel allocated.
+        justification: |
+          A sheet of that size can exhaust memory; refusing it from the numbers alone, before any input is
+          loaded, is cheaper and clearer than failing partway through the composition.
+        tests:
+          - ContactSheet_CalculateLayout_SheetTooLarge_ThrowsSizeLimit
+
+      - id: CanvasNetTool-Imaging-ContactSheet-Placement
+        title: >-
+          The ContactSheet class shall fit each image into its cell either by containing it (scaled to the
+          largest size that fits, enlarging a small image, and centered on the background) or by stretching it
+          to exactly the cell, flatten any transparency over the background, and place the images in the cells
+          in the order they are added.
+        justification: |
+          A contact sheet is a preview, so every image fills its cell the same way regardless of its size, and
+          the sheet must be opaque so that it can be written in any output format.
+        tests:
+          - ContactSheet_Add_Contain_KeepsAspectAndCentersOnBackground
+          - ContactSheet_Add_Stretch_FillsTheWholeCell
+          - ContactSheet_Add_SeveralImages_FillCellsInRowMajorOrder
+          - ContactSheet_Add_TransparentImage_IsFlattenedOverBackground
+
+      - id: CanvasNetTool-Imaging-ContactSheet-Labels
+        title: >-
+          The ContactSheet class shall, when labels are enabled, draw each label centered in the 22-pixel strip
+          below its cell image in 14-pixel text of the bundled Liberation Sans font (never a system font), cutting
+          a label that is wider than the cell to the longest beginning that fits followed by the ASCII text
+          "...", and shall draw nothing when labels are disabled or an image has no label.
+        justification: |
+          A reader needs to know which image is which; using only the bundled font, and ASCII dots for the cut,
+          makes the labels the same on every machine.
+        tests:
+          - ContactSheet_Add_Labels_DrawsTextInStripAndNothingWithoutLabels
+          - ContactSheet_FitLabel_LongText_IsTruncatedWithAsciiEllipsisToFit
+
+      - id: CanvasNetTool-Imaging-ContactSheet-Appearance
+        title: >-
+          The ContactSheet class shall fill the sheet, the margin of a contained image, the spacing, the padding,
+          and the label strips with an opaque background color, and shall draw label text in white on a dark
+          background and in black on a light one (luma below 128 is dark).
+        justification: |
+          Labels must be readable whatever background the caller chooses, and the sheet must have no
+          undefined pixels.
+        tests:
+          - ContactSheet_Add_DarkBackground_UsesLightText
+          - ContactSheet_Add_LightBackground_UsesDarkText
+          - ContactSheet_Add_Contain_KeepsAspectAndCentersOnBackground
+
+      - id: CanvasNetTool-Imaging-ContactSheet-Arguments
+        title: >-
+          The ContactSheet class shall reject a null argument, a count below 1, columns outside 0 to 64, a cell
+          side below 16 pixels, negative spacing or padding, a background that is not opaque, an undefined fit
+          mode or filter, more images than cells, and use of the sheet after it was handed out.
+        justification: |
+          Each of these is a defect of the caller (the command validates user input first) and must fail fast and
+          clearly.
+        tests:
+          - ContactSheet_Constructor_InvalidArguments_Throw
+          - ContactSheet_Add_MoreImagesThanCells_Throws
+
+      - id: CanvasNetTool-Imaging-ContactSheet-Deterministic
+        title: >-
+          The ContactSheet class shall produce the same sheet pixels, labels included, when the same images and
+          labels are added with the same options twice.
+        justification: |
+          Results are compared, cached, and checked into source control; they must not change from run to run.
+        tests:
+          - ContactSheet_Detach_SameInputsTwice_ProduceIdenticalPixels

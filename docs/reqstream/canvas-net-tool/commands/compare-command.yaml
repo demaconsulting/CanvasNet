@@ -1,0 +1,215 @@
+---
+# cspell:ignore scad openscad psnr rmse ssim
+# Software Unit Requirements for the CompareCommand Class
+#
+# The CompareCommand class is the compare command: it loads two inputs like the render command, brings them to one
+# size, measures how much they differ (MAE, RMSE, PSNR, SSIM, the fraction of differing pixels, and the error of each
+# cell of a grid), optionally writes a difference image, a side-by-side image, and an overlay, checks the measures
+# against thresholds, and reports the result as text or as one JSON document. A threshold that is not met is an
+# expected error (exit code 1) raised after the result and the pictures were written.
+
+sections:
+  - title: CompareCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-CompareCommand-Options
+        title: >-
+          The compare command shall declare its options (page, dpi, the per-side options a-page, b-page,
+          a-dpi, b-dpi, a-view, b-view, a-define, and b-define, background, no-auto-orient, strict, the model
+          options view, azimuth, elevation, projection, define, time, default-color, and max-triangles,
+          resize-to, fit, filter, tolerance, grid, threshold, diff, diff-style, gain, side-by-side, overlay,
+          overlay-weight, quality, and no-clobber) in one table that also drives the help, reusing the
+          declarations of the render command for the options both share, and shall be registered under the
+          name compare.
+        justification: |
+          Declaring the options once keeps the help from drifting from what the command accepts, and reusing
+          the declarations of the render command gives the options the two commands share the same grammar and
+          the same help text.
+        tests:
+          - CompareCommand_Metadata_DeclaresNameSummaryUsageAndOptions
+
+      - id: CanvasNetTool-Commands-CompareCommand-Sources
+        title: >-
+          The compare command shall load each of its two inputs with the source loader like the input of the
+          render command, shall apply the options shared by both inputs (page, dpi, the model options) only to
+          an input they concern, shall let a per-side option (a-page, b-page, a-dpi, b-dpi, a-view, b-view,
+          a-define, b-define) win over the shared value (a per-side variable winning over a shared variable of
+          the same name), shall report a per-side option given for an input of the wrong kind, a shared model
+          option when neither input is a model, and a page that does not exist (naming the side) as errors
+          before any pixel is decoded, shall flatten both inputs over an opaque background (white by default)
+          and reject a background that is not opaque, and shall report the notes of the loader with the side
+          they belong to, or fail with unsupported-feature when strict is given.
+        justification: |
+          An agent compares a redraw with a reference of another kind (a raster, a drawing, a page of a
+          document, a model); the options must reach the right input, a mistake that would otherwise be
+          ignored must be reported, and a comparison defined on opaque RGB needs both inputs over the same
+          background.
+        tests:
+          - CompareCommand_Run_PerSidePages_CompareDifferentPagesOfDocuments
+          - CompareCommand_Run_DocumentsInText_NamePages
+          - CompareCommand_Run_PerSideOptionsOnWrongKind_ThrowUsageError
+          - CompareCommand_Run_ScadSharedOptions_ApplyToModelSideOnly
+          - CompareCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError
+          - CompareCommand_Run_PerSideDefines_OverrideSharedDefines
+          - CompareCommand_Run_PageOutOfRange_NamesTheSide
+          - CompareCommand_Run_Background_FlattensTransparencyBothSides
+          - CompareCommand_Run_TransparentBackground_ThrowsUsageError
+          - CompareCommand_Run_Strict_UnsupportedFeature_Fails
+
+      - id: CanvasNetTool-Commands-CompareCommand-Sizing
+        title: >-
+          The compare command shall fail with the error code size-mismatch and a hint to use resize-to when
+          the two inputs differ in size and no target size was chosen; with resize-to a (or b) shall load the
+          other input into the size of that input, and with resize-to WxH (each side at most 8192) shall load
+          both into that size; shall render a vector input (SVG, a document page, a model) at the target size
+          instead of resampling it, and fit a raster input into it, keeping the aspect ratio over the
+          background (fit contain, the default) or filling it (fit stretch); and shall report in the result
+          what was done to each input.
+        justification: |
+          Silent resampling would hide a mismatch of aspect ratio, so a mismatch is an error with a one-step
+          cure; rendering a vector input at the reference size compares sharp pixels with sharp pixels, which
+          is what an agent redrawing a reference needs.
+        tests:
+          - CompareCommand_Run_DifferentSizesWithoutResize_ThrowsSizeMismatchWithHint
+          - CompareCommand_Run_ResizeToA_FitsRasterBToA
+          - CompareCommand_Run_ResizeToB_FitsAToB
+          - CompareCommand_Run_ResizeToExplicitSize_FitsBoth
+          - CompareCommand_Run_ResizeToTooLarge_ThrowsSizeLimit
+          - CompareCommand_Run_InvalidResizeToOrFit_ThrowsUsageError
+          - CompareCommand_Run_FitContainVsStretch_DifferInLetterboxing
+          - CompareCommand_Run_VectorAgainstItsRaster_RendersVectorNativelyAndIsIdentical
+
+      - id: CanvasNetTool-Commands-CompareCommand-Metrics
+        title: >-
+          The compare command shall report the mean absolute error, the root mean square error, the peak
+          signal-to-noise ratio (infinite, null in JSON, for identical inputs), the structural similarity,
+          the largest channel difference, and the number and fraction of pixels whose channel difference is
+          above the tolerance (0 to 255, default 8), in text with fixed formats and in JSON rounded to four
+          decimals (the error measures) or six (the normalized error, the similarity, and the fractions), and
+          shall report identical inputs as identical, without a grid, in one line.
+        justification: |
+          Agents decide from numbers; fixed formats and fixed rounding make the numbers comparable between runs,
+          and a tolerance separates visible differences from the noise of resampling.
+        tests:
+          - CompareCommand_Run_IdenticalImages_ReportsIdentical
+          - CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText
+          - CompareCommand_Run_Json_WritesDocumentWithMetricsGridWorstCellsAndThresholds
+          - CompareCommand_Run_JsonIdenticalImages_PsnrIsNull
+          - CompareCommand_Run_Tolerance_ChangesDiffPixelRatioOnly
+
+      - id: CanvasNetTool-Commands-CompareCommand-Grid
+        title: >-
+          The compare command shall report the error of each cell of a grid of columns by rows (written
+          CxR, each 1 to 64 and at most the size of the image, default 4x4), in text as a table of the RMSE of
+          each cell and in JSON as the cells with their position, size, and error plus the three worst
+          cells, and shall reject a grid that is malformed, out of range, or larger than the image as a usage
+          error.
+        justification: |
+          A single number says that two images differ, but not where; the grid tells an agent which part of
+          the image to fix.
+        tests:
+          - CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText
+          - CompareCommand_Run_Json_WritesDocumentWithMetricsGridWorstCellsAndThresholds
+          - CompareCommand_Run_GridOption_ReportsRequestedCells
+          - CompareCommand_Run_InvalidGrid_ThrowsUsageError
+
+      - id: CanvasNetTool-Commands-CompareCommand-Outputs
+        title: >-
+          The compare command shall write, when asked, a difference image (diff, drawn as a heat map or per
+          channel with diff-style, amplified by gain 0.1 to 255, default 4), a side-by-side image of the first
+          input, the second input, and the heat map, and an overlay that blends the two inputs (overlay-weight
+          0 to 1, default 0.5), each in the format of its file extension at the quality given, shall list them
+          in the result in the order diff, side-by-side, overlay, and shall reject a value that is out of
+          range as a usage error.
+        justification: |
+          The metrics say how much the images differ; the pictures let an agent or a person see it.
+        tests:
+          - CompareCommand_Run_DiffOutput_WritesHeatmapOfDifferences
+          - CompareCommand_Run_DiffStyleAbsAndGain_ChangePixels
+          - CompareCommand_Run_SideBySide_WritesThreePanels
+          - CompareCommand_Run_Overlay_WritesBlendAndWeightChangesIt
+          - CompareCommand_Run_AllOutputs_WrittenTogetherAndListedInJson
+          - CompareCommand_Run_OutputFormatFromExtension_WritesDecodableFile
+          - CompareCommand_Run_InvalidOptionValues_ThrowUsageError
+
+      - id: CanvasNetTool-Commands-CompareCommand-Thresholds
+        title: >-
+          The compare command shall check each threshold given as metric=value (mae, rmse, max-diff,
+          diff-ratio, and cell-rmse at most the limit; psnr and ssim at least the limit; each limit within
+          the range of its metric; repeatable, each metric once) against the unrounded measure, shall report
+          every check in the result, and when a check fails shall first write every requested picture and the
+          result and then fail with the expected error threshold-failed (which makes the exit code 1) naming
+          each failed check; with the JSON option the command shall write no success document and the failure
+          document shall carry the result fields after the error object.
+        justification: |
+          An agent loops until a redraw is close enough; one run that gates on a threshold yet still returns
+          the metrics, the pictures, and a stable error code gives it everything to decide the next step
+          without a second invocation and without a new exit code.
+        tests:
+          - CompareCommand_Run_ThresholdMet_Succeeds
+          - CompareCommand_Run_ThresholdNotMet_WritesResultThenThrowsThresholdFailed
+          - CompareCommand_Run_ThresholdNotMetWithJson_ThrowsWithResultFieldsAndNoSuccessDocument
+          - CompareCommand_Run_Thresholds_EachMetricDirection
+          - CompareCommand_Run_InvalidThreshold_ThrowsUsageError
+          - CompareCommand_Run_DuplicateThreshold_ThrowsUsageError
+
+      - id: CanvasNetTool-Commands-CompareCommand-Result
+        title: >-
+          The compare command shall report the result as text (a summary line or identical, the table of the
+          grid, a line for each picture, and a line for each threshold) or, with the JSON option, as one
+          document with the tool, both inputs (with the page and page count of a document, the loaded and the
+          compared size, and the operations applied), the size, the resize that was chosen, the options, the
+          metrics, the grid, the worst cells, the thresholds, the outputs, the diagnostics, and the echoed
+          text, in a fixed order.
+        justification: |
+          A person needs a readable summary, and an agent needs a stable structure that says what was
+          compared and how, so that a result can be reproduced.
+        tests:
+          - CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText
+          - CompareCommand_Run_Json_WritesDocumentWithMetricsGridWorstCellsAndThresholds
+          - CompareCommand_Run_ResizeToA_FitsRasterBToA
+          - CompareCommand_Run_AllOutputs_WrittenTogetherAndListedInJson
+          - CompareCommand_Run_DocumentsInText_NamePages
+
+      - id: CanvasNetTool-Commands-CompareCommand-Overwrite
+        title: >-
+          The compare command shall refuse a picture that would be written over either input or over another
+          picture, report a problem with any output path before any input is decoded, overwrite an existing
+          picture by default and refuse it when no-clobber is given, and encode every picture to a temporary
+          file before moving any into place, and publish them all or nothing, so that a failure leaves
+          no new or partial output and every existing output untouched or restored.
+        justification: |
+          Agents iterate on picture files but must never lose an input or a file they asked to keep, and a
+          failure part way must not leave some pictures of a comparison and not others.
+        tests:
+          - CompareCommand_Run_OutputIsInputA_ThrowsSameInputOutputAndWritesNothing
+          - CompareCommand_Run_OutputIsInputB_ThrowsSameInputOutputAndWritesNothing
+          - CompareCommand_Run_TwoOutputsSameFile_ThrowsUsageError
+          - CompareCommand_Run_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile
+          - CompareCommand_Run_ExistingOutput_IsOverwritten
+          - CompareCommand_Run_SecondOutputPathInvalid_LeavesNoFirstOutput
+
+      - id: CanvasNetTool-Commands-CompareCommand-Errors
+        title: >-
+          The compare command shall report a missing, corrupt, or unsupported input as an expected error and
+          write no picture, shall report a number of inputs other than two, an unknown option, or a value that
+          is malformed or out of range as a usage error, and shall reject null arguments.
+        justification: |
+          Mistakes must produce stable, actionable errors, and a failed comparison must not leave a partial
+          output.
+        tests:
+          - CompareCommand_Run_WrongNumberOfInputs_ThrowsUsageError
+          - CompareCommand_Run_MissingInput_ThrowsInputNotFound
+          - CompareCommand_Run_CorruptSecondInput_ThrowsCorruptInputAndWritesNothing
+          - CompareCommand_Run_InvalidOptionValues_ThrowUsageError
+          - CompareCommand_Run_DifferentSizesWithoutResize_ThrowsSizeMismatchWithHint
+          - CompareCommand_Run_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-CompareCommand-Determinism
+        title: >-
+          The compare command shall write the same text, the same JSON, and the same picture bytes when the
+          same inputs are compared twice with the same options.
+        justification: |
+          The metrics are computed in exact integers and the pictures with integer arithmetic, so a
+          repeated comparison must be reproducible; scripts can then detect a real change.
+        tests:
+          - CompareCommand_Run_SameInputsTwice_WriteIdenticalJsonAndBytes

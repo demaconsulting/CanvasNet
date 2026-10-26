@@ -24,6 +24,10 @@ N/A - standard test environment. The Windows-specific absolute-path case runs on
 **..._DotDotPrefixedName_CombinesCorrectly**: valid relative paths (plain, nested, `./`, empty, and a name that
 only begins with two dots) are combined unchanged.
 
+**PathHelpers_SafePathCombine_DotDotThatStaysUnderBase_CombinesCorrectly**: a relative path with a double-dot
+segment that stays under the base directory (`a/../b`) is allowed and combined unchanged, demonstrating that the
+rule rejects escape, not the mere presence of `..`.
+
 **PathHelpers_SafePathCombine_PathTraversalWithDoubleDots_ThrowsArgumentException** and
 **..._DoubleDotsInMiddle_ThrowsArgumentException**: paths that climb out of the base directory throw
 `ArgumentException` ("Invalid path component").

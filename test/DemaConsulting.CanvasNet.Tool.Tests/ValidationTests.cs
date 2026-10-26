@@ -92,6 +92,39 @@ public class ValidationTests
     }
 
     /// <summary>
+    ///     Test that Run executes the compare and montage self-tests and records them in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_CompareMontageSelfTests_PassAndAreRecorded()
+    {
+        // Arrange: a temporary TRX path and a context that is not silent
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+
+        try
+        {
+            using var context = Context.Create(["--results", resultsFile]);
+
+            // Act: run the self-validation
+            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+            // Assert: each self-test passed and is named in the results file, and thirteen self-tests ran in all
+            Assert.Equal(0, context.ExitCode);
+            var content = File.ReadAllText(resultsFile);
+            foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
+            {
+                Assert.Contains($"✓ {name} - Passed", stdOut);
+                Assert.Contains(name, content);
+            }
+
+            Assert.Contains("Total Tests: 13", stdOut);
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
+    }
+
+    /// <summary>
     ///     Test that Run succeeds with exit code zero.
     /// </summary>
     [Fact]

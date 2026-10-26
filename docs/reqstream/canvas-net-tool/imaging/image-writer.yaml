@@ -66,6 +66,24 @@ sections:
           - ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed
           - ImageWriter_Write_LongFileName_IsWritten
 
+      - id: CanvasNetTool-Imaging-ImageWriter-PublishAll
+        title: >-
+          The ImageWriter class shall publish several staged outputs all or nothing: an existing target
+          is first renamed to a unique backup in its directory and the temporary file is moved into
+          place, and when any step fails every touched target, including the one whose step failed,
+          is rolled back (a published new file is removed and every backup is restored),
+          the temporary files are deleted, and the original error is reported; on success the backups
+          are deleted.
+        justification: |
+          A command that writes several outputs (every page, every comparison picture) must not leave
+          a mix of new and old files when one move fails. Only a failure to restore a backup itself can
+          leave a previous file under its backup name, which is reported.
+        tests:
+          - ImageWriter_PublishAll_FailureOnStep_RestoresEverything
+          - ImageWriter_PublishAll_FailureAfterNameIsOccupied_ReplacesOccupantWithBackup
+          - ImageWriter_PublishAll_SameTargetTwiceAndFailure_RestoresOriginal
+          - ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups
+
       - id: CanvasNetTool-Imaging-ImageWriter-Overwrite
         title: >-
           The ImageWriter class shall overwrite an existing output by default, and shall refuse it with
@@ -98,6 +116,23 @@ sections:
           - ImageWriter_CheckTarget_LinkedDirectory_IsSameFile
           - ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile
           - ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed
+
+      - id: CanvasNetTool-Imaging-ImageWriter-MultipleTargets
+        title: >-
+          The ImageWriter class shall check every output of a command against every input in one step,
+          without writing anything, refusing an output that is any one of the inputs
+          (same-input-output), two outputs that are the same file (usage-error), an existing output when
+          no-clobber is requested (output-exists), and an output that is a directory or not a usable
+          path (output-write-failed).
+        justification: |
+          A command with several inputs and outputs (a comparison writing three images, a contact sheet
+          of many files) must report every mistake in its targets before it loads or writes anything,
+          and must never write one output over another or over any of its inputs.
+        tests:
+          - ImageWriter_CheckTargets_OutputIsAnyInput_ThrowsSameInputOutput
+          - ImageWriter_CheckTargets_TwoOutputsSameFile_ThrowsUsageError
+          - ImageWriter_CheckTargets_DistinctPaths_Passes
+          - ImageWriter_CheckTargets_NoClobberAndExistingOutput_ThrowsOutputExists
 
       - id: CanvasNetTool-Imaging-ImageWriter-Deterministic
         title: >-

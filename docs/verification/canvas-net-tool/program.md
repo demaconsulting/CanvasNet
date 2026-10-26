@@ -104,3 +104,7 @@ exit code 1.
 
 **Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows**: with `--json`, an unexpected exception
 still escapes, is reported on standard error, and no document is written.
+
+**Program_Execute_ThresholdFailedWithJson_WritesFailureDocumentWithResultFieldsAndReturnsOne**: a command that throws
+`threshold-failed` with `ResultFields` and `--json`: exit code 1, standard output is the single failure document with
+the error object followed by the result field, and standard error has the text report.

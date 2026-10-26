@@ -152,7 +152,18 @@ internal static class ImageWriter
         ArgumentNullException.ThrowIfNull(inputPath);
 
         CheckPathIsUsable(outputPath);
+        CheckNotInput(outputPath, inputPath);
+        CheckWritable(outputPath, noClobber);
+    }
 
+    /// <summary>
+    ///     Checks that an output is not the same file as an input.
+    /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="inputPath">The input path.</param>
+    /// <exception cref="ToolException">Thrown with code <c>same-input-output</c> when the paths name the same file.</exception>
+    private static void CheckNotInput(string outputPath, string inputPath)
+    {
         if (IsSameFile(outputPath, inputPath))
         {
             throw new ToolException(
@@ -160,7 +171,16 @@ internal static class ImageWriter
                 $"The output '{outputPath}' is the same file as the input.",
                 "Choose a different output path.");
         }
+    }
 
+    /// <summary>
+    ///     Checks that an output is not a directory and, with <paramref name="noClobber"/>, does not exist.
+    /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="noClobber"><see langword="true"/> to refuse an existing output.</param>
+    /// <exception cref="ToolException">Thrown with code <c>output-write-failed</c> or <c>output-exists</c>.</exception>
+    private static void CheckWritable(string outputPath, bool noClobber)
+    {
         if (Directory.Exists(outputPath))
         {
             throw new ToolException(ErrorCodes.OutputWriteFailed, $"The output '{outputPath}' is a directory, not a file.");
@@ -172,6 +192,51 @@ internal static class ImageWriter
                 ErrorCodes.OutputExists,
                 $"The output '{outputPath}' already exists.",
                 "Remove --no-clobber to overwrite it, or choose a different output path.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that every output of a command may be written, without writing anything.
+    /// </summary>
+    /// <param name="outputPaths">The output paths; none may be the same file as another or as any input.</param>
+    /// <param name="inputPaths">The input paths; no output may be the same file as any of them.</param>
+    /// <param name="noClobber"><see langword="true"/> to refuse an existing output.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument or an element of a list is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown for every failure of <see cref="CheckTarget"/> applied to each output and each input, and with code
+    ///     <c>usage-error</c> when two outputs name the same file.
+    /// </exception>
+    /// <remarks>
+    ///     A command with several inputs and outputs calls this once before it loads anything, so that every mistake in
+    ///     the targets is reported before any work is done. Outputs are checked in the order given, each against every
+    ///     input in the order given, then against the outputs before it.
+    /// </remarks>
+    public static void CheckTargets(IReadOnlyList<string> outputPaths, IReadOnlyList<string> inputPaths, bool noClobber)
+    {
+        ArgumentNullException.ThrowIfNull(outputPaths);
+        ArgumentNullException.ThrowIfNull(inputPaths);
+
+        for (var i = 0; i < outputPaths.Count; i++)
+        {
+            var output = outputPaths[i] ?? throw new ArgumentNullException(nameof(outputPaths));
+            CheckPathIsUsable(output);
+            foreach (var input in inputPaths)
+            {
+                CheckNotInput(output, input ?? throw new ArgumentNullException(nameof(inputPaths)));
+            }
+
+            CheckWritable(output, noClobber);
+
+            for (var earlier = 0; earlier < i; earlier++)
+            {
+                if (IsSameFile(output, outputPaths[earlier]))
+                {
+                    throw new ToolException(
+                        ErrorCodes.UsageError,
+                        $"The outputs '{outputPaths[earlier]}' and '{output}' are the same file.",
+                        "Give each output its own path.");
+                }
+            }
         }
     }
 
@@ -259,11 +324,9 @@ internal static class ImageWriter
     ///     <c>output-write-failed</c> when the temporary file or its directory cannot be created or written.
     /// </exception>
     /// <remarks>
-    ///     A command that writes several outputs stages every one of them first and commits them only when all were
-    ///     staged, so a failure while rendering or encoding leaves no new or partial output and every existing output
-    ///     untouched. The commits themselves are separate moves and are best-effort as a set: when one fails (for
-    ///     example a target is no longer writable), the targets committed before it stay in place, each
-    ///     complete, and the failure is reported.
+    ///     A command that writes several outputs stages every one of them first and publishes them with
+    ///     <see cref="PublishAll"/> only when all were staged, so a failure while rendering or encoding leaves no new or
+    ///     partial output and every existing output untouched, and a failure while publishing is rolled back.
     /// </remarks>
     public static StagedOutput Stage(Surface surface, string outputPath, string inputPathForGuard, WriteOptions options)
     {
@@ -324,23 +387,188 @@ internal static class ImageWriter
     }
 
     /// <summary>
+    ///     Publishes every staged output, all or nothing.
+    /// </summary>
+    /// <param name="outputs">The staged outputs, in the order they are published; every one is already encoded.</param>
+    /// <param name="beforeStep">
+    ///     A test seam called with the step and the index of an output just before an existing target is renamed to
+    ///     its backup (<see cref="PublishStep.Backup"/>, only when the target exists) and just before its temporary
+    ///     file is moved into place (<see cref="PublishStep.Move"/>); a failure it throws is handled like a failure
+    ///     of that step.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="outputs"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>output-exists</c> when a target appeared and no-clobber is set, and
+    ///     <c>output-write-failed</c> when a step fails.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///         For each target in order, an existing target is first renamed to a unique backup in the same
+    ///         directory (<c>.canvasnet-{guid}.bak</c>) and then the temporary file is moved into place. When any step
+    ///         fails, every target that was touched, including the one whose step failed, is rolled back: a published
+    ///         new file is deleted and a backup is restored over whatever now holds the name (a target that did not
+    ///         exist is left absent, and one whose backup rename failed has nothing to restore). Every restore is
+    ///         attempted even when another fails. The remaining temporary files are deleted and the original error
+    ///         is reported, so the set is published completely or not at all. On success the backups are deleted;
+    ///         failing to delete one is ignored.
+    ///     </para>
+    ///     <para>
+    ///         The one residual case is a failure to restore a backup: the error then also names the backup file, which
+    ///         still holds the previous content of that target.
+    ///     </para>
+    /// </remarks>
+    internal static void PublishAll(IReadOnlyList<StagedOutput> outputs, Action<PublishStep, int>? beforeStep = null)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+
+        // Per target: the backup of its previous file (set only once the rename succeeded), and whether its temporary
+        // file reached the target. A target is touched from the moment its step starts, so the one that fails is
+        // rolled back too.
+        var backups = new string?[outputs.Count];
+        var published = new bool[outputs.Count];
+        var touched = 0;
+        ToolException? failure = null;
+        for (var index = 0; index < outputs.Count && failure == null; index++)
+        {
+            touched = index + 1;
+            var output = outputs[index];
+            try
+            {
+                if (File.Exists(output.FullPath))
+                {
+                    if (output.NoClobber)
+                    {
+                        throw new ToolException(
+                            ErrorCodes.OutputExists,
+                            $"The output '{output.OutputPath}' already exists.",
+                            "Remove --no-clobber to overwrite it, or choose a different output path.");
+                    }
+
+                    var backup = Path.Combine(Path.GetDirectoryName(output.FullPath)!, $".canvasnet-{Guid.NewGuid():N}.bak");
+                    beforeStep?.Invoke(PublishStep.Backup, index);
+                    File.Move(output.FullPath, backup);
+                    backups[index] = backup;
+                }
+
+                beforeStep?.Invoke(PublishStep.Move, index);
+                File.Move(output.Temporary, output.FullPath, overwrite: false);
+                published[index] = true;
+            }
+            catch (ToolException ex)
+            {
+                failure = ex;
+            }
+            catch (IOException) when (output.NoClobber && File.Exists(output.FullPath))
+            {
+                // Another process created the target between the check and the move
+                failure = new ToolException(
+                    ErrorCodes.OutputExists,
+                    $"The output '{output.OutputPath}' already exists.",
+                    "Remove --no-clobber to overwrite it, or choose a different output path.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                failure = new ToolException(
+                    ErrorCodes.OutputWriteFailed,
+                    $"The output '{output.OutputPath}' cannot be written: {ex.Message}",
+                    null,
+                    ex);
+            }
+        }
+
+        if (failure == null)
+        {
+            foreach (var output in outputs)
+            {
+                output.MarkCommitted();
+            }
+
+            foreach (var backup in backups.OfType<string>())
+            {
+                TryDelete(backup);
+            }
+
+            return;
+        }
+
+        // Roll back: undo what was published, put every previous file back, and remove what is left of the temporaries
+        // (in reverse, so a target listed twice unwinds correctly); every restore is attempted even when one fails
+        var notRestored = new List<string>();
+        for (var i = touched - 1; i >= 0; i--)
+        {
+            var backup = backups[i];
+            try
+            {
+                if (published[i])
+                {
+                    File.Delete(outputs[i].FullPath);
+                }
+
+                if (backup != null)
+                {
+                    // Replaces whatever now occupies the name, such as a partial file
+                    File.Move(backup, outputs[i].FullPath, overwrite: true);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                notRestored.Add(backup != null
+                    ? $"'{outputs[i].OutputPath}' (its previous content is kept in '{backup}')"
+                    : $"'{outputs[i].OutputPath}' (the new file could not be removed)");
+            }
+        }
+
+        foreach (var output in outputs)
+        {
+            output.Dispose();
+        }
+
+        if (notRestored.Count == 0)
+        {
+            throw failure;
+        }
+
+        throw new ToolException(
+            failure.Code,
+            $"{failure.Message} Rolling back also failed for {string.Join(", ", notRestored)}.",
+            failure.Hint,
+            failure);
+    }
+
+    /// <summary>
+    ///     The steps of publishing one output that the test seam of <see cref="PublishAll"/> can fail.
+    /// </summary>
+    internal enum PublishStep
+    {
+        /// <summary>Renaming an existing target to its backup.</summary>
+        Backup,
+
+        /// <summary>Moving the temporary file into place.</summary>
+        Move,
+    }
+
+    /// <summary>
+    ///     Deletes a file, ignoring failure.
+    /// </summary>
+    /// <param name="path">The file.</param>
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A leftover backup must not fail a command whose outputs were all published
+        }
+    }
+
+    /// <summary>
     ///     An output that has been encoded to a temporary file but not yet moved into place.
     /// </summary>
     internal sealed class StagedOutput : IDisposable
     {
-        /// <summary>The temporary file.</summary>
-        private readonly string _temporary;
-
-        /// <summary>The full path of the target.</summary>
-        private readonly string _fullPath;
-
-        /// <summary>The target path as it was given.</summary>
-        private readonly string _outputPath;
-
-        /// <summary>Whether an existing target is refused.</summary>
-        private readonly bool _noClobber;
-
-        /// <summary>Whether the temporary file has been moved into place.</summary>
+        /// <summary>Whether the temporary file has been moved into place and kept there.</summary>
         private bool _committed;
 
         /// <summary>
@@ -352,11 +580,39 @@ internal static class ImageWriter
         /// <param name="noClobber"><see langword="true"/> to refuse an existing target.</param>
         internal StagedOutput(string temporary, string fullPath, string outputPath, bool noClobber)
         {
-            _temporary = temporary;
-            _fullPath = fullPath;
-            _outputPath = outputPath;
-            _noClobber = noClobber;
+            Temporary = temporary;
+            FullPath = fullPath;
+            OutputPath = outputPath;
+            NoClobber = noClobber;
             Result = null!;
+        }
+
+        /// <summary>
+        ///     Gets the temporary file.
+        /// </summary>
+        internal string Temporary { get; }
+
+        /// <summary>
+        ///     Gets the full path of the target.
+        /// </summary>
+        internal string FullPath { get; }
+
+        /// <summary>
+        ///     Gets the target path as it was given.
+        /// </summary>
+        internal string OutputPath { get; }
+
+        /// <summary>
+        ///     Gets a value indicating whether an existing target is refused.
+        /// </summary>
+        internal bool NoClobber { get; }
+
+        /// <summary>
+        ///     Records that the output was published and must be kept.
+        /// </summary>
+        internal void MarkCommitted()
+        {
+            _committed = true;
         }
 
         /// <summary>
@@ -365,37 +621,14 @@ internal static class ImageWriter
         public WriteResult Result { get; internal set; }
 
         /// <summary>
-        ///     Moves the temporary file over the target.
+        ///     Publishes this output alone; see <see cref="PublishAll"/>.
         /// </summary>
         /// <returns>What was written.</returns>
-        /// <exception cref="ToolException">
-        ///     Thrown with code <c>output-exists</c> when the target appeared and no-clobber is set, and
-        ///     <c>output-write-failed</c> when the move fails.
-        /// </exception>
+        /// <exception cref="ToolException">Thrown as <see cref="PublishAll"/> does.</exception>
         public WriteResult Commit()
         {
-            try
-            {
-                File.Move(_temporary, _fullPath, overwrite: !_noClobber);
-                _committed = true;
-                return Result;
-            }
-            catch (IOException) when (_noClobber && File.Exists(_fullPath))
-            {
-                // Another process created the target between the check and the move
-                throw new ToolException(
-                    ErrorCodes.OutputExists,
-                    $"The output '{_outputPath}' already exists.",
-                    "Remove --no-clobber to overwrite it, or choose a different output path.");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-            {
-                throw new ToolException(
-                    ErrorCodes.OutputWriteFailed,
-                    $"The output '{_outputPath}' cannot be written: {ex.Message}",
-                    null,
-                    ex);
-            }
+            PublishAll([this]);
+            return Result;
         }
 
         /// <summary>
@@ -411,7 +644,7 @@ internal static class ImageWriter
             // Nothing is left behind when the encode or the move failed
             try
             {
-                File.Delete(_temporary);
+                File.Delete(Temporary);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

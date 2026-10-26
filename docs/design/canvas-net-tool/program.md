@@ -20,13 +20,17 @@ on every access, falling back to `AssemblyVersion`, then `"0.0.0"`. No caching i
 **ToolException** (`internal sealed`, derives from `InvalidOperationException`): the expected, user-correctable
 failure. `Code` (`string`, one of the `ErrorCodes` constants), `Hint` (`string?`, a suggestion for correcting
 the failure), and `Command` (`string?`, mutable; the name of the command that was running, filled in by the
-command registry when it is empty). `ToolException` derives from `InvalidOperationException` so that it
-follows the template's expected-failure path with no extra handling.
+command registry when it is empty), and `ResultFields` (`Action<Utf8JsonWriter>?`, init-only; optional top-level JSON
+properties that `ResultWriter` appends after the `error` object of the JSON failure document, for a failure that
+still produced a result, such as a comparison that missed a threshold). `ToolException` derives from
+`InvalidOperationException` so that it follows the template's expected-failure path with no extra handling.
 
 **ErrorCodes** (`internal static`): the stable error code constants: `usage-error`, `operation-failed`,
 `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`,
 `page-out-of-range`, `size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`,
-and `budget-exceeded`. A value is never changed once released; new values may be added.
+`budget-exceeded`, `size-mismatch` (two images to compare differ in size and no size normalization was requested), and
+`threshold-failed` (a comparison completed but a requested threshold was not met). Both new codes exit with code 1 like
+every other failure. A value is never changed once released; new values may be added.
 
 ### Key Methods
 

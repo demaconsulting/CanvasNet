@@ -170,6 +170,22 @@ degrees, 4 mirrors top to bottom, 5 transposes, 6 turns clockwise, 7 transverses
 **SurfaceOperations.FlattenOver(surface, background)** composites a surface over a solid color into a new surface;
 **SurfaceOperations.HasTransparency(surface)** says whether any pixel is not opaque (used by `ImageWriter`).
 
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, and SCAD, the kinds that are rendered at the
+size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options that load a
+source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and `Scale`
+cleared, so the source is rendered sharply at the box (a document page is fitted inside it and centered over the
+background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
+unchanged, because the caller fits the decoded pixels with `SurfaceOperations.FitInto`. The loader keeps its own
+private fit and center helpers for documents; they use the same rounding rule as `SurfaceOperations.FitInside`.
+
+**SurfaceOperations.FitInside(width, height, boxWidth, boxHeight)** finds the largest size with the aspect ratio of an
+image that fits a box: the smaller of the two box ratios scales both sides (so a small image is enlarged), each side
+is rounded half away from zero and limited to 1 and the box. **SurfaceOperations.FitInto(source, boxWidth, boxHeight,
+mode, fill, filter)** returns a new surface of exactly the box: with `FitMode.Contain` the source is resampled to the
+`FitInside` size (an image that already has the box size is a plain copy) and centered on `fill` (the margin is
+`fill`; the image pixels are copied, not blended); with `FitMode.Stretch` the source is resampled to the box. The
+source is never modified or disposed.
+
 #### Error Handling
 
 `Read` maps these library exceptions (an explicit list, not a catch-all) to a `ToolException` with the file path in
@@ -214,3 +230,4 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
 - **RenderCommand** - probes, then loads, and reports the operations.
 - **DiscoveryCommands** - the `info` command probes.
 - **ImageWriter** - uses `SurfaceOperations` (flatten) for JPEG output.
+- **ContactSheet** and the comparison commands - use `BoxOptions` and `FitInto` to load images into one size.

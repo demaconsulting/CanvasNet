@@ -1,0 +1,137 @@
+---
+# cspell:ignore scad openscad
+# Software Unit Requirements for the MontageCommand Class
+#
+# The MontageCommand class is the montage command: it composes images, and the pages of documents, into one contact
+# sheet with a cell for each, fitted into cells of one size and optionally labeled with the file name, and reports the
+# sheet as one text line or one JSON document.
+
+sections:
+  - title: MontageCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-MontageCommand-Options
+        title: >-
+          The montage command shall declare its options (output, columns, cell, fit, spacing, padding,
+          background, labels, page, all-pages, dpi, no-auto-orient, strict, the model options view, azimuth,
+          elevation, projection, define, time, default-color, and max-triangles, filter, quality, and
+          no-clobber) in one table that also drives the help, reusing the declarations of the render command
+          for the options both share, and shall be registered under the name montage.
+        justification: |
+          Declaring the options once keeps the help from drifting from what the command accepts, and reusing
+          the declarations of the render command gives the shared options the same grammar everywhere.
+        tests:
+          - MontageCommand_Metadata_DeclaresNameSummaryUsageAndOptions
+
+      - id: CanvasNetTool-Commands-MontageCommand-Inputs
+        title: >-
+          The montage command shall add one cell for each input in the order given, with the page chosen by
+          the page option (the first by default) for a document or every page in order with the all-pages
+          option, shall skip the page, dpi, and model options for an input they do not concern, shall report
+          a model option when no input is a model, both page options together, and a page beyond the end of
+          a document (naming the file) as errors before any pixel is decoded, and shall accept images,
+          drawings, documents, and models together.
+        justification: |
+          A contact sheet is how an agent or a person looks at many things at once; one run over a mixed set
+          of inputs, with the pages of a deck expanded in place, spares a loop and a second tool.
+        tests:
+          - MontageCommand_Run_TwoImages_WritesSheetWithBothCellsAndOneLine
+          - MontageCommand_Run_AllPages_AddsEveryPageInOrderAfterPrecedingInputs
+          - MontageCommand_Run_PageOption_UsesThatPageOfEachDocument
+          - MontageCommand_Run_PageAndAllPages_ThrowUsageError
+          - MontageCommand_Run_PageBeyondDocument_ThrowsPageOutOfRangeNamingTheFile
+          - MontageCommand_Run_PageForSingleImage_IsIgnored
+          - MontageCommand_Run_MixedKinds_PngSvgPdfPptxScad_EachCellDrawn
+          - MontageCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError
+          - MontageCommand_Run_Diagnostics_AreListedWithTheirInputAndPage
+
+      - id: CanvasNetTool-Commands-MontageCommand-Layout
+        title: >-
+          The montage command shall lay the cells out in row-major order with the number of columns (1 to 64,
+          default the ceiling of the square root of the number of cells), the cell size (default 256x256, each
+          side at least 16), the spacing between cells (default 8), the padding around the sheet (default 8),
+          and an opaque background color (default white), shall report a value that is out of range and a
+          background that is not opaque as a usage error, and shall refuse a sheet larger than 8192 pixels on a
+          side with the error code size-limit before it loads any input (when each input is a cell; with
+          all-pages, after the page counts have been read from the file headers).
+        justification: |
+          The layout is the whole interface of a contact sheet, so it is exact and documented, and a sheet
+          that cannot be built is refused from the numbers alone before any time is spent decoding.
+        tests:
+          - MontageCommand_Run_ColumnsAndCell_SetGeometry
+          - MontageCommand_Run_SpacingPaddingBackground_ArePlaced
+          - MontageCommand_Run_SheetTooLarge_ThrowsSizeLimitBeforeLoading
+          - MontageCommand_Run_InvalidValues_ThrowUsageError
+
+      - id: CanvasNetTool-Commands-MontageCommand-Fit
+        title: >-
+          The montage command shall render a vector input (SVG, a document page, a model) at the size of the
+          cell, and shall fit a raster input into its cell, keeping its aspect ratio and centering it over the
+          background (fit contain, the default) or filling the cell (fit stretch).
+        justification: |
+          A contact sheet is a preview; a vector input drawn at the size it is shown is sharp, and a raster
+          input always fills the limiting side of its cell, so that every cell is as legible as it can be.
+        tests:
+          - MontageCommand_Run_FitContainAndStretch_PlaceCellContent
+          - MontageCommand_Run_VectorCell_IsRenderedNativelyAtCellSize
+
+      - id: CanvasNetTool-Commands-MontageCommand-Labels
+        title: >-
+          The montage command shall, when labels are requested, reserve a strip of 22 pixels below the image
+          of each cell and draw in it the file name of the input (followed by p and the page number for a page
+          of a document) in the bundled font, so that the labels do not depend on the fonts of the machine.
+        justification: |
+          A sheet without names is hard to read back; a label strip in a bundled font gives the same pixels on
+          every machine.
+        tests:
+          - MontageCommand_Run_Labels_DrawLabelStripsAndWithoutThemNone
+          - MontageCommand_Run_AllPagesWithLabels_LabelsNamePages
+
+      - id: CanvasNetTool-Commands-MontageCommand-Result
+        title: >-
+          The montage command shall report the result as one text line naming the sheet, its size, format, and
+          bytes, the number of images, and the number of columns, or, with the JSON option, as one document
+          with the tool, the sheet geometry, every cell (its index, column, row, position, input, format, page
+          and page count of a document, loaded size, and label when labels are drawn), the output, the
+          diagnostics, and the echoed text.
+        justification: |
+          A person needs a one-line confirmation, and an agent needs the geometry to find a cell on the sheet.
+        tests:
+          - MontageCommand_Run_TwoImages_WritesSheetWithBothCellsAndOneLine
+          - MontageCommand_Run_Json_ListsSheetCellsAndOutput
+
+      - id: CanvasNetTool-Commands-MontageCommand-Overwrite
+        title: >-
+          The montage command shall write the sheet in the format of the extension of the output at the
+          quality given, refuse an output that is any of the inputs, overwrite an existing output by default
+          and refuse it when no-clobber is given, report an output problem before any input is decoded, and
+          move the sheet into place only when it is complete.
+        justification: |
+          Agents iterate on a sheet but must never lose an input or a file they asked to keep, and a failure
+          must not leave a partial sheet.
+        tests:
+          - MontageCommand_Run_OutputIsAnInput_ThrowsSameInputOutput
+          - MontageCommand_Run_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile
+
+      - id: CanvasNetTool-Commands-MontageCommand-Errors
+        title: >-
+          The montage command shall report a missing, corrupt, or unsupported input as an expected error and
+          write no output, shall report a missing output, no input, an unknown option, or a value that is
+          malformed or out of range as a usage error, and shall reject null arguments.
+        justification: |
+          Mistakes must produce stable, actionable errors, and a failed montage must not leave a partial sheet.
+        tests:
+          - MontageCommand_Run_NoInputs_ThrowsUsageError
+          - MontageCommand_Run_MissingOutput_ThrowsUsageError
+          - MontageCommand_Run_CorruptInput_ThrowsCorruptInputAndWritesNothing
+          - MontageCommand_Run_MissingInput_ThrowsInputNotFound
+          - MontageCommand_Run_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-MontageCommand-Determinism
+        title: >-
+          The montage command shall write the same text, the same JSON, and the same sheet bytes when the same
+          inputs are composed twice with the same options.
+        justification: |
+          Reproducible output makes results comparable and lets scripts detect real change; the labels use the
+          bundled font, so the sheet does not depend on the machine's fonts.
+        tests:
+          - MontageCommand_Run_SameInputsTwice_WriteIdenticalBytes

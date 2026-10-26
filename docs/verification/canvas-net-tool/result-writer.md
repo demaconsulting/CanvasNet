@@ -36,6 +36,11 @@ exit-code field.
 **ResultWriter_Failure_FromException_MapsExceptionToCode**: a `ToolException` keeps its code and hint, an
 `ArgumentException` is `usage-error`, and another exception is `operation-failed`.
 
+**ResultWriter_Failure_ExceptionWithResultFields_AppendsFieldsAfterError** and
+**ResultWriter_Failure_ExceptionWithoutResultFields_IsUnchanged**: the fields carried by a `ToolException` (a number
+and a nested object) follow the `error` object, byte for byte, and the document parses with `ok` false; an exception
+without fields gives exactly the document of the plain four-argument failure.
+
 **ResultWriter_Success_GermanCulture_WritesInvariantNumbers**: under `de-DE` a fraction is written with a decimal
 point and an integer without a thousands separator.
 

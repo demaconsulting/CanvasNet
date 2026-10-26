@@ -905,6 +905,104 @@ public class SourceLoaderTests
     }
 
     /// <summary>
+    ///     Test that BoxOptions sets the box and clears the scale for every vector kind.
+    /// </summary>
+    /// <param name="key">The kind of vector source.</param>
+    [Theory]
+    [InlineData("svg")]
+    [InlineData("pdf")]
+    [InlineData("pptx")]
+    [InlineData("vsdx")]
+    [InlineData("scad")]
+    public void SourceLoader_BoxOptions_VectorKinds_SetBoxAndClearScale(string key)
+    {
+        // Arrange: a source of a vector kind, and options with a scale and other settings
+        using var directory = new TempDirectory();
+        var info = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, key));
+        var options = new SourceOptions { Page = 1, Dpi = 150, Scale = 2, Strict = true };
+
+        // Act
+        var boxed = SourceLoader.BoxOptions(info, options, 100, 80);
+
+        // Assert: the box replaces the sizing options and everything else is kept
+        Assert.True(info.Format.IsVector());
+        Assert.Equal(100, boxed.Width);
+        Assert.Equal(80, boxed.Height);
+        Assert.Null(boxed.Scale);
+        Assert.Equal(options with { Width = 100, Height = 80, Scale = null }, boxed);
+    }
+
+    /// <summary>
+    ///     Test that BoxOptions leaves the options of a raster kind unchanged.
+    /// </summary>
+    /// <param name="key">The kind of raster source.</param>
+    [Theory]
+    [InlineData("png")]
+    [InlineData("jpeg")]
+    [InlineData("bmp")]
+    [InlineData("tiff")]
+    [InlineData("gif")]
+    [InlineData("jpeg2000")]
+    public void SourceLoader_BoxOptions_RasterKinds_AreUnchanged(string key)
+    {
+        // Arrange: a source of a raster kind
+        using var directory = new TempDirectory();
+        var info = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, key));
+        var options = new SourceOptions { Scale = 2 };
+
+        // Act
+        var boxed = SourceLoader.BoxOptions(info, options, 100, 80);
+
+        // Assert: the very same options
+        Assert.False(info.Format.IsVector());
+        Assert.Same(options, boxed);
+    }
+
+    /// <summary>
+    ///     Test that a vector source loaded with the box options is rendered natively at the box: an SVG at the exact
+    ///     box, and a document page fitted inside it and centered on the background.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VectorWithBox_RendersNativelyAtBox()
+    {
+        // Arrange: an SVG, and a presentation whose 480x360 slide does not fill a square box
+        using var directory = new TempDirectory();
+        var svg = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "svg"));
+        var pptx = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "pptx"));
+        var background = new Rgba32(10, 20, 30, 255);
+        var options = new SourceOptions { Background = background };
+
+        // Act: load both into a 300x300 box
+        using var fromSvg = SourceLoader.Load(svg, SourceLoader.BoxOptions(svg, options, 300, 300));
+        using var fromPptx = SourceLoader.Load(pptx, SourceLoader.BoxOptions(pptx, options, 300, 300));
+
+        // Assert: both are exactly the box; the slide is 300x225 centered (letterbox bands of 37 pixels top and bottom)
+        Assert.Equal((300, 300), (fromSvg.Surface.Width, fromSvg.Surface.Height));
+        Assert.Equal((300, 300), (fromPptx.Surface.Width, fromPptx.Surface.Height));
+        Assert.Equal(background, fromPptx.Surface[0, 0]);
+        Assert.Equal(background, fromPptx.Surface[299, 299]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), fromPptx.Surface[50, 150]);
+        Assert.Equal(background, fromPptx.Surface[250, 150]);
+        Assert.Equal(background, fromPptx.Surface[50, 34]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), fromPptx.Surface[50, 40]);
+    }
+
+    /// <summary>
+    ///     Test that BoxOptions rejects null arguments.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException()
+    {
+        // Arrange: facts of a real source
+        using var directory = new TempDirectory();
+        var info = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "png"));
+
+        // Act / Assert: each null argument throws
+        Assert.Throws<ArgumentNullException>(() => SourceLoader.BoxOptions(null!, new SourceOptions(), 10, 10));
+        Assert.Throws<ArgumentNullException>(() => SourceLoader.BoxOptions(info, null!, 10, 10));
+    }
+
+    /// <summary>
     ///     Test that the color formatting is <c>#RRGGBB</c> for an opaque color and <c>#RRGGBBAA</c> otherwise.
     /// </summary>
     [Fact]

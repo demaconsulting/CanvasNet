@@ -34,6 +34,10 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_WithSilentContext_ExitCodeIsZero**: a silent run leaves exit code 0.
 
+**Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
+(`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
+reported as passed, are named in the TRX file, and the run reports thirteen tests in all.
+
 **Validation_Run_NullContext_ThrowsArgumentNullException**: a null context throws.
 
 **Validation_Run_WithDepth_UsesHeadingDepth**: with `--depth 3` the report heading has three hashes.

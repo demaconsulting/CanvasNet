@@ -69,6 +69,9 @@ internal sealed class CommandRegistry
             registry.Register(new RenderCommand(verb));
         }
 
+        registry.Register(new CompareCommand());
+        registry.Register(new MontageCommand());
+
         return registry;
     }
 

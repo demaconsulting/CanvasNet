@@ -1,0 +1,165 @@
+---
+# cspell:ignore psnr rmse ssim luma
+# Software Unit Requirements for the ImageComparison Class
+#
+# The ImageComparison class compares two images of the same size and creates pictures of how they differ. It
+# computes exact, deterministic metrics on opaque RGB (mean absolute error, root mean square error, peak
+# signal-to-noise ratio, the fraction of pixels that differ by more than a tolerance, the largest channel
+# difference, and a windowed structural similarity of the luma), a per-cell grid of the error, and the check of
+# those measures against thresholds; and it creates a difference image, an overlay, and a side-by-side image.
+# It works on surfaces only: it knows nothing of files, options, or commands.
+
+sections:
+  - title: ImageComparison Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-ImageComparison-ErrorMetrics
+        title: >-
+          The ImageComparison class shall compare two images of the same size on opaque RGB, ignoring
+          alpha, and report the mean absolute error (the sum of the channel differences over three times
+          the pixel count), the root mean square error, the peak signal-to-noise ratio (20 log10 of
+          255 over the RMSE, absent when the images are identical), the largest channel difference, and
+          whether the images are identical.
+        justification: |
+          An agent that redraws an image needs numbers that say how far the result is from the reference,
+          and that do not change with the way they were computed: the sums are exact integers and only the
+          final division, square root, and logarithm use floating point.
+        tests:
+          - ImageComparison_Compare_IdenticalImages_ReportsZeroErrorIdenticalAndInfinitePsnr
+          - ImageComparison_Compare_KnownDifference_ComputesMaeRmseAndPsnr
+          - ImageComparison_Compare_SingleChannelDifference_AveragesOverThreeChannels
+          - ImageComparison_Compare_MaxChannelDifference_IsLargestChannelDelta
+          - ImageComparison_Compare_AlphaChannel_IsIgnored
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Ssim
+        title: >-
+          The ImageComparison class shall compute the structural similarity of the integer luma
+          (77 R + 150 G + 29 B + 128 shifted right by 8) as the mean of uniform windows of at most 8 by 8
+          pixels (origins every 4 pixels plus a final window flush with the right and bottom edges, a
+          single window for an image smaller than the window), using the standard formula with the
+          constants (0.01 * 255) squared and (0.03 * 255) squared computed from exact integer sums, so
+          that identical images have a similarity of exactly 1 and a difference confined to the last
+          column or row is still seen.
+        justification: |
+          Error metrics cannot tell a small shift of a sharp edge from noise; a structural measure can.
+          Covering every pixel with a window, and fixing the window layout, makes the number the same for
+          every caller and every run.
+        tests:
+          - ImageComparison_Ssim_IdenticalImages_IsOne
+          - ImageComparison_Ssim_ConstantBrightnessShift_MatchesClosedForm
+          - ImageComparison_Ssim_InvertedGradient_IsLow
+          - ImageComparison_Ssim_ImageSmallerThanWindow_UsesOneWindow
+          - ImageComparison_Ssim_DifferenceOnlyInLastColumnAndRow_IsDetectedByEdgeWindows
+
+      - id: CanvasNetTool-Imaging-ImageComparison-DiffPixels
+        title: >-
+          The ImageComparison class shall count the pixels whose largest channel difference is above a
+          tolerance (0 to 255), so that a difference equal to the tolerance is not counted and a
+          tolerance of 0 counts any change, and report the count and its fraction of all pixels.
+        justification: |
+          Anti-aliasing and compression move pixels by a few levels; a tolerance lets the fraction of
+          visibly different pixels be asked for without counting that noise, and the boundary must be
+          unambiguous.
+        tests:
+          - ImageComparison_Compare_Tolerance_CountsOnlyPixelsAboveTolerance
+          - ImageComparison_Compare_KnownDifference_ComputesMaeRmseAndPsnr
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Grid
+        title: >-
+          The ImageComparison class shall divide the image into a grid of columns by rows (1 to 64 each,
+          no larger than the image) whose cell boundaries are the integer divisions
+          floor(i * size / count) so that the cells partition the image exactly, report for each cell its
+          position, size, MAE, RMSE, and differing-pixel fraction (0-based column and row, row-major
+          order), and list the worst cells: those with an RMSE above zero, the largest first, ties in
+          row-major order.
+        justification: |
+          A single number does not say where an image is wrong; the cell errors point the agent at the
+          region to fix, and exact boundaries make the cells reproducible.
+        tests:
+          - ImageComparison_Grid_Boundaries_PartitionTheImageExactly
+          - ImageComparison_Grid_DifferenceInOneQuadrant_IsLocatedInThatCell
+          - ImageComparison_Grid_WorstCells_AreOrderedByRmseThenPosition
+
+      - id: CanvasNetTool-Imaging-ImageComparison-DiffImage
+        title: >-
+          The ImageComparison class shall create an opaque difference image of the size of the inputs in
+          which each pixel's amplified difference (the gain, 0.1 to 255, times the delta, rounded half
+          away from zero and clamped to 255) is drawn either through a hot ramp from black through red
+          and yellow to white (the heat style, driven by the largest channel difference, identical
+          pixels being pure black) or per channel (the absolute style).
+        justification: |
+          A picture of where and how much two images differ is the fastest way for an agent, or a person,
+          to see what to correct; amplification makes small differences visible, and integer arithmetic
+          keeps the picture reproducible.
+        tests:
+          - ImageComparison_CreateDiff_Heat_MapsDeltaThroughHotRamp
+          - ImageComparison_CreateDiff_HeatSmallDelta_IsDarkRed
+          - ImageComparison_CreateDiff_Abs_AmplifiesEachChannelAndClamps
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Overlay
+        title: >-
+          The ImageComparison class shall create an opaque overlay that blends the two images with the
+          weight of the second image (0 to 1) rounded to a byte and each channel computed in integer
+          arithmetic as (a * (255 - w) + b * w + 127) / 255, so that weight 0 is the first image and
+          weight 1 is the second image exactly.
+        justification: |
+          An onion-skin blend shows misalignment between a reference and a redraw that a side-by-side view
+          hides; an exact rule makes the picture predictable at the ends and reproducible.
+        tests:
+          - ImageComparison_CreateOverlay_Weight_BlendsWithIntegerRule
+
+      - id: CanvasNetTool-Imaging-ImageComparison-SideBySide
+        title: >-
+          The ImageComparison class shall create a side-by-side image of the first image, the second
+          image, and the difference image, left to right, separated by gaps of 8 pixels of gray (#808080)
+          and without labels, and when three panels and the gaps would be wider or higher than the
+          maximum image size shall first scale the panels down uniformly with the area filter so that the
+          sheet fits.
+        justification: |
+          One picture that holds both inputs and the difference is the most compact thing to show; the
+          fixed order and gaps make it readable without labels, and the size limit must not turn a valid
+          comparison into an error.
+        tests:
+          - ImageComparison_CreateSideBySide_PlacesPanelsInOrderSeparatedByGaps
+          - ImageComparison_CreateSideBySide_TooWide_ScalesPanelsToFitMaximum
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Thresholds
+        title: >-
+          The ImageComparison class shall check a comparison against thresholds named mae, rmse, psnr,
+          ssim, diff-ratio, max-diff, and cell-rmse (the largest cell RMSE), each with its documented
+          range, passing an error measure when it is at most the limit and psnr and ssim when they are at
+          least the limit (the PSNR of identical images being infinite), using the unrounded values and
+          returning one check per threshold in the order given.
+        justification: |
+          A script or an agent needs a pass or fail decision with the measured values behind it; the
+          direction of each measure and the use of unrounded values make the decision unambiguous.
+        tests:
+          - ImageComparison_Evaluate_ErrorMetrics_PassWhenAtMostLimit
+          - ImageComparison_Evaluate_SimilarityMetrics_PassWhenAtLeastLimit
+          - ImageComparison_Evaluate_IdenticalImagesPsnr_PassesAnyMinimum
+          - ImageComparison_Evaluate_CellRmse_UsesTheWorstCell
+          - ImageComparison_ThresholdMetrics_NamesRangesAndDirections_AreConsistent
+          - ImageComparison_TryParseMetric_KnownName_RoundTrips
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Arguments
+        title: >-
+          The ImageComparison class shall reject a null argument, images of different sizes, a tolerance
+          outside 0 to 255, and a grid outside 1 to 64 per side or larger than the image.
+        justification: |
+          Each of these is a defect of the caller (the command validates user input first) and must fail
+          fast and clearly instead of producing a meaningless number.
+        tests:
+          - ImageComparison_Compare_SizeMismatch_ThrowsArgumentException
+          - ImageComparison_Compare_InvalidToleranceOrGrid_ThrowsArgumentOutOfRange
+          - ImageComparison_Methods_NullArguments_ThrowArgumentNullException
+          - ImageComparison_CreateImages_SizeMismatch_ThrowsArgumentException
+
+      - id: CanvasNetTool-Imaging-ImageComparison-Deterministic
+        title: >-
+          The ImageComparison class shall give the same metrics, grid, and picture pixels when the same
+          images are compared twice.
+        justification: |
+          Results are compared, cached, and checked into source control; they must not change from run to
+          run.
+        tests:
+          - ImageComparison_Compare_SameInputTwice_ReturnsEqualResults
+          - ImageComparison_CreateImages_SameInputTwice_ProduceIdenticalPixels

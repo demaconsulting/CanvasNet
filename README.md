@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -117,6 +117,8 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `rotate`                   | Rotate by 90, 180, or 270 degrees                                                |
 | `flip`                     | Mirror horizontally, vertically, or both                                         |
 | `pad`                      | Add a border around an image                                                     |
+| `compare`                  | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid)                 |
+| `montage`                  | Compose images and document pages into one labeled contact sheet                 |
 
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and SCAD, and applies `--crop`, `--resize`,
 `--fit`, `--rotate`, `--flip`, and `--pad` in the order written; `crop`, `resize`, `rotate`, `flip`, and `pad` are
@@ -129,6 +131,16 @@ A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|
 example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
 directives name are read from the folder of the model and below it only, and a model whose include cannot be found
 is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+
+`compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
+RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
+each cell of a `--grid`, all computed exactly so that the same inputs give the same numbers. Images of different sizes
+are refused (`size-mismatch`) unless `--resize-to a|b|WxH` says which size to use; a vector input is then drawn
+directly at that size. `--diff`, `--side-by-side`, and `--overlay` write pictures of the differences, and
+`--threshold ssim=0.9` (also `mae`, `rmse`, `max-diff`, `cell-rmse`, `diff-ratio`, `psnr`) fails with exit code 1 and
+the error code `threshold-failed` after writing the result and the pictures; with `--json` that failure document
+carries the metrics too. `montage <inputs...> -o sheet.png` composes images and, with `--all-pages`, every page of
+documents into one contact sheet (`--columns`, `--cell`, `--labels` with the bundled font).
 
 ### Quick start for AI agents
 
@@ -146,6 +158,12 @@ canvasnet render redraw.svg --size 1250x1750 -o redraw.png --json
 # 3. Zoom into the same detail of both pictures
 canvasnet render ref.png --crop 200x120+100+80 --resize 1000x600 -o ref-detail.png
 
+# 3b. Compare the redraw with the reference (the SVG is drawn at the reference size) and see where they differ
+canvasnet compare ref.png redraw.svg --resize-to a --grid 4x4 --side-by-side cmp.png --threshold ssim=0.9 --json
+
+# 3c. Review every slide of a deck in one picture
+canvasnet montage deck.pptx --all-pages --labels -o overview.png --json
+
 # 4. A napkin photo: crop and shrink it to look at, then draw named views of the OpenSCAD model written from it
 canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png
 canvasnet render bracket.scad --view front -o front.png --json
@@ -153,7 +171,8 @@ canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 ```
 
 Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
-`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, and so on); read `diagnostics` even on
+`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `size-mismatch`, `threshold-failed`, and so
+on); read `diagnostics` even on
 success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
 defaults, and recipes see the [User Guide][link-releases].
 

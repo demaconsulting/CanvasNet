@@ -18,8 +18,6 @@ sections:
           deployment environment. The names of the version and help self-tests are contractual:
           the platform requirements are proven by the results the installed tool writes on each
           platform and runtime.
-        children:
-          - CanvasNetTool-PathHelpers-SafeCombine
         tests:
           - Validation_Run_NotSilent_PrintsSummary
           - Validation_Run_WithSilentContext_ExitCodeIsZero
@@ -89,3 +87,21 @@ sections:
           - CanvasNetTool_RenderScad
           - CanvasNetTool_CropResize
           - CanvasNetTool_RotateFlipPad
+
+      - id: CanvasNetTool-Validation-CompareMontageSelfTests
+        title: >-
+          The Validation class shall run the compare and montage self-tests, which generate PNG images and run
+          the compare command on identical and on differing images (checking the metrics, the difference
+          picture, the side-by-side picture, and the expected failure of an unmet threshold) and the montage
+          command on two images (checking the sheet geometry, the placement of the cells, and the label)
+          in-process.
+        justification: |
+          The compare and montage self-tests prove, in the deployment environment, that the comparison
+          metrics, the picture creators, the contact sheet with its bundled-font labels, and the commands
+          work together; their names are a contract with the qualification evidence. They are smoke tests:
+          the detailed coverage is in the unit and subsystem tests, and the self-validation suite is kept
+          small.
+        tests:
+          - Validation_Run_CompareMontageSelfTests_PassAndAreRecorded
+          - CanvasNetTool_Compare
+          - CanvasNetTool_Montage
