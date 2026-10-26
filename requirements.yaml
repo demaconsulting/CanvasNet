@@ -67,6 +67,8 @@ includes:
   - docs/reqstream/canvas-net-render3d/tessellation/primitive-tessellator.yaml
   - docs/reqstream/canvas-net-render3d/tessellation/polygon-triangulator.yaml
   - docs/reqstream/canvas-net-render3d/tessellation/extruder.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/convex-hull.yaml
+  - docs/reqstream/canvas-net-render3d/tessellation/minkowski-sum.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/camera.yaml
   - docs/reqstream/canvas-net-render3d/scene-rendering/lighting.yaml

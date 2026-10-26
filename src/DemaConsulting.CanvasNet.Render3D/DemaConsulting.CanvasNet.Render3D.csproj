@@ -72,6 +72,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Render3D.Tests" />
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Scad" />
   </ItemGroup>
 
   <ItemGroup>

@@ -71,11 +71,16 @@ framework.
 - **Top-Level Flat Shape** (requirement `CanvasNetScad-ScadGeometry-FlatShapes`):
   `ScadGeometryTests.ScadGeometry_Build_TopLevelFlatShape_BecomesASlabOfTheConfiguredThickness` — builds a square
   with a thickness of 0.5 and asserts a closed slab of volume 50 and height 0.5.
+- **Hull And Minkowski** (requirement `CanvasNetScad-ScadGeometry-HullMinkowski`):
+  `ScadGeometryTests.ScadGeometry_Build_HullAndMinkowski_BuildClosedSolids` — builds, in one program, the hull of
+  two cubes, a rounded box from a Minkowski sum, a 2D hull that is extruded, and a block from which a hull is
+  subtracted, and asserts five closed meshes of positive volume, the analytic bounds of the hull and of the
+  extrusion, the bounds of the rounded box, a boolean node for the cut, and no warning or report.
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a
-  program with a valid cube, an invalid cube, `text`, `hull`, and a background-marked cube on consecutive lines
+  program with a valid cube, an invalid cube, `text`, `roof`, and a background-marked cube on consecutive lines
   and asserts one mesh, one warning at the invalid cube's line, and the three reports `scad-module-text`,
-  `scad-module-hull`, and `scad-modifier-background` at lines 3 to 5 in source order;
+  `scad-module-roof`, and `scad-modifier-background` at lines 3 to 5 in source order;
   `ScadGeometryTests.ScadGeometry_Build_StrictMode_ThrowsAtTheFirstUnsupportedFeature` — asserts that with strict
   mode the first unsupported feature (`projection` at line 2) throws a `ScadUnsupportedFeatureException` with its
   identifier and location and that the later `text` is never reached.

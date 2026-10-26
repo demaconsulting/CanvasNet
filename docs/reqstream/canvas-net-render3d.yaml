@@ -21,6 +21,8 @@
 # intersection) through per-pixel fragment lists, with a memory budget and closed-operand reporting.
 # Phase 3 adds validated 2D polygon regions, an exact polygon triangulator, and linear and
 # rotational extrusion of those regions into closed, outward-oriented meshes.
+# Phase 7 adds the exact convex hull of point sets (three-dimensional meshes and planar polygons) and
+# the Minkowski sum of convex solids, which rejects non-convex operands instead of approximating them.
 # Transparency and file-format front ends are added by later phases; their requirements will be
 # added to this file (and new per-unit files) when each phase lands, mirroring
 # canvas-net-pptx.yaml's own per-phase header-comment convention.
@@ -91,6 +93,27 @@ sections:
         tests:
           - CanvasNetRender3D_SystemIntegration_Extrusion_HoleExtrusionRendersThroughHole
           - CanvasNetRender3D_SystemIntegration_Extrusion_ExtrudedShapesAreValidCsgOperands
+
+      - id: CanvasNetRender3D-ConvexHull
+        title: >-
+          The library shall compute the exact convex hull of a set of points as a welded, closed,
+          outward-oriented mesh (a valid constructive-solid-geometry operand that renders and can be
+          cut without any operand report) and as a planar polygon, and the Minkowski sum of two convex
+          solid meshes as the hull of their pairwise vertex sums, with results that depend only on the
+          point sets, work that is bounded and cancellable, flat or invalid input rejected with an
+          exception, and a non-convex operand of a Minkowski sum rejected with a NotSupportedException
+          rather than approximated.
+        tags: [system]
+        justification: |
+          Convex hulls and Minkowski sums are standard CAD operations that cannot be expressed with
+          primitives, extrusions and Boolean operations; their value depends on exactness (no
+          tolerance-dependent wrong hull), reproducibility, bounded cost and an explicit failure
+          instead of a silently wrong solid for operands the method does not support.
+        children:
+          - CanvasNetRender3D-Tessellation-ConvexHullMinkowski
+        tests:
+          - CanvasNetRender3D_SystemIntegration_ConvexHull_HullOfTwoSpheresRendersAndCutsAsAValidOperand
+          - CanvasNetRender3D_SystemIntegration_MinkowskiSum_RoundedBoxRendersAndNonConvexOperandIsRejected
 
       - id: CanvasNetRender3D-Render
         title: >-

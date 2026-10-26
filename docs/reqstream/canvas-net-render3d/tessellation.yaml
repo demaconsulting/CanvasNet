@@ -6,7 +6,7 @@
 # These requirements decompose the CanvasNetRender3D system's primitive-mesh responsibility into the
 # Tessellation subsystem (namespace DemaConsulting.CanvasNet.Render3D.Tessellation). Each
 # requirement here links down to the unit requirements (PrimitiveTessellator, PolygonTriangulator,
-# Extruder) that implement it.
+# Extruder, ConvexHull, MinkowskiSum) that implement it.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -79,3 +79,40 @@ sections:
             tests:
               - Tessellation_PolygonExtrusion_AllResults_AreClosedAndValidCsgOperands
               - Tessellation_PolygonRegion_InvalidPolygon_IsRejected
+
+          - id: CanvasNetRender3D-Tessellation-ConvexHullMinkowski
+            title: >-
+              The Tessellation subsystem shall compute the exact convex hull of a point set as a closed,
+              outward-oriented triangle mesh whose vertices are exactly the strictly extreme points (and
+              as a strictly convex planar polygon), handling degenerate input and rejecting flat or
+              invalid input with an exception, and the Minkowski sum of two convex solid meshes as the
+              hull of their pairwise vertex sums, verifying that each operand is a closed convex solid
+              and rejecting any other operand with a NotSupportedException instead of approximating it;
+              all results shall be reproducible, valid constructive-solid-geometry operands, and all work
+              shall be bounded and cancellable.
+            justification: |
+              The hull is the foundation of the OpenSCAD hull and minkowski operations; exact
+              predicates, a sound convexity test and an explicit failure for unsupported operands keep
+              the results correct for the inputs that are accepted, and bounded, cancellable work keeps
+              untrusted input from running unchecked.
+            children:
+              - CanvasNetRender3D-Tessellation-ConvexHull-Hull3DSolid
+              - CanvasNetRender3D-Tessellation-ConvexHull-ExtremePoints
+              - CanvasNetRender3D-Tessellation-ConvexHull-DegenerateInput
+              - CanvasNetRender3D-Tessellation-ConvexHull-InvalidInput
+              - CanvasNetRender3D-Tessellation-ConvexHull-ExactPredicates
+              - CanvasNetRender3D-Tessellation-ConvexHull-Determinism
+              - CanvasNetRender3D-Tessellation-ConvexHull-ValidOperand
+              - CanvasNetRender3D-Tessellation-ConvexHull-Hull2D
+              - CanvasNetRender3D-Tessellation-ConvexHull-Bounds
+              - CanvasNetRender3D-Tessellation-ConvexHull-InputCopy
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexSum
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexityDetection
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-Validation
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-Determinism
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-ValidOperand
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-Cancellation
+              - CanvasNetRender3D-Tessellation-MinkowskiSum-PreVerified
+            tests:
+              - Tessellation_ConvexHull_OfPrimitiveVertices_IsClosedAndAValidCsgOperand
+              - Tessellation_MinkowskiSum_OfPrimitives_IsClosedValidAndRejectsNonConvexOperands

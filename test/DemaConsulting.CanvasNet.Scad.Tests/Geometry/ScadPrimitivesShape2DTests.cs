@@ -224,7 +224,8 @@ public class ScadPrimitivesShape2DTests
         var report = Assert.Single(result.Unsupported);
         Assert.Equal("scad-polygon-invalid", report.Feature);
         Assert.Equal(new ScadSourceLocation(null, 2, 1), report.Location);
-        Assert.StartsWith("polygon: the shape was rejected: ", report.Message, StringComparison.Ordinal);
+        Assert.StartsWith("polygon: the shape was rejected (it is not a valid planar shape", report.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("..", report.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

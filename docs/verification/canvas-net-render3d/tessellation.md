@@ -1,21 +1,26 @@
 ## Tessellation Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Tessellation` subsystem,
-containing three units: `PrimitiveTessellator`, `PolygonTriangulator`, and `Extruder`.
+containing five units: `PrimitiveTessellator`, `PolygonTriangulator`, `Extruder`, `ConvexHull`, and
+`MinkowskiSum`.
 
 ### Verification Approach
 
 The `Tessellation` subsystem is verified by the unit tests of `PrimitiveTessellator`,
-`PolygonTriangulator`, and `Extruder` (see _PrimitiveTessellator Unit Verification Design_,
-_PolygonTriangulator Unit Verification Design_, and _Extruder Unit Verification Design_ under
-`tessellation/`) and by four subsystem-level tests in `TessellationTests.cs`. Because the subsystem
+`PolygonTriangulator`, `Extruder`, `ConvexHull`, and `MinkowskiSum` (see _PrimitiveTessellator Unit
+Verification Design_, _PolygonTriangulator Unit Verification Design_, _Extruder Unit Verification Design_,
+_ConvexHull Unit Verification Design_, and _MinkowskiSum Unit Verification Design_ under
+`tessellation/`) and by six subsystem-level tests in `TessellationTests.cs`. Because the subsystem
 consumes the `SceneModel` subsystem's `Mesh` and `MeshBuilder`, the subsystem-level tests verify the
 combination through the public API. The primitive test creates one mesh of each primitive kind and
 asserts, with the shared helper `Render3DTestHelpers.AssertClosedAndOutward`, that every mesh is
 closed, has positive signed volume, and has every triangle normal pointing away from the mesh
 centroid. The polygon tests build regions with the 2D factories, extrude them, and assert with
 `Render3DTestHelpers.AssertValidCsgOperand` that every result is a valid constructive-solid-geometry
-operand, and that invalid polygons are rejected when the region is created. No mocking or stubbing is
+operand, and that invalid polygons are rejected when the region is created. The point-set tests compute the
+convex hull of the vertices of the primitives and of an extruded L-shape and the Minkowski sum of primitives,
+and assert that the results are valid operands, that the hull of a convex primitive has the primitive's volume,
+and that the non-convex L-shape is rejected as an operand of the sum. No mocking or stubbing is
 used.
 
 ### Test Environment
@@ -29,7 +34,8 @@ used.
 
 The `Tessellation` subsystem's verification passes when the subsystem-level scenarios below and every
 unit-level scenario in the _PrimitiveTessellator Unit Verification Design_, the
-_PolygonTriangulator Unit Verification Design_, and the _Extruder Unit Verification Design_ pass
+_PolygonTriangulator Unit Verification Design_, the _Extruder Unit Verification Design_, the
+_ConvexHull Unit Verification Design_, and the _MinkowskiSum Unit Verification Design_ pass
 without error or unexpected exception.
 
 ### Test Scenarios
@@ -53,3 +59,13 @@ without error or unexpected exception.
   `TessellationTests.Tessellation_PolygonRegion_InvalidPolygon_IsRejected` — asserts that a bow tie
   (through the constructor and through `PrimitiveTessellator.Polygon`), a zero-area contour, crossing
   contours, and touching contours throw `ArgumentException` when the region is created.
+- **Convex Hull Of Primitive Vertices Is Closed And A Valid CSG Operand**:
+  `TessellationTests.Tessellation_ConvexHull_OfPrimitiveVertices_IsClosedAndAValidCsgOperand` —
+  computes the hull of the vertices of a box, a sphere, a cylinder frustum and a cone and asserts that
+  each has the primitive's volume and passes `AssertValidCsgOperand`, and that the hull of the vertices
+  of an extruded L-shape (volume 3) is a valid operand with volume 3.5.
+- **Minkowski Sum Of Primitives Is Closed, Valid, And Rejects Non-Convex Operands**:
+  `TessellationTests.Tessellation_MinkowskiSum_OfPrimitives_IsClosedValidAndRejectsNonConvexOperands` —
+  sums a box with a sphere, a cone with a box, and the hull of an L-shape with a sphere and asserts
+  that each result is a valid operand with the summed extents, and that the extruded L-shape itself is
+  rejected with a `NotSupportedException` as either operand.

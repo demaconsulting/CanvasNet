@@ -6,7 +6,8 @@
 # subsystem (internal namespace DemaConsulting.CanvasNet.Scad.Geometry): the geometry builder that walks the
 # geometry-agnostic instantiation tree of an evaluation and combines it into a Render3D scene
 # (ScadGeometryBuilder), the primitive builders (ScadPrimitives), the transforms, resize, and color
-# (ScadTransforms), and the linear and rotational extrusions (ScadExtrusions). Each requirement here links
+# (ScadTransforms), the linear and rotational extrusions (ScadExtrusions), and the convex hull and Minkowski sum
+# of the hull and minkowski modules (ScadHulls, part of ScadGeometryBuilder). Each requirement here links
 # down to the unit requirements that implement it.
 #
 # The subsystem boundary is the internal ScadGeometryBuilder.Build entry point, which receives the roots of an
@@ -113,6 +114,36 @@ sections:
             tests:
               - ScadGeometry_Build_DifferenceOfPrimitives_BuildsDifferenceNodeWithMinuendFirst
 
+          - id: CanvasNetScad-ScadGeometry-HullMinkowski
+            title: >-
+              The ScadGeometry subsystem shall build the hull and minkowski modules - the hull of 3D children as
+              one closed outward-wound convex mesh and of 2D children as one convex region that extrusions
+              consume, and the Minkowski sum of convex 3D children folded from the left with unions
+              distributed over the sum - taking the points and parts in the transformed positions of their
+              children, charging the exact triangles of each result to the triangle budget, polling
+              cancellation, building the same result every time, and reporting what has no hull or sum
+              (mixed dimensions, booleans, non-convex or too complex operands, the deferred 2D sum) with
+              stable identifiers instead of approximating it.
+            justification: |
+              Hull and Minkowski sum are the convex combinations that rounding, offsetting, and enclosing
+              parts are written with; they must be exact for the models they accept and refuse, with a
+              located report, every model whose result they could not state exactly.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull3D
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull2D
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDimensions
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullCsgOperand
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDegenerate
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Minkowski
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiLimits
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiDeterminism
+            tests:
+              - ScadGeometry_Build_HullAndMinkowski_BuildClosedSolids
+
           - id: CanvasNetScad-ScadGeometry-Extrusions
             title: >-
               The ScadGeometry subsystem shall build the linear_extrude and rotate_extrude modules from
@@ -168,6 +199,12 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDimensions
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullCsgOperand
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDegenerate
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiLimits
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
               - CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentWarnings
@@ -204,6 +241,7 @@ sections:
               before memory is allocated so that a hostile model cannot exhaust the host.
             children:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-TriangleBudget
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget
               - CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget
               - CanvasNetScad-ScadGeometry-ScadExtrusions-TriangleBudget
             tests:
@@ -221,6 +259,7 @@ sections:
             children:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-NoRecursion
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
             tests:
               - ScadGeometry_Build_DeepNestedModel_OnSmallStack_MatchesBigStack
 

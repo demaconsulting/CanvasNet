@@ -9,7 +9,10 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///     The feature identifier is stable and lower-case, so callers can match on it. The families are
 ///     <c>scad-function-name</c> and <c>scad-search-form</c> (evaluation), <c>scad-module-name</c> (a module that is
 ///     recognized but not supported: <c>text</c>, <c>offset</c>, <c>projection</c>, <c>surface</c>, <c>import</c>,
-///     <c>roof</c>, <c>hull</c>, <c>minkowski</c>), <c>scad-modifier-highlight</c> and <c>scad-modifier-background</c>,
+///     <c>roof</c>), <c>scad-hull-csg-operand</c>, <c>scad-hull-degenerate</c>, <c>scad-hull-mixed-dimensions</c>
+///     (a <c>hull</c> that cannot be built), <c>scad-minkowski-nonconvex</c>, <c>scad-minkowski-2d</c>,
+///     <c>scad-minkowski-mixed-dimensions</c>, <c>scad-minkowski-too-complex</c> (a <c>minkowski</c> that cannot be
+///     built), <c>scad-modifier-highlight</c> and <c>scad-modifier-background</c>,
 ///     <c>scad-color-alpha</c>, <c>scad-resize-approximate</c>, <c>scad-multmatrix-projective</c>,
 ///     <c>scad-polygon-invalid</c>, <c>scad-polyhedron-face-invalid</c>, <c>scad-linear-extrude-scale</c>,
 ///     <c>scad-linear-extrude-apex-multiple-contours</c>, <c>scad-rotate-extrude-axis-crossing</c>,

@@ -25,9 +25,9 @@ functions, modules and their children, control flow, comprehensions, built-in fu
 the special variables that control curve resolution) — and **render** it: `ScadDocument.Render` draws the scene
 onto a `Surface` (the core `CanvasNet` pixel buffer) with a camera fitted to the model or supplied by the
 caller. Everything that cannot be built is reported, never silently skipped. The package is packable and is
-the first release in which the roadmap's user-visible rendering capability exists; hull, Minkowski sum, text,
+the first release in which the roadmap's user-visible rendering capability exists; the 2D Minkowski sum, text,
 and a few other constructs remain deferred and are reported as unsupported features (see _Supported And
-Deferred Features_).
+Deferred Features_). Phase 7 added `hull` and `minkowski`.
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 
@@ -56,8 +56,9 @@ Deferred Features_).
   Subsystem Design_ (`canvas-net-scad/scad-evaluation.md`).
 - **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
   `Geometry/`): the geometry builder, with four units. `ScadGeometryBuilder` walks the instantiation tree
-  iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the triangle budget,
-  reporting, and the node-to-location map). `ScadPrimitives` builds `cube`, `sphere`, `cylinder`, `polyhedron`,
+  iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the `hull` and `minkowski`
+  convex combinations of `ScadHulls`, the triangle budget, reporting, and the node-to-location map).
+  `ScadPrimitives` builds `cube`, `sphere`, `cylinder`, `polyhedron`,
   `square`, `circle`, and `polygon` and resolves `$fn`, `$fa`, and `$fs`. `ScadTransforms` applies `translate`,
   `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color`. `ScadExtrusions` builds `linear_extrude` and
   `rotate_extrude` over a symbolic 2D shape tree. The subsystem has no public types. See _ScadGeometry
@@ -142,7 +143,8 @@ are accessed only by `Evaluate`, `BuildScene`, and `Render` (which evaluate), on
 and only inside the sandbox described in _Risk Control Measures_. The types of the `ScadLanguage`,
 `ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
 `InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
-`scad-modifier-*`, `scad-color-alpha`, `scad-csg-*`, and the others) are listed with their triggers in
+`scad-modifier-*`, `scad-color-alpha`, `scad-csg-*`, the Phase 7 `scad-hull-*` and `scad-minkowski-*`, and the
+others) are listed with their triggers in
 _ScadGeometry Subsystem Design_ and in the user guide. See the unit and subsystem design documents
 for every type's complete constructor, property, and exception detail.
 
@@ -156,7 +158,8 @@ project references in
   `Rgba32` colors of the scene and the renderer options
 - `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
   (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
-  extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`), and renderer
+  extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`,
+  `MinkowskiSum`), and renderer
   (`SceneRenderer`, `Camera`, `SceneRenderOptions`) the `ScadGeometry` subsystem and the `BuildScene` and
   `Render` methods of `ScadDocument` use
 
@@ -271,7 +274,14 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 - **Bounded geometry.** The geometry a model generates is bounded by `ScadLimits.MaxTriangles`: every sphere,
   cylinder, polyhedron, slab, and extrusion computes the exact triangle count of its mesh (for an extrusion,
   the caps of a profile with holes included), with saturating arithmetic, before it allocates, and exceeding
-  the budget raises a `ScadEvaluationException` located at the module.
+  the budget raises a `ScadEvaluationException` located at the module. A `hull` and a `minkowski` know the exact
+  count of their result only once they have computed it, so they charge its upper bound first (`2d - 4` triangles for
+  a hull of `d` distinct points, `2 * Va * Vb - 4` for a pairwise sum) before any hull or sums memory is allocated,
+  fail without starting when the bound exceeds the remaining budget, settle the charge to the actual count afterwards
+  (refunding the whole pre-charge on a rejection, failure or cancellation), and charge the transformed copies of the
+  convex parts of a `minkowski` fold (made only for the sum that needs them; a lone child needs none) while they live
+  (the pairwise sums of a Minkowski sum are bounded by
+  `MinkowskiSum.MaxPairwiseSums`).
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
   shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested
@@ -478,7 +488,9 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles` | Supported (Phase 6) | Evaluation options, strict mode, and handlers cover every stage |
 | Geometry-level unsupported-feature reporting | Supported (Phase 6) | Identifier table in _ScadGeometry Subsystem Design_ |
 | Packaging as a NuGet package, README and user guide | Delivered (Phase 6) | `IsPackable` is enabled |
-| `hull` and `minkowski` | Deferred (Phase 7) | Reported as `scad-module-hull` and `scad-module-minkowski`; omitted |
+| `hull` (3D and 2D children) | Supported (Phase 7) | The convex hull of the children's points; booleans below it, mixed dimensions and degenerate points are `scad-hull-csg-operand`, `scad-hull-mixed-dimensions`, `scad-hull-degenerate`; colors inside are dropped with a warning |
+| `minkowski` (convex 3D children) | Supported (Phase 7) | Folded from the left, unions distribute; `convexity` ignored; a non-convex operand is `scad-minkowski-nonconvex`, too much work is `scad-minkowski-too-complex`, mixed dimensions are `scad-minkowski-mixed-dimensions` |
+| `minkowski` of 2D children | Deferred | Reported as `scad-minkowski-2d`; omitted |
 | `text`, `import`, `offset`, `projection`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
 | Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
 <!-- markdownlint-enable MD013 -->
@@ -594,7 +606,12 @@ requirements, design, verification, and tests for its own scope.
    the README, the user guide, and the complete companion documentation. The phase also tightened the Render3D
    rotational extruder to reject sweeps whose angular step exceeds 120 degrees, which the `rotate_extrude`
    segment rule always satisfies.
-4. **Phase 7 — Hull and Minkowski (planned)**, depending on `CanvasNetRender3D` support.
+4. **Phase 7 — Hull and Minkowski (delivered).** The `hull` module (the convex hull of the points of 3D
+   children, or of 2D children, built on the `CanvasNetRender3D` `ConvexHull`) and the `minkowski` module of convex
+   3D children (built on `MinkowskiSum`, with the sum distributed over unions) in `ScadGeometryBuilder` (the internal
+   `ScadHulls`), the seven `scad-hull-*` and `scad-minkowski-*` unsupported-feature identifiers, original render
+   fixtures and analytic system tests, and the complete companion documentation. The 2D Minkowski sum remains
+   deferred and is reported as `scad-minkowski-2d`.
 5. **Phase 8 — Highlight, background, and transparency (planned)**, replacing the degraded `#`, `%`, and color
    alpha behavior and removing their reports.
 6. **Later — Text and external-file import.**

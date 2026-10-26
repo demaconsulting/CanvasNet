@@ -5,11 +5,12 @@
 # These requirements describe the design-level behavior of the ScadGeometryBuilder unit: the internal engine
 # that walks the instantiation tree of an evaluation iteratively and converts it into a Render3D scene
 # (ScadGeometryBuilder and its Walk, Modifiers, and Unsupported partial files, ScadGeo, ScadGeometryContext,
-# ScadSceneMap, ScadReporter, ScadSceneOptions, ScadFeatureIds, and ScadBooleans) in the
+# ScadSceneMap, ScadReporter, ScadSceneOptions, ScadFeatureIds, ScadBooleans, and ScadHulls) in the
 # DemaConsulting.CanvasNet.Scad.Geometry namespace.
 #
 # The unit owns the walk, the implicit union, the three modifiers, the CSG booleans and their dimension rules,
-# the table of modules that are recognized but not built, the triangle budget, cancellation, the single
+# the hull and minkowski modules (the convex combinations built from the Render3D ConvexHull and MinkowskiSum
+# units), the table of modules that are recognized but not built, the triangle budget, cancellation, the single
 # reporting channel, the location map of the built scene, and the copy of the renderer options. The primitives,
 # the transforms, and the extrusions are separate units that the engine dispatches to. Each "tests" entry cites
 # an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
@@ -45,6 +46,7 @@ sections:
                   - ScadGeometryBuilder_Build_DeepColorChain_OnSmallStack_Builds
                   - ScadGeometryBuilder_Build_DeepFlatTranslateChain_OnSmallStack_ComposesExactly
                   - ScadGeometryBuilder_Build_DeepTranslateChainFromSource_OnSmallStack_ComposesExactly
+                  - ScadGeometryBuilder_HullAndMinkowski_DeeplyNestedInstances_BuildOnASmallStack
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ImplicitUnion
                 title: >-
@@ -98,13 +100,15 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
                 title: >-
                   The ScadGeometryBuilder unit shall report each of the recognized modules text, offset,
-                  projection, surface, import, roof, hull, and minkowski as an unsupported feature
-                  scad-module-{name} at the module's location, omit the module and its children without
-                  visiting them, keep its supported siblings, and let a user module of the same name
-                  shadow the built-in so that its geometry is built and nothing is reported.
+                  projection, surface, import, and roof as an unsupported feature scad-module-{name} at
+                  the module's location, omit the module and its children without visiting them, keep its
+                  supported siblings, and let a user module of the same name shadow the built-in so that
+                  its geometry is built and nothing is reported.
                 justification: |
                   Nothing may be skipped silently: a module that is recognized but not built must be
-                  named, with its location, while a module the author defined is always theirs.
+                  named, with its location, while a module the author defined is always theirs. The hull
+                  and minkowski modules are built and report their own identifiers (see the Hull and
+                  Minkowski requirements).
                 tests:
                   - ScadUnsupportedModule_Module_IsReportedAndOmittedWithItsChildren
                   - ScadUnsupportedModule_RealisticArguments_AreReportedOnce
@@ -114,6 +118,199 @@ sections:
                   - ScadUnsupportedModule_UserModuleOfTheSameName_ShadowsTheBuiltin
                   - ScadGeometryBuilder_Build_UnsupportedModule_ReportsFeatureWithLocation
                   - ScadGeometryBuilder_Build_UserModuleShadowingBuiltin_IsBuiltNotReported
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull3D
+                title: >-
+                  The ScadGeometryBuilder unit shall build hull over 3D children as one closed,
+                  outward-wound mesh at the module's frame that is the convex hull of every vertex of every
+                  mesh below the children in their transformed positions (a union of children, whether
+                  written as direct children, groups, loops, or user modules, being one point set), taking
+                  mirrored and rotated children into account and dropping the colors of the children with
+                  a warning, so that the result is a valid operand of later booleans and transforms.
+                justification: |
+                  hull is a convex combination of its children; the point set must be exactly the
+                  children's vertices in the module's frame, and the result must be a valid solid for
+                  everything that consumes it.
+                tests:
+                  - ScadGeometryBuilder_Hull_TwoSeparatedCubes_IsTheConvexSolidSpanningBoth
+                  - ScadGeometryBuilder_Hull_ChildrenAreTransformedBeforeTheHull
+                  - ScadGeometryBuilder_Hull_MirroredAndRotatedChildren_GiveAPositiveVolumeMesh
+                  - ScadGeometryBuilder_Hull_UnionOfChildrenViaGroupsAndUserModules_IsOneHull
+                  - ScadGeometryBuilder_Hull_LoneColoredChild_WarnsAndDropsAppearance
+                  - ScadGeometryBuilder_Hull_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Hull2D
+                title: >-
+                  The ScadGeometryBuilder unit shall build hull over 2D children as one convex polygon
+                  region, the exact convex hull of the vertices of every leaf shape in its transformed
+                  position, that later extrusions consume like any other 2D shape, dropping the colors of
+                  the children with a warning and charging no triangles for the region itself.
+                justification: |
+                  A 2D hull is the outline of its children; keeping it a region lets linear_extrude and
+                  rotate_extrude and the top-level slab build it with their own exact accounting.
+                tests:
+                  - ScadGeometryBuilder_Hull_TwoDimensionalChildren_ProduceAConvexRegionThatExtrudes
+                  - ScadGeometryBuilder_Hull_TwoDimensionalTransformsAndColors_AreApplied
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDimensions
+                title: >-
+                  The ScadGeometryBuilder unit shall report a hull that has both 2D and 3D children as the
+                  unsupported feature scad-hull-mixed-dimensions at the hull's location and omit the hull
+                  whole, keeping its siblings.
+                justification: |
+                  A 2D shape and a solid have no common hull; silently dropping one would mis-render the
+                  model, so the author is told where.
+                tests:
+                  - ScadGeometryBuilder_Hull_MixedDimensions_ReportsAndOmits
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullCsgOperand
+                title: >-
+                  The ScadGeometryBuilder unit shall report a hull that has a difference or an intersection
+                  among its children, in 3D or in 2D, at any depth below the hull, as the unsupported
+                  feature scad-hull-csg-operand at the hull's location and omit the hull, while hulling the
+                  vertices of a union.
+                justification: |
+                  The hull of a boolean is not the hull of its operands' vertices; approximating it would
+                  be wrong, so it is reported and never approximated.
+                tests:
+                  - ScadGeometryBuilder_Hull_DifferenceOrIntersectionChild_ReportsAndOmits
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDegenerate
+                title: >-
+                  The ScadGeometryBuilder unit shall report a hull whose points span no volume (3D) or no
+                  area (2D) as the unsupported feature scad-hull-degenerate at the hull's location, with a
+                  plain description of the cause (not the text of an internal exception), and
+                  shall yield nothing, without any report of the module's own, for a hull with no children
+                  or only empty children.
+                justification: |
+                  A flat or collinear point set has no solid hull, while an empty hull is simply empty; the
+                  two must be told apart.
+                tests:
+                  - ScadGeometryBuilder_Hull_FlatCollinearOrSinglePointChildren_ReportsDegenerate
+                  - ScadGeometryBuilder_Hull_NoChildrenOrEmptyChildren_YieldsNothingWithoutAReport
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Minkowski
+                title: >-
+                  The ScadGeometryBuilder unit shall build minkowski over 3D children as the Minkowski sum
+                  of the children folded from the left, in which each child is its convex parts (the
+                  meshes of a union-only scene tree in the module's frame) and a union distributes over the
+                  sum, ignoring the convexity argument and the colors of the children, so that a block
+                  summed with a ball is the rounded block, and a lone convex child is verified as a closed
+                  convex solid in its own frame and returned with its geometry and transforms unchanged, with
+                  colors stripped (warning), and with no Minkowski sum computed.
+                justification: |
+                  The Minkowski sum of convex solids is the hull of the pairwise vertex sums and the sum
+                  distributes over unions, which covers the common rounding and offsetting models exactly.
+                tests:
+                  - ScadGeometryBuilder_Minkowski_CubeAndSphere_IsTheRoundedBox
+                  - ScadGeometryBuilder_Minkowski_TransformedConvexChildren_AreSummed
+                  - ScadGeometryBuilder_Minkowski_UnionOfConvexChildren_Distributes
+                  - ScadGeometryBuilder_Minkowski_ConvexityArgumentIsIgnored
+                  - ScadGeometryBuilder_Minkowski_HullChild_IsConvex
+                  - ScadGeometryBuilder_Minkowski_LoneColoredChild_WarnsAndStripsAppearance
+                  - ScadGeometryBuilder_Minkowski_EnclosingColorAroundLoneColoredChild_UsesEnclosingAppearance
+                  - ScadGeometryBuilder_Minkowski_StripAppearances_SharedSubtree_IsCopiedOnceAndShared
+                  - ScadGeometryBuilder_Minkowski_StripAppearances_DeepSharedDag_CopiesEachNodeOnce
+                  - ScadGeometryBuilder_Minkowski_StripAppearances_CopiesKeepTheOriginalSourceLocation
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
+                title: >-
+                  The ScadGeometryBuilder unit shall report a minkowski that has a child that is not
+                  provably convex (a difference or an intersection, or a mesh that is open, hollow,
+                  notched, or otherwise not convex within the documented tolerance), also when it is the
+                  only child, as the unsupported feature scad-minkowski-nonconvex at the module's location
+                  with a plain message that names the child by its position and source location (and no
+                  internal parameter names or wording), and omit the module whole, never approximating the
+                  sum, and shall report a child without volume as scad-geometry-rejected in the same terms.
+                justification: |
+                  The hull of pairwise sums is correct only for convex operands; a non-convex operand must
+                  be reported, not silently replaced by its hull, and the author must be able to find the
+                  child in the source.
+                tests:
+                  - ScadGeometryBuilder_Minkowski_NonConvexChild_ReportsAndOmits
+                  - ScadGeometryBuilder_Minkowski_NonConvexChild_MessageNamesTheChildInUserTerms
+                  - ScadGeometryBuilder_Minkowski_ChildWithoutVolume_IsRejectedNamingTheChild
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions
+                title: >-
+                  The ScadGeometryBuilder unit shall report a minkowski of 2D children as the deferred
+                  unsupported feature scad-minkowski-2d and a minkowski of 2D and 3D children as the
+                  unsupported feature scad-minkowski-mixed-dimensions, each at the module's location,
+                  omitting the module and keeping its siblings.
+                justification: |
+                  The 2D sum is not built in this release and a mixed sum has no meaning; both must be named.
+                tests:
+                  - ScadGeometryBuilder_Minkowski_TwoDimensionalChildren_ReportsDeferred
+                  - ScadGeometryBuilder_Minkowski_MixedDimensions_ReportsAndOmits
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiLimits
+                title: >-
+                  The ScadGeometryBuilder unit shall report a minkowski that has a child of more than 4,096
+                  convex parts, a fold step of more than 4,096 convex sums, two meshes whose pairwise
+                  vertex sums exceed the Render3D bound, or more than 2,097,152 pairwise vertex sums in
+                  total across the module (each member verification costing its vertex count and each sum
+                  the product of its operands' vertex counts) as the unsupported feature
+                  scad-minkowski-too-complex at the module's location and omit the module, and shall report
+                  a sum that leaves the coordinate range as scad-geometry-rejected.
+                justification: |
+                  The work and memory of a sum are products of the operand sizes and the per-pair and
+                  per-step bounds do not bound the total; fixed bounds, including a cumulative one, keep
+                  every build predictable and the report tells the author which limit was hit.
+                tests:
+                  - ScadGeometryBuilder_Minkowski_TooManyPairsOrCombinations_ReportsTooComplex
+                  - ScadGeometryBuilder_Minkowski_SumBeyondTheCoordinateRange_IsRejected
+                  - ScadGeometryBuilder_Minkowski_CumulativeWorkAboveTheTotalCap_ReportsTooComplex
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget
+                title: >-
+                  The ScadGeometryBuilder unit shall charge each hull and each pairwise Minkowski sum with
+                  the upper bound of its triangles (2d - 4 for d distinct hull points, 2 * Va * Vb - 4 for
+                  one sum) before any hull or sums memory is allocated, failing with a
+                  ScadEvaluationException that names the module's location and the limit, without starting
+                  the computation, when the bound exceeds the remaining budget; shall settle the charge to
+                  the actual triangle count of the mesh created by refunding the difference, and refund the
+                  whole pre-charge on a rejection, failure or cancellation, so that the number charged
+                  equals the triangles of every mesh created (the operands it consumes stay charged, and the
+                  temporary sums of a fold and the transformed copies of the convex parts are charged,
+                  the copies before they are allocated, while they live and refunded when consumed), and
+                  shall count the distinct vertices of each convex part once and reuse the count for every
+                  pair. The convexity-verification hulls for Minkowski members and the transient distinct-point
+                  set used by the hull budget check are temporary working storage bounded by the size of operand
+                  meshes that are already charged, and are not separately charged against the triangle budget;
+                  precise accounting of transient storage is a planned hardening follow-up.
+                justification: |
+                  The budget must hold before memory is allocated so that a hostile model cannot exhaust
+                  the host; the exact count of a hull is known only afterwards, so its upper bound is
+                  charged first (which can reject a hull that would fit exactly) and the totals are then
+                  made exact again, leaving no charge behind on failure.
+                tests:
+                  - ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated
+                  - ScadGeometryBuilder_HullAndMinkowski_OverTheBudget_ThrowsLocatedEvaluationExceptionWithoutLeakingCharge
+                  - ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual
+                  - ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded
+                  - ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused
+                  - ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame
+                  - ScadGeometryBuilder_Hull_DuplicatedVertexSlots_AreBudgetedByTheirDistinctPoints
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
+                title: >-
+                  The ScadGeometryBuilder unit shall poll the cancellation token before each hull and each
+                  convex sum, between the meshes it gathers, and inside the Render3D loops, throwing
+                  OperationCanceledException without wrapping it.
+                justification: |
+                  A hull or a sum over large operands is long-running work and must be able to stop promptly.
+                tests:
+                  - ScadGeometryBuilder_HullAndMinkowski_Canceled_ThrowsOperationCanceledException
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiDeterminism
+                title: >-
+                  The ScadGeometryBuilder unit shall build the same hull and the same Minkowski sum, vertex
+                  for vertex and index for index, every time the same model is built.
+                justification: |
+                  The results depend on point sets and document order only, so renders and tests of a model
+                  are reproducible.
+                tests:
+                  - ScadGeometryBuilder_HullAndMinkowski_SameModelTwice_BuildsIdenticalMeshes
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
                 title: >-

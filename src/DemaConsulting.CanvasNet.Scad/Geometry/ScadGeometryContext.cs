@@ -80,6 +80,39 @@ internal sealed class ScadGeometryContext
     public long TrianglesCharged => _triangles;
 
     /// <summary>
+    ///     Gets the number of hull computations (<c>ConvexHull.Hull3D</c> calls) that the hull and Minkowski builders
+    ///     started with this context, a diagnostic counter that lets tests prove that a computation was rejected by the
+    ///     triangle budget before it was begun.
+    /// </summary>
+    public long HullsStarted { get; private set; }
+
+    /// <summary>
+    ///     Gets the number of pairwise Minkowski sums that the builders started with this context (a diagnostic counter).
+    /// </summary>
+    public long SumsStarted { get; private set; }
+
+    /// <summary>Counts a hull computation that is about to start.</summary>
+    public void NoteHullStarted() => HullsStarted++;
+
+    /// <summary>Counts a pairwise Minkowski sum that is about to start.</summary>
+    public void NoteSumStarted() => SumsStarted++;
+
+    /// <summary>
+    ///     Gets the number of scans that counted the distinct vertices of a Minkowski member (a diagnostic counter that
+    ///     lets tests prove that each member is scanned once, not once per pair).
+    /// </summary>
+    public long DistinctScans { get; private set; }
+
+    /// <summary>Counts a scan of the distinct vertices of one mesh.</summary>
+    public void NoteDistinctScan() => DistinctScans++;
+
+    /// <summary>Gets the triangle budget of the model (<see cref="ScadLimits.MaxTriangles"/>).</summary>
+    public long MaxTriangles => _settings.MaxTriangles;
+
+    /// <summary>Gets the token polled while building, for the long-running Render3D operations (hull, Minkowski sum).</summary>
+    public CancellationToken Cancellation => _settings.Cancellation;
+
+    /// <summary>
     ///     Counts one visited instance and polls cancellation once every <see cref="PollInterval"/> instances.
     /// </summary>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled.</exception>

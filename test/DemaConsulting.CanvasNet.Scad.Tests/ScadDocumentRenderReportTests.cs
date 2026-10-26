@@ -225,13 +225,13 @@ public class ScadDocumentRenderReportTests
             },
             SceneOptions = new SceneRenderOptions { Supersampling = 1 },
         };
-        const string source = "echo(1);\ncube(0);\nhull() cube(1);\ndifference() { cube(5); polyhedron([[0,0,0],[1,0,0],[0,1,0],[5,5,5]], [[0,1,2]]); }";
+        const string source = "echo(1);\ncube(0);\nroof() cube(1);\ndifference() { cube(5); polyhedron([[0,0,0],[1,0,0],[0,1,0],[5,5,5]], [[0,1,2]]); }";
 
         // Act
         using var surface = ScadDocument.Parse(source).Render(16, 16, options, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(["echo", "warn", "scad-module-hull", "scad-csg-open-mesh"], events);
+        Assert.Equal(["echo", "warn", "scad-module-roof", "scad-csg-open-mesh"], events);
         Assert.Equal([Environment.CurrentManagedThreadId], threads.ToArray());
     }
 

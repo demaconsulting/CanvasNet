@@ -254,10 +254,10 @@ internal static partial class ScadPrimitives
         {
             mesh = make();
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             context.RefundTriangles(triangleEstimate);
-            Rejected(node, context, ex);
+            Rejected(node, context);
             return ScadGeo.Empty;
         }
 
@@ -270,10 +270,9 @@ internal static partial class ScadPrimitives
     /// </summary>
     /// <param name="node">The instance.</param>
     /// <param name="context">The build context.</param>
-    /// <param name="exception">The rejection.</param>
-    private static void Rejected(ScadInstance node, ScadGeometryContext context, ArgumentException exception) =>
+    private static void Rejected(ScadInstance node, ScadGeometryContext context) =>
         context.Reporter.Unsupported(
             ScadFeatureIds.GeometryRejected,
-            $"{node.Name}: the geometry was rejected: {exception.Message}",
+            $"{node.Name}: the geometry was rejected (it is not valid, for example because a coordinate is outside the supported range or its faces do not form a solid)",
             node.Location);
 }

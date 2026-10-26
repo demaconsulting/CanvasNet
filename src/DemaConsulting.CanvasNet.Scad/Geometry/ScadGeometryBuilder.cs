@@ -20,10 +20,11 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         <c>render</c> modules combine their children as an implicit union; a recognized primitive builds a
 ///         leaf; <c>difference</c>, <c>intersection</c>, the transforms (<c>translate</c>, <c>rotate</c>,
 ///         <c>scale</c>, <c>mirror</c>, <c>multmatrix</c>, <c>resize</c>), <c>color</c> and the extrusions
-///         (<c>linear_extrude</c>, <c>rotate_extrude</c>) build from the results of their children (see the
+///         (<c>linear_extrude</c>, <c>rotate_extrude</c>) and the convex combinations <c>hull</c> and
+///         <c>minkowski</c> build from the results of their children (see the
 ///         container table in <c>ScadGeometryBuilder.Unsupported.cs</c>); every other recognized module
-///         (<c>text</c>, <c>offset</c>, <c>projection</c>, <c>surface</c>, <c>import</c>, <c>roof</c>, <c>hull</c>,
-///         <c>minkowski</c>) is reported as an unsupported feature (see <see cref="ScadFeatureIds"/>) and yields
+///         (<c>text</c>, <c>offset</c>, <c>projection</c>, <c>surface</c>, <c>import</c>, <c>roof</c>)
+///         is reported as an unsupported feature (see <see cref="ScadFeatureIds"/>) and yields
 ///         nothing, so nothing is silently skipped. Modifiers: <c>!</c> replaces the model with the outermost
 ///         marked subtrees (without the transforms and colors of their ancestors), <c>#</c> renders normally and is
 ///         reported as degraded, <c>%</c> omits the subtree and is reported.

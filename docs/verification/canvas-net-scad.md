@@ -77,8 +77,8 @@ implementation, grammar, manual, or example (clean-room provenance, documented i
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
   (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
 - **Dependencies**: No external services, databases, or network access required. The fixture files in
-  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (thirty-eight valid `.scad` files — ten parse
-  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and twelve
+  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (forty valid `.scad` files — ten parse
+  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and fourteen
   render fixtures `render-*.scad` without expectation files — three
   `invalid-*.scad` files, the include libraries in `libs/`, and a provenance `README.md`) are copied to the
   test output directory and located relative to the test assembly
@@ -135,8 +135,8 @@ to the caller's list does not alter the options), and that a supplied `SourceNam
 
 **Test**: `CanvasNetScad_SystemIntegration_Syntax_AllAuthoredFixturesParse`
 
-Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly thirty-eight documents
-result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the twelve render fixtures), each
+Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly forty documents
+result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fourteen render fixtures), each
 named by its path. The fixtures cover
 assignments, modules and functions, control flow, expressions and
 operators, list comprehensions, function literals, modifiers, include and use directives, lexical forms, a
@@ -376,6 +376,25 @@ a scaled extrusion has the widths of a frustum, that a twisted, centered bar sho
 quarter turn, that the vase silhouette has the profile's radius at every sampled row, that a revolved ring is an
 annulus, and that the star is symmetric about its axis.
 
+### Hull And Minkowski: Convex Outlines, Rounded Blocks, And Reports
+
+**Tests**: `ScadRenderSystem_Hull_TopViewIsTheConvexOutlineOfTheParts`,
+`ScadRenderSystem_Hull_TwoDimensionalHullExtrudesToItsOutline`, `ScadRenderSystem_Hull_CutsAsAValidCsgOperandWithoutReports`,
+`ScadRenderSystem_Minkowski_RoundsTheCubeAndKeepsItsExtents`,
+`ScadRenderSystem_Minkowski_NonConvexChildIsReportedAtItsLocationAndOmitted`,
+`ScadRenderSystem_HullAndMinkowski_StrictModeThrowsTheNewFeatureIds`
+
+Renders `render-hull.scad` and `render-minkowski.scad` and asserts that the top view of two hulled cubes is the
+hexagon through their corners (within one pixel of a point-in-polygon predicate) and the capsule between two
+spheres has its analytic rows and caps; that the extruded 2D hull covers its outline from above and a 12 x 3
+rectangle from the front; that a block cut by a hull shows the hexagonal slot, with no report; that a Minkowski sum
+of a block and a ball is the rounded rectangle within three pixels of the distance predicate, that the sum over a
+union is two exact 6 x 6 blocks with a gap, that the sum with a hull is the hexagon through the corners of the
+summed squares, and that the scene bounds are exact; that a hollow operand is one `scad-minkowski-nonconvex`
+report at its own line and column and only the sibling cube is drawn; and that, in strict mode, the seven new
+identifiers are thrown by the models that trigger them and reported once without strict mode, the model being
+omitted.
+
 ### Unsupported Features And Modifiers: Reported At Their Locations
 
 **Tests**: `CanvasNetScad_SystemIntegration_Render_UnsupportedFeaturesAreReportedOrThrown`,
@@ -384,7 +403,8 @@ annulus, and that the star is symmetric about its axis.
 `ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`, `ScadRenderSystem_Modifiers_DrawNormalAndHighlightedAndOmitDisabledAndBackground`,
 `ScadRenderSystem_Modifiers_HighlightAndBackgroundAreReportedAtTheirLines`, `ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree`
 
-Renders `render-unsupported.scad` with a handler and asserts ten reports, each at a distinct line of the fixture
+Renders `render-unsupported.scad` with a handler and asserts ten reports (including a hull of mixed dimensions
+and a Minkowski sum with a boolean operand), each at a distinct line of the fixture
 and in source order, that only the supported geometry is drawn (and the bounds equal those of the supported
 geometry), that a color alpha is drawn opaque, and that strict mode throws the first report with its feature
 and location; asserts that no supported fixture throws in strict mode; and asserts that the `!`, `#`, `%`, and

@@ -115,4 +115,71 @@ public class TessellationTests
         Assert.Throws<ArgumentException>(() => new PolygonRegion([squareA, squareB]));
         Assert.Throws<ArgumentException>(() => new PolygonRegion([squareA, touching]));
     }
+
+    /// <summary>
+    ///     Validates the convex hull together with the primitive factories: the hull of each convex
+    ///     primitive's vertices is a closed, outward mesh with the primitive's own volume and a valid
+    ///     constructive-solid-geometry operand, and the hull of an extruded L-shape is the convex polyhedron with
+    ///     a plain hull volume that exceeds the L-prism volume.
+    /// </summary>
+    [Fact]
+    public void Tessellation_ConvexHull_OfPrimitiveVertices_IsClosedAndAValidCsgOperand()
+    {
+        // Arrange: convex primitives and a non-convex extrusion
+        var primitives = new[]
+        {
+            PrimitiveTessellator.Box(new Vector3D(2, 3, 4)),
+            PrimitiveTessellator.Sphere(2.0, 20),
+            PrimitiveTessellator.Cylinder(5.0, 2.0, 1.0, 13),
+            PrimitiveTessellator.Cylinder(3.0, 2.0, 0.0, 9, center: true),
+        };
+        var lShape = Extruder.Linear(PrimitiveTessellator.Polygon([new(0, 0), new(2, 0), new(2, 1), new(1, 1), new(1, 2), new(0, 2)]), 1.0);
+
+        foreach (var primitive in primitives)
+        {
+            // Act
+            var hull = ConvexHull.Hull3D(primitive.Vertices, TestContext.Current.CancellationToken);
+
+            // Assert: the same solid (the primitive is convex), valid as an operand
+            Assert.Equal(primitive.SignedVolume, hull.SignedVolume, primitive.SignedVolume * 1e-12);
+            Render3DTestHelpers.AssertValidCsgOperand(hull);
+        }
+
+        // Act / Assert: the hull of the L-prism is a larger convex solid: 3.5 * 1 (the L has area 3, the hull polygon 3.5)
+        var lHull = ConvexHull.Hull3D(lShape.Vertices, TestContext.Current.CancellationToken);
+        Assert.Equal(3.0, lShape.SignedVolume, 12);
+        Assert.Equal(3.5, lHull.SignedVolume, 12);
+        Render3DTestHelpers.AssertValidCsgOperand(lHull);
+    }
+
+    /// <summary>
+    ///     Validates the Minkowski sum together with the primitive factories and the extruder: sums of convex
+    ///     primitives are closed valid operands, a non-convex extrusion is rejected rather than approximated, and
+    ///     its convex hull (which is convex) is accepted.
+    /// </summary>
+    [Fact]
+    public void Tessellation_MinkowskiSum_OfPrimitives_IsClosedValidAndRejectsNonConvexOperands()
+    {
+        // Arrange: convex primitives and a non-convex L-shaped extrusion
+        var box = PrimitiveTessellator.Box(new Vector3D(4, 4, 4), center: true);
+        var sphere = PrimitiveTessellator.Sphere(1.0, 24);
+        var cone = PrimitiveTessellator.Cylinder(2.0, 1.0, 0.0, 12);
+        var lShape = Extruder.Linear(PrimitiveTessellator.Polygon([new(0, 0), new(2, 0), new(2, 1), new(1, 1), new(1, 2), new(0, 2)]), 1.0);
+
+        // Act
+        var rounded = MinkowskiSum.ConvexSum(box, sphere, TestContext.Current.CancellationToken);
+        var coned = MinkowskiSum.ConvexSum(cone, box, TestContext.Current.CancellationToken);
+        var hullSum = MinkowskiSum.ConvexSum(ConvexHull.Hull3D(lShape.Vertices, TestContext.Current.CancellationToken), sphere, TestContext.Current.CancellationToken);
+
+        // Assert: closed, valid operands whose extents are the summed extents
+        Render3DTestHelpers.AssertValidCsgOperand(rounded);
+        Render3DTestHelpers.AssertValidCsgOperand(coned);
+        Render3DTestHelpers.AssertValidCsgOperand(hullSum);
+        Render3DTestHelpers.AssertVector(new Vector3D(-3, -3, -3), rounded.Bounds.Min, 1e-9);
+        Render3DTestHelpers.AssertVector(new Vector3D(3, 3, 3), rounded.Bounds.Max, 1e-9);
+
+        // Assert: the non-convex operand is rejected on either side, never approximated
+        Assert.Throws<NotSupportedException>(() => MinkowskiSum.ConvexSum(lShape, sphere, TestContext.Current.CancellationToken));
+        Assert.Throws<NotSupportedException>(() => MinkowskiSum.ConvexSum(sphere, lShape, TestContext.Current.CancellationToken));
+    }
 }

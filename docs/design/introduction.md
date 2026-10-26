@@ -176,7 +176,9 @@ software items, specifically:
   sphere, cylinder and cone meshes, validated polyhedra, and 2D profile regions; `PolygonTriangulator` —
   validated even-odd `PolygonRegion` and an exact ear-clipping triangulator with hole bridging; and
   `Extruder` — linear extrusion with twist, scale and apex, and rotation about the Z axis, producing
-  closed outward-oriented meshes), and `SceneRendering` (units `Camera` —
+  closed outward-oriented meshes; `ConvexHull` — exact `Hull3D`/`Hull2D` of point sets with the internal
+  `HullBuilder3D` and `SolidPredicates`; and `MinkowskiSum` — `ConvexSum` of convex solids that rejects
+  non-convex operands), and `SceneRendering` (units `Camera` —
   perspective/orthographic projection and `FitToBounds` framing; `Lighting` — ambient/directional
   lights with flat Lambert and optional Blinn-Phong shading; `TriangleRasterizer` — homogeneous
   clipping and a fixed-point 24.8 top-left-rule rasterizer; `FragmentBuffer` — a per-worker,
@@ -208,10 +210,11 @@ software items, specifically:
   and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
   resolution inside a sandbox). The `ScadGeometry` subsystem has four units: `ScadGeometryBuilder` (the
   iterative, recursion-free walk that combines the instantiation tree into a Render3D scene, with modifiers,
-  booleans, the triangle budget, reporting, and the node-to-location map), `ScadPrimitives` (cube, sphere,
+  booleans, the hull and minkowski convex combinations, the triangle budget, reporting, and the
+  node-to-location map), `ScadPrimitives` (cube, sphere,
   cylinder, polyhedron, square, circle, polygon, and the fragment rule), `ScadTransforms` (translate, rotate,
   scale, mirror, multmatrix, resize, and color), and `ScadExtrusions` (linear and rotational extrusion over a
-  symbolic 2D shape tree). Hull, Minkowski, text, and a few other constructs are deferred and reported as
+  symbolic 2D shape tree). The 2D Minkowski sum, text, and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` uses the `CanvasNet` system
   (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
@@ -317,7 +320,7 @@ alongside `CanvasNet`, distributed as its own separate NuGet package
 (`DemaConsulting.CanvasNet.Render3D`) and depending only on the `CanvasNet` system's `Canvas`
 subsystem. Unlike the single-unit siblings it has three subsystems of its own — `SceneModel`
 (`DoublePrecisionMath`, `Mesh`, `SceneGraph`), `Tessellation` (`PrimitiveTessellator`,
-`PolygonTriangulator`, `Extruder`), and
+`PolygonTriangulator`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and
 `SceneRendering` (`Camera`, `Lighting`, `TriangleRasterizer`, `FragmentBuffer`, `CsgResolver`,
 `SceneRenderer`) — one per sub-namespace (`DemaConsulting.CanvasNet.Render3D.SceneModel`,
 `.Tessellation`, and `.SceneRendering`), so that the 3D math and scene model, the mesh generators,
@@ -660,7 +663,11 @@ src/DemaConsulting.CanvasNet.Render3D/
 │   ├── PolygonTriangulator.cs     — PolygonTriangulator: hole bridging and ear-clipping triangulation
 │   ├── Extruder.cs                — Extruder: shared helpers and uniform-scale overload
 │   ├── Extruder.Linear.cs         — Extruder: linear extrusion with twist, scale, and apex
-│   └── Extruder.Rotate.cs         — Extruder: rotational extrusion about the Z axis
+│   ├── Extruder.Rotate.cs         — Extruder: rotational extrusion about the Z axis
+│   ├── ConvexHull.cs              — ConvexHull: Hull3D and Hull2D entry points
+│   ├── HullBuilder3D.cs           — ConvexHull: internal incremental 3D hull engine
+│   ├── SolidPredicates.cs         — ConvexHull: internal exact 3D orientation predicate
+│   └── MinkowskiSum.cs            — MinkowskiSum: ConvexSum with the convexity test
 └── SceneRendering/                — SceneRendering subsystem
     ├── NamespaceDoc.cs            — Namespace-level XML documentation
     ├── Camera.cs                  — Camera: perspective/orthographic camera, LookAt, FitToBounds
@@ -751,6 +758,7 @@ src/DemaConsulting.CanvasNet.Scad/
 │   ├── ScadSceneOptions.cs        — ScadGeometryBuilder: renderer options copy and report mapping
 │   ├── ScadFeatureIds.cs          — ScadGeometryBuilder: stable unsupported-feature identifiers
 │   ├── ScadBooleans.cs            — ScadGeometryBuilder: union, difference, and intersection combiners
+│   ├── ScadHulls.cs               — ScadGeometryBuilder: hull and minkowski combiners
 │   ├── ScadArguments.cs           — ScadPrimitives: argument binder and typed readers
 │   ├── ScadFragmentRule.cs        — ScadPrimitives: fragment count from $fn, $fa, and $fs
 │   ├── ScadPrimitives.cs          — ScadPrimitives: cube, sphere, and cylinder

@@ -1,0 +1,123 @@
+---
+# cspell:ignore Minkowski convexity convex coplanar polytope welded
+#
+# Software Unit Requirements for MinkowskiSum
+#
+# These requirements describe the design-level behavior of the MinkowskiSum unit: the public static
+# MinkowskiSum class (MinkowskiSum.cs) in the DemaConsulting.CanvasNet.Render3D.Tessellation namespace,
+# which computes the Minkowski sum of two convex solid meshes as the exact convex hull of all pairwise
+# vertex sums. Each operand is verified to be a closed convex solid (exact structural preconditions and
+# a global comparison with its own convex hull within a documented relative tolerance); a non-convex
+# operand is rejected, never approximated. Every result is a valid constructive-solid-geometry operand.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        sections:
+          - title: MinkowskiSum Requirements
+            requirements:
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexSum
+                title: >-
+                  The MinkowskiSum ConvexSum method shall return the Minkowski sum of two convex solid
+                  meshes as the closed, outward-wound convex hull of all pairwise vertex sums, with the
+                  analytic volume and extents for a box plus a box (the box of the summed edge lengths),
+                  for a box plus a tessellated sphere (the exact mixed-volume formula of a box and a
+                  convex polytope, for several segment counts), for rotated, translated and mirrored
+                  convex operands whose coordinates carry rounding noise, and for the output of the
+                  convex hull.
+                justification: |
+                  For convex solids the sum is the hull of the pairwise vertex sums; the analytic
+                  mixed-volume formula proves the result is the true sum and not an approximation, and
+                  accepting rotated and tessellated operands proves the convexity test does not reject
+                  the models it exists to support.
+                tests:
+                  - MinkowskiSum_ConvexSum_CubePlusCube_IsBoxWithAnalyticVolume
+                  - MinkowskiSum_ConvexSum_CubePlusSphere_HasTheRoundedBoxVolume
+                  - MinkowskiSum_ConvexSum_RotatedConvexOperand_IsAccepted
+                  - MinkowskiSum_ConvexSum_HullOutputOperand_IsAccepted
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-ConvexityDetection
+                title: >-
+                  The MinkowskiSum ConvexSum method shall reject with a NotSupportedException, naming the
+                  operand and the reason, every operand that is not provably a closed convex solid: an
+                  open, non-manifold, inconsistently wound, inside-out or multi-shell surface, and a
+                  surface that differs from the convex hull of its vertices by more than a relative
+                  tolerance of 1e-9 of the hull volume or area (an L-shaped prism, a dented cube, a
+                  prism with a hole, two disjoint cubes, two cubes touching at an edge or a vertex, a
+                  chord-triangulated octahedron, and a double-wound apex), while accepting
+                  rounding-level and sub-tolerance deviations; the tolerance is relative to the volume
+                  and area of the hull. An operand whose measured volume or area is not a finite number
+                  (coordinates around 1e103 and beyond) shall be rejected, never accepted.
+                justification: |
+                  The hull of the vertex sums is only the Minkowski sum for convex operands, so a
+                  non-convex operand would silently produce a wrong solid; a global comparison with the
+                  operand's own convex hull is sound (a local per-edge tolerance is not), so no
+                  macroscopic non-convexity passes, and the documented tolerance makes the accepted
+                  deviation explicit.
+                tests:
+                  - MinkowskiSum_ConvexSum_NonConvexOperand_ThrowsNotSupported
+                  - MinkowskiSum_ConvexSum_OpenOrInvertedOperand_ThrowsNotSupported
+                  - MinkowskiSum_ConvexSum_ToleranceBoundary_RejectsDentsAboveTauAndAcceptsRoundingNoise
+                  - MinkowskiSum_ConvexSum_NonFiniteMeasurements_AreRejected
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-Validation
+                title: >-
+                  The MinkowskiSum ConvexSum method shall reject a null operand with an
+                  ArgumentNullException, an operand without triangles or without volume with an
+                  ArgumentException, and operands whose vertex counts multiply to more than
+                  MaxPairwiseSums (2,097,152) with an ArgumentException that is thrown before the
+                  convexity tests and before any large allocation.
+                justification: |
+                  The work and memory of the sum are the product of the vertex counts; the documented
+                  bound, checked first, prevents an unbounded allocation from untrusted operands.
+                tests:
+                  - MinkowskiSum_ConvexSum_NullEmptyOrFlatOperand_Throws
+                  - MinkowskiSum_ConvexSum_TooManyPairwiseSums_ThrowsBeforeAllocating
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-Determinism
+                title: >-
+                  The mesh returned by ConvexSum shall depend only on the vertex sets of the operands: it
+                  shall be byte-identical when the operands are swapped, repeated, given with their
+                  vertices in a different order, or stored unwelded.
+                justification: |
+                  The hull depends only on the point set and addition of doubles is commutative, so the
+                  sum is reproducible; this makes documents that use the operation render identically.
+                tests:
+                  - MinkowskiSum_ConvexSum_OperandOrderAndRepeats_AreByteIdentical
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-ValidOperand
+                title: >-
+                  Every mesh produced by ConvexSum shall be a valid constructive-solid-geometry operand:
+                  welded without duplicate vertex positions, every vertex referenced, closed,
+                  outward-oriented with positive signed volume, free of degenerate triangles, and
+                  accepted by the operand validator with no report, including in strict mode.
+                justification: |
+                  Sums are intended as operands of difference and intersection; the operand validator is
+                  the contract these meshes must satisfy.
+                tests:
+                  - MinkowskiSum_ConvexSum_Results_AreClosedOutwardAndValidCsgOperands
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-Cancellation
+                title: >-
+                  The MinkowskiSum ConvexSum method shall throw an OperationCanceledException when its
+                  cancellation token is canceled, before any work is done for a token that is already
+                  canceled.
+                justification: |
+                  The sum can generate millions of points, so a caller must be able to stop it.
+                tests:
+                  - MinkowskiSum_ConvexSum_Canceled_ThrowsOperationCanceledException
+
+              - id: CanvasNetRender3D-Tessellation-MinkowskiSum-PreVerified
+                title: >-
+                  The MinkowskiSum unit shall provide internal members that verify one operand once
+                  (RequireConvexSolid, with the checks, exceptions and tolerance of ConvexSum) and that
+                  sum two verified operands without repeating the convexity test (ConvexSumOfVerified,
+                  byte-identical to ConvexSum for convex operands, keeping the null, empty, work-bound
+                  and cancellation checks), so that a fold of many sums verifies each member once.
+                justification: |
+                  A fold that sums the accumulated hull with many members would otherwise re-verify the
+                  growing hull with a full hull computation at every pair; verifying once removes that
+                  repeated cost without weakening the test.
+                tests:
+                  - MinkowskiSum_ConvexSumOfVerified_VerifiedOperands_GiveTheSameSumWithoutTheTest

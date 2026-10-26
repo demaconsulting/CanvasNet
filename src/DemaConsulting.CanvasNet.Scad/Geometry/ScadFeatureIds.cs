@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// <remarks>
 ///     The identifiers are lower-case and stable so callers can match on them; they are part of the documented
 ///     behavior of the package. The prefix of a module that is recognized but not built is
-///     <see cref="ModulePrefix"/> followed by the module name.
+///     <see cref="ModulePrefix"/> followed by the module name; <c>hull</c> and <c>minkowski</c> are built and
+///     report the specific <c>scad-hull-*</c> and <c>scad-minkowski-*</c> identifiers instead.
 /// </remarks>
 internal static class ScadFeatureIds
 {
@@ -68,6 +69,27 @@ internal static class ScadFeatureIds
 
     /// <summary>The composed transform of a boolean operand is singular (mapped from <c>render3d-csg-singular-transform</c>).</summary>
     public const string CsgSingularTransform = "scad-csg-singular-transform";
+
+    /// <summary>A <c>hull</c> has a difference or an intersection among its children, which is not the hull of its operands' points.</summary>
+    public const string HullCsgOperand = "scad-hull-csg-operand";
+
+    /// <summary>A <c>hull</c> of points that span no volume (3D) or no area (2D) cannot be built.</summary>
+    public const string HullDegenerate = "scad-hull-degenerate";
+
+    /// <summary>A <c>hull</c> has both 2D and 3D children.</summary>
+    public const string HullMixedDimensions = "scad-hull-mixed-dimensions";
+
+    /// <summary>A <c>minkowski</c> has a child that is not provably a convex solid (a boolean, or a mesh that is not convex).</summary>
+    public const string MinkowskiNonConvex = "scad-minkowski-nonconvex";
+
+    /// <summary>A 2D <c>minkowski</c> is deferred.</summary>
+    public const string Minkowski2D = "scad-minkowski-2d";
+
+    /// <summary>A <c>minkowski</c> has both 2D and 3D children.</summary>
+    public const string MinkowskiMixedDimensions = "scad-minkowski-mixed-dimensions";
+
+    /// <summary>A <c>minkowski</c> needs more pairwise vertex sums or convex combinations than the documented bounds.</summary>
+    public const string MinkowskiTooComplex = "scad-minkowski-too-complex";
 
     /// <summary>
     ///     Gets the identifier of a module that is recognized but not built.

@@ -110,11 +110,11 @@ internal static partial class ScadExtrusions
             {
                 regions[leaf] = matrix == Matrix4x4D.Identity ? leaf.Region! : TransformRegion(leaf.Region!, matrix);
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException)
             {
                 context.Reporter.Unsupported(
                     ScadFeatureIds.PolygonInvalid,
-                    $"A 2D shape was rejected after its transformations: {ex.Message}",
+                    "A 2D shape was rejected after its transformations (it is no longer a valid planar shape, for example because a coordinate is outside the supported range)",
                     leaf.Location);
             }
         }
@@ -386,13 +386,13 @@ internal static partial class ScadExtrusions
             job.Bounds = job.Bounds.Union(mesh.Bounds);
             return mesh.TriangleCount == 0 ? null : context.CreateMeshNode(mesh, node.Location);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
             job.Failed = true;
             context.RefundTriangles(charged);
             context.Reporter.Unsupported(
                 ScadFeatureIds.GeometryRejected,
-                $"{node.Name}: the geometry was rejected: {ex.Message}",
+                $"{node.Name}: the geometry was rejected (the solid is not valid, for example because a coordinate is outside the supported range)",
                 node.Location);
             return null;
         }
@@ -444,12 +444,12 @@ internal static partial class ScadExtrusions
                 context.SettleTriangles(charged, mesh.TriangleCount, leaf.Location);
                 return context.CreateMeshNode(mesh, leaf.Location);
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException)
             {
                 context.RefundTriangles(charged);
                 context.Reporter.Unsupported(
                     ScadFeatureIds.GeometryRejected,
-                    $"The 2D shape could not be made into a slab: {ex.Message}",
+                    "The 2D shape could not be made into a slab (the slab is not valid geometry, for example because a coordinate is outside the supported range)",
                     leaf.Location);
                 return null;
             }

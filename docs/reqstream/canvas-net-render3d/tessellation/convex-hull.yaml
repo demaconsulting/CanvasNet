@@ -1,0 +1,183 @@
+---
+# cspell:ignore coplanar collinear lexicographic lexicographically canonicalized polytope facets facet
+#
+# Software Unit Requirements for ConvexHull
+#
+# These requirements describe the design-level behavior of the ConvexHull unit: the public static
+# ConvexHull class (ConvexHull.cs) with the internal incremental engine HullBuilder3D (HullBuilder3D.cs)
+# and the exact three-dimensional orientation predicate SolidPredicates (SolidPredicates.cs), in the
+# DemaConsulting.CanvasNet.Render3D.Tessellation namespace. Hull3D turns a point set into a closed,
+# outward-oriented triangle Mesh whose vertices are exactly the strictly extreme points; Hull2D returns the
+# strictly convex counter-clockwise boundary polygon of a planar point set. Every decision uses exact
+# predicates, the result depends only on the point set, and every result is a valid
+# constructive-solid-geometry operand.
+
+sections:
+  - title: CanvasNetRender3D Requirements
+    sections:
+      - title: Tessellation Requirements
+        sections:
+          - title: ConvexHull Requirements
+            requirements:
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-Hull3DSolid
+                title: >-
+                  The ConvexHull Hull3D method shall return the convex hull of a set of points as a
+                  closed, welded, outward-wound triangle mesh with a positive volume equal to the
+                  analytic volume of the hull (a cube with interior points is the twelve-triangle box
+                  with the box volume, four affinely independent points are a four-face tetrahedron
+                  with volume one sixth for the unit corner tetrahedron, and the vertices of a
+                  tessellated sphere give the volume of that sphere polytope), with exactly 2V - 4
+                  triangles for V vertices.
+                justification: |
+                  The hull is the building block of the OpenSCAD hull and Minkowski operations; analytic
+                  volumes, counts and the closure of the surface prove that the incremental construction
+                  produces the true boundary of the point set rather than an approximation.
+                tests:
+                  - ConvexHull_Hull3D_CubeWithInteriorPoints_IsClosedBoxWithAnalyticVolume
+                  - ConvexHull_Hull3D_Tetrahedron_HasFourFacesAndAnalyticVolume
+                  - ConvexHull_Hull3D_SphereVertices_VolumeMatchesTheSpherePolytope
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-ExtremePoints
+                title: >-
+                  The vertices of the mesh returned by Hull3D shall be exactly the strictly extreme points
+                  of the input: interior points and points that lie in the middle of a face or an edge of
+                  the hull shall never be vertices, every extreme point shall be a vertex, and every
+                  input point shall lie on or below the plane of every triangle (every triangle is a
+                  supporting plane), as established against an independent exhaustive oracle over
+                  random lattice point sets with many collinear, coplanar and duplicate points.
+                justification: |
+                  Dropping points that are not corners keeps the mesh minimal for the triangle budget
+                  of its consumers, and the exhaustive oracle on degenerate lattices proves the
+                  incremental algorithm handles every degeneracy class instead of only random
+                  general-position input.
+                tests:
+                  - ConvexHull_Hull3D_InteriorAndFacetPoints_AreNotVertices
+                  - ConvexHull_Hull3D_RandomLatticeInputs_MatchTheBruteForceOracle
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-DegenerateInput
+                title: >-
+                  The ConvexHull Hull3D method shall handle collinear, coplanar and duplicate prefixes
+                  of the sorted input (a collinear start, a large coplanar start followed by an apex, an
+                  apex that sorts first, repeated points) and shall reject input that spans no volume
+                  (no points, fewer than four distinct points, all points collinear, all points
+                  coplanar) with an ArgumentException that names the degenerate case.
+                justification: |
+                  Degenerate prefixes are where incremental hull algorithms fail; an explicit exception
+                  for flat input lets callers decide how to treat a flat hull, whereas a silently
+                  returned open or zero-volume mesh would corrupt later operations.
+                tests:
+                  - ConvexHull_Hull3D_CollinearCoplanarAndDuplicatePrefix_IsHandled
+                  - ConvexHull_Hull3D_FewerThanFourOrFlatInput_ThrowsArgumentException
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-InvalidInput
+                title: >-
+                  The ConvexHull Hull3D and Hull2D methods shall reject a null point sequence with an
+                  ArgumentNullException and a point with a non-finite coordinate (not a number or an
+                  infinity) with an ArgumentException.
+                justification: |
+                  A non-finite coordinate has no defined position, and the exact predicates are only
+                  defined for finite doubles; rejecting such input up front keeps every later step
+                  total.
+                tests:
+                  - ConvexHull_Hull3D_NullOrNonFiniteInput_Throws
+                  - ConvexHull_Hull2D_NullOrNonFiniteInput_Throws
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-ExactPredicates
+                title: >-
+                  The orientation predicate used by the hull shall return the exact sign of the
+                  determinant of its double-precision inputs, positive when the fourth point lies above
+                  the plane of a counter-clockwise triangle, for random inputs at many scales, probes
+                  a few units in the last place off a non-axis-aligned plane (where a plain double
+                  determinant fails), subnormal offsets, overflowing differences and huge or tiny
+                  coordinates, and the hull shall classify a point one unit in the last place above a
+                  face as extreme and one below it as interior.
+                justification: |
+                  A single wrong sign on a nearly coplanar quadruple yields an overlapping or open
+                  hull; exactness removes the need for any tolerance and makes the algorithm
+                  deterministic, so the predicate is verified against arbitrary-precision and
+                  independent 128-bit evaluations, including the extremes of the double range.
+                tests:
+                  - SolidPredicates_Orient3D_RandomInputs_MatchesTheExactSign
+                  - SolidPredicates_Orient3D_NearlyCoplanar_ReturnsTheExactSign
+                  - SolidPredicates_Orient3D_ExtremeMagnitudes_FallBackToExact
+                  - SolidPredicates_Orient3D_PositiveAboveTheCounterClockwisePlane
+                  - ConvexHull_Hull3D_ExtremeMagnitudes_AreExact
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-Determinism
+                title: >-
+                  The meshes and polygons returned by Hull3D and Hull2D shall depend only on the set of
+                  points: any order and any repetition of the same points, and positive or negative
+                  zero coordinates, shall give a byte-identical result with no negative zero in the
+                  output.
+                justification: |
+                  Reproducible geometry is required for deterministic rendering and for byte-identical
+                  documents; reducing the input to its sorted set of distinct canonical points, and using
+                  no randomness or hashing order, removes every source of run-to-run variation.
+                tests:
+                  - ConvexHull_Hull3D_SamePointSetInAnyOrder_IsByteIdentical
+                  - ConvexHull_Hull3D_NegativeZeroAndDuplicates_AreCanonicalized
+                  - ConvexHull_Hull2D_SamePointSetInAnyOrder_IsIdentical
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-ValidOperand
+                title: >-
+                  Every mesh produced by Hull3D shall be a valid constructive-solid-geometry operand:
+                  welded without duplicate vertex positions, every vertex referenced, closed,
+                  outward-oriented with positive signed volume, free of degenerate triangles, and
+                  accepted by the operand validator with no report, including in strict mode, for random
+                  clouds, sphere vertices, lattices and pyramids.
+                justification: |
+                  The hull is intended as an operand of difference and intersection; the operand
+                  validator is the contract these meshes must satisfy.
+                tests:
+                  - ConvexHull_Hull3D_Results_AreClosedOutwardAndValidCsgOperands
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-Hull2D
+                title: >-
+                  The ConvexHull Hull2D method shall return the strictly convex counter-clockwise
+                  polygon of a planar point set starting at the lexicographically smallest point, without
+                  interior or collinear boundary points, deciding every turn with the exact orientation
+                  predicate (so nearly collinear points are classified correctly), and shall return an
+                  empty list, the single point, or the two extreme points for a degenerate set instead of
+                  throwing.
+                justification: |
+                  The planar hull is the 2D half of the hull operation; the exact predicate and the
+                  non-throwing degenerate results let the caller decide what a point or a segment
+                  means.
+                tests:
+                  - ConvexHull_Hull2D_SquareWithInteriorAndCollinearPoints_IsStrictCounterClockwise
+                  - ConvexHull_Hull2D_DegenerateInputs_ReturnThePointOrTheSegment
+                  - ConvexHull_Hull2D_NearlyCollinearPoints_UseTheExactPredicate
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-Bounds
+                title: >-
+                  The ConvexHull Hull3D method shall complete a large input (two hundred thousand points
+                  mixing random points, a lattice and points on a sphere, and a twenty thousand point
+                  coplanar prefix followed by an apex) in bounded time with a closed surface that satisfies
+                  the Euler relation of two V minus four triangles, and the Hull3D and Hull2D methods shall
+                  poll the cancellation token and throw an OperationCanceledException when it is canceled
+                  before or during the computation.
+                justification: |
+                  The hull of untrusted input must not run unbounded without a way to stop it; the work is
+                  bounded by the input size, the documented worst case is quadratic only for adversarial
+                  input, and cancellation is observed while the input is read and during the
+                  construction.
+                tests:
+                  - ConvexHull_Hull3D_LargeInput_CompletesWithEulerCounts
+                  - ConvexHull_Hull3D_Canceled_ThrowsOperationCanceledException
+                  - ConvexHull_Hull2D_Canceled_ThrowsOperationCanceledException
+
+              - id: CanvasNetRender3D-Tessellation-ConvexHull-InputCopy
+                title: >-
+                  The ConvexHull Hull3D method shall copy its input exactly once, into a single array
+                  that is validated, canonicalized, sorted and de-duplicated in place (without an
+                  intermediate list or a resized copy), shall give the same mesh for an array, a list,
+                  a set and a lazy sequence of the same points, shall never modify the caller's
+                  collection, and shall allocate on the order of one array and the construction tables
+                  (not several copies of the point set) for a large input.
+                justification: |
+                  The Minkowski sum hulls up to two million points; each transient copy of the point
+                  set is tens of megabytes, so a single copy keeps the peak memory of a library call
+                  predictable.
+                tests:
+                  - ConvexHull_Hull3D_InputSequenceKinds_GiveTheSameMeshAndLeaveTheInputUntouched
+                  - ConvexHull_Hull3D_LargeInput_AllocatesTheInputOnlyOnce
