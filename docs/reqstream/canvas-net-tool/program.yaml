@@ -107,17 +107,35 @@ sections:
         tests:
           - Program_Execute_UnexpectedException_ReportsAndRethrows
 
+      - id: CanvasNetTool-Program-ErrorChannels
+        title: >-
+          The Program class shall report an expected error, and the notice of an unexpected error, through
+          the active context, so that the silent option suppresses the console output and the log option
+          captures the report, and shall fall back to the console only when no context could be created
+          (a malformed global option, or a log file that cannot be opened).
+        justification: |
+          The silent and log options promise to control all output of the tool; an error report that
+          bypasses them would leak to the console of a script that asked for silence and would be
+          missing from the log that is meant to explain a failure. Without a context there is nothing
+          to honor, and the failure must still be visible.
+        tests:
+          - Program_Execute_SilentExpectedError_SuppressesConsoleOutput
+          - Program_Execute_LogExpectedError_CapturesReport
+          - Program_Execute_SilentLogJsonExpectedError_WritesOnlyToLog
+          - Program_Execute_LogUnexpectedException_CapturesReportAndRethrows
+          - Program_Execute_LogCannotBeOpened_ReportsOnConsole
+
       - id: CanvasNetTool-Program-JsonErrors
         title: >-
-          The Program class shall, when the command line contains the JSON option and not the silent
-          option, also write an expected failure to standard output as a JSON failure document, for
-          failures that occur before a command is selected as well as for failures of a command, and
-          shall write no document for an unexpected exception.
+          The Program class shall, when the JSON option is given and the silent option is not, also write
+          an expected failure to standard output as a JSON failure document, for failures that occur
+          before a command is selected as well as for failures of a command, and shall write no document
+          for an unexpected exception.
         justification: |
           Agents that request JSON results parse standard output; a failure must arrive in the same
-          machine-readable form as a success. The command line is scanned directly because a
-          malformed global option fails before a context exists, and an unexpected exception is a
-          defect whose report belongs to the runtime, not to the result contract.
+          machine-readable form as a success. A malformed global option fails before a context exists,
+          so the command line is scanned directly then, and an unexpected exception is a defect whose
+          report belongs to the runtime, not to the result contract.
         tests:
           - Program_Execute_JsonToolException_WritesErrorDocumentToStdOut
           - Program_Execute_JsonBadGlobalOption_WritesErrorDocumentWithNullCommand

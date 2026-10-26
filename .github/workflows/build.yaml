@@ -352,9 +352,11 @@ jobs:
           dotnet tool restore
 
       # The tool bundles the sibling CanvasNet libraries it uses (the project references are
-      # private assets). This guard proves that the package declares no NuGet dependency on
-      # them (a tool install must not need sibling packages that may not be published yet) and
-      # that their assemblies are really shipped inside the package.
+      # private assets) and the third-party libraries they need. This guard proves that the
+      # package declares no NuGet dependency at all (a tool install must not need sibling
+      # packages that may not be published yet; every assembly must travel inside the package),
+      # that it is a .NET tool package, and that every target framework ships the tool, its
+      # bundled libraries (including the transitive ones), and the files that start it.
       - name: Check tool package contents
         shell: pwsh
         run: |
@@ -368,22 +370,31 @@ jobs:
             $reader = New-Object System.IO.StreamReader($nuspecEntry.Open())
             $nuspec = $reader.ReadToEnd()
             $reader.Dispose()
-            if ($nuspec -match 'dependency id="DemaConsulting\.CanvasNet') {
-              throw "The tool package declares a NuGet dependency on a sibling CanvasNet package"
+            if ($nuspec -match '<dependency ') {
+              throw "The tool package declares a NuGet dependency; everything must be bundled"
             }
-            $assemblies = @(
+            if ($nuspec -notmatch 'packageType name="DotnetTool"') {
+              throw "The package is not a DotnetTool package"
+            }
+            $files = @(
               'DemaConsulting.CanvasNet.Tool.dll',
+              'DemaConsulting.CanvasNet.Tool.deps.json',
+              'DemaConsulting.CanvasNet.Tool.runtimeconfig.json',
+              'DotnetToolSettings.xml',
               'DemaConsulting.CanvasNet.dll',
               'DemaConsulting.CanvasNet.Svg.dll',
               'DemaConsulting.CanvasNet.Pdf.dll',
               'DemaConsulting.CanvasNet.Pptx.dll',
+              'DemaConsulting.CanvasNet.Charts.dll',
               'DemaConsulting.CanvasNet.Vsdx.dll',
               'DemaConsulting.CanvasNet.Render3D.dll',
-              'DemaConsulting.CanvasNet.Scad.dll'
+              'DemaConsulting.CanvasNet.Scad.dll',
+              'DemaConsulting.TestResults.dll',
+              'System.Numerics.Tensors.dll'
             )
             foreach ($framework in 'net8.0', 'net9.0', 'net10.0') {
-              foreach ($assembly in $assemblies) {
-                $entry = "tools/$framework/any/$assembly"
+              foreach ($file in $files) {
+                $entry = "tools/$framework/any/$file"
                 if (-not ($zip.Entries.FullName -contains $entry)) {
                   throw "The tool package does not contain $entry"
                 }
@@ -393,7 +404,7 @@ jobs:
           finally {
             $zip.Dispose()
           }
-          Write-Host "✓ Tool package declares no sibling dependencies and bundles its libraries"
+          Write-Host "✓ Tool package declares no dependencies and bundles its libraries for every framework"
 
       - name: Install tool from package
         shell: bash

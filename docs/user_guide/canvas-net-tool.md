@@ -54,8 +54,8 @@ not an option (or the value of an option) is the command name.
 | `-v`, `--version` | Print the version (only the version) and exit |
 | `-?`, `-h`, `--help` | Print the help of the tool or of the named command |
 | `--json` | Write the result of the command as one JSON document on standard output |
-| `--silent` | Suppress all console output (the files are still written, and `--log` still records the output) |
-| `--log <file>` | Also write everything that is printed to this file (an existing file is replaced) |
+| `--silent` | Suppress all console output, errors included (files are still written; `--log` still records) |
+| `--log <file>` | Also write everything that is printed, errors included, to this file (replaced if it exists) |
 | `--validate` | Run the self-validation (see _Self-Validation_) |
 | `--results <file>` | With `--validate`: write the results as a `.trx` (TRX) or `.xml` (JUnit) file; alias `--result` |
 | `--depth <1-6>` | With `--validate`: the markdown heading depth of the report (default 1) |
@@ -68,7 +68,10 @@ not an option (or the value of an option) is the command name.
 - **Standard error** carries diagnostics: `Error: <code>: <message>` and an optional `Hint: <advice>` line for an
   expected failure. There is never a stack trace for an expected failure. A mistake in the global options that is
   found before the command is known (for example `canvasnet --nope`) is reported without a code, as
-  `Error: <message>`; its `--json` failure document uses the code `usage-error`.
+  `Error: <message>`; its `--json` failure document uses the code `usage-error`. With `--silent` the report is not
+  printed (the exit code 1 still tells that the command failed), and with `--log` it is also written to the log
+  file. The exceptions are a failure of the global options themselves, such as a malformed option or a log file that
+  cannot be opened: no log or silent setting is in force yet, so it is always printed.
 - **Exit codes** are the same for every command: **0** for success and **1** for any failure. The finer distinction
   is the stable error code, which is available only in the `Error:` line on standard error and in the `--json`
   failure document (see _Error Codes_); there is no other exit code to interpret.
@@ -535,9 +538,9 @@ and hint may be improved at any time.
 | `unsupported-feature` | The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG, a PPTX shape the library lacks, or any skipped feature with `--strict`) | Remove the feature, or drop `--strict` if it is only a skipped picture |
 | `page-out-of-range` | `--page` is beyond the last page of the document | Pages are counted from 1; use `info` for the count |
 | `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side | Use a smaller size, dpi, or border |
-| `same-input-output` | The output file is the input file | Name a different output |
+| `same-input-output` | The output file is the input file (also reached through a symbolic link) | Name a different output |
 | `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
-| `output-write-failed` | The output could not be written (a folder in the way, permissions, a full disk) | Check the output path |
+| `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
 | `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles` | Raise the limit or simplify the model |
 

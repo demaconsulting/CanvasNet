@@ -443,7 +443,8 @@ public class ProgramTests
     }
 
     /// <summary>
-    ///     Test that --silent suppresses the JSON failure document, and that without --json no document is written.
+    ///     Test that --silent suppresses the JSON failure document and the text report, and that without --json no
+    ///     document is written.
     /// </summary>
     [Fact]
     public void Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument()
@@ -454,14 +455,140 @@ public class ProgramTests
 
         // Act: execute with --json and --silent, then without --json
         var (silentExit, silentOut, silentErr) = ToolHost.Invoke(registry, "fail", "--json", "--silent");
-        var (plainExit, plainOut, _) = ToolHost.Invoke(registry, "fail");
+        var (plainExit, plainOut, plainErr) = ToolHost.Invoke(registry, "fail");
 
-        // Assert: exit code 1 both times, standard output empty both times, the text report unaffected by --json
+        // Assert: exit code 1 both times; --silent leaves both streams empty; without --json only the text report
         Assert.Equal(1, silentExit);
         Assert.Equal(string.Empty, silentOut);
-        Assert.Contains("Error: operation-failed: It failed.", silentErr);
+        Assert.Equal(string.Empty, silentErr);
         Assert.Equal(1, plainExit);
         Assert.Equal(string.Empty, plainOut);
+        Assert.Contains("Error: operation-failed: It failed.", plainErr);
+    }
+
+    /// <summary>
+    ///     Test that --silent suppresses an expected error of any kind (a ToolException with a hint, an
+    ///     InvalidOperationException, and an ArgumentException) but still exits with 1.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_SilentExpectedError_SuppressesConsoleOutput()
+    {
+        // Arrange: commands that fail in each of the expected ways
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("tool", (_, _) => throw new ToolException(ErrorCodes.OutputExists, "Exists.", "A hint.")));
+        registry.Register(new TestCommand("operation", (_, _) => throw new InvalidOperationException("bad state")));
+        registry.Register(new TestCommand("argument", (_, _) => throw new ArgumentException("bad argument")));
+
+        // Act: execute each with --silent (before and after the command name)
+        var results = new[]
+        {
+            ToolHost.Invoke(registry, "tool", "--silent"),
+            ToolHost.Invoke(registry, "--silent", "operation"),
+            ToolHost.Invoke(registry, "argument", "--silent")
+        };
+
+        // Assert: exit code 1 and nothing at all on either stream
+        foreach (var (exitCode, stdOut, stdErr) in results)
+        {
+            Assert.Equal(1, exitCode);
+            Assert.Equal(string.Empty, stdOut);
+            Assert.Equal(string.Empty, stdErr);
+        }
+    }
+
+    /// <summary>
+    ///     Test that --log captures an expected error exactly as it is written to standard error, including the hint.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_LogExpectedError_CapturesReport()
+    {
+        // Arrange: a failing command and a log file
+        using var directory = new TempDirectory();
+        var log = directory.Combine("tool.log");
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand(
+            "fail",
+            (_, _) => throw new ToolException(ErrorCodes.OutputExists, "Output 'a.png' exists.", "Remove --no-clobber.")));
+
+        // Act: execute with --log
+        var (exitCode, _, stdErr) = ToolHost.Invoke(registry, "fail", "--log", log);
+
+        // Assert: the log holds the same report as standard error, and the file is closed (readable) afterwards
+        var expected = $"Error: output-exists: Output 'a.png' exists.{Environment.NewLine}Hint: Remove --no-clobber.{Environment.NewLine}";
+        Assert.Equal(1, exitCode);
+        Assert.Equal(expected, stdErr);
+        Assert.Equal(expected, File.ReadAllText(log));
+    }
+
+    /// <summary>
+    ///     Test that --silent with --log keeps the error out of the console but in the log, together with the JSON
+    ///     failure document when --json is given.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_SilentLogJsonExpectedError_WritesOnlyToLog()
+    {
+        // Arrange: a failing command and a log file
+        using var directory = new TempDirectory();
+        var log = directory.Combine("tool.log");
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("fail", (_, _) => throw new ToolException(ErrorCodes.OperationFailed, "It failed.")));
+
+        // Act: execute with --silent, --log and --json
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "fail", "--silent", "--json", "--log", log);
+
+        // Assert: the console is silent; the log has the text report and the JSON document
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(string.Empty, stdErr);
+        Assert.Equal(
+            $"Error: operation-failed: It failed.{Environment.NewLine}"
+            + "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            + "\"error\":{\"code\":\"operation-failed\",\"message\":\"It failed.\"}}"
+            + Environment.NewLine,
+            File.ReadAllText(log));
+    }
+
+    /// <summary>
+    ///     Test that an unexpected exception is captured in the log before it is re-thrown.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_LogUnexpectedException_CapturesReportAndRethrows()
+    {
+        // Arrange: a command with a defect and a log file
+        using var directory = new TempDirectory();
+        var log = directory.Combine("tool.log");
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("defect", (_, _) => throw new NotSupportedException("defect")));
+
+        // Act: execute with --log, expecting the exception to escape
+        var (exception, _, stdErr) = ToolHost.InvokeExpectingThrow<NotSupportedException>(registry, "defect", "--log", log);
+
+        // Assert: re-thrown; reported on standard error and in the (closed) log
+        Assert.Equal("defect", exception.Message);
+        Assert.Equal($"Unexpected error: defect{Environment.NewLine}", stdErr);
+        Assert.Equal($"Unexpected error: defect{Environment.NewLine}", File.ReadAllText(log));
+    }
+
+    /// <summary>
+    ///     Test that a log file that cannot be opened is reported on the console, because no context exists to carry
+    ///     the report, even with --silent.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_LogCannotBeOpened_ReportsOnConsole()
+    {
+        // Arrange: a log path in a folder that does not exist
+        using var directory = new TempDirectory();
+        var log = Path.Combine(directory.Path, "missing", "tool.log");
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("ok"));
+
+        // Act: execute with --log
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "ok", "--log", log);
+
+        // Assert: exit code 1 and the failure on standard error; the command did not run
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdOut);
+        Assert.StartsWith("Error: Failed to open log file", stdErr, StringComparison.Ordinal);
     }
 
     /// <summary>

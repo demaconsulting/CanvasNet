@@ -27,9 +27,10 @@ run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_Render
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`), which generate their own inputs and are evidence
 for the validation requirements.
-The same job guards the package contents (no dependency on sibling CanvasNet packages, library assemblies
-bundled for every target framework) and smoke-tests the installed tool (`formats --json`, an SVG `render`, and
-a `crop`).
+The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
+start-up files, the library assemblies, and the third-party libraries bundled for every target framework) and
+smoke-tests the installed tool (`formats --json`, an SVG `render`, and a `crop`); the self-validation covers the PDF
+and SCAD (OpenSCAD) paths of the bundled libraries.
 
 ## Test Environment
 

@@ -44,8 +44,8 @@ than a low one; the defaults are the documented ones; null arguments and a quali
 
 **ImageWriter_Write_ExistingOutput_IsOverwrittenWithoutLeftovers**, **ImageWriter_Write_MissingDirectory_IsCreated**,
 and **ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed**: an existing file is replaced by the new
-image and the directory then holds only the output; a missing directory path is created; a blocked directory is
-`output-write-failed` naming the output, with the cause attached.
+image and the directory then holds only the output; a missing directory path is created; a blocked directory (a file
+where a folder should be) is `output-write-failed` naming the output and the file in the way.
 
 **ImageWriter_Write_NoClobberAndExistingOutput_ThrowsOutputExistsAndKeepsFile** and
 **ImageWriter_Write_NoClobberAndNewOutput_WritesFile**: no-clobber refuses an existing file, leaves it untouched and
@@ -55,6 +55,18 @@ leaves no temporary file, and still writes a new one.
 output named through a different spelling of the input path is refused and the input is untouched;
 `CheckTarget` reports the input as output, an existing directory, and (with no-clobber) an existing file, and accepts a
 fresh path and an overwritable file.
+
+**ImageWriter_CheckTarget_LinkedDirectory_IsSameFile** and **ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile**:
+an output reaching the input through a symbolic link to its folder, or through a link whose stored target itself goes
+through another link (as `/var` does on macOS), is refused as `same-input-output`, while another name in the same
+folder is accepted; the tests skip themselves only where the operating system refuses to create symbolic links.
+
+**ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed**: an empty path, a path with a null character, and a path
+below a file are `output-write-failed` (the last names the file that is in the way); a folder that does not exist is
+accepted.
+
+**ImageWriter_Write_LongFileName_IsWritten**: a file name of 244 characters is written and the folder holds only the
+output, because the temporary file does not take its name from the target.
 
 **ImageWriter_Write_SamePixelsTwice_WritesIdenticalBytes**: the same image written twice as each format gives the
 same bytes.

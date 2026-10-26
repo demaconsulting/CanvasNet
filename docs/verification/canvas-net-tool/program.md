@@ -82,7 +82,25 @@ command is selected; the document is a `usage-error` with `"command":null`.
 `InvalidOperationException` is `operation-failed`, and the command name comes from the command line.
 
 **Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument**: with `--silent`, or without `--json`, standard output
-stays empty (the text report on standard error is unaffected); exit code 1.
+stays empty, and with `--silent` standard error is empty too; without `--json` the text report is still on standard
+error; exit code 1.
+
+**Program_Execute_SilentExpectedError_SuppressesConsoleOutput**: a `ToolException` with a hint, an
+`InvalidOperationException`, and an `ArgumentException`, each run with `--silent` (before or after the command name),
+exit with code 1 and write nothing to either stream.
+
+**Program_Execute_LogExpectedError_CapturesReport**: with `--log`, the file holds exactly what standard error
+received (the `Error:` and `Hint:` lines); the file is already closed, so it can be read.
+
+**Program_Execute_SilentLogJsonExpectedError_WritesOnlyToLog**: with `--silent --json --log`, both console streams are
+empty and the log holds the text report followed by the JSON failure document.
+
+**Program_Execute_LogUnexpectedException_CapturesReportAndRethrows**: the `Unexpected error:` line is in the log as
+well as on standard error, and the exception still escapes.
+
+**Program_Execute_LogCannotBeOpened_ReportsOnConsole**: a log file in a folder that does not exist makes the failure
+(`Error: Failed to open log file ...`) go to standard error, because no context exists; the command does not run;
+exit code 1.
 
 **Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows**: with `--json`, an unexpected exception
 still escapes, is reported on standard error, and no document is written.

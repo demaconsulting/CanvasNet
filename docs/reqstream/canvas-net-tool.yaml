@@ -165,6 +165,7 @@ sections:
           error so that standard output stays reserved for results that callers pipe or parse.
         children:
           - CanvasNetTool-Program-ExpectedErrors
+          - CanvasNetTool-Program-ErrorChannels
           - CanvasNetTool-Context-OutputChannels
         tests:
           - CanvasNetTool_UnknownArgument_Provided_ReturnsError

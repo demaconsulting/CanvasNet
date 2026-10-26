@@ -98,8 +98,8 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 | Command line | Inbound | `canvasnet [global options] <command> [command arguments]` | Global options are `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`), `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value is the command name; unknown options before the command name are an error. A command's own options are written `--name value`, `--name=value`, or `-a value`, and may be repeated; see _ArgumentReader Unit Design_ |
 | Exit code | Outbound | Integer | 0 for success; 1 for any failure; an unexpected exception terminates the process through the runtime's unhandled-exception path |
 | Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":1,"ok":true,"command":"...", ...}`; an expected failure is written as `{"schemaVersion":1,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
-| Standard error | Outbound | UTF-8 text | `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console |
-| Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set; truncated at open; failure to open is an expected failure |
+| Standard error | Outbound | UTF-8 text | `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console; suppressed by `--silent` (the runtime's own report of an unexpected exception is not) except when no context could be created (a malformed global option, or a log file that cannot be opened), when the report is always written |
+| Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure; truncated at open; failure to open is an expected failure |
 | Results file | Outbound | TRX (`.trx`) or JUnit XML (`.xml`) | Written by `--validate --results <file>`; any other extension is an error and no file is written |
 <!-- markdownlint-enable MD013 -->
 
@@ -125,8 +125,11 @@ released.
   package, and the package declares no NuGet dependency on them. The reasons are that a tool install must
   not require sibling packages (which may not be published at the same time) and that the tool and the
   libraries it uses are always released together. The integration-test job of the build workflow guards
-  both properties: it fails if the package's nuspec declares a dependency on a `DemaConsulting.CanvasNet`
-  package, or if a library assembly is missing from the package for any target framework. The test
+  both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
+  everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
+  libraries and the transitively used `CanvasNetCharts` assembly), if it is not a `DotnetTool` package, or if a
+  library assembly, the tool's dependency manifest (`.deps.json`) or runtime configuration file, or
+    `DotnetToolSettings.xml` is missing from the package for any target framework. The test
   project references the libraries directly, which is what places their assemblies next to the tool
   assembly for the out-of-process system tests.
 
@@ -154,7 +157,8 @@ drawing is rendered, which bounds memory use.
    given), and reports an expected failure by throwing `ToolException`; the registry records the command name on
    it.
 5. `Execute` catches `ArgumentException` and `InvalidOperationException` (including `ToolException`),
-   writes the concise report to standard error and, when `--json` was given without `--silent`, the failure
+   writes the concise report through the `Context` (so `--silent` suppresses it and `--log` records it; to standard
+   error only when no context could be created) and, when `--json` was given without `--silent`, the failure
    document to standard output, and returns 1. Any other exception is written as an
    unexpected error and re-thrown. On normal completion `Execute` returns the context's exit code.
 

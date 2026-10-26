@@ -57,17 +57,21 @@ internal static class Program
     ///     <see cref="ToolException"/>) are treated as expected errors: a concise message is written to
     ///     stderr and exit code 1 is returned without a stack trace; when the command line contains
     ///     <c>--json</c> and not <c>--silent</c> the failure is also written to stdout as a JSON document.
+    ///     The report goes through the <see cref="Context"/> (so <c>--silent</c> and <c>--log</c> apply) whenever one
+    ///     exists, and to the console only when none could be created.
     ///     Any other exception is a defect: it
     ///     is written to stderr and then re-thrown so that the runtime can record it in event logs.
     /// </remarks>
     internal static int Execute(string[] args, CommandRegistry registry)
     {
-        // The command name, once known, identifies the command in the JSON error document
+        // The context, once created, carries --silent and --log, so errors are reported through it; the command
+        // name identifies the command in the JSON error document
+        Context? context = null;
         string? commandName = null;
         try
         {
             // Create context from command-line arguments
-            using var context = Context.Create(args);
+            context = Context.Create(args);
             commandName = context.Command;
 
             // Run the program logic
@@ -79,20 +83,25 @@ internal static class Program
         catch (ArgumentException ex)
         {
             // Print expected argument exceptions and return error code
-            ReportExpected(args, commandName, ex);
+            ReportExpected(context, args, commandName, ex);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
             // Print expected operation exceptions (including ToolException) and return error code
-            ReportExpected(args, commandName, ex);
+            ReportExpected(context, args, commandName, ex);
             return 1;
         }
         catch (Exception ex)
         {
             // Print unexpected exceptions and re-throw to generate event logs
-            Console.Error.WriteLine($"Unexpected error: {ex.Message}");
+            WriteError(context, $"Unexpected error: {ex.Message}");
             throw;
+        }
+        finally
+        {
+            // The context is disposed only now, so that the error reports above reach the log file
+            context?.Dispose();
         }
     }
 
@@ -157,36 +166,65 @@ internal static class Program
     /// <summary>
     ///     Writes an expected error to standard error and, when requested, as a JSON document to standard output.
     /// </summary>
-    /// <param name="args">The command-line arguments, scanned for <c>--json</c> and <c>--silent</c>.</param>
+    /// <param name="context">
+    ///     The active context, or <see langword="null"/> when none could be created (a malformed global option, or a
+    ///     log file that cannot be opened).
+    /// </param>
+    /// <param name="args">The command-line arguments, scanned for <c>--json</c> and <c>--silent</c> when there is no context.</param>
     /// <param name="commandName">The command named on the command line, or <see langword="null"/> when unknown.</param>
     /// <param name="ex">The expected exception.</param>
     /// <remarks>
     ///     A <see cref="ToolException"/> is reported as <c>Error: {code}: {message}</c> followed by an
     ///     optional <c>Hint:</c> line; any other expected exception as <c>Error: {message}</c>. When the
-    ///     command line contains <c>--json</c> and not <c>--silent</c>, the failure is also written to
-    ///     standard output as the JSON failure document (see <see cref="ResultWriter"/>). The command line is
-    ///     scanned directly because the failure may have happened before a <see cref="Context"/> existed (for
-    ///     example a malformed global option).
+    ///     failure is reported through the context, <c>--silent</c> suppresses the console output and the
+    ///     <c>--log</c> file receives the report, exactly as for any other output; when the context asks for
+    ///     <c>--json</c> the failure is also written as the JSON failure document (see <see cref="ResultWriter"/>)
+    ///     through the context, so <c>--silent</c> suppresses it too. Without a context nothing can be honored, so the
+    ///     report goes to the console, and the command line is scanned directly for <c>--json</c> and <c>--silent</c>.
     /// </remarks>
-    private static void ReportExpected(string[]? args, string? commandName, Exception ex)
+    private static void ReportExpected(Context? context, string[]? args, string? commandName, Exception ex)
     {
         if (ex is ToolException toolException)
         {
-            Console.Error.WriteLine($"Error: {toolException.Code}: {toolException.Message}");
+            WriteError(context, $"Error: {toolException.Code}: {toolException.Message}");
             if (toolException.Hint != null)
             {
-                Console.Error.WriteLine($"Hint: {toolException.Hint}");
+                WriteError(context, $"Hint: {toolException.Hint}");
             }
         }
         else
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            WriteError(context, $"Error: {ex.Message}");
         }
 
-        if (args != null && args.Contains("--json") && !args.Contains("--silent"))
+        var failedCommand = (ex as ToolException)?.Command ?? commandName;
+        if (context != null)
         {
-            var failedCommand = (ex as ToolException)?.Command ?? commandName;
+            if (context.Json)
+            {
+                context.WriteLine(ResultWriter.Failure(failedCommand, ex));
+            }
+        }
+        else if (args != null && args.Contains("--json") && !args.Contains("--silent"))
+        {
             Console.Out.WriteLine(ResultWriter.Failure(failedCommand, ex));
+        }
+    }
+
+    /// <summary>
+    ///     Writes an error line through the context, or to standard error when there is no context.
+    /// </summary>
+    /// <param name="context">The active context, or <see langword="null"/> when none could be created.</param>
+    /// <param name="message">The line to write.</param>
+    private static void WriteError(Context? context, string message)
+    {
+        if (context != null)
+        {
+            context.WriteError(message);
+        }
+        else
+        {
+            Console.Error.WriteLine(message);
         }
     }
 

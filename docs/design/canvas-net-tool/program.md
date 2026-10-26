@@ -40,13 +40,15 @@ and `budget-exceeded`. A value is never changed once released; new values may be
 
 - *Parameters*: `string[] args`; `CommandRegistry registry`.
 - *Returns*: `int` - 0 for success, 1 for an expected failure.
-- *Postconditions*: the `Context` is disposed.
+- *Postconditions*: the `Context` (if one was created) is disposed, after any error was reported through it.
 
 Creates a `Context` using `Context.Create(args)`, remembers the command name, calls `Run(context, registry)`, and
 returns `context.ExitCode`. Catches `ArgumentException` and `InvalidOperationException` (which includes
-`ToolException`), reports them through `ReportExpected` (passing the raw arguments and the command name, if one was
-seen), and returns 1. Catches any other `Exception`, writes
-`Unexpected error: {message}` to standard error, and re-throws so the runtime can record it.
+`ToolException`), reports them through `ReportExpected` (passing the context, if one exists, the raw arguments, and
+the command name, if one was seen), and returns 1. Catches any other `Exception`, writes
+`Unexpected error: {message}` through the context (standard error when there is none), and re-throws so the runtime
+can record it. The context is held in a variable and disposed in a `finally` block rather than by a `using`
+declaration, so that it is still open - and the `--log` file still receives the report - when the `catch` blocks run.
 
 **Run**: Dispatches execution based on the parsed flags. The overload `Run(Context)` uses the default
 registry; `Run(Context, CommandRegistry)` is the implementation.
@@ -62,16 +64,18 @@ named, otherwise the help of that command; (3) the validate flag prints the bann
 `Usage: canvasnet <command> [options] (try --help)` are written. The banner is therefore printed only for
 help, self-validation, and an empty command line.
 
-**ReportExpected(args, commandName, exception)**: Writes an expected failure to standard error. A `ToolException`
+**ReportExpected(context, args, commandName, exception)**: Reports an expected failure. A `ToolException`
 becomes the line `Error: {code}: {message}` followed, when the exception has a hint, by the line
 `Hint: {hint}`; any other expected exception becomes the template's `Error: {message}`. No stack trace is written.
-Then, when the raw argument array contains `--json` and does not contain `--silent`, it also writes the JSON failure
-document (`ResultWriter.Failure`) as one line to standard output. The command named in the document is the
-`ToolException.Command` when set, otherwise the command name seen on the command line, otherwise `null`. The
-arguments are scanned directly rather than read from the `Context` because the failure may happen before a
-`Context` exists (a malformed global option); the scan is exact-match, so a `--json` that is the value of another
-option is also seen, which is accepted. A failure document is written only for expected failures: an unexpected
-exception is a defect, written as `Unexpected error:` and re-thrown, with no document.
+With a context, each line is written by `Context.WriteError` - so `--silent` suppresses it and `--log` records it,
+like any other output - and, when the context has `--json`, the JSON failure document (`ResultWriter.Failure`) is
+written as one line by `Context.WriteLine` (standard output unless `--silent`, and the log). Without a context
+(a malformed global option, or a log file that cannot be opened) nothing can be honored: the lines go to
+standard error, and the document goes to standard output when the raw argument array contains `--json` and does not
+contain `--silent`; that scan is exact-match, so a `--json` that is the value of another option is also seen, which
+is accepted. The command named in the document is the `ToolException.Command` when set, otherwise the command
+name seen on the command line, otherwise `null`. A failure document is written only for expected failures: an
+unexpected exception is a defect, written as `Unexpected error:` and re-thrown, with no document.
 
 **PrintBanner**: Writes the tool name and version and the copyright line to `context`.
 

@@ -1,4 +1,4 @@
-// cspell:ignore jpeg jpg tiff tif
+// cspell:ignore canvasnet jpeg jpg tiff tif
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -58,6 +58,9 @@ internal static class ImageWriter
 
     /// <summary>The JPEG quality setting used when none is given.</summary>
     public const int DefaultQuality = 90;
+
+    /// <summary>The most links followed, one after another, when a path is resolved; the same limit as the operating system's.</summary>
+    private const int MaxLinkDepth = 40;
 
     /// <summary>
     ///     The output format of each file name extension (lower case, with the dot).
@@ -136,7 +139,8 @@ internal static class ImageWriter
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
     ///     Thrown with code <c>same-input-output</c> when the output is the input, <c>output-exists</c> when it exists and
-    ///     <paramref name="noClobber"/> is set, and <c>output-write-failed</c> when the output is an existing directory.
+    ///     <paramref name="noClobber"/> is set, and <c>output-write-failed</c> when the output is an existing directory,
+    ///     is not a valid path, or has a file where one of its folders should be.
     /// </exception>
     /// <remarks>
     ///     A command calls this before it loads the input, so that a mistake in the output is reported before any
@@ -146,6 +150,8 @@ internal static class ImageWriter
     {
         ArgumentNullException.ThrowIfNull(outputPath);
         ArgumentNullException.ThrowIfNull(inputPath);
+
+        CheckPathIsUsable(outputPath);
 
         if (IsSameFile(outputPath, inputPath))
         {
@@ -166,6 +172,52 @@ internal static class ImageWriter
                 ErrorCodes.OutputExists,
                 $"The output '{outputPath}' already exists.",
                 "Remove --no-clobber to overwrite it, or choose a different output path.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that an output path is a valid path whose directory can exist.
+    /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>output-write-failed</c> when the path is not valid on this system (for example it is
+    ///     empty, contains a null character, or is too long), or when a folder in front of the file name exists as a
+    ///     file.
+    /// </exception>
+    /// <remarks>
+    ///     A folder that does not exist is fine: <see cref="Write"/> creates it. Reporting the mistakes here means they
+    ///     are found before the input is decoded, and as an expected error rather than a crash.
+    /// </remarks>
+    private static void CheckPathIsUsable(string outputPath)
+    {
+        string full;
+        try
+        {
+            full = Path.GetFullPath(outputPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            throw new ToolException(
+                ErrorCodes.OutputWriteFailed,
+                $"The output '{outputPath}' is not a valid path: {ex.Message}",
+                null,
+                ex);
+        }
+
+        // The nearest folder that exists must be a folder: a file in the way can never become a directory
+        for (var parent = Path.GetDirectoryName(full); parent != null; parent = Path.GetDirectoryName(parent))
+        {
+            if (Directory.Exists(parent))
+            {
+                return;
+            }
+
+            if (File.Exists(parent))
+            {
+                throw new ToolException(
+                    ErrorCodes.OutputWriteFailed,
+                    $"The output '{outputPath}' cannot be written: '{parent}' is a file, not a folder.");
+            }
         }
     }
 
@@ -224,7 +276,8 @@ internal static class ImageWriter
     {
         var fullPath = Path.GetFullPath(outputPath);
         var directory = Path.GetDirectoryName(fullPath)!;
-        var temporary = Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        // A short fixed name: a name made from the target could be too long for the file system when the target's is long
+        var temporary = Path.Combine(directory, $".canvasnet-{Guid.NewGuid():N}.tmp");
         try
         {
             Directory.CreateDirectory(directory);
@@ -316,10 +369,21 @@ internal static class ImageWriter
     ///     Resolves symbolic links in every component of a path.
     /// </summary>
     /// <param name="path">The path to resolve.</param>
+    /// <param name="depth">How many links have been followed to reach this path; bounds a chain of links.</param>
     /// <returns>The full path with links replaced by their final targets; the plain full path when resolution fails.</returns>
-    private static string ResolveLinks(string path)
+    /// <remarks>
+    ///     The target of a link is itself resolved, because the target text may name a path that goes through a link.
+    ///     This is the normal case on macOS, where the temporary folder <c>/var/...</c> is reached through the link
+    ///     <c>/var</c> to <c>/private/var</c>: a link in that folder stores a target that begins with <c>/var</c>.
+    /// </remarks>
+    private static string ResolveLinks(string path, int depth = 0)
     {
         var full = Path.GetFullPath(path);
+        if (depth > MaxLinkDepth)
+        {
+            return full;
+        }
+
         try
         {
             var root = Path.GetPathRoot(full) ?? string.Empty;
@@ -331,7 +395,7 @@ internal static class ImageWriter
                 FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
                 if (info.LinkTarget != null && info.ResolveLinkTarget(true) is { } target)
                 {
-                    current = target.FullName;
+                    current = ResolveLinks(target.FullName, depth + 1);
                 }
             }
 

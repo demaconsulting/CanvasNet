@@ -30,16 +30,20 @@ case-insensitive); the `formats` command lists the same extensions and a test ke
 otherwise the extension decides (a missing or unknown extension is a `usage-error` that says how to choose).
 
 **CheckTarget(outputPath, inputPath, noClobber)**: throws `same-input-output` when the two paths resolve to the same
-full path (compared ignoring case on Windows and macOS, whose file systems are case-insensitive by default - which
-can only refuse more, never less), `output-write-failed` when the output is an existing directory, and
-`output-exists` when it exists and `noClobber` is set. Commands call it before loading the input so that an output
-mistake is reported before any work is done; `Write` calls it again.
+full path, or when links in either path (to a file, or to any folder on the way, including a link whose target itself
+goes through a link, as `/var` does on macOS) lead to the same file (compared ignoring case on Windows and macOS,
+whose file systems are case-insensitive by default - which can only refuse more, never less),
+`output-write-failed` when the output is an existing directory, is not a valid path (empty, a null character, too
+long, a format the system does not support), or has a file where one of its folders should be (a folder that does
+not exist is fine: `Write` creates it), and `output-exists` when it exists and `noClobber` is set. Commands call it
+before loading the input so that an output mistake is reported before any work is done; `Write` calls it again.
 
 **Write(surface, outputPath, inputPathForGuard, options)**: validates the arguments (a quality outside 1 to 100 is
 a defect of the caller and throws `ArgumentOutOfRangeException`), resolves the format, checks the target, flattens
 the surface over `FlattenBackground` when the format is JPEG and any pixel is not opaque (using
 `SurfaceOperations`), and writes through `WriteAtomically`: it creates the target directory when needed, encodes
-into a temporary file in the target directory (named from the target and a new GUID, created with `CreateNew`),
+into a temporary file in the target directory (a short fixed name with a new GUID, so a long target name cannot make
+the temporary name too long; created with `CreateNew`),
 and moves it over the target (overwriting unless `NoClobber`). The temporary file is deleted in a `finally`
 block, so a failure leaves nothing behind. The encoders are PNG (RGBA), JPEG (at the quality), BMP (32 bits per
 pixel, with alpha), and TIFF (uncompressed, with alpha); all are deterministic, so the same pixels and options

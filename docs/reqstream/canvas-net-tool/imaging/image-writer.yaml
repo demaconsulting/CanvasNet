@@ -52,16 +52,19 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImageWriter-AtomicWrite
         title: >-
-          The ImageWriter class shall encode to a temporary file in the target directory and move it
-          over the target, leaving no temporary file behind, creating a missing target directory, and
-          reporting a file or directory that cannot be written as output-write-failed.
+          The ImageWriter class shall encode to a temporary file in the target directory (with a name
+          that does not depend on the length of the target's name) and move it over the target, leaving
+          no temporary file behind, creating a missing target directory, and reporting a file or
+          directory that cannot be written as output-write-failed.
         justification: |
           A failed write must never leave a half-written output or clutter the directory, and an
-          existing output must only ever be replaced by a complete one.
+          existing output must only ever be replaced by a complete one. A valid long file name must not
+          fail only because the temporary file's name is longer.
         tests:
           - ImageWriter_Write_ExistingOutput_IsOverwrittenWithoutLeftovers
           - ImageWriter_Write_MissingDirectory_IsCreated
           - ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed
+          - ImageWriter_Write_LongFileName_IsWritten
 
       - id: CanvasNetTool-Imaging-ImageWriter-Overwrite
         title: >-
@@ -77,14 +80,20 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImageWriter-SamePath
         title: >-
-          The ImageWriter class shall refuse an output that is the same file as the input, and an output
-          that is an existing directory, before writing anything, and shall offer the same check without
-          writing so that a command can report it before loading the input.
+          The ImageWriter class shall refuse an output that is the same file as the input (including
+          through links to the file or to any folder on the way, also when a link's target itself goes
+          through a link), an output that is an existing directory, and an output that is not a usable
+          path (invalid, or below a file), before writing anything, and shall offer the same check
+          without writing so that a command can report it before loading the input.
         justification: |
-          Writing over the input would destroy it before the render is complete.
+          Writing over the input would destroy it before the render is complete, and a path that can
+          never be written should be an expected error reported before any pixels are decoded.
         tests:
           - ImageWriter_Write_OutputIsInput_ThrowsSameInputOutput
           - ImageWriter_CheckTarget_Problems_AreReported
+          - ImageWriter_CheckTarget_LinkedDirectory_IsSameFile
+          - ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile
+          - ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed
 
       - id: CanvasNetTool-Imaging-ImageWriter-Deterministic
         title: >-

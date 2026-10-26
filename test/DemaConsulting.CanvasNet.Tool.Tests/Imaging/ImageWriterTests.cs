@@ -365,6 +365,88 @@ public class ImageWriterTests
     }
 
     /// <summary>
+    ///     Test that an output is refused when it reaches the input through a link whose target itself goes through a
+    ///     link; macOS does this for every temporary file, because <c>/var</c> is a link to <c>/private/var</c>.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile()
+    {
+        // Arrange: a real file, a link to its parent, and a link whose stored target goes through the first link
+        using var directory = new TempDirectory();
+        var parent = directory.Combine("parent");
+        var real = Path.Combine(parent, "real");
+        Directory.CreateDirectory(real);
+        var input = Path.Combine(real, "in.png");
+        File.WriteAllText(input, "x");
+        var outer = directory.Combine("outer");
+        var link = directory.Combine("link");
+        try
+        {
+            Directory.CreateSymbolicLink(outer, parent);
+            Directory.CreateSymbolicLink(link, Path.Combine(outer, "real"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Assert.Skip("Symbolic links cannot be created here.");
+            return;
+        }
+
+        // Act: the output through the second link, and the input spelled through the first link
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget(Path.Combine(link, "in.png"), input, false));
+        var viaOuter = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget(Path.Combine(link, "in.png"), Path.Combine(outer, "real", "in.png"), false));
+
+        // Assert: both are the same file; another name in the same folder is not
+        Assert.Equal(ErrorCodes.SameInputOutput, exception.Code);
+        Assert.Equal(ErrorCodes.SameInputOutput, viaOuter.Code);
+        ImageWriter.CheckTarget(Path.Combine(link, "other.png"), input, false);
+    }
+
+    /// <summary>
+    ///     Test that an output path that is not valid, or that has a file where a folder should be, is an expected
+    ///     error reported before any work is done.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTarget_UnusablePath_IsOutputWriteFailed()
+    {
+        // Arrange: a file, so that a path below it can never be created
+        using var directory = new TempDirectory();
+        var file = directory.Combine("file.txt");
+        File.WriteAllText(file, "x");
+
+        // Act
+        var empty = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget(string.Empty, "in.png", false));
+        var nullCharacter = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget("a\0b.png", "in.png", false));
+        var belowFile = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget(Path.Combine(file, "sub", "out.png"), "in.png", false));
+
+        // Assert: output-write-failed each time, naming the problem; a missing folder is fine
+        Assert.Equal(ErrorCodes.OutputWriteFailed, empty.Code);
+        Assert.Equal(ErrorCodes.OutputWriteFailed, nullCharacter.Code);
+        Assert.Equal(ErrorCodes.OutputWriteFailed, belowFile.Code);
+        Assert.Contains("is a file, not a folder", belowFile.Message, StringComparison.Ordinal);
+        ImageWriter.CheckTarget(Path.Combine(directory.Path, "missing", "out.png"), "in.png", false);
+    }
+
+    /// <summary>
+    ///     Test that an output with the longest usual file name is written: the temporary file does not take its name
+    ///     from the target, so it cannot be too long when the target is not.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_Write_LongFileName_IsWritten()
+    {
+        // Arrange: a 244-character file name, within the 255-character limit of the common file systems
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var output = directory.Combine(new string('a', 240) + ".png");
+
+        // Act
+        ImageWriter.Write(surface, output, "in.png", WriteOptions.Default);
+
+        // Assert: the output exists and nothing else is left in the folder
+        Assert.True(File.Exists(output));
+        Assert.Single(Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
     ///     Test that a missing output directory is created.
     /// </summary>
     [Fact]
@@ -398,10 +480,10 @@ public class ImageWriterTests
         var exception = Assert.Throws<ToolException>(
             () => ImageWriter.Write(surface, Path.Combine(blocker, "out.png"), "in.png", WriteOptions.Default));
 
-        // Assert: output-write-failed naming the output, with the cause kept
+        // Assert: output-write-failed naming the output and the file in the way (found before anything is encoded)
         Assert.Equal(ErrorCodes.OutputWriteFailed, exception.Code);
         Assert.Contains("out.png", exception.Message);
-        Assert.NotNull(exception.InnerException);
+        Assert.Contains(blocker, exception.Message);
     }
 
     /// <summary>
