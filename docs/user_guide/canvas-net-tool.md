@@ -301,7 +301,10 @@ draws every page; the output must then either contain `{page}`, which is replace
 without zero padding), or be a directory (an existing folder, or a path that ends with `/`), in which case the files
 are named `<input name>-<page>.<extension>`. Any other output name is a `usage-error`, because every page would be
 written to the same file. `{page}` is also replaced when a single `--page` is given. All the outputs are checked
-before the first page is drawn, so a mistake in one of them is reported before any file is written. The JSON result
+before the first page is drawn, so a mistake in one of them is reported before any file is written. The pages are
+drawn and encoded to temporary files first and the outputs are put in place only when every page has succeeded: if a
+later page fails (for example an unsupported feature with `--strict`), no new output is written and existing outputs
+are left untouched. The JSON result
 lists one entry per page in `outputs`. An input that is not a document accepts `--all-pages` and writes its one output
 as given.
 

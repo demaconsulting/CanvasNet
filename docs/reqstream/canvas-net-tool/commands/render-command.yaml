@@ -141,12 +141,14 @@ sections:
           The render command shall render the page chosen with the page option (the first by default),
           or every page with the all-pages option, where the output names a directory (files named
           after the input and the page) or contains the placeholder {page}, which is replaced by the
-          page number; and shall report a page that does not exist, both page options together, and an
-          output that would be the same file for every page, before any page is rendered.
+          page number; shall report a page that does not exist, both page options together, and an
+          output that would be the same file for every page, before any page is rendered; and shall
+          publish the outputs of every page together only when all pages have been rendered and
+          encoded, leaving no new or partial output and every existing output untouched when a page fails.
         justification: |
           Agents look at one slide or at every page of a document; one run with a predictable file
-          naming spares them a loop, and checking every output first leaves no half-written set of
-          pages.
+          naming spares them a loop, and checking every output first and publishing only a complete set
+          leaves no half-written set of pages.
         tests:
           - RenderCommand_Run_DocumentDefaults_WritesFirstPage
           - RenderCommand_Run_AllPagesWithPlaceholder_WritesOneFilePerPage
@@ -155,6 +157,9 @@ sections:
           - RenderCommand_Run_AllPagesOfSingleImage_WritesTheOutputAsGiven
           - RenderCommand_Run_PlaceholderWithPage_IsReplacedByThatPage
           - RenderCommand_Run_AllPagesWithOneExistingOutputAndNoClobber_WritesNothing
+          - RenderCommand_Run_AllPagesWithLaterPageFailure_LeavesOutputsUntouched
+          - RenderCommand_Run_AllPagesWithLaterPageFailureToNewFolder_WritesNoFile
+          - RenderCommand_Run_AllPagesSucceeding_PublishesAllAndReplacesExisting
           - RenderCommand_Run_BadPageOptions_ThrowExpectedErrors
 
       - id: CanvasNetTool-Commands-RenderCommand-Strict

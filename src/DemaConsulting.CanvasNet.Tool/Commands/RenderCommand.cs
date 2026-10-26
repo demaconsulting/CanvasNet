@@ -118,14 +118,35 @@ internal sealed partial class RenderCommand : ICommand
             ImageWriter.CheckTarget(target, settings.Input, settings.Write.NoClobber);
         }
 
-        // Each page is loaded, run through the image pipeline (crop, resize, rotate, and so on), and written
+        // Each page is loaded, run through the image pipeline (crop, resize, rotate, and so on), and encoded to a
+        // temporary file next to its target. Nothing is published until every page has succeeded, so a failure on a
+        // later page leaves no new or partial output and every existing output untouched.
         var outputs = new List<PageOutput>();
-        using (var source = SourceLoader.OpenPages(info, settings.Source))
+        var staged = new List<ImageWriter.StagedOutput>();
+        try
         {
-            foreach (var (page, target) in targets)
+            using (var source = SourceLoader.OpenPages(info, settings.Source))
             {
-                using var loaded = source.ReadPage(page);
-                outputs.Add(TransformAndWrite(loaded, target, settings, info.Format.IsDocument()));
+                foreach (var (page, target) in targets)
+                {
+                    using var loaded = source.ReadPage(page);
+                    var (output, pending) = TransformAndStage(loaded, target, settings, info.Format.IsDocument());
+                    staged.Add(pending);
+                    outputs.Add(output);
+                }
+            }
+
+            foreach (var pending in staged)
+            {
+                pending.Commit();
+            }
+        }
+        finally
+        {
+            // Disposing removes the temporary file of every output that was not moved into place
+            foreach (var pending in staged)
+            {
+                pending.Dispose();
             }
         }
 
@@ -228,20 +249,21 @@ internal sealed partial class RenderCommand : ICommand
     }
 
     /// <summary>
-    ///     Runs the image pipeline over a loaded page and writes the result.
+    ///     Runs the image pipeline over a loaded page and stages the result next to its output.
     /// </summary>
     /// <param name="loaded">The loaded page; it is not disposed.</param>
     /// <param name="target">The output path of the page.</param>
     /// <param name="settings">The settings.</param>
     /// <param name="isDocument"><see langword="true"/> when the source is a document.</param>
-    /// <returns>What was loaded, done to it, and written.</returns>
+    /// <returns>What was loaded, done to it, and will be written, and the staged output that publishes it.</returns>
     /// <remarks>
     ///     The pipeline makes a new surface for every step and disposes the previous one, so at most two full-size
     ///     surfaces exist at a time (plus the writer's flattened copy of a JPEG). A border that has no color of its
     ///     own is the background the user gave, else white for a vector source (which is flattened over white), else
     ///     transparent.
     /// </remarks>
-    private static PageOutput TransformAndWrite(LoadedSource loaded, string target, Settings settings, bool isDocument)
+    private static (PageOutput Output, ImageWriter.StagedOutput Staged) TransformAndStage(
+        LoadedSource loaded, string target, Settings settings, bool isDocument)
     {
         Surface? transformed = null;
         try
@@ -255,8 +277,9 @@ internal sealed partial class RenderCommand : ICommand
                 surface = transformed;
             }
 
-            var result = ImageWriter.Write(surface, target, settings.Input, settings.Write);
-            return new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result);
+            var staged = ImageWriter.Stage(surface, target, settings.Input, settings.Write);
+            var result = staged.Result;
+            return (new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result), staged);
         }
         finally
         {

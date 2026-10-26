@@ -50,6 +50,9 @@
   <ItemGroup>
     <!-- DemaConsulting.TestResults also contains the DemaConsulting.TestResults.IO namespace
          (TrxSerializer and JUnitSerializer) used to write the self-validation results file. -->
+    <!-- PackAsTool packs the publish output: this assembly is bundled under tools/<tfm>/any and the nuspec of a tool
+         package carries no <dependencies>. Do not add PrivateAssets="all" here: it also drops the assembly from the
+         publish output, which breaks the tool's self-validation at run time. -->
     <PackageReference Include="DemaConsulting.TestResults" Version="1.10.0" />
   </ItemGroup>
 

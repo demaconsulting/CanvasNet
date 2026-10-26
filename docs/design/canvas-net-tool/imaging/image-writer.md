@@ -38,14 +38,23 @@ long, a format the system does not support), or has a file where one of its fold
 not exist is fine: `Write` creates it), and `output-exists` when it exists and `noClobber` is set. Commands call it
 before loading the input so that an output mistake is reported before any work is done; `Write` calls it again.
 
-**Write(surface, outputPath, inputPathForGuard, options)**: validates the arguments (a quality outside 1 to 100 is
+**Write(surface, outputPath, inputPathForGuard, options)**: stages the output with `Stage` and commits it at once
+(`Stage(...)` then `Commit()`), so a single output is written atomically.
+
+**Stage(surface, outputPath, inputPathForGuard, options)**: validates the arguments (a quality outside 1 to 100 is
 a defect of the caller and throws `ArgumentOutOfRangeException`), resolves the format, checks the target, flattens
 the surface over `FlattenBackground` when the format is JPEG and any pixel is not opaque (using
-`SurfaceOperations`), and writes through `WriteAtomically`: it creates the target directory when needed, encodes
-into a temporary file in the target directory (a short fixed name with a new GUID, so a long target name cannot make
-the temporary name too long; created with `CreateNew`),
-and moves it over the target (overwriting unless `NoClobber`). The temporary file is deleted in a `finally`
-block, so a failure leaves nothing behind. The encoders are PNG (RGBA), JPEG (at the quality), BMP (32 bits per
+`SurfaceOperations`), creates the target directory when needed, and encodes into a temporary file in the target
+directory (a short fixed name with a new GUID, so a long target name cannot make the temporary name too long;
+created with `CreateNew`). It returns a `StagedOutput` that holds the temporary file and the `WriteResult` (with
+the size of the encoded file). A failure while staging deletes the temporary file and is reported as
+`output-write-failed`.
+
+**StagedOutput.Commit()**: moves the temporary file over the target (overwriting unless `NoClobber`) and returns
+the `WriteResult`. **StagedOutput.Dispose()**: deletes the temporary file unless it was committed, so a staged
+output that is abandoned (because a later output failed) leaves nothing behind. A command that writes several
+outputs stages all of them first and commits only when every one was staged, so a failure leaves no new or
+partial output and every existing output untouched. The encoders are PNG (RGBA), JPEG (at the quality), BMP (32 bits per
 pixel, with alpha), and TIFF (uncompressed, with alpha); all are deterministic, so the same pixels and options
 give the same bytes. The surface passed in is never modified or disposed.
 
@@ -65,4 +74,4 @@ check while `NoClobber` is set and the target now exists (another process create
 
 #### Callers
 
-- **RenderCommand** - checks the target, then writes the result.
+- **RenderCommand** - checks every target, stages each page's result, and commits them all once every page has succeeded.

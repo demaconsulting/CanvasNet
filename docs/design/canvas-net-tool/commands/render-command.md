@@ -77,17 +77,21 @@ header; for a model, a syntax error), the check that model options were given on
 another kind of input is a `usage-error` naming the kind, rather than being ignored), `SourceLoader.CheckPage`
 (`page-out-of-range`; a model has only page 1), `PlanTargets`, `ImageWriter.ResolveFormat`, and
 `ImageWriter.CheckTarget` for every output. Then opens the source once (`SourceLoader.OpenPages`), and for each page
-loads it (`ReadPage`), runs it through `TransformAndWrite`, and disposes the pixels before the next page. The result is
+loads it (`ReadPage`), runs it through `TransformAndStage`, and disposes the pixels before the next page. Each page's
+result is encoded to a temporary file next to its target and only when every page has succeeded are the temporary
+files moved into place (`StagedOutput.Commit`, overwriting unless `--no-clobber`); a `finally` block deletes every
+temporary file that was not committed. The result is
 written through `context.WriteLine`: as one text line per output when `context.Json` is false, or as one JSON
 document. The diagnostics and the echo of a model are part of the JSON document only; the text result is the one
 line, so a caller that needs them uses `--json`.
 
-**TransformAndWrite(loaded, target, settings, isDocument)**: when there are operations, calls `ImagePipeline.Apply` on
+**TransformAndStage(loaded, target, settings, isDocument)**: when there are operations, calls `ImagePipeline.Apply` on
 the loaded surface (the loaded surface stays untouched and is disposed with the loaded source; the transformed one is
-disposed in a `finally` block after the write) and writes the transformed surface; with none, writes the loaded
-surface. A border with no color of its own gets the default: the `--background` color when given (also a transparent
-one), otherwise white for a vector source (SVG, document page, model, which the loader flattened over white) and
-transparent for a raster. Everything the pipeline does happens before `ImageWriter.Write`, so a failing operation
+disposed in a `finally` block after the staging) and stages the transformed surface with `ImageWriter.Stage`;
+with none, stages the loaded surface. It returns the page's report and the `StagedOutput`. A border with no color
+of its own gets the default: the `--background` color when given (also a transparent one), otherwise white for a
+vector source (SVG, document page, model, which the loader flattened over white) and
+transparent for a raster. Everything the pipeline does happens before the output is published, so a failing operation
 (for example a crop that starts outside the image after an earlier crop) writes nothing and leaves an existing output
 untouched.
 
@@ -108,8 +112,10 @@ directory, and each page is written there as `{input name without extension}-{pa
 format (`.png` unless `--format` says otherwise); an output that has no `{page}` and is not a directory is a
 `usage-error` when the input has more than one page (a single image has one page, so its output is used as given).
 Because every target is planned and checked first, a mistake in any of them (for example an existing file with
-`--no-clobber`) is reported before any page is written. A failure while a later page is rendered or written leaves
-the files of the pages that were written before it, each of which is complete (the writer is atomic per file).
+`--no-clobber`) is reported before any page is rendered. Pages are staged and published together: a failure while a
+later page is loaded, transformed, or encoded (for example an unsupported feature with `--strict`) leaves no new or
+partial output and every existing output untouched; the only remaining window is a failure of the final move of a
+file, which leaves the files moved before it, each complete.
 
 **Text result**: `wrote {output} ({width}x{height} {format}, {bytes} bytes) from {input}`, with `page {n}`
 appended for a document, for example `wrote out.png (816x1056 png, 41208 bytes) from in.svg` and

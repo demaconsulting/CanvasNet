@@ -7,8 +7,8 @@
 The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder
 `src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
-table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because the individual
-each family of commands is its own unit behind the same contract and registry. It contains three units:
+table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because each family of
+commands is its own unit behind the same contract and registry. It contains three units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; and `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`

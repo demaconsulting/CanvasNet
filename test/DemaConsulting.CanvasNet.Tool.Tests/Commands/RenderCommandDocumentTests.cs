@@ -256,7 +256,73 @@ public class RenderCommandDocumentTests
     }
 
     /// <summary>
-    ///     Test that a page that does not exist, a page and every page together, and a page of zero are refused.
+    ///     Test that a failure on a later page publishes nothing: no new output appears, an existing output is left
+    ///     untouched, and no temporary file is left behind.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_AllPagesWithLaterPageFailure_LeavesOutputsUntouched()
+    {
+        // Arrange: a two-page document (192x128 and 128x192), and an existing output for page 1 only
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "pdf");
+        var outputs = Directory.CreateDirectory(Path.Combine(directory.Path, "out")).FullName;
+        File.WriteAllText(Path.Combine(outputs, "p-1.png"), "keep me");
+
+        // Act: a crop that starts inside page 1 but beyond the right edge of page 2
+        var exception = RunFailing(input, "--all-pages", "--crop", "150,0,10,10", "-o", Path.Combine(outputs, "p-{page}.png"));
+
+        // Assert: the crop failed on page 2, the existing page 1 output is as it was, and nothing else was written
+        Assert.Equal(ErrorCodes.UsageError, exception.Code);
+        Assert.Equal("keep me", File.ReadAllText(Path.Combine(outputs, "p-1.png")));
+        Assert.Equal([Path.Combine(outputs, "p-1.png")], Directory.GetFileSystemEntries(outputs));
+    }
+
+    /// <summary>
+    ///     Test that a failure on a later page leaves a directory that was to be created without any output.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_AllPagesWithLaterPageFailureToNewFolder_WritesNoFile()
+    {
+        // Arrange: a two-page document
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "pdf");
+        var outputs = Path.Combine(directory.Path, "new");
+
+        // Act
+        RunFailing(input, "--all-pages", "--crop", "150,0,10,10", "-o", Path.Combine(outputs, "p-{page}.png"));
+
+        // Assert: no file in the folder, if it was created at all
+        Assert.Empty(Directory.Exists(outputs) ? Directory.GetFileSystemEntries(outputs) : []);
+    }
+
+    /// <summary>
+    ///     Test that every page is published together once all have succeeded, replacing existing outputs, and that
+    ///     no temporary file remains.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_AllPagesSucceeding_PublishesAllAndReplacesExisting()
+    {
+        // Arrange: a two-page document and an existing output for page 2
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "pdf");
+        var outputs = Directory.CreateDirectory(Path.Combine(directory.Path, "out")).FullName;
+        File.WriteAllText(Path.Combine(outputs, "p-2.png"), "old");
+
+        // Act
+        Run(false, input, "--all-pages", "-o", Path.Combine(outputs, "p-{page}.png"));
+
+        // Assert: exactly the two outputs, both complete images, and no temporary file
+        Assert.Equal(
+            [Path.Combine(outputs, "p-1.png"), Path.Combine(outputs, "p-2.png")],
+            Directory.GetFileSystemEntries(outputs).Order(StringComparer.Ordinal));
+        using var first = PngCodec.Load(Path.Combine(outputs, "p-1.png"));
+        using var second = PngCodec.Load(Path.Combine(outputs, "p-2.png"));
+        Assert.Equal((192, 128), (first.Width, first.Height));
+        Assert.Equal((128, 192), (second.Width, second.Height));
+    }
+
+    /// <summary>
+    ///     Test that a page and every page together, a page that does not exist, and a page of zero are refused.
     /// </summary>
     [Fact]
     public void RenderCommand_Run_BadPageOptions_ThrowExpectedErrors()

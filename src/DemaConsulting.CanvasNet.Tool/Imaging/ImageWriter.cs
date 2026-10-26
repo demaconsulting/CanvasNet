@@ -237,6 +237,33 @@ internal static class ImageWriter
     /// </exception>
     public static WriteResult Write(Surface surface, string outputPath, string inputPathForGuard, WriteOptions options)
     {
+        using var staged = Stage(surface, outputPath, inputPathForGuard, options);
+        return staged.Commit();
+    }
+
+    /// <summary>
+    ///     Encodes a surface to a temporary file next to the output, without publishing it.
+    /// </summary>
+    /// <param name="surface">The pixels; the surface is not modified or disposed.</param>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="inputPathForGuard">The input path; the output must not be the same file.</param>
+    /// <param name="options">The write options.</param>
+    /// <returns>
+    ///     The staged output; <see cref="StagedOutput.Commit"/> moves it into place and disposing it deletes the
+    ///     temporary file when it was not committed.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the quality is not 1 to 100.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown for the failures of <see cref="ResolveFormat"/> and <see cref="CheckTarget"/>, and with code
+    ///     <c>output-write-failed</c> when the temporary file or its directory cannot be created or written.
+    /// </exception>
+    /// <remarks>
+    ///     A command that writes several outputs stages every one of them first and commits them only when all were
+    ///     staged, so a failure part-way leaves no new or partial output and every existing output untouched.
+    /// </remarks>
+    public static StagedOutput Stage(Surface surface, string outputPath, string inputPathForGuard, WriteOptions options)
+    {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(outputPath);
         ArgumentNullException.ThrowIfNull(inputPathForGuard);
@@ -252,8 +279,37 @@ internal static class ImageWriter
         var pixels = flatten ? SurfaceOperations.FlattenOver(surface, options.FlattenBackground) : surface;
         try
         {
-            var bytes = WriteAtomically(pixels, format, options, outputPath);
-            return new WriteResult(outputPath, format, surface.Width, surface.Height, bytes, flatten);
+            var fullPath = Path.GetFullPath(outputPath);
+            var directory = Path.GetDirectoryName(fullPath)!;
+            // A short fixed name: a name made from the target could be too long for the file system when the target's is long
+            var temporary = Path.Combine(directory, $".canvasnet-{Guid.NewGuid():N}.tmp");
+            var staged = new StagedOutput(temporary, fullPath, outputPath, options.NoClobber);
+            try
+            {
+                Directory.CreateDirectory(directory);
+                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    Encode(pixels, format, options.Quality, stream);
+                }
+
+                staged.Result = new WriteResult(
+                    outputPath, format, surface.Width, surface.Height, new FileInfo(temporary).Length, flatten);
+                return staged;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                staged.Dispose();
+                throw new ToolException(
+                    ErrorCodes.OutputWriteFailed,
+                    $"The output '{outputPath}' cannot be written: {ex.Message}",
+                    null,
+                    ex);
+            }
+            catch
+            {
+                staged.Dispose();
+                throw;
+            }
         }
         finally
         {
@@ -265,52 +321,94 @@ internal static class ImageWriter
     }
 
     /// <summary>
-    ///     Encodes the pixels to a temporary file next to the target and moves it over the target.
+    ///     An output that has been encoded to a temporary file but not yet moved into place.
     /// </summary>
-    /// <param name="pixels">The pixels to encode.</param>
-    /// <param name="format">The format.</param>
-    /// <param name="options">The write options.</param>
-    /// <param name="outputPath">The target path.</param>
-    /// <returns>The size of the written file in bytes.</returns>
-    private static long WriteAtomically(Surface pixels, OutputFormat format, WriteOptions options, string outputPath)
+    internal sealed class StagedOutput : IDisposable
     {
-        var fullPath = Path.GetFullPath(outputPath);
-        var directory = Path.GetDirectoryName(fullPath)!;
-        // A short fixed name: a name made from the target could be too long for the file system when the target's is long
-        var temporary = Path.Combine(directory, $".canvasnet-{Guid.NewGuid():N}.tmp");
-        try
+        /// <summary>The temporary file.</summary>
+        private readonly string _temporary;
+
+        /// <summary>The full path of the target.</summary>
+        private readonly string _fullPath;
+
+        /// <summary>The target path as it was given.</summary>
+        private readonly string _outputPath;
+
+        /// <summary>Whether an existing target is refused.</summary>
+        private readonly bool _noClobber;
+
+        /// <summary>Whether the temporary file has been moved into place.</summary>
+        private bool _committed;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="StagedOutput"/> class.
+        /// </summary>
+        /// <param name="temporary">The temporary file.</param>
+        /// <param name="fullPath">The full path of the target.</param>
+        /// <param name="outputPath">The target path as it was given.</param>
+        /// <param name="noClobber"><see langword="true"/> to refuse an existing target.</param>
+        internal StagedOutput(string temporary, string fullPath, string outputPath, bool noClobber)
         {
-            Directory.CreateDirectory(directory);
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            _temporary = temporary;
+            _fullPath = fullPath;
+            _outputPath = outputPath;
+            _noClobber = noClobber;
+            Result = null!;
+        }
+
+        /// <summary>
+        ///     Gets what will be written when the output is committed.
+        /// </summary>
+        public WriteResult Result { get; internal set; }
+
+        /// <summary>
+        ///     Moves the temporary file over the target.
+        /// </summary>
+        /// <returns>What was written.</returns>
+        /// <exception cref="ToolException">
+        ///     Thrown with code <c>output-exists</c> when the target appeared and no-clobber is set, and
+        ///     <c>output-write-failed</c> when the move fails.
+        /// </exception>
+        public WriteResult Commit()
+        {
+            try
             {
-                Encode(pixels, format, options.Quality, stream);
+                File.Move(_temporary, _fullPath, overwrite: !_noClobber);
+                _committed = true;
+                return Result;
+            }
+            catch (IOException) when (_noClobber && File.Exists(_fullPath))
+            {
+                // Another process created the target between the check and the move
+                throw new ToolException(
+                    ErrorCodes.OutputExists,
+                    $"The output '{_outputPath}' already exists.",
+                    "Remove --no-clobber to overwrite it, or choose a different output path.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                throw new ToolException(
+                    ErrorCodes.OutputWriteFailed,
+                    $"The output '{_outputPath}' cannot be written: {ex.Message}",
+                    null,
+                    ex);
+            }
+        }
+
+        /// <summary>
+        ///     Deletes the temporary file when it was not committed.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_committed)
+            {
+                return;
             }
 
-            File.Move(temporary, fullPath, overwrite: !options.NoClobber);
-            return new FileInfo(fullPath).Length;
-        }
-        catch (IOException) when (options.NoClobber && File.Exists(fullPath))
-        {
-            // Another process created the target between the check and the move
-            throw new ToolException(
-                ErrorCodes.OutputExists,
-                $"The output '{outputPath}' already exists.",
-                "Remove --no-clobber to overwrite it, or choose a different output path.");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            throw new ToolException(
-                ErrorCodes.OutputWriteFailed,
-                $"The output '{outputPath}' cannot be written: {ex.Message}",
-                null,
-                ex);
-        }
-        finally
-        {
             // Nothing is left behind when the encode or the move failed
             try
             {
-                File.Delete(temporary);
+                File.Delete(_temporary);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

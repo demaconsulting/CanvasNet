@@ -60,8 +60,9 @@ default); every page of one document is loaded from one opened source. A model i
 eye on the side the name says, Z up) at 800 by 800 pixels unless a size is given, with the variables and limits
 the options set; the files its `include` and `use` directives name are read from the folder of the model and below
 it only. A write is: resolve the format, check the
-target, flatten transparency for JPEG, encode into a temporary file in the target directory, and move it over the
-target.
+target, flatten transparency for JPEG, and encode into a temporary file in the target directory (staging); moving
+it over the target (committing) is a separate step, so a command that writes several outputs can publish them
+together once every one was encoded.
 
 Between the load and the write a command may transform the pixels with the pipeline: the operations are applied
 left to right, each making a new surface from the previous one, so one decode and one encode serve the whole chain.
