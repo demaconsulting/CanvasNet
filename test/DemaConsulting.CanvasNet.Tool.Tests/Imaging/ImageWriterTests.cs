@@ -334,6 +334,37 @@ public class ImageWriterTests
     }
 
     /// <summary>
+    ///     Test that an output reaching the input through a symbolic link to its directory is refused.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_CheckTarget_LinkedDirectory_IsSameFile()
+    {
+        // Arrange: a real file and a link to its directory (creating links may need privileges on Windows)
+        using var directory = new TempDirectory();
+        var real = directory.Combine("real");
+        Directory.CreateDirectory(real);
+        var input = Path.Combine(real, "in.png");
+        File.WriteAllText(input, "x");
+        var link = directory.Combine("link");
+        try
+        {
+            Directory.CreateSymbolicLink(link, real);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Assert.Skip("Symbolic links cannot be created here.");
+            return;
+        }
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => ImageWriter.CheckTarget(Path.Combine(link, "in.png"), input, false));
+
+        // Assert
+        Assert.Equal(ErrorCodes.SameInputOutput, exception.Code);
+        ImageWriter.CheckTarget(Path.Combine(link, "other.png"), input, false);
+    }
+
+    /// <summary>
     ///     Test that a missing output directory is created.
     /// </summary>
     [Fact]

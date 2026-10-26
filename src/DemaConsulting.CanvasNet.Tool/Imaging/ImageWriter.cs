@@ -300,14 +300,46 @@ internal static class ImageWriter
     /// <returns><see langword="true"/> when both resolve to the same full path, or are the same existing file.</returns>
     /// <remarks>
     ///     Windows and macOS file systems are case-insensitive by default, so their paths are compared ignoring case;
-    ///     this errs on the side of refusing, which is harmless. An existing pair of paths that reach the same file
-    ///     through a link is not detected.
+    ///     this errs on the side of refusing, which is harmless. Symbolic links (to files or to any parent directory)
+    ///     are resolved before the comparison, so two paths that reach the same file through a link are detected.
     /// </remarks>
     private static bool IsSameFile(string first, string second)
     {
         var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
-        return string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), comparison);
+        return string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), comparison)
+            || string.Equals(ResolveLinks(first), ResolveLinks(second), comparison);
+    }
+
+    /// <summary>
+    ///     Resolves symbolic links in every component of a path.
+    /// </summary>
+    /// <param name="path">The path to resolve.</param>
+    /// <returns>The full path with links replaced by their final targets; the plain full path when resolution fails.</returns>
+    private static string ResolveLinks(string path)
+    {
+        var full = Path.GetFullPath(path);
+        try
+        {
+            var root = Path.GetPathRoot(full) ?? string.Empty;
+            var current = root;
+            var separators = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+            foreach (var segment in full[root.Length..].Split(separators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, segment);
+                FileSystemInfo info = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
+                if (info.LinkTarget != null && info.ResolveLinkTarget(true) is { } target)
+                {
+                    current = target.FullName;
+                }
+            }
+
+            return current;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return full;
+        }
     }
 }

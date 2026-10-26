@@ -21,7 +21,7 @@ CI workflow. None of these tools are linked into, or shipped with, the compiled 
 CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools (used to build,
 document, and verify the repository, but never shipped) and the runtime library dependencies that
 are shipped in the compiled NuGet packages: `System.Numerics.Tensors` as a transitive dependency of the
-core package, and `DemaConsulting.TestResults` as the one dependency of the tool package.
+core package, and `DemaConsulting.TestResults`, whose assemblies are bundled inside the tool package.
 
 ### Build-Time and Quality-Pipeline Tools
 
