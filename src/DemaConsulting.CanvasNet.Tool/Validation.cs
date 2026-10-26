@@ -52,8 +52,7 @@ internal static class Validation
         RunRenderScadTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
-        RunCompareIdenticalTest(context, testResults);
-        RunCompareDifferentTest(context, testResults);
+        RunCompareTest(context, testResults);
         RunMontageTest(context, testResults);
         var totalTests = testResults.Results.Count;
         var passedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Passed);
@@ -599,80 +598,76 @@ internal static class Validation
     }
 
     /// <summary>
-    ///     Runs a test that compares a generated PNG with an identical copy and checks that the result says so.
+    ///     Runs a test that compares a generated PNG with an identical copy (the result says so and the thresholds pass)
+    ///     and with a copy that differs in a known region (the metrics and pictures of the differences are right, and an
+    ///     unmet threshold is an expected failure that still reports the metrics).
     /// </summary>
     /// <param name="context">The context for output.</param>
     /// <param name="testResults">The test results collection.</param>
-    private static void RunCompareIdenticalTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    private static void RunCompareTest(Context context, DemaConsulting.TestResults.TestResults testResults)
     {
-        RunSelfTest(context, testResults, "CanvasNetTool_CompareIdentical", directory =>
+        RunSelfTest(context, testResults, "CanvasNetTool_Compare", directory =>
         {
             var first = PathHelpers.SafePathCombine(directory, "first.png");
-            var second = PathHelpers.SafePathCombine(directory, "second.png");
+            var same = PathHelpers.SafePathCombine(directory, "same.png");
             using (var original = CreateTestSurface())
             {
                 PngCodec.Save(original, first);
-                PngCodec.Save(original, second);
+                PngCodec.Save(original, same);
             }
 
             // Identical images have no error, a similarity of one, and no PSNR; thresholds that only identical images meet pass
-            var json = RunCommand(
-                directory, "compare", first, second, "--threshold", "rmse=0", "--threshold", "ssim=1", "--json");
-            using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
-            var metrics = root.GetProperty("metrics");
-            return root.GetProperty("ok").GetBoolean()
-                   && metrics.GetProperty("identical").GetBoolean()
-                   && Math.Abs(metrics.GetProperty("mae").GetDouble()) < 0.0001
-                   && Math.Abs(metrics.GetProperty("ssim").GetDouble() - 1) < 0.0001
-                   && metrics.GetProperty("psnrDb").ValueKind == JsonValueKind.Null
-                   && metrics.GetProperty("diffPixels").GetInt64() == 0
-                   && root.GetProperty("thresholds").GetProperty("passed").GetBoolean()
-                ? null
-                : "The comparison of identical images did not report them as identical";
-        });
-    }
-
-    /// <summary>
-    ///     Runs a test that compares a generated PNG with a copy that differs in a known region and checks the metrics
-    ///     and the pictures of the differences.
-    /// </summary>
-    /// <param name="context">The context for output.</param>
-    /// <param name="testResults">The test results collection.</param>
-    private static void RunCompareDifferentTest(Context context, DemaConsulting.TestResults.TestResults testResults)
-    {
-        RunSelfTest(context, testResults, "CanvasNetTool_CompareDifferent", directory =>
-        {
-            // The copy has 12 pixels (4x3 at 2,1) whose blue channel is 50 higher: every other pixel is the same
-            var first = PathHelpers.SafePathCombine(directory, "first.png");
-            var second = PathHelpers.SafePathCombine(directory, "second.png");
-            using (var original = CreateTestSurface())
+            var identicalJson = RunCommand(
+                directory, "compare", first, same, "--threshold", "rmse=0", "--threshold", "ssim=1", "--json");
+            using (var identicalDocument = JsonDocument.Parse(identicalJson))
             {
-                PngCodec.Save(original, first);
-                using var changed = CreateTestSurface();
-                for (var y = 1; y < 4; y++)
+                var root = identicalDocument.RootElement;
+                var metrics = root.GetProperty("metrics");
+                if (!root.GetProperty("ok").GetBoolean()
+                    || !metrics.GetProperty("identical").GetBoolean()
+                    || Math.Abs(metrics.GetProperty("mae").GetDouble()) > 0.0001
+                    || Math.Abs(metrics.GetProperty("ssim").GetDouble() - 1) > 0.0001
+                    || metrics.GetProperty("psnrDb").ValueKind != JsonValueKind.Null
+                    || metrics.GetProperty("diffPixels").GetInt64() != 0
+                    || !root.GetProperty("thresholds").GetProperty("passed").GetBoolean())
                 {
-                    for (var x = 2; x < 6; x++)
-                    {
-                        var pixel = changed[x, y];
-                        changed[x, y] = new Rgba32(pixel.R, pixel.G, (byte)(pixel.B + 50), 255);
-                    }
+                    return "The comparison of identical images did not report them as identical";
                 }
-
-                PngCodec.Save(changed, second);
             }
+
+            // The copy has 12 pixels (4x3 at 2,1) whose blue channel is 50 higher: every other pixel is the same
+            var second = PathHelpers.SafePathCombine(directory, "second.png");
+            SaveChangedTestImage(second);
 
             var diff = PathHelpers.SafePathCombine(directory, "diff.png");
             var sideBySide = PathHelpers.SafePathCombine(directory, "side-by-side.png");
-            var json = RunCommand(
-                directory, "compare", first, second, "--diff", diff, "--side-by-side", sideBySide, "--threshold", "rmse=255", "--json");
-            using var document = JsonDocument.Parse(json);
-            var metrics = document.RootElement.GetProperty("metrics");
-            if (metrics.GetProperty("identical").GetBoolean()
-                || metrics.GetProperty("maxChannelDiff").GetInt32() != 50
-                || metrics.GetProperty("diffPixels").GetInt64() != 12
-                || Math.Abs(metrics.GetProperty("mae").GetDouble() - (12 * 50 / (3.0 * TestImageWidth * TestImageHeight))) > 0.0001
-                || metrics.GetProperty("ssim").GetDouble() >= 1)
+            var logFile = PathHelpers.SafePathCombine(directory, "failure.log");
+            // The tool is run through its entry point (as the installed tool is), which reports an expected failure as exit code 1
+            var exitCode = Program.Main(
+                ["--silent", "--log", logFile, "compare", first, second,
+                 "--diff", diff, "--side-by-side", sideBySide, "--threshold", "ssim=1", "--json"]);
+            if (exitCode != 1)
+            {
+                return $"The unmet threshold exited with code {exitCode} instead of 1";
+            }
+
+            // The log holds the error lines and then the failure document, which carries the metrics as well as the error
+            var documentLine = File.ReadLines(logFile).FirstOrDefault(line => line.StartsWith('{'));
+            if (documentLine == null)
+            {
+                return "The unmet threshold wrote no failure document";
+            }
+
+            using var document = JsonDocument.Parse(documentLine);
+            var failure = document.RootElement;
+            var differentMetrics = failure.GetProperty("metrics");
+            if (failure.GetProperty("ok").GetBoolean()
+                || failure.GetProperty("error").GetProperty("code").GetString() != "threshold-failed"
+                || differentMetrics.GetProperty("identical").GetBoolean()
+                || differentMetrics.GetProperty("maxChannelDiff").GetInt32() != 50
+                || differentMetrics.GetProperty("diffPixels").GetInt64() != 12
+                || Math.Abs(differentMetrics.GetProperty("mae").GetDouble() - (12 * 50 / (3.0 * TestImageWidth * TestImageHeight))) > 0.0001
+                || differentMetrics.GetProperty("ssim").GetDouble() >= 1)
             {
                 return "The metrics of the changed region are wrong";
             }
@@ -692,6 +687,25 @@ internal static class Validation
                 ? null
                 : "The side-by-side picture has the wrong size";
         });
+    }
+
+    /// <summary>
+    ///     Saves the test image with the blue channel of the 4x3 region at 2,1 raised by 50 as a PNG.
+    /// </summary>
+    /// <param name="path">The path of the PNG file to write.</param>
+    private static void SaveChangedTestImage(string path)
+    {
+        using var changed = CreateTestSurface();
+        for (var y = 1; y < 4; y++)
+        {
+            for (var x = 2; x < 6; x++)
+            {
+                var pixel = changed[x, y];
+                changed[x, y] = new Rgba32(pixel.R, pixel.G, (byte)(pixel.B + 50), 255);
+            }
+        }
+
+        PngCodec.Save(changed, path);
     }
 
     /// <summary>

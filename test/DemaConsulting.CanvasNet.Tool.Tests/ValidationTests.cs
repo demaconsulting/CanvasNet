@@ -107,16 +107,16 @@ public class ValidationTests
             // Act: run the self-validation
             var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
 
-            // Assert: each self-test passed and is named in the results file, and fourteen self-tests ran in all
+            // Assert: each self-test passed and is named in the results file, and thirteen self-tests ran in all
             Assert.Equal(0, context.ExitCode);
             var content = File.ReadAllText(resultsFile);
-            foreach (var name in new[] { "CanvasNetTool_CompareIdentical", "CanvasNetTool_CompareDifferent", "CanvasNetTool_Montage" })
+            foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
             {
                 Assert.Contains($"✓ {name} - Passed", stdOut);
                 Assert.Contains(name, content);
             }
 
-            Assert.Contains("Total Tests: 14", stdOut);
+            Assert.Contains("Total Tests: 13", stdOut);
         }
         finally
         {
