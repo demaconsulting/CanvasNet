@@ -2202,6 +2202,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAdjustments.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAdjustmentsTests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-ImageGeometry Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageGeometry
+    title: Review that CanvasNetTool Imaging ImageGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-geometry.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-geometry.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageGeometry*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageGeometry*Tests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

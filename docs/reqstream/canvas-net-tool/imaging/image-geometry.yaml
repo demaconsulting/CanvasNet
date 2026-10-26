@@ -1,0 +1,113 @@
+---
+# cspell:ignore bilinear premultiplied deskew
+# Software Unit Requirements for the ImageGeometry Class
+#
+# The ImageGeometry class holds the geometry of a surface that the pipeline needs beyond right-angle moves: rotation
+# by any angle onto an expanded canvas with a fill color (nearest or bilinear sampling), and the bounds of the content
+# inside a uniform border (trim). It works on surfaces only: it knows nothing of files, options, or commands. Every
+# pixel of a rotation is computed from its own coordinates and rows are processed in parallel with disjoint output, so
+# the results are the same on any number of cores.
+
+sections:
+  - title: ImageGeometry Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-ImageGeometry-RotatedSize
+        title: >-
+          The ImageGeometry class shall size the canvas of an image rotated by any finite angle as the bounding
+          box of the rotated rectangle, with each side the ceiling of the width times the absolute cosine plus the
+          height times the absolute sine (and the width times the sine plus the height times the cosine for the
+          other side) less a tolerance of 1e-9 that absorbs floating-point noise, and at least 1, so that a right
+          angle does not gain a pixel.
+        justification: |
+          A rotated photograph must not lose its corners, and an exact quarter turn must not grow a spurious
+          row; a documented formula lets a caller predict the size of the result.
+        tests:
+          - ImageGeometry_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox
+          - ImageGeometry_RotatedSize_NearExactFit_DoesNotGainAPixel
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-RotateMapping
+        title: >-
+          The ImageGeometry class shall rotate an image clockwise on screen about the center of the image and the
+          center of the expanded canvas, mapping the destination pixel (xd, yd) to the source coordinate
+          u = dx cos θ + dy sin θ + W / 2 and v = -dx sin θ + dy cos θ + H / 2 with dx = xd + 0.5 - newW / 2 and
+          dy = yd + 0.5 - newH / 2, calculated from the pixel's own coordinates, so that a point right of the
+          center of the image lands below the center of the result for a quarter turn.
+        justification: |
+          The direction and the center of a rotation are the first things a user checks; calculating every pixel
+          from its own coordinates, with no accumulated error, makes the result independent of the order in which
+          rows are processed.
+        tests:
+          - ImageGeometry_RotateArbitrary_Clockwise_MovesRightOfCenterBelowCenter
+          - ImageGeometry_RotateArbitrary_SolidImage_FillsInteriorWithSourceColor
+          - ImageGeometry_RotateArbitrary_RoundTripSmallAngle_StaysCloseToOriginal
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-RotateFill
+        title: >-
+          The ImageGeometry class shall give every part of the expanded canvas outside the rotated image the fill
+          color, treating a sampling tap outside the image as the fill color so that the rotated edge fades into it
+          over half a pixel, blending taps in premultiplied form (the alpha is the rounded weighted sum of the tap
+          alphas and each color the rounded weighted sum of color times alpha divided by that sum), and storing a
+          pixel whose alpha is 0 as transparent black.
+        justification: |
+          A rotation exposes corners nobody asked for; filling them with a chosen color, antialiasing the edge, and
+          blending translucent colors correctly keeps a transparent or semi-transparent fill from darkening or
+          tinting the image edge.
+        tests:
+          - ImageGeometry_RotateArbitrary_Corners_AreFillColor
+          - ImageGeometry_RotateArbitrary_TransparentFill_EdgePixelsFadeInAlpha
+          - ImageGeometry_RotateArbitrary_SemiTransparentFill_BlendsInPremultipliedSpace
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-RotateFilter
+        title: >-
+          The ImageGeometry class shall sample the source with either the nearest pixel, copying source pixels
+          without blending, or bilinear interpolation of the four surrounding pixels, and shall give the same
+          pixels whether or not the fast paths (no bounds tests when all four taps are inside, a direct fill store
+          when all are outside) are used.
+        justification: |
+          Nearest keeps hard pixel edges for pixel art and masks and bilinear gives smooth photographs; the fast
+          paths exist for speed on large images and must never change a pixel.
+        tests:
+          - ImageGeometry_RotateArbitrary_Nearest_CopiesPixelsWithoutBlending
+          - ImageGeometry_RotateArbitrary_Bilinear_BlendsAHardEdge
+          - ImageGeometry_RotateArbitrary_FastPathAndGenericPath_GiveSamePixels
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-RotateLimit
+        title: >-
+          The ImageGeometry class shall refuse, with the error code size-limit and a hint to shrink the image
+          first, a rotation whose expanded canvas would be larger than 8192 pixels on a side, before anything is
+          allocated.
+        justification: |
+          A rotated canvas can be 41 percent larger than the image on a side and can exhaust memory; refusing it
+          from the numbers alone, with the remedy, is cheaper and clearer than failing partway through.
+        tests:
+          - ImageGeometry_RotateArbitrary_ResultTooLarge_ThrowsSizeLimitBeforeAllocating
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-Trim
+        title: >-
+          The ImageGeometry class shall find the inclusive bounding box of the pixels whose distance from the
+          background color is greater than a tolerance of 0 to 255, taking the background color as the most
+          frequent of the four corner pixels (a tie going to the earliest of top left, top right, bottom left, and
+          bottom right), the distance as 0 between two fully transparent pixels and otherwise the largest absolute
+          difference of red, green, blue, and alpha, and shall report no box, and trim nothing, when every pixel is
+          background.
+        justification: |
+          A photograph or scan of a drawing has a margin of paper or empty canvas; a documented background rule
+          and tolerance make the crop predictable, and an image with no content is reported rather than reduced to
+          nothing.
+        tests:
+          - ImageGeometry_FindTrimBounds_UniformBorder_ReturnsContentBox
+          - ImageGeometry_FindTrimBounds_Tolerance_IgnoresNoiseBelowTolerance
+          - ImageGeometry_FindTrimBounds_TransparentBorder_TreatsAllTransparentPixelsAsEqual
+          - ImageGeometry_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner
+          - ImageGeometry_FindTrimBounds_AllBackground_ReturnsNull
+          - ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage
+
+      - id: CanvasNetTool-Imaging-ImageGeometry-Arguments
+        title: >-
+          The ImageGeometry class shall reject a null surface, an angle that is not finite, a width or height below
+          1, and a trim tolerance outside 0 to 255.
+        justification: |
+          Each of these is a defect of the caller (the pipeline validates user input first) and must fail fast and
+          clearly.
+        tests:
+          - ImageGeometry_NullOrInvalidArguments_Throw

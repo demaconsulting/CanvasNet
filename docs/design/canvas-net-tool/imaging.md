@@ -12,7 +12,7 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains six units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains seven units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
@@ -21,7 +21,8 @@ JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of t
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
 pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
 the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
-fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels). The supporting
+fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels), and `ImageGeometry`, which rotates pixels by
+any angle onto an expanded canvas with a fill color and finds the content bounds inside a uniform border. The supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -51,6 +52,11 @@ large) before anything is loaded, then compose the sheet one image at a time and
 **ImageAdjustments.Grayscale**, **Invert**, **Threshold**, **ApplyTable**, **AutoLevels**, and the table and histogram
 helpers (provided to the pipeline and the analysis): adjust the pixels of a surface the caller owns in place, and
 calculate luma, histograms, the Otsu threshold, and the levels, brightness, and contrast tables.
+
+**ImageGeometry.CheckRotatedSize(width, height, degrees)**, **ImageGeometry.RotateArbitrary(source, degrees, fill,
+nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, and **ImageGeometry.Trim(surface, tolerance)**
+(provided to the pipeline): size and refuse a rotated canvas, rotate by any angle onto an expanded canvas with a fill
+color, and find or crop to the content inside a uniform border.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to
