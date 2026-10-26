@@ -308,12 +308,164 @@ jobs:
           name: artifacts-codeql
           path: artifacts/
 
+  # Performs integration testing on a matrix of operating systems and .NET runtimes,
+  # involving basic tool execution and running self-validation to ensure compatibility
+  # across different platforms and runtime versions. The tool is installed from the
+  # packages built by the build job, exactly as a user would install it.
+  integration-test:
+    name: Integration Test ${{ matrix.os }} .NET ${{ matrix.dotnet-version }}
+    runs-on: ${{ matrix.os }}
+    needs: build
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        dotnet-version: ['8.x', '9.x', '10.x']
+
+    steps:
+      # === INSTALL DEPENDENCIES ===
+      # This section installs all required dependencies and tools for integration testing.
+      # Downstream projects: Add any additional dependency installations here.
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .versionmark.yaml
+            .config/dotnet-tools.json
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: packages-${{ matrix.os }}
+          path: packages
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Restore Tools
+        run: >
+          dotnet tool restore
+
+      # The tool bundles the sibling CanvasNet libraries it uses (the project references are
+      # private assets). This guard proves that the package declares no NuGet dependency on
+      # them (a tool install must not need sibling packages that may not be published yet) and
+      # that their assemblies are really shipped inside the package.
+      - name: Check tool package contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $package = Get-ChildItem packages -Filter 'DemaConsulting.CanvasNet.Tool.*.nupkg' | Select-Object -First 1
+          if (-not $package) { throw "Tool package not found in packages/" }
+          Write-Host "Checking $($package.Name)"
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+          try {
+            $nuspecEntry = $zip.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
+            $reader = New-Object System.IO.StreamReader($nuspecEntry.Open())
+            $nuspec = $reader.ReadToEnd()
+            $reader.Dispose()
+            if ($nuspec -match 'dependency id="DemaConsulting\.CanvasNet') {
+              throw "The tool package declares a NuGet dependency on a sibling CanvasNet package"
+            }
+            $assemblies = @(
+              'DemaConsulting.CanvasNet.Tool.dll',
+              'DemaConsulting.CanvasNet.dll',
+              'DemaConsulting.CanvasNet.Svg.dll',
+              'DemaConsulting.CanvasNet.Pdf.dll',
+              'DemaConsulting.CanvasNet.Pptx.dll',
+              'DemaConsulting.CanvasNet.Vsdx.dll',
+              'DemaConsulting.CanvasNet.Render3D.dll',
+              'DemaConsulting.CanvasNet.Scad.dll'
+            )
+            foreach ($framework in 'net8.0', 'net9.0', 'net10.0') {
+              foreach ($assembly in $assemblies) {
+                $entry = "tools/$framework/any/$assembly"
+                if (-not ($zip.Entries.FullName -contains $entry)) {
+                  throw "The tool package does not contain $entry"
+                }
+              }
+            }
+          }
+          finally {
+            $zip.Dispose()
+          }
+          Write-Host "✓ Tool package declares no sibling dependencies and bundles its libraries"
+
+      - name: Install tool from package
+        shell: bash
+        run: |
+          echo "Installing package version ${{ inputs.version }} from: packages/"
+          dotnet tool install --global \
+            --add-source packages \
+            --version ${{ inputs.version }} \
+            DemaConsulting.CanvasNet.Tool
+
+      # === CAPTURE TOOL VERSIONS ===
+      # This section captures the versions of all tools used in the integration tests.
+      # Downstream projects: Add any additional tools to capture here.
+
+      - name: Capture tool versions
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          echo "Capturing tool versions..."
+          # Create short job ID: int-windows-8, int-ubuntu-9, int-macos-10, etc.
+          OS_SHORT=$(echo "${{ matrix.os }}" | sed 's/-latest//')
+          DOTNET_SHORT=$(echo "${{ matrix.dotnet-version }}" | sed 's/\.x$//')
+          JOB_ID="int-${OS_SHORT}-${DOTNET_SHORT}"
+          dotnet versionmark --capture --job-id "${JOB_ID}" \
+            --output "artifacts/versionmark-${JOB_ID}.json" -- \
+            dotnet git versionmark
+          echo "✓ Tool versions captured"
+
+      # === RUN INTEGRATION TESTS ===
+      # This section runs the integration tests for the tool.
+      # Downstream projects: Add any additional integration test steps here.
+
+      - name: Test version display
+        shell: bash
+        run: |
+          echo "Testing canvasnet --version..."
+          canvasnet --version || { echo "✗ Version command failed"; exit 1; }
+          echo "✓ Version command succeeded"
+
+      - name: Test help display
+        shell: bash
+        run: |
+          echo "Testing canvasnet --help..."
+          canvasnet --help || { echo "✗ Help command failed"; exit 1; }
+          echo "✓ Help command succeeded"
+
+      - name: Run self-validation
+        shell: bash
+        run: |
+          echo "Running self-validation..."
+          canvasnet --validate \
+            --results artifacts/validation-${{ matrix.os }}-dotnet${{ matrix.dotnet-version }}.trx \
+            || { echo "✗ Self-validation failed"; exit 1; }
+          echo "✓ Self-validation succeeded"
+
+      # === UPLOAD ARTIFACTS ===
+      # This section uploads all generated artifacts for use by downstream jobs.
+      # Downstream projects: Add any additional artifact uploads here.
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: artifacts-validation-${{ matrix.os }}-dotnet${{ matrix.dotnet-version }}
+          path: artifacts/
+
   # Builds the supporting documentation including user guides, requirements,
   # trace matrices, code quality reports, and build notes.
   build-docs:
     name: Build Documents
     runs-on: windows-latest
-    needs: [build, codeql]
+    needs: [build, integration-test, codeql]
     permissions:
       contents: read
 
