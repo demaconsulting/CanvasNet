@@ -253,9 +253,10 @@ references are used.
 
 **`hull` of solids.** `ConvexHull.Hull3DInPlace` of the transformed points after `context.Poll()`. `GatherPoints` flags
 and
-counts the referenced vertices of every mesh first, fails with the triangle-limit error when their number exceeds
-`MaxTriangles` (a welded mesh has fewer vertices than triangles, so only a pathological polyhedron fails here), and
-only then allocates **one** exactly sized `Vector3D[]` and fills it, so there is no growing list and no second copy:
+counts the referenced vertices of every mesh first and only then allocates **one** exactly sized `Vector3D[]` and fills
+it, so there is no growing list and no second copy (there is no guard on the raw number of vertex slots: children can
+share positions and unshared meshes reference more slots than triangles, so the budget decision is made only on the
+distinct points, by `ChargeHullBound`):
 the array is handed to `Hull3DInPlace`, which sorts and de-duplicates it in place; an `ArgumentException` (fewer than four
 affinely independent points) is `scad-hull-degenerate`. The charge **precedes** the computation: the mesh has at most
 `2d − 4` triangles for `d` distinct points, so `ChargeHullBound` charges that bound (the raw point count `n` when it

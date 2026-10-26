@@ -574,19 +574,22 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Gathers the referenced vertices of the meshes in the frame of the module into one exactly sized array,
-    ///     bounded by the triangle budget.
+    ///     Gathers the referenced vertices of the meshes in the frame of the module into one exactly sized array.
     /// </summary>
     /// <remarks>
     ///     The vertices that a triangle references are flagged and counted first, so the array is allocated once with
-    ///     its final size (no growing list and no second copy: the hull takes the array over and sorts it in place),
-    ///     and a point count over the budget fails before that allocation.
+    ///     its final size (no growing list and no second copy: the hull takes the array over and sorts it in place).
+    ///     There is deliberately no guard on the raw number of vertex slots: children can share positions and open or
+    ///     unshared meshes reference more vertex slots than triangles, so that count says nothing about the hull, and
+    ///     the array is no larger than the vertices of meshes that already exist. The budget decision is made on the
+    ///     distinct points by <see cref="ChargeHullBound"/> before the hull is computed; only a count that no array
+    ///     can hold is refused here.
     /// </remarks>
     /// <param name="parts">The meshes.</param>
     /// <param name="node">The instance.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The points.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown when there are more points than the triangle budget.</exception>
+    /// <exception cref="ScadEvaluationException">Thrown when there are more points than an array can hold.</exception>
     private static Vector3D[] GatherPoints(SolidParts parts, ScadInstance node, ScadGeometryContext context)
     {
         var flags = new List<bool[]>(parts.Meshes.Count);
@@ -598,8 +601,8 @@ internal static class ScadHulls
             flags.Add(used);
             total += used.Count(u => u);
 
-            // Welded meshes have fewer vertices than triangles, so only a pathological mesh gets here
-            if (total > context.MaxTriangles)
+            // No array can hold more points than this, so such a hull can never be built
+            if (total > Array.MaxLength)
             {
                 context.FailTriangleLimit(node.Location);
             }

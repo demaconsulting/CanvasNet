@@ -288,6 +288,7 @@ sections:
                   - ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded
                   - ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused
                   - ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame
+                  - ScadGeometryBuilder_Hull_DuplicatedVertexSlots_AreBudgetedByTheirDistinctPoints
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
                 title: >-

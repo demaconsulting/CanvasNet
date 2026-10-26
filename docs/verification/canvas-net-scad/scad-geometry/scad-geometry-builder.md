@@ -291,7 +291,8 @@ small cylinders stay under the cap and build one closed mesh.
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual`,
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded`,
 `ScadGeometryBuilderHullTests.ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused`,
-`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame`
+`ScadGeometryBuilderMinkowskiTests.ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame`,
+`ScadGeometryBuilderHullTests.ScadGeometryBuilder_Hull_DuplicatedVertexSlots_AreBudgetedByTheirDistinctPoints`
 
 Asserts, for hulls of boxes and spheres, an extruded 2D hull, sums of one, two, and three children, a union
 operand, and the reported cases (a boolean, a flat hull, and a fold whose second step is too complex after its
@@ -306,7 +307,10 @@ bound that fits is settled to the actual twelve triangles, that a degenerate fla
 a fold of three cubes, that the second step needs the operands (36) plus the live first sum (12) plus its own bound
 (124): 172 builds (36 + 12 charged) and 171 fails in the second step with the first sum started and only the operands
 (36) left charged. A hull gathers its points into one exactly sized array that the hull sorts in place (covered by the hull
-tests above, whose meshes and charges are unchanged). The copy test asserts that the transformed copy of a translated
+tests above, whose meshes and charges are unchanged). No guard is made on the raw number of vertex slots: ten
+children that are the same unwelded cube (360 slots, 8 distinct points) are hulled at a limit of 132 (the ten cubes
+cost 120 triangles and the bound of the 8 distinct points is 12), and a limit of 131 is rejected by that bound before
+the hull is computed. The copy test asserts that the transformed copy of a translated
 child (12 triangles) is charged
 before it is allocated and refunded afterwards: for a fold of two children the operands (24) plus the copy (12) plus
 the bound of the sum (124) need a limit of 160 (159 fails and 35 fails when the copy does not fit, each leaving only the

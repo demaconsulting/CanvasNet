@@ -427,6 +427,44 @@ public class ScadGeometryBuilderHullTests
     }
 
     /// <summary>
+    ///     Validates that the budget decision of a hull is made on its distinct points, not on the raw number of vertex
+    ///     slots: ten children that are the same unwelded cube (360 vertex slots, 8 distinct points) are hulled at a
+    ///     limit of 132, far below twice the slot count, because the bound of the 8 distinct points (12 triangles) fits
+    ///     the remaining budget, and one triangle less is rejected by that bound.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Hull_DuplicatedVertexSlots_AreBudgetedByTheirDistinctPoints()
+    {
+        var location = new ScadSourceLocation(null, 1, 1);
+        var cube = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+
+        (ScadGeometryContext Context, ScadGeo[] Children) Create(long limit)
+        {
+            var context = new ScadGeometryContext(Settings(maxTriangles: limit), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+            var children = Enumerable.Range(0, 10).Select(_ =>
+            {
+                // Every triangle has its own three vertices, so all 36 slots are referenced
+                var unwelded = new Mesh(cube.TriangleIndices.Select(i => cube.Vertices[i]), Enumerable.Range(0, cube.TriangleIndices.Count));
+                context.ChargeTriangles(unwelded.TriangleCount, location);
+                return ScadGeo.FromMesh(context.CreateMeshNode(unwelded, location));
+            }).ToArray();
+            return (context, children);
+        }
+
+        // The ten cubes cost 120 triangles and the bound of the 8 distinct points is 12
+        var (fits, fitsChildren) = Create(132);
+        var hull = ScadHulls.Hull(Instance("hull", []), [.. fitsChildren], fits);
+        Assert.Equal(12, Assert.IsType<MeshNode>(hull.Node).Mesh.TriangleCount);
+        Assert.Equal(1, fits.HullsStarted);
+        Assert.Equal(120 + 12, fits.TrianglesCharged);
+
+        var (tooSmall, tooSmallChildren) = Create(131);
+        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Hull(Instance("hull", []), [.. tooSmallChildren], tooSmall));
+        Assert.Equal(0, tooSmall.HullsStarted);
+        Assert.Equal(120, tooSmall.TrianglesCharged);
+    }
+
+    /// <summary>
     ///     Validates that the transformed copies of the convex parts of a <c>minkowski</c> are charged to the triangle
     ///     budget before they are allocated and refunded when they are consumed or the module ends: the copy of a
     ///     translated child costs its twelve triangles on top of the operands while it lives, a limit that does not
