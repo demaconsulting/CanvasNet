@@ -27,9 +27,9 @@ console.
 **Validation_Run_FormatsSelfTest_PassesAndIsRecorded**: the formats self-test passes (exit code 0) and its name is
 in the TRX file.
 
-**Validation_Run_ImagingSelfTests_PassAndAreRecorded**: the five imaging self-tests (`CanvasNetTool_RenderPng`,
-`CanvasNetTool_ConvertFormats`, `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, and `CanvasNetTool_PdfMinimal`)
-pass (exit code 0), are reported as passed, and are named in the TRX file.
+**Validation_Run_ImagingSelfTests_PassAndAreRecorded**: the six imaging self-tests (`CanvasNetTool_RenderPng`,
+`CanvasNetTool_ConvertFormats`, `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, and
+`CanvasNetTool_RenderScad`) pass (exit code 0), are reported as passed, and are named in the TRX file.
 
 **Validation_Run_WithSilentContext_ExitCodeIsZero**: a silent run leaves exit code 0.
 

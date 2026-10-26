@@ -1,5 +1,6 @@
 ---
-# cspell:ignore canvasnet
+# cspell:ignore canvasnet scad openscad
+# CanvasNetTool System-Level Requirements
 # CanvasNetTool System-Level Requirements
 #
 # PURPOSE:
@@ -299,9 +300,10 @@ sections:
 
       - id: CanvasNetTool-System-Info
         title: >-
-          The tool shall describe an image, drawing, or document file (its format, pixel size,
+          The tool shall describe an image, drawing, document, or model file (its format, pixel size,
           channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
-          and the number and size of the pages of a PDF, PPTX, or VSDX document) without rendering it
+          the number and size of the pages of a PDF, PPTX, or VSDX document, and the modules,
+          functions, and include and use directives of an OpenSCAD model) without rendering it
           when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
@@ -312,6 +314,7 @@ sections:
         tests:
           - CanvasNetTool_Info_Requested_DescribesFile
           - CanvasNetTool_Info_DocumentPages_DescribesPages
+          - CanvasNetTool_Scad_Info_DescribesModel
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -331,18 +334,20 @@ sections:
 
       - id: CanvasNetTool-System-InputFormats
         title: >-
-          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, and VSDX files,
-          recognizing the format from the content before the file name extension.
+          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and
+          OpenSCAD (SCAD) files, recognizing the format from the content before the file name
+          extension (a model by its extension).
         tags: [system]
         justification: |
           Agents work with whatever files they are given; reading the common raster formats, SVG
-          drawings, and the documents that carry diagrams and slides, whatever they are named, means
-          they rarely need another tool first.
+          drawings, the documents that carry diagrams and slides, and the 3D models they are asked to
+          show, whatever they are named, means they rarely need another tool first.
         children:
           - CanvasNetTool-Imaging-Load
         tests:
           - CanvasNetTool_InputFormats_EveryFormat_AreReadable
           - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
+          - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
 
       - id: CanvasNetTool-System-Documents
         title: >-
@@ -360,17 +365,47 @@ sections:
           - CanvasNetTool_Documents_AllPages_WritesEveryPage
           - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
 
+      - id: CanvasNetTool-System-Scad
+        title: >-
+          The tool shall render an OpenSCAD model (a `.scad` file) from the named view chosen with
+          `--view` (iso by default, front, back, left, right, top, or bottom; the camera looks at the
+          model from that side with Z up), with the azimuth and elevation of the view replaceable with
+          `--azimuth` and `--elevation`, orthographic unless `--projection perspective` is given, at
+          800 by 800 pixels unless a size option is given, over white unless `--background` says
+          otherwise, with variables set by `-D name=value`, `$t` set by `--time`, the color of
+          uncolored surfaces set by `--default-color`, and the number of triangles limited by
+          `--max-triangles`; shall read the files named by `include` and `use` from the folder of the
+          model and below it only and refuse a model whose include cannot be read; and shall report a
+          syntax error, a failed assertion, and an include problem with the error code scad-error, and a
+          model that exceeds a limit with the error code budget-exceeded, as expected failures.
+        tags: [system]
+        justification: |
+          Agents are asked to show a 3D model; a named view says which side to look at without the
+          geometry of a camera, the variables of a parametric model can be set from the command line,
+          and every limit and mistake of a model is a concise, coded error rather than a crash, so that
+          a runaway model cannot hang or take down the agent that renders it. Files outside the folder of
+          the model are never read, so a model cannot be used to read other files.
+        tests:
+          - CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions
+          - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
+          - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
+          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
+          - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
+
       - id: CanvasNetTool-System-Diagnostics
         title: >-
           The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
-          skip or approximate in the `diagnostics` of the JSON result, and with `--strict` shall fail
-          with the error code unsupported-feature and write no output instead.
+          skip or approximate, and the warnings, unsupported features, and echoed text of an OpenSCAD
+          model, in the `diagnostics` and `echo` of the JSON result, and with `--strict` shall fail
+          with the error code unsupported-feature and write no output instead of skipping an
+          unsupported feature.
         tags: [system]
         justification: |
           An image that silently lacks part of the document misleads the agent that looks at it; the
           note says what is missing, and strict mode is for callers that cannot accept the gap.
         tests:
           - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
+          - CanvasNetTool_Scad_Diagnostics_AreReportedInJson
 
       - id: CanvasNetTool-System-OutputFormats
         title: >-
@@ -419,11 +454,13 @@ sections:
           - CanvasNetTool-Imaging-Determinism
         tests:
           - CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes
+          - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
 
       - id: CanvasNetTool-System-InputErrors
         title: >-
           The tool shall report a missing, unsupported, truncated, or corrupt input file (including a
-          document with a missing page or a broken part), a page that does not exist, and an image
+          document with a missing page or a broken part, and a model with a syntax error or an include
+          that cannot be read), a page that does not exist, and an image
           larger than the maximum size, as an expected failure with a stable error code and exit code
           1, never as an unexpected error, and shall write no output.
         tags: [system]
@@ -436,3 +473,4 @@ sections:
           - CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors
           - CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
+          - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors

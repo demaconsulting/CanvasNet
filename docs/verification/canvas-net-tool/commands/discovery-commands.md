@@ -1,11 +1,12 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg pptx vsdx dpi -->
+<!-- cspell:ignore canvasnet jpeg pptx vsdx dpi scad openscad -->
 
 #### Verification Approach
 
 `DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs` and
-`DiscoveryCommandsDocumentTests.cs` (the page options and the documents). The `formats` command is run
+`DiscoveryCommandsDocumentTests.cs` (the page options and the documents), and `DiscoveryCommandsModelTests.cs` (the
+description of an OpenSCAD model and the link between the format table and the loader). The `formats` command is run
 in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
 build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
@@ -55,10 +56,14 @@ dot, and are unique within a table; every input kind is one of the four document
 **DiscoveryCommands_Formats_NullArguments_ThrowsArgumentNullException**: null arguments are rejected.
 
 **DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds**,
-**DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter**, and
-**DiscoveryCommands_FormatTables_QualityRangeMatchesWriter**: the input table has one row per `SourceKind`, in order,
+**DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter**,
+**DiscoveryCommands_FormatTables_QualityRangeMatchesWriter**, and
+**DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable**: the input table has one row per `SourceKind`, in
+order,
 with the extensions the loader maps to that kind; the output table has one row per `OutputFormat`, in order, with the
-extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's.
+extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
+listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
+multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
 command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default
@@ -94,3 +99,12 @@ and **DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a miss
 no pages, and a text file are `input-not-found`, `corrupt-input`, `corrupt-input`, and `unsupported-format`; each
 document cut after 300 bytes is `corrupt-input`; no input, two inputs, and an unknown option are usage errors; null
 arguments throw.
+
+**DiscoveryCommands_Info_ModelText_ListsModulesFunctionsAndDirectives**,
+**DiscoveryCommands_Info_ModelWithoutDeclarations_DescribesCounts**, **DiscoveryCommands_Info_ModelJson_HasModelObject**,
+and **DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors**: the text for a model with two modules, a
+function, an include, and a use is exactly the counts line (`2 modules, 1 function, 2 include/use directives`) and one
+line for each module, function, and directive with its line; a model with nothing declared has zero counts, and one
+module is `1 module`; the JSON is exactly the documented document, with the `model` object (modules, functions, and
+directives with kind, path, and line) and no `image` or `document` object; a model with a syntax error is a
+`scad-error` and page 2 of a model is `page-out-of-range`.

@@ -232,7 +232,8 @@ software items, specifically:
   `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command and its alias `convert`; further command units are added as the
   commands are implemented) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
-  BMP, TIFF, GIF, JPEG 2000, and SVG files and the pages of PDF, PPTX, and VSDX documents, and the `ImageWriter`
+  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
+  models, and the `ImageWriter`
   unit, which writes PNG, JPEG, BMP, and TIFF files). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
@@ -886,6 +887,7 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Pdf.cs        — SourceLoader: PDF documents
     ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
+    ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
     ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
     └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy

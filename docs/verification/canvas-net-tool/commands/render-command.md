@@ -1,16 +1,18 @@
 ### RenderCommand
 
-<!-- cspell:ignore canvasnet jpeg jpg tiff tif exif pptx vsdx dpi -->
+<!-- cspell:ignore canvasnet jpeg jpg tiff tif exif pptx vsdx dpi scad openscad Dlabel -->
 
 #### Verification Approach
 
-`RenderCommand` is verified with unit tests in `RenderCommandTests.cs` and `RenderCommandDocumentTests.cs` (pages,
-resolution, and strict mode of the documents). The command is run in-process: the tests
+`RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
+resolution, and strict mode of the documents), and `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
+model). The command is run in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
 `ToolHost` helper; failures are asserted as the `ToolException` the command throws (the registry would record the
 command name on it). Inputs are generated in a temporary directory (rasters with the codecs, an EXIF segment injected
-into a JPEG, a PNG that declares an oversized image, and the PDF, presentation, and drawing the test project writes)
-plus the original SVG fixture, and the outputs are decoded with the codecs and compared with the generated pixels.
+into a JPEG, a PNG that declares an oversized image, the PDF, presentation, and drawing the test project writes, and
+the models the tests write as text) plus the original SVG and model fixtures, and the outputs are decoded with the
+codecs and compared with the generated pixels.
 
 #### Test Environment
 
@@ -26,11 +28,15 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 - The chosen page, or every page, of a document is rendered at the resolution given; every output is checked before
   any page is written; unsupported features are reported or, with strict mode, refused.
 - An output problem is reported before the input is decoded; a bad input is an expected error and leaves no output.
+- A model is rendered from the view chosen, with its variables, time, default color, and triangle limit; the options
+  and the operation, diagnostics, and echo are in the result; a model option for another kind of input, an unknown
+  view, and a malformed value are usage errors; an exceeded limit, a syntax error, and a strict-mode unsupported
+  feature are expected errors and leave no output.
 
 #### Test Scenarios
 
 **RenderCommand_Metadata_DescribesCommandAndOptions** and **RenderCommand_DefaultRegistry_RegistersRenderAndConvert**:
-the name, the alias, the summary, the usage line with examples, the fourteen options in order (the short alias `-o`),
+the name, the alias, the summary, the usage line with examples, the twenty-two options in order (the short alias `-o`),
 every option with a description and a value name exactly when it takes a value; the default registry resolves both
 names to the one command.
 
@@ -106,3 +112,45 @@ format, page 1, a message) and, with `--strict`, an `unsupported-feature` error 
 
 **RenderCommand_Run_AllPagesTwice_WritesIdenticalBytes**: every page of each document rendered twice to PNG and JPEG
 gives identical bytes.
+
+**RenderCommand_Run_ScadDefaults_Writes800SquareImage**, **RenderCommand_Run_EachView_WritesItsOwnImage**, and
+**RenderCommand_Run_ViewAzimuthElevationProjection_AreReportedInTheOperation**: the model fixture renders to an
+800x800 PNG with the one-line text result (no page), white in the corner and covered in the middle; a model that looks
+different from every side renders from each of the seven views to seven different files; `--view=TOP` (the equals form,
+in capitals) with `--azimuth 30`, `--elevation=-20` (a negative value after an equals sign), and `--projection
+perspective` is reported as the `render` operation with the view `top`, the angles 30 and -20, the projection, the
+size, and `#FFFFFF`, and without `defines`.
+
+**RenderCommand_Run_Defines_ChangeTheImageAndAreReported** and
+**RenderCommand_Run_TimeDefaultColorAndMaxTriangles_AreReported**: `-D width=5`, `--define width=40`, and the attached
+form `-Dlabel=a b` give a different picture from the default, and the operation lists `label="a b"` and `width=40` (the
+later definition of a name wins, one entry per name, in name order); `--time 0.5`, `--default-color #336699`, and
+`--max-triangles 100000` are reported with their values.
+
+**RenderCommand_Run_ScadDiagnosticsAndEcho_AreInTheJsonResult**,
+**RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput**, and
+**RenderCommand_Run_MaxTrianglesExceeded_FailsWithBudgetExceeded**: the JSON result of a model that echoes, warns, and
+uses `text` has the echo line and two diagnostics (source `scad`; severity `warning` with code `scad-warning`, then
+`unsupported` with `scad-module-text`; no page); with `--strict` the same model is an `unsupported-feature` error and
+no file; `--max-triangles 1` is a `budget-exceeded` error of one line with the limit and a hint that names the option,
+and no file.
+
+**RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize**, **RenderCommand_Run_ScadBackground_IsAppliedAndFlattenedForJpeg**,
+**RenderCommand_Run_ScadToEachOutputFormat_WritesDecodableFile**, and **RenderCommand_Run_ScadTwice_WritesIdenticalBytes**:
+a scale of 0.25, a width of 100, a height of 60, and `--size 90x50` give 200x200, 100x100, 60x60, and 90x50; a blue
+background fills the corner, a transparent one leaves a PNG clear there and gives a white corner in a JPEG that
+reports the flatten after the render; the model is written as PNG, JPEG, BMP, and TIFF with the model in the middle;
+two runs with a view, a perspective projection, and a definition give identical bytes.
+
+**RenderCommand_Run_BadModelOption_ThrowsUsageError**, **RenderCommand_Run_UnknownView_ListsTheViews**,
+**RenderCommand_Run_ModelOptionOnAnotherKind_ThrowsUsageError**, **RenderCommand_Run_PageTwoOfAModel_ThrowsPageOutOfRange**,
+and **RenderCommand_Run_ModelWithSyntaxError_ThrowsScadError**: an unknown view or projection, an azimuth or time that
+is not a number, an elevation of 95, -91, or `up`, a time of 1e12, a bad color, a triangle limit of 0, `many`, or three
+billion, a definition without `=`, with a name that starts with a digit, or with a vector value are usage errors that
+mention the option and write nothing; the unknown view names the views in its hint; `-D x=1` with a PNG, an SVG, and a
+PDF is a usage error that names the kind; page 2 of a model is `page-out-of-range`; a model with a syntax error is a
+`scad-error` that names the line and leaves no output.
+
+**RenderCommand_Usage_DescribesModelOptionsAndIncludeRule**: the help of the command lists the nine model options (and
+`-D`), the 800x800 default size, and the rule that include and use files are read from the folder of the model and
+below only.

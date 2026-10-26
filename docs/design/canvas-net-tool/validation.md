@@ -1,6 +1,6 @@
 ## Validation
 
-<!-- cspell:ignore Postconditions -->
+<!-- cspell:ignore Postconditions scad openscad -->
 
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
@@ -18,7 +18,8 @@ environment, and the per-platform and per-runtime evidence that the platform req
 private test methods. The names of the self-tests are a contract with the platform requirements and are never
 changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
-`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, and `CanvasNetTool_PdfMinimal`. Each is recorded as a `TestResult` with
+`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, and `CanvasNetTool_RenderScad`. Each is
+recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool". Further self-tests are added together with the commands
 they exercise.
 
@@ -47,12 +48,14 @@ test failure by `HandleTestException`.
 version, the success flag, the command name, and that `png` is listed as an input and as an output format. This
 exercises command dispatch, `ArgumentReader`, and `ResultWriter` together in the deployment environment.
 
-**RunRenderPngTest**, **RunConvertFormatsTest**, **RunInfoTest**, **RunRenderSvgTest**, and **RunPdfMinimalTest**:
+**RunRenderPngTest**, **RunConvertFormatsTest**, **RunInfoTest**, **RunRenderSvgTest**, **RunPdfMinimalTest**, and
+**RunRenderScadTest**:
 the imaging self-tests. Each runs through `RunSelfTest`, which creates a `TemporaryDirectory`, calls the test body
 with the directory (the body returns `null` for a pass or a description of the failure), records the outcome, and
 records an exception as a failure. The bodies generate their own inputs - a small opaque gradient PNG written with
-`PngCodec`, a small SVG text file, and a hand-written one-page PDF (72x48 points with a red rectangle over its left
-half, built with a correct cross-reference table by `CreateMinimalPdf`) - and run the `render`, `convert`, and
+`PngCodec`, a small SVG text file, a hand-written one-page PDF (72x48 points with a red rectangle over its left
+half, built with a correct cross-reference table by `CreateMinimalPdf`), and a three-line OpenSCAD model (a variable,
+a module that makes a block, and a call) - and run the `render`, `convert`, and
 `info` commands in-process through
 `RunCommand` (`--silent --log {path} {command ...}`, returning the log text and throwing when the exit code is not
 0). `CanvasNetTool_RenderPng` renders the PNG to a PNG and requires every pixel unchanged and a PNG output in the
@@ -61,8 +64,11 @@ and requires the right size from each codec and every pixel of the lossless outp
 requires the format and size in the JSON document; `CanvasNetTool_RenderSvg` renders an 8x8 SVG with a red square
 at width 16 and requires a 16x16 image with the red square and white (flattened) background;
 `CanvasNetTool_PdfMinimal` describes the PDF with `info` (one page of 96x64 pixels), renders it at the default
-resolution (a 96x64 image with the red half and a white rest) and at `--dpi 192` (192x128). These exercise the
-codecs, the SVG and PDF renderers, the source loader, the image writer, and the commands together.
+resolution (a 96x64 image with the red half and a white rest) and at `--dpi 192` (192x128);
+`CanvasNetTool_RenderScad` describes the model with `info` (one module, no function), renders the front view at
+40x40 (the block fills the middle and the top of the picture, the corner is white), then renders it again with
+`-D w=40` and requires that the longer block no longer reaches the top. These exercise the
+codecs, the SVG, PDF, and SCAD renderers, the source loader, the image writer, and the commands together.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

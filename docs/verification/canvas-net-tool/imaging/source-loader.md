@@ -1,11 +1,12 @@
 ### SourceLoader
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif gif RRGGBB RRGGBBAA pptx vsdx dpi docx -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif gif RRGGBB RRGGBBAA pptx vsdx dpi docx scad openscad Minkowski -->
 
 #### Verification Approach
 
 `SourceLoader` (with `ExifOrientation` and `SurfaceOperations`) is verified with unit tests in
-`SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), and `ExifOrientationTests.cs`. The
+`SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
+OpenSCAD models), and `ExifOrientationTests.cs`. The
 tests generate their inputs: rasters are written in memory
 with the CanvasNet codecs (a gradient that differs at every pixel and channel, so a mirroring, rotation, or offset
 changes it), the GIF with a small encoder in the test project (the libraries have none), EXIF segments are injected
@@ -26,7 +27,11 @@ byte, a header only, half, and short by one byte, and garbage of the file's own 
 either loads or raises a `ToolException` with an expected code - an unexpected exception type fails the test, which
 is how gaps in the allow-list are found; by doing the same for each document with eight prefix lengths, a dropped
 tail, and an overwritten or zeroed middle, probing and loading every page; and by loading garbage with each known
-extension and requiring `corrupt-input`. A one-off sweep during development (about 950 truncations and random byte
+extension and requiring `corrupt-input` (`scad-error` for a model). The models have their own sweep in
+`SourceLoaderScadTests.cs`, because a model is text and a cut one is
+usually still a valid, shorter model: a model with several kinds of statement is cut after every seventh character,
+garbage of four sizes is added, and some forty stress models probe the library for exceptions that are not mapped; a
+one-off sweep during development (about 950 truncations and random byte
 changes per document kind) raised only expected errors, so the allow-list needed no extension for PDF, PPTX, or VSDX.
 
 #### Test Environment
@@ -45,6 +50,10 @@ N/A - standard test environment; the tests need no network and write only to tem
 - Skipped pictures and approximated constructs are reported with their page, or are `unsupported-feature` in strict
   mode.
 - The size policy follows the documented rules; a side beyond 8192 pixels is `size-limit`, before decoding.
+- A model is drawn from the named view chosen (iso by default) at 800x800 pixels unless a size is given, with the
+  variables, time, default color, and triangle limit given, the same picture every time; its include and use files
+  are read from its folder and below only; a missing include, a syntax error, and a failed assertion are `scad-error`,
+  an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
@@ -64,16 +73,30 @@ named `.vsdx` is a presentation, one with no extension is a presentation, and a 
 recognized; text that starts with `BM` is not a bitmap; the extension table is lower case with a dot and covers
 every kind.
 
-**SourceLoader_Detect_UnknownFormat_ThrowsUnsupportedFormat**,
-**SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError**, and
-**SourceLoader_ProbeAndLoad_KindNotLoadableYet_ThrowsUnsupportedFormat**: an unknown file is
-`unsupported-format` with a hint; a missing file is `input-not-found` and a directory `input-unreadable`; a
-recognized kind that is not readable yet (OpenSCAD) is `unsupported-format` for both operations.
+**SourceLoader_Detect_UnknownFormat_ThrowsUnsupportedFormat** and
+**SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError**: an unknown file is
+`unsupported-format` with a hint; a missing file is `input-not-found` and a directory `input-unreadable`.
+
+**SourceLoader_Detect_ScadMentioningSvg_ReturnsScad**: a file named `.scad` whose comment contains the text of an SVG
+start tag is a model, not an SVG, while the same text without the `.scad` extension is still taken for an SVG.
 
 **SourceLoader_Probe_EachKind_ReportsHeaderFacts**, **SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha**, and
 **SourceLoader_Probe_JpegWithExif_ReportsOrientation**: for each kind the format, path, byte count, size, decodability,
-frame count, and page facts are right (a document has two pages and lists them); a PNG with transparency and an SVG
+frame count, and page facts are right (a document has two pages and lists them; a model is 800x800 with one module,
+`block`, one function, `half`, and no directives); a PNG with transparency and an SVG
 report four channels with alpha; a JPEG with an EXIF segment reports its orientation and its stored size.
+
+**SourceLoader_Probe_ModelWithDirectives_ListsModulesFunctionsAndDirectives**: a model with an `include`, a `use`, two
+modules, and a function declared twice lists the names in source order (the repeated name kept) and the two directives
+with their lines, although the files they name do not exist (probing opens no other file); it has one page, no pages
+list, and the natural size 800x800.
+
+**SourceLoader_Probe_SyntaxError_ThrowsScadErrorWithLocation**,
+**SourceLoader_Load_FailedAssert_ThrowsScadError**, **SourceLoader_Probe_SourceTooLong_ThrowsCorruptInput**, and
+**SourceLoader_Probe_DeeplyNestedExpression_ThrowsScadError**: a syntax error is a `scad-error` of one line that
+starts with "SCAD syntax error", names the file, line, and column, and keeps the library's exception as its cause; a
+failed `assert` is a `scad-error` with the message and the position; a model one character over the 4,194,304 the
+library reads is `corrupt-input` ("exceeds the maximum length"); parentheses nested 400 deep are a `scad-error`.
 
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the
@@ -106,6 +129,77 @@ fitting when the box has the page's aspect ratio.
 
 **SourceLoader_Load_Background_IsWhatThePageIsRenderedOver**: a transparent background leaves an unpainted pixel
 transparent and black gives black, for each document; the `render` operation names the background.
+
+**SourceLoader_Load_DefaultOptions_DrawsIsometricOrthographicAt800** and
+**SourceLoader_Load_DefaultOptions_MatchesTheLibraryRender**: the model fixture loads at 800x800 as a vector source
+with no notes and one `render` operation (view `iso`, azimuth 45, the library's isometric elevation, `orthographic`,
+the size, and `#FFFFFF`), white in the corner and covered in the middle; at 64x64 the pixels equal the library's own
+render of the same model with an orthographic projection.
+
+**SourceLoader_Load_EachNamedView_IsDistinctAndDeterministic**, **SourceLoader_ScadViews_HaveTheDocumentedAngles**,
+**SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes**, **SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles**,
+**SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated**, and **SourceLoader_Load_Perspective_DiffersFromOrthographic**:
+a model that looks different from every side (a slab with a tower near one corner and a sphere near the opposite one)
+is drawn from each of the seven views twice; each picture is neither empty nor full, the same both times, and no
+two views give the same picture; the table has the angles iso (45 and the isometric elevation), front (0, 0), back
+(180, 0), left (270, 0), right (90, 0), top (0, 90), and bottom (0, -90) in the order of the help; the covered pixels
+of front and back, and of left and right, are mirror images of each other to within a twentieth of the covered area;
+an azimuth of 90 on the front view equals the right view, an elevation of 90 equals the top view, and an override
+alone starts from `iso`; the name is accepted in any case and another name is a `usage-error` whose hint lists the
+views; a perspective view differs from the orthographic one and says so in its operation.
+
+**SourceLoader_Load_SizeOptions_FollowTheNaturalSize**, **SourceLoader_Load_Background_IsWhiteColoredOrTransparent**,
+**SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces**, and **SourceLoader_Load_ModelWithoutGeometry_IsTheBackground**:
+a scale of 0.1 gives 80x80, a width of 50 gives 50x50, two sides are exact, and a width over the limit is
+`size-limit`; the background is white by default, blue when given, and transparent when it has no alpha (the corner
+is clear and the middle covered), each named in the operation; a plain cube is gray, red with a default color, and a
+cube the model colors blue stays blue; an empty model, a model of only comments, and one that only defines things
+draw nothing but the background.
+
+**SourceLoader_Load_Defines_ChangeTheModel**, **SourceLoader_Load_Defines_AreDescribedByNameAndType**,
+**SourceLoader_Load_DefineWithInvalidName_ThrowsUsageError**, and **SourceLoader_Load_Time_SetsTheSpecialVariable**: a
+number, a flag, and a text each replace the assignment in a parametric model and give four different pictures; the
+operation lists them as `name=value` in name order with text in quotes; a name with a dollar sign in the middle is
+a `usage-error` that mentions `-D`; `$t` changes the model and is listed only when given.
+
+**SourceLoader_Load_EchoWarningAndUnsupported_AreReturned** and
+**SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature**: a model that echoes, calls a module
+that does not exist, and uses `text` returns the echo line with its `ECHO:` prefix, a `scad-warning` note with the
+position, and an `unsupported` note whose code is `scad-module-text`, and the picture is still drawn; with strict mode
+the same model is an `unsupported-feature` error that names the feature and the position in one line, with a hint
+that mentions `--strict`.
+
+**SourceLoader_Load_TriangleLimitExceeded_ThrowsBudgetExceeded**, **SourceLoader_Load_TriangleLimitLargeEnough_Loads**,
+**SourceLoader_Load_EvaluationLimitExceeded_ThrowsBudgetExceeded**, and
+**SourceLoader_MapScadEvaluation_LimitAndOtherFailures_MapToTheirCodes**: a limit of one triangle is `budget-exceeded`
+with "Triangle limit exceeded (limit 1)", the position, and a hint that names `--max-triangles`; a limit of 100,000
+loads and is recorded in the operation; runaway recursion and a loop of a billion iterations are `budget-exceeded`
+with a hint that the limit cannot be changed; a library failure worded with a limit, or caused by the renderer's
+budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
+
+**SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow**,
+**SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile**, **SourceLoader_Load_MissingInclude_ThrowsScadError**,
+**SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError**, and
+**SourceLoader_Load_IncludeCycleAndBrokenInclude_ThrowScadError**: a model that includes a module from a subfolder and
+uses a function from another file draws the same picture as the same model in one file, with no notes; an include
+inside an included file is relative to that file; an `include` and a `use` of a file that does not exist are a
+`scad-error` that starts with "SCAD include not found", names the position, and has a hint about where files are
+looked up; an include of an existing file next to the model's folder is refused as "outside the allowed
+directories"; an include cycle and a syntax error in an included file are `scad-error`, the latter naming the
+included file and the position.
+
+**SourceLoader_Read_ScadExceptions_AreMappedToErrorCodes**: the library's syntax and evaluation exceptions map to
+`scad-error`, an evaluation exception worded with a limit to `budget-exceeded`, and its unsupported-feature exception
+to `unsupported-feature`; each keeps the position in one line and the exception as its cause.
+
+**SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrToolException** and
+**SourceLoader_Load_StressModels_GiveAPictureOrToolException**: a model with several kinds of statement (a variable,
+a function, a module, a boolean, a loop, an echo) cut after every seventh character, garbage of four sizes, and some
+forty stress models (huge numbers, a negative or zero size, wrong argument types, extrusions and hulls of nothing,
+unsupported modules such as `import` and `surface`, runaway recursion, a list of a million elements, a byte-order
+mark, a NUL byte, non-ASCII names, modifier characters) are probed and drawn at 16x16 pixels; each either gives a
+picture or raises a `ToolException` - any other exception type fails the test, which is how a gap in the allow-list
+would be found. None was found.
 
 **SourceLoader_Load_SizeBeyondMaximum_ThrowsSizeLimit**: a resolution or a width that makes a page larger than 8192
 pixels is `size-limit`.
@@ -167,6 +261,9 @@ throw.
 and **SourceLoader_Read_UnexpectedExceptions_Propagate**: the error-mapping checks described above; in addition a PDF
 whose rectangle operator has too few operands is `corrupt-input`, one that declares an unsupported encryption handler
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
+Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, the one kind whose damage is a syntax
+error; **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**: facts that name a kind the loader has no case for
+raise an `InvalidOperationException`, which is a defect and not an expected error.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.

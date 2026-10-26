@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore canvasnet dpi pptx vsdx -->
+<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad -->
 
 This document describes the system-level verification strategy for CanvasNetTool.
 
@@ -24,7 +24,8 @@ packaged tool in each operating system and .NET runtime of its matrix and runs `
 results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`) are the
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
-`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, and `CanvasNetTool_PdfMinimal`), which generate their own inputs and
+`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, and `CanvasNetTool_RenderScad`), which
+generate their own inputs and
 are evidence for the
 validation requirements.
 The same job guards the package contents (no dependency on sibling CanvasNet packages, library assemblies
@@ -51,10 +52,14 @@ belong to the "Sequential" collection because console redirection is process-wid
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, and the pages of PDF, PPTX, and VSDX documents) with the documented defaults (overwrite, flatten
-  over white, EXIF orientation, 96 dpi, 8192-pixel limit), the same bytes for the same input, and a stable error for
-  every bad input; a document page, or every page, is chosen with `--page` and `--all-pages`; `info` describes a
-  file, and the pages of a document, without rendering it.
+  JPEG 2000, SVG, and the pages of PDF, PPTX, and VSDX documents, and OpenSCAD models) with the documented defaults
+  (overwrite, flatten
+  over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
+  a stable error for
+  every bad input; a document page, or every page, is chosen with `--page` and `--all-pages`, and a model view with
+  `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`, `--time`, `--default-color`, and `--max-triangles`;
+  `info` describes a
+  file, the pages of a document, and the declarations of a model, without rendering it.
 
 ## Test Scenarios
 
@@ -193,14 +198,47 @@ by default, as stored (12x8) with `--no-auto-orient`, and the upright pixels are
 **CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding**: a PNG declaring 9000x9000 pixels is refused with
 exit code 1, a `size-limit` document and message, and no output.
 
-**CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, and
-a drawing are rendered twice to every output format at a given width; the two files are byte-identical.
+**CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, a
+drawing, and a model are rendered twice to every output format at a given width; the two files are byte-identical.
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
-and garbage of every supported format are rendered in-process; each returns exit code 1 (an unexpected exception would
-escape and fail the test) with the stable error code in the message and in the JSON document, and no output exists.
+and garbage of every supported format (a model is only given garbage, because a truncated model is usually still a
+valid one, and its code is `scad-error`) are rendered in-process; each returns exit code 1 (an unexpected exception
+would escape and fail the test) with the stable error code in the message and in the JSON document, and no output
+exists.
 
 **CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors**: a page that does not exist, a Word-like
 archive named `.pptx`, a presentation and a drawing with a broken part, a PDF with an unsupported encryption handler,
 a presentation with a shape that does not exist, and `--page` with `--all-pages` are rendered in-process; each returns
 exit code 1 with its stable error code in the message and in the JSON document, and no output exists.
+
+**CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions**: the model fixture is rendered as a real process
+from the top view with `-D width=30` at 120x120 with `--json`; exit code 0, the document names the view `top`, the
+definition `width=30`, and the `scad` format, and the image has the block with its hole (white in the hole, covered in
+the block beside it).
+
+**CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages**: a model that looks different from every side is
+rendered from each of the seven named views twice in-process; the two files of a view are byte-identical, and no two
+views give the same file.
+
+**CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles**: the model fixture is rendered to PNG, JPEG, BMP, and TIFF
+in-process; each succeeds with a result line and nothing on standard error, and the file decodes to the size asked for
+with the model in the middle.
+
+**CanvasNetTool_Scad_Info_DescribesModel**: `info` on the model fixture as a real process, as text and as JSON; the
+text line gives one module, one function, and no directives and lists them; the document has a `model` object with the
+module `block`, the function `half`, and no directives.
+
+**CanvasNetTool_Scad_Diagnostics_AreReportedInJson**: a model that echoes, calls a module that does not exist, and uses
+an unsupported module renders with exit code 0; the JSON result has the echo line and, in order, the `scad-warning` and
+`scad-module-text` diagnostics.
+
+**CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly**: a model that includes and uses files in a subfolder
+renders without notes; a model that includes a file that does not exist and a model that includes a file outside its
+folder (which exists) each return exit code 1 with a `scad-error` message and document and write no output.
+
+**CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors**: a syntax error, a missing include, a failed `assert`,
+garbage, a triangle limit of 1, runaway recursion, an unsupported feature with `--strict`, an unknown view, an elevation
+of 100, a definition without `=`, and a triangle limit of 0 are rendered in-process; each returns exit code 1 with a
+one-line message that starts with its stable error code (`scad-error`, `budget-exceeded`, `unsupported-feature`, or
+`usage-error`), no stack trace, the code in the JSON document, and no output.

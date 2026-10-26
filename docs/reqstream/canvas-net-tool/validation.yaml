@@ -1,4 +1,5 @@
 ---
+# cspell:ignore scad openscad
 # Software Unit Requirements for the Validation Class
 #
 # The Validation class provides the self-validation framework, running tests that demonstrate the
@@ -70,13 +71,13 @@ sections:
 
       - id: CanvasNetTool-Validation-ImagingSelfTests
         title: >-
-          The Validation class shall run the imaging self-tests, which generate a PNG, an SVG, and a
-          PDF document and run the render, convert, and info commands on them in-process, checking the
-          decoded pixels, sizes, and JSON documents.
+          The Validation class shall run the imaging self-tests, which generate a PNG, an SVG, a
+          PDF document, and an OpenSCAD model and run the render, convert, and info commands on them
+          in-process, checking the decoded pixels, sizes, and JSON documents.
         justification: |
-          The imaging self-tests prove, in the deployment environment, that the codecs, the SVG and PDF
-          renderers, the loader, the writer, and the commands work together; their names are a contract
-          with the qualification evidence.
+          The imaging self-tests prove, in the deployment environment, that the codecs, the SVG, PDF, and
+          SCAD renderers, the loader, the writer, and the commands work together; their names are a
+          contract with the qualification evidence.
         tests:
           - Validation_Run_ImagingSelfTests_PassAndAreRecorded
           - CanvasNetTool_RenderPng
@@ -84,3 +85,4 @@ sections:
           - CanvasNetTool_Info
           - CanvasNetTool_RenderSvg
           - CanvasNetTool_PdfMinimal
+          - CanvasNetTool_RenderScad

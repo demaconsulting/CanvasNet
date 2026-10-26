@@ -11,7 +11,8 @@ responsibility is to know how to read each source format: it recognizes the form
 size policy and the options that belong to reading (page, resolution, orientation, background, strictness), and
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
-`SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, and `SourceLoader.Vsdx.cs`),
+`SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`, and
+`SourceLoader.Scad.cs`),
 `ExifOrientation`, the pixel helpers `SurfaceOperations`, and the supporting types in `SourceModels.cs`.
 
 #### Data Model
@@ -21,18 +22,33 @@ order the `formats` command lists them; `ToFormatName` gives the lower-case memb
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
-at 96 dots per inch), `Channels`, `HasAlpha`, `CanDecode`, `FrameCount`, `PageCount` (1 for a single image),
-`ExifOrientation` (JPEG only), and the lists `Pages` (the pages of a document; empty for a single image), `Modules`,
-and `Functions` (empty until the model kind is read).
+at 96 dots per inch; for a model 800 by 800, the natural size of a view), `Channels`, `HasAlpha`, `CanDecode`,
+`FrameCount`, `PageCount` (1 for a single image or a model),
+`ExifOrientation` (JPEG only), and the lists `Pages` (the pages of a document; empty for a single image or a model),
+`Modules`, and `Functions` (the names a model defines at file scope, in source order; empty for every other kind),
+and `Directives` (an `init` property: the `include` and `use` directives of a model as `SourceDirective` records of
+kind, path, and line; empty for every other kind).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
-`Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), and `AutoOrient`
-(default `true`). Properties for further source kinds are added here.
+`Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
+(default `true`), and `Scad` (a nullable `ScadViewOptions`; the defaults when absent). Properties for further source
+kinds are added here.
+
+**ScadViewOptions** (record, all properties `init`): `View` (a name from `ScadViews`, `iso` by default), `Azimuth`
+and `Elevation` (nullable; they replace the angles of the view), `Perspective` (default `false`), `Defines` (the
+variables as a dictionary of `double`, `bool`, and `string` values), `Time` (nullable, the value of `$t`),
+`MaxTriangles` (nullable, the library default of 5,000,000 when absent), and `DefaultColor` (nullable). **ScadView**
+(record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the table of the views, in the
+order the help lists them: `iso` (45 and the library's isometric elevation, about 35.26), `front` (0, 0), `back`
+(180, 0), `left` (270, 0), `right` (90, 0), `top` (0, 90), and `bottom` (0, -90). The camera convention is the
+library's: the eye is at `(sin az cos el, -cos az cos el, sin el)` looking at the model, Z up, so azimuth 0 looks
+from the -Y side (the front) and positive azimuth moves the eye toward +X.
 
 **LoadedSource** (record, `IDisposable`): the `Surface` (disposed with the record), the `Info` (for a document page,
 sized at the natural size of that page at the requested resolution), the 1-based `Page`, `IsVector`, `Diagnostics`
 (`ImageDiagnostic` records: source, severity, code, message, and the page), `Echo` (text printed by a model), and
-`Operations` (`AppliedOperation` records: an operation name and its parameters in order).
+`Operations` (`AppliedOperation` records: an operation name and its parameters in order; a parameter is a string, a
+number, a flag, or a list of strings).
 
 **PageSource** (abstract, `IDisposable`): a source opened for loading its pages; `ReadPage(page)` loads one. It is
 what `OpenPages` returns.
@@ -49,7 +65,8 @@ the reserved fields and the size of the bitmap header that follows are checked t
 entries of the archive (`ppt/presentation.xml` is a presentation, `visio/document.xml` is a drawing, and any other
 readable archive, such as a Word or Excel file, is `unsupported-format` whatever its extension), while an archive
 that cannot be read falls back to the extension `.pptx` or `.vsdx` so that the load reports it as corrupt; SVG text
-(a header without NUL bytes that contains `<svg`); and finally the extension.
+(a header without NUL bytes that contains `<svg`, unless the extension is `.scad`, because a model is text and
+only a model's extension identifies it, whatever its comments mention); and finally the extension.
 The content wins over the extension, but a file whose content says nothing keeps its extension's kind, so that an
 empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise throws
 `unsupported-format` with a hint to run `canvasnet formats`.
@@ -60,9 +77,10 @@ document is opened with its library and every page is listed in `Pages` (`Source
 in points and in pixels at 96 dots per inch, the rotation of a PDF page, the name of a VSDX page); the page count
 is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size is the library's displayed
 (rotation-applied) size in points; a slide or a page of a drawing is converted from EMU (12,700 EMU per point). A
-document with no pages is `corrupt-input`. No pixels are decoded
-(a GIF's `GetInfo` does decode the first frame's data, as the library documents). A kind that is recognized but
-not readable yet (OpenSCAD) throws `unsupported-format` ("cannot read yet").
+document with no pages is `corrupt-input`. An OpenSCAD model is parsed with `ScadDocument.Open(path)` (the parse
+reads no other file and evaluates nothing): its `ModuleNames` and `FunctionNames` become `Modules` and `Functions`,
+its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. No pixels are decoded
+(a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
 `options.Page`. **OpenPages(info, options)** returns a `PageSource` (`IDisposable`) whose `ReadPage(page)` loads
@@ -95,6 +113,36 @@ reported. The PPTX source passes `StrictUnsupportedPictures` and collects each s
 and collects each approximated construct (`UnsupportedFeatureHandler`) the same way (`vsdx`, for example
 `vsdx-geometry-row-FutureRowKind`). The PDF library has no diagnostics channel and renders an unsupported feature
 as an error, so a PDF page never has notes and `Strict` changes nothing for it.
+
+An *OpenSCAD model* load (`ScadPageSource`) opens the model once and draws it with `ScadDocument.Render(width, height,
+options)`. The target size is `ComputeTargetSize` of the natural size 800 by 800 (`DefaultScadSize`), so a scale
+multiplies it, one side keeps the picture square, and two sides are exact; the renderer fits the camera to the
+model and to the aspect ratio, so nothing is stretched. The view is the named viewpoint of `ScadViews` with
+`Azimuth` and `Elevation` replacing its angles; an unknown name is a `usage-error` listing the views. The
+projection is orthographic unless `Perspective` is set. The `ScadRenderOptions` carry the evaluation options (the
+`Defines` as the variables, `Time` as `$t`, the limits with `MaxTriangles` when given, `ThrowOnUnsupportedFeature`
+from `Strict`, and handlers that collect the `echo` lines, the warnings, and the unsupported features) and a
+`SceneRenderOptions` whose `BackgroundColor` is the background option (white by default; zero alpha is a
+transparent picture) and whose `DefaultColor` is the default color when one is given, so no flatten step is needed.
+A warning becomes a note (`scad`, `warning`, `scad-warning`, the library's `file:line:column: message`); an
+unsupported feature becomes a note (`scad`, `unsupported`, the feature identifier such as `scad-module-text`, the
+position and message); the echo lines are returned as the library prints them, with their `ECHO:` prefix. A name
+the library does not accept as a variable (it is an `ArgumentException` from constructing the options) is a
+`usage-error`. The picture is the same for the same model and options: the library's render is deterministic.
+The operation recorded is `render` with the `view`, the resolved `azimuth` and `elevation`, the `projection`
+(`orthographic` or `perspective`), the size, the `background`, and, when they were given, `defines` (a list of
+`name=value` in name order, text in quotes), `time`, `maxTriangles`, and `defaultColor`.
+
+*Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
+from the folder of the file that names it, nothing outside the folder of the model (the base directory, which is the
+folder of the file that was opened) is ever read, a link below that folder is not followed, and no library path or
+file resolver is configured, so the folder of the model and below it are the only places a model can read. A path
+that leaves the folder, an include cycle, nesting that is too deep, and a syntax error in an included file are errors
+of the library. A directive whose file does not exist is only a *warning* in the library (as in OpenSCAD itself);
+the loader treats that warning as an error, because a picture drawn without a file the model asked for would be
+wrong without saying so: after the render the picture is discarded and a `scad-error` ("SCAD include not found: ...")
+with a hint about where files are looked up is thrown. The match is on the library's warning text ("Can't open include
+file"), which a test pins.
 
 Each step that changed the pixels is recorded in `Operations` (`auto-orient` with the orientation,
 `resize` with the size, `render` with the size - and for a document the page, the dots per inch, and the
@@ -130,15 +178,27 @@ a one-line message and the cause attached: `FileNotFoundException` and `Director
 `input-not-found`; `UnauthorizedAccessException` and any other `IOException` to `input-unreadable`;
 `UnsupportedImageFeatureException`, `PptxUnsupportedFeatureException`, and `VsdxUnsupportedFeatureException` (each an
 `IOException`, so caught first) to `unsupported-feature`, with the feature token in the message; and
-`InvalidDataException`, `XmlException`, `EndOfStreamException`, and `FormatException` to `corrupt-input`. Every
+`InvalidDataException`, `XmlException`, `EndOfStreamException`, and `FormatException` to `corrupt-input`. The SCAD
+library adds three: `ScadUnsupportedFeatureException` (an `IOException`, so caught early, thrown in strict mode) to
+`unsupported-feature` naming the feature and the position; `ScadSyntaxException` (a `FormatException`, so caught
+before it) to `scad-error` ("SCAD syntax error: file:line:column: ..."); and `ScadEvaluationException` (an
+`InvalidOperationException`) to `budget-exceeded` when it reports a limit - the library words every limit as
+`(limit N)`, for example "Triangle limit exceeded (limit 5)" or "Recursion too deep (limit 5000)", and reports a
+renderer budget failure with `RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and
+otherwise to `scad-error` (a failed `assert`, an include problem, and so on). The hint of a triangle-limit failure
+names `--max-triangles` and the default; the other limits cannot be changed from the command line and the hint says
+to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. Every
 other exception - a null reference, an index out of range, an out-of-memory failure - is a defect and propagates to
 the entry point, which reports it as an unexpected error and re-throws it. The tests feed every supported format
 truncated and garbage files to prove that the allow-list covers the failures the libraries actually raise (for the
 documents also every byte-prefix length of a sample, overwritten and zeroed middles, a valid archive with a broken
-part, malformed PDF content, and an unsupported PDF encryption handler); a gap found that way is closed by
-extending the list, and none was found for PDF, PPTX, or VSDX. Size problems are `size-limit`; a recognized but
-unreadable kind is `unsupported-format`; a page that does not exist is `page-out-of-range`. Null arguments throw
-`ArgumentNullException`.
+part, malformed PDF content, and an unsupported PDF encryption handler; for models a cut after every seventh
+character of a model with several kinds of statement, garbage of several sizes, and some forty stress models - huge
+numbers, degenerate or empty shapes, unsupported constructs, runaway recursion and loops, bad arguments, a deep nest of
+parentheses, and unusual text); a gap found that way is closed by extending the list, and none was found for any
+format. Size problems are `size-limit`; a page that does not exist is `page-out-of-range`. A source kind that the
+loader has no case for - which cannot happen while every kind of `SourceKind` is handled - is an
+`InvalidOperationException`, a defect, not a `ToolException`. Null arguments throw `ArgumentNullException`.
 
 #### Dependencies
 
@@ -147,6 +207,8 @@ unreadable kind is `unsupported-format`; a page that does not exist is `page-out
 - **CanvasNet SVG system** - `SvgCodec` renders SVG and reports its intrinsic size.
 - **CanvasNet PDF, PPTX, and VSDX systems** - `PdfDocument`, `PptxDocument`, and `VsdxDocument` list and render the
   pages of a document, and report the features they cannot draw.
+- **CanvasNet SCAD and Render3D systems** - `ScadDocument` parses and draws a model; `Camera`, `CameraProjection`, and
+  `SceneRenderOptions` give the camera convention, the projection, and the background and default colors.
 
 #### Callers
 

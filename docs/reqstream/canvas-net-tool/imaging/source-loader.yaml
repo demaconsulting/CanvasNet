@@ -1,13 +1,14 @@
 ---
+# cspell:ignore scad openscad
 # Software Unit Requirements for the SourceLoader Class
 #
 # The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
-# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, and VSDX. It recognizes the format,
-# applies the size policy (including the maximum image size), the page and resolution of a document, the
-# EXIF orientation of a JPEG, and the background color, collects the notes about features the libraries
-# cannot draw, and maps the library exceptions that mean "bad input" to expected errors. The EXIF reader
-# and the orientation transform (ExifOrientation) and the small SurfaceOperations helpers are part of
-# this unit.
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and OpenSCAD (SCAD) models. It
+# recognizes the format, applies the size policy (including the maximum image size), the page and
+# resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
+# background color, collects the notes about features the libraries cannot draw, and maps the library
+# exceptions that mean "bad input" to expected errors. The EXIF reader and the orientation transform
+# (ExifOrientation) and the small SurfaceOperations helpers are part of this unit.
 
 sections:
   - title: SourceLoader Unit Requirements
@@ -17,16 +18,19 @@ sections:
           The SourceLoader class shall recognize the format of a file from its signature bytes (PNG,
           JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from the entries of a ZIP package
           (a presentation or a drawing; any other archive is not supported), then from SVG text, then
-          from its file name extension, so that the content wins over the extension and a damaged file
+          from its file name extension (a file named .scad is a model whatever its text mentions), so
+          that the content wins over the extension and a damaged file
           with a known extension is still attributed to its format.
         justification: |
           Agents rename and mislabel files; trusting the content first avoids decoding a file with the
           wrong codec, and falling back to the extension lets an empty or truncated file be reported as
-          corrupt rather than as an unknown format.
+          corrupt rather than as an unknown format. A model is text without a signature, so only its
+          extension identifies it.
         tests:
           - SourceLoader_Detect_EachKind_ReturnsKind
           - SourceLoader_Detect_SignatureAndExtensionDisagree_TrustsSignature
           - SourceLoader_Detect_SvgTextWithoutExtension_ReturnsSvg
+          - SourceLoader_Detect_ScadMentioningSvg_ReturnsScad
           - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
           - SourceLoader_Detect_ZipPackage_UsesExtension
           - SourceLoader_Detect_ZipPackages_UsesEntriesOverExtension
@@ -37,23 +41,22 @@ sections:
       - id: CanvasNetTool-Imaging-SourceLoader-DetectErrors
         title: >-
           The SourceLoader class shall report a missing file as input-not-found, a directory as
-          input-unreadable, a file in an unrecognized format as unsupported-format, and a recognized
-          format that it cannot load yet as unsupported-format.
+          input-unreadable, and a file in an unrecognized format as unsupported-format.
         justification: |
           Each cause needs its own stable error code so that a caller can tell a typo from an
           unsupported file and act on it.
         tests:
           - SourceLoader_Detect_UnknownFormat_ThrowsUnsupportedFormat
           - SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError
-          - SourceLoader_ProbeAndLoad_KindNotLoadableYet_ThrowsUnsupportedFormat
 
       - id: CanvasNetTool-Imaging-SourceLoader-Probe
         title: >-
           The SourceLoader class shall report the format, file size, pixel size, channels, transparency,
           decodability, and frame count of a file from its header, and the EXIF orientation of a JPEG,
-          without rendering it; and for a PDF, PPTX, or VSDX document the number of pages and, for every
+          without rendering it; for a PDF, PPTX, or VSDX document the number of pages and, for every
           page, its size in points and in pixels at 96 dots per inch, the rotation of a PDF page, and
-          the name of a VSDX page.
+          the name of a VSDX page; and for an OpenSCAD model, by parsing it without evaluating it, the
+          names of its modules and functions and its include and use directives with their lines.
         justification: |
           Knowing what a file is before committing to rendering it lets an agent choose sizes and
           options, and keeps the information commands cheap.
@@ -64,6 +67,7 @@ sections:
           - SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation
           - SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize
           - SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes
+          - SourceLoader_Probe_ModelWithDirectives_ListsModulesFunctionsAndDirectives
 
       - id: CanvasNetTool-Imaging-SourceLoader-Raster
         title: >-
@@ -155,6 +159,118 @@ sections:
           - SourceLoader_Load_PptxUnsupportedShape_ThrowsUnsupportedFeature
           - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
 
+      - id: CanvasNetTool-Imaging-SourceLoader-Scad
+        title: >-
+          The SourceLoader class shall draw an OpenSCAD model directly at the target size (800 by 800
+          pixels when no size is given, which a scale multiplies) from a named view (iso by default,
+          front, back, left, right, top, or bottom; the eye is on the side the name says, looking at
+          the model, Z up), with the azimuth and elevation of the view replaceable, with an orthographic
+          projection unless perspective is asked for, over the background color (white by default,
+          transparent when the background has no alpha), with the default color applied to surfaces the
+          model does not color, giving the same picture for the same options every time, and shall
+          reject a view name that is not one of the views with a usage error that lists them.
+        justification: |
+          A named view lets an agent look at a model from a side without computing a camera; fixing the
+          conventions (azimuth about Z from the front, Z up) and the default size makes the pictures
+          comparable, and the same options giving the same picture lets results be cached and compared.
+        tests:
+          - SourceLoader_Load_DefaultOptions_DrawsIsometricOrthographicAt800
+          - SourceLoader_Load_DefaultOptions_MatchesTheLibraryRender
+          - SourceLoader_Load_EachNamedView_IsDistinctAndDeterministic
+          - SourceLoader_ScadViews_HaveTheDocumentedAngles
+          - SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes
+          - SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles
+          - SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated
+          - SourceLoader_Load_Perspective_DiffersFromOrthographic
+          - SourceLoader_Load_SizeOptions_FollowTheNaturalSize
+          - SourceLoader_Load_Background_IsWhiteColoredOrTransparent
+          - SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces
+          - SourceLoader_Load_ModelWithoutGeometry_IsTheBackground
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadVariables
+        title: >-
+          The SourceLoader class shall evaluate an OpenSCAD model with the variables given (numbers,
+          flags, and text) replacing the assignments of the same names and the special variable $t
+          set to the time given, shall describe them in the operation it reports, and shall report a
+          variable whose name the SCAD library does not accept as a usage error.
+        justification: |
+          Parametric models are the point of OpenSCAD; setting a variable from the command line lets an
+          agent explore a model without editing it, and a bad name is a mistake in the command line,
+          not a defect.
+        tests:
+          - SourceLoader_Load_Defines_ChangeTheModel
+          - SourceLoader_Load_Defines_AreDescribedByNameAndType
+          - SourceLoader_Load_DefineWithInvalidName_ThrowsUsageError
+          - SourceLoader_Load_Time_SetsTheSpecialVariable
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadDiagnostics
+        title: >-
+          The SourceLoader class shall report the warnings, the unsupported features (with the feature
+          identifier as the code and the position in the model), and the echoed text of an OpenSCAD
+          model with the loaded image, and in strict mode shall report an unsupported feature as an
+          unsupported-feature error naming the feature and the position.
+        justification: |
+          A picture that silently lacks part of the model misleads the agent that looks at it, and the
+          echo output is how a model reports what it computed; strict mode is for callers that cannot
+          accept an incomplete picture.
+        tests:
+          - SourceLoader_Load_EchoWarningAndUnsupported_AreReturned
+          - SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadLimits
+        title: >-
+          The SourceLoader class shall limit an OpenSCAD model to the number of triangles given (5000000
+          by default) and to the evaluation limits of the SCAD library, and shall report a model that
+          exceeds a limit as a budget-exceeded error that names the limit and the position, and, for the
+          triangle limit, the option that raises it.
+        justification: |
+          A model is a program from an untrusted source; a hostile or careless one must fail quickly
+          with a message that says what to change, not exhaust the memory or the time of the agent that
+          renders it.
+        tests:
+          - SourceLoader_Load_TriangleLimitExceeded_ThrowsBudgetExceeded
+          - SourceLoader_Load_TriangleLimitLargeEnough_Loads
+          - SourceLoader_Load_EvaluationLimitExceeded_ThrowsBudgetExceeded
+          - SourceLoader_MapScadEvaluation_LimitAndOtherFailures_MapToTheirCodes
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadIncludes
+        title: >-
+          The SourceLoader class shall read the files named by the include and use directives of an
+          OpenSCAD model relative to the folder of the file that names them and only inside the folder
+          of the model and below it (never following a link, and never reading a file outside), and
+          shall report a directive whose file cannot be found, a path that leaves the folder, an include
+          cycle, and a syntax error in an included file as scad-error errors that name the place.
+        justification: |
+          Models are split into files, but a model must not be able to read other files of the machine,
+          and a picture drawn without a file the model asked for would be wrong without saying so.
+        tests:
+          - SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow
+          - SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile
+          - SourceLoader_Load_MissingInclude_ThrowsScadError
+          - SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError
+          - SourceLoader_Load_IncludeCycleAndBrokenInclude_ThrowScadError
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadErrors
+        title: >-
+          The SourceLoader class shall report a syntax error (with the file, line, and column), a failed
+          assertion, and any other failure of the evaluation of an OpenSCAD model as a scad-error error,
+          a model longer than the library reads as corrupt-input, and shall give a picture or an
+          expected error, never an unexpected exception, for a model that is cut anywhere, is garbage,
+          or stresses the library with huge numbers, degenerate shapes, unsupported constructs, and bad
+          arguments.
+        justification: |
+          A model is hand-written text and fails in many ways; every failure that is the author's
+          mistake must be a concise, located, coded error, while an unexpected exception stays a defect
+          that is not hidden.
+        tests:
+          - SourceLoader_Probe_SyntaxError_ThrowsScadErrorWithLocation
+          - SourceLoader_Load_FailedAssert_ThrowsScadError
+          - SourceLoader_Probe_SourceTooLong_ThrowsCorruptInput
+          - SourceLoader_Probe_DeeplyNestedExpression_ThrowsScadError
+          - SourceLoader_Read_ScadExceptions_AreMappedToErrorCodes
+          - SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrToolException
+          - SourceLoader_Load_StressModels_GiveAPictureOrToolException
+
       - id: CanvasNetTool-Imaging-SourceLoader-Sizing
         title: >-
           The SourceLoader class shall derive the target size from the natural size and the scale,
@@ -244,6 +360,7 @@ sections:
           - SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes
           - SourceLoader_Read_MultiLineMessage_IsReducedToOneLine
           - SourceLoader_Read_UnexpectedExceptions_Propagate
+          - SourceLoader_OpenPages_UnhandledKind_IsNotAToolException
 
       - id: CanvasNetTool-Imaging-SourceLoader-Arguments
         title: The SourceLoader class shall reject null arguments.

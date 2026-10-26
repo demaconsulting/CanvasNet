@@ -1,4 +1,5 @@
 ---
+# cspell:ignore scad openscad
 # Software Unit Requirements for the DiscoveryCommands Class
 #
 # The DiscoveryCommands class holds the read-only commands that tell a caller what the tool can
@@ -49,7 +50,8 @@ sections:
         title: >-
           The tables of input and output formats shall name exactly the source kinds and output formats
           the imaging code implements, in the same order, with the file name extensions that the source
-          loader detects and the image writer accepts, and the quality range the writer enforces.
+          loader detects and the image writer accepts, and the quality range the writer enforces, and
+          every listed input format shall be one the source loader reads.
         justification: |
           The formats command is how an agent discovers what the tool supports; a listing that drifts
           from the implementation would send the agent down paths that fail.
@@ -57,6 +59,7 @@ sections:
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
           - DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter
           - DiscoveryCommands_FormatTables_QualityRangeMatchesWriter
+          - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
 
       - id: CanvasNetTool-Commands-DiscoveryCommands-Info
         title: >-
@@ -101,6 +104,22 @@ sections:
           - DiscoveryCommands_Info_DocumentJson_ListsPageCountAndPages
           - DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors
           - DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoModel
+        title: >-
+          The info command shall describe an OpenSCAD model by parsing it, without evaluating it: as
+          text, one line with its path, the number of its modules, functions, and include and use
+          directives, and its size in bytes, followed by a line for each module, function, and directive
+          (with its line); and as the model object of the JSON document, with the names of its modules
+          and functions and its directives (kind, path, and line) in place of the image object.
+        justification: |
+          An agent decides how to render and vary a parametric model from what it declares; parsing it
+          answers that without the cost or the risk of running it.
+        tests:
+          - DiscoveryCommands_Info_ModelText_ListsModulesFunctionsAndDirectives
+          - DiscoveryCommands_Info_ModelWithoutDeclarations_DescribesCounts
+          - DiscoveryCommands_Info_ModelJson_HasModelObject
+          - DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors
 
       - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         title: >-

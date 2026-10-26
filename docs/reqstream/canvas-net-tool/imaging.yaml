@@ -1,4 +1,5 @@
 ---
+# cspell:ignore scad openscad
 # Imaging Subsystem Requirements
 #
 # PURPOSE:
@@ -13,10 +14,10 @@ sections:
     requirements:
       - id: CanvasNetTool-Imaging-Load
         title: >-
-          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, or
-          VSDX file (a chosen page of a document) into pixels at the size and resolution the options ask
-          for, and shall report the facts of a file, including the pages of a document, without
-          decoding it.
+          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
+          VSDX, or SCAD file (a chosen page of a document, a named view of a model) into pixels at the
+          size and resolution the options ask for, and shall report the facts of a file, including the
+          pages of a document and the declarations of a model, without decoding or rendering it.
         justification: |
           Every command needs one place that recognizes a file, reads its header, and produces the
           pixels, so that the formats behave consistently.
@@ -30,6 +31,12 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-Resolution
           - CanvasNetTool-Imaging-SourceLoader-Diagnostics
           - CanvasNetTool-Imaging-SourceLoader-Strict
+          - CanvasNetTool-Imaging-SourceLoader-Scad
+          - CanvasNetTool-Imaging-SourceLoader-ScadVariables
+          - CanvasNetTool-Imaging-SourceLoader-ScadDiagnostics
+          - CanvasNetTool-Imaging-SourceLoader-ScadLimits
+          - CanvasNetTool-Imaging-SourceLoader-ScadIncludes
+          - CanvasNetTool-Imaging-SourceLoader-ScadErrors
           - CanvasNetTool-Imaging-SourceLoader-Sizing
           - CanvasNetTool-Imaging-SourceLoader-Background
           - CanvasNetTool-Imaging-SourceLoader-Exif
@@ -38,6 +45,7 @@ sections:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
           - Imaging_Convert_DocumentPages_WritesEachPageWithItsPixels
+          - Imaging_Convert_ScadViewToOutputFormat_WritesTheLibraryPixels
 
       - id: CanvasNetTool-Imaging-Write
         title: >-

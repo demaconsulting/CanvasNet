@@ -98,6 +98,13 @@ a command's standard output contains only the command's own output, so it can be
 `canvasnet --version` to print the version and `canvasnet --validate` to run the built-in self-validation, which
 can write its results as TRX or JUnit XML with `--results`.
 
+The `render` command writes PNG, JPEG, BMP, or TIFF from an image, drawing, document page, or OpenSCAD model. A model
+(`.scad`) is drawn from a named view (`--view iso|front|back|left|right|top|bottom`, orthographic unless
+`--projection perspective`) at 800x800 pixels unless a size is given, with `-D name=value` setting its variables, for
+example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
+directives name are read from the folder of the model and below it only, and a model whose include cannot be found
+is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+
 ## Usage
 
 Create a surface, crop it, and round-trip it through a codec:

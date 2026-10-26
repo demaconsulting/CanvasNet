@@ -1,10 +1,10 @@
 ---
+# cspell:ignore scad openscad
 # Software Unit Requirements for the RenderCommand Class
 #
 # The RenderCommand class is the render command (alias convert): it loads an input file, applies the
 # source options, and writes the result as PNG, JPEG, BMP, or TIFF, reporting it as one text line or one
-# JSON document. The options of further source kinds and of the image pipeline are added to it as they
-# are implemented.
+# JSON document. The options of the image pipeline are added to it as they are implemented.
 
 sections:
   - title: RenderCommand Unit Requirements
@@ -12,14 +12,50 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-Options
         title: >-
           The render command shall declare its options (page, all-pages, dpi, scale, width, height,
-          size, background, no-auto-orient, strict, output, format, quality, and no-clobber) in one
-          table that also drives the help, and shall be registered under the names render and convert.
+          size, background, no-auto-orient, strict, the model options view, azimuth, elevation,
+          projection, define, time, default-color, and max-triangles, output, format, quality, and
+          no-clobber) in one table that also drives the help, and shall be registered under the names
+          render and convert.
         justification: |
           Declaring the options once keeps the help from drifting from what the command accepts, and the
           alias lets users who think in terms of conversion find the command.
         tests:
           - RenderCommand_Metadata_DescribesCommandAndOptions
           - RenderCommand_DefaultRegistry_RegistersRenderAndConvert
+          - RenderCommand_Usage_DescribesModelOptionsAndIncludeRule
+
+      - id: CanvasNetTool-Commands-RenderCommand-Scad
+        title: >-
+          The render command shall pass the view, azimuth, elevation, projection, variable definitions
+          (repeatable, -D being the short name of define), time, default color, and triangle limit to the
+          source loader for an OpenSCAD model, shall describe what it drew (the view, angles, projection,
+          size, background, definitions, and limits) in the render operation of the result, shall report
+          the warnings, unsupported features, and echoed text of the model in the diagnostics and echo of
+          the result, shall reject a view or projection that does not exist, a value that is malformed or
+          out of range, and a model option given for an input that is not a model, and shall write no
+          output for a model that fails.
+        justification: |
+          The options must reach the loader as typed, the result must say what picture was drawn so that an
+          agent can reproduce or vary it, and a model option that would be silently ignored on another kind
+          of input is a mistake that deserves an error.
+        tests:
+          - RenderCommand_Run_ScadDefaults_Writes800SquareImage
+          - RenderCommand_Run_EachView_WritesItsOwnImage
+          - RenderCommand_Run_ViewAzimuthElevationProjection_AreReportedInTheOperation
+          - RenderCommand_Run_Defines_ChangeTheImageAndAreReported
+          - RenderCommand_Run_TimeDefaultColorAndMaxTriangles_AreReported
+          - RenderCommand_Run_ScadDiagnosticsAndEcho_AreInTheJsonResult
+          - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
+          - RenderCommand_Run_MaxTrianglesExceeded_FailsWithBudgetExceeded
+          - RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize
+          - RenderCommand_Run_ScadBackground_IsAppliedAndFlattenedForJpeg
+          - RenderCommand_Run_ScadToEachOutputFormat_WritesDecodableFile
+          - RenderCommand_Run_ScadTwice_WritesIdenticalBytes
+          - RenderCommand_Run_BadModelOption_ThrowsUsageError
+          - RenderCommand_Run_UnknownView_ListsTheViews
+          - RenderCommand_Run_ModelOptionOnAnotherKind_ThrowsUsageError
+          - RenderCommand_Run_PageTwoOfAModel_ThrowsPageOutOfRange
+          - RenderCommand_Run_ModelWithSyntaxError_ThrowsScadError
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-
@@ -71,6 +107,7 @@ sections:
           list of what is missing, and no image at all.
         tests:
           - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
+          - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
 
       - id: CanvasNetTool-Commands-RenderCommand-Output
         title: >-

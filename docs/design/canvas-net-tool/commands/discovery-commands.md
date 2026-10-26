@@ -1,6 +1,6 @@
 ### DiscoveryCommands
 
-<!-- cspell:ignore canvasnet jpeg tiff pptx vsdx scad Visio -->
+<!-- cspell:ignore canvasnet jpeg tiff pptx vsdx scad Visio openscad -->
 
 ![Commands Structure](CommandsView.svg)
 
@@ -20,8 +20,8 @@ rendered at any requested size; `model`: a 3D model rendered from a viewpoint), 
 dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
 rather than decoded at its own size). The rows are the `SourceKind` members in order, and their extensions are those
 that `SourceLoader.ExtensionKinds` maps to the kind; a test keeps the table consistent with the enumeration and the
-loader, so a listed format is one the code knows. (The OpenSCAD kind is listed from the start and is reported as
-unsupported by `info` and `render` until it is implemented.)
+loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
+the loader reads it.
 
 **OutputFormats** (`IReadOnlyList<OutputFormatInfo>`): `png`, `jpeg`, `bmp`, `tiff`. A row has `Name` (also the value
 of the `--format` option), `Extensions`, `Alpha` (keeps transparency), and `Lossy` (takes a quality setting). The
@@ -75,7 +75,10 @@ channel[s][ with alpha], {bytes} bytes`, followed when they apply by `, {n} fram
 GIF), `, EXIF orientation {n}` (a JPEG that has one), and `, cannot be decoded`. The size is the stored size, before
 any EXIF orientation. For a document, a line `{path}: {format}, {n} pages|slides, {bytes} bytes`, then for each
 page described a line `page|slide {n}["{name}"]: {w}x{h} px at 96 dpi ({w}x{h} pt)[, rotation {r}]` (a slide of a
-presentation is called a slide; sizes in points are rounded to two decimals).
+presentation is called a slide; sizes in points are rounded to two decimals). For an OpenSCAD model, a line
+`{path}: scad, {n} module[s], {n} function[s], {n} include/use directive[s], {bytes} bytes`, then a line
+`module {name}` for each module, `function {name}` for each function, and `include <{path}> (line {n})` or
+`use <{path}> (line {n})` for each directive, all in source order.
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -85,14 +88,19 @@ presentation is called a slide; sizes in points are rounded to two decimals).
 | `input` | object: `path`, `format`, `bytes` |
 | `image` | for an image: object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and `exifOrientation` only when the file has one |
 | `document` | for a PDF, PPTX, or VSDX document, instead of `image`: object: `pageCount` and `pages`, an array with one object for each page described: `page`, `width`, `height` (pixels at 96 dpi), `widthPt`, `heightPt`, `rotation` (PDF only), and `name` (VSDX only) |
+| `model` | for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or `use`), `path` as written, and `line`) |
 <!-- markdownlint-enable MD013 -->
+
+The model is parsed, not evaluated, so `info` neither runs its code nor reads the files it includes (their
+existence is not checked, and a syntax error in an included file is found only when the model is rendered).
 
 #### Error Handling
 
 An argument or option on the `formats` command line throws a `ToolException` with the code `usage-error` (from
 `ArgumentReader`); so does a missing input, an extra input, an unknown option, or both page options on the `info`
 command line. The `info` command's failures to read the file come from `SourceLoader.Probe` (`input-not-found`,
-`input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`), and a page the file does not have
+`input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, and `scad-error` for a model with a
+syntax error), and a page the file does not have
 is `page-out-of-range`. Null arguments throw `ArgumentNullException`. The `formats` command does not touch the file
 system and has no other failure mode.
 
