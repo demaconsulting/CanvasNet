@@ -1,6 +1,9 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet jpeg jpg tif tiff exif
 using System.Text.Json;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;
 
@@ -555,5 +558,355 @@ public class CanvasNetToolTests
         Assert.Equal(1, exitCode);
         Assert.Contains("Error: usage-error: Unknown option '--bogus' for 'formats'.", output);
         Assert.DoesNotContain("   at ", output);
+    }
+
+    /// <summary>
+    ///     Test that the render command renders an SVG drawing to a PNG and reports it in one line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine()
+    {
+        // Arrange: the SVG fixture and an output path
+        using var directory = new TempDirectory();
+        var svg = FixtureFactory.FixturePath("shapes.svg");
+        var output = directory.Combine("shapes.png");
+
+        // Act: run the render command as a real process, at twice the natural size
+        var exitCode = Runner.Run(out var text, "dotnet", _dllPath, "render", svg, "--scale", "2", "-o", output);
+
+        // Assert: success, one line naming the output, and a 200x160 image with the shapes flattened over white
+        Assert.Equal(0, exitCode);
+        Assert.Equal($"wrote {output} (200x160 png, {new FileInfo(output).Length} bytes) from {svg}", text.TrimEnd());
+        using var image = PngCodec.Load(output);
+        Assert.Equal((200, 160), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[50, 50]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[2, 2]);
+    }
+
+    /// <summary>
+    ///     Test that the render command writes exactly one JSON document with the documented keys when --json is given.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Render_JsonRequested_WritesJsonDocument()
+    {
+        // Arrange: a PNG and an output path
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.jpg");
+
+        // Act: run the render command as a real process with --json
+        var exitCode = Runner.Run(out var text, "dotnet", _dllPath, "render", input, "-o", output, "--quality", "80", "--json");
+
+        // Assert: the whole output is one document that describes the input and the output
+        Assert.Equal(0, exitCode);
+        Assert.Single(text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+        using var document = JsonDocument.Parse(text);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("render", root.GetProperty("command").GetString());
+        Assert.Equal("png", root.GetProperty("input").GetProperty("format").GetString());
+        var written = root.GetProperty("outputs")[0];
+        Assert.Equal("jpeg", written.GetProperty("format").GetString());
+        Assert.Equal(new FileInfo(output).Length, written.GetProperty("bytes").GetInt64());
+    }
+
+    /// <summary>
+    ///     Test that the convert alias writes every output format and each file decodes with the codec of its format.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile()
+    {
+        // Arrange: a PNG
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        using var expected = FixtureFactory.CreateGradient();
+
+        foreach (var extension in new[] { ".png", ".bmp", ".tif", ".jpg" })
+        {
+            var output = directory.Combine("converted" + extension);
+
+            // Act: convert it as a real process through the alias
+            var exitCode = Runner.Run(out _, "dotnet", _dllPath, "convert", input, "-o", output);
+
+            // Assert: success, and the pixels (exactly, except for JPEG)
+            Assert.Equal(0, exitCode);
+            using var decoded = SurfaceAssert.Load(output);
+            if (extension == ".jpg")
+            {
+                SurfaceAssert.CloseOnAverage(expected, decoded, 8);
+            }
+            else
+            {
+                SurfaceAssert.Equal(expected, decoded);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that the info command describes a file as text and as JSON.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Info_Requested_DescribesFile()
+    {
+        // Arrange: a BMP
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "bmp");
+
+        // Act: run the info command as a real process, as text and as JSON
+        var textExitCode = Runner.Run(out var text, "dotnet", _dllPath, "info", input);
+        var jsonExitCode = Runner.Run(out var json, "dotnet", _dllPath, "info", input, "--json");
+
+        // Assert: the text line names the format and size; the document has the same facts
+        Assert.Equal(0, textExitCode);
+        Assert.StartsWith($"{input}: bmp, 12x8 px", text);
+        Assert.Equal(0, jsonExitCode);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal("info", document.RootElement.GetProperty("command").GetString());
+        Assert.Equal("bmp", document.RootElement.GetProperty("input").GetProperty("format").GetString());
+        Assert.Equal(12, document.RootElement.GetProperty("image").GetProperty("width").GetInt32());
+        Assert.Equal(8, document.RootElement.GetProperty("image").GetProperty("height").GetInt32());
+    }
+
+    /// <summary>
+    ///     Test that every raster format and SVG can be read, by rendering each to a PNG.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable()
+    {
+        // Arrange: a source file of every kind
+        using var directory = new TempDirectory();
+
+        foreach (var (key, _) in FixtureFactory.Sources)
+        {
+            var input = FixtureFactory.WriteSource(directory.Path, key);
+            var output = directory.Combine($"{key}.png");
+
+            // Act: render it in-process
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", output);
+
+            // Assert: success, and the output has the size the source has
+            Assert.Equal(0, exitCode);
+            Assert.Equal(string.Empty, stdErr);
+            Assert.StartsWith("wrote ", stdOut);
+            var info = SourceLoader.Probe(input);
+            using var image = PngCodec.Load(output);
+            Assert.Equal((info.Width, info.Height), (image.Width, image.Height));
+        }
+    }
+
+    /// <summary>
+    ///     Test that the output format follows the extension, and the format option overrides it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat()
+    {
+        // Arrange: a PNG input
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+
+        foreach (var (extension, name) in new[] { (".png", "png"), (".jpg", "jpeg"), (".jpeg", "jpeg"), (".bmp", "bmp"), (".tif", "tiff"), (".tiff", "tiff") })
+        {
+            // Act: render to the extension
+            var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "-o", directory.Combine("out" + extension), "--json");
+
+            // Assert: the format named in the result
+            Assert.Equal(0, exitCode);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.Equal(name, document.RootElement.GetProperty("outputs")[0].GetProperty("format").GetString());
+        }
+
+        // Act: the format option on an output with another extension
+        var (optionExitCode, optionOut, _) = ToolHost.Invoke("render", input, "-o", directory.Combine("out.png"), "--format", "bmp", "--json");
+
+        // Assert: the option wins, and the file is a BMP
+        Assert.Equal(0, optionExitCode);
+        using var optionDocument = JsonDocument.Parse(optionOut);
+        Assert.Equal("bmp", optionDocument.RootElement.GetProperty("outputs")[0].GetProperty("format").GetString());
+        using var decoded = BmpCodec.Load(directory.Combine("out.png"));
+        Assert.Equal(FixtureFactory.Width, decoded.Width);
+    }
+
+    /// <summary>
+    ///     Test the overwrite defaults: an existing output is replaced, no-clobber refuses, and the input is never the output.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy()
+    {
+        // Arrange: an input and an existing output
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.png");
+        File.WriteAllText(output, "old");
+
+        // Act
+        var (refusedCode, _, refusedErr) = ToolHost.Invoke("render", input, "-o", output, "--no-clobber");
+        var keptContent = File.ReadAllText(output);
+        var (overwriteCode, _, _) = ToolHost.Invoke("render", input, "-o", output);
+        var (sameCode, _, sameErr) = ToolHost.Invoke("render", input, "-o", input);
+
+        // Assert: refused with output-exists and kept; overwritten by default; the input as output is refused
+        Assert.Equal(1, refusedCode);
+        Assert.Contains("Error: output-exists:", refusedErr);
+        Assert.Equal("old", keptContent);
+        Assert.Equal(0, overwriteCode);
+        Assert.True(new FileInfo(output).Length > 3);
+        Assert.Equal(1, sameCode);
+        Assert.Contains("Error: same-input-output:", sameErr);
+    }
+
+    /// <summary>
+    ///     Test that transparency is flattened over white for SVG sources and for JPEG output, and kept for PNG.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg()
+    {
+        // Arrange: the SVG fixture and a PNG with a fully transparent edge
+        using var directory = new TempDirectory();
+        var svg = FixtureFactory.FixturePath("shapes.svg");
+        var translucent = directory.Combine("translucent.png");
+        using (var surface = FixtureFactory.CreateTranslucent())
+        {
+            PngCodec.Save(surface, translucent);
+        }
+
+        // Act
+        ToolHost.Invoke("render", svg, "-o", directory.Combine("svg.png"));
+        ToolHost.Invoke("render", translucent, "-o", directory.Combine("kept.png"));
+        ToolHost.Invoke("render", translucent, "-o", directory.Combine("flat.jpg"));
+
+        // Assert: white for the SVG, alpha kept for the PNG output, white for the JPEG output
+        using var fromSvg = PngCodec.Load(directory.Combine("svg.png"));
+        using var kept = PngCodec.Load(directory.Combine("kept.png"));
+        using var flat = JpegCodec.Load(directory.Combine("flat.jpg"));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), fromSvg[5, 5]);
+        Assert.Equal(0, kept[FixtureFactory.Width - 1, 0].A);
+        Assert.InRange(flat[FixtureFactory.Width - 1, 0].R, 240, 255);
+        Assert.Equal(255, flat[FixtureFactory.Width - 1, 0].A);
+    }
+
+    /// <summary>
+    ///     Test that a JPEG is turned upright according to its EXIF orientation by default.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright()
+    {
+        // Arrange: a 12x8 JPEG with the EXIF orientation 8 (rotate 90 degrees counter-clockwise)
+        using var directory = new TempDirectory();
+        var input = directory.Combine("camera.jpg");
+        using (var surface = FixtureFactory.CreateGradient())
+        using (var stream = new MemoryStream())
+        {
+            JpegCodec.Save(surface, stream);
+            File.WriteAllBytes(input, FixtureFactory.InsertExifOrientation(stream.ToArray(), 8, false));
+        }
+
+        // Act
+        var (exitCode, _, _) = ToolHost.Invoke("render", input, "-o", directory.Combine("upright.png"));
+        ToolHost.Invoke("render", input, "--no-auto-orient", "-o", directory.Combine("stored.png"));
+
+        // Assert: 8x12 upright, 12x8 as stored, and the upright pixels are the stored ones turned
+        Assert.Equal(0, exitCode);
+        using var upright = PngCodec.Load(directory.Combine("upright.png"));
+        using var stored = PngCodec.Load(directory.Combine("stored.png"));
+        Assert.Equal((8, 12), (upright.Width, upright.Height));
+        Assert.Equal((12, 8), (stored.Width, stored.Height));
+        using var expected = ExifOrientation.Apply(stored, 8);
+        SurfaceAssert.Equal(expected, upright);
+    }
+
+    /// <summary>
+    ///     Test that an image larger than 8192 pixels is refused from its header, as an expected error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding()
+    {
+        // Arrange: a PNG that declares 9000x9000 pixels
+        using var directory = new TempDirectory();
+        var input = directory.Combine("huge.png");
+        File.WriteAllBytes(input, FixtureFactory.CreatePngHeaderOnly(9000, 9000));
+        var output = directory.Combine("out.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", output, "--json");
+
+        // Assert: exit code 1, a size-limit error document and message, and no output
+        Assert.Equal(1, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Equal("size-limit", document.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.Contains("Error: size-limit:", stdErr);
+        Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the same input and options give the same output bytes on every run.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes()
+    {
+        // Arrange: inputs of three kinds and the output formats
+        using var directory = new TempDirectory();
+        var inputs = new[]
+        {
+            FixtureFactory.WriteSource(directory.Path, "png"),
+            FixtureFactory.WriteSource(directory.Path, "jpeg"),
+            FixtureFactory.WriteSource(directory.Path, "svg")
+        };
+
+        foreach (var input in inputs)
+        {
+            foreach (var extension in new[] { ".png", ".jpg", ".bmp", ".tif" })
+            {
+                // Act: render twice with the same options
+                var first = directory.Combine("first" + extension);
+                var second = directory.Combine("second" + extension);
+                Assert.Equal(0, ToolHost.Invoke("render", input, "--width", "20", "-o", first).ExitCode);
+                Assert.Equal(0, ToolHost.Invoke("render", input, "--width", "20", "-o", second).ExitCode);
+
+                // Assert: the same bytes
+                Assert.Equal(File.ReadAllBytes(first), File.ReadAllBytes(second));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that a missing, unsupported, truncated, or corrupt input of any format is an expected error, never an unexpected one.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors()
+    {
+        // Arrange: a missing file, a file of an unknown format, and a truncated file and garbage of every kind
+        using var directory = new TempDirectory();
+        var cases = new List<(string Input, string Code)>
+        {
+            (directory.Combine("missing.png"), "input-not-found")
+        };
+        var text = directory.Combine("notes.txt");
+        File.WriteAllText(text, "notes");
+        cases.Add((text, "unsupported-format"));
+        foreach (var (key, extension) in FixtureFactory.Sources)
+        {
+            var truncated = FixtureFactory.WriteSource(directory.Path, key);
+            File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
+            var renamed = directory.Combine($"truncated-{key}{extension}");
+            File.Move(truncated, renamed);
+            cases.Add((renamed, "corrupt-input"));
+
+            var garbage = directory.Combine($"garbage-{key}{extension}");
+            File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(200));
+            cases.Add((garbage, "corrupt-input"));
+        }
+
+        foreach (var (input, code) in cases)
+        {
+            // Act: render it in-process; an unexpected exception would escape and fail the test
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", directory.Combine("out.png"), "--json");
+
+            // Assert: exit code 1, the error code in the message and in the document, and no output
+            Assert.Equal(1, exitCode);
+            Assert.Contains($"Error: {code}:", stdErr);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.Equal(code, document.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(directory.Combine("out.png")));
+        }
     }
 }

@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -11,9 +12,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///     The read-only discovery commands: the ones that tell a caller what the tool can do.
 /// </summary>
 /// <remarks>
-///     Each command is a nested class implementing <see cref="ICommand"/>. As of this release the only
-///     discovery command is <see cref="Formats"/>; commands that describe a given file are added here as they
-///     are implemented. The table of formats is data owned by this unit.
+///     Each command is a nested class implementing <see cref="ICommand"/>: <see cref="Formats"/> lists what the
+///     tool can read and write, and <see cref="Info"/> describes one file. The table of formats is data owned by
+///     this unit.
 /// </remarks>
 internal static class DiscoveryCommands
 {
@@ -71,18 +72,117 @@ internal static class DiscoveryCommands
     internal sealed record OutputFormatInfo(string Name, IReadOnlyList<string> Extensions, bool Alpha, bool Lossy);
 
     /// <summary>
+    ///     The <c>info</c> command: reports what a file is (its format, size, and properties) without rendering it.
+    /// </summary>
+    internal sealed class Info : ICommand
+    {
+        /// <inheritdoc />
+        public string Name => "info";
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> Aliases => [];
+
+        /// <inheritdoc />
+        public string Summary => "Show the format, size, and properties of an image or drawing without rendering it";
+
+        /// <inheritdoc />
+        public IReadOnlyList<OptionSpec> Options => [];
+
+        /// <inheritdoc />
+        public string Usage =>
+            "canvasnet info <input> [--json]" + Environment.NewLine
+            + Environment.NewLine
+            + "Reads only the file header: the format, the pixel size, the channels, whether it has transparency," + Environment.NewLine
+            + "the number of frames of a GIF, and the EXIF orientation of a JPEG. An SVG reports its intrinsic size." + Environment.NewLine
+            + Environment.NewLine
+            + "Examples:" + Environment.NewLine
+            + "  canvasnet info photo.jpg" + Environment.NewLine
+            + "  canvasnet info drawing.svg --json";
+
+        /// <inheritdoc />
+        public void Run(Context context, IReadOnlyList<string> args)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(args);
+
+            var reader = ArgumentReader.Parse(Name, args, Options);
+            reader.RequirePositionals(1, 1, "one input file");
+
+            var info = SourceLoader.Probe(reader.Positionals[0]);
+            context.WriteLine(context.Json
+                ? ResultWriter.Success(Name, writer => WriteJsonFields(writer, info))
+                : RenderText(info));
+        }
+
+        /// <summary>
+        ///     Writes the command's fields of the JSON document.
+        /// </summary>
+        /// <param name="writer">The writer positioned inside the document's top-level object.</param>
+        /// <param name="info">The facts about the file.</param>
+        private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo info)
+        {
+            writer.WriteStartObject("input");
+            writer.WriteString("path", info.Path);
+            writer.WriteString("format", info.Format.ToFormatName());
+            writer.WriteNumber("bytes", info.Bytes);
+            writer.WriteEndObject();
+
+            writer.WriteStartObject("image");
+            writer.WriteNumber("width", info.Width);
+            writer.WriteNumber("height", info.Height);
+            writer.WriteNumber("channels", info.Channels);
+            writer.WriteBoolean("hasAlpha", info.HasAlpha);
+            writer.WriteBoolean("canDecode", info.CanDecode);
+            writer.WriteNumber("frameCount", info.FrameCount);
+            if (info.ExifOrientation is { } orientation)
+            {
+                writer.WriteNumber("exifOrientation", orientation);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        /// <summary>
+        ///     Renders the one-line text description.
+        /// </summary>
+        /// <param name="info">The facts about the file.</param>
+        /// <returns>The text, for example <c>photo.jpg: jpeg, 4032x3024 px, 3 channels, 2481920 bytes, EXIF orientation 6</c>.</returns>
+        private static string RenderText(SourceInfo info)
+        {
+            var builder = new StringBuilder();
+            builder.Append(CultureInfo.InvariantCulture, $"{info.Path}: {info.Format.ToFormatName()}, {info.Width}x{info.Height} px");
+            builder.Append(info.Format == SourceKind.Svg ? " (intrinsic size)" : string.Empty);
+            builder.Append(CultureInfo.InvariantCulture, $", {info.Channels} channel{(info.Channels == 1 ? string.Empty : "s")}");
+            builder.Append(info.HasAlpha ? " with alpha" : string.Empty);
+            builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");
+            if (info.FrameCount > 1)
+            {
+                builder.Append(CultureInfo.InvariantCulture, $", {info.FrameCount} frames (the first is used)");
+            }
+
+            if (info.ExifOrientation is { } orientation)
+            {
+                builder.Append(CultureInfo.InvariantCulture, $", EXIF orientation {orientation}");
+            }
+
+            builder.Append(info.CanDecode ? string.Empty : ", cannot be decoded");
+            return builder.ToString();
+        }
+    }
+
+    /// <summary>
     ///     The <c>formats</c> command: lists the input and output formats, the limits, and the versions.
     /// </summary>
     internal sealed class Formats : ICommand
     {
         /// <summary>The smallest JPEG quality setting.</summary>
-        internal const int MinQuality = 1;
+        internal const int MinQuality = ImageWriter.MinQuality;
 
         /// <summary>The largest JPEG quality setting.</summary>
-        internal const int MaxQuality = 100;
+        internal const int MaxQuality = ImageWriter.MaxQuality;
 
         /// <summary>The JPEG quality setting used when none is given.</summary>
-        internal const int DefaultQuality = 90;
+        internal const int DefaultQuality = ImageWriter.DefaultQuality;
 
         /// <summary>
         ///     The tool version to report.

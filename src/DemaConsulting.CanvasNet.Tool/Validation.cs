@@ -2,6 +2,8 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.TestResults.IO;
 
 namespace DemaConsulting.CanvasNet.Tool;
@@ -41,6 +43,10 @@ internal static class Validation
         RunVersionTest(context, testResults);
         RunHelpTest(context, testResults);
         RunFormatsTest(context, testResults);
+        RunRenderPngTest(context, testResults);
+        RunConvertFormatsTest(context, testResults);
+        RunInfoTest(context, testResults);
+        RunRenderSvgTest(context, testResults);
 
         // Calculate totals
         var totalTests = testResults.Results.Count;
@@ -256,6 +262,247 @@ internal static class Validation
                && root.GetProperty("command").GetString() == "formats"
                && root.GetProperty("inputs").EnumerateArray().Any(f => f.GetProperty("format").GetString() == "png")
                && root.GetProperty("outputs").EnumerateArray().Any(f => f.GetProperty("format").GetString() == "png");
+    }
+
+    /// <summary>
+    ///     Runs a test that renders a generated PNG to a PNG and checks that the pixels are unchanged.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderPngTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderPng", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.png");
+            var output = PathHelpers.SafePathCombine(directory, "output.png");
+            using (var source = CreateTestSurface())
+            {
+                PngCodec.Save(source, input);
+            }
+
+            var json = RunCommand(directory, "render", input, "-o", output, "--json");
+            using var document = JsonDocument.Parse(json);
+            var written = document.RootElement.GetProperty("outputs")[0];
+            if (!document.RootElement.GetProperty("ok").GetBoolean() || written.GetProperty("format").GetString() != "png")
+            {
+                return "The render result document does not describe a PNG output";
+            }
+
+            using var original = PngCodec.Load(input);
+            using var rendered = PngCodec.Load(output);
+            return SurfacesEqual(original, rendered) ? null : "The rendered PNG differs from the input";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that converts a generated PNG to every output format and checks the results.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunConvertFormatsTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_ConvertFormats", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.png");
+            using var original = CreateTestSurface();
+            PngCodec.Save(original, input);
+
+            foreach (var extension in new[] { ".bmp", ".tif", ".jpg", ".png" })
+            {
+                var output = PathHelpers.SafePathCombine(directory, "output" + extension);
+                RunCommand(directory, "convert", input, "-o", output);
+
+                // Decode the output with the codec of its own format; the lossless formats must keep every pixel
+                using var converted = extension switch
+                {
+                    ".bmp" => BmpCodec.Load(output),
+                    ".tif" => TiffCodec.Load(output),
+                    ".jpg" => JpegCodec.Load(output),
+                    _ => PngCodec.Load(output)
+                };
+                if (converted.Width != original.Width || converted.Height != original.Height)
+                {
+                    return $"The {extension} output has the wrong size";
+                }
+
+                if (extension != ".jpg" && !SurfacesEqual(original, converted))
+                {
+                    return $"The {extension} output differs from the input";
+                }
+            }
+
+            return null;
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes a generated PNG with the info command.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunInfoTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_Info", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.png");
+            using (var source = CreateTestSurface())
+            {
+                PngCodec.Save(source, input);
+            }
+
+            var json = RunCommand(directory, "info", input, "--json");
+            using var document = JsonDocument.Parse(json);
+            var image = document.RootElement.GetProperty("image");
+            var correct = document.RootElement.GetProperty("input").GetProperty("format").GetString() == "png"
+                          && image.GetProperty("width").GetInt32() == TestImageWidth
+                          && image.GetProperty("height").GetInt32() == TestImageHeight;
+            return correct ? null : "The info document does not describe the generated PNG";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that renders a generated SVG to a PNG at twice its size and checks the pixels.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderSvgTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderSvg", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.svg");
+            var output = PathHelpers.SafePathCombine(directory, "output.png");
+            File.WriteAllText(
+                input,
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><rect width=\"4\" height=\"4\" fill=\"#ff0000\"/></svg>");
+
+            RunCommand(directory, "render", input, "--width", "16", "-o", output);
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != 16 || rendered.Height != 16)
+            {
+                return "The rendered SVG has the wrong size";
+            }
+
+            // The red square fills the top-left quarter; the rest is flattened over white
+            var red = new Rgba32(255, 0, 0, 255);
+            var white = new Rgba32(255, 255, 255, 255);
+            return rendered[2, 2] == red && rendered[13, 13] == white ? null : "The rendered SVG has the wrong pixels";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a self-test whose body reports a failure as a message.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    /// <param name="testName">The name of the test.</param>
+    /// <param name="body">
+    ///     The test body: it receives a fresh temporary directory and returns <see langword="null"/> when the test
+    ///     passed, or a description of the failure. An exception is recorded as a failure too.
+    /// </param>
+    private static void RunSelfTest(
+        Context context,
+        DemaConsulting.TestResults.TestResults testResults,
+        string testName,
+        Func<string, string?> body)
+    {
+        var startTime = DateTime.UtcNow;
+        var test = CreateTestResult(testName);
+
+        try
+        {
+            using var tempDir = new TemporaryDirectory();
+            var failure = body(tempDir.DirectoryPath);
+            if (failure == null)
+            {
+                test.Outcome = DemaConsulting.TestResults.TestOutcome.Passed;
+                context.WriteLine($"✓ {testName} - Passed");
+            }
+            else
+            {
+                test.Outcome = DemaConsulting.TestResults.TestOutcome.Failed;
+                test.ErrorMessage = failure;
+                context.WriteError($"✗ {testName} - Failed: {failure}");
+            }
+        }
+        // Generic catch is justified here as this is a test framework - any exception should be
+        // recorded as a test failure to ensure robust test execution and reporting.
+        catch (Exception ex)
+        {
+            HandleTestException(test, context, testName, ex);
+        }
+
+        FinalizeTestResult(test, startTime, testResults);
+    }
+
+    /// <summary>
+    ///     Runs the tool in-process with the given command and returns what it wrote.
+    /// </summary>
+    /// <param name="directory">A directory for the log file that captures the output.</param>
+    /// <param name="args">The command and its arguments.</param>
+    /// <returns>The text the command wrote to standard output.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the command did not succeed.</exception>
+    private static string RunCommand(string directory, params string[] args)
+    {
+        var logFile = PathHelpers.SafePathCombine(directory, $"{Guid.NewGuid():N}.log");
+        var exitCode = RunProgram(["--silent", "--log", logFile, .. args]);
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException($"'{args[0]}' exited with code {exitCode}");
+        }
+
+        return File.ReadAllText(logFile);
+    }
+
+    /// <summary>
+    ///     The width of the image the self-tests generate.
+    /// </summary>
+    private const int TestImageWidth = 8;
+
+    /// <summary>
+    ///     The height of the image the self-tests generate.
+    /// </summary>
+    private const int TestImageHeight = 6;
+
+    /// <summary>
+    ///     Creates the small opaque test image the self-tests convert: a gradient that differs at every pixel.
+    /// </summary>
+    /// <returns>A new surface.</returns>
+    private static Surface CreateTestSurface()
+    {
+        var surface = new Surface(TestImageWidth, TestImageHeight);
+        for (var y = 0; y < TestImageHeight; y++)
+        {
+            for (var x = 0; x < TestImageWidth; x++)
+            {
+                surface[x, y] = new Rgba32((byte)(x * 30), (byte)(y * 40), (byte)(100 + x + y), 255);
+            }
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Determines whether two surfaces have the same size and the same pixels.
+    /// </summary>
+    /// <param name="a">The first surface.</param>
+    /// <param name="b">The second surface.</param>
+    /// <returns><see langword="true"/> when every pixel is equal.</returns>
+    private static bool SurfacesEqual(Surface a, Surface b)
+    {
+        if (a.Width != b.Width || a.Height != b.Height)
+        {
+            return false;
+        }
+
+        for (var y = 0; y < a.Height; y++)
+        {
+            if (!a.GetRowSpan(y).SequenceEqual(b.GetRowSpan(y)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

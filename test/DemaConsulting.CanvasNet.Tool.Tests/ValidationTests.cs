@@ -57,6 +57,37 @@ public class ValidationTests
     }
 
     /// <summary>
+    ///     Test that Run executes the imaging self-tests and records them in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_ImagingSelfTests_PassAndAreRecorded()
+    {
+        // Arrange: a temporary TRX path and a context that is not silent
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+
+        try
+        {
+            using var context = Context.Create(["--results", resultsFile]);
+
+            // Act: run the self-validation
+            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+            // Assert: each imaging self-test passed and is named in the results file
+            Assert.Equal(0, context.ExitCode);
+            var content = File.ReadAllText(resultsFile);
+            foreach (var name in new[] { "CanvasNetTool_RenderPng", "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg" })
+            {
+                Assert.Contains($"✓ {name} - Passed", stdOut);
+                Assert.Contains(name, content);
+            }
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
+    }
+
+    /// <summary>
     ///     Test that Run succeeds with exit code zero.
     /// </summary>
     [Fact]

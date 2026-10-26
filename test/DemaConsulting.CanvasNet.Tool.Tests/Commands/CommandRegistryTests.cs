@@ -18,9 +18,11 @@ public class CommandRegistryTests
         // Arrange / Act: create the default registry
         var registry = CommandRegistry.CreateDefault();
 
-        // Assert: it exists, the formats command is registered, and every registered command resolves by its own name
+        // Assert: it exists, the shipped commands are registered (render also as convert), and every registered
+        // command resolves by its own name
         Assert.NotNull(registry);
-        Assert.NotNull(registry.Find("formats"));
+        Assert.Equal(["formats", "info", "render"], registry.Commands.Select(c => c.Name));
+        Assert.Same(registry.Find("render"), registry.Find("convert"));
         Assert.All(registry.Commands, command => Assert.Same(command, registry.Find(command.Name)));
     }
 

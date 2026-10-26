@@ -198,4 +198,56 @@ public class CommandsSubsystemTests
         Assert.Contains("Usage: canvasnet formats [--json]", commandHelp);
         Assert.Contains("canvasnet formats --json", commandHelp);
     }
+
+    /// <summary>
+    ///     Test that the default registry runs the info and render commands.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender()
+    {
+        // Arrange: a PNG in a temporary directory
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.jpg");
+
+        // Act: run info, render, and the convert alias through the default registry
+        var (infoExit, infoOut, infoErr) = ToolHost.Invoke("info", input);
+        var (renderExit, renderOut, renderErr) = ToolHost.Invoke("render", input, "-o", output);
+        var (convertExit, convertOut, _) = ToolHost.Invoke("convert", input, "-o", directory.Combine("out.bmp"));
+
+        // Assert: each succeeds with its own output, no banner and nothing on standard error
+        Assert.Equal(0, infoExit);
+        Assert.StartsWith($"{input}: png, 12x8 px", infoOut);
+        Assert.Equal(string.Empty, infoErr);
+        Assert.Equal(0, renderExit);
+        Assert.StartsWith($"wrote {output} (12x8 jpeg,", renderOut);
+        Assert.Equal(string.Empty, renderErr);
+        Assert.Equal(0, convertExit);
+        Assert.StartsWith("wrote ", convertOut);
+    }
+
+    /// <summary>
+    ///     Test that the default registry lists the info and render commands, with the alias, and has help for them.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp()
+    {
+        // Arrange: the registry the tool ships with
+
+        // Act: ask for the top-level help and the help of the commands
+        var (_, topLevel, _) = ToolHost.Invoke("--help");
+        var (_, renderHelp, _) = ToolHost.Invoke("render", "--help");
+        var (_, convertHelp, _) = ToolHost.Invoke("help", "convert");
+        var (_, infoHelp, _) = ToolHost.Invoke("info", "--help");
+
+        // Assert: both commands are listed with their summaries and the alias; their help shows usage and options
+        Assert.Contains("render, convert", topLevel);
+        Assert.Contains("Render or convert an image or drawing", topLevel);
+        Assert.Contains("Show the format, size, and properties", topLevel);
+        Assert.Contains("Usage: canvasnet render <input> -o <output> [options]", renderHelp);
+        Assert.Contains("--no-clobber", renderHelp);
+        Assert.Contains("-o, --output <file>", renderHelp);
+        Assert.Contains("Usage: canvasnet render <input> -o <output> [options]", convertHelp);
+        Assert.Contains("Usage: canvasnet info <input> [--json]", infoHelp);
+    }
 }

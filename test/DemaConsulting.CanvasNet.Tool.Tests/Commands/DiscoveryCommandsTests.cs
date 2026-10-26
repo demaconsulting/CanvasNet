@@ -1,11 +1,13 @@
 // cspell:ignore canvasnet jpeg jpg tif tiff jp2 j2k j2c vsdx pptx
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
 /// <summary>
-///     Unit tests for the DiscoveryCommands class (the formats command).
+///     Unit tests for the DiscoveryCommands class (the formats and info commands).
 /// </summary>
 [Collection("Sequential")]
 public class DiscoveryCommandsTests
@@ -191,6 +193,255 @@ public class DiscoveryCommandsTests
         // Arrange: the command and a context
         using var context = Context.Create([]);
         var command = new DiscoveryCommands.Formats();
+
+        // Act / Assert: each null argument throws
+        Assert.Throws<ArgumentNullException>(() => command.Run(null!, []));
+        Assert.Throws<ArgumentNullException>(() => command.Run(context, null!));
+    }
+
+    /// <summary>
+    ///     Test that the input format table names exactly the source kinds, in the same order, with the extensions the loader detects.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds()
+    {
+        // Arrange: the kinds and the table
+        var kinds = Enum.GetValues<SourceKind>();
+        var rows = DiscoveryCommands.InputFormats;
+
+        // Assert: one row per kind, in order, and the extensions of each row are those that detect that kind
+        Assert.Equal(kinds.Select(k => k.ToFormatName()), rows.Select(r => r.Name));
+        foreach (var (kind, row) in kinds.Zip(rows))
+        {
+            var detected = SourceLoader.ExtensionKinds.Where(e => e.Value == kind).Select(e => e.Key).Order();
+            Assert.Equal(detected, row.Extensions.Order());
+        }
+    }
+
+    /// <summary>
+    ///     Test that the output format table names exactly the output formats, in the same order, with the extensions the writer accepts.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter()
+    {
+        // Arrange: the formats and the table
+        var formats = Enum.GetValues<OutputFormat>();
+        var rows = DiscoveryCommands.OutputFormats;
+
+        // Assert: one row per format, in order; the extensions are those the writer maps; lossy only for JPEG
+        Assert.Equal(formats.Select(f => f.ToFormatName()), rows.Select(r => r.Name));
+        foreach (var (format, row) in formats.Zip(rows))
+        {
+            var accepted = ImageWriter.ExtensionFormats.Where(e => e.Value == format).Select(e => e.Key).Order();
+            Assert.Equal(accepted, row.Extensions.Order());
+            Assert.Equal(format == OutputFormat.Jpeg, row.Lossy);
+        }
+    }
+
+    /// <summary>
+    ///     Test that the quality range in the formats listing is the one the writer enforces.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_FormatTables_QualityRangeMatchesWriter()
+    {
+        // Arrange / Act / Assert: the same constants
+        Assert.Equal(ImageWriter.MinQuality, DiscoveryCommands.Formats.MinQuality);
+        Assert.Equal(ImageWriter.MaxQuality, DiscoveryCommands.Formats.MaxQuality);
+        Assert.Equal(ImageWriter.DefaultQuality, DiscoveryCommands.Formats.DefaultQuality);
+    }
+
+    /// <summary>
+    ///     Runs the info command and captures what it writes.
+    /// </summary>
+    /// <param name="json"><see langword="true"/> to run with the global <c>--json</c> option.</param>
+    /// <param name="args">The command arguments.</param>
+    /// <returns>The captured standard output.</returns>
+    private static string RunInfo(bool json, params string[] args)
+    {
+        using var context = Context.Create(json ? ["--json"] : []);
+        var command = new DiscoveryCommands.Info();
+        var (stdOut, _) = ToolHost.Capture(() => command.Run(context, args));
+        return stdOut;
+    }
+
+    /// <summary>
+    ///     Runs the info command and returns the error it fails with.
+    /// </summary>
+    /// <param name="args">The command arguments.</param>
+    /// <returns>The exception.</returns>
+    private static ToolException RunInfoFailing(params string[] args)
+    {
+        using var context = Context.Create([]);
+        var command = new DiscoveryCommands.Info();
+        return Assert.Throws<ToolException>(() => command.Run(context, args));
+    }
+
+    /// <summary>
+    ///     Test that the info command describes itself.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_Metadata_DescribesCommand()
+    {
+        // Arrange / Act: create the command
+        var command = new DiscoveryCommands.Info();
+
+        // Assert: name, no aliases, no options of its own, and a usage line with examples
+        Assert.Equal("info", command.Name);
+        Assert.Empty(command.Aliases);
+        Assert.Empty(command.Options);
+        Assert.False(string.IsNullOrWhiteSpace(command.Summary));
+        Assert.StartsWith("canvasnet info <input> [--json]", command.Usage);
+        Assert.Contains("Examples:", command.Usage);
+    }
+
+    /// <summary>
+    ///     Test that the default registry offers the info command.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_DefaultRegistry_RegistersInfo()
+    {
+        // Arrange / Act / Assert: the command is registered
+        Assert.IsType<DiscoveryCommands.Info>(CommandRegistry.CreateDefault().Find("info"));
+    }
+
+    /// <summary>
+    ///     Test the one-line text description of a PNG and of an SVG.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_TextOutput_DescribesFile()
+    {
+        // Arrange: a PNG and the SVG fixture
+        using var directory = new TempDirectory();
+        var png = FixtureFactory.WriteSource(directory.Path, "png");
+        var svg = FixtureFactory.FixturePath("shapes.svg");
+
+        // Act
+        var pngText = RunInfo(false, png);
+        var svgText = RunInfo(false, svg);
+
+        // Assert: one line each, with the path, the format, the size, the channels, and the bytes
+        Assert.Matches($@"^{Regex.Escape(png)}: png, 12x8 px, 4 channels with alpha, {new FileInfo(png).Length} bytes\r?\n$", pngText);
+        Assert.Matches($@"^{Regex.Escape(svg)}: svg, 100x80 px \(intrinsic size\), 4 channels with alpha, {new FileInfo(svg).Length} bytes\r?\n$", svgText);
+    }
+
+    /// <summary>
+    ///     Test that the JSON document has the documented keys and exact layout.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_JsonOutput_MatchesGoldenDocument()
+    {
+        // Arrange: the SVG fixture
+        var svg = FixtureFactory.FixturePath("shapes.svg");
+
+        // Act
+        var stdOut = RunInfo(true, svg);
+
+        // Assert: exactly the documented document
+        var expected = "{\"schemaVersion\":1,\"ok\":true,\"command\":\"info\","
+                       + $"\"input\":{{\"path\":{JsonSerializer.Serialize(svg)},\"format\":\"svg\",\"bytes\":{new FileInfo(svg).Length}}},"
+                       + "\"image\":{\"width\":100,\"height\":80,\"channels\":4,\"hasAlpha\":true,\"canDecode\":true,\"frameCount\":1}}";
+        Assert.Equal(expected + Environment.NewLine, stdOut);
+    }
+
+    /// <summary>
+    ///     Test that a JPEG with an EXIF orientation reports it in text and JSON, and one without does not.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_JpegOrientation_IsReportedOnlyWhenPresent()
+    {
+        // Arrange: a JPEG with an orientation, and one without
+        using var directory = new TempDirectory();
+        var plain = FixtureFactory.WriteSource(directory.Path, "jpeg");
+        var camera = directory.Combine("camera.jpg");
+        File.WriteAllBytes(camera, FixtureFactory.InsertExifOrientation(File.ReadAllBytes(plain), 6, true));
+
+        // Act
+        var cameraText = RunInfo(false, camera);
+        var cameraJson = JsonDocument.Parse(RunInfo(true, camera)).RootElement.GetProperty("image");
+        var plainJson = JsonDocument.Parse(RunInfo(true, plain)).RootElement.GetProperty("image");
+
+        // Assert: the orientation is present in both forms for the camera file, absent for the plain one
+        Assert.Contains(", EXIF orientation 6", cameraText);
+        Assert.Equal(6, cameraJson.GetProperty("exifOrientation").GetInt32());
+        Assert.False(plainJson.TryGetProperty("exifOrientation", out _));
+        Assert.Equal(3, plainJson.GetProperty("channels").GetInt32());
+        Assert.False(plainJson.GetProperty("hasAlpha").GetBoolean());
+    }
+
+    /// <summary>
+    ///     Test that every raster kind can be described.
+    /// </summary>
+    /// <param name="key">The kind of source.</param>
+    [Theory]
+    [InlineData("png")]
+    [InlineData("jpeg")]
+    [InlineData("bmp")]
+    [InlineData("tiff")]
+    [InlineData("gif")]
+    [InlineData("jpeg2000")]
+    [InlineData("svg")]
+    public void DiscoveryCommands_Info_EachKind_ReportsFormatAndSize(string key)
+    {
+        // Arrange: a file of the kind
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteSource(directory.Path, key);
+
+        // Act
+        var image = JsonDocument.Parse(RunInfo(true, path)).RootElement;
+
+        // Assert: the format name and a plausible size
+        Assert.Equal(key, image.GetProperty("input").GetProperty("format").GetString());
+        Assert.True(image.GetProperty("image").GetProperty("width").GetInt32() > 0);
+        Assert.True(image.GetProperty("image").GetProperty("canDecode").GetBoolean());
+    }
+
+    /// <summary>
+    ///     Test that a missing, corrupt, or not yet readable input is an expected error.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_BadInput_ThrowsToolException()
+    {
+        // Arrange: a missing file, a truncated PNG, and a PDF
+        using var directory = new TempDirectory();
+        var truncated = FixtureFactory.WriteSource(directory.Path, "png");
+        File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..10]);
+        var pdf = directory.Combine("doc.pdf");
+        File.WriteAllText(pdf, "%PDF-1.4\n");
+
+        // Act / Assert: the codes
+        Assert.Equal(ErrorCodes.InputNotFound, RunInfoFailing(directory.Combine("missing.png")).Code);
+        Assert.Equal(ErrorCodes.CorruptInput, RunInfoFailing(truncated).Code);
+        Assert.Equal(ErrorCodes.UnsupportedFormat, RunInfoFailing(pdf).Code);
+    }
+
+    /// <summary>
+    ///     Test that a missing input, extra inputs, and unknown options are usage errors.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError()
+    {
+        // Arrange / Act
+        var none = RunInfoFailing();
+        var two = RunInfoFailing("a.png", "b.png");
+        var unknown = RunInfoFailing("a.png", "--page", "2");
+
+        // Assert: usage errors
+        Assert.Equal(ErrorCodes.UsageError, none.Code);
+        Assert.Contains("expects one input file", none.Message);
+        Assert.Equal(ErrorCodes.UsageError, two.Code);
+        Assert.Equal(ErrorCodes.UsageError, unknown.Code);
+        Assert.Contains("Unknown option '--page'", unknown.Message);
+    }
+
+    /// <summary>
+    ///     Test that null arguments are rejected.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException()
+    {
+        // Arrange: the command and a context
+        using var context = Context.Create([]);
+        var command = new DiscoveryCommands.Info();
 
         // Act / Assert: each null argument throws
         Assert.Throws<ArgumentNullException>(() => command.Run(null!, []));

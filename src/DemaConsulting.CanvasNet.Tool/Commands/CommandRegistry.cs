@@ -61,6 +61,8 @@ internal sealed class CommandRegistry
     {
         var registry = new CommandRegistry();
         registry.Register(new DiscoveryCommands.Formats());
+        registry.Register(new DiscoveryCommands.Info());
+        registry.Register(new RenderCommand());
         return registry;
     }
 
