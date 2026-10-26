@@ -104,6 +104,7 @@ includes:
   - docs/reqstream/canvas-net-tool/commands/command-registry.yaml
   - docs/reqstream/canvas-net-tool/commands/discovery-commands.yaml
   - docs/reqstream/canvas-net-tool/commands/render-command.yaml
+  - docs/reqstream/canvas-net-tool/commands/compare-command.yaml
   - docs/reqstream/canvas-net-tool/imaging.yaml
   - docs/reqstream/canvas-net-tool/imaging/source-loader.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-writer.yaml

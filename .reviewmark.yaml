@@ -2055,6 +2055,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommand*Tests.cs"  # unit tests
 
+  # CanvasNetTool-Commands-CompareCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-CompareCommand
+    title: Review that CanvasNetTool Commands CompareCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/compare-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/compare-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/compare-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/compare-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/CompareCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CompareCommand*Tests.cs"  # unit tests
+
   # CanvasNetTool-Imaging Review (one per subsystem)
   - id: CanvasNetTool-Imaging
     title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct

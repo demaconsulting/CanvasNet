@@ -452,7 +452,7 @@ internal sealed partial class RenderCommand : ICommand
     /// <param name="writer">The writer.</param>
     /// <param name="name">The parameter name.</param>
     /// <param name="value">The value: a string, an integer, a number, a flag, or a list of strings.</param>
-    private static void WriteField(Utf8JsonWriter writer, string name, object value)
+    internal static void WriteField(Utf8JsonWriter writer, string name, object value)
     {
         switch (value)
         {

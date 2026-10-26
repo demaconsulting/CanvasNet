@@ -69,7 +69,15 @@ any case; another name is a `usage-error` whose hint lists the views), `--azimut
 normalize, so that -90 is the bottom view), `--projection` (`ortho` or `orthographic`, or `perspective`; another word
 is a `usage-error`), every `--define` with `ArgumentReader.ParseDefines` (numbers, `true` and `false`, and text; a
 later definition of a name wins), `--time` as a number from -1e9 to 1e9, `--max-triangles` as a whole number from 1
-up to 2,147,483,647, and `--default-color` with `ParseColor`. The result is a `ScadViewOptions`.
+up to 2,147,483,647, and `--default-color` with `ParseColor`. The result is a `ScadViewOptions`. `ReadScadOptions` and
+the table `ScadOptionNames` are `internal` so that `CompareCommand` and `MontageCommand` read the model options with the
+same code; the view name is checked by the `internal` method `ParseScadView`, which they use for `--a-view` and
+`--b-view` too.
+
+**SpecsFor(names)**: `internal`; returns the declarations of `OptionTable` with the given long names, in that order
+(`ArgumentException` for a name the table does not declare), so that another command accepts an option with the same
+grammar and the same help text. `CompareCommand` and `MontageCommand` build their option tables from it. `WriteField`,
+which writes one parameter of an operation to a JSON object, is `internal` for `CompareCommand`.
 
 **Run(context, args)**: parses the arguments, reads the settings, then reports every mistake about the input, the
 pages, and the outputs before decoding anything: `SourceLoader.Probe` (missing, unreadable, unsupported, or corrupt
@@ -169,3 +177,5 @@ every `ToolException`.
 
 - **CommandRegistry** - `CreateDefault` registers the command under `render` and `convert`, and one instance for each
   verb (`crop`, `resize`, `rotate`, `flip`, and `pad`).
+- **CompareCommand** and **MontageCommand** - the option declarations (`SpecsFor`), `ReadScadOptions`,
+  `ScadOptionNames`, `ParseScadView`, and `WriteField`.

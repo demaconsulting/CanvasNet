@@ -203,15 +203,7 @@ internal sealed partial class RenderCommand
             return null;
         }
 
-        var view = SourceLoader.DefaultScadView;
-        if (reader.Get("--view") is { } viewText)
-        {
-            view = SourceLoader.ScadViews.FirstOrDefault(v => string.Equals(v.Name, viewText, StringComparison.OrdinalIgnoreCase))?.Name
-                   ?? throw new ToolException(
-                       ErrorCodes.UsageError,
-                       $"'{viewText}' is not a view.",
-                       $"The views are: {string.Join(", ", SourceLoader.ScadViews.Select(v => v.Name))}.");
-        }
+        var view = reader.Get("--view") is { } viewText ? ParseScadView(viewText) : SourceLoader.DefaultScadView;
 
         var perspective = false;
         if (reader.Get("--projection") is { } projectionText)
@@ -238,6 +230,23 @@ internal sealed partial class RenderCommand
             MaxTriangles = reader.GetInt("--max-triangles", 1, int.MaxValue),
             DefaultColor = reader.Get("--default-color") is { } colorText ? ArgumentReader.ParseColor(colorText, "--default-color") : null
         };
+    }
+
+    /// <summary>
+    ///     Finds the name of a viewpoint of an OpenSCAD model.
+    /// </summary>
+    /// <param name="text">The name as typed; compared without regard to case.</param>
+    /// <returns>The lower-case name of the view.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is not one of the views.</exception>
+    internal static string ParseScadView(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return SourceLoader.ScadViews.FirstOrDefault(v => string.Equals(v.Name, text, StringComparison.OrdinalIgnoreCase))?.Name
+               ?? throw new ToolException(
+                   ErrorCodes.UsageError,
+                   $"'{text}' is not a view.",
+                   $"The views are: {string.Join(", ", SourceLoader.ScadViews.Select(v => v.Name))}.");
     }
 
     /// <summary>

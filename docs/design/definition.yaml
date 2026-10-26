@@ -52,6 +52,7 @@ input-files:
   - docs/design/canvas-net-tool/commands/command-registry.md
   - docs/design/canvas-net-tool/commands/discovery-commands.md
   - docs/design/canvas-net-tool/commands/render-command.md
+  - docs/design/canvas-net-tool/commands/compare-command.md
   - docs/design/canvas-net-tool/imaging.md
   - docs/design/canvas-net-tool/imaging/source-loader.md
   - docs/design/canvas-net-tool/imaging/image-writer.md
