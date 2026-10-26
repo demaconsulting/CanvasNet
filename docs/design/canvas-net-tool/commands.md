@@ -1,0 +1,40 @@
+## Commands
+
+![Commands Structure](CommandsView.svg)
+
+### Overview
+
+The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder
+`src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
+It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
+table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because the individual
+command units are added to it as the commands are implemented, behind the same contract and registry. As of
+this release it contains one unit: `CommandRegistry`, which also documents the supporting types `ICommand` and
+`OptionSpec`.
+
+### Interfaces
+
+**ICommand** (consumed): the contract every command implements - `Name`, `Aliases`, `Summary`, `Options`,
+`Usage`, and `Run(Context, IReadOnlyList<string>)`. A command writes its results through the `Context`, reports
+expected failures by throwing `ToolException`, and never writes to the console directly.
+
+**CommandRegistry.Run(Context)** (provided to `Program`): runs the command selected by `Context.Command` with
+`Context.CommandArguments`; the built-in `help` command is handled here. Throws `ToolException` (code
+`usage-error`) when the command is missing or unknown, and re-throws the command's own `ToolException` after
+recording the command name on it.
+
+**CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
+
+**CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
+ships with.
+
+### Design
+
+`Program.Run` hands the context to the registry; the registry resolves the name (ignoring case, accepting
+aliases) to an `ICommand` and calls `Run`. A command parses its own arguments - the `Context` has already
+removed the global options - so the global parser never needs to know any command's options, and a command can
+be added without touching `Context`. Help is generated from the registered commands: the command list from each
+command's name, aliases, and summary, and a command's help from its usage text and its `OptionSpec` table, so
+the help cannot drift from the options a command declares. The registry is an instance rather than static state
+so that tests can inject a purpose-made command - one that fails, or throws an unexpected exception - and prove
+the error policy of `Program` end to end without depending on a shipped command.

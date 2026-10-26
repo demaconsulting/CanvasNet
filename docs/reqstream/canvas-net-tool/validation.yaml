@@ -1,0 +1,57 @@
+---
+# Software Unit Requirements for the Validation Class
+#
+# The Validation class provides the self-validation framework, running tests that demonstrate the
+# tool is functioning correctly in the deployment environment. It supports writing results to TRX
+# (MSTest) or JUnit XML format.
+
+sections:
+  - title: Validation Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Validation-Qualification
+        title: >-
+          The Validation class shall run the self-validation tests, name them as the platform
+          evidence tests, and print a summary.
+        justification: |
+          Provides a built-in mechanism to verify the tool is functioning correctly in the
+          deployment environment. The names of the version and help self-tests are contractual:
+          the platform requirements are proven by the results the installed tool writes on each
+          platform and runtime.
+        children:
+          - CanvasNetTool-PathHelpers-SafeCombine
+        tests:
+          - Validation_Run_NotSilent_PrintsSummary
+          - Validation_Run_WithSilentContext_ExitCodeIsZero
+          - Validation_Run_NullContext_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Validation-Header
+        title: >-
+          The Validation class shall print a header table of tool and environment information at
+          the heading depth requested.
+        justification: |
+          Qualification evidence must identify the tool version and the environment it ran in, and
+          must embed at the right level in a larger report.
+        tests:
+          - Validation_Run_WithDepth_UsesHeadingDepth
+
+      - id: CanvasNetTool-Validation-ResultsOutput
+        title: >-
+          The Validation class shall write the results to a TRX file when the results path ends
+          with .trx and to a JUnit XML file when it ends with .xml.
+        justification: |
+          TRX format is compatible with MSTest and ReqStream requirements traceability tools; JUnit
+          XML is compatible with many CI tools (Jenkins, GitHub Actions, GitLab CI).
+        tests:
+          - Validation_Run_WithTrxResultsFile_WritesTrxFile
+          - Validation_Run_WithXmlResultsFile_WritesXmlFile
+
+      - id: CanvasNetTool-Validation-InvalidExtension
+        title: >-
+          The Validation class shall report an error, set exit code 1, and write no file when the
+          results file path has an unsupported extension.
+        justification: |
+          Provides a clear failure signal when an unrecognized results file extension is supplied,
+          preventing silent evidence loss and enabling CI/CD pipelines to surface output
+          configuration errors automatically.
+        tests:
+          - Validation_Run_WithUnsupportedResultsFormat_DoesNotWriteFile

@@ -1,0 +1,45 @@
+---
+# Commands Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetTool Commands subsystem
+# - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
+#   table, resolution, dispatch, and help rendering); the individual command units are added to
+#   the subsystem as the commands are implemented
+# - Subsystem requirements describe the externally visible command-dispatch behavior
+
+sections:
+  - title: Commands Subsystem Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-Dispatch
+        title: >-
+          The Commands subsystem shall run the registered command selected by name or alias with
+          its arguments, and shall report an unknown command as a usage error that suggests the
+          closest command name.
+        justification: |
+          A command-line interface with subcommands needs a single place that resolves what the
+          user typed to a command, runs it, and gives actionable feedback when the name is wrong.
+        children:
+          - CanvasNetTool-Commands-CommandRegistry-Registration
+          - CanvasNetTool-Commands-CommandRegistry-Dispatch
+          - CanvasNetTool-Commands-CommandRegistry-UnknownCommand
+          - CanvasNetTool-Commands-CommandRegistry-ErrorContext
+        tests:
+          - CommandsSubsystem_Dispatch_RegisteredCommand_RunsWithItsArguments
+          - CommandsSubsystem_Dispatch_GlobalOptionsMixedIn_AreNotPassedToCommand
+          - CommandsSubsystem_Dispatch_CommandThrowsToolException_RecordsCommandName
+          - CommandsSubsystem_UnknownCommand_Mistyped_ReportsUsageErrorWithSuggestion
+
+      - id: CanvasNetTool-Commands-Help
+        title: >-
+          The Commands subsystem shall render help that lists the commands and the global
+          options, and help for each command listing its usage, summary, and options.
+        justification: |
+          The tool must be learnable from its own output, by people and by AI agents; the help is
+          generated from the registered commands so it cannot drift from what the commands accept.
+        children:
+          - CanvasNetTool-Commands-CommandRegistry-Help
+        tests:
+          - CommandsSubsystem_Help_TopLevel_ListsRegisteredCommands
+          - CommandsSubsystem_Help_CommandHelp_ShownByFlagAndByHelpCommand
+          - CommandsSubsystem_Help_UnknownCommand_ReportsUsageError

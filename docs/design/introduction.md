@@ -1,7 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
-<!-- cspell:ignore multmatrix Minkowski -->
+<!-- cspell:ignore multmatrix Minkowski canvasnet -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -220,6 +220,16 @@ software items, specifically:
   (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
   public API, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
+- **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
+  tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, and transform
+  images and documents with the CanvasNet libraries and offers a small, stable error contract (exit codes 0
+  and 1, concise error text, stable error codes). It follows the DEMA Consulting tool template and contains four
+  direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
+  (command line, command capture, output channels), `Validation` (the `--validate` self-test and results
+  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract and
+  the `CommandRegistry` unit; the individual command units are added as the commands are implemented). It uses
+  the other systems of this repository through private project references, so that their assemblies are bundled
+  into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
 
@@ -232,6 +242,8 @@ The following OTS items are also covered:
 - **SonarMark** — SonarCloud quality report tool
 - **SysML2Tools** — architecture model lint and diagram rendering tool
 - **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
+- **DemaConsulting.TestResults** — self-validation result recording and TRX/JUnit serialization library of the
+  tool package
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework
@@ -340,6 +352,17 @@ subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGe
 `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units. It uses the `CanvasNet` system (`Surface`,
 `Rgba32`) and `CanvasNetRender3D` (the scene model, tessellation, and renderer) through their public API. See
 the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+
+A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
+its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
+Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
+direct units `Program`, `Context`, `Validation`, and `PathHelpers` (namespace
+`DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the self-validation,
+and the safe path helper, and its `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds
+the `CommandRegistry` unit and, as they are added, the command units. It uses the `CanvasNet`, `CanvasNetSvg`,
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
+their public API and bundles their assemblies in its package. No library system references the tool. See the
+Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
 
 ## Folder Layout
 
@@ -821,6 +844,24 @@ src/DemaConsulting.CanvasNet.Scad/
 tessellation, rendering) through their public API from the `ScadGeometry` subsystem and the `BuildScene` and
 `Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+
+The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
+`DemaConsulting.CanvasNet.Tool` dotnet tool package). The four direct units occupy the project root, and the
+`Commands` subsystem occupies the `Commands/` sub-folder, whose name equals its sub-namespace (see
+_CanvasNetTool System Design_, `canvas-net-tool.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Tool/
+├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net8.0/net9.0/net10.0; packable as a dotnet tool)
+├── Program.cs                     — Program: entry point, dispatch, and the error policy
+├── ToolException.cs               — Program: ToolException and the stable ErrorCodes
+├── Context.cs                     — Context: global options, command capture, and output channels
+├── Validation.cs                  — Validation: --validate self-test and results output
+├── PathHelpers.cs                 — PathHelpers: safe path combination
+└── Commands/                      — Commands subsystem
+    ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
+    └── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
+```
 
 ## Document Conventions
 

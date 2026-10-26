@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -46,6 +46,7 @@ load/crop/resize/save workflows.
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
   booleans, extrusions, `hull`, `minkowski`, `-D` variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
+- 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -78,6 +79,24 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
+| `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
+
+## Command-Line Tool
+
+`DemaConsulting.CanvasNet.Tool` is a [.NET tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) that
+exposes CanvasNet from the command line, for people, scripts, and AI agents. It bundles the CanvasNet libraries,
+so installing it needs no other CanvasNet package:
+
+```bash
+dotnet tool install --global DemaConsulting.CanvasNet.Tool
+canvasnet --help
+```
+
+The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
+message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
+a command's standard output contains only the command's own output, so it can be piped and parsed. Use
+`canvasnet --version` to print the version and `canvasnet --validate` to run the built-in self-validation, which
+can write its results as TRX or JUnit XML with `--results`.
 
 ## Usage
 

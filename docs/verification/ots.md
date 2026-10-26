@@ -14,10 +14,11 @@ detailed approach and named test scenarios.
 
 ## OTS Items
 
-CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools and the one
-runtime library dependency shipped as a transitive dependency of the compiled NuGet package;
-verification approach differs slightly for the runtime dependency since it has no CLI to self-
-validate (see its individual verification document for detail).
+CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools and the
+runtime library dependencies shipped in the compiled NuGet packages (`System.Numerics.Tensors` with the core
+package and `DemaConsulting.TestResults` with the tool package);
+verification approach differs slightly for the runtime dependencies since they have no CLI to self-
+validate (see their individual verification documents for detail).
 
 ### Build-Time and Quality-Pipeline Tools
 
@@ -37,6 +38,7 @@ validate (see its individual verification document for detail).
 
 ### Runtime OTS Dependency
 
-| OTS Item                | Verification Approach                                                                      |
-|-------------------------|--------------------------------------------------------------------------------------------|
-| System.Numerics.Tensors | Indirect evidence via `Surface` unit tests exercising every `TensorPrimitives` method used |
+| OTS Item                   | Verification Approach                                                                |
+|----------------------------|--------------------------------------------------------------------------------------|
+| System.Numerics.Tensors    | Indirect evidence via `Surface` unit tests of every `TensorPrimitives` method used   |
+| DemaConsulting.TestResults | Indirect evidence via tests that run the self-validation and check the results files |

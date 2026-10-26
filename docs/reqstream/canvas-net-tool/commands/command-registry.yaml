@@ -1,0 +1,83 @@
+---
+# Software Unit Requirements for the CommandRegistry Class
+#
+# The CommandRegistry class holds the table of commands the tool offers. It resolves a typed name
+# or alias to a command, dispatches to it, and renders help. The ICommand and OptionSpec supporting
+# types are documented with this unit.
+
+sections:
+  - title: CommandRegistry Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-CommandRegistry-Registration
+        title: >-
+          The CommandRegistry class shall register commands in order, and shall reject a command
+          whose name or alias is already registered, repeats one of its own names, or is the
+          reserved name help.
+        justification: |
+          Command names and aliases must resolve unambiguously, and help is reserved for the
+          built-in help command.
+        tests:
+          - CommandRegistry_CreateDefault_ReturnsRegistry
+          - CommandRegistry_Register_TwoCommands_KeepsRegistrationOrder
+          - CommandRegistry_Register_DuplicateName_ThrowsInvalidOperationException
+          - CommandRegistry_Register_DuplicateAlias_ThrowsInvalidOperationException
+          - CommandRegistry_Register_AliasRepeatsOwnName_ThrowsInvalidOperationException
+          - CommandRegistry_Register_ReservedHelpName_ThrowsInvalidOperationException
+          - CommandRegistry_Register_NullCommand_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-CommandRegistry-Dispatch
+        title: >-
+          The CommandRegistry class shall find a command by name or alias, ignoring case, and
+          run the command selected on the command line with the command arguments.
+        justification: |
+          Users type command names in any case and may use an alias; the selected command must
+          receive exactly the arguments that belong to it.
+        tests:
+          - CommandRegistry_Find_NameOrAlias_ReturnsCommand
+          - CommandRegistry_Find_UnknownName_ReturnsNull
+          - CommandRegistry_Run_RegisteredCommand_RunsCommandWithArguments
+          - CommandRegistry_Run_NoCommand_ThrowsUsageError
+          - CommandRegistry_Run_NullContext_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-CommandRegistry-UnknownCommand
+        title: >-
+          The CommandRegistry class shall report an unknown command as a usage-error
+          ToolException whose hint suggests the closest command name or alias within an edit
+          distance of two, when there is one.
+        justification: |
+          A mistyped command is the most common usage error; a suggestion lets users and agents
+          correct it without reading the help.
+        tests:
+          - CommandRegistry_Run_UnknownCommandNearAName_SuggestsClosestName
+          - CommandRegistry_Run_UnknownCommandNearAnAlias_SuggestsTheAlias
+          - CommandRegistry_Run_UnknownCommandFarFromAll_HasNoSuggestion
+
+      - id: CanvasNetTool-Commands-CommandRegistry-ErrorContext
+        title: >-
+          The CommandRegistry class shall record the command name on a ToolException that
+          escapes a command without one, and shall let any other exception propagate unchanged.
+        justification: |
+          The error report names the failing command without every command having to know its own
+          name, and an unexpected exception (a defect) must reach the entry point untouched so that
+          it is re-thrown.
+        tests:
+          - CommandRegistry_Run_ToolExceptionWithoutCommand_FillsCommandName
+          - CommandRegistry_Run_ToolExceptionWithCommand_KeepsCommandName
+          - CommandRegistry_Run_UnexpectedException_PropagatesUnchanged
+
+      - id: CanvasNetTool-Commands-CommandRegistry-Help
+        title: >-
+          The CommandRegistry class shall render top-level help (usage, commands with aliases and
+          summaries, and the global options), per-command help (usage, summary, the command's
+          options, and the global options), and run the built-in help command.
+        justification: |
+          Generating help from the registered commands and their option tables keeps the help
+          consistent with the commands.
+        tests:
+          - CommandRegistry_Run_HelpCommandWithName_PrintsCommandHelp
+          - CommandRegistry_Run_HelpCommandWithoutName_PrintsTopLevelHelp
+          - CommandRegistry_RenderHelp_NoCommand_ListsCommandsAndGlobalOptions
+          - CommandRegistry_RenderHelp_EmptyRegistry_OmitsCommandSection
+          - CommandRegistry_RenderHelp_Command_ShowsUsageSummaryAndOptions
+          - CommandRegistry_RenderHelp_HelpName_ReturnsTopLevelHelp
+          - CommandRegistry_RenderHelp_UnknownCommand_ThrowsUsageError

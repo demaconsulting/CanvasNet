@@ -1,0 +1,108 @@
+---
+# Software Unit Requirements for the Program Class
+#
+# The Program unit is the entry point and top-level dispatcher of the tool. It also owns the
+# tool's error-handling policy (including the ToolException supporting type, which is documented
+# with this unit): expected failures become a concise message and exit code 1, unexpected
+# exceptions are reported and re-thrown.
+
+sections:
+  - title: Program Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Program-Version
+        title: The Program class shall support -v and --version flags to display only the version string.
+        justification: |
+          Users and scripts need to identify the version of the tool they are using for
+          troubleshooting and compatibility verification; the output must be the bare version so
+          that it can be captured.
+        tests:
+          - Program_Run_WithVersionFlag_DisplaysVersionOnly
+          - Program_Run_WithShortVersionFlag_DisplaysVersion
+          - Program_Version_ReturnsNonEmptyString
+
+      - id: CanvasNetTool-Program-Help
+        title: >-
+          The Program class shall support -?, -h, and --help flags to display the top-level help,
+          or the help of the command when one is named.
+        justification: |
+          Users need access to command-line usage documentation without requiring external
+          resources, for the tool as a whole and for each command.
+        tests:
+          - Program_Run_WithHelpFlag_DisplaysUsageInformation
+          - Program_Run_WithShortHelpFlag_DisplaysUsage
+          - Program_Run_WithQuestionMarkFlag_DisplaysUsage
+          - Program_Run_WithCommandAndHelpFlag_DisplaysCommandHelp
+
+      - id: CanvasNetTool-Program-Validate
+        title: The Program class shall support --validate flag to invoke the self-validation framework.
+        justification: |
+          Provides a built-in mechanism to verify the tool is functioning correctly in the
+          deployment environment.
+        tests:
+          - Program_Run_WithValidateFlag_RunsValidation
+
+      - id: CanvasNetTool-Program-Dispatch
+        title: >-
+          The Program class shall run the command named on the command line through the command
+          registry, after the version, help, and validate actions.
+        justification: |
+          Dispatch has a fixed priority so that an invocation has exactly one effect: the version
+          query wins over help, help over self-validation, and self-validation over running a
+          command.
+        tests:
+          - Program_Run_WithCommand_DispatchesToRegisteredCommand
+
+      - id: CanvasNetTool-Program-DefaultBehavior
+        title: >-
+          The Program class shall display the banner and a usage hint, and succeed, when the
+          command line contains no command and no action flag.
+        justification: |
+          An invocation without arguments must never be silently empty; the banner identifies the
+          tool and the hint points at the help.
+        tests:
+          - Program_Run_NoArguments_DisplaysBannerAndUsageHint
+
+      - id: CanvasNetTool-Program-Banner
+        title: >-
+          The Program class shall print the banner only for help, self-validation, and an empty
+          command line, never before or after the output of a command.
+        justification: |
+          Scripts and AI agents parse the standard output of commands; a banner would corrupt it.
+        tests:
+          - Program_Run_WithCommand_DoesNotPrintBanner
+          - Program_Run_WithHelpFlag_DisplaysUsageInformation
+
+      - id: CanvasNetTool-Program-ExitCode
+        title: The Program class shall return exit code 0 on success and exit code 1 on any expected failure.
+        justification: |
+          Callers (scripts, CI/CD pipelines, AI agents) must be able to detect failure conditions
+          programmatically via the process exit code; a two-valued code keeps the contract simple.
+        tests:
+          - Program_Main_WithInvalidArgs_ReturnsNonZeroExitCode
+          - Program_Execute_SuccessfulCommand_ReturnsZero
+          - Program_Execute_UnknownCommand_ReturnsOneWithUsageError
+
+      - id: CanvasNetTool-Program-ExpectedErrors
+        title: >-
+          The Program class shall report an ArgumentException, an InvalidOperationException, or a
+          ToolException on standard error as a concise message (with the stable error code and the
+          hint for a ToolException), without a stack trace.
+        justification: |
+          These exception types signal expected, user-correctable failures. A concise message with
+          a stable error code and an optional hint lets users and agents fix the problem and lets
+          scripts branch on the failure kind.
+        tests:
+          - Program_Execute_ToolException_ReportsCodeMessageAndHint
+          - Program_Execute_ToolExceptionWithoutHint_ReportsSingleLine
+          - Program_Execute_InvalidOperationException_ReportsMessageOnly
+          - Program_Execute_ArgumentException_ReportsMessageOnly
+
+      - id: CanvasNetTool-Program-UnexpectedRethrow
+        title: >-
+          The Program class shall write any other exception to standard error as an unexpected
+          error and then re-throw it.
+        justification: |
+          An unexpected exception is a defect; re-throwing lets the runtime record it in event logs
+          and crash dumps, following the DEMA Consulting tool template.
+        tests:
+          - Program_Execute_UnexpectedException_ReportsAndRethrows
