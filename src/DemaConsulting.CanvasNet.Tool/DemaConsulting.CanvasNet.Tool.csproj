@@ -1,0 +1,103 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet Tool Package Configuration -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>canvasnet</ToolCommandName>
+    <PackageId>DemaConsulting.CanvasNet.Tool</PackageId>
+    <Version>0.0.0</Version>
+    <Authors>DEMA Consulting</Authors>
+    <Company>DEMA Consulting</Company>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, and OpenSCAD models) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>Icon.png</PackageIcon>
+    <PackageTags>canvas;dotnet-tool;cli;image;rendering;agent</PackageTags>
+    <Copyright>Copyright DEMA Consulting</Copyright>
+    <Title>CanvasNet Tool</Title>
+    <Product>DemaConsulting.CanvasNet.Tool</Product>
+
+    <!-- Symbol Package Configuration -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Code Quality Configuration -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- SBOM Configuration -->
+    <GenerateSBOM>true</GenerateSBOM>
+    <SBOMPackageName>$(PackageId)</SBOMPackageName>
+    <SBOMPackageVersion>$(Version)</SBOMPackageVersion>
+    <SBOMPackageSupplier>Organization: $(Company)</SBOMPackageSupplier>
+  </PropertyGroup>
+
+  <!-- Runtime Dependencies -->
+  <ItemGroup>
+    <!-- DemaConsulting.TestResults also contains the DemaConsulting.TestResults.IO namespace
+         (TrxSerializer and JUnitSerializer) used to write the self-validation results file. -->
+    <PackageReference Include="DemaConsulting.TestResults" Version="1.10.0" />
+  </ItemGroup>
+
+  <!-- Build Tool Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.13" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.402" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Code Analysis Dependencies -->
+  <ItemGroup>
+    <!-- Analyzer packages use child-element form to configure both PrivateAssets and IncludeAssets:
+         - PrivateAssets="all" prevents these build-time analyzers from becoming transitive dependencies
+           in packages that consume this tool.
+         - IncludeAssets lists all asset types (including 'analyzers' and 'buildtransitive') to ensure
+           Roslyn analyzers and MSBuild targets are fully activated during the build. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.402">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.35.0.4138">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Project References
+       The sibling CanvasNet libraries are bundled into the tool package rather than declared as
+       NuGet dependencies: PrivateAssets="all" keeps them out of the generated nuspec, so a tool
+       install never needs the (possibly not yet published) sibling packages. The integration-test
+       job in build.yaml guards this property of the package. -->
+  <ItemGroup>
+    <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Svg\DemaConsulting.CanvasNet.Svg.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Pdf\DemaConsulting.CanvasNet.Pdf.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Pptx\DemaConsulting.CanvasNet.Pptx.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Tool.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
