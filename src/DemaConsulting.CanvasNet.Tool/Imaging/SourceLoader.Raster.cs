@@ -65,8 +65,12 @@ internal static partial class SourceLoader
 
             if (surface.Width != width || surface.Height != height)
             {
-                surface = Replace(surface, surface.Resize(width, height));
-                operations.Add(Operation("resize", ("width", width), ("height", height)));
+                surface = Replace(surface, surface.Resize(width, height, options.Filter));
+
+                // The filter is only reported when one was chosen, so the common result keeps its short form
+                operations.Add(options.Filter == ResamplingMode.Auto
+                    ? Operation("resize", ("width", width), ("height", height))
+                    : Operation("resize", ("width", width), ("height", height), ("filter", ImagePipeline.FilterName(options.Filter))));
             }
 
             // A raster source keeps its transparency unless a background color was asked for

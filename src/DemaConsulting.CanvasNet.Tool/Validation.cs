@@ -50,8 +50,8 @@ internal static class Validation
         RunRenderSvgTest(context, testResults);
         RunPdfMinimalTest(context, testResults);
         RunRenderScadTest(context, testResults);
-
-        // Calculate totals
+        RunCropResizeTest(context, testResults);
+        RunRotateFlipPadTest(context, testResults);
         var totalTests = testResults.Results.Count;
         var passedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Passed);
         var failedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Failed);
@@ -486,6 +486,112 @@ internal static class Validation
             RunCommand(directory, "render", input, "--view", "front", "--size", "40x40", "-D", "w=40", "-o", wide);
             using var widened = PngCodec.Load(wide);
             return widened[20, 20] != white && widened[20, 6] == white ? null : "The variable did not change the rendered model";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that crops and resizes a generated PNG with the verb commands and with the ordered pipeline of
+    ///     <c>render</c>, and checks the sizes, the pixels, and that a verb equals its <c>render</c> equivalent.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunCropResizeTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_CropResize", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.png");
+            using var original = CreateTestSurface();
+            PngCodec.Save(original, input);
+
+            // The crop verb cuts out the 4x3 rectangle at 2,1 and writes exactly what render --crop writes
+            var cropped = PathHelpers.SafePathCombine(directory, "cropped.png");
+            var viaRender = PathHelpers.SafePathCombine(directory, "via-render.png");
+            RunCommand(directory, "crop", input, "2,1,4,3", "-o", cropped);
+            RunCommand(directory, "render", input, "--crop", "2,1,4,3", "-o", viaRender);
+            using (var part = PngCodec.Load(cropped))
+            {
+                if (part.Width != 4 || part.Height != 3 || part[0, 0] != original[2, 1] || part[3, 2] != original[5, 3])
+                {
+                    return "The cropped image has the wrong size or pixels";
+                }
+            }
+
+            if (!File.ReadAllBytes(cropped).AsSpan().SequenceEqual(File.ReadAllBytes(viaRender)))
+            {
+                return "The crop command and render --crop wrote different files";
+            }
+
+            // The resize verb gives the exact size
+            var resized = PathHelpers.SafePathCombine(directory, "resized.png");
+            RunCommand(directory, "resize", input, "4x3", "-o", resized);
+            using (var small = PngCodec.Load(resized))
+            {
+                if (small.Width != 4 || small.Height != 3)
+                {
+                    return "The resized image has the wrong size";
+                }
+            }
+
+            // A chain is applied in the order written: crop, then resize, and both are listed in that order
+            var chained = PathHelpers.SafePathCombine(directory, "chained.png");
+            var json = RunCommand(directory, "render", input, "--crop", "2,1,4,3", "--resize", "8x6", "-o", chained, "--json");
+            using var document = JsonDocument.Parse(json);
+            var operations = document.RootElement.GetProperty("operations").EnumerateArray().Select(o => o.GetProperty("op").GetString());
+            using var result = PngCodec.Load(chained);
+            return operations.SequenceEqual(["crop", "resize"]) && result.Width == 8 && result.Height == 6
+                ? null
+                : "The chained crop and resize did not apply in order";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that rotates, flips, and pads a generated PNG with the verb commands and checks the pixels.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRotateFlipPadTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RotateFlipPad", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.png");
+            using var original = CreateTestSurface();
+            PngCodec.Save(original, input);
+            var (w, h) = (original.Width, original.Height);
+
+            // Rotating by 90 degrees clockwise turns the top row into the right column and swaps the size
+            var rotatedPath = PathHelpers.SafePathCombine(directory, "rotated.png");
+            RunCommand(directory, "rotate", input, "90", "-o", rotatedPath);
+            using (var rotated = PngCodec.Load(rotatedPath))
+            {
+                if (rotated.Width != h || rotated.Height != w || rotated[h - 1, 0] != original[0, 0] || rotated[0, 0] != original[0, h - 1])
+                {
+                    return "The rotated image has the wrong size or pixels";
+                }
+            }
+
+            // Flipping horizontally mirrors every row; vertically, every column
+            var mirroredPath = PathHelpers.SafePathCombine(directory, "mirrored.png");
+            var upsidePath = PathHelpers.SafePathCombine(directory, "upside.png");
+            RunCommand(directory, "flip", input, "h", "-o", mirroredPath);
+            RunCommand(directory, "flip", input, "v", "-o", upsidePath);
+            using (var mirrored = PngCodec.Load(mirroredPath))
+            using (var upside = PngCodec.Load(upsidePath))
+            {
+                if (mirrored[0, 0] != original[w - 1, 0] || upside[0, 0] != original[0, h - 1])
+                {
+                    return "The flipped images have the wrong pixels";
+                }
+            }
+
+            // A border of 2, 1, 0, 3 pixels in red: the image sits at 2,1 and the border has the color
+            var paddedPath = PathHelpers.SafePathCombine(directory, "padded.png");
+            RunCommand(directory, "pad", input, "2,1,0,3", "--pad-color", "#ff0000", "-o", paddedPath);
+            using var padded = PngCodec.Load(paddedPath);
+            var red = new Rgba32(255, 0, 0, 255);
+            return padded.Width == w + 2 && padded.Height == h + 4 && padded[0, 0] == red && padded[w + 1, h + 3] == red
+                   && padded[2, 1] == original[0, 0]
+                ? null
+                : "The padded image has the wrong size or pixels";
         });
     }
 

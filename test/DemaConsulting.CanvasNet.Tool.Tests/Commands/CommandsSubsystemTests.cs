@@ -250,4 +250,37 @@ public class CommandsSubsystemTests
         Assert.Contains("Usage: canvasnet render <input> -o <output> [options]", convertHelp);
         Assert.Contains("Usage: canvasnet info <input> [--page N | --all-pages] [--json]", infoHelp);
     }
+
+    /// <summary>
+    ///     Test that the default registry runs the transform verbs and lists them in the help.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_TransformVerbs_DefaultRegistry_RunAndAreListedInHelp()
+    {
+        // Arrange: a PNG in a temporary directory
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+
+        // Act: run each verb through the default registry, and ask for the help
+        var crop = ToolHost.Invoke("crop", input, "0,0,6,4", "-o", directory.Combine("crop.png"));
+        var resize = ToolHost.Invoke("resize", input, "6x4", "-o", directory.Combine("resize.png"));
+        var rotate = ToolHost.Invoke("rotate", input, "90", "-o", directory.Combine("rotate.png"));
+        var flip = ToolHost.Invoke("flip", input, "h", "-o", directory.Combine("flip.png"));
+        var pad = ToolHost.Invoke("pad", input, "2", "-o", directory.Combine("pad.png"));
+        var help = ToolHost.Invoke("help", "pad");
+        var top = ToolHost.Invoke("--help");
+
+        // Assert: each succeeds with one result line and nothing on standard error; the help names the verb
+        Assert.All(new[] { crop, resize, rotate, flip, pad }, result =>
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.StartsWith("wrote ", result.StdOut);
+            Assert.Equal(string.Empty, result.StdErr);
+        });
+        Assert.Contains("(6x4 png,", crop.StdOut);
+        Assert.Contains("(8x12 png,", rotate.StdOut);
+        Assert.Contains("(16x12 png,", pad.StdOut);
+        Assert.Contains("Usage: canvasnet pad <input> <border> -o <output> [options]", help.StdOut);
+        Assert.Contains("Add a border around an image", top.StdOut);
+    }
 }

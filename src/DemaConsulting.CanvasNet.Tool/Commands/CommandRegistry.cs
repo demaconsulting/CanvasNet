@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet
 using System.Text;
+using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -63,6 +64,11 @@ internal sealed class CommandRegistry
         registry.Register(new DiscoveryCommands.Formats());
         registry.Register(new DiscoveryCommands.Info());
         registry.Register(new RenderCommand());
+        foreach (var verb in ImagePipeline.VerbNames)
+        {
+            registry.Register(new RenderCommand(verb));
+        }
+
         return registry;
     }
 

@@ -70,7 +70,8 @@ public class RenderCommandTests
             [
                 "--page", "--all-pages", "--dpi", "--scale", "--width", "--height", "--size", "--background", "--no-auto-orient",
                 "--strict", "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color",
-                "--max-triangles", "--output", "--format", "--quality", "--no-clobber"
+                "--max-triangles", "--crop", "--resize", "--fit", "--allow-upscale", "--rotate", "--flip", "--pad", "--pad-color",
+                "--filter", "--output", "--format", "--quality", "--no-clobber"
             ],
             command.Options.Select(o => o.Name));
         Assert.Equal(["-o"], command.Options.Single(o => o.Name == "--output").Aliases);

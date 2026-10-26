@@ -1361,4 +1361,148 @@ public class CanvasNetToolTests
             Assert.False(File.Exists(directory.Combine("out.png")));
         }
     }
+
+    /// <summary>
+    ///     Test that a render with several operations applies them left to right, in one decode and one encode, and
+    ///     reports them in order, when run as a real process.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder()
+    {
+        // Arrange: the 12x8 gradient
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.png");
+
+        // Act: crop the 8x6 block at 2,1; turn it 90 degrees (6x8); mirror it; shrink it to fit 3x3; add a border of 1
+        var exitCode = Runner.Run(
+            out var text,
+            "dotnet",
+            _dllPath,
+            "render",
+            input,
+            "--crop",
+            "2,1,8,6",
+            "--rotate",
+            "90",
+            "--flip",
+            "h",
+            "--fit",
+            "3x3",
+            "--pad",
+            "1",
+            "--pad-color",
+            "#ff0000",
+            "-o",
+            output,
+            "--json");
+
+        // Assert: success, the operations in order with the size after each, and the final image is 4x5 with a red border
+        Assert.Equal(0, exitCode);
+        using var document = JsonDocument.Parse(text);
+        var operations = document.RootElement.GetProperty("operations").EnumerateArray().ToList();
+        Assert.Equal(["crop", "rotate", "flip", "fit", "pad"], operations.Select(o => o.GetProperty("op").GetString()));
+        Assert.Equal((6, 8), (operations[1].GetProperty("width").GetInt32(), operations[1].GetProperty("height").GetInt32()));
+        Assert.Equal((2, 3), (operations[3].GetProperty("width").GetInt32(), operations[3].GetProperty("height").GetInt32()));
+        using var image = PngCodec.Load(output);
+        Assert.Equal((4, 5), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[0, 0]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[3, 4]);
+    }
+
+    /// <summary>
+    ///     Test that every transform verb runs as a real process, gives the same file as the equivalent render
+    ///     invocation, and writes one result line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent()
+    {
+        // Arrange: the gradient, and each verb with its operand and the render option that is the same
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        (string Verb, string Operand, string Option)[] cases =
+        [
+            ("crop", "1,1,6,4", "--crop"),
+            ("resize", "6x4", "--resize"),
+            ("rotate", "270", "--rotate"),
+            ("flip", "v", "--flip"),
+            ("pad", "2,1,0,3", "--pad")
+        ];
+
+        foreach (var (verb, operand, option) in cases)
+        {
+            var viaVerb = directory.Combine($"{verb}.png");
+            var viaRender = directory.Combine($"{verb}-render.png");
+
+            // Act: the verb as a real process, and render in-process
+            var exitCode = Runner.Run(out var text, "dotnet", _dllPath, verb, input, operand, "-o", viaVerb);
+            var render = ToolHost.Invoke("render", input, option, operand, "-o", viaRender);
+
+            // Assert: success, one result line from the process, and the same bytes
+            Assert.Equal(0, exitCode);
+            Assert.Equal(0, render.ExitCode);
+            Assert.StartsWith($"wrote {viaVerb} (", text.TrimEnd());
+            Assert.Single(text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+            Assert.Equal(File.ReadAllBytes(viaRender), File.ReadAllBytes(viaVerb));
+        }
+    }
+
+    /// <summary>
+    ///     Test that an angle that is not a right angle, and a region outside the image, are concise expected errors
+    ///     (exit code 1, the code in the JSON document, no stack trace) and write nothing.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.png");
+        (string[] Args, string Code, string Text)[] cases =
+        [
+            (["rotate", input, "45"], "usage-error", "not supported yet"),
+            (["render", input, "--rotate", "7.5"], "usage-error", "not supported yet"),
+            (["crop", input, "50,50,10,10"], "usage-error", "outside the 12x8 image"),
+            (["pad", input, "9000"], "size-limit", "8192"),
+            (["resize", input, "10000x10"], "size-limit", "8192")
+        ];
+
+        foreach (var (args, code, text) in cases)
+        {
+            // Act
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke([.. args, "-o", output, "--json"]);
+
+            // Assert: exit code 1, concise error, JSON error document, nothing written
+            Assert.Equal(1, exitCode);
+            Assert.StartsWith($"Error: {code}:", stdErr);
+            Assert.Contains(text, stdErr);
+            Assert.DoesNotContain("   at ", stdErr);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
+            Assert.Equal(code, document.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(output));
+        }
+    }
+
+    /// <summary>
+    ///     Test that the transform commands are listed in the help of the tool and have their own help.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage()
+    {
+        // Act
+        var top = ToolHost.Invoke("--help");
+        var crop = ToolHost.Invoke("crop", "--help");
+
+        // Assert
+        Assert.Equal(0, top.ExitCode);
+        foreach (var verb in new[] { "crop", "resize", "rotate", "flip", "pad" })
+        {
+            Assert.Contains($"  {verb}", top.StdOut);
+        }
+
+        Assert.Equal(0, crop.ExitCode);
+        Assert.Contains("canvasnet crop <input> <geometry> -o <output> [options]", crop.StdOut);
+        Assert.Contains("--pad-color", crop.StdOut);
+    }
 }

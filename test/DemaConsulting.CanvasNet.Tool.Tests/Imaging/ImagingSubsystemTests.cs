@@ -398,4 +398,45 @@ public class ImagingSubsystemTests
                 }
         }
     }
+
+    /// <summary>
+    ///     Test that a source loaded from every kind goes through the pipeline and the writer as one decode and one
+    ///     encode: the written pixels are the transformed surface, which equals the operations applied by hand, and the
+    ///     pipeline leaves the loaded surface untouched.
+    /// </summary>
+    /// <param name="key">The kind of source.</param>
+    [Theory]
+    [InlineData("png")]
+    [InlineData("svg")]
+    [InlineData("pdf")]
+    [InlineData("scad")]
+    public void Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce(string key)
+    {
+        // Arrange: the source, loaded at its natural size
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteSource(directory.Path, key);
+        using var loaded = SourceLoader.Load(path, new SourceOptions());
+        using var before = loaded.Surface.Crop(0, 0, loaded.Surface.Width, loaded.Surface.Height);
+        IReadOnlyList<IImageOperation> operations =
+        [
+            new CropOperation(new GeometrySpec(new Dimension(0, false), new Dimension(0, false), new Dimension(50, true), new Dimension(100, true))),
+            new RotateOperation(90),
+            new PadOperation(new PadSpec(1, 1, 1, 1), new Rgba32(0, 0, 255, 255))
+        ];
+
+        // Act: apply the pipeline, write the result, and apply it again by hand to compare
+        using var transformed = ImagePipeline.Apply(loaded.Surface, operations, new Rgba32(0, 0, 0, 0), out var applied);
+        var result = ImageWriter.Write(transformed, directory.Combine("out.png"), path, WriteOptions.Default);
+        using var cropped = loaded.Surface.Crop(0, 0, (int)Math.Round(loaded.Surface.Width / 2.0, MidpointRounding.AwayFromZero), loaded.Surface.Height);
+        using var expected = ImagePipeline.Apply(cropped, operations.Skip(1).ToList(), new Rgba32(0, 0, 0, 0), out _);
+
+        // Assert: three reported steps, the written file is the transformed surface, and the loaded surface is as it was
+        Assert.Equal(["crop", "rotate", "pad"], applied.Select(a => a.Op));
+        Assert.Equal((transformed.Width, transformed.Height), (result.Width, result.Height));
+        using var decoded = PngCodec.Load(directory.Combine("out.png"));
+        SurfaceAssert.Equal(transformed, decoded);
+        SurfaceAssert.Equal(expected, transformed);
+        SurfaceAssert.Equal(before, loaded.Surface);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), decoded[0, 0]);
+    }
 }

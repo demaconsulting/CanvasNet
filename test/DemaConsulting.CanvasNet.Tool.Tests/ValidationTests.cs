@@ -75,7 +75,11 @@ public class ValidationTests
             // Assert: each imaging self-test passed and is named in the results file
             Assert.Equal(0, context.ExitCode);
             var content = File.ReadAllText(resultsFile);
-            foreach (var name in new[] { "CanvasNetTool_RenderPng", "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg", "CanvasNetTool_PdfMinimal", "CanvasNetTool_RenderScad" })
+            foreach (var name in new[]
+                     {
+                         "CanvasNetTool_RenderPng", "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg",
+                         "CanvasNetTool_PdfMinimal", "CanvasNetTool_RenderScad", "CanvasNetTool_CropResize", "CanvasNetTool_RotateFlipPad"
+                     })
             {
                 Assert.Contains($"✓ {name} - Passed", stdOut);
                 Assert.Contains(name, content);

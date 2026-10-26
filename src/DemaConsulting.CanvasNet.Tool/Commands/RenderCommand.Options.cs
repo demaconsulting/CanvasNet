@@ -16,9 +16,11 @@ internal sealed partial class RenderCommand
     ///     Source options (<c>--page</c>, <c>--all-pages</c>, <c>--dpi</c>, <c>--scale</c>, <c>--width</c>, <c>--height</c>,
     ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the options of
     ///     an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
-    ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the output
-    ///     options (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>). Options of
-    ///     the image pipeline are added to this table as they are implemented.
+    ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the image pipeline
+    ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--flip</c>,
+    ///     <c>--pad</c>, <c>--pad-color</c>, <c>--filter</c>), then the output
+    ///     options (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>). The verb commands share
+    ///     this table.
     /// </remarks>
     internal static readonly IReadOnlyList<OptionSpec> OptionTable =
     [
@@ -40,6 +42,15 @@ internal sealed partial class RenderCommand
         new("--time", [], true, "SCAD model: the value of $t, the animation time (default 0)", "T"),
         new("--default-color", [], true, "SCAD model: the color of surfaces the model does not color (default gray)", "color"),
         new("--max-triangles", [], true, "SCAD model: the most triangles the model may produce (default 5000000)", "N"),
+        new(ImagePipeline.CropOption, [], true, "Crop to a rectangle x,y,w,h or WxH+X+Y, each value in pixels or percent (repeatable; operations run in the order written)", "geometry"),
+        new(ImagePipeline.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
+        new(ImagePipeline.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
+        new(ImagePipeline.AllowUpscaleOption, [], false, "Let --fit enlarge an image that is smaller than the box"),
+        new(ImagePipeline.RotateOption, [], true, "Rotate clockwise by 90, 180, or 270 degrees", "degrees"),
+        new(ImagePipeline.FlipOption, [], true, "Mirror: h (left to right), v (top to bottom), or both", "axis"),
+        new(ImagePipeline.PadOption, [], true, "Add a border of N pixels on every side, or l,t,r,b pixels on each side", "N|l,t,r,b"),
+        new(ImagePipeline.PadColorOption, [], true, "Color of the border added by --pad (default: the --background, else white for a drawing or document, else transparent)", "color"),
+        new(ImagePipeline.FilterOption, [], true, "Resampling filter of a resize or fit: auto (default), nearest, bilinear, bicubic, lanczos3, or area", "name"),
         new("--output", ["-o"], true, "The output file; its extension selects the format", "file"),
         new("--format", [], true, "Output format: png, jpeg, bmp, or tiff (overrides the extension)", "format"),
         new("--quality", [], true, "JPEG quality, 1-100 (default 90)", "1-100"),
@@ -54,27 +65,44 @@ internal sealed partial class RenderCommand
     /// <param name="Source">The options for loading the input.</param>
     /// <param name="Write">The options for writing the output.</param>
     /// <param name="AllPages"><see langword="true"/> to render every page of the input.</param>
-    internal sealed record Settings(string Input, string Output, SourceOptions Source, WriteOptions Write, bool AllPages);
+    /// <param name="Operations">The image pipeline: the operations in the order they are applied; empty for none.</param>
+    internal sealed record Settings(
+        string Input,
+        string Output,
+        SourceOptions Source,
+        WriteOptions Write,
+        bool AllPages,
+        IReadOnlyList<IImageOperation> Operations);
 
     /// <summary>
     ///     Reads the settings from the parsed command line.
     /// </summary>
     /// <param name="reader">The parsed arguments.</param>
+    /// <param name="verb">The verb command being run, or <see langword="null"/> for <c>render</c>.</param>
     /// <returns>The settings.</returns>
     /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> when the input or the output is missing, a value is malformed or out of
-    ///     range, or the sizing options contradict each other; and with code <c>size-limit</c> when <c>--size</c> names a
-    ///     side larger than the maximum.
+    ///     Thrown with code <c>usage-error</c> when the input, the output, or the operand of a verb is missing, a value
+    ///     is malformed or out of range, or the sizing options contradict each other; and with code <c>size-limit</c>
+    ///     when <c>--size</c> or an operation names a side larger than the maximum.
     /// </exception>
-    private static Settings ReadSettings(ArgumentReader reader)
+    private static Settings ReadSettings(ArgumentReader reader, string? verb)
     {
-        reader.RequirePositionals(1, 1, "one input file");
+        if (verb == null)
+        {
+            reader.RequirePositionals(1, 1, "one input file");
+        }
+        else
+        {
+            reader.RequirePositionals(2, 2, $"an input file and a {VerbTexts[verb].Operand}");
+        }
 
         var output = reader.Get("--output")
                      ?? throw new ToolException(
                          ErrorCodes.UsageError,
                          "No output file was given.",
-                         "Add -o <file>, for example: canvasnet render input.svg -o output.png");
+                         verb == null
+                             ? "Add -o <file>, for example: canvasnet render input.svg -o output.png"
+                             : $"Add -o <file>, for example: canvasnet {verb} input.png {VerbTexts[verb].Operand} -o output.png");
 
         var width = reader.GetInt("--width", 1, int.MaxValue);
         var height = reader.GetInt("--height", 1, int.MaxValue);
@@ -111,6 +139,9 @@ internal sealed partial class RenderCommand
             Height = height,
             Background = background,
             AutoOrient = !reader.Has("--no-auto-orient"),
+            Filter = reader.Get(ImagePipeline.FilterOption) is { } filterText
+                ? ImagePipeline.ParseFilter(filterText, ImagePipeline.FilterOption)
+                : ResamplingMode.Auto,
             Scad = ReadScadOptions(reader)
         };
 
@@ -119,7 +150,11 @@ internal sealed partial class RenderCommand
         var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
         var flattenBackground = background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
         var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
-        return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"));
+
+        // The operand of a verb is the second positional (the first is the input); every operation is parsed now so
+        // that a malformed one is reported before anything is loaded
+        var operations = ImagePipeline.Parse(reader, verb, verb == null ? null : reader.Positionals[1]);
+        return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"), operations);
     }
 
     /// <summary>

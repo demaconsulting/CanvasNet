@@ -27,8 +27,17 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         pages, the format, and every output path) is checked first, and the document is opened once for all pages.
 ///     </para>
 ///     <para>
+///         The image pipeline (<see cref="ImagePipeline"/>) runs between the load and the write: the operations
+///         <c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--rotate</c>, <c>--flip</c>, and <c>--pad</c> are applied to
+///         the loaded pixels in the order they were written, so one decode and one encode serve the whole chain. The
+///         verbs <c>crop</c>, <c>resize</c>, <c>rotate</c>, <c>flip</c>, and <c>pad</c> are this same class constructed
+///         with a verb: the verb's positional operand becomes the first operation. The size options of the source
+///         (<c>--scale</c>, <c>--width</c>, <c>--height</c>, <c>--size</c>) are handled by the loader, so they act
+///         before the first operation.
+///     </para>
+///     <para>
 ///         The class is split into <c>RenderCommand.Options.cs</c> (the option declarations and the reading of the
-///         settings) and this file (the run).
+///         settings), <c>RenderCommand.Verbs.cs</c> (the verbs), and this file (the run).
 ///     </para>
 /// </remarks>
 internal sealed partial class RenderCommand : ICommand
@@ -39,20 +48,26 @@ internal sealed partial class RenderCommand : ICommand
     private const string PagePlaceholder = "{page}";
 
     /// <inheritdoc />
-    public string Name => "render";
-
-
-    /// <inheritdoc />
-    public IReadOnlyList<string> Aliases => ["convert"];
+    public string Name => _verb ?? "render";
 
     /// <inheritdoc />
-    public string Summary => "Render or convert an image, drawing, or document page to PNG, JPEG, BMP, or TIFF";
+    public IReadOnlyList<string> Aliases => _verb == null ? ["convert"] : [];
+
+    /// <inheritdoc />
+    public string Summary => _verb == null
+        ? "Render or convert an image, drawing, or document page to PNG, JPEG, BMP, or TIFF, with optional transformations"
+        : VerbTexts[_verb].Summary;
 
     /// <inheritdoc />
     public IReadOnlyList<OptionSpec> Options => OptionTable;
 
     /// <inheritdoc />
-    public string Usage =>
+    public string Usage => _verb == null ? RenderUsage : VerbUsage(_verb);
+
+    /// <summary>
+    ///     Gets the usage text of the <c>render</c> command.
+    /// </summary>
+    private static string RenderUsage =>
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
         + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, or SCAD and writes the format of the output" + Environment.NewLine
@@ -61,6 +76,8 @@ internal sealed partial class RenderCommand : ICommand
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
         + "pixels unless a size is given; -D sets its variables. Its include and use directives are read from the" + Environment.NewLine
         + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
+        + "The operations --crop, --resize, --fit, --rotate, --flip, and --pad (repeatable) are applied in the order" + Environment.NewLine
+        + "written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are commands of their own." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet render drawing.svg -o drawing.png" + Environment.NewLine
@@ -69,6 +86,8 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render slides.pptx --all-pages -o out/slide-{page}.png" + Environment.NewLine
         + "  canvasnet render part.scad --view top -D width=30 -o part-top.png" + Environment.NewLine
         + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
+        + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
+        + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
         + "  canvasnet render shot.png -o shot.jpg --quality 85 --json" + Environment.NewLine
         + "  canvasnet convert scan.tif -o scan.png --no-clobber";
 
@@ -79,7 +98,7 @@ internal sealed partial class RenderCommand : ICommand
         ArgumentNullException.ThrowIfNull(args);
 
         var reader = ArgumentReader.Parse(Name, args, Options);
-        var settings = ReadSettings(reader);
+        var settings = ReadSettings(reader, _verb);
 
         // Report every mistake about the input, the pages, and the outputs before any pixels are decoded
         var info = SourceLoader.Probe(settings.Input);
@@ -99,15 +118,14 @@ internal sealed partial class RenderCommand : ICommand
             ImageWriter.CheckTarget(target, settings.Input, settings.Write.NoClobber);
         }
 
-        // The image pipeline (crop, resize, rotate, and so on) is applied here, between the load and the write
+        // Each page is loaded, run through the image pipeline (crop, resize, rotate, and so on), and written
         var outputs = new List<PageOutput>();
         using (var source = SourceLoader.OpenPages(info, settings.Source))
         {
             foreach (var (page, target) in targets)
             {
                 using var loaded = source.ReadPage(page);
-                var result = ImageWriter.Write(loaded.Surface, target, settings.Input, settings.Write);
-                outputs.Add(new PageOutput(loaded, CollectOperations(loaded, result, settings, info.Format.IsDocument()), result));
+                outputs.Add(TransformAndWrite(loaded, target, settings, info.Format.IsDocument()));
             }
         }
 
@@ -210,19 +228,62 @@ internal sealed partial class RenderCommand : ICommand
     }
 
     /// <summary>
+    ///     Runs the image pipeline over a loaded page and writes the result.
+    /// </summary>
+    /// <param name="loaded">The loaded page; it is not disposed.</param>
+    /// <param name="target">The output path of the page.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="isDocument"><see langword="true"/> when the source is a document.</param>
+    /// <returns>What was loaded, done to it, and written.</returns>
+    /// <remarks>
+    ///     The pipeline makes a new surface for every step and disposes the previous one, so at most two full-size
+    ///     surfaces exist at a time (plus the writer's flattened copy of a JPEG). A border that has no color of its
+    ///     own is the background the user gave, else white for a vector source (which is flattened over white), else
+    ///     transparent.
+    /// </remarks>
+    private static PageOutput TransformAndWrite(LoadedSource loaded, string target, Settings settings, bool isDocument)
+    {
+        Surface? transformed = null;
+        try
+        {
+            var surface = loaded.Surface;
+            IReadOnlyList<AppliedOperation> applied = [];
+            if (settings.Operations.Count > 0)
+            {
+                var defaultPad = settings.Source.Background ?? (loaded.IsVector ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0));
+                transformed = ImagePipeline.Apply(surface, settings.Operations, defaultPad, out applied);
+                surface = transformed;
+            }
+
+            var result = ImageWriter.Write(surface, target, settings.Input, settings.Write);
+            return new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result);
+        }
+        finally
+        {
+            transformed?.Dispose();
+        }
+    }
+
+    /// <summary>
     ///     Lists what was done to a loaded page to produce its output.
     /// </summary>
     /// <param name="loaded">The loaded page.</param>
+    /// <param name="applied">What the image pipeline did, in order.</param>
     /// <param name="result">What was written.</param>
     /// <param name="settings">The settings.</param>
     /// <param name="isDocument"><see langword="true"/> when the source is a document.</param>
     /// <returns>
-    ///     The operations of the loader, then the flattening of a JPEG when the writer did it; when every page of a
-    ///     document is rendered each operation names its page.
+    ///     The operations of the loader, then those of the pipeline, then the flattening of a JPEG when the writer did
+    ///     it; when every page of a document is rendered each operation names its page.
     /// </returns>
-    private static List<AppliedOperation> CollectOperations(LoadedSource loaded, WriteResult result, Settings settings, bool isDocument)
+    private static List<AppliedOperation> CollectOperations(
+        LoadedSource loaded,
+        IReadOnlyList<AppliedOperation> applied,
+        WriteResult result,
+        Settings settings,
+        bool isDocument)
     {
-        var operations = loaded.Operations.ToList();
+        var operations = loaded.Operations.Concat(applied).ToList();
         if (result.Flattened)
         {
             operations.Add(SourceLoader.Operation("flatten", ("background", SourceLoader.FormatColor(settings.Write.FlattenBackground))));

@@ -290,6 +290,13 @@ internal sealed record SourceOptions
     public int? Height { get; init; }
 
     /// <summary>
+    ///     Gets the resampling filter of the resize that a raster source gets from <see cref="Scale"/>,
+    ///     <see cref="Width"/>, or <see cref="Height"/>; <see cref="ResamplingMode.Auto"/> by default. A vector
+    ///     source is rendered at its target size and is not resampled.
+    /// </summary>
+    public ResamplingMode Filter { get; init; } = ResamplingMode.Auto;
+
+    /// <summary>
     ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> for the default:
     ///     white for a vector source, and no flattening for a raster source. A color with zero alpha keeps the
     ///     transparency of a vector source.
