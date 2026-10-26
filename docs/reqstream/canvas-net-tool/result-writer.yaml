@@ -1,0 +1,68 @@
+---
+# Software Unit Requirements for the ResultWriter Class
+#
+# The ResultWriter class writes the tool's machine-readable results: one deterministic JSON
+# document per invocation, in a versioned envelope. It is the machine contract of the tool, so it
+# is reviewed on its own.
+
+sections:
+  - title: ResultWriter Unit Requirements
+    requirements:
+      - id: CanvasNetTool-ResultWriter-SchemaVersion
+        title: >-
+          The ResultWriter class shall identify the schema of every document with the integer
+          `schemaVersion`, which is 1 for this release.
+        justification: |
+          Scripts and AI agents parse the documents; a version number lets them detect an
+          incompatible change instead of misreading it.
+        tests:
+          - ResultWriter_SchemaVersion_IsOne
+
+      - id: CanvasNetTool-ResultWriter-SuccessEnvelope
+        title: >-
+          The ResultWriter class shall write a success document as a single-line JSON object whose
+          first keys are `schemaVersion`, `ok` (true), and `command`, followed by the command's own
+          fields.
+        justification: |
+          A fixed envelope lets a caller decide whether a command succeeded, and which command
+          produced the document, before it knows anything about the command's own fields.
+        tests:
+          - ResultWriter_Success_WithFields_WritesEnvelopeThenFields
+          - ResultWriter_Success_NoFields_WritesEnvelopeOnly
+          - ResultWriter_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-ResultWriter-ErrorEnvelope
+        title: >-
+          The ResultWriter class shall write a failure document with `ok` false, the command (or
+          null), and an `error` object holding the stable error code, the message, and the hint when
+          there is one, deriving the code from the exception type when given an exception, and shall
+          not include an exit code.
+        justification: |
+          A caller branches on the stable error code rather than on message text; the exit code of a
+          failure is always 1 and carries no information, so it is not repeated in the document.
+        tests:
+          - ResultWriter_Failure_WithHint_WritesErrorObject
+          - ResultWriter_Failure_NoCommandNoHint_WritesNullCommandAndOmitsHint
+          - ResultWriter_Failure_FromException_MapsExceptionToCode
+
+      - id: CanvasNetTool-ResultWriter-DeterministicOutput
+        title: >-
+          The ResultWriter class shall produce identical text for identical input, writing keys in
+          the order the code writes them and numbers with the invariant culture.
+        justification: |
+          Results are compared, cached, and checked into source control; they must not change with
+          the machine's locale or from run to run.
+        tests:
+          - ResultWriter_Success_GermanCulture_WritesInvariantNumbers
+          - ResultWriter_Success_SameInput_ProducesIdenticalOutput
+
+      - id: CanvasNetTool-ResultWriter-Escaping
+        title: >-
+          The ResultWriter class shall escape characters that JSON requires to be escaped and every
+          non-ASCII character, so that a document is a single line of ASCII text that parses back to
+          the original strings.
+        justification: |
+          File names and messages may contain any character; an ASCII-only document survives every
+          console code page and pipe unchanged.
+        tests:
+          - ResultWriter_Failure_SpecialCharacters_AreEscapedAndRoundTrip

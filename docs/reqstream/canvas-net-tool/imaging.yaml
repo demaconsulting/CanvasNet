@@ -1,0 +1,113 @@
+---
+# cspell:ignore scad openscad
+# Imaging Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetTool Imaging subsystem
+# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), and
+#   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
+#   the operations
+# - Subsystem requirements describe the externally visible load and write behavior and are verified by
+#   the subsystem tests, which run the loader and the writer together on every input and output format
+
+sections:
+  - title: Imaging Subsystem Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-Load
+        title: >-
+          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
+          VSDX, or SCAD file (a chosen page of a document, a named view of a model) into pixels at the
+          size and resolution the options ask for, and shall report the facts of a file, including the
+          pages of a document and the declarations of a model, without decoding or rendering it.
+        justification: |
+          Every command needs one place that recognizes a file, reads its header, and produces the
+          pixels, so that the formats behave consistently.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-Detect
+          - CanvasNetTool-Imaging-SourceLoader-Probe
+          - CanvasNetTool-Imaging-SourceLoader-Raster
+          - CanvasNetTool-Imaging-SourceLoader-Svg
+          - CanvasNetTool-Imaging-SourceLoader-Documents
+          - CanvasNetTool-Imaging-SourceLoader-PageSelection
+          - CanvasNetTool-Imaging-SourceLoader-Resolution
+          - CanvasNetTool-Imaging-SourceLoader-Diagnostics
+          - CanvasNetTool-Imaging-SourceLoader-Strict
+          - CanvasNetTool-Imaging-SourceLoader-Scad
+          - CanvasNetTool-Imaging-SourceLoader-ScadVariables
+          - CanvasNetTool-Imaging-SourceLoader-ScadDiagnostics
+          - CanvasNetTool-Imaging-SourceLoader-ScadLimits
+          - CanvasNetTool-Imaging-SourceLoader-ScadIncludes
+          - CanvasNetTool-Imaging-SourceLoader-ScadErrors
+          - CanvasNetTool-Imaging-SourceLoader-Sizing
+          - CanvasNetTool-Imaging-SourceLoader-Background
+          - CanvasNetTool-Imaging-SourceLoader-Exif
+          - CanvasNetTool-Imaging-SourceLoader-Arguments
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_RequestedSize_WritesThatSize
+          - Imaging_Convert_DocumentPages_WritesEachPageWithItsPixels
+          - Imaging_Convert_ScadViewToOutputFormat_WritesTheLibraryPixels
+
+      - id: CanvasNetTool-Imaging-Write
+        title: >-
+          The Imaging subsystem shall write pixels as a PNG, JPEG, BMP, or TIFF file, with transparency
+          flattened for JPEG, through a temporary file, honoring the overwrite policy.
+        justification: |
+          Every command writes images the same way, so that formats, quality, and overwrite behavior are
+          the same everywhere.
+        children:
+          - CanvasNetTool-Imaging-ImageWriter-FormatResolution
+          - CanvasNetTool-Imaging-ImageWriter-Lossless
+          - CanvasNetTool-Imaging-ImageWriter-Jpeg
+          - CanvasNetTool-Imaging-ImageWriter-AtomicWrite
+          - CanvasNetTool-Imaging-ImageWriter-Overwrite
+          - CanvasNetTool-Imaging-ImageWriter-SamePath
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_TransparentPng_FlattensOnlyForJpeg
+
+      - id: CanvasNetTool-Imaging-Transform
+        title: >-
+          The Imaging subsystem shall transform loaded pixels with an ordered pipeline of operations
+          (crop, resize, fit, rotate, flip, and pad) applied in the order written, and shall give the same
+          transformed pixels when the same operations are applied twice.
+        justification: |
+          Every command that changes an image applies the same operations the same way, in one decode and
+          one encode, so that the order of the options is the order of the effects.
+        children:
+          - CanvasNetTool-Imaging-ImagePipeline-Order
+          - CanvasNetTool-Imaging-ImagePipeline-Crop
+          - CanvasNetTool-Imaging-ImagePipeline-Resize
+          - CanvasNetTool-Imaging-ImagePipeline-Rotate
+          - CanvasNetTool-Imaging-ImagePipeline-Flip
+          - CanvasNetTool-Imaging-ImagePipeline-Pad
+          - CanvasNetTool-Imaging-ImagePipeline-SizeLimit
+          - CanvasNetTool-Imaging-ImagePipeline-Arguments
+        tests:
+          - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
+
+      - id: CanvasNetTool-Imaging-Determinism
+        title: >-
+          The Imaging subsystem shall produce the same output bytes when the same input is loaded and
+          written twice with the same options.
+        justification: |
+          Reproducible output makes results comparable and lets scripts detect real change.
+        children:
+          - CanvasNetTool-Imaging-ImageWriter-Deterministic
+        tests:
+          - Imaging_Convert_SameInputTwice_WritesIdenticalBytes
+
+      - id: CanvasNetTool-Imaging-Errors
+        title: >-
+          The Imaging subsystem shall report a missing, unsupported, truncated, corrupt, or oversized
+          input, and a page that does not exist, as an expected error before anything is written.
+        justification: |
+          A failed conversion must not leave a partial output, and the failure must be a stable,
+          concise error that a caller can act on.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-DetectErrors
+          - CanvasNetTool-Imaging-SourceLoader-SizeLimit
+          - CanvasNetTool-Imaging-SourceLoader-CorruptInput
+        tests:
+          - Imaging_Convert_CorruptInput_LeavesNoOutput
+          - Imaging_Convert_PageOutOfRange_LeavesNoOutput

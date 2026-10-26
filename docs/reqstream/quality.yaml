@@ -119,3 +119,18 @@ sections:
           without being falsely reported as disconnected from library functionality.
         children:
           - CanvasNet-OTS-SystemNumericsTensors
+
+      - id: Quality-ToolRuntimeDependency
+        title: >-
+          The repository shall rely on DemaConsulting.TestResults to write the CanvasNet tool's
+          self-validation results.
+        tags: [quality]
+        justification: |
+          The CanvasNet tool's --validate mode records and serializes its self-validation results
+          with DemaConsulting.TestResults, a runtime NuGet dependency of the tool package (not of
+          the library packages). This grouping requirement links its OTS requirement to the quality
+          root, following the same pattern used for every other OTS item, so it participates in
+          orphan detection without being falsely reported as disconnected from library
+          functionality.
+        children:
+          - CanvasNet-OTS-TestResults

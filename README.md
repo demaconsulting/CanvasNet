@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -46,6 +46,7 @@ load/crop/resize/save workflows.
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
   booleans, extrusions, `hull`, `minkowski`, `-D` variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
+- 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -66,6 +67,12 @@ Package Manager Console):
 dotnet add package DemaConsulting.CanvasNet
 ```
 
+To use CanvasNet from the command line instead of from code, install the `canvasnet` tool (it bundles the libraries):
+
+```bash
+dotnet tool install --global DemaConsulting.CanvasNet.Tool
+```
+
 Each optional file-format/rendering feature ships as its own additional package - install only
 the ones you need, the same way as above:
 
@@ -78,6 +85,77 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
+| `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
+
+## Command-Line Tool
+
+`DemaConsulting.CanvasNet.Tool` is a [.NET tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) that
+exposes CanvasNet from the command line, for people, scripts, and AI agents. It bundles the CanvasNet libraries,
+so installing it needs no other CanvasNet package:
+
+```bash
+dotnet tool install --global DemaConsulting.CanvasNet.Tool
+canvasnet --help
+```
+
+The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
+message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
+a command's standard output contains only the command's own output, so it can be piped and parsed. Add `--json` to any
+command to get its result as one JSON document on standard output (a failure is written as a document with `"ok":false`
+and an `error.code` too). An unexpected exception is a bug: it is re-thrown, ends the process with the .NET
+unhandled-exception output, and should be reported. Use `canvasnet --version` to print the version and
+`canvasnet --validate` to run the built-in self-validation, which can write its results as TRX or JUnit XML with
+`--results`.
+
+| Command                    | Purpose                                                                          |
+|----------------------------|----------------------------------------------------------------------------------|
+| `formats`                  | List the formats the tool reads and writes, and its limits                       |
+| `info`                     | Show the size, format, pages, or modules of a file without rendering it          |
+| `render` (alias `convert`) | Write PNG, JPEG, BMP, or TIFF from an image, drawing, page, or model             |
+| `crop`                     | Cut a rectangle (pixels or percent) out of an image                              |
+| `resize`                   | Resample an image to an exact size                                               |
+| `rotate`                   | Rotate by 90, 180, or 270 degrees                                                |
+| `flip`                     | Mirror horizontally, vertically, or both                                         |
+| `pad`                      | Add a border around an image                                                     |
+
+`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and SCAD, and applies `--crop`, `--resize`,
+`--fit`, `--rotate`, `--flip`, and `--pad` in the order written; `crop`, `resize`, `rotate`, `flip`, and `pad` are
+the same pipeline with one operation first. Defaults: an existing output is replaced (`--no-clobber` refuses),
+vector sources are flattened over white, a JPEG is turned upright by its EXIF orientation, document pages are
+drawn at 96 dpi (`--page`, `--all-pages`, `--dpi`), and no side of an image may exceed 8192 pixels.
+
+A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|top|bottom`, orthographic unless
+`--projection perspective`) at 800x800 pixels unless a size is given, with `-D name=value` setting its variables, for
+example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
+directives name are read from the folder of the model and below it only, and a model whose include cannot be found
+is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+
+### Quick start for AI agents
+
+Give an agent eyes on documents and models by turning them into pictures it can inspect, and let it compare its own
+drawings with a reference:
+
+```bash
+# 1. Learn what the file is (pages and sizes) - parse the one JSON line on standard output
+canvasnet info report.pdf --all-pages --json
+
+# 2. Render a page to look at, then write an SVG redraw and render it at the same size to compare
+canvasnet render report.pdf --page 2 --dpi 150 -o ref.png --json
+canvasnet render redraw.svg --size 1250x1750 -o redraw.png --json
+
+# 3. Zoom into the same detail of both pictures
+canvasnet render ref.png --crop 200x120+100+80 --resize 1000x600 -o ref-detail.png
+
+# 4. A napkin photo: crop and shrink it to look at, then draw named views of the OpenSCAD model written from it
+canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png
+canvasnet render bracket.scad --view front -o front.png --json
+canvasnet render bracket.scad --view top -D width=55 -o top.png --json
+```
+
+Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
+`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, and so on); read `diagnostics` even on
+success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
+defaults, and recipes see the [User Guide][link-releases].
 
 ## Usage
 

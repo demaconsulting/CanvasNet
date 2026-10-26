@@ -3,6 +3,7 @@
 <!-- cspell:ignore glyf sfnt -->
 <!-- cspell:ignore Visio -->
 <!-- cspell:ignore rasterizer tessellator -->
+<!-- cspell:ignore canvasnet -->
 
 This document provides the verification design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -71,6 +72,12 @@ constituent software items, specifically:
   `ScadFileResolver`, and an internal `ScadGeometry` subsystem with the units `ScadGeometryBuilder`,
   `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` —
   see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
+- **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
+  tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
+  `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
+  `DiscoveryCommands`, and `RenderCommand` units, and an `Imaging` subsystem with the `SourceLoader`,
+  `ImagePipeline`, and `ImageWriter` units — see _CanvasNetTool System
+  Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
 
@@ -83,6 +90,8 @@ The following OTS items are also covered:
 - **SonarMark** — SonarCloud quality report tool
 - **SysML2Tools** — SysML v2 model-to-documentation tool
 - **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
+- **DemaConsulting.TestResults** — self-validation result recording and TRX/JUnit serialization library of the
+  tool package
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework

@@ -1,0 +1,151 @@
+---
+# Software Unit Requirements for the Context Class
+#
+# The Context class handles command-line argument parsing and program output. It is the primary
+# interface between the user's command-line invocation and the tool's internal logic.
+
+sections:
+  - title: Context Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Context-GlobalFlags
+        title: The Context class shall parse the global flags into structured properties.
+        justification: |
+          Provides a standardized approach to command-line parsing across all DEMA Consulting
+          DotNet Tools. The global flags are version, help, silent, validate, results, log, and depth.
+        tests:
+          - Context_Create_NoArguments_ReturnsDefaultContext
+          - Context_Create_VersionFlag_SetsVersionTrue
+          - Context_Create_ShortVersionFlag_SetsVersionTrue
+          - Context_Create_HelpFlag_SetsHelpTrue
+          - Context_Create_ShortHelpFlag_H_SetsHelpTrue
+          - Context_Create_ShortHelpFlag_Question_SetsHelpTrue
+          - Context_Create_SilentFlag_SetsSilentTrue
+          - Context_Create_ValidateFlag_SetsValidateTrue
+
+      - id: CanvasNetTool-Context-CommandCapture
+        title: >-
+          The Context class shall capture the first token that is neither an option nor an option
+          value as the command name, and every following non-global token, in order, as the
+          command arguments.
+        justification: |
+          The tool is a command-line interface with subcommands. Capturing the command and its
+          arguments in the context lets the command registry dispatch without parsing global
+          options itself, and leaves the command's own options to the command.
+        tests:
+          - Context_Create_CommandName_CapturesCommand
+          - Context_Create_NoCommand_CommandIsNull
+          - Context_Create_CommandWithArguments_PassesArgumentsInOrder
+          - Context_Create_UnknownOptionAfterCommand_PassesThroughToCommand
+
+      - id: CanvasNetTool-Context-FlagsAnyPosition
+        title: >-
+          The Context class shall honor the global options in any position on the command line
+          and remove them, with their values, from the command arguments.
+        justification: |
+          Users and agents place global options such as --silent or --log before or after the
+          command; an option's value must never be mistaken for the command name or for a command
+          argument.
+        tests:
+          - Context_Create_GlobalFlagAfterCommand_IsHonored
+          - Context_Create_GlobalFlagBetweenCommandArguments_IsRemovedFromArguments
+          - Context_Create_OptionValueBeforeCommand_IsNotTheCommand
+
+      - id: CanvasNetTool-Context-ArgumentErrors
+        title: >-
+          The Context class shall reject unknown options before the command name and malformed
+          global options with a descriptive ArgumentException.
+        justification: |
+          Providing clear feedback for invalid arguments helps users quickly correct mistakes and
+          prevents silent misconfiguration.
+        tests:
+          - Context_Create_UnknownArgument_ThrowsArgumentException
+          - Context_Create_LogFlag_WithoutValue_ThrowsArgumentException
+          - Context_Create_ResultsFlag_WithoutValue_ThrowsArgumentException
+          - Context_Create_ResultAliasFlag_WithoutValue_ThrowsArgumentException
+          - Context_Create_DepthFlag_WithoutValue_ThrowsArgumentException
+          - Context_Create_DepthFlag_NonIntegerValue_ThrowsArgumentException
+          - Context_Create_DepthFlag_ZeroValue_ThrowsArgumentException
+          - Context_Create_DepthFlag_ExceedsMaxValue_ThrowsArgumentException
+          - Context_Create_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Context-OutputChannels
+        title: >-
+          The Context class shall write normal output to standard output and error messages to
+          standard error.
+        justification: |
+          Error messages must be written to stderr so they remain visible to the user without
+          polluting stdout, which consumers may pipe or redirect for data capture.
+        tests:
+          - Context_WriteLine_NotSilent_WritesToConsole
+          - Context_WriteError_NotSilent_WritesToConsole
+
+      - id: CanvasNetTool-Context-Silent
+        title: The Context class shall suppress console output when the silent flag is set.
+        justification: |
+          Enables automated scripts and CI/CD pipelines to run the tool without cluttering output
+          logs.
+        tests:
+          - Context_Create_SilentFlag_SetsSilentTrue
+          - Context_WriteLine_Silent_DoesNotWriteToConsole
+          - Context_WriteError_Silent_DoesNotWriteToConsole
+
+      - id: CanvasNetTool-Context-Log
+        title: The Context class shall additionally write output to a log file when the log flag is set.
+        justification: |
+          Provides persistent logging for debugging and audit trails, enabling post-run inspection
+          of tool output without requiring console capture.
+        tests:
+          - Context_Create_LogFlag_OpensLogFile
+          - Context_WriteError_WritesToLogFile
+
+      - id: CanvasNetTool-Context-LogFailure
+        title: The Context class shall report an error when the specified log file cannot be opened.
+        justification: |
+          Failure to open a log file must be surfaced immediately so that users know their log
+          output will not be captured, preventing silent data loss in audit or compliance workflows.
+        tests:
+          - Context_Create_LogFlag_InvalidPath_ThrowsInvalidOperationException
+
+      - id: CanvasNetTool-Context-Results
+        title: The Context class shall capture the validation results file path from the results flag.
+        justification: |
+          Enables integration with CI/CD systems that expect standard test result formats.
+        tests:
+          - Context_Create_ResultsFlag_SetsResultsFile
+
+      - id: CanvasNetTool-Context-ResultAlias
+        title: The Context class shall accept --result as a legacy alias for --results.
+        justification: |
+          Backward compatibility with scripts that use the earlier --result spelling.
+        tests:
+          - Context_Create_ResultAliasFlag_SetsResultsFile
+
+      - id: CanvasNetTool-Context-Depth
+        title: The Context class shall capture a heading depth from 1 to 6 from the depth flag, defaulting to 1.
+        justification: |
+          Enables validation output to be embedded within larger markdown documents at the
+          appropriate heading level.
+        tests:
+          - Context_Create_DepthFlag_SetsHeadingDepth
+          - Context_Create_NoDepthFlag_ReturnsDefaultHeadingDepth
+
+      - id: CanvasNetTool-Context-ExitCode
+        title: >-
+          The Context class shall track errors and expose exit code 1 once an error has been
+          reported, and exit code 0 otherwise.
+        justification: |
+          Callers (scripts, CI/CD pipelines) must be able to detect failure conditions
+          programmatically via the process exit code, even when --silent suppresses the message.
+        tests:
+          - Context_WriteError_SetsErrorExitCode
+
+      - id: CanvasNetTool-Context-Json
+        title: >-
+          The Context class shall expose whether the JSON option was given, honoring it in any
+          position and removing it from the command arguments.
+        justification: |
+          A command decides between text and JSON output from the context, and the option must work
+          wherever an agent happens to put it.
+        tests:
+          - Context_Create_JsonFlag_SetsJsonTrue
+          - Context_Create_JsonFlagAfterCommand_IsHonoredAndRemovedFromArguments

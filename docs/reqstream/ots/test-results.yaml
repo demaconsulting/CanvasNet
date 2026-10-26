@@ -1,0 +1,27 @@
+---
+# DemaConsulting.TestResults OTS Software Requirements
+#
+# Requirements for the DemaConsulting.TestResults runtime library functionality.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: DemaConsulting.TestResults Requirements
+        requirements:
+          - id: CanvasNet-OTS-TestResults
+            title: >-
+              DemaConsulting.TestResults shall serialize the tool's self-validation results to
+              TRX and JUnit XML result files.
+            justification: |
+              DemaConsulting.TestResults (including its TestResults.IO serializers) is a runtime
+              NuGet dependency of the CanvasNet tool, used by the self-validation mode to record
+              the outcome of each self-test and to write the TRX and JUnit XML files that
+              ReqStream and CI systems consume. It has no CLI to self-validate, so it is verified
+              indirectly: the tests that run the self-validation with a results file and check the
+              serialized TRX and JUnit documents are direct evidence that the library produces the
+              expected output.
+            tags: [ots]
+            tests:
+              - Validation_Run_WithTrxResultsFile_WritesTrxFile
+              - Validation_Run_WithXmlResultsFile_WritesXmlFile
+              - CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile

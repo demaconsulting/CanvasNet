@@ -41,6 +41,21 @@ input-files:
   - docs/verification/canvas-net-scad/scad-geometry/scad-primitives.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-extrusions.md
+  - docs/verification/canvas-net-tool.md
+  - docs/verification/canvas-net-tool/program.md
+  - docs/verification/canvas-net-tool/context.md
+  - docs/verification/canvas-net-tool/argument-reader.md
+  - docs/verification/canvas-net-tool/result-writer.md
+  - docs/verification/canvas-net-tool/validation.md
+  - docs/verification/canvas-net-tool/path-helpers.md
+  - docs/verification/canvas-net-tool/commands.md
+  - docs/verification/canvas-net-tool/commands/command-registry.md
+  - docs/verification/canvas-net-tool/commands/discovery-commands.md
+  - docs/verification/canvas-net-tool/commands/render-command.md
+  - docs/verification/canvas-net-tool/imaging.md
+  - docs/verification/canvas-net-tool/imaging/source-loader.md
+  - docs/verification/canvas-net-tool/imaging/image-writer.md
+  - docs/verification/canvas-net-tool/imaging/image-pipeline.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md
@@ -50,6 +65,7 @@ input-files:
   - docs/verification/ots/sarifmark.md
   - docs/verification/ots/sonarmark.md
   - docs/verification/ots/sysml2tools.md
+  - docs/verification/ots/test-results.md
   - docs/verification/ots/versionmark.md
   - docs/verification/ots/weasyprint.md
   - docs/verification/ots/xunit.md

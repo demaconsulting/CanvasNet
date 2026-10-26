@@ -1,0 +1,135 @@
+---
+# cspell:ignore scad openscad
+# Software Unit Requirements for the DiscoveryCommands Class
+#
+# The DiscoveryCommands class holds the read-only commands that tell a caller what the tool can
+# do or what a file is: the formats command and the info command. The table of input and output
+# formats is data owned by this unit.
+
+sections:
+  - title: DiscoveryCommands Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-DiscoveryCommands-Formats
+        title: >-
+          The formats command shall list the input formats (with kind, extensions, page and scaling
+          capabilities), the output formats (with extensions, alpha, and quality capabilities), the
+          maximum image dimension, the JPEG quality range, and the tool and library versions as
+          text.
+        justification: |
+          A person or an agent must be able to ask the tool what it can read and write instead of
+          guessing from documentation that may belong to another version.
+        tests:
+          - DiscoveryCommands_Formats_Metadata_DescribesCommand
+          - DiscoveryCommands_Formats_TextOutput_ListsFormatsLimitsAndVersions
+          - DiscoveryCommands_Formats_DefaultVersions_ReportsRunningVersions
+          - DiscoveryCommands_FormatTables_AreWellFormed
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
+        title: >-
+          The formats command shall write the same information as one JSON success document with
+          the keys `tool`, `library`, `inputs`, `outputs`, `quality`, and `maxDimension` when the
+          JSON option is given.
+        justification: |
+          Agents consume the listing programmatically; the document layout is part of the tool's
+          machine contract and is verified byte for byte.
+        tests:
+          - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
+        title: >-
+          The formats command shall reject positional arguments and options with a usage error.
+        justification: |
+          The command takes no arguments of its own; anything else on the command line is a mistake
+          that must not be ignored silently.
+        tests:
+          - DiscoveryCommands_Formats_PositionalArgument_ThrowsUsageError
+          - DiscoveryCommands_Formats_UnknownOption_ThrowsUsageError
+          - DiscoveryCommands_Formats_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-FormatTables
+        title: >-
+          The tables of input and output formats shall name exactly the source kinds and output formats
+          the imaging code implements, in the same order, with the file name extensions that the source
+          loader detects and the image writer accepts, and the quality range the writer enforces, and
+          every listed input format shall be one the source loader reads.
+        justification: |
+          The formats command is how an agent discovers what the tool supports; a listing that drifts
+          from the implementation would send the agent down paths that fail.
+        tests:
+          - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
+          - DiscoveryCommands_FormatTables_OutputFormatsMatchOutputFormatsOfWriter
+          - DiscoveryCommands_FormatTables_QualityRangeMatchesWriter
+          - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-Info
+        title: >-
+          The info command shall describe one file from its header, without rendering it, as one text
+          line with its path, format, pixel size, channels, transparency, size in bytes, and, when they
+          apply, its frame count, EXIF orientation, and whether it can be decoded.
+        justification: |
+          A person or an agent needs to know what a file is, and how large, before deciding how to
+          render it; reading only the header keeps the answer cheap.
+        tests:
+          - DiscoveryCommands_Info_Metadata_DescribesCommand
+          - DiscoveryCommands_Info_DefaultRegistry_RegistersInfo
+          - DiscoveryCommands_Info_TextOutput_DescribesFile
+          - DiscoveryCommands_Info_EachKind_ReportsFormatAndSize
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoJson
+        title: >-
+          The info command shall write the same facts as one JSON success document with the keys
+          input (path, format, bytes) and image (width, height, channels, hasAlpha, canDecode,
+          frameCount, and exifOrientation when the file has one) when the JSON option is given.
+        justification: |
+          Agents consume the facts programmatically; the document layout is part of the tool's machine
+          contract and is verified byte for byte.
+        tests:
+          - DiscoveryCommands_Info_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_Info_JpegOrientation_IsReportedOnlyWhenPresent
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoPages
+        title: >-
+          The info command shall describe a PDF, PPTX, or VSDX document by its number of pages and the
+          size of one page (the first, the one chosen with the page option, or every page with the
+          all-pages option) in pixels at 96 dots per inch and in points, with the rotation of a PDF
+          page and the name of a VSDX page, as text and as the document object of the JSON document,
+          shall accept the page options for a single image as well, and shall reject both page options
+          together and a page that does not exist.
+        justification: |
+          An agent decides which page to render, and at what resolution, from what the document says
+          about its pages; one command answers that for every kind of document.
+        tests:
+          - DiscoveryCommands_Info_PdfText_DescribesFileAndFirstPage
+          - DiscoveryCommands_Info_PageOptions_ChoosePagesToDescribe
+          - DiscoveryCommands_Info_DocumentJson_ListsPageCountAndPages
+          - DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors
+          - DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoModel
+        title: >-
+          The info command shall describe an OpenSCAD model by parsing it, without evaluating it: as
+          text, one line with its path, the number of its modules, functions, and include and use
+          directives, and its size in bytes, followed by a line for each module, function, and directive
+          (with its line); and as the model object of the JSON document, with the names of its modules
+          and functions and its directives (kind, path, and line) in place of the image object.
+        justification: |
+          An agent decides how to render and vary a parametric model from what it declares; parsing it
+          answers that without the cost or the risk of running it.
+        tests:
+          - DiscoveryCommands_Info_ModelText_ListsModulesFunctionsAndDirectives
+          - DiscoveryCommands_Info_ModelWithoutDeclarations_DescribesCounts
+          - DiscoveryCommands_Info_ModelJson_HasModelObject
+          - DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
+        title: >-
+          The info command shall report a missing, corrupt, or unsupported input (including a damaged
+          document) as an expected error, shall report a missing input, extra inputs, or an unknown
+          option as a usage error, and shall reject null arguments.
+        justification: |
+          Mistakes must produce stable, actionable errors rather than silent or partial results.
+        tests:
+          - DiscoveryCommands_Info_BadInput_ThrowsToolException
+          - DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput
+          - DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError
+          - DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException

@@ -1,5 +1,6 @@
 # Introduction
 
+<!-- cspell:ignore canvasnet -->
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 <!-- cspell:ignore unitless -->
@@ -20,9 +21,10 @@ canvas-based drawing and rendering API.
 
 This user guide covers:
 
-- Installation of the library
+- Installation of the library and of the `canvasnet` command-line tool
 - Basic usage and examples
 - API reference
+- The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 # Continuous Compliance
 
@@ -47,6 +49,14 @@ Install the library using the .NET CLI:
 
 ```bash
 dotnet add package DemaConsulting.CanvasNet
+```
+
+To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents, and
+OpenSCAD models, from scripts or AI agents), install the `canvasnet` .NET tool, which bundles the libraries. The
+chapter on the command-line tool describes it in full:
+
+```bash
+dotnet tool install --global DemaConsulting.CanvasNet.Tool
 ```
 
 # Usage

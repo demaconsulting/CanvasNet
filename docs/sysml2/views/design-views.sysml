@@ -52,6 +52,18 @@ package CanvasNet {
         expose CanvasNetScadSystem;
     }
 
+    view CanvasNetToolView {
+        expose CanvasNetToolSystem;
+    }
+
+    view CommandsView {
+        expose Commands;
+    }
+
+    view ImagingView {
+        expose Imaging;
+    }
+
     view ScadLanguageView {
         expose ScadLanguage;
     }

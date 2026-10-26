@@ -1,0 +1,517 @@
+---
+# cspell:ignore canvasnet scad openscad
+# CanvasNetTool System-Level Requirements
+# CanvasNetTool System-Level Requirements
+#
+# PURPOSE:
+# - Define system-level requirements describing what end-users (people, scripts, and AI agents)
+#   need the canvasnet command-line tool to provide
+# - These requirements capture the externally visible behavior of the complete system
+# - System requirements are validated through tests that exercise the built tool end-to-end
+#   (as a real process via dotnet, or in-process through the program entry point where
+#   standard output and standard error must be examined separately)
+# - Requirements for the individual commands are system requirements of their own, with the
+#   command units' requirements as their children
+
+sections:
+  - title: CanvasNetTool System-Level Requirements
+    requirements:
+      - id: CanvasNetTool-System-Version
+        title: The tool shall display version information when the version flag is provided.
+        tags: [system]
+        justification: |
+          Users and scripts need to quickly identify the version of the tool they are using for
+          troubleshooting and compatibility verification. The version display must work from a
+          standard dotnet invocation without additional configuration, and must print only the
+          version so that it can be captured by a script.
+        children:
+          - CanvasNetTool-Program-Version
+          - CanvasNetTool-Context-GlobalFlags
+        tests:
+          - CanvasNetTool_VersionFlag_Provided_OutputsVersion
+
+      - id: CanvasNetTool-System-Help
+        title: The tool shall display usage information when the help flag is provided.
+        tags: [system]
+        justification: |
+          Users and AI agents need access to command-line usage documentation without requiring
+          external resources. Help output must list the global options and the available commands,
+          and must be available for each individual command, so that the tool can be learned from
+          its own output.
+        children:
+          - CanvasNetTool-Program-Help
+          - CanvasNetTool-Commands-Help
+        tests:
+          - CanvasNetTool_HelpFlag_Provided_OutputsUsageInformation
+
+      - id: CanvasNetTool-System-Validate
+        title: The tool shall execute self-validation tests when the validate flag is provided.
+        tags: [system]
+        justification: |
+          Regulated environments require tool qualification evidence to demonstrate that the tool
+          functions correctly in its deployment environment before it is used to generate
+          compliance artifacts. The validation mode exercises core behaviors and produces a
+          structured test result file, providing the qualification evidence required by quality
+          management systems.
+        children:
+          - CanvasNetTool-Program-Validate
+          - CanvasNetTool-Validation-Qualification
+          - CanvasNetTool-Validation-Formats
+          - CanvasNetTool-Validation-ImagingSelfTests
+        tests:
+          - CanvasNetTool_ValidateFlag_Provided_RunsValidation
+
+      - id: CanvasNetTool-System-Silent
+        title: The tool shall suppress console output when the silent flag is provided.
+        tags: [system]
+        justification: |
+          Enables automated scripts and CI/CD pipelines to run the tool without cluttering output
+          logs when only the exit code is needed.
+        children:
+          - CanvasNetTool-Context-Silent
+        tests:
+          - CanvasNetTool_SilentFlag_Provided_SuppressesOutput
+
+      - id: CanvasNetTool-System-Log
+        title: The tool shall write output to a log file when the log flag is provided.
+        tags: [system]
+        justification: |
+          Provides persistent logging for debugging and compliance audit trails. Log files enable
+          post-run inspection of tool output without requiring console capture.
+        children:
+          - CanvasNetTool-Context-Log
+          - CanvasNetTool-Context-LogFailure
+        tests:
+          - CanvasNetTool_LogFlag_Provided_WritesOutputToFile
+
+      - id: CanvasNetTool-System-Results
+        title: >-
+          The tool shall write self-validation results to a standard test result file when the
+          `--results` flag is provided.
+        tags: [system]
+        justification: |
+          Enables integration with CI/CD systems that expect standard test result formats. TRX
+          format is compatible with MSTest; JUnit XML is compatible with many CI tools.
+        children:
+          - CanvasNetTool-Context-Results
+          - CanvasNetTool-Validation-ResultsOutput
+        tests:
+          - CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile
+          - CanvasNetTool_ValidateWithXmlResults_Requested_GeneratesJUnitFile
+
+      - id: CanvasNetTool-System-ResultAlias
+        title: The tool shall accept `--result` as a legacy alias for `--results`.
+        tags: [system]
+        justification: |
+          Backward compatibility with scripts that use the earlier `--result` spelling prevents
+          breakage when upgrading to newer tool versions.
+        children:
+          - CanvasNetTool-Context-ResultAlias
+        tests:
+          - CanvasNetTool_ResultAlias_LegacyFlag_WritesResultsFile
+
+      - id: CanvasNetTool-System-Depth
+        title: The tool shall adjust the heading depth of validation output when the `--depth` flag is provided.
+        tags: [system]
+        justification: |
+          Enables validation output to be embedded within larger markdown documents at the
+          appropriate heading level, supporting documentation workflows that combine multiple
+          reports.
+        children:
+          - CanvasNetTool-Context-Depth
+          - CanvasNetTool-Validation-Header
+        tests:
+          - CanvasNetTool_ValidateFlag_Provided_RunsValidation
+          - CanvasNetTool_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel
+
+      - id: CanvasNetTool-System-ValidateFailure
+        title: The tool shall return a non-zero exit code when the results file cannot be written.
+        tags: [system]
+        justification: |
+          A non-zero exit code on results-write failure enables CI/CD pipelines to detect and
+          surface output errors automatically, preventing silent loss of validation evidence in
+          compliance-critical workflows.
+        children:
+          - CanvasNetTool-Validation-InvalidExtension
+        tests:
+          - CanvasNetTool_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero
+
+      - id: CanvasNetTool-System-ErrorHandling
+        title: >-
+          The tool shall return exit code 1 for unrecognized arguments, unknown commands, and
+          expected failures, and exit code 0 on success.
+        tags: [system]
+        justification: |
+          A two-valued, non-zero exit code on any failure enables CI/CD pipelines, scripts, and
+          AI agents to detect failures reliably without parsing output. The error text and the
+          machine-readable error codes carry the detail.
+        children:
+          - CanvasNetTool-Program-ExitCode
+          - CanvasNetTool-Context-ArgumentErrors
+          - CanvasNetTool-Context-ExitCode
+        tests:
+          - CanvasNetTool_UnknownArgument_Provided_ReturnsError
+          - CanvasNetTool_UnknownCommand_Provided_ReturnsConciseUsageError
+          - CanvasNetTool_ExpectedFailure_CommandThrowsToolException_ReportsConciseError
+
+      - id: CanvasNetTool-System-ErrorMessage
+        title: >-
+          The tool shall report an expected error as a concise message on standard error,
+          identifying the failure by a stable error code, without a stack trace.
+        tags: [system]
+        justification: |
+          Clear, concise feedback helps users and AI agents correct mistakes quickly, and a stable
+          error code lets scripts branch on the failure kind. Error text belongs on standard
+          error so that standard output stays reserved for results that callers pipe or parse.
+        children:
+          - CanvasNetTool-Program-ExpectedErrors
+          - CanvasNetTool-Program-ErrorChannels
+          - CanvasNetTool-Context-OutputChannels
+        tests:
+          - CanvasNetTool_UnknownArgument_Provided_ReturnsError
+          - CanvasNetTool_UnknownCommand_Provided_ReturnsConciseUsageError
+          - CanvasNetTool_ExpectedFailure_CommandThrowsToolException_ReportsConciseError
+
+      - id: CanvasNetTool-System-UnexpectedErrorRethrow
+        title: >-
+          The tool shall report an unexpected error on standard error and then re-throw it, so
+          that the runtime records it, instead of converting it to an exit code.
+        tags: [system]
+        justification: |
+          An unexpected exception is a defect in the tool, not a user error. Following the
+          standard DEMA Consulting tool template, it is written to standard error and re-thrown so
+          that the runtime's event log and crash handling capture it for post-mortem analysis;
+          only the expected, user-correctable failures are reduced to a concise message and an
+          exit code.
+        children:
+          - CanvasNetTool-Program-UnexpectedRethrow
+        tests:
+          - CanvasNetTool_UnexpectedError_CommandThrowsUnexpectedException_IsReThrown
+
+      - id: CanvasNetTool-System-DefaultBehavior
+        title: The tool shall display a banner and a usage hint when invoked without any arguments.
+        tags: [system]
+        justification: |
+          When a user invokes the tool without any action, the tool shall identify itself and point
+          at the help so that the invocation is never silently empty, and shall still succeed.
+        children:
+          - CanvasNetTool-Program-DefaultBehavior
+          - CanvasNetTool-Context-CommandCapture
+        tests:
+          - CanvasNetTool_NoArguments_Invoked_DisplaysBanner
+
+      - id: CanvasNetTool-System-CleanOutput
+        title: >-
+          The tool shall write nothing to standard output when running a command other than that
+          command's own output.
+        tags: [system]
+        justification: |
+          Scripts and AI agents pipe and parse the standard output of a command (for example JSON
+          results), so no banner or other decoration may precede or follow the command's own
+          output.
+        children:
+          - CanvasNetTool-Program-Banner
+        tests:
+          - CanvasNetTool_CommandOutput_CommandRuns_HasNoBanner
+
+      - id: CanvasNetTool-System-CommandDispatch
+        title: >-
+          The tool shall run the command named by the first non-option argument with the
+          remaining arguments, accepting the global options in any position, and shall report an
+          unknown command as a usage error.
+        tags: [system]
+        justification: |
+          The tool is a command-line interface with subcommands. Users and agents place global
+          options such as `--silent` or `--log` wherever they find natural, and mistyped command
+          names must be reported with a suggestion rather than silently ignored.
+        children:
+          - CanvasNetTool-Program-Dispatch
+          - CanvasNetTool-Context-FlagsAnyPosition
+          - CanvasNetTool-Commands-Dispatch
+        tests:
+          - CanvasNetTool_CommandDispatch_GlobalFlagsAnywhere_RunsCommandWithItsArguments
+          - CanvasNetTool_UnknownCommand_Provided_ReturnsConciseUsageError
+
+      - id: CanvasNetTool-System-CommandLineGrammar
+        title: >-
+          The tool shall read the options of a command in the forms `--name value`, `--name=value`,
+          and `-a value`, keep repeated options in command-line order, reject an unknown option with
+          a usage error that suggests the closest option, and parse typed option values (sizes,
+          rectangles, colors, angles, flip axes, border widths, resolutions, page numbers, and
+          definitions) with documented grammars.
+        tags: [system]
+        justification: |
+          People and AI agents drive the tool from the command line; one forgiving but unambiguous
+          grammar shared by every command, with actionable errors, lets them get a command right
+          without reading a manual. The typed grammars are verified at unit level, and the system
+          tests of the commands that use them exercise them end to end.
+        children:
+          - CanvasNetTool-ArgumentReader-OptionForms
+          - CanvasNetTool-ArgumentReader-OrderedOptions
+          - CanvasNetTool-ArgumentReader-UnknownOption
+          - CanvasNetTool-ArgumentReader-MissingValue
+          - CanvasNetTool-ArgumentReader-Numbers
+          - CanvasNetTool-ArgumentReader-Size
+          - CanvasNetTool-ArgumentReader-Geometry
+          - CanvasNetTool-ArgumentReader-Color
+          - CanvasNetTool-ArgumentReader-Transforms
+          - CanvasNetTool-ArgumentReader-Defines
+        tests:
+          - CanvasNetTool_CommandLineGrammar_OptionForms_ReadByCommand
+          - CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError
+
+      - id: CanvasNetTool-System-Json
+        title: >-
+          The tool shall write the result of a command as one deterministic JSON document, starting
+          with the schema version and a success flag, to standard output when the `--json` option is
+          given, and shall write an expected failure in the same envelope with a stable error code
+          (unless `--silent` is given).
+        tags: [system]
+        justification: |
+          AI agents and scripts need a stable, versioned, machine-readable contract: parsing text
+          meant for people breaks whenever the wording changes. A failure arrives in the same
+          envelope as a success so that one parser handles both, and the exit code stays the
+          template's 0 or 1.
+        children:
+          - CanvasNetTool-Context-Json
+          - CanvasNetTool-Program-JsonErrors
+          - CanvasNetTool-ResultWriter-SchemaVersion
+          - CanvasNetTool-ResultWriter-SuccessEnvelope
+          - CanvasNetTool-ResultWriter-ErrorEnvelope
+          - CanvasNetTool-ResultWriter-DeterministicOutput
+          - CanvasNetTool-ResultWriter-Escaping
+        tests:
+          - CanvasNetTool_Formats_JsonRequested_WritesJsonDocument
+          - CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage
+          - CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument
+          - CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument
+
+      - id: CanvasNetTool-System-Formats
+        title: >-
+          The tool shall list the input formats, the output formats, the limits, and the versions
+          when the `formats` command is run, as text or as JSON.
+        tags: [system]
+        justification: |
+          A caller must be able to discover what the installed tool supports without reading
+          documentation that may describe another version.
+        children:
+          - CanvasNetTool-Commands-Formats
+        tests:
+          - CanvasNetTool_Formats_Requested_ListsFormats
+          - CanvasNetTool_Formats_JsonRequested_WritesJsonDocument
+
+      - id: CanvasNetTool-System-Info
+        title: >-
+          The tool shall describe an image, drawing, document, or model file (its format, pixel size,
+          channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
+          the number and size of the pages of a PDF, PPTX, or VSDX document, and the modules,
+          functions, and include and use directives of an OpenSCAD model) without rendering it
+          when the `info` command is run, as text or as JSON.
+        tags: [system]
+        justification: |
+          A caller needs to know what a file is before deciding how to render it, and the answer must
+          be cheap enough to ask for every file.
+        children:
+          - CanvasNetTool-Commands-Info
+        tests:
+          - CanvasNetTool_Info_Requested_DescribesFile
+          - CanvasNetTool_Info_DocumentPages_DescribesPages
+          - CanvasNetTool_Scad_Info_DescribesModel
+
+      - id: CanvasNetTool-System-Render
+        title: >-
+          The tool shall render or convert an input file to an image file when the `render` command
+          (alias `convert`) is run, at the size and with the background and quality the options ask
+          for, and report the result as one text line or one JSON document.
+        tags: [system]
+        justification: |
+          Rendering and converting images is the purpose of the tool; people and agents need one
+          command with one grammar and a result they can read or parse.
+        children:
+          - CanvasNetTool-Commands-Render
+        tests:
+          - CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine
+          - CanvasNetTool_Render_JsonRequested_WritesJsonDocument
+          - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Pipeline
+        title: >-
+          The tool shall apply the operations `--crop` (a rectangle `x,y,w,h` or `WxH+X+Y` in pixels or
+          percent), `--resize WxH`, `--fit WxH` (shrinking only unless `--allow-upscale`), `--rotate`
+          (90, 180, or 270 degrees; any other angle is refused as not supported yet), `--flip h|v|both`,
+          and `--pad` (one width or left, top, right, bottom) with `--pad-color`, with the resampling
+          filter chosen by `--filter`, to a rendered image in the order they are written, in one decode
+          and one encode, and shall list each operation applied, in order, with its parameters and the
+          size of its result, in the JSON result.
+        tags: [system]
+        justification: |
+          Agents prepare images for other tools (crop a region, shrink it, add a margin); one ordered
+          pipeline in a single invocation avoids intermediate files and lossy re-encoding, and the
+          result says what was done so the agent can verify it.
+        children:
+          - CanvasNetTool-Imaging-Transform
+        tests:
+          - CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder
+          - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-TransformCommands
+        title: >-
+          The tool shall offer the commands `crop <input> <geometry>`, `resize <input> <WxH>`,
+          `rotate <input> <degrees>`, `flip <input> <h|v|both>`, and `pad <input> <border>`, each
+          writing to the file named by `-o`, accepting every option of `render` (so further operations
+          may follow the operand), and writing exactly the file that the equivalent `render` invocation
+          writes.
+        tags: [system]
+        justification: |
+          A single transformation is the most frequent request; a command named for it, with its operand
+          in a natural position, is the easiest thing for a person or an agent to guess, and sharing the
+          implementation with `render` means the two can never disagree.
+        children:
+          - CanvasNetTool-Commands-TransformCommands
+        tests:
+          - CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent
+          - CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage
+          - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-InputFormats
+        title: >-
+          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and
+          OpenSCAD (SCAD) files, recognizing the format from the content before the file name
+          extension (a model by its extension).
+        tags: [system]
+        justification: |
+          Agents work with whatever files they are given; reading the common raster formats, SVG
+          drawings, the documents that carry diagrams and slides, and the 3D models they are asked to
+          show, whatever they are named, means they rarely need another tool first.
+        children:
+          - CanvasNetTool-Imaging-Load
+        tests:
+          - CanvasNetTool_InputFormats_EveryFormat_AreReadable
+          - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
+          - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
+
+      - id: CanvasNetTool-System-Documents
+        title: >-
+          The tool shall render the page or slide of a PDF, PPTX, or VSDX file chosen with `--page`
+          (counted from 1, the first by default), or every page with `--all-pages` into files named by
+          `{page}` or into a directory, at 96 dots per inch or the `--dpi` given (and at the size the
+          size options ask for), over white unless `--background` says otherwise.
+        tags: [system]
+        justification: |
+          Agents are handed documents and presentations and need to look at one page or all of them;
+          one numbering, one naming rule, and one resolution option work the same for every kind of
+          document, so a page that is wanted at a higher resolution can be asked for again.
+        tests:
+          - CanvasNetTool_Documents_RenderPageAndDpi_WritesPageAtSize
+          - CanvasNetTool_Documents_AllPages_WritesEveryPage
+          - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Scad
+        title: >-
+          The tool shall render an OpenSCAD model (a `.scad` file) from the named view chosen with
+          `--view` (iso by default, front, back, left, right, top, or bottom; the camera looks at the
+          model from that side with Z up), with the azimuth and elevation of the view replaceable with
+          `--azimuth` and `--elevation`, orthographic unless `--projection perspective` is given, at
+          800 by 800 pixels unless a size option is given, over white unless `--background` says
+          otherwise, with variables set by `-D name=value`, `$t` set by `--time`, the color of
+          uncolored surfaces set by `--default-color`, and the number of triangles limited by
+          `--max-triangles`; shall read the files named by `include` and `use` from the folder of the
+          model and below it only and refuse a model whose include cannot be read; and shall report a
+          syntax error, a failed assertion, and an include problem with the error code scad-error, and a
+          model that exceeds a limit with the error code budget-exceeded, as expected failures.
+        tags: [system]
+        justification: |
+          Agents are asked to show a 3D model; a named view says which side to look at without the
+          geometry of a camera, the variables of a parametric model can be set from the command line,
+          and every limit and mistake of a model is a concise, coded error rather than a crash, so that
+          a runaway model cannot hang or take down the agent that renders it. Files outside the folder of
+          the model are never read, so a model cannot be used to read other files.
+        tests:
+          - CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions
+          - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
+          - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
+          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
+          - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-Diagnostics
+        title: >-
+          The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
+          skip or approximate, and the warnings, unsupported features, and echoed text of an OpenSCAD
+          model, in the `diagnostics` and `echo` of the JSON result, and with `--strict` shall fail
+          with the error code unsupported-feature and write no output instead of skipping an
+          unsupported feature.
+        tags: [system]
+        justification: |
+          An image that silently lacks part of the document misleads the agent that looks at it; the
+          note says what is missing, and strict mode is for callers that cannot accept the gap.
+        tests:
+          - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
+          - CanvasNetTool_Scad_Diagnostics_AreReportedInJson
+
+      - id: CanvasNetTool-System-OutputFormats
+        title: >-
+          The tool shall write PNG, JPEG, BMP, and TIFF files, choosing the format from the output
+          file extension or the `--format` option, with a JPEG quality of 1 to 100.
+        tags: [system]
+        justification: |
+          These are the formats that image viewers, documents, and the models that look at images
+          accept; the choice must follow what the caller typed.
+        children:
+          - CanvasNetTool-Imaging-Write
+        tests:
+          - CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat
+          - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
+
+      - id: CanvasNetTool-System-Defaults
+        title: >-
+          The tool shall by default overwrite an existing output file (refusing with `--no-clobber`),
+          refuse an output that is the input, flatten transparency over white for SVG sources, for
+          pages of documents, and for JPEG output, turn a JPEG upright by its EXIF orientation, and
+          refuse an image larger than 8192 pixels on a side before decoding it.
+        tags: [system]
+        justification: |
+          Defaults chosen for people and agents that iterate on an image: replacing the output is what
+          they mean, white avoids the black background of a transparent drawing, upright photos are
+          what they look at, and a size limit protects memory. The unit requirements that implement the
+          defaults are children of the render command and Imaging requirements; this requirement is
+          proven end to end.
+        tests:
+          - CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy
+          - CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg
+          - CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent
+          - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
+          - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
+
+      - id: CanvasNetTool-System-Determinism
+        title: >-
+          The tool shall write the same output bytes when the same input and options are rendered twice
+          on the same machine with the same tool version.
+        tags: [system]
+        justification: |
+          Reproducible output lets scripts and agents detect real change and cache results.
+        children:
+          - CanvasNetTool-Imaging-Determinism
+        tests:
+          - CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes
+          - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
+
+      - id: CanvasNetTool-System-InputErrors
+        title: >-
+          The tool shall report a missing, unsupported, truncated, or corrupt input file (including a
+          document with a missing page or a broken part, and a model with a syntax error or an include
+          that cannot be read), a page that does not exist, and an image
+          larger than the maximum size, as an expected failure with a stable error code and exit code
+          1, never as an unexpected error, and shall write no output.
+        tags: [system]
+        justification: |
+          Agents hand the tool files of every quality; a bad file is a user mistake that must produce a
+          concise, actionable error, not a crash.
+        children:
+          - CanvasNetTool-Imaging-Errors
+        tests:
+          - CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors
+          - CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors
+          - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
+          - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors

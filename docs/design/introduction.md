@@ -1,7 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
-<!-- cspell:ignore multmatrix Minkowski -->
+<!-- cspell:ignore multmatrix Minkowski canvasnet -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -220,6 +220,24 @@ software items, specifically:
   (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
   public API, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
+- **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
+  tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, and transform
+  images and documents with the CanvasNet libraries and offers a small, stable error contract (exit codes 0
+  and 1, concise error text, stable error codes, and a versioned JSON result contract). It follows the DEMA
+  Consulting tool template and contains six
+  direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
+  (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
+  `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
+  output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
+  `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
+  `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
+  `rotate`, `flip`, and `pad`) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
+  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
+  models, the `ImagePipeline` unit, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options
+  were written, and the `ImageWriter`
+  unit, which writes PNG, JPEG, BMP, and TIFF files). It uses
+  the other systems of this repository through private project references, so that their assemblies are bundled
+  into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
 
@@ -232,6 +250,8 @@ The following OTS items are also covered:
 - **SonarMark** — SonarCloud quality report tool
 - **SysML2Tools** — architecture model lint and diagram rendering tool
 - **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
+- **DemaConsulting.TestResults** — self-validation result recording and TRX/JUnit serialization library of the
+  tool package
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework
@@ -340,6 +360,21 @@ subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGe
 `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units. It uses the `CanvasNet` system (`Surface`,
 `Rgba32`) and `CanvasNetRender3D` (the scene model, tessellation, and renderer) through their public API. See
 the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+
+A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
+its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
+Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
+direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation`, and `PathHelpers` (namespace
+`DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
+grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
+(namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `DiscoveryCommands`, and
+`RenderCommand` units (the `formats`, `info`, `render`, `convert`, `crop`, `resize`, `rotate`, `flip`, and `pad`
+commands), and its `Imaging` subsystem (namespace
+`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, and `ImageWriter` units that turn
+files into pixels, transform pixels, and turn pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
+their public API and bundles their assemblies in its package. No library system references the tool. See the
+Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
 
 ## Folder Layout
 
@@ -821,6 +856,47 @@ src/DemaConsulting.CanvasNet.Scad/
 tessellation, rendering) through their public API from the `ScadGeometry` subsystem and the `BuildScene` and
 `Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
+
+The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
+`DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
+`Commands` and `Imaging` subsystems occupy the `Commands/` and `Imaging/` sub-folders, whose names equal their
+sub-namespaces (see _CanvasNetTool System Design_, `canvas-net-tool.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Tool/
+├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net8.0/net9.0/net10.0; packable as a dotnet tool)
+├── Program.cs                     — Program: entry point, dispatch, and the error policy
+├── ToolException.cs               — Program: ToolException and the stable ErrorCodes
+├── Context.cs                     — Context: global options, command capture, and output channels
+├── ArgumentReader.cs              — ArgumentReader: option reading and the value types
+├── ArgumentReader.Values.cs       — ArgumentReader: the value grammars (size, geometry, color, and others)
+├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
+├── Validation.cs                  — Validation: --validate self-test and results output
+├── PathHelpers.cs                 — PathHelpers: safe path combination
+├── Commands/                      — Commands subsystem
+│   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
+│   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
+│   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
+│   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
+│   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+│   └── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
+└── Imaging/                       — Imaging subsystem
+    ├── SourceModels.cs            — SourceLoader: source kinds, output formats, and the load model types
+    ├── SourceLoader.cs            — SourceLoader: probe, load, size policy, and the exception mapping
+    ├── SourceLoader.Detect.cs     — SourceLoader: format detection
+    ├── SourceLoader.Raster.cs     — SourceLoader: PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 sources
+    ├── SourceLoader.Svg.cs        — SourceLoader: SVG sources
+    ├── SourceLoader.Documents.cs  — SourceLoader: the page-based sources' shared sizing and rendering
+    ├── SourceLoader.Pdf.cs        — SourceLoader: PDF documents
+    ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
+    ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
+    ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
+    ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
+    ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
+    ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad)
+    ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
+    └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
+```
 
 ## Document Conventions
 

@@ -1,0 +1,115 @@
+---
+# Commands Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetTool Commands subsystem
+# - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
+#   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
+#   (formats and info) and RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
+#   and pad)
+# - Subsystem requirements describe the externally visible command-dispatch behavior
+
+sections:
+  - title: Commands Subsystem Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-Dispatch
+        title: >-
+          The Commands subsystem shall run the registered command selected by name or alias with
+          its arguments, and shall report an unknown command as a usage error that suggests the
+          closest command name.
+        justification: |
+          A command-line interface with subcommands needs a single place that resolves what the
+          user typed to a command, runs it, and gives actionable feedback when the name is wrong.
+        children:
+          - CanvasNetTool-Commands-CommandRegistry-Registration
+          - CanvasNetTool-Commands-CommandRegistry-Dispatch
+          - CanvasNetTool-Commands-CommandRegistry-UnknownCommand
+          - CanvasNetTool-Commands-CommandRegistry-ErrorContext
+        tests:
+          - CommandsSubsystem_Dispatch_RegisteredCommand_RunsWithItsArguments
+          - CommandsSubsystem_Dispatch_GlobalOptionsMixedIn_AreNotPassedToCommand
+          - CommandsSubsystem_Dispatch_CommandThrowsToolException_RecordsCommandName
+          - CommandsSubsystem_UnknownCommand_Mistyped_ReportsUsageErrorWithSuggestion
+
+      - id: CanvasNetTool-Commands-Help
+        title: >-
+          The Commands subsystem shall render help that lists the commands and the global
+          options, and help for each command listing its usage, summary, and options.
+        justification: |
+          The tool must be learnable from its own output, by people and by AI agents; the help is
+          generated from the registered commands so it cannot drift from what the commands accept.
+        children:
+          - CanvasNetTool-Commands-CommandRegistry-Help
+        tests:
+          - CommandsSubsystem_Help_TopLevel_ListsRegisteredCommands
+          - CommandsSubsystem_Help_CommandHelp_ShownByFlagAndByHelpCommand
+          - CommandsSubsystem_Help_UnknownCommand_ReportsUsageError
+
+      - id: CanvasNetTool-Commands-Formats
+        title: >-
+          The Commands subsystem shall provide the formats command, which lists what the tool can
+          read and write as text, or as one JSON document when the JSON option is given.
+        justification: |
+          Before using a tool, people and agents need to know what it supports; the formats command
+          answers that from the tool itself, so the answer always matches the installed version.
+        children:
+          - CanvasNetTool-Commands-DiscoveryCommands-Formats
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
+          - CanvasNetTool-Commands-DiscoveryCommands-FormatTables
+        tests:
+          - CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand
+          - CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Info
+        title: >-
+          The Commands subsystem shall provide the info command, which describes one file without
+          rendering it, as text or as one JSON document when the JSON option is given.
+        justification: |
+          Before rendering a file, people and agents need to know what it is and how large it is; the
+          info command answers that from the file header.
+        children:
+          - CanvasNetTool-Commands-DiscoveryCommands-Info
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoJson
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoPages
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoModel
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
+        tests:
+          - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
+          - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Render
+        title: >-
+          The Commands subsystem shall provide the render command (alias convert), which loads an
+          image or drawing and writes it as PNG, JPEG, BMP, or TIFF, reporting the result as text or as
+          one JSON document when the JSON option is given.
+        justification: |
+          Rendering and converting an image is the tool's central task; one command with one grammar
+          serves both names and every input format.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-Options
+          - CanvasNetTool-Commands-RenderCommand-Source
+          - CanvasNetTool-Commands-RenderCommand-Pages
+          - CanvasNetTool-Commands-RenderCommand-Strict
+          - CanvasNetTool-Commands-RenderCommand-Scad
+          - CanvasNetTool-Commands-RenderCommand-Pipeline
+          - CanvasNetTool-Commands-RenderCommand-Output
+          - CanvasNetTool-Commands-RenderCommand-Result
+          - CanvasNetTool-Commands-RenderCommand-Overwrite
+          - CanvasNetTool-Commands-RenderCommand-Errors
+        tests:
+          - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
+          - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-TransformCommands
+        title: >-
+          The Commands subsystem shall provide the commands crop, resize, rotate, flip, and pad, each of
+          which applies one transformation, named by a positional operand after the input, to an image,
+          drawing, or document page and writes the result, with every option of the render command.
+        justification: |
+          A single transformation is the most frequent request; a command for each, sharing the
+          implementation of the render command, gives a natural grammar without a second code path.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-Verbs
+        tests:
+          - CommandsSubsystem_TransformVerbs_DefaultRegistry_RunAndAreListedInHelp

@@ -41,6 +41,21 @@ input-files:
   - docs/design/canvas-net-scad/scad-geometry/scad-primitives.md
   - docs/design/canvas-net-scad/scad-geometry/scad-transforms.md
   - docs/design/canvas-net-scad/scad-geometry/scad-extrusions.md
+  - docs/design/canvas-net-tool.md
+  - docs/design/canvas-net-tool/program.md
+  - docs/design/canvas-net-tool/context.md
+  - docs/design/canvas-net-tool/argument-reader.md
+  - docs/design/canvas-net-tool/result-writer.md
+  - docs/design/canvas-net-tool/validation.md
+  - docs/design/canvas-net-tool/path-helpers.md
+  - docs/design/canvas-net-tool/commands.md
+  - docs/design/canvas-net-tool/commands/command-registry.md
+  - docs/design/canvas-net-tool/commands/discovery-commands.md
+  - docs/design/canvas-net-tool/commands/render-command.md
+  - docs/design/canvas-net-tool/imaging.md
+  - docs/design/canvas-net-tool/imaging/source-loader.md
+  - docs/design/canvas-net-tool/imaging/image-writer.md
+  - docs/design/canvas-net-tool/imaging/image-pipeline.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md
@@ -50,6 +65,7 @@ input-files:
   - docs/design/ots/sarifmark.md
   - docs/design/ots/sonarmark.md
   - docs/design/ots/sysml2tools.md
+  - docs/design/ots/test-results.md
   - docs/design/ots/versionmark.md
   - docs/design/ots/weasyprint.md
   - docs/design/ots/xunit.md

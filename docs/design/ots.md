@@ -8,7 +8,9 @@ repository.
 CanvasNet has one shipped runtime NuGet package dependency, `System.Numerics.Tensors` (used by the
 `Canvas.Surface` unit's vectorized bulk pixel operations — see _Surface Unit Design_
 (`canvas-net/canvas/surface.md`) for details), and otherwise implements every unit exclusively
-against the .NET Base Class Library. The OTS items listed below are a separate category: they are
+against the .NET Base Class Library. The separate CanvasNet tool package has one runtime dependency of
+its own, `DemaConsulting.TestResults` (used by the tool's self-validation — see _Validation Unit Design_
+(`canvas-net-tool/validation.md`)). The remaining OTS items listed below are a separate category: they are
 build-time and quality-pipeline tools, not runtime library dependencies of the shipped package.
 Each OTS item provides one stage of the documentation, requirements-traceability, testing, and
 quality-reporting pipeline invoked by `build.ps1`, `lint.ps1`, and the `.github/workflows/build.yaml`
@@ -17,8 +19,9 @@ CI workflow. None of these tools are linked into, or shipped with, the compiled 
 ## OTS Items
 
 CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools (used to build,
-document, and verify the repository, but never shipped) and the one runtime library dependency
-that is shipped as a transitive dependency of the compiled NuGet package.
+document, and verify the repository, but never shipped) and the runtime library dependencies that
+are shipped in the compiled NuGet packages: `System.Numerics.Tensors` as a transitive dependency of the
+core package, and `DemaConsulting.TestResults`, whose assemblies are bundled inside the tool package.
 
 ### Build-Time and Quality-Pipeline Tools
 
@@ -38,9 +41,10 @@ that is shipped as a transitive dependency of the compiled NuGet package.
 
 ### Runtime OTS Dependency
 
-| OTS Item                | Purpose                                                                                    |
-|-------------------------|--------------------------------------------------------------------------------------------|
-| System.Numerics.Tensors | Vectorized numerics used by `Canvas.Surface`'s bulk pixel operations; shipped transitively |
+| OTS Item                   | Purpose                                                                           |
+|----------------------------|-----------------------------------------------------------------------------------|
+| System.Numerics.Tensors    | Vectorized numerics for the `Surface` bulk pixel operations; shipped transitively |
+| DemaConsulting.TestResults | Self-validation result recording and TRX/JUnit output in the tool package         |
 
 Each item's individual design document (`docs/design/ots/{ots-name}.md`) records its Purpose,
 Features Used, and Integration Pattern. Each item's requirements and verification evidence are
