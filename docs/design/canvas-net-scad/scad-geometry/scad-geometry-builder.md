@@ -305,11 +305,11 @@ more pair work than one maximal sum) is reported as
 `scad-minkowski-too-complex` ("the children need more than 2097152 pairwise vertex sums in total") before the
 work that would exceed it is done.
 
-**Lone child.** A single child is verified the same way, member by member and as built (no transformed copy is made,
-nothing is created or charged, so a valid child never fails on the budget because of the test), and its
-geometry and transforms are returned. When the child scene carries an appearance (a `color` inside the module),
-**the colors are stripped**: the child scene is copied without its appearances (and the one warning that colors
-inside `minkowski()` are not kept is reported), so that an enclosing `color` applies to the result. The copy
+**Lone child.** A lone convex child is verified as a closed convex solid in its own frame and returned with its
+geometry and transforms unchanged, with **the colors stripped** (a warning is reported), and with no Minkowski sum
+computed. No transformed copy is made, and nothing is created or charged for the verification, so a valid child
+never fails on the budget because of the test. When the child scene carries an appearance (a `color` inside the
+module), the child scene is copied without its appearances so that an enclosing `color` applies to the result. The copy
 (`StripAppearances`) is an iterative post-order depth-first walk: a node is copied only after all its children,
 and a node reached through several parents is copied once, so shared subtrees stay shared and the walk is linear
 in nodes plus edges; a child without any appearance is returned as it is. The result is one `MeshNode` or a
@@ -343,7 +343,10 @@ inside the budget, and refunded when the next step has consumed them; the peak i
 sums of the previous step and the bound of the sum in progress. On any failure everything not turned into a node is
 refunded. The operand meshes keep the charge they received when they
 were created, so the total charged equals the triangles of every mesh created (pinned by
-`ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`).
+`ScadGeometryBuilder_HullAndMinkowski_ChargeExactlyTheTrianglesCreated`). The convexity-verification hulls for
+Minkowski members and the transient distinct-point set used by the hull budget check are temporary working storage
+bounded by the size of operand meshes that are already charged, and are not separately charged against the triangle
+budget; precise accounting of transient storage is a planned hardening follow-up.
 
 **Cancellation, determinism, stack.** `context.Poll()` runs before each hull, each sum, and between the meshes
 gathered, and `context.Cancellation` is passed into the Render3D loops. The point and member order is document

@@ -231,7 +231,10 @@ failure or cancellation refunds all of it). The bound can reject a hull that wou
 two meshes are also bounded by `MinkowskiSum.MaxPairwiseSums`; the temporary sums of a Minkowski fold are charged
 (at their actual count) while they live and refunded when the next step has consumed them, so the operands stay
 charged and only the meshes of the result remain. The budget accumulates across all instances, including
-loops. The renderer's own resource
+loops. The convexity-verification hulls for Minkowski members and the transient distinct-point set used by the hull
+budget check are temporary working storage bounded by the size of operand meshes that are already charged, and are
+not separately charged against the triangle budget; precise accounting of transient storage is a planned hardening
+follow-up. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a
 `ScadEvaluationException` without a location.
 

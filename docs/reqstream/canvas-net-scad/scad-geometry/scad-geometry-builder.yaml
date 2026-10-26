@@ -195,10 +195,9 @@ sections:
                   of the children folded from the left, in which each child is its convex parts (the
                   meshes of a union-only scene tree in the module's frame) and a union distributes over the
                   sum, ignoring the convexity argument and the colors of the children, so that a block
-                  summed with a ball is the rounded block, and a lone convex child is itself, verified as built
-                  so that it never fails on the budget because of the test (its geometry
-                  and transforms) after its convexity has been verified, with its colors stripped and a
-                  warning so that an enclosing color applies.
+                  summed with a ball is the rounded block, and a lone convex child is verified as a closed
+                  convex solid in its own frame and returned with its geometry and transforms unchanged, with
+                  colors stripped (warning), and with no Minkowski sum computed.
                 justification: |
                   The Minkowski sum of convex solids is the hull of the pairwise vertex sums and the sum
                   distributes over unions, which covers the common rounding and offsetting models exactly.
@@ -275,7 +274,10 @@ sections:
                   temporary sums of a fold and the transformed copies of the convex parts are charged,
                   the copies before they are allocated, while they live and refunded when consumed), and
                   shall count the distinct vertices of each convex part once and reuse the count for every
-                  pair.
+                  pair. The convexity-verification hulls for Minkowski members and the transient distinct-point
+                  set used by the hull budget check are temporary working storage bounded by the size of operand
+                  meshes that are already charged, and are not separately charged against the triangle budget;
+                  precise accounting of transient storage is a planned hardening follow-up.
                 justification: |
                   The budget must hold before memory is allocated so that a hostile model cannot exhaust
                   the host; the exact count of a hull is known only afterwards, so its upper bound is

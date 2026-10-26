@@ -64,9 +64,12 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         refunded when the next step has consumed them, so the memory of a fold stays within the budget; the transformed
 ///         copies of the convex parts of a <c>minkowski</c> fold are made only for the sum that needs them and are
 ///         charged (before they are allocated) while they live and refunded when the fold has consumed them or the
-///         module ends; a lone child needs none; operand
-///         meshes stay charged like any consumed operand. Cancellation is polled between meshes and sums and inside
-///         the Render3D loops.
+///         module ends; a lone child needs none; operand meshes stay charged like any consumed operand.
+///         Cancellation is polled between meshes and sums and inside the Render3D loops. The convexity-verification
+///         hulls for Minkowski members and the transient distinct-point set used by the hull budget check are
+///         temporary working storage bounded by the size of operand meshes that are already charged, and are not
+///         separately charged against the triangle budget; precise accounting of transient storage is a planned
+///         hardening follow-up.
 ///     </para>
 ///     <para>
 ///         The methods are stateless and thread-safe.
