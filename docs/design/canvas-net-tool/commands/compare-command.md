@@ -73,9 +73,9 @@ over the background by the loader, so both are opaque. The side owns the pixels 
 **WriteOutputs / CreatePicture**: each requested picture is created, staged with `ImageWriter.Stage` (the first input
 is the guard path; `CheckTargets` has already checked both), and disposed before the next is created, so at most the
 two inputs and one picture are in memory; the order is `diff`, `sideBySide`, `overlay`. The side-by-side picture
-always uses the heat map as its third panel. When every picture is staged, all are committed; a `finally` block
-deletes the temporary file of every picture that was not committed, so a failure leaves no new or partial output and
-every existing output untouched.
+always uses the heat map as its third panel. When every picture is staged, all are published together with
+`ImageWriter.PublishAll` (all or nothing, with rollback); a `finally` block deletes the temporary file of every
+picture that was not published, so a failure leaves no new or partial output and every existing output untouched.
 
 **Threshold failure**: the result is written first (the pictures, and the text lines or nothing in JSON mode), then,
 when a check failed, the command throws `ToolException(threshold-failed)` whose message lists each failed check (for

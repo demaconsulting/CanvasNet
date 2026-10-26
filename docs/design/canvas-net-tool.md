@@ -156,7 +156,8 @@ refuses an output that is the input (by path, after link resolution; a hard link
 read first and an output is moved over its name as a new file), writes through a temporary file so that a failure
 while encoding never leaves a partial
 output, and overwrites an existing output only when overwriting is allowed. A command that writes several outputs
-touches no target until every one is encoded; its final moves are best-effort (see RenderCommand). The maximum image size
+touches no target until every one is encoded and then publishes them all or nothing
+(`ImageWriter.PublishAll`, with rollback). The maximum image size
 (`Surface.MaxDimension`, 8192 pixels per side) is enforced by `SourceLoader` before a file is decoded or a
 drawing is rendered, which bounds memory use. `compare` holds the two loaded images and one picture at a time, and
 `montage` holds the sheet plus one source at a time; a sheet larger than the limit is refused before any input is

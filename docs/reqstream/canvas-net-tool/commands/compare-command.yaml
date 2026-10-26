@@ -175,8 +175,8 @@ sections:
           The compare command shall refuse a picture that would be written over either input or over another
           picture, report a problem with any output path before any input is decoded, overwrite an existing
           picture by default and refuse it when no-clobber is given, and encode every picture to a temporary
-          file before moving any into place, so that a failure leaves no new or partial output and every
-          existing output untouched.
+          file before moving any into place, and publish them all or nothing, so that a failure leaves
+          no new or partial output and every existing output untouched or restored.
         justification: |
           Agents iterate on picture files but must never lose an input or a file they asked to keep, and a
           failure part way must not leave some pictures of a comparison and not others.

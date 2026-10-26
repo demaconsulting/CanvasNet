@@ -286,6 +286,73 @@ public class ImageWriterTests
     }
 
     /// <summary>
+    ///     Test that a failure while publishing a later output rolls every output back.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything()
+    {
+        // Arrange: three staged outputs, of which the first and third already exist
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var first = directory.Combine("a.png");
+        var second = directory.Combine("b.png");
+        var third = directory.Combine("c.png");
+        File.WriteAllBytes(first, [1, 2, 3]);
+        File.WriteAllBytes(third, [4, 5, 6]);
+        var staged = new[] { first, second, third }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+
+        // Act: the move of the third output fails
+        var exception = Assert.Throws<ToolException>(
+            () => ImageWriter.PublishAll(
+                staged,
+                index =>
+                {
+                    if (index == 2)
+                    {
+                        throw new IOException("injected failure");
+                    }
+                }));
+
+        // Assert: the error is the expected one, previous files are byte-identical, the new file is gone, and nothing else is left
+        Assert.Equal(ErrorCodes.OutputWriteFailed, exception.Code);
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(first));
+        Assert.Equal([4, 5, 6], File.ReadAllBytes(third));
+        Assert.False(File.Exists(second));
+        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+        staged.ForEach(output => output.Dispose());
+    }
+
+    /// <summary>
+    ///     Test that publishing replaces every output and leaves no backup.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups()
+    {
+        // Arrange: two staged outputs, of which the first exists
+        using var directory = new TempDirectory();
+        using var surface = FixtureFactory.CreateGradient();
+        var first = directory.Combine("a.png");
+        var second = directory.Combine("b.png");
+        File.WriteAllText(first, "old content");
+        var staged = new[] { first, second }
+            .Select(path => ImageWriter.Stage(surface, path, "in.png", WriteOptions.Default))
+            .ToList();
+
+        // Act
+        ImageWriter.PublishAll(staged);
+        staged.ForEach(output => output.Dispose());
+
+        // Assert: both are the new image, and the directory holds only them
+        using var decodedFirst = PngCodec.Load(first);
+        using var decodedSecond = PngCodec.Load(second);
+        SurfaceAssert.Equal(surface, decodedFirst);
+        SurfaceAssert.Equal(surface, decodedSecond);
+        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+    }
+
+    /// <summary>
     ///     Test that an output that is the input is refused before anything is written.
     /// </summary>
     [Fact]

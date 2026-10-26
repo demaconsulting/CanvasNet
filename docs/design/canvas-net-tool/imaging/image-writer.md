@@ -63,14 +63,19 @@ created with `CreateNew`). It returns a `StagedOutput` that holds the temporary 
 the size of the encoded file). A failure while staging deletes the temporary file and is reported as
 `output-write-failed`.
 
-**StagedOutput.Commit()**: moves the temporary file over the target (overwriting unless `NoClobber`) and returns
-the `WriteResult`. **StagedOutput.Dispose()**: deletes the temporary file unless it was committed, so a staged
-output that is abandoned (because a later output failed) leaves nothing behind. A command that writes several
-outputs stages all of them first and commits only when every one was staged, so a failure while rendering or encoding
-leaves no new or partial output and every existing output untouched; the commits are separate moves, so if one itself
-fails the outputs committed before it remain, each complete (no rollback). The encoders are PNG (RGBA), JPEG (at the
-quality), BMP (32 bits per
-pixel, with alpha), and TIFF (uncompressed, with alpha); all are deterministic, so the same pixels and options
+**ImageWriter.PublishAll(outputs)**: publishes staged outputs all or nothing. For each target in order, an
+existing target is renamed to a unique backup in the same directory (`.canvasnet-{guid}.bak`, a short fixed name like
+the temporary files) and the temporary file is moved into place (a target that appeared under `--no-clobber` is
+`output-exists`). When any step fails, each target already published is deleted and its backup restored, the remaining
+temporary files are deleted, and the original error is reported (`output-write-failed` or `output-exists`); on success
+the backups are deleted, and failing to delete one is ignored. The residual case is a failure to restore a backup: the
+error then also names the backup that still holds the previous content. **StagedOutput.Commit()** publishes one output
+through `PublishAll` and returns the `WriteResult`. **StagedOutput.Dispose()**: deletes the temporary file unless
+it was committed, so a staged output that is abandoned (because a later output failed) leaves nothing behind.
+A command that writes several outputs stages all of them first and publishes them with `PublishAll` only when every
+one was staged, so a failure while rendering or encoding leaves no new or partial output and every existing output
+untouched, and a failure while publishing is rolled back. The encoders are PNG (RGBA), JPEG (at the quality), BMP (32
+bits per pixel, with alpha), and TIFF (uncompressed, with alpha); all are deterministic, so the same pixels and options
 give the same bytes. The surface passed in is never modified or disposed.
 
 #### Error Handling
@@ -90,4 +95,5 @@ check while `NoClobber` is set and the target now exists (another process create
 #### Callers
 
 - **CompareCommand** and **MontageCommand** - check all their targets once with `CheckTargets` before loading anything.
-- **RenderCommand** - checks every target, stages each page's result, and commits them all once every page has succeeded.
+- **RenderCommand** - checks every target, stages each page's result, and publishes them all with
+  `PublishAll` once every page has succeeded; **CompareCommand** does the same for its pictures.

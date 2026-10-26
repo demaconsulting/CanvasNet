@@ -157,7 +157,9 @@ internal sealed partial class CompareCommand : ICommand
             throw new ToolException(
                 ErrorCodes.ThresholdFailed,
                 string.Join("; ", failed.Select(DescribeFailure)),
-                "The result and any pictures were written. See --diff, --side-by-side, and the grid for where the images differ, or relax the threshold.")
+                outputs.Count > 0
+                    ? "The result and the pictures were written. See the pictures and the grid for where the images differ, or relax the threshold."
+                    : "The result was written. Add --diff or --side-by-side, and see the grid, for where the images differ, or relax the threshold.")
             {
                 ResultFields = writer => WriteJsonFields(writer, settings, a, b, result, checks, outputs)
             };
@@ -455,10 +457,7 @@ internal sealed partial class CompareCommand : ICommand
                 outputs.Add(new PictureOutput(kind, pending.Result));
             }
 
-            foreach (var pending in staged)
-            {
-                pending.Commit();
-            }
+            ImageWriter.PublishAll(staged);
         }
         finally
         {

@@ -307,11 +307,12 @@ written to the same file. `{page}` is also replaced when a single `--page` is gi
 before the first page is drawn, so a mistake in one of them is reported before any file is written. The pages are
 drawn and encoded to temporary files first, and no output is touched until every page has been drawn and encoded: if a
 page fails to draw or encode (for example an unsupported feature with `--strict`), no new output is written and
-existing outputs are left untouched. The outputs are then moved into place one at a time, which is best-effort: if a
-move itself fails (for example an output is no longer writable), the outputs already moved stay in place,
-each one complete, and the error is reported. The JSON result
-lists one entry per page in `outputs`. An input that is not a document accepts `--all-pages` and writes its one output
-as given.
+existing outputs are left untouched. The outputs are then published all or nothing: each existing output is first
+renamed to a temporary backup and then replaced, and if any move fails (for example an output is no longer
+writable), the outputs already published are removed, every previous output is restored, and the error is reported.
+The backups are deleted once all the outputs are published. In the rare case that restoring a previous output itself
+fails, the error names the backup file that still holds its content. The JSON result lists one entry per
+page in `outputs`. An input that is not a document accepts `--all-pages` and writes its one output as given.
 
 ```bash
 canvasnet render report.pdf --page 2 --dpi 150 -o page2.png
@@ -520,7 +521,8 @@ size).
 The format of each picture comes from its extension (PNG, JPEG, BMP, TIFF). A picture may not be one of the inputs
 (`same-input-output`), two pictures may not be the same file (`usage-error`), an existing picture is replaced unless
 `--no-clobber` is given, and every picture is created and encoded before any is moved into place: if any picture
-cannot be created or encoded, none is written.
+cannot be created or encoded, none is written, and the pictures are published all or nothing (if one cannot be
+moved into place, the others are rolled back and every previous picture is restored).
 
 #### The Measures
 
@@ -811,7 +813,7 @@ the failure envelope followed by the fields of the comparison, so that a single 
 numbers:
 
 ```json
-{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed","message":"rmse 23.91 is above the limit 10","hint":"The result and any pictures were written. ..."},"tool":{"name":"canvasnet","version":"<version>"},"a":{"path":"ref.png",...},"b":{...},"metrics":{"identical":false,"rmse":23.9,...},"grid":{...},"worstCells":[...],"thresholds":{"passed":false,"checks":[{"metric":"rmse","comparison":"<=","limit":10,"value":23.9,"passed":false}]},"outputs":[...],"diagnostics":[],"echo":[]}
+{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed","message":"rmse 23.91 is above the limit 10","hint":"The result and the pictures were written. ..."},"tool":{"name":"canvasnet","version":"<version>"},"a":{"path":"ref.png",...},"b":{...},"metrics":{"identical":false,"rmse":23.9,...},"grid":{...},"worstCells":[...],"thresholds":{"passed":false,"checks":[{"metric":"rmse","comparison":"<=","limit":10,"value":23.9,"passed":false}]},"outputs":[...],"diagnostics":[],"echo":[]}
 ```
 
 A program that reads `ok`, `error.code`, and `metrics` handles both outcomes of a gate in one parse.

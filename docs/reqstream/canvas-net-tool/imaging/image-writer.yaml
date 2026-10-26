@@ -66,6 +66,21 @@ sections:
           - ImageWriter_Write_DirectoryCannotBeCreated_ThrowsOutputWriteFailed
           - ImageWriter_Write_LongFileName_IsWritten
 
+      - id: CanvasNetTool-Imaging-ImageWriter-PublishAll
+        title: >-
+          The ImageWriter class shall publish several staged outputs all or nothing: an existing target
+          is first renamed to a unique backup in its directory and the temporary file is moved into
+          place, and when any step fails every published target is removed, every backup is restored,
+          the temporary files are deleted, and the original error is reported; on success the backups
+          are deleted.
+        justification: |
+          A command that writes several outputs (every page, every comparison picture) must not leave
+          a mix of new and old files when one move fails. Only a failure to restore a backup itself can
+          leave a previous file under its backup name, which is reported.
+        tests:
+          - ImageWriter_PublishAll_FailureOnLaterMove_RestoresEverything
+          - ImageWriter_PublishAll_Success_ReplacesAllAndLeavesNoBackups
+
       - id: CanvasNetTool-Imaging-ImageWriter-Overwrite
         title: >-
           The ImageWriter class shall overwrite an existing output by default, and shall refuse it with

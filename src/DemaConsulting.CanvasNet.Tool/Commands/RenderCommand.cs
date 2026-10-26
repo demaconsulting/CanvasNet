@@ -121,8 +121,8 @@ internal sealed partial class RenderCommand : ICommand
         // Each page is loaded, run through the image pipeline (crop, resize, rotate, and so on), and encoded to a
         // temporary file next to its target. No target is touched until every page has been rendered and encoded, so a
         // render or encode failure on any page leaves no new or partial output and every existing output untouched.
-        // The final moves are separate and best-effort: if one fails (for example a target is no longer writable), the
-        // targets already moved remain, each complete, and the error is reported.
+        // The outputs are then published all or nothing: if a move fails (for example a target is no longer
+        // writable), the targets already published are rolled back and the error is reported.
         var outputs = new List<PageOutput>();
         var staged = new List<ImageWriter.StagedOutput>();
         try
@@ -138,10 +138,7 @@ internal sealed partial class RenderCommand : ICommand
                 }
             }
 
-            foreach (var pending in staged)
-            {
-                pending.Commit();
-            }
+            ImageWriter.PublishAll(staged);
         }
         finally
         {

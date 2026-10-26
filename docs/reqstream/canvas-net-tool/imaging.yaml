@@ -64,6 +64,7 @@ sections:
           - CanvasNetTool-Imaging-ImageWriter-Jpeg
           - CanvasNetTool-Imaging-ImageWriter-AtomicWrite
           - CanvasNetTool-Imaging-ImageWriter-Overwrite
+          - CanvasNetTool-Imaging-ImageWriter-PublishAll
           - CanvasNetTool-Imaging-ImageWriter-SamePath
           - CanvasNetTool-Imaging-ImageWriter-MultipleTargets
         tests:
