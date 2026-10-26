@@ -221,7 +221,8 @@ software items, specifically:
   public API, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
-  tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, and transform
+  tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
+  and compose
   images and documents with the CanvasNet libraries and offers a small, stable error contract (exit codes 0
   and 1, concise error text, stable error codes, and a versioned JSON result contract). It follows the DEMA
   Consulting tool template and contains six
@@ -231,11 +232,13 @@ software items, specifically:
   output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
   `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
-  `rotate`, `flip`, and `pad`) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
+  `rotate`, `flip`, and `pad`, the `CompareCommand` unit with the `compare` command, and the `MontageCommand` unit
+  with the `montage` command) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
   BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
   models, the `ImagePipeline` unit, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options
-  were written, and the `ImageWriter`
-  unit, which writes PNG, JPEG, BMP, and TIFF files). It uses
+  were written, the `ImageWriter`
+  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which measures how much two images
+  differ and draws the differences, and the `ContactSheet` unit, which composes images into a labeled sheet). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
@@ -368,10 +371,12 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
 grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `DiscoveryCommands`, and
-`RenderCommand` units (the `formats`, `info`, `render`, `convert`, `crop`, `resize`, `rotate`, `flip`, and `pad`
+`RenderCommand`, `CompareCommand`, and `MontageCommand` units (the `formats`, `info`, `render`, `convert`, `crop`,
+`resize`, `rotate`, `flip`, `pad`, `compare`, and `montage`
 commands), and its `Imaging` subsystem (namespace
-`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, and `ImageWriter` units that turn
-files into pixels, transform pixels, and turn pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
+`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
+and `ContactSheet` units that turn files into pixels, transform pixels, turn pixels into files, compare two images,
+and compose a contact sheet. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
 their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
@@ -879,7 +884,11 @@ src/DemaConsulting.CanvasNet.Tool/
 │   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
 │   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
 │   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
-│   └── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
+│   ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
+│   ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result
+│   ├── CompareCommand.Options.cs  — CompareCommand: the option table and the reading of the settings
+│   ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
+│   └── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
 └── Imaging/                       — Imaging subsystem
     ├── SourceModels.cs            — SourceLoader: source kinds, output formats, and the load model types
     ├── SourceLoader.cs            — SourceLoader: probe, load, size policy, and the exception mapping
@@ -892,9 +901,12 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
-    ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
+    ├── SurfaceOperations.cs       — SourceLoader: flatten, transparency, and fit-into-a-box helpers
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad)
     ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
+    ├── ImageComparison.cs         — ImageComparison: error metrics, structural similarity, grid, and thresholds
+    ├── ImageComparison.Images.cs  — ImageComparison: the difference, overlay, and side-by-side pictures
+    ├── ContactSheet.cs            — ContactSheet: layout and composition of a contact sheet, with bundled-font labels
     └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
 ```
 

@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad -->
+<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad psnr rmse ssim -->
 
 This document describes the system-level verification strategy for CanvasNetTool.
 
@@ -25,8 +25,10 @@ results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasN
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`), which generate their own inputs and are evidence
-for the validation requirements.
+`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, and `CanvasNetTool_Montage`), which
+generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
+kept small (thirteen tests); the compare and montage self-tests are smoke tests, and the detailed coverage of both
+commands is in the unit, subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
 start-up files, the library assemblies, and the third-party libraries bundled for every target framework) and
 smoke-tests the installed tool (`formats --json`, an SVG `render`, and a `crop`); the self-validation covers the PDF
@@ -61,6 +63,12 @@ belong to the "Sequential" collection because console redirection is process-wid
   `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`, `--time`, `--default-color`, and `--max-triangles`;
   `info` describes a
   file, the pages of a document, and the declarations of a model, without rendering it.
+- `compare` reports exact metrics (MAE, RMSE, PSNR, SSIM, largest channel difference, differing-pixel ratio) and a
+  grid of per-cell errors, writes the difference, side-by-side, and overlay pictures, refuses images of different sizes
+  unless `--resize-to` is given (rendering a vector source at that size), and with `--threshold` exits 1 with
+  `threshold-failed` after writing its result, pictures, and (with `--json`) a failure document that carries the
+  metrics; `montage` writes a contact sheet of images and of every page of documents, with bundled-font labels, and
+  refuses a sheet that is too large before loading any input; both write the same bytes and text for the same inputs.
 
 ## Test Scenarios
 
@@ -74,7 +82,9 @@ version number with no banner, copyright, or error text, and the exit code is 0.
 contains the banner, the copyright notice, and the usage hint, and the exit code is 0.
 
 **CanvasNetTool_ValidateFlag_Provided_RunsValidation**: `--validate` is the sole argument; the output contains
-the "Total Tests:" and "Passed:" summary and the exit code is 0.
+the "Total Tests:" and "Passed:" summary and the exit code is 0; every self-test of the run builds its temporary file
+paths under a private directory with `PathHelpers.SafePathCombine`, so a pass also shows that the path rule accepts
+every path the self-tests need.
 
 **CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile**: `--validate` with `--results <path>.trx`;
 a TRX file containing a `TestRun` element is created and the exit code is 0.
@@ -260,3 +270,55 @@ garbage, a triangle limit of 1, runaway recursion, an unsupported feature with `
 of 100, a definition without `=`, and a triangle limit of 0 are rendered in-process; each returns exit code 1 with a
 one-line message that starts with its stable error code (`scad-error`, `budget-exceeded`, `unsupported-feature`, or
 `usage-error`), no stack trace, the code in the JSON document, and no output.
+
+**CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
+processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`
+true, RMSE 0, SSIM 1, PSNR null); exit code 0.
+
+**CanvasNetTool_Compare_DifferentImages_ReportsMetricsAndGridAsJson**: two gray PNGs whose blue channels differ by 10
+are compared with `--grid 2x2 --json` as a real process; one document with `ok` true, MAE 3.3333, RMSE 5.7735, a
+largest channel difference of 10, 48 differing pixels, four grid cells, and three worst cells.
+
+**CanvasNetTool_Compare_VectorAgainstReference_RendersVectorAtReferenceSize**: the SVG fixture is compared with its own
+200x160 rendering with `--resize-to a`; the SVG side is loaded at 200x160 (not resampled) and the images are identical.
+
+**CanvasNetTool_Compare_ImageOutputs_WriteDiffSideBySideAndOverlay**: `--diff`, `--side-by-side`, and `--overlay` (a
+JPEG) are written together; each is listed in the output, decodes, and has the documented size (8x6, 40x6, and 8x6),
+and a difference of 10 at the default gain is the heat color (120, 0, 0).
+
+**CanvasNetTool_Compare_ThresholdMet_ExitsZero**: `--threshold rmse=10` and `ssim=0.99` are met; both checks are
+printed as passed and the exit code is 0.
+
+**CanvasNetTool_Compare_ThresholdNotMet_ExitsOneAfterWritingResultAndImages**: `--threshold rmse=1` is not met as a
+real process; exit code 1, the result lines and the failed check are printed, the `threshold-failed` error and its hint
+follow without a stack trace, and the `--diff` picture was written.
+
+**CanvasNetTool_Compare_ThresholdNotMetWithJson_WritesFailureDocumentWithMetrics**: two unmet thresholds with `--json`
+and `--overlay` in-process; exit code 1, the error on standard error, and on standard output one document with `ok`
+false, the `threshold-failed` code, the metrics, both failed checks, and the overlay output, which exists.
+
+**CanvasNetTool_Compare_Errors_AreReportedAsExpectedErrors**: images of two sizes without `--resize-to`, a threshold
+without a value, an unknown threshold metric, an output that is an input, a missing input, and one file for two
+outputs are run in-process; each returns exit code 1 with its stable code (`size-mismatch`, `usage-error`,
+`same-input-output`, `input-not-found`) in the message and in the document, no stack trace, and no output.
+
+**CanvasNetTool_Compare_SameInputsTwice_WriteIdenticalBytes**: the same comparison with all three pictures and `--json`
+is run twice as a real process; the output text and the bytes of every picture are identical.
+
+**CanvasNetTool_Montage_Images_WritesContactSheet**: a red and a blue PNG are composed as a real process; the one line
+names the sheet (536x272), and each cell holds its image fitted and centered.
+
+**CanvasNetTool_Montage_DocumentAllPagesWithLabels_WritesCellPerPage**: the two-slide presentation is composed with
+`--all-pages --labels`; the JSON lists two cells labeled `source.pptx p1` and `source.pptx p2` with pages 1 and 2, a
+label strip of 22 pixels, and a sheet of the size the file has.
+
+**CanvasNetTool_Montage_Errors_AreReportedAsExpectedErrors**: an output that is an input, a corrupt input, a missing
+input, a cell that is too small, a sheet that is too large (refused before the corrupt input is opened), and a missing
+output are run in-process; each returns exit code 1 with its stable code in the message and in the document, and no
+sheet is written.
+
+**CanvasNetTool_Montage_SameInputsTwice_WriteIdenticalBytes**: the same labeled montage is run twice as a real process;
+the output text and the bytes of the sheet are identical.
+
+**CanvasNetTool_Help_ListsCompareAndMontage**: the top-level help lists both commands and `compare --help` and
+`montage --help` show their usage lines.
