@@ -332,6 +332,45 @@ sections:
           - CanvasNetTool_Render_JsonRequested_WritesJsonDocument
           - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
 
+      - id: CanvasNetTool-System-Pipeline
+        title: >-
+          The tool shall apply the operations `--crop` (a rectangle `x,y,w,h` or `WxH+X+Y` in pixels or
+          percent), `--resize WxH`, `--fit WxH` (shrinking only unless `--allow-upscale`), `--rotate`
+          (90, 180, or 270 degrees; any other angle is refused as not supported yet), `--flip h|v|both`,
+          and `--pad` (one width or left, top, right, bottom) with `--pad-color`, with the resampling
+          filter chosen by `--filter`, to a rendered image in the order they are written, in one decode
+          and one encode, and shall list each operation applied, in order, with its parameters and the
+          size of its result, in the JSON result.
+        tags: [system]
+        justification: |
+          Agents prepare images for other tools (crop a region, shrink it, add a margin); one ordered
+          pipeline in a single invocation avoids intermediate files and lossy re-encoding, and the
+          result says what was done so the agent can verify it.
+        children:
+          - CanvasNetTool-Imaging-Transform
+        tests:
+          - CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder
+          - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-TransformCommands
+        title: >-
+          The tool shall offer the commands `crop <input> <geometry>`, `resize <input> <WxH>`,
+          `rotate <input> <degrees>`, `flip <input> <h|v|both>`, and `pad <input> <border>`, each
+          writing to the file named by `-o`, accepting every option of `render` (so further operations
+          may follow the operand), and writing exactly the file that the equivalent `render` invocation
+          writes.
+        tags: [system]
+        justification: |
+          A single transformation is the most frequent request; a command named for it, with its operand
+          in a natural position, is the easiest thing for a person or an agent to guess, and sharing the
+          implementation with `render` means the two can never disagree.
+        children:
+          - CanvasNetTool-Commands-TransformCommands
+        tests:
+          - CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent
+          - CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage
+          - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
       - id: CanvasNetTool-System-InputFormats
         title: >-
           The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and

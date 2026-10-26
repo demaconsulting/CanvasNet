@@ -1,0 +1,134 @@
+---
+# cspell:ignore lanczos
+# Software Unit Requirements for the ImagePipeline Class
+#
+# The ImagePipeline class is the ordered image pipeline: it reads the transformation options of a command
+# line (crop, resize, fit, rotate, flip, pad, with the settings of the border color, upscaling, and
+# resampling filter) into operations, and applies them, in the order written, to the pixels of a surface.
+# The render command and the verb commands crop, resize, rotate, flip, and pad share it.
+
+sections:
+  - title: ImagePipeline Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-ImagePipeline-Order
+        title: >-
+          The ImagePipeline class shall apply the operations in the order they were written, so that
+          a crop followed by a resize gives a different image than a resize followed by a crop, shall put
+          the operation of a verb command before the operations given as options, and shall report every
+          operation applied, in order, with its parameters and the size of its result.
+        justification: |
+          A chain of operations is only predictable when its order is the order on the command line, and
+          an agent needs to be told what was done, and to what size, to check that it got what it asked
+          for.
+        tests:
+          - ImagePipeline_Apply_OperationOrder_CropThenResizeDiffersFromResizeThenCrop
+          - ImagePipeline_Parse_KeepsCommandLineOrderAndPutsVerbFirst
+          - ImagePipeline_Parse_EachVerb_ParsesItsOperand
+          - ImagePipeline_Apply_Chain_ReportsEachStepInOrderWithSizes
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Crop
+        title: >-
+          The ImagePipeline class shall crop to a rectangle written x,y,w,h or WxH+X+Y with each value in
+          pixels or percent of the image at that point of the pipeline, rounding the edges to the nearest
+          pixel (half away from zero), cutting off a part that extends past the right or bottom edge
+          (reported as clamped), and rejecting a rectangle that starts outside the image or is smaller
+          than one pixel as a usage error.
+        justification: |
+          Percentages let one command line work for images of any size, rounding the edges makes two
+          halves tile the image, and a region that is entirely outside the image is a mistake that must
+          not silently produce an empty or arbitrary picture.
+        tests:
+          - ImagePipeline_Apply_CropPixels_CutsOutTheRectangle
+          - ImagePipeline_Apply_CropPercent_IsRelativeToTheImage
+          - ImagePipeline_Apply_CropPercentHalfPixel_RoundsEdgesAwayFromZero
+          - ImagePipeline_Apply_CropPastEdge_IsClampedAndReported
+          - ImagePipeline_Apply_CropOutside_ThrowsUsageError
+          - ImagePipeline_Apply_CropRoundsToNothing_ThrowsUsageError
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Resize
+        title: >-
+          The ImagePipeline class shall resample to an exact width and height, and to the largest size
+          that fits inside a box keeping the aspect ratio, shrinking only (an image that already fits is
+          copied unchanged) unless upscaling is allowed, with the resampling filter chosen by name (auto,
+          nearest, bilinear, bicubic, lanczos3, or area, in any case).
+        justification: |
+          Scaling an image down to a bounding size is the most common transformation, and enlarging a
+          small image by accident is not what a bounding size means; the filter decides the quality.
+        tests:
+          - ImagePipeline_Apply_ResizeNearest_ReplicatesPixels
+          - ImagePipeline_Apply_ResizeArea_AveragesPixels
+          - ImagePipeline_Apply_ResizeEveryFilter_GivesExactSizeAndKeepsFlatColor
+          - ImagePipeline_Apply_ResizeFilters_DifferOnAHardEdge
+          - ImagePipeline_Apply_FitLargerImage_ShrinksIntoBox
+          - ImagePipeline_Apply_FitSmallerImage_IsUnchangedUnlessUpscaleAllowed
+          - ImagePipeline_ParseFilter_NamesAnyCase_RoundTripThroughFilterName
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Rotate
+        title: >-
+          The ImagePipeline class shall rotate clockwise by 90, 180, or 270 degrees (a negative angle
+          turning the other way), swapping the width and the height for a quarter turn, and shall
+          reject any other angle as a usage error that says the rotation is not supported yet.
+        justification: |
+          Quarter turns are exact moves of pixels; an arbitrary angle needs interpolation and a larger
+          canvas, which is not offered yet, and must be refused rather than approximated.
+        tests:
+          - ImagePipeline_Apply_Rotate90_TurnsClockwiseAndSwapsSize
+          - ImagePipeline_Apply_Rotate180_ReversesBothAxes
+          - ImagePipeline_Apply_Rotate270_TurnsCounterClockwiseAndSwapsSize
+          - ImagePipeline_Apply_NegativeAngleAndFullTurn_AreEquivalentRotations
+          - ImagePipeline_Parse_BadValue_ThrowsUsageError
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Flip
+        title: >-
+          The ImagePipeline class shall mirror an image left to right, top to bottom, or about both
+          axes, keeping its size.
+        justification: |
+          Mirroring is an exact reordering of pixels that agents use to correct the orientation of a
+          picture.
+        tests:
+          - ImagePipeline_Apply_Flip_MirrorsAboutTheAxis
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Pad
+        title: >-
+          The ImagePipeline class shall surround an image with a border of one width on every side or
+          of a width for each of the left, top, right, and bottom sides, filled with the border color
+          (straight alpha, a fully transparent color staying transparent) or, when no color is given,
+          with the default color that the caller supplies.
+        justification: |
+          A border adds room around a picture; the caller knows what the natural color is (the
+          background the user gave, or white for a page that is drawn over white).
+        tests:
+          - ImagePipeline_Apply_PadOneValue_AddsBorderOnEverySide
+          - ImagePipeline_Apply_PadFourValues_UsesLeftTopRightBottom
+          - ImagePipeline_Apply_PadColor_DefaultComesFromCallerAndOptionOverridesIt
+          - ImagePipeline_Apply_PadTransparent_LeavesBorderTransparent
+          - ImagePipeline_Apply_PadSemiTransparentColor_KeepsStraightAlpha
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-SizeLimit
+        title: >-
+          The ImagePipeline class shall refuse a size, a box, or a border width larger than 8192 pixels,
+          and a border that would make the image larger than 8192 pixels on a side, with the error code
+          size-limit, before the result is allocated.
+        justification: |
+          A surface larger than the maximum cannot exist, and refusing the request early keeps a mistake
+          from exhausting memory.
+        tests:
+          - ImagePipeline_Parse_BeyondMaxDimension_ThrowsSizeLimit
+          - ImagePipeline_Apply_PadBeyondMaxDimension_ThrowsSizeLimit
+          - ImagePipeline_Apply_PadToMaxDimension_Succeeds
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Arguments
+        title: >-
+          The ImagePipeline class shall report a malformed operation value, an upscale switch without a
+          fit, and a border color without a pad as a usage error, shall never modify or dispose the
+          input surface (also when an operation fails), shall dispose its intermediate surfaces, and
+          shall give the same pixels for the same input and operations every time.
+        justification: |
+          Mistakes must be reported as stable usage errors before anything is written, the loaded pixels
+          belong to the caller, and reproducible results make output comparable.
+        tests:
+          - ImagePipeline_Parse_BadValue_ThrowsUsageError
+          - ImagePipeline_Parse_ModifierWithoutItsOperation_ThrowsUsageError
+          - ImagePipeline_Parse_UnknownVerb_ThrowsArgumentException
+          - ImagePipeline_Apply_Input_IsNeverModifiedOrDisposed
+          - ImagePipeline_Apply_SameInputTwice_GivesIdenticalPixels

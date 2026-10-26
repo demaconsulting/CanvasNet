@@ -5,8 +5,9 @@
 #### Verification Approach
 
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
-resolution, and strict mode of the documents), and `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
-model). The command is run in-process: the tests
+resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
+model), and `RenderCommandPipelineTests.cs` (the image pipeline options and the verb commands). The command is run
+ in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
 `ToolHost` helper; failures are asserted as the `ToolException` the command throws (the registry would record the
 command name on it). Inputs are generated in a temporary directory (rasters with the codecs, an EXIF segment injected
@@ -32,11 +33,17 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   and the operation, diagnostics, and echo are in the result; a model option for another kind of input, an unknown
   view, and a malformed value are usage errors; an exceeded limit, a syntax error, and a strict-mode unsupported
   feature are expected errors and leave no output.
+- The pipeline operations are applied in the order written, after the source sizing and before the output is written,
+  and each is reported with its parameters and result size; a failing operation writes nothing and leaves an
+  existing output untouched; a vector source is not scaled twice; the border color default follows the background.
+- Each verb command writes exactly the file of the equivalent render invocation, accepts every render option, applies
+  options after its own operation, reports itself as the command, and reports a missing, extra, or malformed operand
+  as a usage error.
 
 #### Test Scenarios
 
 **RenderCommand_Metadata_DescribesCommandAndOptions** and **RenderCommand_DefaultRegistry_RegistersRenderAndConvert**:
-the name, the alias, the summary, the usage line with examples, the twenty-two options in order (the short alias `-o`),
+the name, the alias, the summary, the usage line with examples, the thirty-one options in order (the short alias `-o`),
 every option with a description and a value name exactly when it takes a value; the default registry resolves both
 names to the one command.
 
@@ -154,3 +161,68 @@ PDF is a usage error that names the kind; page 2 of a model is `page-out-of-rang
 **RenderCommand_Usage_DescribesModelOptionsAndIncludeRule**: the help of the command lists the nine model options (and
 `-D`), the 800x800 default size, and the rule that include and use files are read from the folder of the model and
 below only.
+
+**RenderCommand_Help_ListsPipelineOptionsAndVerbs**: the help of `render` lists the nine pipeline options, and the
+registry lists each verb in the command list, has a usage line for it, and resolves its name in any case.
+
+**RenderCommand_Run_MultiOpJson_ListsOperationsInOrder**: a translucent PNG enlarged to 24 wide by `--width`, then
+cropped, flipped, rotated, and padded, and written as JPEG, reports as exact text the loader's `resize`, the four
+pipeline operations with their parameters and sizes (the border is `#00000000`, transparent, because a raster has no
+background), and the JPEG's `flatten` last.
+
+**RenderCommand_Run_OperationOrder_CropThenResizeDiffersFromResizeThenCrop**: the same two options in the two orders
+are reported in those orders and give 12x8 and 6x4 images.
+
+**RenderCommand_Run_RasterWithWidthAndCrop_LoaderResizesFirst** and
+**RenderCommand_Run_FilterWithRasterWidth_IsReportedWhenChosen**: `--width 24 --crop 0,0,12,8` crops the enlarged
+image (the same bytes as `--resize 24x16 --crop 0,0,12,8` with the same filter, and the pixels are the enlarged corner);
+the `filter` of the loader's resize is reported only when `--filter` was given, and changes the file.
+
+**RenderCommand_Run_VectorWithWidthAndCrop_SizesOnceThenCrops**: an SVG of 100x80 at `--width 50` is rendered at 50x40
+once and then cropped to 10x10; the operations are `render`, `flatten`, `crop`.
+
+**RenderCommand_Run_PadOnRaster_DefaultsToTransparentThenBackground** and
+**RenderCommand_Run_PadOnVector_DefaultsToTheBackgroundOfThePage**: the border of a raster is transparent, takes the
+background when one is given, and `--pad-color` wins over it; the border of an SVG is white, or transparent with
+`--background transparent`.
+
+**RenderCommand_Run_Fit_ShrinksOnlyUnlessUpscaleAllowed**, **RenderCommand_Run_IdentityOperations_KeepThePixels**, and
+**RenderCommand_Run_ExifJpegThenRotate_RotatesTheUprightImage**: `--fit 6x6` of 12x8 gives 6x4, a box larger than the
+image leaves the pixels unchanged, `--allow-upscale` enlarges to 24x16; a full-size crop, a border of 0, and two flips
+about both axes keep every pixel; a JPEG stored with the EXIF orientation 6 is turned upright (8x12) and then rotated
+by 90 degrees, which equals rotating the stored image by 180 degrees, with `auto-orient` then `rotate` reported.
+
+**RenderCommand_Run_MultiOpChain_EveryInputKind_WritesExpectedSize**,
+**RenderCommand_Run_AllPagesWithPipeline_AppliesToEveryPage**, and **RenderCommand_Run_MultiOp_IsDeterministic**: a chain
+of crop (left half, as percent), flip, resize, and pad gives a 12x12 PNG for every one of the eleven input kinds; the
+top-left quarter of both pages of the PDF is 96x64 and 64x96 with a `crop` operation naming each page; the same chain
+written twice is byte-identical as PNG, JPEG, BMP, and TIFF.
+
+**RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing**, **RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched**,
+and **RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit**: unsupported angles, malformed operands and
+options, a crop outside the image (also after an earlier crop), a size or border beyond the maximum, a border color
+without a pad, an upscale switch without a fit, and an unknown option are usage or size errors with the documented
+messages and no output; a crop that fails after a pad leaves an existing output file as it was; a border that makes
+8193 pixels is `size-limit` naming `8193x8188`.
+
+**RenderCommand_Verb_Metadata_DescribesVerbAndSharesRenderOptions** and **RenderCommand_Verb_UnknownVerb_ThrowsArgumentException**:
+each verb has its own name, no alias, a summary, the usage line with its operand and examples, and the options of
+`render`; a name that is not a verb cannot be constructed.
+
+**RenderCommand_Verb_EqualsRenderEquivalent_WritesIdenticalFiles**: twelve verb invocations (both geometry forms and
+percentages, resize with and without a filter, the three angles, the three flips, and one and four border widths with a
+color) write the same bytes as PNG and as JPEG, and print the same result line, as `render` with the equivalent option.
+
+**RenderCommand_Verb_ExtraPipelineOptions_AreAppliedAfterTheVerbOperation**,
+**RenderCommand_Verb_SameOptionAlsoGiven_VerbOperationIsFirst**, and **RenderCommand_Verb_Json_NamesTheVerbAndListsItsOperation**:
+`crop` with `--resize` and `--pad` options applies them after the crop whether they stand before or after the operand,
+and writes the file of the equivalent `render`; a `--crop` option after the verb's crop is relative to the first
+result; the JSON of `rotate` names the command `rotate` and lists the one `rotate` operation with its size.
+
+**RenderCommand_Verb_EveryInputKind_RotatesNaturalSize** and **RenderCommand_Verb_DocumentPageAndDpi_AreHonored**:
+`rotate 90` of each of the eleven input kinds writes the natural size with its sides swapped; `crop` with `--page 2
+--dpi 192` crops the 256x384 page to its left half.
+
+**RenderCommand_Verb_MissingOrExtraArguments_AreUsageErrors**: a verb without its operand, with two operands, or
+without an input, and without `-o`, are usage errors that name the verb and the operand and show an example, and write
+nothing.

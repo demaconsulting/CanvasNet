@@ -2,9 +2,10 @@
 # cspell:ignore scad openscad
 # Software Unit Requirements for the RenderCommand Class
 #
-# The RenderCommand class is the render command (alias convert): it loads an input file, applies the
-# source options, and writes the result as PNG, JPEG, BMP, or TIFF, reporting it as one text line or one
-# JSON document. The options of the image pipeline are added to it as they are implemented.
+# The RenderCommand class is the render command (alias convert) and the verb commands crop, resize,
+# rotate, flip, and pad (the same class constructed with a verb): it loads an input file, applies the
+# source options and the image pipeline, and writes the result as PNG, JPEG, BMP, or TIFF, reporting it
+# as one text line or one JSON document.
 
 sections:
   - title: RenderCommand Unit Requirements
@@ -13,9 +14,10 @@ sections:
         title: >-
           The render command shall declare its options (page, all-pages, dpi, scale, width, height,
           size, background, no-auto-orient, strict, the model options view, azimuth, elevation,
-          projection, define, time, default-color, and max-triangles, output, format, quality, and
-          no-clobber) in one table that also drives the help, and shall be registered under the names
-          render and convert.
+          projection, define, time, default-color, and max-triangles, the pipeline options crop,
+          resize, fit, allow-upscale, rotate, flip, pad, pad-color, and filter, output, format,
+          quality, and no-clobber) in one table that also drives the help, and shall be registered
+          under the names render and convert.
         justification: |
           Declaring the options once keeps the help from drifting from what the command accepts, and the
           alias lets users who think in terms of conversion find the command.
@@ -23,6 +25,64 @@ sections:
           - RenderCommand_Metadata_DescribesCommandAndOptions
           - RenderCommand_DefaultRegistry_RegistersRenderAndConvert
           - RenderCommand_Usage_DescribesModelOptionsAndIncludeRule
+          - RenderCommand_Help_ListsPipelineOptionsAndVerbs
+
+      - id: CanvasNetTool-Commands-RenderCommand-Pipeline
+        title: >-
+          The render command shall apply the operations crop, resize, fit, rotate, flip, and pad given as
+          options to every page it loads, in the order they were written, after the source options have
+          sized the source (so a vector source is never scaled twice) and before the output is written,
+          using one decode and one encode; shall take the border color from the pad-color option, else
+          from the background option, else white for a vector source and transparent for a raster; shall
+          list each operation in order with its parameters and result size between the operations of
+          the loader and the flattening of a JPEG; shall read every operation before anything is decoded
+          so that a mistake in one is reported first, and shall write nothing, and leave an existing
+          output untouched, when an operation fails.
+        justification: |
+          Agents combine operations (crop a region, shrink it, add a border) and expect the order of the
+          options to be the order of the effects, in one pass over the pixels; the report says what was
+          done, and a failure part way must never leave a partly transformed file.
+        tests:
+          - RenderCommand_Run_MultiOpJson_ListsOperationsInOrder
+          - RenderCommand_Run_OperationOrder_CropThenResizeDiffersFromResizeThenCrop
+          - RenderCommand_Run_RasterWithWidthAndCrop_LoaderResizesFirst
+          - RenderCommand_Run_FilterWithRasterWidth_IsReportedWhenChosen
+          - RenderCommand_Run_VectorWithWidthAndCrop_SizesOnceThenCrops
+          - RenderCommand_Run_PadOnRaster_DefaultsToTransparentThenBackground
+          - RenderCommand_Run_PadOnVector_DefaultsToTheBackgroundOfThePage
+          - RenderCommand_Run_Fit_ShrinksOnlyUnlessUpscaleAllowed
+          - RenderCommand_Run_ExifJpegThenRotate_RotatesTheUprightImage
+          - RenderCommand_Run_MultiOpChain_EveryInputKind_WritesExpectedSize
+          - RenderCommand_Run_AllPagesWithPipeline_AppliesToEveryPage
+          - RenderCommand_Run_MultiOp_IsDeterministic
+          - RenderCommand_Run_IdentityOperations_KeepThePixels
+          - RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing
+          - RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched
+          - RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit
+
+      - id: CanvasNetTool-Commands-RenderCommand-Verbs
+        title: >-
+          The commands crop, resize, rotate, flip, and pad shall each be the render command with one
+          operation placed first, taken from a positional operand after the input (a geometry, a size,
+          an angle, an axis, or a border), shall accept every option of render, shall apply the
+          operations given as options after the operand's, in the order written wherever they stand on
+          the line, shall write exactly the file that the equivalent render invocation writes, shall
+          report the verb as the command of a JSON result, and shall report a missing, extra, or
+          malformed operand as a usage error.
+        justification: |
+          A single transformation is the most frequent request; a natural grammar for it spares the
+          caller the output of a multi-option render command, while sharing the implementation guarantees
+          the two always agree.
+        tests:
+          - RenderCommand_Verb_Metadata_DescribesVerbAndSharesRenderOptions
+          - RenderCommand_Verb_UnknownVerb_ThrowsArgumentException
+          - RenderCommand_Verb_EqualsRenderEquivalent_WritesIdenticalFiles
+          - RenderCommand_Verb_ExtraPipelineOptions_AreAppliedAfterTheVerbOperation
+          - RenderCommand_Verb_SameOptionAlsoGiven_VerbOperationIsFirst
+          - RenderCommand_Verb_Json_NamesTheVerbAndListsItsOperation
+          - RenderCommand_Verb_EveryInputKind_RotatesNaturalSize
+          - RenderCommand_Verb_DocumentPageAndDpi_AreHonored
+          - RenderCommand_Verb_MissingOrExtraArguments_AreUsageErrors
 
       - id: CanvasNetTool-Commands-RenderCommand-Scad
         title: >-

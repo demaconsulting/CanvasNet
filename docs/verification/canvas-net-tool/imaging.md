@@ -4,9 +4,10 @@
 
 ### Verification Approach
 
-The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader` and `ImageWriter` (see _SourceLoader
-Unit Verification Design_ and _ImageWriter Unit Verification Design_ under `imaging/`) verify the loader and the
-writer in isolation. The subsystem tests in `ImagingSubsystemTests.cs` verify them working together, the way every
+The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, and `ImageWriter`
+(see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, and _ImageWriter Unit
+Verification Design_ under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
+verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
 and SCAD) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output matrix of 44
 cases -
@@ -60,3 +61,8 @@ temporary file exists.
 
 **Imaging_Convert_PageOutOfRange_LeavesNoOutput**: page 3 of a two-page document is `page-out-of-range`, and nothing is
 written.
+
+**Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce**: a PNG, an SVG, the PDF, and the model are loaded at their
+natural size, taken through a crop of the left half, a quarter turn, and a blue border by the pipeline, and written as
+PNG: the three operations are reported in order, the file decodes to exactly the transformed surface, which equals the
+same operations applied by hand to the cropped load, the border pixel is blue, and the loaded surface is unchanged.

@@ -230,10 +230,12 @@ software items, specifically:
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
   output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
   `CommandRegistry` unit, the `DiscoveryCommands` unit with the `formats` and `info` commands, and the
-  `RenderCommand` unit with the `render` command and its alias `convert`; further command units are added as the
+  `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
+  `rotate`, `flip`, and `pad`; further command units are added as the
   commands are implemented) and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
   BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
-  models, and the `ImageWriter`
+  models, the `ImagePipeline` unit, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options
+  were written, and the `ImageWriter`
   unit, which writes PNG, JPEG, BMP, and TIFF files). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
@@ -368,8 +370,8 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `DiscoveryCommands`, and
 `RenderCommand` units and, as they are added, further command units, and its `Imaging` subsystem (namespace
-`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader` and `ImageWriter` units that turn files into
-pixels and pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
+`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, and `ImageWriter` units that turn
+files into pixels, transform pixels, and turn pixels into files. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
 their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
@@ -876,7 +878,8 @@ src/DemaConsulting.CanvasNet.Tool/
 │   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and help
 │   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
 │   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
-│   └── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+│   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+│   └── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
 └── Imaging/                       — Imaging subsystem
     ├── SourceModels.cs            — SourceLoader: source kinds, output formats, and the load model types
     ├── SourceLoader.cs            — SourceLoader: probe, load, size policy, and the exception mapping
@@ -890,6 +893,8 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
     ├── SurfaceOperations.cs       — SourceLoader: flatten and transparency helpers
+    ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad)
+    ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
     └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
 ```
 

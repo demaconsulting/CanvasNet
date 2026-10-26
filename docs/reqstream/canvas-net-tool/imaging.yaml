@@ -4,8 +4,9 @@
 #
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Imaging subsystem
-# - The Imaging subsystem turns files into pixels (SourceLoader) and pixels into files (ImageWriter); it
-#   is free of command-line concerns
+# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), and
+#   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
+#   the operations
 # - Subsystem requirements describe the externally visible load and write behavior and are verified by
 #   the subsystem tests, which run the loader and the writer together on every input and output format
 
@@ -64,6 +65,26 @@ sections:
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_TransparentPng_FlattensOnlyForJpeg
+
+      - id: CanvasNetTool-Imaging-Transform
+        title: >-
+          The Imaging subsystem shall transform loaded pixels with an ordered pipeline of operations
+          (crop, resize, fit, rotate, flip, and pad) applied in the order written, and shall give the same
+          transformed pixels when the same operations are applied twice.
+        justification: |
+          Every command that changes an image applies the same operations the same way, in one decode and
+          one encode, so that the order of the options is the order of the effects.
+        children:
+          - CanvasNetTool-Imaging-ImagePipeline-Order
+          - CanvasNetTool-Imaging-ImagePipeline-Crop
+          - CanvasNetTool-Imaging-ImagePipeline-Resize
+          - CanvasNetTool-Imaging-ImagePipeline-Rotate
+          - CanvasNetTool-Imaging-ImagePipeline-Flip
+          - CanvasNetTool-Imaging-ImagePipeline-Pad
+          - CanvasNetTool-Imaging-ImagePipeline-SizeLimit
+          - CanvasNetTool-Imaging-ImagePipeline-Arguments
+        tests:
+          - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
 
       - id: CanvasNetTool-Imaging-Determinism
         title: >-

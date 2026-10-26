@@ -9,8 +9,9 @@ verify the registry and the commands in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
-unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, and `render`
-commands are registered, run, and are listed in the help. The shipped commands are verified by their own unit tests.
+unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`, and
+transform verb commands are registered, run, and are listed in the help. The shipped commands are verified by their
+own unit tests.
 
 ### Test Environment
 
@@ -59,3 +60,8 @@ and `formats --help` shows its usage and JSON example.
 
 **CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp**: the top-level help lists `render, convert` and `info`
 with their summaries; `render --help`, `help convert`, and `info --help` show the usage and options.
+
+**CommandsSubsystem_TransformVerbs_DefaultRegistry_RunAndAreListedInHelp**: with the default registry, `crop`,
+`resize`, `rotate`, `flip`, and `pad` on a generated PNG each succeed with one result line and nothing on standard
+error (with the sizes 6x4, 8x12, and 16x12 for the crop, the rotation, and the border); `help pad` shows its usage line
+and the top-level help lists the verbs with their summaries.

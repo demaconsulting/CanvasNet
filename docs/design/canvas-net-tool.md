@@ -42,23 +42,28 @@ consists of six direct units and two subsystems:
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   the individual command units are added to it as the commands are implemented; as of this release it holds
   `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), and `RenderCommand` (the `render`
-  command and its alias `convert`). See _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
+  command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`). See
+  _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
-  turns files into pixels and pixels into files, free of command-line concerns. It holds `SourceLoader` (format
+  turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
+  holds `SourceLoader` (format
   detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG, of the pages of PDF,
   PPTX, and VSDX documents, and of a view of an OpenSCAD model, with the size policy,
   page and resolution handling, the views and variables of a model, EXIF orientation, background flattening, and
   the mapping of library exceptions to
-  expected errors) and
+  expected errors),
+  `ImagePipeline` (the ordered crop, resize, fit, rotate, flip, and pad operations, which the `render` command and the
+  verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share) and
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy). It is a
-  subsystem because later releases add units for transformation, comparison, and montage. See _Imaging
+  subsystem because later releases add units for comparison and montage. See _Imaging
   Subsystem Design_ (`canvas-net-tool/imaging.md`).
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,
 `Commands`, `ResultWriter`, and `Validation`; `Validation` calls back into `Program.Run` (to exercise the tool
 in-process) and uses `PathHelpers`; `Commands` uses `Context` for output, `ArgumentReader` for the command line,
 `ResultWriter` for JSON results, `Imaging` for everything that touches an image, and `ToolException` for
-failures, and never calls `Program`; `Imaging` knows nothing of `Commands`, `Context`, or `ArgumentReader`.
+failures, and never calls `Program`; `Imaging` knows nothing of `Commands` or `Context` and uses `ArgumentReader`
+only in `ImagePipeline`, to read the transformation operations from a parsed command line.
 `ArgumentReader` uses the `OptionSpec` type of `Commands` and `ToolException`; `ResultWriter` uses
 `ToolException` and `ErrorCodes`.
 

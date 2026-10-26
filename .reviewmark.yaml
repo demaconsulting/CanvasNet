@@ -2104,6 +2104,23 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageWriter.cs"    # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageWriterTests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-ImagePipeline Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImagePipeline
+    title: Review that CanvasNetTool Imaging ImagePipeline Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-pipeline.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-pipeline.md"       # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-pipeline.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-pipeline.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImagePipeline.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageOperations.cs"  # unit source (operation records)
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

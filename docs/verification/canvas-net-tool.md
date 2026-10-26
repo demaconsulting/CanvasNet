@@ -24,7 +24,8 @@ packaged tool in each operating system and .NET runtime of its matrix and runs `
 results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`) are the
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
-`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, and `CanvasNetTool_RenderScad`), which
+`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
+`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`), which
 generate their own inputs and
 are evidence for the
 validation requirements.
@@ -197,6 +198,23 @@ by default, as stored (12x8) with `--no-auto-orient`, and the upright pixels are
 
 **CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding**: a PNG declaring 9000x9000 pixels is refused with
 exit code 1, a `size-limit` document and message, and no output.
+
+**CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder**: the gradient PNG is rendered as a real process with
+`--crop 2,1,8,6 --rotate 90 --flip h --fit 3x3 --pad 1 --pad-color #ff0000 --json`; the document lists the five
+operations in that order with the sizes after the rotation (6x8) and the fit (2x3), and the file is 4x5 with the red
+border at its corners.
+
+**CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent**: `crop`, `resize`, `rotate`, `flip`, and `pad` are
+run as real processes, each with its operand after the input; each writes one result line and the same bytes as the
+equivalent `render` invocation.
+
+**CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage**: the top-level help lists the five verbs and
+`crop --help` shows its usage line with the operand and the options of `render`.
+
+**CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors**: an angle of 45 or 7.5
+degrees, a crop that starts outside the image, a border of 9000 pixels, and a size of 10000x10 are run in-process;
+each returns exit code 1 with `usage-error` (the rotations say they are not supported yet, the crop names the image
+size) or `size-limit` in the message and in the JSON document, without a stack trace and with no output.
 
 **CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, a
 drawing, and a model are rendered twice to every output format at a given width; the two files are byte-identical.

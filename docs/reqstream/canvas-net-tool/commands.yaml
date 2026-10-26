@@ -5,8 +5,8 @@
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
-#   (formats and info) and RenderCommand (render and convert); further command units are added to
-#   the subsystem as the commands are implemented
+#   (formats and info) and RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
+#   and pad); further command units are added to the subsystem as the commands are implemented
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -92,6 +92,7 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Pages
           - CanvasNetTool-Commands-RenderCommand-Strict
           - CanvasNetTool-Commands-RenderCommand-Scad
+          - CanvasNetTool-Commands-RenderCommand-Pipeline
           - CanvasNetTool-Commands-RenderCommand-Output
           - CanvasNetTool-Commands-RenderCommand-Result
           - CanvasNetTool-Commands-RenderCommand-Overwrite
@@ -99,3 +100,16 @@ sections:
         tests:
           - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
           - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-TransformCommands
+        title: >-
+          The Commands subsystem shall provide the commands crop, resize, rotate, flip, and pad, each of
+          which applies one transformation, named by a positional operand after the input, to an image,
+          drawing, or document page and writes the result, with every option of the render command.
+        justification: |
+          A single transformation is the most frequent request; a command for each, sharing the
+          implementation of the render command, gives a natural grammar without a second code path.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-Verbs
+        tests:
+          - CommandsSubsystem_TransformVerbs_DefaultRegistry_RunAndAreListedInHelp

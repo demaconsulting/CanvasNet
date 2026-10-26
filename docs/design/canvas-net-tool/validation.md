@@ -18,7 +18,8 @@ environment, and the per-platform and per-runtime evidence that the platform req
 private test methods. The names of the self-tests are a contract with the platform requirements and are never
 changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the platform-evidence tests) and
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
-`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, and `CanvasNetTool_RenderScad`. Each is
+`CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
+`CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`. Each is
 recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool". Further self-tests are added together with the commands
 they exercise.
@@ -48,8 +49,8 @@ test failure by `HandleTestException`.
 version, the success flag, the command name, and that `png` is listed as an input and as an output format. This
 exercises command dispatch, `ArgumentReader`, and `ResultWriter` together in the deployment environment.
 
-**RunRenderPngTest**, **RunConvertFormatsTest**, **RunInfoTest**, **RunRenderSvgTest**, **RunPdfMinimalTest**, and
-**RunRenderScadTest**:
+**RunRenderPngTest**, **RunConvertFormatsTest**, **RunInfoTest**, **RunRenderSvgTest**, **RunPdfMinimalTest**,
+**RunRenderScadTest**, **RunCropResizeTest**, and **RunRotateFlipPadTest**:
 the imaging self-tests. Each runs through `RunSelfTest`, which creates a `TemporaryDirectory`, calls the test body
 with the directory (the body returns `null` for a pass or a description of the failure), records the outcome, and
 records an exception as a failure. The bodies generate their own inputs - a small opaque gradient PNG written with
@@ -67,8 +68,14 @@ at width 16 and requires a 16x16 image with the red square and white (flattened)
 resolution (a 96x64 image with the red half and a white rest) and at `--dpi 192` (192x128);
 `CanvasNetTool_RenderScad` describes the model with `info` (one module, no function), renders the front view at
 40x40 (the block fills the middle and the top of the picture, the corner is white), then renders it again with
-`-D w=40` and requires that the longer block no longer reaches the top. These exercise the
-codecs, the SVG, PDF, and SCAD renderers, the source loader, the image writer, and the commands together.
+`-D w=40` and requires that the longer block no longer reaches the top; `CanvasNetTool_CropResize` crops the 8x6
+gradient PNG to the 4x3 rectangle at 2,1 with the `crop` command and with `render --crop` (requiring the right pixels
+and byte-identical files), resizes it with `resize` to 4x3, and runs `render --crop --resize` with `--json`, requiring
+the operations `crop` then `resize` and an 8x6 result; `CanvasNetTool_RotateFlipPad` rotates the gradient by 90
+degrees (a 6x8 image whose right column is the original top row), flips it horizontally and vertically, and pads it
+with `2,1,0,3` in red, requiring the exact pixels and sizes. These exercise the
+codecs, the SVG, PDF, and SCAD renderers, the source loader, the image pipeline, the image writer, and the commands
+together.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

@@ -11,7 +11,8 @@ table of commands (`CommandRegistry`). It is a subsystem rather than a single un
 command units are added to it as the commands are implemented, behind the same contract and registry. As of
 this release it contains three units: `CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; and `RenderCommand`, which
-provides `render` and its alias `convert`.
+provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
+(the same class, constructed with a verb).
 
 ### Interfaces
 
@@ -27,13 +28,14 @@ recording the command name on it.
 **CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
-ships with (as of this release, `formats`, `info`, and `render` with its alias `convert`).
+ships with (as of this release, `formats`, `info`, `render` with its alias `convert`, and the verbs `crop`,
+`resize`, `rotate`, `flip`, and `pad`, each registered as its own `RenderCommand` instance).
 
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
 
-**Imaging** (consumed): the `info` and `render` commands read and write files only through the `Imaging`
-subsystem (`SourceLoader` and `ImageWriter`); a command never calls a codec directly.
+**Imaging** (consumed): the `info`, `render`, and verb commands read, transform, and write files only through the
+`Imaging` subsystem (`SourceLoader`, `ImagePipeline`, and `ImageWriter`); a command never calls a codec directly.
 
 ### Design
 

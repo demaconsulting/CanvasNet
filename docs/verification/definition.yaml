@@ -55,6 +55,7 @@ input-files:
   - docs/verification/canvas-net-tool/imaging.md
   - docs/verification/canvas-net-tool/imaging/source-loader.md
   - docs/verification/canvas-net-tool/imaging/image-writer.md
+  - docs/verification/canvas-net-tool/imaging/image-pipeline.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md
