@@ -1,4 +1,5 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet pdf endobj endstream xref startxref
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -47,6 +48,7 @@ internal static class Validation
         RunConvertFormatsTest(context, testResults);
         RunInfoTest(context, testResults);
         RunRenderSvgTest(context, testResults);
+        RunPdfMinimalTest(context, testResults);
 
         // Calculate totals
         var totalTests = testResults.Results.Count;
@@ -387,6 +389,90 @@ internal static class Validation
             var white = new Rgba32(255, 255, 255, 255);
             return rendered[2, 2] == red && rendered[13, 13] == white ? null : "The rendered SVG has the wrong pixels";
         });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes and renders a hand-written one-page PDF and checks the page size and pixels.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunPdfMinimalTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_PdfMinimal", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.pdf");
+            var output = PathHelpers.SafePathCombine(directory, "output.png");
+            var sharp = PathHelpers.SafePathCombine(directory, "sharp.png");
+            File.WriteAllBytes(input, CreateMinimalPdf());
+
+            // The page is 72x48 points: one page, 96x64 pixels at the default 96 dots per inch
+            var json = RunCommand(directory, "info", input, "--json");
+            using (var document = JsonDocument.Parse(json))
+            {
+                var pdf = document.RootElement.GetProperty("document");
+                var page = pdf.GetProperty("pages")[0];
+                if (pdf.GetProperty("pageCount").GetInt32() != 1
+                    || page.GetProperty("width").GetInt32() != 96
+                    || page.GetProperty("height").GetInt32() != 64)
+                {
+                    return "The info document does not describe the one-page PDF";
+                }
+            }
+
+            // The left half is red; the rest is flattened over white
+            RunCommand(directory, "render", input, "-o", output);
+            using var rendered = PngCodec.Load(output);
+            var red = new Rgba32(255, 0, 0, 255);
+            var white = new Rgba32(255, 255, 255, 255);
+            if (rendered.Width != 96 || rendered.Height != 64)
+            {
+                return "The rendered PDF page has the wrong size";
+            }
+
+            if (rendered[10, 32] != red || rendered[80, 32] != white)
+            {
+                return "The rendered PDF page has the wrong pixels";
+            }
+
+            // Twice the resolution is twice the size
+            RunCommand(directory, "render", input, "--dpi", "192", "-o", sharp);
+            using var larger = PngCodec.Load(sharp);
+            return larger.Width == 192 && larger.Height == 128 ? null : "The PDF page at 192 dpi has the wrong size";
+        });
+    }
+
+    /// <summary>
+    ///     Creates the bytes of a one-page PDF document that is 72 by 48 points with a red rectangle over its left half.
+    /// </summary>
+    /// <returns>The bytes of the document, with a correct cross-reference table.</returns>
+    private static byte[] CreateMinimalPdf()
+    {
+        const string content = "1 0 0 rg 0 0 36 48 re f";
+        string[] objects =
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 48] /Contents 4 0 R /Resources << >> >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}\nendstream"
+        ];
+
+        var builder = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(builder.Length);
+            builder.Append(CultureInfo.InvariantCulture, $"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+
+        var xref = builder.Length;
+        builder.Append(CultureInfo.InvariantCulture, $"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"{offset:D10} 00000 n \n");
+        }
+
+        builder.Append(CultureInfo.InvariantCulture, $"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        return System.Text.Encoding.ASCII.GetBytes(builder.ToString());
     }
 
     /// <summary>

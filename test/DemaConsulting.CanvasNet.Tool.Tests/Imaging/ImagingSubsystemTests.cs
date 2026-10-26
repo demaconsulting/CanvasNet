@@ -1,8 +1,11 @@
 // cspell:ignore jpeg tiff tif exif gif jpeg2000
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Pdf;
+using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
 
@@ -53,6 +56,24 @@ public class ImagingSubsystemTests
                 return GifCodec.Load(path);
             case "jpeg2000":
                 return Jpeg2000Codec.Load(path);
+            case "pdf":
+                using (var document = PdfDocument.Open(path))
+                {
+                    return document.Render(0, 192, 128);
+                }
+
+            case "pptx":
+                using (var document = PptxDocument.Open(path))
+                {
+                    return document.Render(0, FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight);
+                }
+
+            case "vsdx":
+                using (var document = VsdxDocument.Open(path))
+                {
+                    return document.Render(0, FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight);
+                }
+
             default:
                 using (var drawn = SvgCodec.Load(path, 100, 80))
                 {
@@ -112,6 +133,9 @@ public class ImagingSubsystemTests
     [InlineData("gif")]
     [InlineData("jpeg2000")]
     [InlineData("svg")]
+    [InlineData("pdf")]
+    [InlineData("pptx")]
+    [InlineData("vsdx")]
     public void Imaging_Convert_SameInputTwice_WritesIdenticalBytes(string key)
     {
         // Arrange: a source file of the kind
@@ -206,5 +230,97 @@ public class ImagingSubsystemTests
         Assert.Equal(ErrorCodes.CorruptInput, exception.Code);
         Assert.False(File.Exists(output));
         Assert.Equal([source], Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
+    ///     Test that a page that does not exist is an expected error and leaves no output behind.
+    /// </summary>
+    /// <param name="key">The kind of document.</param>
+    [Theory]
+    [InlineData("pdf")]
+    [InlineData("pptx")]
+    [InlineData("vsdx")]
+    public void Imaging_Convert_PageOutOfRange_LeavesNoOutput(string key)
+    {
+        // Arrange: a two-page document
+        using var directory = new TempDirectory();
+        var source = FixtureFactory.WriteSource(directory.Path, key);
+
+        // Act: loading page 3 fails before anything is written
+        var exception = Assert.Throws<ToolException>(() => SourceLoader.Load(source, new SourceOptions { Page = 3 }));
+
+        // Assert: an expected error, and nothing but the source in the directory
+        Assert.Equal(ErrorCodes.PageOutOfRange, exception.Code);
+        Assert.Equal([source], Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
+    ///     Test that every page of a document, loaded from one opened source and written, holds the pixels the library
+    ///     renders for that page.
+    /// </summary>
+    /// <param name="key">The kind of document.</param>
+    [Theory]
+    [InlineData("pdf")]
+    [InlineData("pptx")]
+    [InlineData("vsdx")]
+    public void Imaging_Convert_DocumentPages_WritesEachPageWithItsPixels(string key)
+    {
+        // Arrange: a two-page document and its facts
+        using var directory = new TempDirectory();
+        var source = FixtureFactory.WriteSource(directory.Path, key);
+        var info = SourceLoader.Probe(source);
+
+        // Act: write every page from one opened source
+        using (var pages = SourceLoader.OpenPages(info, new SourceOptions()))
+        {
+            for (var page = 1; page <= info.PageCount; page++)
+            {
+                using var loaded = pages.ReadPage(page);
+                ImageWriter.Write(loaded.Surface, directory.Combine($"page-{page}.png"), source, WriteOptions.Default);
+            }
+        }
+
+        // Assert: each file has the size of its page, and the pixels the library renders at that size
+        for (var page = 1; page <= info.PageCount; page++)
+        {
+            using var written = PngCodec.Load(directory.Combine($"page-{page}.png"));
+            var size = info.Pages[page - 1];
+            Assert.Equal((size.Width, size.Height), (written.Width, written.Height));
+            using var expected = RenderPageWithLibrary(key, source, page - 1, size.Width, size.Height);
+            SurfaceAssert.Equal(expected, written);
+        }
+    }
+
+    /// <summary>
+    ///     Renders a page with the library of its kind, as the reference for what the tool must produce.
+    /// </summary>
+    /// <param name="key">The kind of document.</param>
+    /// <param name="path">The path of the document.</param>
+    /// <param name="index">The 0-based page index.</param>
+    /// <param name="width">The width in pixels.</param>
+    /// <param name="height">The height in pixels.</param>
+    /// <returns>The rendered page.</returns>
+    private static Surface RenderPageWithLibrary(string key, string path, int index, int width, int height)
+    {
+        switch (key)
+        {
+            case "pdf":
+                using (var document = PdfDocument.Open(path))
+                {
+                    return document.Render(index, width, height);
+                }
+
+            case "pptx":
+                using (var document = PptxDocument.Open(path))
+                {
+                    return document.Render(index, width, height);
+                }
+
+            default:
+                using (var document = VsdxDocument.Open(path))
+                {
+                    return document.Render(index, width, height);
+                }
+        }
     }
 }

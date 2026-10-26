@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 ///     The fixture factory writes files only into directories the caller supplies, so every test cleans up by
 ///     deleting its own <see cref="TempDirectory"/>.
 /// </remarks>
-internal static class FixtureFactory
+internal static partial class FixtureFactory
 {
     /// <summary>
     ///     The width of the generated test images.
@@ -36,7 +36,10 @@ internal static class FixtureFactory
         ("tiff", ".tif"),
         ("gif", ".gif"),
         ("jpeg2000", ".jp2"),
-        ("svg", ".svg")
+        ("svg", ".svg"),
+        ("pdf", ".pdf"),
+        ("pptx", ".pptx"),
+        ("vsdx", ".vsdx")
     ];
 
     /// <summary>
@@ -172,6 +175,15 @@ internal static class FixtureFactory
                 break;
             case "jpeg2000":
                 File.Copy(FixturePath("gradient-100x70.jp2"), path);
+                break;
+            case "pdf":
+                File.WriteAllBytes(path, CreatePdf());
+                break;
+            case "pptx":
+                File.WriteAllBytes(path, CreatePptx());
+                break;
+            case "vsdx":
+                File.WriteAllBytes(path, CreateVsdx());
                 break;
             default:
                 File.Copy(FixturePath("shapes.svg"), path);
@@ -459,11 +471,11 @@ internal sealed class TempDirectory : IDisposable
     /// <summary>
     ///     Gets the path of a file or folder inside the directory.
     /// </summary>
-    /// <param name="name">The name, relative to the directory.</param>
+    /// <param name="names">The names of the folders and the file, relative to the directory.</param>
     /// <returns>The full path.</returns>
-    public string Combine(string name)
+    public string Combine(params string[] names)
     {
-        return System.IO.Path.Combine(Path, name);
+        return System.IO.Path.Combine([Path, .. names]);
     }
 
     /// <inheritdoc />

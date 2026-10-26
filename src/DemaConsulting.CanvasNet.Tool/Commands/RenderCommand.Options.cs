@@ -13,19 +13,23 @@ internal sealed partial class RenderCommand
     ///     The options of the command, in the order they are listed in the help.
     /// </summary>
     /// <remarks>
-    ///     Source options (<c>--scale</c>, <c>--width</c>, <c>--height</c>, <c>--size</c>, <c>--background</c>,
-    ///     <c>--no-auto-orient</c>) come first, then the output options (<c>--output</c>, <c>--format</c>,
-    ///     <c>--quality</c>, <c>--no-clobber</c>). Options of further source kinds and of the image pipeline are added
-    ///     to this table as they are implemented.
+    ///     Source options (<c>--page</c>, <c>--all-pages</c>, <c>--dpi</c>, <c>--scale</c>, <c>--width</c>, <c>--height</c>,
+    ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the output
+    ///     options (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>). Options of further source
+    ///     kinds and of the image pipeline are added to this table as they are implemented.
     /// </remarks>
     internal static readonly IReadOnlyList<OptionSpec> OptionTable =
     [
+        new("--page", [], true, "The page or slide to render, counted from 1 (default 1)", "N"),
+        new("--all-pages", [], false, "Render every page or slide; the output must contain {page} or be a directory"),
+        new("--dpi", [], true, "Resolution of a PDF, PPTX, or VSDX page in dots per inch (default 96; VSDX needs a whole number)", "D"),
         new("--scale", [], true, "Multiply the natural size by a factor, for example 2 or 0.5", "factor"),
         new("--width", [], true, "Target width in pixels; the height keeps the aspect ratio unless --height is given", "pixels"),
         new("--height", [], true, "Target height in pixels; the width keeps the aspect ratio unless --width is given", "pixels"),
         new("--size", [], true, "Exact target size, for example 800x600 (shorthand for --width and --height)", "WxH"),
-        new("--background", [], true, "Color to flatten transparency over: white (default for SVG), black, #RRGGBB, #RRGGBBAA, transparent", "color"),
+        new("--background", [], true, "Color to flatten transparency over: white (default for vector sources), black, #RRGGBB, #RRGGBBAA, transparent", "color"),
         new("--no-auto-orient", [], false, "Do not turn a JPEG upright according to its EXIF orientation"),
+        new("--strict", [], false, "Fail with unsupported-feature instead of skipping a picture or shape the library cannot draw"),
         new("--output", ["-o"], true, "The output file; its extension selects the format", "file"),
         new("--format", [], true, "Output format: png, jpeg, bmp, or tiff (overrides the extension)", "format"),
         new("--quality", [], true, "JPEG quality, 1-100 (default 90)", "1-100"),
@@ -39,7 +43,8 @@ internal sealed partial class RenderCommand
     /// <param name="Output">The output path.</param>
     /// <param name="Source">The options for loading the input.</param>
     /// <param name="Write">The options for writing the output.</param>
-    internal sealed record Settings(string Input, string Output, SourceOptions Source, WriteOptions Write);
+    /// <param name="AllPages"><see langword="true"/> to render every page of the input.</param>
+    internal sealed record Settings(string Input, string Output, SourceOptions Source, WriteOptions Write, bool AllPages);
 
     /// <summary>
     ///     Reads the settings from the parsed command line.
@@ -78,8 +83,19 @@ internal sealed partial class RenderCommand
         var background = reader.Get("--background") is { } colorText ? ArgumentReader.ParseColor(colorText, "--background") : (Rgba32?)null;
         var quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality;
 
+        if (reader.Has("--page") && reader.Has("--all-pages"))
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                "The options --page and --all-pages cannot be used together.",
+                "Use --page N for one page, or --all-pages for every page.");
+        }
+
         var source = new SourceOptions
         {
+            Page = reader.Get("--page") is { } pageText ? ArgumentReader.ParsePage(pageText, "--page") : 1,
+            Dpi = reader.Get("--dpi") is { } dpiText ? ArgumentReader.ParseDpi(dpiText, "--dpi") : null,
+            Strict = reader.Has("--strict"),
             Scale = scale,
             Width = width,
             Height = height,
@@ -92,7 +108,7 @@ internal sealed partial class RenderCommand
         var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
         var flattenBackground = background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
         var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
-        return new Settings(reader.Positionals[0], output, source, write);
+        return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"));
     }
 
     /// <summary>

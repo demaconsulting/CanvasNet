@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Pptx;
+using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
 
@@ -14,9 +16,11 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///     <para>
 ///         The class is split into partial files by concern: this file holds the public operations and the
 ///         shared helpers (size policy, error mapping); <c>SourceLoader.Detect.cs</c> recognizes the format;
-///         <c>SourceLoader.Raster.cs</c> and <c>SourceLoader.Svg.cs</c> handle the two families of source that are
-///         implemented. A further source kind is added by a new partial file with a probe method and a load
-///         method and one new case in each of <see cref="Probe"/> and <see cref="Load(SourceInfo, SourceOptions)"/>.
+///         <c>SourceLoader.Raster.cs</c> and <c>SourceLoader.Svg.cs</c> handle the single-image sources;
+///         <c>SourceLoader.Documents.cs</c> holds what the page-based sources share, and <c>SourceLoader.Pdf.cs</c>,
+///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents. A further source kind is
+///         added by a new partial file with a probe method and a page source and one new case in each of
+///         <see cref="Probe"/> and <see cref="OpenPages"/>.
 ///     </para>
 ///     <para>
 ///         The loader never lets an expected failure escape as a library exception. The library exceptions that
@@ -33,7 +37,7 @@ internal static partial class SourceLoader
     ///     Reads the facts about a file without rendering it.
     /// </summary>
     /// <param name="path">The path of the file.</param>
-    /// <returns>The facts.</returns>
+    /// <returns>The facts; for a document they include every page.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
     ///     Thrown for a missing, unreadable, unsupported, or corrupt file (see <see cref="Detect"/> and the mapping
@@ -50,6 +54,9 @@ internal static partial class SourceLoader
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
                 => ProbeRaster(path, kind, bytes),
             SourceKind.Svg => ProbeSvg(path, bytes),
+            SourceKind.Pdf => ProbePdf(path, bytes),
+            SourceKind.Pptx => ProbePptx(path, bytes),
+            SourceKind.Vsdx => ProbeVsdx(path, bytes),
             _ => throw NotYetSupported(path, kind)
         };
     }
@@ -65,7 +72,8 @@ internal static partial class SourceLoader
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
-    ///     Thrown for a missing, unreadable, unsupported, or corrupt file, and with code <c>size-limit</c> when the
+    ///     Thrown for a missing, unreadable, unsupported, or corrupt file, with code <c>page-out-of-range</c> when
+    ///     <see cref="SourceOptions.Page"/> is not a page of the source, and with code <c>size-limit</c> when the
     ///     source or the requested size is larger than <see cref="Surface.MaxDimension"/> pixels per side.
     /// </exception>
     public static LoadedSource Load(string path, SourceOptions options)
@@ -89,13 +97,144 @@ internal static partial class SourceLoader
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(options);
 
+        using var pages = OpenPages(info, options);
+        return pages.ReadPage(options.Page);
+    }
+
+    /// <summary>
+    ///     Opens a source so that one or more of its pages can be loaded.
+    /// </summary>
+    /// <param name="info">The facts about the file, from <see cref="Probe"/>.</param>
+    /// <param name="options">The loading options; <see cref="SourceOptions.Page"/> is not used, the page is passed to <see cref="PageSource.ReadPage"/>.</param>
+    /// <returns>
+    ///     The page source, which the caller disposes. A document is parsed once when it is opened, so loading every
+    ///     page of it does not parse it again for each page.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown when the file cannot be opened (see <see cref="Read{T}"/>) or when <see cref="SourceOptions.Dpi"/> does
+    ///     not suit the source.
+    /// </exception>
+    public static PageSource OpenPages(SourceInfo info, SourceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(options);
+
         return info.Format switch
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
-                => LoadRaster(info, options),
-            SourceKind.Svg => LoadSvg(info, options),
+                or SourceKind.Svg => new ImagePageSource(info, options),
+            SourceKind.Pdf => PdfPageSource.Open(info, options),
+            SourceKind.Pptx => PptxPageSource.Open(info, options),
+            SourceKind.Vsdx => VsdxPageSource.Open(info, options),
             _ => throw NotYetSupported(info.Path, info.Format)
         };
+    }
+
+    /// <summary>
+    ///     A source opened for loading its pages, one at a time.
+    /// </summary>
+    internal abstract class PageSource : IDisposable
+    {
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="PageSource"/> class.
+        /// </summary>
+        /// <param name="info">The facts about the file.</param>
+        /// <param name="options">The loading options.</param>
+        protected PageSource(SourceInfo info, SourceOptions options)
+        {
+            Info = info;
+            Options = options;
+        }
+
+        /// <summary>
+        ///     Gets the facts about the file.
+        /// </summary>
+        public SourceInfo Info { get; }
+
+        /// <summary>
+        ///     Gets the loading options.
+        /// </summary>
+        protected SourceOptions Options { get; }
+
+        /// <summary>
+        ///     Loads one page.
+        /// </summary>
+        /// <param name="page">The 1-based page number.</param>
+        /// <returns>The loaded page; the caller disposes it.</returns>
+        /// <exception cref="ToolException">
+        ///     Thrown with code <c>page-out-of-range</c> when <paramref name="page"/> is not a page of the source, and
+        ///     for the failures described at <see cref="SourceLoader.Load(string, SourceOptions)"/>.
+        /// </exception>
+        public LoadedSource ReadPage(int page)
+        {
+            CheckPage(Info, page);
+            return LoadPageCore(page);
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        ///     Loads a page that is known to exist.
+        /// </summary>
+        /// <param name="page">The 1-based page number.</param>
+        /// <returns>The loaded page.</returns>
+        protected abstract LoadedSource LoadPageCore(int page);
+
+        /// <summary>
+        ///     Releases what the source holds.
+        /// </summary>
+        /// <param name="disposing"><see langword="true"/> when called from <see cref="Dispose()"/>.</param>
+        protected virtual void Dispose(bool disposing)
+        {
+        }
+    }
+
+    /// <summary>
+    ///     A single-image source (a raster image or an SVG drawing), which has one page.
+    /// </summary>
+    private sealed class ImagePageSource : PageSource
+    {
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="ImagePageSource"/> class.
+        /// </summary>
+        /// <param name="info">The facts about the file.</param>
+        /// <param name="options">The loading options.</param>
+        public ImagePageSource(SourceInfo info, SourceOptions options)
+            : base(info, options)
+        {
+        }
+
+        /// <inheritdoc />
+        protected override LoadedSource LoadPageCore(int page)
+        {
+            return Info.Format == SourceKind.Svg ? LoadSvg(Info, Options) : LoadRaster(Info, Options);
+        }
+    }
+
+    /// <summary>
+    ///     Checks that a page exists in a source.
+    /// </summary>
+    /// <param name="info">The facts about the file.</param>
+    /// <param name="page">The 1-based page number.</param>
+    /// <exception cref="ToolException">Thrown with code <c>page-out-of-range</c> when the source has no such page.</exception>
+    internal static void CheckPage(SourceInfo info, int page)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+
+        if (page < 1 || page > info.PageCount)
+        {
+            var pages = info.PageCount == 1 ? "has 1 page" : $"has {info.PageCount} pages";
+            throw new ToolException(
+                ErrorCodes.PageOutOfRange,
+                $"Page {page} does not exist: '{info.Path}' {pages}.",
+                "Pages are numbered from 1.");
+        }
     }
 
     /// <summary>
@@ -219,8 +358,10 @@ internal static partial class SourceLoader
     /// <returns>The result of <paramref name="action"/>.</returns>
     /// <exception cref="ToolException">
     ///     Thrown for the allow-listed exceptions: a missing file or directory (<c>input-not-found</c>), an access
-    ///     failure or any other I/O failure while reading (<c>input-unreadable</c>), an unsupported image feature
-    ///     (<c>unsupported-feature</c>), and invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
+    ///     failure or any other I/O failure while reading (<c>input-unreadable</c>), an unsupported feature -
+    ///     <see cref="UnsupportedImageFeatureException"/>, <see cref="PptxUnsupportedFeatureException"/>, and
+    ///     <see cref="VsdxUnsupportedFeatureException"/> (<c>unsupported-feature</c>), and
+    ///     invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
     ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
     ///     (<c>corrupt-input</c>).
     /// </exception>
@@ -245,11 +386,19 @@ internal static partial class SourceLoader
         {
             throw new ToolException(ErrorCodes.InputUnreadable, $"'{path}' cannot be read: {OneLine(ex.Message)}", null, ex);
         }
-        catch (UnsupportedImageFeatureException ex)
+        catch (Exception ex) when (ex is UnsupportedImageFeatureException or PptxUnsupportedFeatureException or VsdxUnsupportedFeatureException)
         {
+            var feature = ex switch
+            {
+                UnsupportedImageFeatureException image => image.Feature,
+                PptxUnsupportedFeatureException presentation => presentation.Feature,
+                VsdxUnsupportedFeatureException drawing => drawing.Feature,
+                _ => string.Empty
+            };
+            var named = feature.Length > 0 ? $" ({feature})" : string.Empty;
             throw new ToolException(
                 ErrorCodes.UnsupportedFeature,
-                $"'{path}' uses a {what} feature that is not supported: {OneLine(ex.Message)}",
+                $"'{path}' uses a {what} feature that is not supported{named}: {OneLine(ex.Message)}",
                 null,
                 ex);
         }

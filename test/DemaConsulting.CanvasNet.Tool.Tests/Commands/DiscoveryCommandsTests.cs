@@ -285,12 +285,12 @@ public class DiscoveryCommandsTests
         // Arrange / Act: create the command
         var command = new DiscoveryCommands.Info();
 
-        // Assert: name, no aliases, no options of its own, and a usage line with examples
+        // Assert: name, no aliases, the page options, and a usage line with examples
         Assert.Equal("info", command.Name);
         Assert.Empty(command.Aliases);
-        Assert.Empty(command.Options);
+        Assert.Equal(["--page", "--all-pages"], command.Options.Select(o => o.Name));
         Assert.False(string.IsNullOrWhiteSpace(command.Summary));
-        Assert.StartsWith("canvasnet info <input> [--json]", command.Usage);
+        Assert.StartsWith("canvasnet info <input> [--page N | --all-pages] [--json]", command.Usage);
         Assert.Contains("Examples:", command.Usage);
     }
 
@@ -396,22 +396,25 @@ public class DiscoveryCommandsTests
     }
 
     /// <summary>
-    ///     Test that a missing, corrupt, or not yet readable input is an expected error.
+    ///     Test that a missing or corrupt input, and a truncated document, is an expected error.
     /// </summary>
     [Fact]
     public void DiscoveryCommands_Info_BadInput_ThrowsToolException()
     {
-        // Arrange: a missing file, a truncated PNG, and a PDF
+        // Arrange: a missing file, a truncated PNG, a PDF with no pages, and a text file
         using var directory = new TempDirectory();
         var truncated = FixtureFactory.WriteSource(directory.Path, "png");
         File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..10]);
         var pdf = directory.Combine("doc.pdf");
         File.WriteAllText(pdf, "%PDF-1.4\n");
+        var text = directory.Combine("notes.txt");
+        File.WriteAllText(text, "notes");
 
         // Act / Assert: the codes
         Assert.Equal(ErrorCodes.InputNotFound, RunInfoFailing(directory.Combine("missing.png")).Code);
         Assert.Equal(ErrorCodes.CorruptInput, RunInfoFailing(truncated).Code);
-        Assert.Equal(ErrorCodes.UnsupportedFormat, RunInfoFailing(pdf).Code);
+        Assert.Equal(ErrorCodes.CorruptInput, RunInfoFailing(pdf).Code);
+        Assert.Equal(ErrorCodes.UnsupportedFormat, RunInfoFailing(text).Code);
     }
 
     /// <summary>
@@ -423,14 +426,14 @@ public class DiscoveryCommandsTests
         // Arrange / Act
         var none = RunInfoFailing();
         var two = RunInfoFailing("a.png", "b.png");
-        var unknown = RunInfoFailing("a.png", "--page", "2");
+        var unknown = RunInfoFailing("a.png", "--pages", "2");
 
         // Assert: usage errors
         Assert.Equal(ErrorCodes.UsageError, none.Code);
         Assert.Contains("expects one input file", none.Message);
         Assert.Equal(ErrorCodes.UsageError, two.Code);
         Assert.Equal(ErrorCodes.UsageError, unknown.Code);
-        Assert.Contains("Unknown option '--page'", unknown.Message);
+        Assert.Contains("Unknown option '--pages'", unknown.Message);
     }
 
     /// <summary>

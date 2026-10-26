@@ -2,8 +2,10 @@
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
 
@@ -277,14 +279,20 @@ public class SourceLoaderTests
         {
             "jpeg2000" => (100, 70),
             "svg" => (100, 80),
+            "pdf" => (192, 128),
+            "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
+            "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
         Assert.Equal(height, info.Height);
         Assert.True(info.CanDecode);
         Assert.Equal(1, info.FrameCount);
-        Assert.Equal(1, info.PageCount);
-        Assert.Empty(info.Pages);
+
+        // A document has two pages, which it lists; every other kind has one and lists none
+        var documentPages = info.Format.IsDocument() ? 2 : 1;
+        Assert.Equal(documentPages, info.PageCount);
+        Assert.Equal(info.Format.IsDocument() ? 2 : 0, info.Pages.Count);
         Assert.Empty(info.Modules);
         Assert.Empty(info.Functions);
         Assert.Null(info.ExifOrientation);
@@ -343,14 +351,13 @@ public class SourceLoaderTests
     /// </summary>
     /// <param name="extension">The extension of the kind.</param>
     [Theory]
-    [InlineData(".pdf")]
     [InlineData(".scad")]
     public void SourceLoader_ProbeAndLoad_KindNotLoadableYet_ThrowsUnsupportedFormat(string extension)
     {
         // Arrange: a file that is recognized by its extension
         using var directory = new TempDirectory();
         var path = directory.Combine("file" + extension);
-        File.WriteAllText(path, extension == ".pdf" ? "%PDF-1.4\n" : "cube(1);\n");
+        File.WriteAllText(path, "cube(1);\n");
 
         // Act
         var probe = Assert.Throws<ToolException>(() => SourceLoader.Probe(path));
@@ -806,6 +813,8 @@ public class SourceLoaderTests
             (new UnauthorizedAccessException("denied"), ErrorCodes.InputUnreadable),
             (new IOException("disk"), ErrorCodes.InputUnreadable),
             (new UnsupportedImageFeatureException("progressive", "not supported"), ErrorCodes.UnsupportedFeature),
+            (new PptxUnsupportedFeatureException("pptx-gradient-path", "not supported"), ErrorCodes.UnsupportedFeature),
+            (new VsdxUnsupportedFeatureException("vsdx-arrowhead-99", "not supported"), ErrorCodes.UnsupportedFeature),
             (new InvalidDataException("bad"), ErrorCodes.CorruptInput),
             (new XmlException("bad xml"), ErrorCodes.CorruptInput),
             (new EndOfStreamException("short"), ErrorCodes.CorruptInput),

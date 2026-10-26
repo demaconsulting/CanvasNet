@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx scad jfif Visio
 using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
@@ -62,10 +63,11 @@ internal static partial class SourceLoader
     ///     directory or cannot be read, and <c>unsupported-format</c> when its format is not recognized.
     /// </exception>
     /// <remarks>
-    ///     The content decides first: the signature bytes of the raster formats and PDF, then a text sniff for SVG.
+    ///     The content decides first: the signature bytes of the raster formats and PDF, then the entries of a ZIP
+    ///     package (PowerPoint, Visio), then a text sniff for SVG.
     ///     Only when the content says nothing does the file name extension decide, so that a damaged or empty file
     ///     with a known extension is reported as corrupt (by the load that follows) rather than as unsupported. A
-    ///     ZIP package (PowerPoint, Visio) is distinguished by its extension.
+    ///     damaged ZIP package is distinguished by its extension.
     /// </remarks>
     public static SourceKind Detect(string path)
     {
@@ -82,6 +84,19 @@ internal static partial class SourceLoader
         }
 
         var header = Read(path, null, () => ReadHeader(path));
+        if (header.AsSpan().StartsWith("PK\u0003\u0004"u8))
+        {
+            // An Office or Visio package is told apart by its entries; any other readable archive is not supported
+            var (readable, packageKind) = Read(path, null, () => DetectPackage(path));
+            if (readable)
+            {
+                return packageKind ?? throw new ToolException(
+                    ErrorCodes.UnsupportedFormat,
+                    $"'{path}' is a ZIP archive that is not a PowerPoint (.pptx) or Visio (.vsdx) package.",
+                    "Run 'canvasnet formats' to list the formats the tool reads.");
+            }
+        }
+
         var kind = DetectContent(header, Path.GetExtension(path));
         return kind ?? throw new ToolException(
             ErrorCodes.UnsupportedFormat,
@@ -103,7 +118,7 @@ internal static partial class SourceLoader
             return bySignature;
         }
 
-        // A ZIP package is told apart by its extension; the entries decide in a later release
+        // A ZIP package is told apart by its extension here (a damaged file); Detect looks at the entries of a readable one
         if (header.StartsWith("PK\u0003\u0004"u8)
             && ExtensionKinds.TryGetValue(extension, out var packageKind)
             && packageKind is SourceKind.Pptx or SourceKind.Vsdx)
@@ -197,6 +212,46 @@ internal static partial class SourceLoader
 
         var text = Encoding.UTF8.GetString(header);
         return text.Contains("<svg", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Looks at the entries of a ZIP archive to tell what package it is.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <returns>
+    ///     Whether the archive could be read, and, when it could, the kind of package: a presentation when it has
+    ///     <c>ppt/presentation.xml</c>, a drawing when it has <c>visio/document.xml</c>, and <see langword="null"/>
+    ///     for any other archive (a Word or Excel file, for example).
+    /// </returns>
+    /// <remarks>
+    ///     A file that starts like a ZIP archive but cannot be read as one is reported as not readable, so that the
+    ///     file name extension decides and the load that follows reports the damage.
+    /// </remarks>
+    private static (bool Readable, SourceKind? Kind) DetectPackage(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            foreach (var name in archive.Entries.Select(entry => entry.FullName))
+            {
+                if (string.Equals(name, "ppt/presentation.xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (true, SourceKind.Pptx);
+                }
+
+                if (string.Equals(name, "visio/document.xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (true, SourceKind.Vsdx);
+                }
+            }
+
+            return (true, null);
+        }
+        catch (InvalidDataException)
+        {
+            return (false, null);
+        }
     }
 
     /// <summary>

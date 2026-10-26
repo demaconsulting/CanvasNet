@@ -242,12 +242,12 @@ public class CommandsSubsystemTests
 
         // Assert: both commands are listed with their summaries and the alias; their help shows usage and options
         Assert.Contains("render, convert", topLevel);
-        Assert.Contains("Render or convert an image or drawing", topLevel);
+        Assert.Contains("Render or convert an image, drawing, or document page", topLevel);
         Assert.Contains("Show the format, size, and properties", topLevel);
         Assert.Contains("Usage: canvasnet render <input> -o <output> [options]", renderHelp);
         Assert.Contains("--no-clobber", renderHelp);
         Assert.Contains("-o, --output <file>", renderHelp);
         Assert.Contains("Usage: canvasnet render <input> -o <output> [options]", convertHelp);
-        Assert.Contains("Usage: canvasnet info <input> [--json]", infoHelp);
+        Assert.Contains("Usage: canvasnet info <input> [--page N | --all-pages] [--json]", infoHelp);
     }
 }

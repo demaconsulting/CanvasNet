@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg jpg tif tiff exif
+// cspell:ignore canvasnet jpeg jpg tif tiff exif pdf pptx vsdx visio
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -668,10 +668,10 @@ public class CanvasNetToolTests
     }
 
     /// <summary>
-    ///     Test that every raster format and SVG can be read, by rendering each to a PNG.
+    ///     Test that every raster format, SVG, and document can be read, by rendering each to a PNG.
     /// </summary>
     [Fact]
-    public void CanvasNetTool_InputFormats_EveryRasterAndSvg_AreReadable()
+    public void CanvasNetTool_InputFormats_EveryFormat_AreReadable()
     {
         // Arrange: a source file of every kind
         using var directory = new TempDirectory();
@@ -843,13 +843,16 @@ public class CanvasNetToolTests
     [Fact]
     public void CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes()
     {
-        // Arrange: inputs of three kinds and the output formats
+        // Arrange: inputs of every vector kind and two raster kinds, and the output formats
         using var directory = new TempDirectory();
         var inputs = new[]
         {
             FixtureFactory.WriteSource(directory.Path, "png"),
             FixtureFactory.WriteSource(directory.Path, "jpeg"),
-            FixtureFactory.WriteSource(directory.Path, "svg")
+            FixtureFactory.WriteSource(directory.Path, "svg"),
+            FixtureFactory.WriteSource(directory.Path, "pdf"),
+            FixtureFactory.WriteSource(directory.Path, "pptx"),
+            FixtureFactory.WriteSource(directory.Path, "vsdx")
         };
 
         foreach (var input in inputs)
@@ -902,6 +905,236 @@ public class CanvasNetToolTests
             var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", directory.Combine("out.png"), "--json");
 
             // Assert: exit code 1, the error code in the message and in the document, and no output
+            Assert.Equal(1, exitCode);
+            Assert.Contains($"Error: {code}:", stdErr);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.Equal(code, document.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(directory.Combine("out.png")));
+        }
+    }
+
+    /// <summary>
+    ///     Test that every document can be written as every output format, for a chosen page and resolution.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Documents_EveryFormat_WritesDecodableFile()
+    {
+        // Arrange: the three documents, whose second pages are 96x144, 360x270, and 216x288 points
+        using var directory = new TempDirectory();
+        var expectedSizes = new Dictionary<string, (int Width, int Height)>
+        {
+            ["pdf"] = (96, 144),
+            ["pptx"] = (360, 270),
+            ["vsdx"] = (216, 288)
+        };
+
+        foreach (var (key, size) in expectedSizes)
+        {
+            var input = FixtureFactory.WriteSource(directory.Path, key);
+            foreach (var extension in new[] { ".png", ".jpg", ".bmp", ".tif" })
+            {
+                var output = directory.Combine($"{key}-page2{extension}");
+
+                // Act: render page 2 at 72 dots per inch, which is one pixel per point
+                var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--page", "2", "--dpi", "72", "-o", output);
+
+                // Assert: success with one line, and a file of the size of the page
+                Assert.Equal(0, exitCode);
+                Assert.Equal(string.Empty, stdErr);
+                Assert.EndsWith($"from {input} page 2", stdOut.TrimEnd());
+                using var image = SurfaceAssert.Load(output);
+                Assert.Equal(size, (image.Width, image.Height));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that the tool, run as a real process, renders a chosen page of a PDF at a chosen resolution.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Documents_RenderPageAndDpi_WritesPageAtSize()
+    {
+        // Arrange: the PDF and an output path
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "pdf");
+        var output = directory.Combine("page.png");
+
+        // Act: run the render command as a real process for page 1 at twice the default resolution
+        var exitCode = Runner.Run(out var text, "dotnet", _dllPath, "render", input, "--page", "1", "--dpi", "192", "-o", output);
+
+        // Assert: one line that names the page, and the page at 384x256 with its shapes where the document puts them
+        Assert.Equal(0, exitCode);
+        Assert.Equal($"wrote {output} (384x256 png, {new FileInfo(output).Length} bytes) from {input} page 1", text.TrimEnd());
+        using var image = PngCodec.Load(output);
+        Assert.Equal((384, 256), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[40, 40]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), image[340, 220]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[340, 40]);
+    }
+
+    /// <summary>
+    ///     Test that every page of every document is rendered in one run, each to a file named after its page.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Documents_AllPages_WritesEveryPage()
+    {
+        // Arrange: the three documents
+        using var directory = new TempDirectory();
+
+        foreach (var key in new[] { "pdf", "pptx", "vsdx" })
+        {
+            var input = FixtureFactory.WriteSource(directory.Path, key);
+
+            // Act: render every page into a directory
+            var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "--all-pages", "-o", directory.Combine(key + "-out", "{page}.png"), "--json");
+
+            // Assert: two outputs, one for each page, which exist and decode to the size of their page
+            Assert.Equal(0, exitCode);
+            using var document = JsonDocument.Parse(stdOut);
+            var outputs = document.RootElement.GetProperty("outputs").EnumerateArray().ToList();
+            Assert.Equal(2, outputs.Count);
+            var info = SourceLoader.Probe(input);
+            for (var page = 1; page <= 2; page++)
+            {
+                using var image = PngCodec.Load(directory.Combine(key + "-out", $"{page}.png"));
+                Assert.Equal((info.Pages[page - 1].Width, info.Pages[page - 1].Height), (image.Width, image.Height));
+                Assert.Equal(page, outputs[page - 1].GetProperty("page").GetInt32());
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Test that the info command describes the pages of a document as text and as JSON.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Info_DocumentPages_DescribesPages()
+    {
+        // Arrange: the PDF
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "pdf");
+
+        // Act: run the info command as a real process for every page, as text and as JSON
+        var textExitCode = Runner.Run(out var text, "dotnet", _dllPath, "info", input, "--all-pages");
+        var jsonExitCode = Runner.Run(out var json, "dotnet", _dllPath, "info", input, "--page", "2", "--json");
+
+        // Assert: the text lists the page count and both pages; the JSON describes page 2 of 2
+        Assert.Equal(0, textExitCode);
+        Assert.Contains(": pdf, 2 pages,", text);
+        Assert.Contains("page 1: 192x128 px at 96 dpi (144x96 pt), rotation 0", text);
+        Assert.Contains("page 2: 128x192 px at 96 dpi (96x144 pt), rotation 90", text);
+        Assert.Equal(0, jsonExitCode);
+        using var document = JsonDocument.Parse(json);
+        var pdf = document.RootElement.GetProperty("document");
+        Assert.Equal(2, pdf.GetProperty("pageCount").GetInt32());
+        var page = Assert.Single(pdf.GetProperty("pages").EnumerateArray());
+        Assert.Equal(2, page.GetProperty("page").GetInt32());
+        Assert.Equal(90, page.GetProperty("rotation").GetInt32());
+    }
+
+    /// <summary>
+    ///     Test that a page is rendered over white by default, keeps transparency on request, and is flattened for JPEG.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent()
+    {
+        // Arrange: the three documents, and a pixel of each that the document does not paint
+        using var directory = new TempDirectory();
+        var unpainted = new Dictionary<string, (int X, int Y)>
+        {
+            ["pdf"] = (170, 20),
+            ["pptx"] = (400, 180),
+            ["vsdx"] = (300, 250)
+        };
+
+        foreach (var (key, (x, y)) in unpainted)
+        {
+            var input = FixtureFactory.WriteSource(directory.Path, key);
+
+            // Act
+            ToolHost.Invoke("render", input, "-o", directory.Combine(key + ".png"));
+            ToolHost.Invoke("render", input, "--background", "transparent", "-o", directory.Combine(key + "-transparent.png"));
+            ToolHost.Invoke("render", input, "--background", "transparent", "-o", directory.Combine(key + ".jpg"));
+
+            // Assert: white by default, transparent when asked, and white again in the JPEG, which has no transparency
+            using var white = PngCodec.Load(directory.Combine(key + ".png"));
+            using var transparent = PngCodec.Load(directory.Combine(key + "-transparent.png"));
+            using var jpeg = JpegCodec.Load(directory.Combine(key + ".jpg"));
+            Assert.Equal(new Rgba32(255, 255, 255, 255), white[x, y]);
+            Assert.Equal(0, transparent[x, y].A);
+            Assert.InRange(jpeg[x, y].R, 240, 255);
+        }
+    }
+
+    /// <summary>
+    ///     Test that features the libraries cannot draw are reported in the diagnostics of the result, and that the strict
+    ///     option turns them into an error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails()
+    {
+        // Arrange: a presentation with an EMF picture and a drawing with a geometry row of an unknown kind
+        using var directory = new TempDirectory();
+        var pptx = directory.Combine("deck.pptx");
+        File.WriteAllBytes(pptx, FixtureFactory.CreatePptx(withMetafile: true));
+        var vsdx = directory.Combine("drawing.vsdx");
+        File.WriteAllBytes(vsdx, FixtureFactory.CreateVsdx(withUnsupportedShape: true));
+
+        foreach (var (input, source) in new[] { (pptx, "pptx"), (vsdx, "vsdx") })
+        {
+            // Act: render it as is, and strictly
+            var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "-o", directory.Combine("tolerant.png"), "--json");
+            var (strictCode, strictOut, strictErr) = ToolHost.Invoke("render", input, "--strict", "-o", directory.Combine($"{source}-strict.png"), "--json");
+
+            // Assert: the image is written with one note; strict mode writes nothing and says unsupported-feature
+            Assert.Equal(0, exitCode);
+            using var document = JsonDocument.Parse(stdOut);
+            var note = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+            Assert.Equal(source, note.GetProperty("source").GetString());
+            Assert.Equal(1, strictCode);
+            Assert.Contains("Error: unsupported-feature:", strictErr);
+            using var error = JsonDocument.Parse(strictOut);
+            Assert.Equal("unsupported-feature", error.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(directory.Combine($"{source}-strict.png")));
+        }
+    }
+
+    /// <summary>
+    ///     Test that a page that does not exist, an archive that is not a presentation or a drawing, a package with a broken part,
+    ///     and an unsupported PDF are expected errors, never unexpected ones.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors()
+    {
+        // Arrange: each mistake, and the error code it must produce
+        using var directory = new TempDirectory();
+        var pdf = FixtureFactory.WriteSource(directory.Path, "pdf");
+        var word = directory.Combine("letter.pptx");
+        File.WriteAllBytes(word, FixtureFactory.CreateZip([("word/document.xml", "<w:document/>"u8.ToArray())]));
+        var brokenSlide = directory.Combine("broken.pptx");
+        File.WriteAllBytes(brokenSlide, FixtureFactory.ReplaceZipEntry(FixtureFactory.CreatePptx(), "ppt/slides/slide1.xml", "<broken"));
+        var brokenPage = directory.Combine("broken.vsdx");
+        File.WriteAllBytes(brokenPage, FixtureFactory.ReplaceZipEntry(FixtureFactory.CreateVsdx(), "visio/pages/page1.xml", "<broken"));
+        var encrypted = directory.Combine("encrypted.pdf");
+        File.WriteAllBytes(encrypted, FixtureFactory.CreatePdf(encrypted: true));
+        var unsupportedShape = directory.Combine("shape.pptx");
+        File.WriteAllBytes(unsupportedShape, FixtureFactory.CreatePptx(withUnsupportedShape: true));
+        (string[] Args, string Code)[] cases =
+        [
+            ([pdf, "--page", "3"], "page-out-of-range"),
+            ([word], "unsupported-format"),
+            ([brokenSlide], "corrupt-input"),
+            ([brokenPage], "corrupt-input"),
+            ([encrypted], "unsupported-feature"),
+            ([unsupportedShape], "unsupported-feature"),
+            ([pdf, "--page", "1", "--all-pages"], "usage-error")
+        ];
+
+        foreach (var (args, code) in cases)
+        {
+            // Act: render it in-process; an unexpected exception would escape and fail the test
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke(["render", .. args, "-o", directory.Combine("out.png"), "--json"]);
+
+            // Assert: exit code 1, the code in the message and in the document, and no output
             Assert.Equal(1, exitCode);
             Assert.Contains($"Error: {code}:", stdErr);
             using var document = JsonDocument.Parse(stdOut);

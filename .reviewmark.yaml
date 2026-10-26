@@ -1871,7 +1871,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Runner.cs"          # out-of-process test runner
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ToolHost.cs"        # in-process console capture helper
       - "test/DemaConsulting.CanvasNet.Tool.Tests/TestCommand.cs"     # configurable test command
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/FixtureFactory.cs"  # generated test inputs and temporary directory
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/FixtureFactory*.cs"  # generated test inputs and temporary directory
       - "test/DemaConsulting.CanvasNet.Tool.Tests/SurfaceAssert.cs"   # pixel assertions
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Fixtures/README.md"  # fixture provenance and licensing
       - "src/DemaConsulting.CanvasNet.Tool/DemaConsulting.CanvasNet.Tool.csproj"  # tool package project file
@@ -2037,7 +2037,7 @@ reviews:
       - "docs/verification/canvas-net-tool/commands/discovery-commands.md"  # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/discovery-commands.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/DiscoveryCommands.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/DiscoveryCommandsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/DiscoveryCommands*Tests.cs"  # unit tests
 
   # CanvasNetTool-Commands-RenderCommand Review (one per unit)
   - id: CanvasNetTool-Commands-RenderCommand
@@ -2053,7 +2053,7 @@ reviews:
       - "docs/verification/canvas-net-tool/commands/render-command.md"  # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/render-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommandTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommand*Tests.cs"  # unit tests
 
   # CanvasNetTool-Imaging Review (one per subsystem)
   - id: CanvasNetTool-Imaging
@@ -2085,7 +2085,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceModels.cs"   # unit source (model types)
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ExifOrientation.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SurfaceOperations.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageWriter Review (one per unit)

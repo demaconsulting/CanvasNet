@@ -76,6 +76,11 @@ internal static class DiscoveryCommands
     /// </summary>
     internal sealed class Info : ICommand
     {
+        /// <summary>
+        ///     The number of decimals the size of a page in points is rounded to.
+        /// </summary>
+        private const int PointDecimals = 2;
+
         /// <inheritdoc />
         public string Name => "info";
 
@@ -86,17 +91,25 @@ internal static class DiscoveryCommands
         public string Summary => "Show the format, size, and properties of an image or drawing without rendering it";
 
         /// <inheritdoc />
-        public IReadOnlyList<OptionSpec> Options => [];
+        public IReadOnlyList<OptionSpec> Options =>
+        [
+            new("--page", [], true, "For a document, describe this page or slide, counted from 1 (default 1)", "N"),
+            new("--all-pages", [], false, "For a document, describe every page or slide")
+        ];
 
         /// <inheritdoc />
         public string Usage =>
-            "canvasnet info <input> [--json]" + Environment.NewLine
+            "canvasnet info <input> [--page N | --all-pages] [--json]" + Environment.NewLine
             + Environment.NewLine
             + "Reads only the file header: the format, the pixel size, the channels, whether it has transparency," + Environment.NewLine
             + "the number of frames of a GIF, and the EXIF orientation of a JPEG. An SVG reports its intrinsic size." + Environment.NewLine
+            + "A PDF, PPTX, or VSDX document reports its number of pages and the size of a page (the first, or the" + Environment.NewLine
+            + "one chosen with --page, or every page with --all-pages): in pixels at 96 dpi and in points, the" + Environment.NewLine
+            + "rotation of a PDF page, and the name of a VSDX page." + Environment.NewLine
             + Environment.NewLine
             + "Examples:" + Environment.NewLine
             + "  canvasnet info photo.jpg" + Environment.NewLine
+            + "  canvasnet info report.pdf --all-pages" + Environment.NewLine
             + "  canvasnet info drawing.svg --json";
 
         /// <inheritdoc />
@@ -107,11 +120,26 @@ internal static class DiscoveryCommands
 
             var reader = ArgumentReader.Parse(Name, args, Options);
             reader.RequirePositionals(1, 1, "one input file");
+            if (reader.Has("--page") && reader.Has("--all-pages"))
+            {
+                throw new ToolException(
+                    ErrorCodes.UsageError,
+                    "The options --page and --all-pages cannot be used together.",
+                    "Use --page N for one page, or --all-pages for every page.");
+            }
 
             var info = SourceLoader.Probe(reader.Positionals[0]);
+            var page = reader.Get("--page") is { } pageText ? ArgumentReader.ParsePage(pageText, "--page") : 1;
+            SourceLoader.CheckPage(info, page);
+            var pages = info.Pages;
+            if (info.Format.IsDocument() && !reader.Has("--all-pages"))
+            {
+                pages = [info.Pages[page - 1]];
+            }
+
             context.WriteLine(context.Json
-                ? ResultWriter.Success(Name, writer => WriteJsonFields(writer, info))
-                : RenderText(info));
+                ? ResultWriter.Success(Name, writer => WriteJsonFields(writer, info, pages))
+                : RenderText(info, pages));
         }
 
         /// <summary>
@@ -119,13 +147,20 @@ internal static class DiscoveryCommands
         /// </summary>
         /// <param name="writer">The writer positioned inside the document's top-level object.</param>
         /// <param name="info">The facts about the file.</param>
-        private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo info)
+        /// <param name="pages">The pages of a document to describe.</param>
+        private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo info, IReadOnlyList<SourcePage> pages)
         {
             writer.WriteStartObject("input");
             writer.WriteString("path", info.Path);
             writer.WriteString("format", info.Format.ToFormatName());
             writer.WriteNumber("bytes", info.Bytes);
             writer.WriteEndObject();
+
+            if (info.Format.IsDocument())
+            {
+                WriteDocument(writer, info, pages);
+                return;
+            }
 
             writer.WriteStartObject("image");
             writer.WriteNumber("width", info.Width);
@@ -143,12 +178,63 @@ internal static class DiscoveryCommands
         }
 
         /// <summary>
-        ///     Renders the one-line text description.
+        ///     Writes the <c>document</c> object of a PDF, PPTX, or VSDX file.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="info">The facts about the file.</param>
+        /// <param name="pages">The pages to describe.</param>
+        /// <remarks>
+        ///     A page has its number, its size in pixels at 96 dots per inch (<c>width</c>, <c>height</c>) and in
+        ///     points (<c>widthPt</c>, <c>heightPt</c>), and, when the source has them, the <c>rotation</c> of a PDF
+        ///     page and the <c>name</c> of a VSDX page. A slide of a presentation is a page.
+        /// </remarks>
+        private static void WriteDocument(Utf8JsonWriter writer, SourceInfo info, IReadOnlyList<SourcePage> pages)
+        {
+            writer.WriteStartObject("document");
+            writer.WriteNumber("pageCount", info.PageCount);
+            writer.WriteStartArray("pages");
+            foreach (var page in pages)
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("page", page.Number);
+                writer.WriteNumber("width", page.Width);
+                writer.WriteNumber("height", page.Height);
+                writer.WriteNumber("widthPt", Math.Round(page.WidthPoints, PointDecimals));
+                writer.WriteNumber("heightPt", Math.Round(page.HeightPoints, PointDecimals));
+                if (page.Rotation is { } rotation)
+                {
+                    writer.WriteNumber("rotation", rotation);
+                }
+
+                if (page.Name != null)
+                {
+                    writer.WriteString("name", page.Name);
+                }
+
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        /// <summary>
+        ///     Renders the text description.
         /// </summary>
         /// <param name="info">The facts about the file.</param>
-        /// <returns>The text, for example <c>photo.jpg: jpeg, 4032x3024 px, 3 channels, 2481920 bytes, EXIF orientation 6</c>.</returns>
-        private static string RenderText(SourceInfo info)
+        /// <param name="pages">The pages of a document to describe.</param>
+        /// <returns>
+        ///     The text: one line for an image, for example
+        ///     <c>photo.jpg: jpeg, 4032x3024 px, 3 channels, 2481920 bytes, EXIF orientation 6</c>; for a document one line
+        ///     for the file and one for each page described.
+        /// </returns>
+        private static string RenderText(SourceInfo info, IReadOnlyList<SourcePage> pages)
         {
+            if (info.Format.IsDocument())
+            {
+                return RenderDocumentText(info, pages);
+            }
+
             var builder = new StringBuilder();
             builder.Append(CultureInfo.InvariantCulture, $"{info.Path}: {info.Format.ToFormatName()}, {info.Width}x{info.Height} px");
             builder.Append(info.Format == SourceKind.Svg ? " (intrinsic size)" : string.Empty);
@@ -166,6 +252,33 @@ internal static class DiscoveryCommands
             }
 
             builder.Append(info.CanDecode ? string.Empty : ", cannot be decoded");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        ///     Renders the text description of a document.
+        /// </summary>
+        /// <param name="info">The facts about the file.</param>
+        /// <param name="pages">The pages to describe.</param>
+        /// <returns>The text: a line for the file, then a line for each page.</returns>
+        private static string RenderDocumentText(SourceInfo info, IReadOnlyList<SourcePage> pages)
+        {
+            var noun = info.Format == SourceKind.Pptx ? "slide" : "page";
+            var builder = new StringBuilder();
+            builder.Append(
+                CultureInfo.InvariantCulture,
+                $"{info.Path}: {info.Format.ToFormatName()}, {info.PageCount} {noun}{(info.PageCount == 1 ? string.Empty : "s")}, {info.Bytes} bytes");
+            foreach (var page in pages)
+            {
+                builder.AppendLine();
+                builder.Append(CultureInfo.InvariantCulture, $"  {noun} {page.Number}");
+                builder.Append(page.Name == null ? string.Empty : $" \"{page.Name}\"");
+                builder.Append(
+                    CultureInfo.InvariantCulture,
+                    $": {page.Width}x{page.Height} px at 96 dpi ({Math.Round(page.WidthPoints, PointDecimals)}x{Math.Round(page.HeightPoints, PointDecimals)} pt)");
+                builder.Append(page.Rotation is { } rotation ? string.Create(CultureInfo.InvariantCulture, $", rotation {rotation}") : string.Empty);
+            }
+
             return builder.ToString();
         }
     }
