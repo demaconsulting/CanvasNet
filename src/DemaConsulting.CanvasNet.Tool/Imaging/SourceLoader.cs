@@ -4,6 +4,7 @@ using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Pptx;
+using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
@@ -18,7 +19,8 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         shared helpers (size policy, error mapping); <c>SourceLoader.Detect.cs</c> recognizes the format;
 ///         <c>SourceLoader.Raster.cs</c> and <c>SourceLoader.Svg.cs</c> handle the single-image sources;
 ///         <c>SourceLoader.Documents.cs</c> holds what the page-based sources share, and <c>SourceLoader.Pdf.cs</c>,
-///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents. A further source kind is
+///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents; <c>SourceLoader.Scad.cs</c>
+///         handles an OpenSCAD model drawn from one viewpoint. A further source kind is
 ///         added by a new partial file with a probe method and a page source and one new case in each of
 ///         <see cref="Probe"/> and <see cref="OpenPages"/>.
 ///     </para>
@@ -57,7 +59,8 @@ internal static partial class SourceLoader
             SourceKind.Pdf => ProbePdf(path, bytes),
             SourceKind.Pptx => ProbePptx(path, bytes),
             SourceKind.Vsdx => ProbeVsdx(path, bytes),
-            _ => throw NotYetSupported(path, kind)
+            SourceKind.Scad => ProbeScad(path, bytes),
+            _ => throw UnhandledKind(kind)
         };
     }
 
@@ -127,7 +130,8 @@ internal static partial class SourceLoader
             SourceKind.Pdf => PdfPageSource.Open(info, options),
             SourceKind.Pptx => PptxPageSource.Open(info, options),
             SourceKind.Vsdx => VsdxPageSource.Open(info, options),
-            _ => throw NotYetSupported(info.Path, info.Format)
+            SourceKind.Scad => ScadPageSource.Open(info, options),
+            _ => throw UnhandledKind(info.Format)
         };
     }
 
@@ -238,17 +242,14 @@ internal static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Creates the error for a source kind that is recognized but cannot be loaded yet.
+    ///     Creates the exception for a source kind that the loader has no case for: a defect, since every kind of
+    ///     <see cref="SourceKind"/> is handled.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
-    /// <param name="kind">The recognized kind.</param>
-    /// <returns>The exception to throw.</returns>
-    private static ToolException NotYetSupported(string path, SourceKind kind)
+    /// <param name="kind">The kind.</param>
+    /// <returns>The exception to throw; it is not a <see cref="ToolException"/>, so the entry point reports it as unexpected.</returns>
+    private static InvalidOperationException UnhandledKind(SourceKind kind)
     {
-        return new ToolException(
-            ErrorCodes.UnsupportedFormat,
-            $"'{path}' is a {kind.ToFormatName()} file, which this version of the tool cannot read yet.",
-            "Run 'canvasnet formats' to list the formats the tool reads.");
+        return new InvalidOperationException($"The source kind {kind} is not handled by the source loader.");
     }
 
     /// <summary>
@@ -360,7 +361,10 @@ internal static partial class SourceLoader
     ///     Thrown for the allow-listed exceptions: a missing file or directory (<c>input-not-found</c>), an access
     ///     failure or any other I/O failure while reading (<c>input-unreadable</c>), an unsupported feature -
     ///     <see cref="UnsupportedImageFeatureException"/>, <see cref="PptxUnsupportedFeatureException"/>, and
-    ///     <see cref="VsdxUnsupportedFeatureException"/> (<c>unsupported-feature</c>), and
+    ///     <see cref="VsdxUnsupportedFeatureException"/>, and <see cref="ScadUnsupportedFeatureException"/>
+    ///     (<c>unsupported-feature</c>), a syntax error of a model - <see cref="ScadSyntaxException"/> - or a failure
+    ///     of its evaluation - <see cref="ScadEvaluationException"/> (<c>scad-error</c>, or <c>budget-exceeded</c> when a
+    ///     limit was exceeded; see <see cref="MapScadEvaluation"/>), and
     ///     invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
     ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
     ///     (<c>corrupt-input</c>).
@@ -401,6 +405,23 @@ internal static partial class SourceLoader
                 $"'{path}' uses a {what} feature that is not supported{named}: {OneLine(ex.Message)}",
                 null,
                 ex);
+        }
+        catch (ScadUnsupportedFeatureException ex)
+        {
+            // The message of the library already names the file and the position
+            throw new ToolException(
+                ErrorCodes.UnsupportedFeature,
+                $"The SCAD model uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
+                "Without --strict the feature is left out and reported in the diagnostics.",
+                ex);
+        }
+        catch (ScadSyntaxException ex)
+        {
+            throw new ToolException(ErrorCodes.ScadError, $"SCAD syntax error: {OneLine(ex.Message)}", null, ex);
+        }
+        catch (ScadEvaluationException ex)
+        {
+            throw MapScadEvaluation(ex);
         }
         catch (Exception ex) when (ex is InvalidDataException or XmlException or EndOfStreamException or FormatException)
         {

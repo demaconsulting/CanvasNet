@@ -1,8 +1,10 @@
-// cspell:ignore jpeg tiff tif exif gif jpeg2000
+// cspell:ignore jpeg tiff tif exif gif jpeg2000 scad
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
@@ -74,6 +76,12 @@ public class ImagingSubsystemTests
                     return document.Render(0, FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight);
                 }
 
+            case "scad":
+                return ScadDocument.Open(path).Render(
+                    SourceLoader.DefaultScadSize,
+                    SourceLoader.DefaultScadSize,
+                    new ScadRenderOptions { Projection = CameraProjection.Orthographic });
+
             default:
                 using (var drawn = SvgCodec.Load(path, 100, 80))
                 {
@@ -122,6 +130,69 @@ public class ImagingSubsystemTests
     }
 
     /// <summary>
+    ///     Gets every combination of a named view of a model and an output extension, as theory data.
+    /// </summary>
+    public static TheoryData<string, string> ScadViewOutputMatrix
+    {
+        get
+        {
+            var data = new TheoryData<string, string>();
+            foreach (var view in SourceLoader.ScadViews)
+            {
+                foreach (var extension in new[] { ".png", ".jpg", ".bmp", ".tif" })
+                {
+                    data.Add(view.Name, extension);
+                }
+            }
+
+            return data;
+        }
+    }
+
+    /// <summary>
+    ///     Test that every named view of a model can be written as every output format with the pixels the library draws for that view.
+    /// </summary>
+    /// <param name="view">The name of the view.</param>
+    /// <param name="extension">The extension of the output.</param>
+    [Theory]
+    [MemberData(nameof(ScadViewOutputMatrix))]
+    public void Imaging_Convert_ScadViewToOutputFormat_WritesTheLibraryPixels(string view, string extension)
+    {
+        // Arrange: the asymmetric model, and what the library draws for the view
+        using var directory = new TempDirectory();
+        var source = FixtureFactory.WriteText(directory.Path, "model.scad", FixtureFactory.AsymmetricModel);
+        var named = SourceLoader.ScadViews.Single(v => v.Name == view);
+        using var reference = ScadDocument.Open(source).Render(
+            48,
+            48,
+            new ScadRenderOptions
+            {
+                Projection = CameraProjection.Orthographic,
+                ViewAzimuthDegrees = named.Azimuth,
+                ViewElevationDegrees = named.Elevation
+            },
+            TestContext.Current.CancellationToken);
+        var output = directory.Combine("out" + extension);
+
+        // Act: load the view and write it
+        using (var loaded = SourceLoader.Load(source, new SourceOptions { Width = 48, Height = 48, Scad = new ScadViewOptions { View = view } }))
+        {
+            ImageWriter.Write(loaded.Surface, output, source, WriteOptions.Default);
+        }
+
+        // Assert: exactly the library's pixels for a lossless format, close on average for JPEG
+        using var decoded = SurfaceAssert.Load(output);
+        if (extension == ".jpg")
+        {
+            SurfaceAssert.CloseOnAverage(reference, decoded, 8);
+        }
+        else
+        {
+            SurfaceAssert.Equal(reference, decoded);
+        }
+    }
+
+    /// <summary>
     ///     Test that loading and writing the same input twice gives the same bytes.
     /// </summary>
     /// <param name="key">The kind of input.</param>
@@ -136,6 +207,7 @@ public class ImagingSubsystemTests
     [InlineData("pdf")]
     [InlineData("pptx")]
     [InlineData("vsdx")]
+    [InlineData("scad")]
     public void Imaging_Convert_SameInputTwice_WritesIdenticalBytes(string key)
     {
         // Arrange: a source file of the kind
@@ -192,23 +264,26 @@ public class ImagingSubsystemTests
     [Fact]
     public void Imaging_Convert_RequestedSize_WritesThatSize()
     {
-        // Arrange: a PNG and the SVG fixture
+        // Arrange: a PNG, the SVG fixture, and the SCAD model
         using var directory = new TempDirectory();
         var png = FixtureFactory.WriteSource(directory.Path, "png");
         var svg = FixtureFactory.WriteSource(directory.Path, "svg");
+        var scad = FixtureFactory.WriteSource(directory.Path, "scad");
 
         // Act: load each at an exact size and write it
-        foreach (var (source, name) in new[] { (png, "from-png.png"), (svg, "from-svg.png") })
+        foreach (var (source, name) in new[] { (png, "from-png.png"), (svg, "from-svg.png"), (scad, "from-scad.png") })
         {
             using var loaded = SourceLoader.Load(source, new SourceOptions { Width = 36, Height = 24 });
             ImageWriter.Write(loaded.Surface, directory.Combine(name), source, WriteOptions.Default);
         }
 
-        // Assert: both files are 36x24
+        // Assert: all files are 36x24
         using var fromPng = PngCodec.Load(directory.Combine("from-png.png"));
         using var fromSvg = PngCodec.Load(directory.Combine("from-svg.png"));
+        using var fromScad = PngCodec.Load(directory.Combine("from-scad.png"));
         Assert.Equal((36, 24), (fromPng.Width, fromPng.Height));
         Assert.Equal((36, 24), (fromSvg.Width, fromSvg.Height));
+        Assert.Equal((36, 24), (fromScad.Width, fromScad.Height));
     }
 
     /// <summary>

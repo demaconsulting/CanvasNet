@@ -105,11 +105,13 @@ internal static class DiscoveryCommands
             + "the number of frames of a GIF, and the EXIF orientation of a JPEG. An SVG reports its intrinsic size." + Environment.NewLine
             + "A PDF, PPTX, or VSDX document reports its number of pages and the size of a page (the first, or the" + Environment.NewLine
             + "one chosen with --page, or every page with --all-pages): in pixels at 96 dpi and in points, the" + Environment.NewLine
-            + "rotation of a PDF page, and the name of a VSDX page." + Environment.NewLine
+            + "rotation of a PDF page, and the name of a VSDX page. An OpenSCAD model is parsed (not evaluated) and" + Environment.NewLine
+            + "reports the modules and functions it defines and its include and use directives." + Environment.NewLine
             + Environment.NewLine
             + "Examples:" + Environment.NewLine
             + "  canvasnet info photo.jpg" + Environment.NewLine
             + "  canvasnet info report.pdf --all-pages" + Environment.NewLine
+            + "  canvasnet info part.scad --json" + Environment.NewLine
             + "  canvasnet info drawing.svg --json";
 
         /// <inheritdoc />
@@ -159,6 +161,12 @@ internal static class DiscoveryCommands
             if (info.Format.IsDocument())
             {
                 WriteDocument(writer, info, pages);
+                return;
+            }
+
+            if (info.Format.IsModel())
+            {
+                WriteModel(writer, info);
                 return;
             }
 
@@ -219,6 +227,91 @@ internal static class DiscoveryCommands
         }
 
         /// <summary>
+        ///     Writes the <c>model</c> object of an OpenSCAD file.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="info">The facts about the file.</param>
+        /// <remarks>
+        ///     The object lists what the source declares at file scope, in source order: the names of the <c>modules</c>
+        ///     and <c>functions</c> it defines and its <c>directives</c> (<c>include</c> and <c>use</c>, each with the
+        ///     <c>path</c> as written and the <c>line</c>). The model is parsed but not evaluated, so what it produces
+        ///     is not reported.
+        /// </remarks>
+        private static void WriteModel(Utf8JsonWriter writer, SourceInfo info)
+        {
+            writer.WriteStartObject("model");
+            writer.WriteStartArray("modules");
+            foreach (var name in info.Modules)
+            {
+                writer.WriteStringValue(name);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("functions");
+            foreach (var name in info.Functions)
+            {
+                writer.WriteStringValue(name);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("directives");
+            foreach (var directive in info.Directives)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("kind", directive.Kind);
+                writer.WriteString("path", directive.Path);
+                writer.WriteNumber("line", directive.Line);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        /// <summary>
+        ///     Renders the text description of an OpenSCAD model.
+        /// </summary>
+        /// <param name="info">The facts about the file.</param>
+        /// <returns>The text: a line for the file with the counts, then a line for each module, function, and directive.</returns>
+        private static string RenderModelText(SourceInfo info)
+        {
+            var builder = new StringBuilder();
+            builder.Append(
+                CultureInfo.InvariantCulture,
+                $"{info.Path}: scad, {Count(info.Modules.Count, "module")}, {Count(info.Functions.Count, "function")}, {Count(info.Directives.Count, "include/use directive")}, {info.Bytes} bytes");
+            foreach (var name in info.Modules)
+            {
+                builder.AppendLine();
+                builder.Append(CultureInfo.InvariantCulture, $"  module {name}");
+            }
+
+            foreach (var name in info.Functions)
+            {
+                builder.AppendLine();
+                builder.Append(CultureInfo.InvariantCulture, $"  function {name}");
+            }
+
+            foreach (var directive in info.Directives)
+            {
+                builder.AppendLine();
+                builder.Append(CultureInfo.InvariantCulture, $"  {directive.Kind} <{directive.Path}> (line {directive.Line})");
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        ///     Formats a count with its noun in the singular or plural.
+        /// </summary>
+        /// <param name="count">The count.</param>
+        /// <param name="noun">The noun in the singular.</param>
+        /// <returns>The text, for example <c>1 module</c> or <c>2 modules</c>.</returns>
+        private static string Count(int count, string noun)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : "s")}");
+        }
+
+        /// <summary>
         ///     Renders the text description.
         /// </summary>
         /// <param name="info">The facts about the file.</param>
@@ -233,6 +326,11 @@ internal static class DiscoveryCommands
             if (info.Format.IsDocument())
             {
                 return RenderDocumentText(info, pages);
+            }
+
+            if (info.Format.IsModel())
+            {
+                return RenderModelText(info);
             }
 
             var builder = new StringBuilder();

@@ -9,8 +9,7 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 /// <remarks>
 ///     The members are in the order in which the <c>formats</c> command lists the input formats, and the
 ///     lower-case member name (see <see cref="SourceKindExtensions.ToFormatName(SourceKind)"/>) is the format name
-///     used in the command output and in JSON. A kind that is recognized but not yet loadable is reported as
-///     <c>unsupported-format</c> by <see cref="SourceLoader"/>.
+///     used in the command output and in JSON.
 /// </remarks>
 internal enum SourceKind
 {
@@ -100,6 +99,16 @@ internal static class SourceKindExtensions
     {
         return kind is SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx;
     }
+
+    /// <summary>
+    ///     Determines whether a source kind is a 3D model, which is drawn from a viewpoint (<see cref="ScadViewOptions"/>).
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for an OpenSCAD model.</returns>
+    public static bool IsModel(this SourceKind kind)
+    {
+        return kind == SourceKind.Scad;
+    }
 }
 
 /// <summary>
@@ -162,14 +171,88 @@ internal sealed record SourceInfo(
     int? ExifOrientation,
     IReadOnlyList<SourcePage> Pages,
     IReadOnlyList<string> Modules,
-    IReadOnlyList<string> Functions);
+    IReadOnlyList<string> Functions)
+{
+    /// <summary>
+    ///     Gets the <c>include</c> and <c>use</c> directives of an OpenSCAD model in source order; empty for every
+    ///     other kind.
+    /// </summary>
+    public IReadOnlyList<SourceDirective> Directives { get; init; } = [];
+}
+
+/// <summary>
+///     An <c>include</c> or <c>use</c> directive of an OpenSCAD model.
+/// </summary>
+/// <param name="Kind">The kind of directive: <c>include</c> or <c>use</c>.</param>
+/// <param name="Path">The file the directive names, exactly as written between the angle brackets.</param>
+/// <param name="Line">The 1-based line of the directive.</param>
+internal sealed record SourceDirective(string Kind, string Path, int Line);
+
+/// <summary>
+///     A named viewpoint of a 3D model.
+/// </summary>
+/// <param name="Name">The lower-case name used with <c>--view</c>.</param>
+/// <param name="Azimuth">The azimuth in degrees: the rotation of the eye about the Z axis, 0 being in front of the model (on the -Y side).</param>
+/// <param name="Elevation">The elevation in degrees: the angle of the eye above the XY plane.</param>
+internal sealed record ScadView(string Name, double Azimuth, double Elevation);
+
+/// <summary>
+///     How an OpenSCAD model is evaluated and viewed.
+/// </summary>
+/// <remarks>
+///     The default is the isometric view, orthographic projection, no variable overrides, <c>$t</c> of 0, the
+///     renderer's default triangle limit, and the renderer's default surface color.
+/// </remarks>
+internal sealed record ScadViewOptions
+{
+    /// <summary>
+    ///     Gets the name of the viewpoint: one of <see cref="SourceLoader.ScadViews"/>; <c>iso</c> by default.
+    /// </summary>
+    public string View { get; init; } = SourceLoader.DefaultScadView;
+
+    /// <summary>
+    ///     Gets the azimuth in degrees that replaces the azimuth of <see cref="View"/>, or <see langword="null"/> to keep it.
+    /// </summary>
+    public double? Azimuth { get; init; }
+
+    /// <summary>
+    ///     Gets the elevation in degrees that replaces the elevation of <see cref="View"/>, or <see langword="null"/> to keep it.
+    /// </summary>
+    public double? Elevation { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the view is a perspective projection; the default is orthographic.
+    /// </summary>
+    public bool Perspective { get; init; }
+
+    /// <summary>
+    ///     Gets the variables that replace the assignments of the same name in the model: each value is a
+    ///     <see cref="double"/>, a <see cref="bool"/>, or a <see cref="string"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> Defines { get; init; } = new Dictionary<string, object?>();
+
+    /// <summary>
+    ///     Gets the value of <c>$t</c> (the animation time), or <see langword="null"/> for 0.
+    /// </summary>
+    public double? Time { get; init; }
+
+    /// <summary>
+    ///     Gets the largest number of triangles the model may produce, or <see langword="null"/> for the library default.
+    /// </summary>
+    public long? MaxTriangles { get; init; }
+
+    /// <summary>
+    ///     Gets the color of a surface the model does not color itself, or <see langword="null"/> for the renderer's gray.
+    /// </summary>
+    public Rgba32? DefaultColor { get; init; }
+}
 
 /// <summary>
 ///     Options that control how a source is loaded.
 /// </summary>
 /// <remarks>
-///     Properties are added here as further source kinds need them (the OpenSCAD view is still to come); a property
-///     that does not apply to a kind is ignored by that kind.
+///     Properties are added here as further source kinds need them; a property that does not apply to a kind is
+///     ignored by that kind.
 /// </remarks>
 internal sealed record SourceOptions
 {
@@ -217,6 +300,12 @@ internal sealed record SourceOptions
     ///     Gets a value indicating whether the EXIF orientation of a JPEG is applied (the default).
     /// </summary>
     public bool AutoOrient { get; init; } = true;
+
+    /// <summary>
+    ///     Gets how an OpenSCAD model is evaluated and viewed, or <see langword="null"/> for the defaults of
+    ///     <see cref="ScadViewOptions"/>. The other kinds ignore it.
+    /// </summary>
+    public ScadViewOptions? Scad { get; init; }
 }
 
 /// <summary>
@@ -225,7 +314,7 @@ internal sealed record SourceOptions
 /// <param name="Op">The operation name, for example <c>render</c>, <c>auto-orient</c>, or <c>resize</c>.</param>
 /// <param name="Fields">
 ///     The operation's parameters in the order they are written; each value is a <see cref="string"/>,
-///     <see cref="int"/>, <see cref="double"/>, or <see cref="bool"/>.
+///     <see cref="int"/>, <see cref="long"/>, <see cref="double"/>, <see cref="bool"/>, or a list of strings.
 /// </param>
 internal sealed record AppliedOperation(string Op, IReadOnlyList<KeyValuePair<string, object>> Fields);
 

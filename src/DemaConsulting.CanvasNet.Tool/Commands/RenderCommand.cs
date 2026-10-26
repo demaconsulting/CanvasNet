@@ -55,15 +55,20 @@ internal sealed partial class RenderCommand : ICommand
     public string Usage =>
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
-        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, or VSDX and writes the format of the output" + Environment.NewLine
+        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, or SCAD and writes the format of the output" + Environment.NewLine
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
+        + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
+        + "pixels unless a size is given; -D sets its variables. Its include and use directives are read from the" + Environment.NewLine
+        + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet render drawing.svg -o drawing.png" + Environment.NewLine
         + "  canvasnet render drawing.svg --width 1200 -o drawing.png" + Environment.NewLine
         + "  canvasnet render report.pdf --page 2 --dpi 150 -o page2.png" + Environment.NewLine
         + "  canvasnet render slides.pptx --all-pages -o out/slide-{page}.png" + Environment.NewLine
+        + "  canvasnet render part.scad --view top -D width=30 -o part-top.png" + Environment.NewLine
+        + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
         + "  canvasnet render shot.png -o shot.jpg --quality 85 --json" + Environment.NewLine
         + "  canvasnet convert scan.tif -o scan.png --no-clobber";
 
@@ -78,6 +83,13 @@ internal sealed partial class RenderCommand : ICommand
 
         // Report every mistake about the input, the pages, and the outputs before any pixels are decoded
         var info = SourceLoader.Probe(settings.Input);
+        if (settings.Source.Scad != null && !info.Format.IsModel())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The options {string.Join(", ", ScadOptionNames)} only apply to an OpenSCAD model, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove them, or render a .scad file.");
+        }
         var pages = settings.AllPages ? Enumerable.Range(1, info.PageCount).ToList() : [settings.Source.Page];
         SourceLoader.CheckPage(info, pages[0]);
         var targets = PlanTargets(settings, info, pages);
@@ -353,7 +365,7 @@ internal sealed partial class RenderCommand : ICommand
     /// </summary>
     /// <param name="writer">The writer.</param>
     /// <param name="name">The parameter name.</param>
-    /// <param name="value">The value: a string, an integer, a number, or a flag.</param>
+    /// <param name="value">The value: a string, an integer, a number, a flag, or a list of strings.</param>
     private static void WriteField(Utf8JsonWriter writer, string name, object value)
     {
         switch (value)
@@ -367,8 +379,20 @@ internal sealed partial class RenderCommand : ICommand
             case double real:
                 writer.WriteNumber(name, real);
                 break;
+            case long big:
+                writer.WriteNumber(name, big);
+                break;
             case bool flag:
                 writer.WriteBoolean(name, flag);
+                break;
+            case IReadOnlyList<string> list:
+                writer.WriteStartArray(name);
+                foreach (var item in list)
+                {
+                    writer.WriteStringValue(item);
+                }
+
+                writer.WriteEndArray();
                 break;
             default:
                 throw new InvalidOperationException($"The operation parameter '{name}' has an unsupported type {value.GetType().Name}.");

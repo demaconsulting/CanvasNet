@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg tiff tif exif gif ihdr
+// cspell:ignore canvasnet jpeg tiff tif exif gif ihdr scad
 using System.Buffers.Binary;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -39,7 +39,8 @@ internal static partial class FixtureFactory
         ("svg", ".svg"),
         ("pdf", ".pdf"),
         ("pptx", ".pptx"),
-        ("vsdx", ".vsdx")
+        ("vsdx", ".vsdx"),
+        ("scad", ".scad")
     ];
 
     /// <summary>
@@ -184,6 +185,9 @@ internal static partial class FixtureFactory
                 break;
             case "vsdx":
                 File.WriteAllBytes(path, CreateVsdx());
+                break;
+            case "scad":
+                File.Copy(FixturePath("cube.scad"), path);
                 break;
             default:
                 File.Copy(FixturePath("shapes.svg"), path);

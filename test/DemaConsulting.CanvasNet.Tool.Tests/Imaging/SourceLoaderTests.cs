@@ -27,7 +27,7 @@ public class SourceLoaderTests
         get
         {
             var data = new TheoryData<string, string>();
-            foreach (var (key, _) in FixtureFactory.Sources)
+            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key != "scad"))
             {
                 foreach (var damage in new[] { "empty", "garbage", "one-byte", "header-only", "half", "missing-last-byte" })
                 {
@@ -35,6 +35,7 @@ public class SourceLoaderTests
                 }
             }
 
+            // A model is text, so cutting it often leaves a valid (shorter) model: SourceLoaderScadTests does its own sweep
             return data;
         }
     }
@@ -119,6 +120,22 @@ public class SourceLoaderTests
 
         // Act / Assert: recognized by its content
         Assert.Equal(SourceKind.Svg, SourceLoader.Detect(path));
+    }
+
+    /// <summary>
+    ///     Test that a file named .scad is a model even when its text mentions an SVG element.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Detect_ScadMentioningSvg_ReturnsScad()
+    {
+        // Arrange: a model whose comment contains the text of an SVG start tag
+        using var directory = new TempDirectory();
+        var path = directory.Combine("model.scad");
+        File.WriteAllText(path, "// exported from <svg width=\"4\"> by hand\ncube(1);\n");
+
+        // Act / Assert: the extension decides, not the text sniff
+        Assert.Equal(SourceKind.Scad, SourceLoader.Detect(path));
+        Assert.Equal(SourceKind.Svg, SourceLoader.DetectContent("<svg/>"u8, ".txt"));
     }
 
     /// <summary>
@@ -282,6 +299,7 @@ public class SourceLoaderTests
             "pdf" => (192, 128),
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
+            "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -293,8 +311,11 @@ public class SourceLoaderTests
         var documentPages = info.Format.IsDocument() ? 2 : 1;
         Assert.Equal(documentPages, info.PageCount);
         Assert.Equal(info.Format.IsDocument() ? 2 : 0, info.Pages.Count);
-        Assert.Empty(info.Modules);
-        Assert.Empty(info.Functions);
+
+        // Only a model has modules and functions
+        Assert.Equal(key == "scad" ? new[] { "block" } : [], info.Modules);
+        Assert.Equal(key == "scad" ? new[] { "half" } : [], info.Functions);
+        Assert.Empty(info.Directives);
         Assert.Null(info.ExifOrientation);
     }
 
@@ -347,26 +368,18 @@ public class SourceLoaderTests
     }
 
     /// <summary>
-    ///     Test that a recognized kind that cannot be loaded yet is reported as an unsupported format.
+    ///     Test that a source kind the loader has no case for is a defect, not an expected error.
     /// </summary>
-    /// <param name="extension">The extension of the kind.</param>
-    [Theory]
-    [InlineData(".scad")]
-    public void SourceLoader_ProbeAndLoad_KindNotLoadableYet_ThrowsUnsupportedFormat(string extension)
+    [Fact]
+    public void SourceLoader_OpenPages_UnhandledKind_IsNotAToolException()
     {
-        // Arrange: a file that is recognized by its extension
+        // Arrange: facts that name a kind that does not exist
         using var directory = new TempDirectory();
-        var path = directory.Combine("file" + extension);
-        File.WriteAllText(path, "cube(1);\n");
+        var info = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "png")) with { Format = (SourceKind)99 };
 
-        // Act
-        var probe = Assert.Throws<ToolException>(() => SourceLoader.Probe(path));
-        var load = Assert.Throws<ToolException>(() => SourceLoader.Load(path, new SourceOptions()));
-
-        // Assert: unsupported-format with a message saying so
-        Assert.Equal(ErrorCodes.UnsupportedFormat, probe.Code);
-        Assert.Equal(ErrorCodes.UnsupportedFormat, load.Code);
-        Assert.Contains("cannot read yet", load.Message);
+        // Act / Assert: an invalid operation, which the entry point reports as unexpected, not a tool error
+        var exception = Assert.Throws<InvalidOperationException>(() => SourceLoader.OpenPages(info, new SourceOptions()));
+        Assert.IsNotType<ToolException>(exception);
     }
 
     /// <summary>
@@ -794,8 +807,8 @@ public class SourceLoaderTests
         // Act: load it
         var exception = Assert.Throws<ToolException>(() => SourceLoader.Load(path, new SourceOptions()));
 
-        // Assert: reported as corrupt input, naming the file
-        Assert.Equal(ErrorCodes.CorruptInput, exception.Code);
+        // Assert: reported as corrupt input (a model: a SCAD error), naming the file
+        Assert.Equal(key == "scad" ? ErrorCodes.ScadError : ErrorCodes.CorruptInput, exception.Code);
         Assert.Contains(path, exception.Message);
     }
 

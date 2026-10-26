@@ -69,7 +69,8 @@ public class RenderCommandTests
         Assert.Equal(
             [
                 "--page", "--all-pages", "--dpi", "--scale", "--width", "--height", "--size", "--background", "--no-auto-orient",
-                "--strict", "--output", "--format", "--quality", "--no-clobber"
+                "--strict", "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color",
+                "--max-triangles", "--output", "--format", "--quality", "--no-clobber"
             ],
             command.Options.Select(o => o.Name));
         Assert.Equal(["-o"], command.Options.Single(o => o.Name == "--output").Aliases);

@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg jpg tif tiff exif pdf pptx vsdx visio
+// cspell:ignore canvasnet jpeg jpg tif tiff exif pdf pptx vsdx visio scad
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -852,7 +852,8 @@ public class CanvasNetToolTests
             FixtureFactory.WriteSource(directory.Path, "svg"),
             FixtureFactory.WriteSource(directory.Path, "pdf"),
             FixtureFactory.WriteSource(directory.Path, "pptx"),
-            FixtureFactory.WriteSource(directory.Path, "vsdx")
+            FixtureFactory.WriteSource(directory.Path, "vsdx"),
+            FixtureFactory.WriteSource(directory.Path, "scad")
         };
 
         foreach (var input in inputs)
@@ -888,15 +889,19 @@ public class CanvasNetToolTests
         cases.Add((text, "unsupported-format"));
         foreach (var (key, extension) in FixtureFactory.Sources)
         {
-            var truncated = FixtureFactory.WriteSource(directory.Path, key);
-            File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
-            var renamed = directory.Combine($"truncated-{key}{extension}");
-            File.Move(truncated, renamed);
-            cases.Add((renamed, "corrupt-input"));
+            // A model is text: a truncated one is usually still a valid model, so only the garbage case applies to it
+            if (key != "scad")
+            {
+                var truncated = FixtureFactory.WriteSource(directory.Path, key);
+                File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
+                var renamed = directory.Combine($"truncated-{key}{extension}");
+                File.Move(truncated, renamed);
+                cases.Add((renamed, "corrupt-input"));
+            }
 
             var garbage = directory.Combine($"garbage-{key}{extension}");
             File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(200));
-            cases.Add((garbage, "corrupt-input"));
+            cases.Add((garbage, key == "scad" ? "scad-error" : "corrupt-input"));
         }
 
         foreach (var (input, code) in cases)
@@ -1137,6 +1142,220 @@ public class CanvasNetToolTests
             // Assert: exit code 1, the code in the message and in the document, and no output
             Assert.Equal(1, exitCode);
             Assert.Contains($"Error: {code}:", stdErr);
+            using var document = JsonDocument.Parse(stdOut);
+            Assert.Equal(code, document.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(directory.Combine("out.png")));
+        }
+    }
+
+    /// <summary>
+    ///     Test that the tool, run as a real process, renders a model from a named view with a variable set, and reports what it drew.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions()
+    {
+        // Arrange: the model fixture and an output path
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "scad");
+        var output = directory.Combine("top.png");
+
+        // Act: run the render command as a real process, from the top, with the width variable set
+        var exitCode = Runner.Run(out var text, "dotnet", _dllPath, "render", input, "--view", "top", "-D", "width=30", "--size", "120x120", "-o", output, "--json");
+
+        // Assert: one JSON document that names the view, the variable, and the output, and an image of the block with its hole
+        Assert.Equal(0, exitCode);
+        using var document = JsonDocument.Parse(text);
+        var render = document.RootElement.GetProperty("operations")[0];
+        Assert.Equal("top", render.GetProperty("view").GetString());
+        Assert.Equal(["width=30"], render.GetProperty("defines").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal("scad", document.RootElement.GetProperty("input").GetProperty("format").GetString());
+        using var image = PngCodec.Load(output);
+        Assert.Equal((120, 120), (image.Width, image.Height));
+        var white = new Rgba32(255, 255, 255, 255);
+        Assert.Equal(white, image[60, 60]);
+        Assert.NotEqual(white, image[60, 50]);
+    }
+
+    /// <summary>
+    ///     Test that every named view of a model is written, that the views differ, and that each is the same on a second run.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages()
+    {
+        // Arrange: a model that looks different from every side
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "model.scad", FixtureFactory.AsymmetricModel);
+        var seen = new HashSet<string>();
+
+        foreach (var view in new[] { "iso", "front", "back", "left", "right", "top", "bottom" })
+        {
+            // Act: render the view twice
+            var first = directory.Combine($"{view}-1.png");
+            var second = directory.Combine($"{view}-2.png");
+            Assert.Equal(0, ToolHost.Invoke("render", input, "--view", view, "--size", "64x64", "-o", first).ExitCode);
+            Assert.Equal(0, ToolHost.Invoke("render", input, "--view", view, "--size", "64x64", "-o", second).ExitCode);
+
+            // Assert: the same bytes both times, and a picture no other view has
+            var bytes = File.ReadAllBytes(first);
+            Assert.Equal(bytes, File.ReadAllBytes(second));
+            Assert.True(seen.Add(Convert.ToBase64String(bytes)), $"The {view} view repeats another view");
+        }
+    }
+
+    /// <summary>
+    ///     Test that a model can be written as every output format.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles()
+    {
+        // Arrange: the model fixture
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "scad");
+
+        foreach (var extension in new[] { ".png", ".jpg", ".bmp", ".tif" })
+        {
+            var output = directory.Combine("model" + extension);
+
+            // Act
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--size", "48x48", "-o", output);
+
+            // Assert: success with one line, and a file of the size with the model in the middle
+            Assert.Equal(0, exitCode);
+            Assert.Equal(string.Empty, stdErr);
+            Assert.EndsWith($"from {input}", stdOut.TrimEnd());
+            using var image = SurfaceAssert.Load(output);
+            Assert.Equal((48, 48), (image.Width, image.Height));
+            Assert.NotEqual(new Rgba32(255, 255, 255, 255), image[24, 24]);
+        }
+    }
+
+    /// <summary>
+    ///     Test that the info command describes a model as text and as JSON, run as a real process.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_Info_DescribesModel()
+    {
+        // Arrange: the model fixture
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "scad");
+
+        // Act: run the info command as a real process, as text and as JSON
+        var textExitCode = Runner.Run(out var text, "dotnet", _dllPath, "info", input);
+        var jsonExitCode = Runner.Run(out var json, "dotnet", _dllPath, "info", input, "--json");
+
+        // Assert: the counts and the names, in both forms
+        Assert.Equal(0, textExitCode);
+        Assert.StartsWith($"{input}: scad, 1 module, 1 function, 0 include/use directives", text);
+        Assert.Contains("  module block", text);
+        Assert.Contains("  function half", text);
+        Assert.Equal(0, jsonExitCode);
+        using var document = JsonDocument.Parse(json);
+        var model = document.RootElement.GetProperty("model");
+        Assert.Equal(["block"], model.GetProperty("modules").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(["half"], model.GetProperty("functions").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(0, model.GetProperty("directives").GetArrayLength());
+    }
+
+    /// <summary>
+    ///     Test that the echo output, warnings, and unsupported features of a model are reported in the JSON result.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_Diagnostics_AreReportedInJson()
+    {
+        // Arrange: a model that echoes, warns, and uses an unsupported module
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\", 3);\nmissing();\ntext(\"A\");\ncube(1);\n");
+
+        // Act
+        var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "--size", "16x16", "-o", directory.Combine("o.png"), "--json");
+
+        // Assert: the echo line and the two notes, and success
+        Assert.Equal(0, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Equal(["ECHO: \"hello\", 3"], document.RootElement.GetProperty("echo").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(
+            ["scad-warning", "scad-module-text"],
+            document.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()));
+    }
+
+    /// <summary>
+    ///     Test that include and use are read from the folder of the model and below it, and that nothing outside is read.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly()
+    {
+        // Arrange: a model with an include and a use below its folder, one that names a missing file, and one that leaves its folder
+        using var directory = new TempDirectory();
+        var good = FixtureFactory.WriteText(directory.Path, "model/model.scad", "include <lib/part.scad>\nuse <lib/fn.scad>\nblock(f(3));\n");
+        FixtureFactory.WriteText(directory.Path, "model/lib/part.scad", "module block(s) { cube(s); }\n");
+        FixtureFactory.WriteText(directory.Path, "model/lib/fn.scad", "function f(x) = x * 2;\n");
+        var missing = FixtureFactory.WriteText(directory.Path, "model/missing.scad", "include <nothing.scad>\ncube(1);\n");
+        FixtureFactory.WriteText(directory.Path, "secret.scad", "module secret() { cube(1); }\n");
+        var outside = FixtureFactory.WriteText(directory.Path, "model/outside.scad", "include <../secret.scad>\nsecret();\n");
+
+        // Act
+        var accepted = ToolHost.Invoke("render", good, "--size", "16x16", "-o", directory.Combine("good.png"), "--json");
+        var refusedMissing = ToolHost.Invoke("render", missing, "--size", "16x16", "-o", directory.Combine("missing.png"), "--json");
+        var refusedOutside = ToolHost.Invoke("render", outside, "--size", "16x16", "-o", directory.Combine("outside.png"), "--json");
+
+        // Assert: the model with its parts renders without notes; the other two fail with a scad error and write nothing
+        Assert.Equal(0, accepted.ExitCode);
+        using (var document = JsonDocument.Parse(accepted.StdOut))
+        {
+            Assert.Equal(0, document.RootElement.GetProperty("diagnostics").GetArrayLength());
+        }
+
+        foreach (var (result, name) in new[] { (refusedMissing, "missing"), (refusedOutside, "outside") })
+        {
+            Assert.Equal(1, result.ExitCode);
+            Assert.Contains("Error: scad-error:", result.StdErr);
+            using var error = JsonDocument.Parse(result.StdOut);
+            Assert.Equal("scad-error", error.RootElement.GetProperty("error").GetProperty("code").GetString());
+            Assert.False(File.Exists(directory.Combine($"{name}.png")));
+        }
+    }
+
+    /// <summary>
+    ///     Test that the mistakes a model can make (a syntax error, a missing include, a limit, an unsupported feature in
+    ///     strict mode, bad options, garbage) are expected errors with the documented codes, never unexpected ones.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors()
+    {
+        // Arrange: each mistake, and the error code it must produce
+        using var directory = new TempDirectory();
+        var good = FixtureFactory.WriteSource(directory.Path, "scad");
+        var syntax = FixtureFactory.WriteText(directory.Path, "syntax.scad", "cube(1);\ncube(;\n");
+        var include = FixtureFactory.WriteText(directory.Path, "include.scad", "include <nothing.scad>\ncube(1);\n");
+        var runaway = FixtureFactory.WriteText(directory.Path, "runaway.scad", "module m() { m(); }\nm();\n");
+        var asserted = FixtureFactory.WriteText(directory.Path, "assert.scad", "assert(false, \"no\");\n");
+        var text = FixtureFactory.WriteText(directory.Path, "text.scad", "text(\"A\");\ncube(1);\n");
+        var garbage = directory.Combine("garbage.scad");
+        File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(300));
+        (string[] Args, string Code)[] cases =
+        [
+            ([syntax], "scad-error"),
+            ([include], "scad-error"),
+            ([asserted], "scad-error"),
+            ([garbage], "scad-error"),
+            ([good, "--max-triangles", "1"], "budget-exceeded"),
+            ([runaway], "budget-exceeded"),
+            ([text, "--strict"], "unsupported-feature"),
+            ([good, "--view", "side"], "usage-error"),
+            ([good, "--elevation", "100"], "usage-error"),
+            ([good, "-D", "width"], "usage-error"),
+            ([good, "--max-triangles", "0"], "usage-error")
+        ];
+
+        foreach (var (args, code) in cases)
+        {
+            // Act: render it in-process; an unexpected exception would escape and fail the test
+            var (exitCode, stdOut, stdErr) = ToolHost.Invoke(["render", .. args, "--size", "16x16", "-o", directory.Combine("out.png"), "--json"]);
+
+            // Assert: exit code 1, one concise error line with the code, the code in the document, and no output
+            Assert.Equal(1, exitCode);
+            Assert.StartsWith($"Error: {code}:", stdErr);
+            Assert.DoesNotContain("   at ", stdErr);
             using var document = JsonDocument.Parse(stdOut);
             Assert.Equal(code, document.RootElement.GetProperty("error").GetProperty("code").GetString());
             Assert.False(File.Exists(directory.Combine("out.png")));

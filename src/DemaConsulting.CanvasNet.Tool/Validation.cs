@@ -49,6 +49,7 @@ internal static class Validation
         RunInfoTest(context, testResults);
         RunRenderSvgTest(context, testResults);
         RunPdfMinimalTest(context, testResults);
+        RunRenderScadTest(context, testResults);
 
         // Calculate totals
         var totalTests = testResults.Results.Count;
@@ -438,6 +439,53 @@ internal static class Validation
             RunCommand(directory, "render", input, "--dpi", "192", "-o", sharp);
             using var larger = PngCodec.Load(sharp);
             return larger.Width == 192 && larger.Height == 128 ? null : "The PDF page at 192 dpi has the wrong size";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes and renders an OpenSCAD model written by the test, and checks the picture.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderScadTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderScad", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "input.scad");
+            var output = PathHelpers.SafePathCombine(directory, "output.png");
+            var wide = PathHelpers.SafePathCombine(directory, "wide.png");
+            File.WriteAllText(input, "w = 10;\nmodule block(length) { cube([length, 10, 10], center = true); }\nblock(w);\n");
+
+            // The model is parsed, not drawn: it defines one module and no function
+            var json = RunCommand(directory, "info", input, "--json");
+            using (var document = JsonDocument.Parse(json))
+            {
+                var model = document.RootElement.GetProperty("model");
+                if (model.GetProperty("modules").GetArrayLength() != 1
+                    || model.GetProperty("functions").GetArrayLength() != 0)
+                {
+                    return "The info document does not describe the model";
+                }
+            }
+
+            // A cube seen from the front fills the picture; the corner is the white background
+            var white = new Rgba32(255, 255, 255, 255);
+            RunCommand(directory, "render", input, "--view", "front", "--size", "40x40", "-o", output);
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != 40 || rendered.Height != 40)
+            {
+                return "The rendered model has the wrong size";
+            }
+
+            if (rendered[20, 20] == white || rendered[20, 6] == white || rendered[0, 0] != white)
+            {
+                return "The rendered model has the wrong pixels";
+            }
+
+            // Setting the variable makes the block four times as long, so it no longer reaches the top of the picture
+            RunCommand(directory, "render", input, "--view", "front", "--size", "40x40", "-D", "w=40", "-o", wide);
+            using var widened = PngCodec.Load(wide);
+            return widened[20, 20] != white && widened[20, 6] == white ? null : "The variable did not change the rendered model";
         });
     }
 

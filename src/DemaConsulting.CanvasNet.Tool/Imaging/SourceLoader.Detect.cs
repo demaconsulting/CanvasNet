@@ -64,7 +64,8 @@ internal static partial class SourceLoader
     /// </exception>
     /// <remarks>
     ///     The content decides first: the signature bytes of the raster formats and PDF, then the entries of a ZIP
-    ///     package (PowerPoint, Visio), then a text sniff for SVG.
+    ///     package (PowerPoint, Visio), then a text sniff for SVG. A model has no signature: a file named <c>.scad</c> is
+    ///     an OpenSCAD model (and is never taken for an SVG, whatever its text mentions).
     ///     Only when the content says nothing does the file name extension decide, so that a damaged or empty file
     ///     with a known extension is reported as corrupt (by the load that follows) rather than as unsupported. A
     ///     damaged ZIP package is distinguished by its extension.
@@ -126,7 +127,7 @@ internal static partial class SourceLoader
             return packageKind;
         }
 
-        if (LooksLikeSvg(header))
+        if (LooksLikeSvg(header) && !extension.Equals(".scad", StringComparison.OrdinalIgnoreCase))
         {
             return SourceKind.Svg;
         }
