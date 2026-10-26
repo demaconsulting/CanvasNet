@@ -2,7 +2,7 @@
 
 ![Imaging Structure](ImagingView.svg)
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad luma otsu grayscale -->
 
 ### Overview
 
@@ -12,15 +12,16 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains five units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains six units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
 `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
-pictures, and `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
-the bundled font. The supporting
+pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
+the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
+fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels). The supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -46,6 +47,10 @@ inputs) before any work is done, and write a surface atomically.
 **ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image, label)**,
 and **ContactSheet.Detach()** (provided to the commands): calculate the geometry of a sheet (refusing one that is too
 large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
+
+**ImageAdjustments.Grayscale**, **Invert**, **Threshold**, **ApplyTable**, **AutoLevels**, and the table and histogram
+helpers (provided to the pipeline and the analysis): adjust the pixels of a surface the caller owns in place, and
+calculate luma, histograms, the Otsu threshold, and the levels, brightness, and contrast tables.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to

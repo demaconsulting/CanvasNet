@@ -2186,6 +2186,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-ImageAdjustments Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageAdjustments
+    title: Review that CanvasNetTool Imaging ImageAdjustments Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-adjustments.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-adjustments.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-adjustments.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-adjustments.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAdjustments.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAdjustmentsTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

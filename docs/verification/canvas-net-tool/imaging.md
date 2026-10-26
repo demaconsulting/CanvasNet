@@ -5,9 +5,10 @@
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, and `ContactSheet`
+`ImageComparison`, `ContactSheet`, and `ImageAdjustments`
 (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
-Verification Design_, _ImageComparison Unit Verification Design_, and _ContactSheet Unit Verification Design_
+Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_, and
+_ImageAdjustments Unit Verification Design_
 under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,

@@ -1,10 +1,11 @@
 ---
-# cspell:ignore scad openscad ssim
+# cspell:ignore scad openscad ssim otsu
 # Imaging Subsystem Requirements
 #
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Imaging subsystem
-# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), compares
+# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), adjusts
+#   tone and color (ImageAdjustments), compares
 #   two images and draws their differences (ImageComparison), composes a contact sheet (ContactSheet), and
 #   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
 #   the operations
@@ -135,6 +136,27 @@ sections:
           - CanvasNetTool-Imaging-ContactSheet-Deterministic
         tests:
           - Imaging_Montage_LoadedSourcesAreComposedAndWritten
+
+      - id: CanvasNetTool-Imaging-Adjust
+        title: >-
+          The Imaging subsystem shall adjust the tone and color of pixels in place (grayscale, invert, a fixed or
+          automatic threshold, levels, brightness, contrast, and an auto-levels stretch), with exact, repeatable
+          results that do not depend on the number of cores.
+        justification: |
+          A photograph of a sketch is cleaned up with the same few tone operations whatever its source; doing the
+          arithmetic in one unit, in integers wherever a number decides a pixel, makes the operations predictable,
+          reportable, and comparable between runs.
+        children:
+          - CanvasNetTool-Imaging-ImageAdjustments-Luma
+          - CanvasNetTool-Imaging-ImageAdjustments-Grayscale
+          - CanvasNetTool-Imaging-ImageAdjustments-Invert
+          - CanvasNetTool-Imaging-ImageAdjustments-Threshold
+          - CanvasNetTool-Imaging-ImageAdjustments-Otsu
+          - CanvasNetTool-Imaging-ImageAdjustments-Levels
+          - CanvasNetTool-Imaging-ImageAdjustments-BrightnessContrast
+          - CanvasNetTool-Imaging-ImageAdjustments-AutoLevels
+          - CanvasNetTool-Imaging-ImageAdjustments-Deterministic
+          - CanvasNetTool-Imaging-ImageAdjustments-Arguments
 
       - id: CanvasNetTool-Imaging-Determinism
         title: >-
