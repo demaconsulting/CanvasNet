@@ -440,6 +440,30 @@ jobs:
           canvasnet --help || { echo "✗ Help command failed"; exit 1; }
           echo "✓ Help command succeeded"
 
+      - name: Test formats listing
+        shell: bash
+        run: |
+          echo "Testing canvasnet formats --json..."
+          canvasnet formats --json > formats.json || { echo "✗ Formats command failed"; exit 1; }
+          grep -q '"ok":true' formats.json || { echo "✗ Formats result is not a success document"; exit 1; }
+          grep -q '"format":"scad"' formats.json || { echo "✗ Formats result does not list scad"; exit 1; }
+          echo "✓ Formats command succeeded"
+
+      - name: Test render and crop
+        shell: bash
+        run: |
+          echo "Testing canvasnet render and crop..."
+          mkdir -p smoke
+          printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' > smoke/t.svg
+          printf '%s' '<rect width="4" height="4" fill="red"/></svg>' >> smoke/t.svg
+          canvasnet render smoke/t.svg -o smoke/t.png --json > smoke/render.json \
+            || { echo "✗ Render command failed"; exit 1; }
+          grep -q '"ok":true' smoke/render.json || { echo "✗ Render result is not a success document"; exit 1; }
+          test -s smoke/t.png || { echo "✗ Render wrote no output file"; exit 1; }
+          canvasnet crop smoke/t.png 0,0,2,2 -o smoke/c.png || { echo "✗ Crop command failed"; exit 1; }
+          test -s smoke/c.png || { echo "✗ Crop wrote no output file"; exit 1; }
+          echo "✓ Render and crop succeeded"
+
       - name: Run self-validation
         shell: bash
         run: |
