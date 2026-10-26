@@ -195,7 +195,8 @@ sections:
                   of the children folded from the left, in which each child is its convex parts (the
                   meshes of a union-only scene tree in the module's frame) and a union distributes over the
                   sum, ignoring the convexity argument and the colors of the children, so that a block
-                  summed with a ball is the rounded block, and a lone convex child is itself (its geometry
+                  summed with a ball is the rounded block, and a lone convex child is itself, verified as built
+                  so that it never fails on the budget because of the test (its geometry
                   and transforms) after its convexity has been verified, with its colors stripped and a
                   warning so that an enclosing color applies.
                 justification: |
@@ -286,6 +287,7 @@ sections:
                   - ScadGeometryBuilder_HullAndMinkowski_BoundChargedBeforeComputing_RejectsWithoutStartingAndSettlesToActual
                   - ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded
                   - ScadGeometryBuilder_Minkowski_DistinctVertexCounts_AreScannedOncePerMemberAndReused
+                  - ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
                 title: >-

@@ -251,13 +251,16 @@ matrix of each node (`node.Transform * parent`, the row-vector convention), poll
 makes the hull of its vertices wrong, so it is reported, never approximated). Only the vertices that a triangle
 references are used.
 
-**`hull` of solids.** `ConvexHull.Hull3D` of the transformed points (their number bounded by `MaxTriangles`,
-which keeps the memory of the point list within the budget: a welded mesh has fewer vertices than triangles, so
-only a pathological polyhedron fails here) after `context.Poll()`; an `ArgumentException` (fewer than four
+**`hull` of solids.** `ConvexHull.Hull3DInPlace` of the transformed points after `context.Poll()`. `GatherPoints` flags
+and
+counts the referenced vertices of every mesh first, fails with the triangle-limit error when their number exceeds
+`MaxTriangles` (a welded mesh has fewer vertices than triangles, so only a pathological polyhedron fails here), and
+only then allocates **one** exactly sized `Vector3D[]` and fills it, so there is no growing list and no second copy:
+the array is handed to `Hull3DInPlace`, which sorts and de-duplicates it in place; an `ArgumentException` (fewer than four
 affinely independent points) is `scad-hull-degenerate`. The charge **precedes** the computation: the mesh has at most
 `2d − 4` triangles for `d` distinct points, so `ChargeHullBound` charges that bound (the raw point count `n` when it
 fits the remaining budget, the distinct count only when it does not, because children can share positions) before
-`ConvexHull.Hull3D` allocates anything, and a bound that does not fit the **remaining** budget fails with the normal
+`Hull3DInPlace` allocates anything, and a bound that does not fit the **remaining** budget fails with the normal
 located `ScadEvaluationException` without the hull being begun (the bound can reject a hull that would fit exactly).
 After the mesh is built `SettleTriangles` refunds the difference to its actual `2V − 4` triangles (`V ≤ d`), and a
 degenerate hull, a cancellation or any other failure refunds the whole pre-charge, so the total charged equals the
@@ -301,7 +304,8 @@ more pair work than one maximal sum) is reported as
 `scad-minkowski-too-complex` ("the children need more than 2097152 pairwise vertex sums in total") before the
 work that would exceed it is done.
 
-**Lone child.** A single child is verified the same way, member by member (nothing is created or charged), and its
+**Lone child.** A single child is verified the same way, member by member and as built (no transformed copy is made,
+nothing is created or charged, so a valid child never fails on the budget because of the test), and its
 geometry and transforms are returned. When the child scene carries an appearance (a `color` inside the module),
 **the colors are stripped**: the child scene is copied without its appearances (and the one warning that colors
 inside `minkowski()` are not kept is reported), so that an enclosing `color` applies to the result. The copy
@@ -310,13 +314,20 @@ and a node reached through several parents is copied once, so shared subtrees st
 in nodes plus edges; a child without any appearance is returned as it is. The result is one `MeshNode` or a
 `GroupNode` of mesh nodes (one per final combination), each created with `CreateMeshNode` after its exact charge.
 
-**Transformed copies and distinct counts.** A member whose matrix is not the identity is a copy made by
-`Mesh.Transform`; it has the triangles of the original, so `InFrame` charges them **before** allocating the copy (a
-`ScadEvaluationException` when they do not fit the remaining budget) and records the charge per child in the
-`MemberStore`. The copies of a child are refunded when the fold has consumed them (the first two children after the
-first step, each later child after its step), those of a lone child after its verification, and whatever remains when
-the module ends in any way (the `finally` of `MinkowskiSolids`), so the charge always equals the triangles of the
-meshes that are alive. The same store holds the number of distinct referenced vertices of each member, scanned **once**
+**Verification as built, transformed copies and distinct counts.** A member is a mesh as built with the matrix that takes
+it into the frame of the module. Convexity (a closed convex solid) is invariant under a non-singular affine map, and
+every transform of the scene is one (`ScadTransforms` reports a singular or non-finite matrix and builds nothing),
+while a mirror only reverses the winding, which `Mesh.Transform` restores; so each member is verified **as built**,
+with no copy, and the test needs no budget. The relative tolerance of the test is then measured in the member's own
+frame (the volume deviation is affine invariant, the area deviation changes only under extreme non-uniform scales).
+A member whose matrix is not the identity is copied by `Mesh.Transform` only when a sum uses it: `MemberStore.InFrame`
+makes the copies of a child when the fold reaches it (children 0 and 1 for the first step, each later child for its
+step), charges their triangles (the same as the originals) **before** allocating each copy (a `ScadEvaluationException`
+when they do not fit the remaining budget) and records the charge per child. The copies of a child are refunded when
+the fold has consumed them (children 0 and 1 after the first step, each later child after its step), and whatever
+remains when the module ends in any way (the `finally` of `MinkowskiSolids`), so the charge always equals the
+triangles of the meshes that are alive; a lone child makes none. The same store holds the number of distinct referenced
+vertices of each member, scanned **once**
 when the member is verified (its cost is covered by the verification charge) and reused by every pair, so the cost of
 a pair is `Va * Vb` from cached counts (a sum, which is a welded hull, uses its vertex count) instead of a rescan of
 both meshes per pair.

@@ -121,8 +121,8 @@ public class SolidPredicatesTests
             var exact = SolidPredicates.Orient3DExact(a, b, c, d);
             var naive = Math.Sign(Vector3D.Dot(Vector3D.Cross(b - a, c - a), d - a));
 
-            // Assert: the exact sign; the sign relative to the plane also follows the sign of the offset
-            // once it is far enough from the rounded centroid
+            // Assert: Orient3D equals the exact sign for every probe; the naive double determinant is only compared
+            // (and its mistakes counted) to show that the scenario is hard
             Assert.Equal(exact, actual);
             if (naive != exact)
             {

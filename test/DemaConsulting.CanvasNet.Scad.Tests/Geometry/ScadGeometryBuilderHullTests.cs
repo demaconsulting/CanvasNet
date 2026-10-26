@@ -431,7 +431,8 @@ public class ScadGeometryBuilderHullTests
     ///     budget before they are allocated and refunded when they are consumed or the module ends: the copy of a
     ///     translated child costs its twelve triangles on top of the operands while it lives, a limit that does not
     ///     fit it fails and leaves only the operands charged, and after the fold the charge is the operands plus the
-    ///     result, for a fold of two children and for a lone child.
+    ///     result; and that a lone child is verified as built, so it needs no copy and no charge whatever its transform
+    ///     (translation, rotation, non-uniform scale, mirror) and a non-convex one is reported as built.
     /// </summary>
     [Fact]
     public void ScadGeometryBuilder_Minkowski_TransformedCopies_AreChargedWhileTheyLiveAndRefunded()
@@ -467,14 +468,41 @@ public class ScadGeometryBuilderHullTests
         Assert.Equal(1, fits.SumsStarted);
         Assert.Equal(24 + Assert.IsType<MeshNode>(sum.Node).Mesh.TriangleCount, fits.TrianglesCharged);
 
-        // Lone child: the copy exists only for the convexity test, so it is refunded and the child stays charged once
-        var (loneTooSmall, loneTooSmallOperands) = Create(23, 3);
-        Assert.Throws<ScadEvaluationException>(() => ScadHulls.Minkowski(Instance("minkowski", []), [.. loneTooSmallOperands], loneTooSmall));
-        Assert.Equal(12, loneTooSmall.TrianglesCharged);
-        var (lone, loneOperands) = Create(24, 3);
-        var loneResult = ScadHulls.Minkowski(Instance("minkowski", []), [.. loneOperands], lone);
-        Assert.Equal(ScadGeoKind.Solid, loneResult.Kind);
-        Assert.Equal(12, lone.TrianglesCharged);
+        // Lone child: it is verified as built, so no copy is made or charged and a limit equal to the child's own
+        // triangles is enough, whatever the transform (translation, rotation, non-uniform scale or mirror)
+        Matrix4x4D[] transforms =
+        [
+            Matrix4x4D.CreateTranslation(new Vector3D(3, 0, 0)),
+            Matrix4x4D.CreateRotationZ(30.0),
+            Matrix4x4D.CreateScale(new Vector3D(1000, 1, 0.01)),
+            Matrix4x4D.CreateMirror(new Vector3D(1, 0, 0)),
+            Matrix4x4D.CreateScale(new Vector3D(-2, 3, 4)),
+        ];
+        foreach (var transform in transforms)
+        {
+            var lone = new ScadGeometryContext(Settings(maxTriangles: 12), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+            var cube = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+            lone.ChargeTriangles(cube.TriangleCount, location);
+            var node = lone.CreateMeshNode(cube, location);
+            var child = ScadGeo.FromSolid(new GroupNode([node]) { Transform = transform }, cube.Bounds, true, false);
+
+            var loneResult = ScadHulls.Minkowski(Instance("minkowski", []), [child], lone);
+
+            Assert.Equal(ScadGeoKind.Solid, loneResult.Kind);
+            Assert.Same(child.Node, loneResult.Node);
+            Assert.Equal(12, lone.TrianglesCharged);
+        }
+
+        // A lone child that is not convex is still reported, as built, and nothing stays charged
+        var dented = new ScadGeometryContext(Settings(maxTriangles: 12), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+        var notConvex = Extruder.Linear(PrimitiveTessellator.Polygon([new(0, 0), new(2, 0), new(2, 1), new(1, 1), new(1, 2), new(0, 2)]), 1.0);
+        var notConvexNode = dented.CreateMeshNode(notConvex, location);
+        var notConvexResult = ScadHulls.Minkowski(
+            Instance("minkowski", []),
+            [ScadGeo.FromSolid(new GroupNode([notConvexNode]) { Transform = Matrix4x4D.CreateRotationZ(30.0) }, notConvex.Bounds, true, false)],
+            dented);
+        Assert.Equal(ScadGeoKind.Empty, notConvexResult.Kind);
+        Assert.Equal(0, dented.TrianglesCharged);
     }
 
     /// <summary>

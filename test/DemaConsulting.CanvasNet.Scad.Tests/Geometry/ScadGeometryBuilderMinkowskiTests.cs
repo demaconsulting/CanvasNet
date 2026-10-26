@@ -57,6 +57,29 @@ public class ScadGeometryBuilderMinkowskiTests
     }
 
     /// <summary>
+    ///     Validates that mirrored and non-uniformly scaled children are verified as built and summed in the frame of
+    ///     the module: a mirrored unit cube and a 2 x 2 x 2 box (scaled by two along x) sum to the 3 x 3 x 3 box, as a lone mirrored,
+    ///     scaled or rotated child is itself.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_MirroredAndScaledChildren_AreVerifiedAsBuiltAndSummedInFrame()
+    {
+        // Arrange / Act
+        var sum = Build("minkowski() { mirror([1, 0, 0]) cube(1); scale([2, 1, 1]) cube([1, 2, 2]); }");
+        var lone = Build("minkowski() mirror([0, 1, 0]) scale([3, 1, 1]) rotate([0, 0, 20]) cube(1);");
+
+        // Assert: x -1..2, y 0..3, z 0..3 for the sum (volume 27), nothing reported
+        var mesh = sum.SingleMesh;
+        AssertSolidVolume(mesh, 27.0);
+        AssertBounds(mesh.Bounds, new Vector3D(-1, 0, 0), new Vector3D(2, 3, 3));
+        Assert.Empty(sum.Features);
+        Assert.Empty(sum.Warnings);
+        AssertSolidVolume(lone.WorldMesh, 3.0);
+        Assert.Empty(lone.Features);
+        Assert.Equal(lone.MeshTriangles, lone.TrianglesCharged);
+    }
+
+    /// <summary>
     ///     Validates that the sum distributes over a union: a union of two cubes summed with a cube is the union of
     ///     two boxes, and a union on each side gives the four combinations.
     /// </summary>

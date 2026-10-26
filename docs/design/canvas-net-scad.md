@@ -279,7 +279,8 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   a hull of `d` distinct points, `2 * Va * Vb - 4` for a pairwise sum) before any hull or sums memory is allocated,
   fail without starting when the bound exceeds the remaining budget, settle the charge to the actual count afterwards
   (refunding the whole pre-charge on a rejection, failure or cancellation), and charge the transformed copies of the
-  convex parts of a `minkowski` while they live (the pairwise sums of a Minkowski sum are bounded by
+  convex parts of a `minkowski` fold (made only for the sum that needs them; a lone child needs none) while they live
+  (the pairwise sums of a Minkowski sum are bounded by
   `MinkowskiSum.MaxPairwiseSums`).
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D

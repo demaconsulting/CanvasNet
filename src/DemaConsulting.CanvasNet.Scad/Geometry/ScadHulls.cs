@@ -31,13 +31,16 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///     </para>
 ///     <para>
 ///         <b><c>minkowski</c>.</b> The sum is folded over the children from the left. Each child reduces to its
-///         convex members (the meshes of a union-only scene tree, each in the frame of the module); because
+///         convex members (the meshes of a union-only scene tree, each with the matrix to the frame of the module); because
 ///         <c>(A u B) + C = (A + C) u (B + C)</c> the members of the accumulated result are summed pairwise with
 ///         the members of the next child (at most <see cref="MaxMinkowskiCombinations"/> sums per step, else
 ///         <see cref="ScadFeatureIds.MinkowskiTooComplex"/>, as is a pair of meshes above the
-///         <see cref="MinkowskiSum.MaxPairwiseSums"/> bound). Each member of each child is verified once, up front
-///         (<see cref="MinkowskiSum.RequireConvexSolid"/> proves it convex within its documented tolerance or
-///         refuses), and the sums then skip the repeated test: the sums of a fold are convex hulls and need none.
+///         <see cref="MinkowskiSum.MaxPairwiseSums"/> bound). Each member of each child is verified once, up front and
+///         as built (<see cref="MinkowskiSum.RequireConvexSolid"/> proves it convex within its documented tolerance or
+///         refuses; a non-singular affine transform preserves convexity and a mirror only reverses the winding, so no
+///         transformed copy is made for the test), and the sums then skip the repeated test: the sums of a fold are
+///         convex hulls and need none. A member is brought into the frame of the module by a copy only for the sum that
+///         uses it.
 ///         The work of the whole module is capped as well: a member verification costs its vertex count and a sum
 ///         the product of its operands' vertex counts, and a total above <see cref="MaxMinkowskiWork"/> pairwise
 ///         vertex sums is reported as <see cref="ScadFeatureIds.MinkowskiTooComplex"/>, so many steps of moderate
@@ -45,8 +48,8 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         reported (<see cref="ScadFeatureIds.MinkowskiNonConvex"/>) naming the child by its position and source
 ///         location, and the module is omitted as a whole. A 2D <c>minkowski</c> is deferred
 ///         (<see cref="ScadFeatureIds.Minkowski2D"/>). A module with one child is that child's geometry and
-///         transforms, after its members have been verified in the same way, with any child appearances stripped (a
-///         warning says so) so that an enclosing <c>color</c> applies.
+///         transforms, after its members have been verified in the same way (nothing is copied, created or charged),
+///         with any child appearances stripped (a warning says so) so that an enclosing <c>color</c> applies.
 ///     </para>
 ///     <para>
 ///         <b>Budget and cancellation.</b> The exact triangle count of a hull or a sum is known only once it is
@@ -59,8 +62,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         failure or a cancellation refunds the whole pre-charge, so the total charged always equals the triangles of
 ///         the meshes created. Intermediate sums of a fold are charged (at their actual count) while they live and
 ///         refunded when the next step has consumed them, so the memory of a fold stays within the budget; the transformed
-///         copies of the convex parts of a <c>minkowski</c> are charged (before they are allocated) while they live and
-///         refunded when the fold has consumed them or the module ends; operand
+///         copies of the convex parts of a <c>minkowski</c> fold are made only for the sum that needs them and are
+///         charged (before they are allocated) while they live and refunded when the fold has consumed them or the
+///         module ends; a lone child needs none; operand
 ///         meshes stay charged like any consumed operand. Cancellation is polled between meshes and sums and inside
 ///         the Render3D loops.
 ///     </para>
@@ -107,34 +111,81 @@ internal static class ScadHulls
 
     /// <summary>
     ///     The convex members of the children of one <c>minkowski</c> with what is charged or computed once per member:
-    ///     the triangles of the transformed copies and the distinct vertex counts.
+    ///     the distinct vertex counts and the transformed copies, which are made only when a sum needs them.
     /// </summary>
+    /// <remarks>
+    ///     A member is a mesh as built together with the matrix that takes it into the frame of the module. Convexity
+    ///     (a closed convex solid) is invariant under a non-singular affine map, which every transform of the scene is
+    ///     (singular ones are reported by the transform builder), and a mirror only reverses the winding that
+    ///     <see cref="Mesh.Transform"/> restores, so the members are verified as built and no copy is made for the
+    ///     test. A copy is made, charged before it is allocated and refunded when it is consumed, only for the children
+    ///     that take part in the sum being computed.
+    /// </remarks>
     private sealed class MemberStore
     {
-        /// <summary>The distinct referenced vertex count of the members that were scanned, by mesh reference.</summary>
+        /// <summary>The distinct referenced vertex count of the meshes that were scanned, by mesh reference.</summary>
         private readonly Dictionary<Mesh, int> _distinct = new(ReferenceEqualityComparer.Instance);
 
         /// <summary>The triangles charged for the transformed copies of each child that are still alive.</summary>
         private readonly List<long> _copyCharges = [];
 
-        /// <summary>Gets the members of each child, in the frame of the module.</summary>
-        public List<List<Mesh>> Members { get; } = [];
+        /// <summary>The members of each child in the frame of the module while they are alive, otherwise <see langword="null"/>.</summary>
+        private readonly List<List<Mesh>?> _inFrame = [];
+
+        /// <summary>Gets the members of each child as built, with the matrix to the frame of the module.</summary>
+        public List<List<(Mesh Mesh, Matrix4x4D Matrix)>> Parts { get; } = [];
 
         /// <summary>
-        ///     Starts a child: its members will be added and its copies charged to it.
+        ///     Adds a child.
         /// </summary>
-        /// <param name="members">The members of the child.</param>
-        public void AddChild(List<Mesh> members)
+        /// <param name="parts">The members of the child as built.</param>
+        public void AddChild(List<(Mesh Mesh, Matrix4x4D Matrix)> parts)
         {
-            Members.Add(members);
+            Parts.Add(parts);
             _copyCharges.Add(0L);
+            _inFrame.Add(null);
         }
 
         /// <summary>
-        ///     Records the triangles charged for a transformed copy of the child being built (the last one added).
+        ///     Gets the members of a child in the frame of the module, copying those whose matrix is not the identity.
         /// </summary>
-        /// <param name="triangles">The triangles charged.</param>
-        public void AddCopyCharge(long triangles) => _copyCharges[^1] += triangles;
+        /// <remarks>
+        ///     A copy has the triangles of its original, so they are charged <em>before</em> the copy is allocated (the
+        ///     triangle-limit error when they do not fit the remaining budget) and refunded by
+        ///     <see cref="Release"/>; the copy takes over the distinct vertex count of its original.
+        /// </remarks>
+        /// <param name="child">The index of the child.</param>
+        /// <param name="node">The instance.</param>
+        /// <param name="context">The build context.</param>
+        /// <returns>The members in the frame of the module.</returns>
+        public List<Mesh> InFrame(int child, ScadInstance node, ScadGeometryContext context)
+        {
+            if (_inFrame[child] is { } alive)
+            {
+                return alive;
+            }
+
+            var parts = Parts[child];
+            var members = new List<Mesh>(parts.Count);
+            foreach (var (mesh, matrix) in parts)
+            {
+                context.Poll();
+                if (matrix == Matrix4x4D.Identity)
+                {
+                    members.Add(mesh);
+                    continue;
+                }
+
+                context.ChargeTriangles(mesh.TriangleCount, node.Location);
+                _copyCharges[child] += mesh.TriangleCount;
+                var copy = mesh.Transform(matrix);
+                _distinct[copy] = DistinctCount(mesh);
+                members.Add(copy);
+            }
+
+            _inFrame[child] = members;
+            return members;
+        }
 
         /// <summary>
         ///     Gets the number of distinct referenced vertices of a mesh: the scanned count of a member, otherwise (a sum,
@@ -187,6 +238,7 @@ internal static class ScadHulls
         {
             context.RefundTriangles(_copyCharges[child]);
             _copyCharges[child] = 0L;
+            _inFrame[child] = null;
         }
 
         /// <summary>
@@ -326,14 +378,15 @@ internal static class ScadHulls
         context.Poll();
 
         // The hull of d distinct points has at most 2d - 4 triangles: that bound is charged, and so checked against
-        // the remaining budget, before any hull memory exists; the charge is settled to the actual count afterwards
+        // the remaining budget, before any hull memory exists; the charge is settled to the actual count afterwards.
+        // The exactly sized point array is handed to the hull, which sorts it in place instead of copying it
         var charged = ChargeHullBound(points, node, context);
         var settled = false;
         Mesh mesh;
         try
         {
             context.NoteHullStarted();
-            mesh = ConvexHull.Hull3D(points, context.Cancellation);
+            mesh = ConvexHull.Hull3DInPlace(points, points.Length, context.Cancellation);
             context.SettleTriangles(charged, mesh.TriangleCount, node.Location);
             settled = true;
         }
@@ -371,9 +424,9 @@ internal static class ScadHulls
     /// <param name="context">The build context.</param>
     /// <returns>The number of triangles charged.</returns>
     /// <exception cref="ScadEvaluationException">Thrown when the bound does not fit the remaining budget.</exception>
-    private static long ChargeHullBound(List<Vector3D> points, ScadInstance node, ScadGeometryContext context)
+    private static long ChargeHullBound(Vector3D[] points, ScadInstance node, ScadGeometryContext context)
     {
-        var bound = Math.Max(0L, (2L * points.Count) - 4L);
+        var bound = Math.Max(0L, (2L * points.Length) - 4L);
         if (bound > context.MaxTriangles - context.TrianglesCharged)
         {
             bound = Math.Max(0L, (2L * new HashSet<Vector3D>(points).Count) - 4L);
@@ -521,34 +574,50 @@ internal static class ScadHulls
     }
 
     /// <summary>
-    ///     Gathers the referenced vertices of the meshes in the frame of the module, bounded by the triangle budget.
+    ///     Gathers the referenced vertices of the meshes in the frame of the module into one exactly sized array,
+    ///     bounded by the triangle budget.
     /// </summary>
+    /// <remarks>
+    ///     The vertices that a triangle references are flagged and counted first, so the array is allocated once with
+    ///     its final size (no growing list and no second copy: the hull takes the array over and sorts it in place),
+    ///     and a point count over the budget fails before that allocation.
+    /// </remarks>
     /// <param name="parts">The meshes.</param>
     /// <param name="node">The instance.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The points.</returns>
     /// <exception cref="ScadEvaluationException">Thrown when there are more points than the triangle budget.</exception>
-    private static List<Vector3D> GatherPoints(SolidParts parts, ScadInstance node, ScadGeometryContext context)
+    private static Vector3D[] GatherPoints(SolidParts parts, ScadInstance node, ScadGeometryContext context)
     {
-        var points = new List<Vector3D>();
-        foreach (var (mesh, matrix) in parts.Meshes)
+        var flags = new List<bool[]>(parts.Meshes.Count);
+        long total = 0;
+        foreach (var (mesh, _) in parts.Meshes)
         {
             context.Poll();
             var used = ReferencedVertices(mesh);
+            flags.Add(used);
+            total += used.Count(u => u);
+
+            // Welded meshes have fewer vertices than triangles, so only a pathological mesh gets here
+            if (total > context.MaxTriangles)
+            {
+                context.FailTriangleLimit(node.Location);
+            }
+        }
+
+        var points = new Vector3D[total];
+        var next = 0;
+        for (var m = 0; m < parts.Meshes.Count; m++)
+        {
+            context.Poll();
+            var (mesh, matrix) = parts.Meshes[m];
+            var used = flags[m];
             for (var i = 0; i < used.Length; i++)
             {
-                if (!used[i])
+                if (used[i])
                 {
-                    continue;
+                    points[next++] = matrix.TransformPoint(mesh.Vertices[i]);
                 }
-
-                // Welded meshes have fewer vertices than triangles, so only a pathological mesh gets here
-                if (points.Count >= context.MaxTriangles)
-                {
-                    context.FailTriangleLimit(node.Location);
-                }
-
-                points.Add(matrix.TransformPoint(mesh.Vertices[i]));
             }
         }
 
@@ -601,10 +670,10 @@ internal static class ScadHulls
                     return ScadGeo.Empty;
                 }
 
-                InFrame(parts, node, store, context);
+                store.AddChild(parts.Meshes);
             }
 
-            var members = store.Members;
+            var members = store.Parts;
 
             // Every step multiplies the number of members (a sum is made of every pair), so the last step is the largest
             long pairs = members[0].Count;
@@ -620,13 +689,14 @@ internal static class ScadHulls
 
             WarnColors(node, hasAppearance, context);
 
-            // Each member is verified once here (and, for a fold, its distinct vertices counted once); the sums of the
-            // fold then skip the repeated test and reuse the counts
+            // Each member is verified once here, as built (a non-singular affine transform preserves convexity, so no
+            // transformed copy is made for the test), and for a fold its distinct vertices are counted once; the sums of
+            // the fold then skip the repeated test and reuse the counts
             var meter = new WorkMeter();
             for (var c = 0; c < members.Count; c++)
             {
                 var label = labels[c];
-                if (members[c].Any(member => !VerifyMember(node, label, member, meter, store, members.Count > 1, context)))
+                if (members[c].Any(part => !VerifyMember(node, label, part.Mesh, meter, store, members.Count > 1, context)))
                 {
                     return ScadGeo.Empty;
                 }
@@ -709,39 +779,6 @@ internal static class ScadHulls
                 $"minkowski: {label} has no volume; the minkowski is omitted",
                 node.Location);
             return false;
-        }
-    }
-
-    /// <summary>
-    ///     Brings the meshes of a child into the frame of the module and adds them to the store.
-    /// </summary>
-    /// <remarks>
-    ///     A mesh whose matrix is not the identity is copied with <see cref="Mesh.Transform"/>. The copy has the
-    ///     triangles of the original, so those triangles are charged to the budget <em>before</em> the copy is
-    ///     allocated (the build fails with the triangle-limit error when they do not fit the remaining budget) and are
-    ///     refunded when the fold has consumed the copy or the module ends (<see cref="MemberStore.Release"/>),
-    ///     so the charge always equals the triangles of the meshes that are alive.
-    /// </remarks>
-    /// <param name="parts">The meshes of the child.</param>
-    /// <param name="node">The instance.</param>
-    /// <param name="store">The store that receives the members and the charge of the copies.</param>
-    /// <param name="context">The build context.</param>
-    private static void InFrame(SolidParts parts, ScadInstance node, MemberStore store, ScadGeometryContext context)
-    {
-        var members = new List<Mesh>(parts.Meshes.Count);
-        store.AddChild(members);
-        foreach (var (mesh, matrix) in parts.Meshes)
-        {
-            context.Poll();
-            if (matrix == Matrix4x4D.Identity)
-            {
-                members.Add(mesh);
-                continue;
-            }
-
-            context.ChargeTriangles(mesh.TriangleCount, node.Location);
-            store.AddCopyCharge(mesh.TriangleCount);
-            members.Add(mesh.Transform(matrix));
         }
     }
 
@@ -861,8 +898,8 @@ internal static class ScadHulls
     /// <returns>The sum, or nothing after a report.</returns>
     private static ScadGeo Fold(ScadInstance node, MemberStore store, WorkMeter meter, ScadGeometryContext context)
     {
-        var members = store.Members;
-        var accumulated = members[0];
+        var members = store.Parts;
+        var accumulated = store.InFrame(0, node, context);
         var charges = new FoldCharges();
         var completed = false;
         try
@@ -870,7 +907,8 @@ internal static class ScadHulls
             // The number of sums of each step was bounded before the members were verified
             for (var step = 1; step < members.Count; step++)
             {
-                var produced = SumStep(node, accumulated, members[step], meter, store, context, charges);
+                // The copies of the two children of this sum are made now, charged before they are allocated
+                var produced = SumStep(node, accumulated, store.InFrame(step, node, context), meter, store, context, charges);
                 if (produced is null)
                 {
                     return ScadGeo.Empty;

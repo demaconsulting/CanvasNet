@@ -198,8 +198,9 @@ designs.
     is approximated: a boolean below a `hull`, a
     boolean or a non-convex mesh below a `minkowski`, mixed dimensions, degenerate points and the 2D Minkowski
     sum are reported (`scad-hull-*`, `scad-minkowski-*`) and the module is omitted whole. A lone `minkowski` child has
-    its members checked directly with `MinkowskiSum.RequireConvexSolid` (nothing is created or charged) and its
-    geometry and transforms are returned, with its colors stripped and a warning so that an enclosing color applies.
+    its members checked as built with `MinkowskiSum.RequireConvexSolid` (no transformed copy is made, nothing is created
+    or charged) and its geometry and transforms are returned, with its colors stripped and a warning so that an
+    enclosing color applies.
     The `convexity`
     argument is ignored, and a color inside either module is dropped with a warning (the result takes the enclosing
     `color`). The result of both modules is a new scene mesh at the module's location, so it is a valid operand of
