@@ -2122,6 +2122,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageOperations.cs"  # unit source (operation records)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-ImageComparison Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageComparison
+    title: Review that CanvasNetTool Imaging ImageComparison Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-comparison.md"     # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-comparison.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-comparison.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageComparison*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageComparisonTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality

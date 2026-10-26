@@ -12,12 +12,14 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains three units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains four units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
-and `ImageWriter`, which writes PNG,
-JPEG, BMP, and TIFF files. The supporting
+`ImageWriter`, which writes PNG,
+JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
+structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
+pictures. The supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -36,8 +38,13 @@ several of its pages.
 out applied)** (provided to the commands): read the ordered operations of a command line (the operation of a verb
 command first), and apply them to a surface, giving a new surface and the list of what was done.
 
-**ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, and **ImageWriter.Write** (provided to the
-commands): choose the output format, check an output before any work is done, and write a surface atomically.
+**ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
+(provided to the commands): choose the output format, check an output (or all the outputs of a command against all its
+inputs) before any work is done, and write a surface atomically.
+
+**ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
+**ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to
+the commands): compare two surfaces of the same size, check the result against thresholds, and create the pictures.
 
 **Surface and the codecs** (consumed, from the CanvasNet core library): `Surface` holds the pixels; `PngCodec`,
 `JpegCodec`, `BmpCodec`, `TiffCodec`, `GifCodec`, and `Jpeg2000Codec` decode and encode; `SvgCodec` (from the

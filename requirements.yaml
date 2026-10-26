@@ -108,6 +108,7 @@ includes:
   - docs/reqstream/canvas-net-tool/imaging/source-loader.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-writer.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-pipeline.yaml
+  - docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml
