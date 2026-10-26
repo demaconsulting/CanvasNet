@@ -372,4 +372,114 @@ public class ProgramTests
         Assert.Equal("defect", exception.Message);
         Assert.Equal($"Unexpected error: defect{Environment.NewLine}", stdErr);
     }
+
+    /// <summary>
+    ///     Test that Execute writes the JSON failure document to standard output when --json is on the command line.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_JsonToolException_WritesErrorDocumentToStdOut()
+    {
+        // Arrange: a command that throws a ToolException with a hint
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand(
+            "fail",
+            (_, _) => throw new ToolException(ErrorCodes.OutputExists, "Output 'a.png' exists.", "Remove --no-clobber.")));
+
+        // Act: execute the command with --json
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "fail", "--json");
+
+        // Assert: exit code 1; the document on standard output has no exit code field; the text report is still on standard error
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            + "\"error\":{\"code\":\"output-exists\",\"message\":\"Output 'a.png' exists.\",\"hint\":\"Remove --no-clobber.\"}}"
+            + Environment.NewLine,
+            stdOut);
+        Assert.Contains("Error: output-exists: Output 'a.png' exists.", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that Execute reports a failure that happened before a command was selected, with a null command.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_JsonBadGlobalOption_WritesErrorDocumentWithNullCommand()
+    {
+        // Arrange: an empty registry and an unknown option before any command
+        var registry = new CommandRegistry();
+
+        // Act: execute with --json and the unknown option
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "--json", "--bogus");
+
+        // Assert: exit code 1 and a usage-error document without a command
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":false,\"command\":null,"
+            + "\"error\":{\"code\":\"usage-error\",\"message\":\"Unsupported argument '--bogus'\"}}"
+            + Environment.NewLine,
+            stdOut);
+        Assert.Contains("Error: Unsupported argument '--bogus'", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that a plain expected exception is reported as operation-failed with the command that was running.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_JsonInvalidOperationException_ReportsOperationFailedForCommand()
+    {
+        // Arrange: a command that throws a plain InvalidOperationException
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("fail", (_, _) => throw new InvalidOperationException("bad state")));
+
+        // Act: execute the command with --json
+        var (exitCode, stdOut, _) = ToolHost.Invoke(registry, "--json", "fail");
+
+        // Assert: operation-failed, naming the command taken from the command line
+        Assert.Equal(1, exitCode);
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":false,\"command\":\"fail\","
+            + "\"error\":{\"code\":\"operation-failed\",\"message\":\"bad state\"}}"
+            + Environment.NewLine,
+            stdOut);
+    }
+
+    /// <summary>
+    ///     Test that --silent suppresses the JSON failure document, and that without --json no document is written.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_JsonSilentOrAbsent_WritesNoErrorDocument()
+    {
+        // Arrange: a command that fails with an expected error
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("fail", (_, _) => throw new ToolException(ErrorCodes.OperationFailed, "It failed.")));
+
+        // Act: execute with --json and --silent, then without --json
+        var (silentExit, silentOut, silentErr) = ToolHost.Invoke(registry, "fail", "--json", "--silent");
+        var (plainExit, plainOut, _) = ToolHost.Invoke(registry, "fail");
+
+        // Assert: exit code 1 both times, standard output empty both times, the text report unaffected by --json
+        Assert.Equal(1, silentExit);
+        Assert.Equal(string.Empty, silentOut);
+        Assert.Contains("Error: operation-failed: It failed.", silentErr);
+        Assert.Equal(1, plainExit);
+        Assert.Equal(string.Empty, plainOut);
+    }
+
+    /// <summary>
+    ///     Test that an unexpected exception produces no JSON document, even with --json.
+    /// </summary>
+    [Fact]
+    public void Program_Execute_JsonUnexpectedException_WritesNoDocumentAndRethrows()
+    {
+        // Arrange: a command with a defect
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("defect", (_, _) => throw new NotSupportedException("defect")));
+
+        // Act: execute with --json, expecting the exception to escape
+        var (exception, stdOut, stdErr) = ToolHost.InvokeExpectingThrow<NotSupportedException>(registry, "defect", "--json");
+
+        // Assert: re-thrown, reported on standard error, and nothing on standard output
+        Assert.Equal("defect", exception.Message);
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Contains("Unexpected error: defect", stdErr);
+    }
 }

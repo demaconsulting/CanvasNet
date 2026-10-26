@@ -159,4 +159,43 @@ public class CommandsSubsystemTests
         Assert.Equal(1, exitCode);
         Assert.Contains("Error: usage-error: Unknown command 'nothing'.", stdErr);
     }
+
+    /// <summary>
+    ///     Test that the default registry runs the formats command.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand()
+    {
+        // Arrange: the registry the tool ships with (through the default ToolHost registry)
+
+        // Act: run the formats command as text and as JSON
+        var (textExit, textOut, textErr) = ToolHost.Invoke("formats");
+        var (jsonExit, jsonOut, _) = ToolHost.Invoke("formats", "--json");
+
+        // Assert: the text listing has no banner; the JSON is the formats document
+        Assert.Equal(0, textExit);
+        Assert.StartsWith("Input formats:", textOut);
+        Assert.Equal(string.Empty, textErr);
+        Assert.Equal(0, jsonExit);
+        Assert.StartsWith("{\"schemaVersion\":1,\"ok\":true,\"command\":\"formats\",", jsonOut);
+    }
+
+    /// <summary>
+    ///     Test that the default registry lists the formats command in the top-level help and has help for it.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Formats_DefaultRegistry_ListedInHelp()
+    {
+        // Arrange: the registry the tool ships with
+
+        // Act: ask for the top-level help and the command's help
+        var (_, topLevel, _) = ToolHost.Invoke("--help");
+        var (_, commandHelp, _) = ToolHost.Invoke("formats", "--help");
+
+        // Assert: the command is listed with its summary, and its help shows the usage and the JSON example
+        Assert.Contains("formats", topLevel);
+        Assert.Contains("List the image and document formats", topLevel);
+        Assert.Contains("Usage: canvasnet formats [--json]", commandHelp);
+        Assert.Contains("canvasnet formats --json", commandHelp);
+    }
 }

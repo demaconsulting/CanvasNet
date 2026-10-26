@@ -55,15 +55,20 @@ internal static class Program
     /// <remarks>
     ///     <see cref="ArgumentException"/> and <see cref="InvalidOperationException"/> (which includes
     ///     <see cref="ToolException"/>) are treated as expected errors: a concise message is written to
-    ///     stderr and exit code 1 is returned without a stack trace. Any other exception is a defect: it
+    ///     stderr and exit code 1 is returned without a stack trace; when the command line contains
+    ///     <c>--json</c> and not <c>--silent</c> the failure is also written to stdout as a JSON document.
+    ///     Any other exception is a defect: it
     ///     is written to stderr and then re-thrown so that the runtime can record it in event logs.
     /// </remarks>
     internal static int Execute(string[] args, CommandRegistry registry)
     {
+        // The command name, once known, identifies the command in the JSON error document
+        string? commandName = null;
         try
         {
             // Create context from command-line arguments
             using var context = Context.Create(args);
+            commandName = context.Command;
 
             // Run the program logic
             Run(context, registry);
@@ -74,13 +79,13 @@ internal static class Program
         catch (ArgumentException ex)
         {
             // Print expected argument exceptions and return error code
-            ReportExpected(ex);
+            ReportExpected(args, commandName, ex);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
             // Print expected operation exceptions (including ToolException) and return error code
-            ReportExpected(ex);
+            ReportExpected(args, commandName, ex);
             return 1;
         }
         catch (Exception ex)
@@ -150,14 +155,20 @@ internal static class Program
     }
 
     /// <summary>
-    ///     Writes an expected error to standard error.
+    ///     Writes an expected error to standard error and, when requested, as a JSON document to standard output.
     /// </summary>
+    /// <param name="args">The command-line arguments, scanned for <c>--json</c> and <c>--silent</c>.</param>
+    /// <param name="commandName">The command named on the command line, or <see langword="null"/> when unknown.</param>
     /// <param name="ex">The expected exception.</param>
     /// <remarks>
     ///     A <see cref="ToolException"/> is reported as <c>Error: {code}: {message}</c> followed by an
-    ///     optional <c>Hint:</c> line; any other expected exception as <c>Error: {message}</c>.
+    ///     optional <c>Hint:</c> line; any other expected exception as <c>Error: {message}</c>. When the
+    ///     command line contains <c>--json</c> and not <c>--silent</c>, the failure is also written to
+    ///     standard output as the JSON failure document (see <see cref="ResultWriter"/>). The command line is
+    ///     scanned directly because the failure may have happened before a <see cref="Context"/> existed (for
+    ///     example a malformed global option).
     /// </remarks>
-    private static void ReportExpected(Exception ex)
+    private static void ReportExpected(string[]? args, string? commandName, Exception ex)
     {
         if (ex is ToolException toolException)
         {
@@ -166,11 +177,17 @@ internal static class Program
             {
                 Console.Error.WriteLine($"Hint: {toolException.Hint}");
             }
-
-            return;
+        }
+        else
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
         }
 
-        Console.Error.WriteLine($"Error: {ex.Message}");
+        if (args != null && args.Contains("--json") && !args.Contains("--silent"))
+        {
+            var failedCommand = (ex as ToolException)?.Command ?? commandName;
+            Console.Out.WriteLine(ResultWriter.Failure(failedCommand, ex));
+        }
     }
 
     /// <summary>

@@ -22,6 +22,7 @@ public class ContextTests
         Assert.False(context.Help);
         Assert.False(context.Silent);
         Assert.False(context.Validate);
+        Assert.False(context.Json);
         Assert.Null(context.ResultsFile);
         Assert.Equal(1, context.HeadingDepth);
         Assert.Null(context.Command);
@@ -106,6 +107,35 @@ public class ContextTests
 
         // Assert: the silent flag is set
         Assert.True(context.Silent);
+    }
+
+    /// <summary>
+    ///     Test that Create with --json sets the JSON flag, and that it is not mistaken for a command.
+    /// </summary>
+    [Fact]
+    public void Context_Create_JsonFlag_SetsJsonTrue()
+    {
+        // Arrange / Act: create a context with --json
+        using var context = Context.Create(["--json"]);
+
+        // Assert: the JSON flag is set and there is no command
+        Assert.True(context.Json);
+        Assert.Null(context.Command);
+    }
+
+    /// <summary>
+    ///     Test that --json is honored after the command name and removed from the command arguments.
+    /// </summary>
+    [Fact]
+    public void Context_Create_JsonFlagAfterCommand_IsHonoredAndRemovedFromArguments()
+    {
+        // Arrange / Act: create a context with --json between command arguments
+        using var context = Context.Create(["render", "a.svg", "--json", "-o", "a.png"]);
+
+        // Assert: the flag is set and the command saw only its own tokens
+        Assert.True(context.Json);
+        Assert.Equal("render", context.Command);
+        Assert.Equal(new[] { "a.svg", "-o", "a.png" }, context.CommandArguments);
     }
 
     /// <summary>
@@ -277,11 +307,11 @@ public class ContextTests
     public void Context_Create_GlobalFlagBetweenCommandArguments_IsRemovedFromArguments()
     {
         // Arrange / Act: create a context with a global option with a value in the middle of the command arguments
-        using var context = Context.Create(["info", "a.png", "--depth", "4", "--json"]);
+        using var context = Context.Create(["info", "a.png", "--depth", "4", "--pages"]);
 
         // Assert: the global option and its value are consumed; the other tokens keep their order
         Assert.Equal(4, context.HeadingDepth);
-        Assert.Equal(new[] { "a.png", "--json" }, context.CommandArguments);
+        Assert.Equal(new[] { "a.png", "--pages" }, context.CommandArguments);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.TestResults.IO;
 
@@ -39,6 +40,7 @@ internal static class Validation
         // Run core functionality tests
         RunVersionTest(context, testResults);
         RunHelpTest(context, testResults);
+        RunFormatsTest(context, testResults);
 
         // Calculate totals
         var totalTests = testResults.Results.Count;
@@ -192,6 +194,68 @@ internal static class Validation
         }
 
         FinalizeTestResult(test, startTime, testResults);
+    }
+
+    /// <summary>
+    ///     Runs a test for the formats command and its JSON result document.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunFormatsTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        var startTime = DateTime.UtcNow;
+        var test = CreateTestResult("CanvasNetTool_Formats");
+
+        try
+        {
+            using var tempDir = new TemporaryDirectory();
+            var logFile = PathHelpers.SafePathCombine(tempDir.DirectoryPath, "formats-test.log");
+
+            // Run the command in-process with JSON output, capturing the document in the log file
+            var exitCode = RunProgram("--silent", "--log", logFile, "formats", "--json");
+
+            if (exitCode != 0)
+            {
+                test.Outcome = DemaConsulting.TestResults.TestOutcome.Failed;
+                test.ErrorMessage = $"Program exited with code {exitCode}";
+                context.WriteError($"✗ CanvasNetTool_Formats - Failed: Exit code {exitCode}");
+            }
+            else if (FormatsDocumentIsValid(File.ReadAllText(logFile)))
+            {
+                test.Outcome = DemaConsulting.TestResults.TestOutcome.Passed;
+                context.WriteLine("✓ CanvasNetTool_Formats - Passed");
+            }
+            else
+            {
+                test.Outcome = DemaConsulting.TestResults.TestOutcome.Failed;
+                test.ErrorMessage = "Formats JSON document is not valid";
+                context.WriteError("✗ CanvasNetTool_Formats - Failed: Formats JSON document is not valid");
+            }
+        }
+        // Generic catch is justified here as this is a test framework - any exception should be
+        // recorded as a test failure to ensure robust test execution and reporting.
+        catch (Exception ex)
+        {
+            HandleTestException(test, context, "CanvasNetTool_Formats", ex);
+        }
+
+        FinalizeTestResult(test, startTime, testResults);
+    }
+
+    /// <summary>
+    ///     Determines whether a text is the successful JSON document of the formats command.
+    /// </summary>
+    /// <param name="json">The text.</param>
+    /// <returns><see langword="true"/> when it has the schema version, a success flag, and the PNG input and output formats.</returns>
+    private static bool FormatsDocumentIsValid(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        return root.GetProperty("schemaVersion").GetInt32() == ResultWriter.SchemaVersion
+               && root.GetProperty("ok").GetBoolean()
+               && root.GetProperty("command").GetString() == "formats"
+               && root.GetProperty("inputs").EnumerateArray().Any(f => f.GetProperty("format").GetString() == "png")
+               && root.GetProperty("outputs").EnumerateArray().Any(f => f.GetProperty("format").GetString() == "png");
     }
 
     /// <summary>

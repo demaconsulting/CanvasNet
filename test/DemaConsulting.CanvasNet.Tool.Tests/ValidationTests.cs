@@ -23,9 +23,37 @@ public class ValidationTests
         Assert.Contains("# DEMA Consulting CanvasNet Tool", stdOut);
         Assert.Contains("CanvasNetTool_VersionDisplay - Passed", stdOut);
         Assert.Contains("CanvasNetTool_HelpDisplay - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_Formats - Passed", stdOut);
         Assert.Matches(@"Total Tests: \d+", stdOut);
         Assert.Matches(@"Passed: \d+", stdOut);
         Assert.Contains("Failed: 0", stdOut);
+    }
+
+    /// <summary>
+    ///     Test that Run executes the formats self-test and records it in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_FormatsSelfTest_PassesAndIsRecorded()
+    {
+        // Arrange: a temporary TRX path and a context that is not silent
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+
+        try
+        {
+            using var context = Context.Create(["--results", resultsFile]);
+
+            // Act: run the self-validation
+            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+            // Assert: the formats self-test passed, and its name is in the results file
+            Assert.Equal(0, context.ExitCode);
+            Assert.Contains("✓ CanvasNetTool_Formats - Passed", stdOut);
+            Assert.Contains("CanvasNetTool_Formats", File.ReadAllText(resultsFile));
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
     }
 
     /// <summary>
@@ -83,6 +111,7 @@ public class ValidationTests
             Assert.Contains("<TestRun", content);
             Assert.Contains("CanvasNetTool_VersionDisplay", content);
             Assert.Contains("CanvasNetTool_HelpDisplay", content);
+            Assert.Contains("CanvasNetTool_Formats", content);
         }
         finally
         {

@@ -33,6 +33,7 @@ internal sealed class CommandRegistry
         new("--help", ["-?", "-h"], false, "Display this help message"),
         new("--silent", [], false, "Suppress console output"),
         new("--validate", [], false, "Run self-validation"),
+        new("--json", [], false, "Write the result as one JSON document to standard output"),
         new("--results", ["--result"], true, "Write validation results to file (.trx or .xml)", "file"),
         new("--depth", [], true, "Set heading depth for markdown output (default: 1)", "#"),
         new("--log", [], true, "Write output to log file", "file")
@@ -58,7 +59,9 @@ internal sealed class CommandRegistry
     /// </remarks>
     public static CommandRegistry CreateDefault()
     {
-        return new CommandRegistry();
+        var registry = new CommandRegistry();
+        registry.Register(new DiscoveryCommands.Formats());
+        return registry;
     }
 
     /// <summary>
@@ -275,7 +278,10 @@ internal sealed class CommandRegistry
     /// <param name="a">The first string.</param>
     /// <param name="b">The second string.</param>
     /// <returns>The minimum number of single-character insertions, deletions, and substitutions turning <paramref name="a"/> into <paramref name="b"/>.</returns>
-    private static int EditDistance(string a, string b)
+    /// <remarks>
+    ///     Shared with <see cref="ArgumentReader"/>, which uses it to suggest the closest option.
+    /// </remarks>
+    internal static int EditDistance(string a, string b)
     {
         // Classic two-row dynamic-programming formulation
         var previous = new int[b.Length + 1];

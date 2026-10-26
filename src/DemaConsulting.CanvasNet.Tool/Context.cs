@@ -41,6 +41,15 @@ internal sealed class Context : IDisposable
     public bool Validate { get; private init; }
 
     /// <summary>
+    ///     Gets a value indicating whether the JSON flag was specified.
+    /// </summary>
+    /// <remarks>
+    ///     A command that supports machine-readable output writes its result as one JSON document (see
+    ///     <see cref="ResultWriter"/>) instead of text when this is <see langword="true"/>.
+    /// </remarks>
+    public bool Json { get; private init; }
+
+    /// <summary>
     ///     Gets the validation results file path.
     /// </summary>
     public string? ResultsFile { get; private init; }
@@ -98,6 +107,7 @@ internal sealed class Context : IDisposable
             Help = parser.Help,
             Silent = parser.Silent,
             Validate = parser.Validate,
+            Json = parser.Json,
             ResultsFile = parser.ResultsFile,
             HeadingDepth = parser.HeadingDepth,
             Command = parser.Command,
@@ -163,6 +173,11 @@ internal sealed class Context : IDisposable
         ///     Gets a value indicating whether the validate flag was specified.
         /// </summary>
         public bool Validate { get; private set; }
+
+        /// <summary>
+        ///     Gets a value indicating whether the JSON flag was specified.
+        /// </summary>
+        public bool Json { get; private set; }
 
         /// <summary>
         ///     Gets the log file path.
@@ -234,6 +249,10 @@ internal sealed class Context : IDisposable
 
                 case "--validate":
                     Validate = true;
+                    return index;
+
+                case "--json":
+                    Json = true;
                     return index;
 
                 case "--log":

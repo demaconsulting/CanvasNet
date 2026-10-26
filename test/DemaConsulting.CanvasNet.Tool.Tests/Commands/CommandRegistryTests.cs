@@ -18,8 +18,9 @@ public class CommandRegistryTests
         // Arrange / Act: create the default registry
         var registry = CommandRegistry.CreateDefault();
 
-        // Assert: it exists and every registered command resolves by its own name
+        // Assert: it exists, the formats command is registered, and every registered command resolves by its own name
         Assert.NotNull(registry);
+        Assert.NotNull(registry.Find("formats"));
         Assert.All(registry.Commands, command => Assert.Same(command, registry.Find(command.Name)));
     }
 
@@ -369,6 +370,7 @@ public class CommandRegistryTests
         Assert.Contains("-?, -h, --help", help);
         Assert.Contains("--silent", help);
         Assert.Contains("--validate", help);
+        Assert.Contains("--json", help);
         Assert.Contains("--result, --results <file>", help);
         Assert.Contains("--depth <#>", help);
         Assert.Contains("--log <file>", help);

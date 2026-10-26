@@ -1,4 +1,5 @@
 // cspell:ignore canvasnet
+using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;
@@ -392,5 +393,167 @@ public class CanvasNetToolTests
         // Assert: the original exception escaped and was also reported on standard error
         Assert.Equal("boom", exception.Message);
         Assert.Contains("Unexpected error: boom", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that the formats command lists the formats as text, with no banner.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Formats_Requested_ListsFormats()
+    {
+        // Arrange: (none - constructor initializes _dllPath)
+
+        // Act: run the formats command
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "formats");
+
+        // Assert: the listing starts the output and names the formats and limits; no banner
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("Input formats:", output);
+        Assert.Contains("png", output);
+        Assert.Contains("pdf", output);
+        Assert.Contains("Output formats:", output);
+        Assert.Contains("Maximum image dimension: 8192 pixels", output);
+        Assert.DoesNotContain("Copyright", output);
+    }
+
+    /// <summary>
+    ///     Test that the formats command writes exactly one JSON document with the schema version when --json is given.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Formats_JsonRequested_WritesJsonDocument()
+    {
+        // Arrange: (none - constructor initializes _dllPath)
+
+        // Act: run the formats command with --json
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "formats", "--json");
+
+        // Assert: the whole output is one parsable single-line document describing the formats
+        Assert.Equal(0, exitCode);
+        Assert.Single(output.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+        using var document = JsonDocument.Parse(output);
+        var root = document.RootElement;
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.True(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("formats", root.GetProperty("command").GetString());
+        Assert.Contains(root.GetProperty("inputs").EnumerateArray(), f => f.GetProperty("format").GetString() == "pdf");
+        Assert.Contains(root.GetProperty("outputs").EnumerateArray(), f => f.GetProperty("format").GetString() == "png");
+        Assert.Equal(8192, root.GetProperty("maxDimension").GetInt32());
+    }
+
+    /// <summary>
+    ///     Test that an expected failure with --json is also written to standard output as an error document.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Json_ExpectedFailure_WritesErrorDocumentAndStderrMessage()
+    {
+        // Arrange: a command that fails with an expected error
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand(
+            "fail",
+            (_, _) => throw new ToolException(ErrorCodes.InputNotFound, "File 'x.png' was not found.", "Check the path.")));
+
+        // Act: run the failing command with --json
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(registry, "fail", "--json");
+
+        // Assert: exit code 1; standard output is the error document; standard error still has the message
+        Assert.Equal(1, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        var root = document.RootElement;
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.False(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("fail", root.GetProperty("command").GetString());
+        Assert.Equal("input-not-found", root.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("File 'x.png' was not found.", root.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal("Check the path.", root.GetProperty("error").GetProperty("hint").GetString());
+        Assert.False(root.TryGetProperty("exitCode", out _));
+        Assert.Contains("Error: input-not-found: File 'x.png' was not found.", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that a bad global option with --json is reported as an error document, before any command is known.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument()
+    {
+        // Arrange: (none)
+
+        // Act: run the tool with --json and an unknown option before any command
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("--json", "--bogus");
+
+        // Assert: exit code 1; a usage-error document with a null command; the text report on standard error
+        Assert.Equal(1, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        var root = document.RootElement;
+        Assert.False(root.GetProperty("ok").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("command").ValueKind);
+        Assert.Equal("usage-error", root.GetProperty("error").GetProperty("code").GetString());
+        Assert.Contains("Error: Unsupported argument '--bogus'", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that --silent suppresses the error document.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument()
+    {
+        // Arrange: (none)
+
+        // Act: run a failing invocation with both --json and --silent
+        var (exitCode, stdOut, _) = ToolHost.Invoke("formats", "extra", "--json", "--silent");
+
+        // Assert: exit code 1 and nothing on standard output
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdOut);
+    }
+
+    /// <summary>
+    ///     Test that a command reads the option forms through the argument reader, in command-line order.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_CommandLineGrammar_OptionForms_ReadByCommand()
+    {
+        // Arrange: a command that echoes what the argument reader found
+        OptionSpec[] specs =
+        [
+            new("--output", ["-o"], true, "The output file", "file"),
+            new("--crop", [], true, "Crop", "geometry"),
+            new("--resize", [], true, "Resize", "size"),
+            new("--no-clobber", [], false, "Do not overwrite"),
+            new("-D", [], true, "Define", "name=value")
+        ];
+        var registry = new CommandRegistry();
+        registry.Register(new TestCommand("echo", (context, args) =>
+        {
+            var reader = ArgumentReader.Parse("echo", args, specs);
+            context.WriteLine(string.Join(' ', reader.Ordered.Select(o => $"{o.Name}={o.Value}")) + " | " + string.Join(' ', reader.Positionals));
+        }));
+
+        // Act: mix the separate, equals, short, and attached forms, a repeated option, and positional arguments
+        var (exitCode, stdOut, _) = ToolHost.Invoke(
+            registry,
+            "echo", "in.png", "-o=a.png", "--crop", "1,2,3,4", "-Dx=1", "--resize=10x10", "--crop=5,6,7,8", "--no-clobber", "extra");
+
+        // Assert: the options are in command-line order under their canonical names; the positionals are in order
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            $"--output=a.png --crop=1,2,3,4 -D=x=1 --resize=10x10 --crop=5,6,7,8 --no-clobber= | in.png extra{Environment.NewLine}",
+            stdOut);
+    }
+
+    /// <summary>
+    ///     Test that an unknown option of a command is reported as a concise usage error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError()
+    {
+        // Arrange: (none - constructor initializes _dllPath)
+
+        // Act: run a command with an option it does not have
+        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "formats", "--bogus");
+
+        // Assert: exit code 1 and a concise usage error naming the option and the command
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error: usage-error: Unknown option '--bogus' for 'formats'.", output);
+        Assert.DoesNotContain("   at ", output);
     }
 }
