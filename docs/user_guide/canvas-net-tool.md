@@ -519,7 +519,8 @@ size).
 
 The format of each picture comes from its extension (PNG, JPEG, BMP, TIFF). A picture may not be one of the inputs
 (`same-input-output`), two pictures may not be the same file (`usage-error`), an existing picture is replaced unless
-`--no-clobber` is given, and all pictures are written all-or-nothing: if any picture cannot be written, none is.
+`--no-clobber` is given, and every picture is created and encoded before any is moved into place: if any picture
+cannot be created or encoded, none is written.
 
 #### The Measures
 

@@ -40,7 +40,7 @@ internal sealed partial class CompareCommand
         new("--grid", [], true, $"Report the error of each cell of a grid, columns x rows, each 1-{ImageComparison.MaxGridSide} (default {ImageComparison.DefaultGridColumns}x{ImageComparison.DefaultGridRows})", "CxR"),
         new("--threshold", [], true, "Fail (exit code 1) unless a metric is within a limit: mae, rmse, max-diff, diff-ratio, or cell-rmse at most; psnr or ssim at least (repeatable)", "metric=value"),
         new("--diff", [], true, "Write a picture of the differences to this file", "file"),
-        new("--diff-style", [], true, "How --diff and --side-by-side draw a difference: heat (default) or abs", "style"),
+        new("--diff-style", [], true, "How --diff draws a difference: heat (default) or abs; --side-by-side always uses heat", "style"),
         new("--gain", [], true, $"Amplification of a difference in the pictures, 0.1-255 (default {ImageComparison.DefaultGain})", "factor"),
         new("--side-by-side", [], true, "Write the first input, the second input, and the differences side by side to this file", "file"),
         new("--overlay", [], true, "Write a blend of both inputs to this file", "file"),

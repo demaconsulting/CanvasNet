@@ -126,6 +126,7 @@ public class ContactSheetTests
     [InlineData(5, 3)]
     [InlineData(10, 4)]
     [InlineData(17, 5)]
+    [InlineData(4225, 64)]
     public void ContactSheet_CalculateLayout_AutomaticColumns_IsCeilingOfSquareRoot(int count, int expected)
     {
         // Arrange / Act: no columns given

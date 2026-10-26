@@ -323,11 +323,11 @@ internal sealed class ContactSheet : IDisposable
     ///     Finds the number of columns of a sheet that is as square as the cells allow.
     /// </summary>
     /// <param name="count">The number of images.</param>
-    /// <returns>The ceiling of the square root of the count.</returns>
+    /// <returns>The ceiling of the square root of the count, at most <see cref="MaxColumns"/>.</returns>
     private static int AutomaticColumns(int count)
     {
         var columns = 1;
-        while (columns * columns < count)
+        while (columns < MaxColumns && (long)columns * columns < count)
         {
             columns++;
         }

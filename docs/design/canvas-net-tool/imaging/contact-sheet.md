@@ -25,7 +25,7 @@ The constants are `LabelHeight` (22), `LabelFontSize` (14), `MinCell` (16), and 
 #### Key Methods
 
 **CalculateLayout(count, options)**: pure arithmetic, done in 64-bit integers. The columns are `options.Columns`, or when
-that is 0 the ceiling of the square root of the count (the smallest `c` with `c * c >= count`). Then
+that is 0 the ceiling of the square root of the count (the smallest `c` with `c * c >= count`, at most 64). Then
 `rows = ceil(count / columns)`, `LabelHeight = labels ? 22 : 0`,
 
 ```text
