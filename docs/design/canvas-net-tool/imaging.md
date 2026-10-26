@@ -12,14 +12,15 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains four units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains five units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
 `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
-pictures. The supporting
+pictures, and `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
+the bundled font. The supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -41,6 +42,10 @@ command first), and apply them to a surface, giving a new surface and the list o
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
 (provided to the commands): choose the output format, check an output (or all the outputs of a command against all its
 inputs) before any work is done, and write a surface atomically.
+
+**ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image, label)**,
+and **ContactSheet.Detach()** (provided to the commands): calculate the geometry of a sheet (refusing one that is too
+large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to
@@ -84,5 +89,6 @@ wherever a header gives the size), the page numbering and resolution, the views 
 library exceptions to expected errors. The mapping is an
 explicit list of exception types in `SourceLoader.Read`; any other exception is a defect and propagates to the
 entry point, which reports and re-throws it. `Imaging` adds no dependency on a system other than the CanvasNet
-core library and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, and Render3D systems. Every source kind is read; a
+core library (its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text renderer and
+the bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, and Render3D systems. Every source kind is read; a
 further kind is added by a new partial file of `SourceLoader` and one new case in `Probe` and in `OpenPages`.

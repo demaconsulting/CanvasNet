@@ -6,7 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-tool.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-tool.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-tool.yaml */
-        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, and Fonts subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, and Scad systems) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
+        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, and Rendering subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, and Scad systems) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
 
         part program : Program;
         part context : Context;
@@ -20,6 +20,7 @@ package CanvasNet {
         dependency usesCanvas from CanvasNetToolSystem to Canvas;
         dependency usesCodecs from CanvasNetToolSystem to Codecs;
         dependency usesFonts from CanvasNetToolSystem to Fonts;
+        dependency usesRendering from CanvasNetToolSystem to Rendering;
         dependency usesSvg from CanvasNetToolSystem to CanvasNetSvgSystem;
         dependency usesPdf from CanvasNetToolSystem to CanvasNetPdfSystem;
         dependency usesPptx from CanvasNetToolSystem to CanvasNetPptxSystem;

@@ -2138,6 +2138,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageComparison*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageComparisonTests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-ContactSheet Review (one per unit)
+  - id: CanvasNetTool-Imaging-ContactSheet
+    title: Review that CanvasNetTool Imaging ContactSheet Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/contact-sheet.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/contact-sheet.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/contact-sheet.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/contact-sheet.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality
