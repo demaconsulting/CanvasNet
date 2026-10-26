@@ -1,10 +1,11 @@
 # The canvasnet Command-Line Tool
 
-<!-- cspell:ignore canvasnet Visio RRGGBBAA -->
+<!-- cspell:ignore canvasnet Visio RRGGBBAA psnr rmse ssim -->
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
-libraries on the command line. It inspects, renders, converts, and transforms images, drawings, document pages, and
-OpenSCAD models. It is built to be driven by programs as well as by people: a command's standard output holds only
+libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
+document pages, and OpenSCAD models. It is built to be driven by programs as well as by people: a command's standard
+output holds only
 its own result, every result can be written as one JSON document, a failure is reported with a stable error code, and
 the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
 tool without reading its source.
@@ -114,6 +115,8 @@ parse standard output alone in both cases; the text report on standard error is 
 | `rotate` | Rotate an image by 90, 180, or 270 degrees |
 | `flip` | Mirror an image |
 | `pad` | Add a border around an image |
+| `compare` | Measure how much two images differ, write pictures of the differences, and check thresholds |
+| `montage` | Compose images and document pages into one contact sheet |
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, and
@@ -422,6 +425,277 @@ The semantics of the operations are:
 - **pad** adds a border of the given widths, in pixels. The color is `--pad-color`, which defaults as described in
   _Defaults_.
 
+### compare
+
+<!-- markdownlint-disable MD013 -->
+
+```text
+canvasnet compare <a> <b> [options]
+```
+
+`compare` loads two inputs, measures how much they differ, and reports the measures, a grid of per-cell errors, and
+optionally pictures of the differences. Either input may be anything `render` reads: a raster, an SVG, a page of a
+PDF, PPTX, or VSDX document, or an OpenSCAD model. `a` is the **reference** (by convention) and `b` the candidate;
+the measures are symmetric, but `--resize-to a` and `--resize-to b` treat the two differently. Both inputs are
+flattened over an opaque background (white by default) before they are compared, so the measures are defined on RGB
+and the alpha channel is ignored.
+
+```bash
+# How close is the redraw to the reference? Draw the SVG at the size of the reference and show where they differ
+canvasnet compare ref.png redraw.svg --resize-to a --grid 4x4 --side-by-side cmp.png --json
+
+# A gate for a script or an agent: exit code 1 (threshold-failed) unless the redraw is at least 90% similar
+canvasnet compare ref.png redraw.svg --resize-to a --threshold ssim=0.9 --threshold rmse=25 --diff diff.png
+
+# Page 2 of one document against page 1 of another, at 150 dpi
+canvasnet compare old.pdf new.pdf --a-page 2 --b-page 1 --dpi 150 --diff changes.png
+```
+
+#### Sizes: --resize-to and --fit
+
+The two inputs must have the same size in pixels. When they do not, the command fails with `size-mismatch` (and the
+hint `Use --resize-to a (or b, or WxH) to bring them to one size`), because silently resampling would hide a mistake
+of aspect ratio. Choose the size with `--resize-to`:
+
+| `--resize-to` | The size that is compared |
+| --- | --- |
+| `a` | The size of input `a` as it loads; `b` is loaded into that size |
+| `b` | The size of input `b` as it loads; `a` is loaded into that size |
+| `WxH` | Exactly this size (each side 1 to 8192, else `size-limit`); both inputs are loaded into it |
+
+"Loaded into a size" depends on the kind of input. A **vector** input (an SVG, a page of a document, an OpenSCAD
+model) is drawn directly at that size, so it is sharp and is never resampled: a drawing is fitted inside the box and
+centered over the background without stretching (an SVG follows its own `preserveAspectRatio`, and a model fills the
+box with its fit-to-model camera). A **raster** input is loaded at its natural size and then fitted by `--fit`:
+
+| `--fit` | Raster input that is not the target size |
+| --- | --- |
+| `contain` (default) | Scaled, keeping its aspect ratio, so that it fits inside the size (enlarging or shrinking), and centered over the background |
+| `stretch` | Resampled to exactly the size, whatever its aspect ratio |
+
+Note that `--fit contain|stretch` of `compare` is not the `--fit WxH` of `render`. The resampling filter is
+`--filter` (default `auto`). The JSON result reports what was done to each input in its `operations`.
+
+#### Options
+
+Options that are shared by both inputs, with the grammar of the same options of `render`:
+
+| Option | Meaning |
+| --- | --- |
+| `--page <N>`, `--dpi <D>` | The page and the resolution of a document input (defaults 1 and 96) |
+| `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`, `--max-triangles` | The view and variables of an OpenSCAD model input (see _OpenSCAD Models_); given when no input is a model they are a `usage-error` |
+| `--background <color>` | The **opaque** color that transparency is flattened over (default white); `transparent` or a color with alpha below 255 is a `usage-error` |
+| `--no-auto-orient`, `--strict`, `--filter` | As for `render` |
+| `--quality <1-100>`, `--no-clobber` | For the pictures that are written (a JPEG picture is flattened over the background) |
+
+A shared option that does not concern an input is skipped silently for that input (`--page` is ignored for a PNG).
+Per-side options override the shared ones for one input, and are a `usage-error` when that input is of the wrong kind
+(they state an intent):
+
+| Option | Meaning |
+| --- | --- |
+| `--a-page`, `--b-page` | The page of input `a` or `b` (a document) |
+| `--a-dpi`, `--b-dpi` | The resolution of input `a` or `b` (a document) |
+| `--a-view`, `--b-view` | The named view of input `a` or `b` (a model) |
+| `--a-define`, `--b-define` | A variable (`name=value`, repeatable) of input `a` or `b` (a model); a per-side definition replaces a shared one of the same name |
+
+`--all-pages`, `--scale`, `--width`, `--height`, and `--size` are not options of `compare` (`--resize-to` sets the
+size).
+
+| Measure option | Meaning |
+| --- | --- |
+| `--tolerance <0-255>` | A pixel counts as differing when its largest channel difference is **above** this (default 8; 0 counts any change) |
+| `--grid <CxR>` | The grid of cells for the per-cell errors: columns by rows, each 1 to 64 and not more than the pixels of the image (default `4x4`) |
+| `--threshold <metric>=<value>` | A limit to check; repeatable (see _Thresholds_) |
+
+| Picture option | Meaning |
+| --- | --- |
+| `--diff <file>` | Write the difference picture |
+| `--diff-style <heat\|abs>` | `heat` (default): a color ramp of the largest channel difference; `abs`: the difference of each channel |
+| `--gain <factor>` | Amplification of the differences in `--diff` and in the third panel of `--side-by-side` (0.1 to 255, default 4) |
+| `--side-by-side <file>` | Write the two images and the `heat` picture of the differences side by side |
+| `--overlay <file>` | Write a blend of the two images |
+| `--overlay-weight <0-1>` | The weight of `b` in the blend (default 0.5) |
+
+The format of each picture comes from its extension (PNG, JPEG, BMP, TIFF). A picture may not be one of the inputs
+(`same-input-output`), two pictures may not be the same file (`usage-error`), an existing picture is replaced unless
+`--no-clobber` is given, and all pictures are written all-or-nothing: if any picture cannot be written, none is.
+
+#### The Measures
+
+Both images are `W`x`H` pixels, `N = W*H`. For every pixel and every channel `c` of R, G, and B, `d = |a_c - b_c|`
+(whole numbers 0 to 255). All sums are exact integers; the only floating-point steps are single divisions, a square
+root, and a logarithm at the end, so the same inputs give the same numbers on every run.
+
+| JSON key | Definition |
+| --- | --- |
+| `mae` | Mean absolute error: `sum(d) / (3N)` (0 to 255) |
+| `rmse` | Root mean square error: `sqrt( sum(d^2) / (3N) )` (0 to 255); `rmseNormalized = rmse / 255` |
+| `psnrDb` | Peak signal-to-noise ratio: `20 * log10(255 / rmse)`; `null` when `rmse` is 0 (the text form prints `inf`) |
+| `maxChannelDiff` | The largest `d` over all pixels and channels (0 to 255) |
+| `diffPixels`, `diffPixelRatio` | The number of pixels whose largest channel difference is above `--tolerance`, and that number divided by `N` |
+| `identical` | `maxChannelDiff == 0` (it does not depend on the tolerance) |
+| `ssim` | The structural similarity, defined below (-1 to 1; 1 for identical images) |
+
+**SSIM.** The luma of a pixel is `Y = (77*R + 150*G + 29*B + 128) >> 8` (integer arithmetic). The image is covered
+by windows of `min(8, W)` by `min(8, H)` pixels whose origins are every 4 pixels in x and in y (`0, 4, 8, ...` while
+the window fits), plus a final window flush with the right and the bottom edge when the stride does not reach it, so
+that every pixel is in at least one window. For a window of `n` pixels with the exact sums `sA = sum(Ya)`,
+`sB = sum(Yb)`, `sAA = sum(Ya^2)`, `sBB = sum(Yb^2)`, and `sAB = sum(Ya*Yb)`:
+
+```text
+SSIM_window = ( (2*sA*sB + C1*n^2) * (2*(n*sAB - sA*sB) + C2*n^2) )
+            / ( (sA^2 + sB^2 + C1*n^2) * (n*(sAA + sBB) - sA^2 - sB^2 + C2*n^2) )
+
+C1 = (0.01 * 255)^2 = 6.5025        C2 = (0.03 * 255)^2 = 58.5225
+```
+
+This is the usual `(2*ma*mb + C1)(2*cov + C2) / ((ma^2 + mb^2 + C1)(va + vb + C2))` with uniform windows and
+population variance, multiplied through by `n^2`. `ssim` is the arithmetic mean of the window values in row-major
+window order. It is a deliberately simple "SSIM-lite": it does not use the Gaussian window of the original paper, so
+compare it with other tools' values only roughly, but use it to compare two runs of this tool.
+
+**Grid.** With `--grid CxR` the cell boundaries are `x_i = floor(i*W/C)` and `y_j = floor(j*H/R)` (integer division),
+so the cells partition the image exactly. Each cell reports `mae`, `rmse`, and `diffPixelRatio` with the formulas
+above restricted to the cell, and its 0-based `column` and `row` and `x`, `y`, `width`, `height`. `worstCells` lists up
+to the three cells with the largest `rmse` (only cells whose `rmse` is above 0; ties in row-major order).
+
+**Pictures.** For `--diff`, `delta = max_c d` per pixel and `v = min(255, round(delta * gain))`. In the `heat` style
+(integer arithmetic) `R = min(255, 3v)`, `G = min(255, max(0, 3v - 255))`, and `B = min(255, max(0, 3v - 510))`, a
+ramp from black through red and yellow to white, so identical pixels are pure black. In the `abs` style each channel
+is `min(255, round(d_c * gain))`. `--side-by-side` is `a | b | heat difference` from left to right, with 8 pixel
+gaps of `#808080` and no labels; when `3W + 16` exceeds 8192 (or `H` does) the three panels are scaled down uniformly
+(the `area` filter) so that the picture fits, and the reported picture size says so. `--overlay` is the blend
+`out = (a*(255 - bw) + b*bw + 127) / 255` per channel in integer arithmetic, with `bw = round(weight*255)`.
+
+#### Thresholds
+
+`--threshold <metric>=<value>` checks one measure against a limit; give the option once per metric (a metric given twice
+is a `usage-error`). All checks are evaluated with the unrounded values.
+
+| Metric | Passes when | Allowed values |
+| --- | --- | --- |
+| `mae`, `rmse`, `max-diff` (`maxChannelDiff`), `cell-rmse` (the largest cell `rmse`) | measure `<=` value | 0 to 255 |
+| `diff-ratio` (`diffPixelRatio`) | measure `<=` value | 0 to 1 |
+| `psnr` | measure `>=` value (identical images, with an infinite PSNR, pass) | 0 to 1000 |
+| `ssim` | measure `>=` value | -1 to 1 |
+
+Whether or not a check fails, the command writes the whole result and every picture that was asked for. When a check
+fails it then **fails with exit code 1** and the error code `threshold-failed`: standard error has
+`Error: threshold-failed: rmse 23.91 is above the limit 10; ssim 0.8123 is below the limit 0.9` and a hint, and with
+`--json` the failure document carries the measures too (see below), so that one parse gives the failure and the
+numbers. There is no extra exit code: a script that needs to tell a failed gate from another failure checks the
+`error.code`.
+
+#### Result
+
+The text result (invariant culture; MAE, RMSE, and PSNR with two decimals, SSIM with four, the ratio as a percentage
+with two) is one block on standard output:
+
+```text
+compared ref.png with redraw.svg (900x600): MAE 11.20, RMSE 23.91, PSNR 20.55 dB, SSIM 0.8123, 7.04% of pixels differ (tolerance 8)
+RMSE per cell (4x4):
+   3.1   9.8  61.3   4.0
+   ...
+wrote cmp.png (2716x600 png, 88211 bytes) [side-by-side]
+threshold rmse <= 10: failed (23.91)
+```
+
+Identical inputs print only `compared a with b (WxH): identical` (and, with thresholds, their lines); a document
+input is named `report.pdf page 2`. One line `wrote ... [diff|side-by-side|overlay]` follows for each picture and
+one `threshold ...` line for each threshold.
+
+With `--json` the document is below (shown wrapped here; it is one line). `a` and `b` add `page` and `pageCount` for a
+document; `resize` is present only when `--resize-to` was given; `psnrDb` is `null` for identical images; MAE, RMSE,
+and PSNR are rounded to 4 decimals and the other fractions to 6.
+
+```json
+{"schemaVersion":1,"ok":true,"command":"compare","tool":{"name":"canvasnet","version":"<version>"},
+ "a":{"path":"ref.png","format":"png","loadedWidth":900,"loadedHeight":600,"width":900,"height":600,"operations":[]},
+ "b":{"path":"redraw.svg","format":"svg","loadedWidth":900,"loadedHeight":600,"width":900,"height":600,"operations":[{"op":"render","width":900,"height":600,"background":"#FFFFFF"}]},
+ "size":{"width":900,"height":600},
+ "resize":{"to":"a","fit":"contain"},
+ "options":{"tolerance":8,"background":"#FFFFFF","gridColumns":4,"gridRows":4},
+ "metrics":{"identical":false,"mae":11.2,"rmse":23.9,"rmseNormalized":0.0937,"psnrDb":20.6,"ssim":0.8123,"maxChannelDiff":255,"diffPixels":38016,"diffPixelRatio":0.0704},
+ "grid":{"columns":4,"rows":4,"cells":[{"column":0,"row":0,"x":0,"y":0,"width":225,"height":150,"mae":2.1,"rmse":3.1,"diffPixelRatio":0.01}]},
+ "worstCells":[{"column":2,"row":1,"rmse":61.3}],
+ "thresholds":{"passed":true,"checks":[{"metric":"rmse","comparison":"<=","limit":30,"value":23.9,"passed":true}]},
+ "outputs":[{"kind":"sideBySide","path":"cmp.png","format":"png","width":2716,"height":600,"bytes":88211}],
+ "diagnostics":[],"echo":[]}
+```
+
+`outputs[].kind` is `diff`, `sideBySide`, or `overlay`; `diagnostics` entries are the loader's notes with the `side`
+(`a` or `b`) they concern. When a threshold fails, the document is the failure envelope followed by the same fields:
+`{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed",...},"tool":...,"a":...,
+"metrics":...,"grid":...,"thresholds":{"passed":false,...},"outputs":[...]}`. A value of `null` in a check is an
+infinite PSNR.
+
+### montage
+
+```text
+canvasnet montage <inputs...> -o <output> [options]
+```
+
+`montage` composes one cell for each input into a contact sheet, in the order given, row by row. A document input
+contributes its `--page` (default 1) or, with `--all-pages`, **every page** in ascending order; a model contributes one
+view. The tool does not expand wildcards, so name the files (or let the shell expand them).
+
+```bash
+canvasnet montage a.png b.svg c.jpg -o sheet.png --labels
+canvasnet montage deck.pptx --all-pages --columns 4 --cell 320x180 --labels -o deck-overview.png
+```
+
+| Option | Meaning |
+| --- | --- |
+| `-o`, `--output <file>` | The output (required); its extension selects the format (`--quality` applies to a JPEG) |
+| `--columns <N>` | The number of columns, 1 to 64 (default: the square root of the number of cells, rounded up) |
+| `--cell <WxH>` | The image area of each cell (default `256x256`; each side at least 16) |
+| `--fit <contain\|stretch>` | How an image is fitted into its cell (default `contain`: scaled to fill the limiting side, keeping the aspect ratio, centered; `stretch`: resampled to the exact cell) |
+| `--spacing <N>` | Pixels between cells (default 8) |
+| `--padding <N>` | Pixels around the sheet (default 8) |
+| `--background <color>` | The opaque color of the sheet (default white) |
+| `--labels` | Draw the name of each input under its cell |
+| `--page <N>`, `--all-pages` | The page of each document, or every page (together they are a `usage-error`) |
+| `--dpi`, the model options, `--no-auto-orient`, `--strict`, `--filter`, `--quality`, `--no-clobber` | As for `render`; options that do not concern an input are skipped for it |
+
+A vector input (SVG, document page, model) is drawn directly at the cell size, so it is sharp; a raster is fitted with
+`--fit`. A cell is always scaled to fill the limiting side, because a contact sheet is a preview (there is no
+`--allow-upscale`).
+
+**Layout.** With `count` cells and `columns` columns, `rows = ceil(count / columns)`, the label strip is
+`labelHeight = 22` pixels with `--labels` and 0 without, and
+
+```text
+width  = 2*padding + columns*cellW + (columns - 1)*spacing
+height = 2*padding + rows*(cellH + labelHeight) + (rows - 1)*spacing
+```
+
+Cell `i` is in column `i % columns` and row `i / columns`, and its image area starts at
+`x = padding + column*(cellW + spacing)`, `y = padding + row*(cellH + labelHeight + spacing)`. A sheet larger than 8192
+pixels on a side is refused with `size-limit` (hint: a smaller `--cell` or more `--columns`) before any input is loaded
+(with `--all-pages`, after the page counts were read from the file headers).
+
+**Labels.** The label is the file name of the input (`report.pdf`), plus `p<N>` for a page of a document
+(`report.pdf p2`), centered in the 22-pixel strip under the cell, 14 pixels high, in the bundled font (never an
+installed font, so a sheet is the same on every machine). The text is black on a light background and white on a dark
+one, and a name wider than the cell is cut with `...`.
+
+The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 columns`. With `--json`:
+
+```json
+{"schemaVersion":1,"ok":true,"command":"montage","tool":{"name":"canvasnet","version":"<version>"},
+ "sheet":{"width":1048,"height":552,"columns":3,"rows":2,"cellWidth":256,"cellHeight":256,"labelHeight":22,"spacing":8,"padding":8,"fit":"contain","labels":true,"background":"#FFFFFF"},
+ "cells":[{"index":0,"column":0,"row":0,"x":8,"y":8,"input":"a.png","format":"png","loadedWidth":900,"loadedHeight":600,"label":"a.png"},
+          {"index":1,"column":1,"row":0,"x":272,"y":8,"input":"deck.pptx","format":"pptx","page":2,"pageCount":6,"loadedWidth":960,"loadedHeight":540,"label":"deck.pptx p2"}],
+ "outputs":[{"path":"sheet.png","format":"png","width":1048,"height":552,"bytes":52000}],
+ "diagnostics":[{"input":"deck.pptx","page":2,"source":"pptx","severity":"unsupported","code":"...","message":"..."}],"echo":[]}
+```
+
+`x` and `y` are the top-left corner of the image area of the cell (the label strip is below it); `page` and
+`pageCount` are present only for a document, and `label` only with `--labels`.
+
+<!-- markdownlint-enable MD013 -->
+
 ### Values: Sizes, Geometry, and Colors
 
 <!-- markdownlint-disable MD013 -->
@@ -517,6 +791,10 @@ The order of `operations` is: the steps of loading and sizing, the pipeline step
 the `flatten` of a JPEG output. With `--all-pages` every operation also carries its `page`. The set of operations may
 grow in later versions of the tool; a program should ignore an `op` or a key it does not know.
 
+`compare --json` adds `a`, `b`, `size`, `options`, `metrics`, `grid`, `worstCells`, `thresholds`, and `outputs`, and
+`montage --json` adds `sheet`, `cells`, and `outputs`; both documents are described in the sections of the commands
+(_compare_ and _montage_).
+
 ### Failure Documents
 
 ```json
@@ -526,6 +804,16 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 `error.code` is one of the codes in the next section, `error.message` describes the problem, and `error.hint`
 (omitted when there is none) says what to do about it. The document has no exit-code field, because the exit code of
 every failure is 1. A failure document is written only when `--json` is on the command line and `--silent` is not.
+
+One failure carries more than the error. When `compare` is given `--threshold` and a limit is not met, the document is
+the failure envelope followed by the fields of the comparison, so that a single parse gives the failure and the
+numbers:
+
+```json
+{"schemaVersion":1,"ok":false,"command":"compare","error":{"code":"threshold-failed","message":"rmse 23.91 is above the limit 10","hint":"The result and any pictures were written. ..."},"tool":{"name":"canvasnet","version":"<version>"},"a":{"path":"ref.png",...},"b":{...},"metrics":{"identical":false,"rmse":23.9,...},"grid":{...},"worstCells":[...],"thresholds":{"passed":false,"checks":[{"metric":"rmse","comparison":"<=","limit":10,"value":23.9,"passed":false}]},"outputs":[...],"diagnostics":[],"echo":[]}
+```
+
+A program that reads `ok`, `error.code`, and `metrics` handles both outcomes of a gate in one parse.
 
 ## Error Codes
 
@@ -548,6 +836,8 @@ and hint may be improved at any time.
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
 | `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles` | Raise the limit or simplify the model |
+| `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
+| `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
 
 ## Defaults
 
@@ -570,6 +860,11 @@ and hint may be improved at any time.
 | `--fit` | Shrinks only | `--allow-upscale` |
 | Pad color | `--pad-color`, else `--background`, else white for a drawing or document page and transparent for a raster | `--pad-color` |
 | Page of a document | 1 | `--page`, `--all-pages` |
+| Compare: tolerance, grid, gain, overlay weight | 8, `4x4`, 4, 0.5 | `--tolerance`, `--grid`, `--gain`, `--overlay-weight` |
+| Compare: inputs of different sizes | Refused (`size-mismatch`) | `--resize-to a\|b\|WxH`, with `--fit contain\|stretch` |
+| Compare and montage: background | Opaque white | `--background <opaque color>` |
+| Montage: cell, spacing, padding, fit, labels | `256x256`, 8, 8, `contain`, none | `--cell`, `--spacing`, `--padding`, `--fit`, `--labels` |
+| Montage: columns | The square root of the number of cells, rounded up | `--columns` |
 | Largest side of an image | 8192 pixels | Not adjustable |
 | Banner | Only for `--help`, `--validate`, and an empty command line | Not adjustable |
 
@@ -593,6 +888,8 @@ this reliable:
 - Keep intermediate pictures at moderate sizes (an image the agent looks at rarely needs more than 1600 pixels on a
   side), and use `--crop` with `--resize` to zoom into a detail.
 - Treat exit code 1 and a failure document as expected feedback to act on. An `Unexpected error` is a defect to report.
+- Use `compare` to measure a redraw against its reference instead of judging by eye alone: `--threshold` turns it
+  into a gate (`ok`, `error.code` `threshold-failed`), and the metrics are in the document whether it passed or not.
 - The tool replaces an existing output file by default; use new names (or `--no-clobber`) to keep earlier attempts.
 
 ### Recipe: Redraw a PDF Page as an SVG
@@ -618,16 +915,24 @@ this reliable:
    canvasnet render redraw.svg --size 1250x1750 -o redraw-page2.png --json
    ```
 
-5. Compare the two pictures. To look closely at a detail, cut the same region out of both, enlarged by the same
-   factor, and compare the pair:
+5. Compare the two pictures, and let the tool say where they differ. `--resize-to a` draws the SVG directly at the size
+   of the reference (sharp, not enlarged afterwards), `--side-by-side` writes the reference, the redraw, and the
+   differences in one picture to look at, and `worstCells` in the JSON names the grid cells (0-based `column` and
+   `row`) with the largest error:
+
+   ```bash
+   canvasnet compare ref-page2.png redraw.svg --resize-to a --grid 4x4 --side-by-side cmp.png --json
+   ```
+
+   To look closely at a detail, cut the same region out of both, enlarged by the same factor:
 
    ```bash
    canvasnet render ref-page2.png --crop 200x120+100+80 --resize 1000x600 -o ref-detail.png
    canvasnet render redraw.svg --size 1250x1750 --crop 200x120+100+80 --resize 1000x600 -o redraw-detail.png
    ```
 
-6. Fix what differs in the SVG and repeat from step 4. A text-heavy SVG depends on the fonts of the machine, so
-   compare layout rather than exact glyph shapes.
+6. Fix what differs in the SVG and repeat from step 4 (or use the loop of _Recipe: Iterate a Redraw Until It
+   Matches_). A text-heavy SVG depends on the fonts of the machine, so compare layout rather than exact glyph shapes.
 
 ### Recipe: From a Napkin Sketch to an OpenSCAD Model
 
@@ -662,12 +967,76 @@ this reliable:
 6. Before finishing, render once with `--strict --json`: it fails if the model uses something the renderer cannot
    draw (so that the picture would be missing it), and `diagnostics` shows what.
 
+### Recipe: Check an OpenSCAD Model Against a Sketch
+
+`compare` accepts a model directly, so a view of the model can be measured against the sketch without a separate
+render step. A sketch drawn from the front is compared with the front view; `--resize-to a` draws the model at the size
+of the (prepared) sketch, and `--overlay` blends the two so that the agent can see where the outline drifts:
+
+```bash
+canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png
+canvasnet compare napkin-view.png bracket.scad --b-view front --resize-to a --background white \
+  --overlay overlay-front.png --side-by-side cmp-front.png --threshold ssim=0.6 --json
+```
+
+A sketch and a model rarely agree pixel for pixel, so use a loose threshold as a trend line (it should rise as the
+model improves) and look at `overlay-front.png` for the real judgment. Try a dimension without editing the model by
+adding `--b-define width=55`, and compare another view of the same model by changing `--b-view`. If `ok` is false and
+`error.code` is `threshold-failed`, the numbers and the pictures were still written: read `worstCells` and the
+overlay, adjust the model, and run the same command again.
+
+### Recipe: Iterate a Redraw Until It Matches
+
+An agent redrawing an image as an SVG can use `compare` as its loop condition. Each round is one command whose JSON
+says whether to stop and where to work next:
+
+```bash
+canvasnet compare ref.png redraw.svg --resize-to a --grid 6x4 --threshold ssim=0.92 --threshold rmse=20 \
+  --diff diff.png --side-by-side cmp.png --json
+```
+
+1. Parse the one line on standard output. If `ok` is true, every threshold is met: stop.
+2. If `ok` is false and `error.code` is `threshold-failed`, the document still has `metrics`, `grid`, and `worstCells`
+   (and the pictures were written). Look at `cmp.png`, concentrate on the cells in `worstCells` (the cell at column
+   `c` and row `r` covers the pixels `x`, `y`, `width`, `height` given in `grid.cells`; zoom into it with
+   `render ref.png --crop x,y,w,h`), edit the SVG, and run the command again. A falling `rmse` and a rising `ssim` mean
+   the redraw is converging.
+3. If `error.code` is `size-mismatch` you forgot `--resize-to`; for any other code (`corrupt-input` for an SVG that does
+   not parse, `usage-error`) fix the command or the file, as the `message` and `hint` say.
+4. Give the loop a limit (for example ten rounds), and keep the best attempt by writing each round's pictures to new
+   names, because the pictures of a round replace the earlier ones of the same name.
+
+### Recipe: Review Every Page at a Glance
+
+To look at a whole document in one picture, compose a labeled contact sheet of its pages, then zoom into the page that
+needs attention:
+
+```bash
+canvasnet info deck.pptx --json
+canvasnet montage deck.pptx --all-pages --columns 4 --cell 320x180 --labels -o overview.png --json
+canvasnet render deck.pptx --page 7 --dpi 150 -o slide7.png
+```
+
+The `cells` of the JSON result map each cell to its `input`, `page`, and position (`x`, `y`), and `diagnostics` lists
+what was left out of a page (with its `page`). Several files can share one sheet (`montage a.pdf b.pdf --all-pages`):
+the labels name each file and page. To review what changed between two versions of a document, compare the pages one
+by one (`compare old.pdf new.pdf --a-page 3 --b-page 3 --diff changes-p3.png`) and use `montage` to lay the difference
+pictures side by side.
+
 ## Limitations and Determinism
 
 - **Determinism.** For the same input, command line, tool version, and machine, the output file is identical byte for
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
   checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts.
+- **Determinism of `compare` and `montage`.** The measures of `compare` are computed from exact integer sums with a
+  single division, square root, or logarithm at the end, so two runs on the same pixels give the same numbers, and
+  its pictures and the contact sheets of `montage` are the same bytes on the same machine. The labels of `montage` use
+  the bundled font, so they do not depend on installed fonts. What can differ between machines is the input pixels
+  themselves where they come from resampling or from decoding (a JPEG, a raster fitted with `--fit`), so do not
+  compare metrics of such inputs across machines with exact thresholds.
+- **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
+  and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
   where the library can report it (PPTX, VSDX, and SCAD: `diagnostics`). PDF and SVG have no such report, and a
   construct they cannot draw is simply absent from the picture.
@@ -709,9 +1078,11 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RenderScad - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
+✓ CanvasNetTool_Compare - Passed
+✓ CanvasNetTool_Montage - Passed
 
-Total Tests: 11
-Passed: 11
+Total Tests: 13
+Passed: 13
 Failed: 0
 ```
 
@@ -728,6 +1099,8 @@ Failed: 0
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
+| `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |
+| `CanvasNetTool_Montage` | `montage` composes a labeled sheet of the expected size and layout |
 
 The exit code is 0 when every test passed and 1 when any failed. Add `--results <file>` to record the outcome as a
 TRX file (`.trx`) or a JUnit XML file (`.xml`), for example for a quality system that collects test evidence:
