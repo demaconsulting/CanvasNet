@@ -302,9 +302,11 @@ without zero padding), or be a directory (an existing folder, or a path that end
 are named `<input name>-<page>.<extension>`. Any other output name is a `usage-error`, because every page would be
 written to the same file. `{page}` is also replaced when a single `--page` is given. All the outputs are checked
 before the first page is drawn, so a mistake in one of them is reported before any file is written. The pages are
-drawn and encoded to temporary files first and the outputs are put in place only when every page has succeeded: if a
-later page fails (for example an unsupported feature with `--strict`), no new output is written and existing outputs
-are left untouched. The JSON result
+drawn and encoded to temporary files first, and no output is touched until every page has been drawn and encoded: if a
+page fails to draw or encode (for example an unsupported feature with `--strict`), no new output is written and
+existing outputs are left untouched. The outputs are then moved into place one at a time, which is best-effort: if a
+move itself fails (for example an output is no longer writable), the outputs already moved stay in place,
+each one complete, and the error is reported. The JSON result
 lists one entry per page in `outputs`. An input that is not a document accepts `--all-pages` and writes its one output
 as given.
 

@@ -36,10 +36,10 @@ internal sealed record WriteResult(string Path, OutputFormat Format, int Width, 
 /// <remarks>
 ///     <para>
 ///         The format comes from the <c>--format</c> option or else from the file name extension. The image is
-///         encoded to a temporary file in the target directory and then moved over the target, so a failure never
-///         leaves a half-written output and an existing output is only replaced by a complete one. The target is
-///         overwritten unless <see cref="WriteOptions.NoClobber"/> is set, and an output that is the same file as
-///         the input is always refused. A missing target directory is created.
+///         encoded to a temporary file in the target directory and then moved over the target, so a failure while
+///         encoding never leaves a half-written output and an existing output is only replaced by a complete one. The
+///         target is overwritten unless <see cref="WriteOptions.NoClobber"/> is set, and an output that is the same
+///         file as the input (by path, after link resolution) is always refused. A missing target directory is created.
 ///     </para>
 ///     <para>
 ///         The encoders are deterministic, so the same pixels written with the same options are the same bytes.
@@ -260,7 +260,10 @@ internal static class ImageWriter
     /// </exception>
     /// <remarks>
     ///     A command that writes several outputs stages every one of them first and commits them only when all were
-    ///     staged, so a failure part-way leaves no new or partial output and every existing output untouched.
+    ///     staged, so a failure while rendering or encoding leaves no new or partial output and every existing output
+    ///     untouched. The commits themselves are separate moves and are best-effort as a set: when one fails (for
+    ///     example a target is no longer writable), the targets committed before it stay in place, each
+    ///     complete, and the failure is reported.
     /// </remarks>
     public static StagedOutput Stage(Surface surface, string outputPath, string inputPathForGuard, WriteOptions options)
     {
@@ -448,11 +451,24 @@ internal static class ImageWriter
     /// </summary>
     /// <param name="first">The first path.</param>
     /// <param name="second">The second path.</param>
-    /// <returns><see langword="true"/> when both resolve to the same full path, or are the same existing file.</returns>
+    /// <returns>
+    ///     <see langword="true"/> when both paths are identical after full-path normalization and symbolic link or
+    ///     junction resolution.
+    /// </returns>
     /// <remarks>
-    ///     Windows and macOS file systems are case-insensitive by default, so their paths are compared ignoring case;
-    ///     this errs on the side of refusing, which is harmless. Symbolic links (to files or to any parent directory)
-    ///     are resolved before the comparison, so two paths that reach the same file through a link are detected.
+    ///     <para>
+    ///         The check compares path names; it does not compare file identity, so it does not detect a hard link (a
+    ///         second directory entry for the same file). That is safe: the input is read and decoded completely
+    ///         before any output is written, and an output is written to a new temporary file and then moved over the
+    ///         target name, which replaces that directory entry rather than writing into the existing file. An output
+    ///         name that is a hard link to the input therefore receives a new file, and the input keeps its content.
+    ///     </para>
+    ///     <para>
+    ///         Windows and macOS file systems are case-insensitive by default, so their paths are compared ignoring
+    ///         case; this errs on the side of refusing, which is harmless. Symbolic links and junctions (to files or
+    ///         to any parent directory) are resolved before the comparison, so two paths that reach the same file
+    ///         through a link are detected.
+    ///     </para>
     /// </remarks>
     private static bool IsSameFile(string first, string second)
     {

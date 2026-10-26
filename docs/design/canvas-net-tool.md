@@ -137,8 +137,11 @@ released.
 
 N/A - not a safety-classified software item. The path-traversal guard in `PathHelpers` protects the
 self-validation temporary files. Commands that write user-named output files do so through `ImageWriter`, which
-refuses an output that is the input, writes through a temporary file so that a failure never leaves a partial
-output, and overwrites an existing output only when overwriting is allowed. The maximum image size
+refuses an output that is the input (by path, after link resolution; a hard link is safe because the input is fully
+read first and an output is moved over its name as a new file), writes through a temporary file so that a failure
+while encoding never leaves a partial
+output, and overwrites an existing output only when overwriting is allowed. A command that writes several outputs
+touches no target until every one is encoded; its final moves are best-effort (see RenderCommand). The maximum image size
 (`Surface.MaxDimension`, 8192 pixels per side) is enforced by `SourceLoader` before a file is decoded or a
 drawing is rendered, which bounds memory use.
 

@@ -80,7 +80,8 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImageWriter-SamePath
         title: >-
-          The ImageWriter class shall refuse an output that is the same file as the input (including
+          The ImageWriter class shall refuse an output that is the same file as the input (identical
+          paths after full-path normalization and symbolic link or junction resolution, including
           through links to the file or to any folder on the way, also when a link's target itself goes
           through a link), an output that is an existing directory, and an output that is not a usable
           path (invalid, or below a file), before writing anything, and shall offer the same check
@@ -88,6 +89,9 @@ sections:
         justification: |
           Writing over the input would destroy it before the render is complete, and a path that can
           never be written should be an expected error reported before any pixels are decoded.
+          Hard links are not detected, and need not be: the input is read completely before any output
+          is written, and the output is a new temporary file moved over the target name, so a
+          hard-linked output name receives a new file and the input keeps its content.
         tests:
           - ImageWriter_Write_OutputIsInput_ThrowsSameInputOutput
           - ImageWriter_CheckTarget_Problems_AreReported

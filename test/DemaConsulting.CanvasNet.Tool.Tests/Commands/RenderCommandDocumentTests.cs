@@ -256,7 +256,7 @@ public class RenderCommandDocumentTests
     }
 
     /// <summary>
-    ///     Test that a failure on a later page publishes nothing: no new output appears, an existing output is left
+    ///     Test that a render or encode failure on a later page publishes nothing: no new output appears, an existing output is left
     ///     untouched, and no temporary file is left behind.
     /// </summary>
     [Fact]

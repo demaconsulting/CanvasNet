@@ -54,7 +54,9 @@ leaves no temporary file, and still writes a new one.
 **ImageWriter_Write_OutputIsInput_ThrowsSameInputOutput** and **ImageWriter_CheckTarget_Problems_AreReported**: an
 output named through a different spelling of the input path is refused and the input is untouched;
 `CheckTarget` reports the input as output, an existing directory, and (with no-clobber) an existing file, and accepts a
-fresh path and an overwritable file.
+fresh path and an overwritable file. _Not verified, by design:_ a hard link to the input is not detected (the guard
+compares paths after normalization and link resolution, not file identity); it is safe because the input is read
+completely before any output is written and the output is a new temporary file moved over the target name.
 
 **ImageWriter_CheckTarget_LinkedDirectory_IsSameFile** and **ImageWriter_CheckTarget_LinkTargetThroughLink_IsSameFile**:
 an output reaching the input through a symbolic link to its folder, or through a link whose stored target itself goes

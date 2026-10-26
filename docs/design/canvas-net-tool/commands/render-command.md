@@ -78,9 +78,9 @@ another kind of input is a `usage-error` naming the kind, rather than being igno
 (`page-out-of-range`; a model has only page 1), `PlanTargets`, `ImageWriter.ResolveFormat`, and
 `ImageWriter.CheckTarget` for every output. Then opens the source once (`SourceLoader.OpenPages`), and for each page
 loads it (`ReadPage`), runs it through `TransformAndStage`, and disposes the pixels before the next page. Each page's
-result is encoded to a temporary file next to its target and only when every page has succeeded are the temporary
-files moved into place (`StagedOutput.Commit`, overwriting unless `--no-clobber`); a `finally` block deletes every
-temporary file that was not committed. The result is
+result is encoded to a temporary file next to its target, and no target is touched until every page has been rendered
+and encoded; then the temporary files are moved into place one at a time (`StagedOutput.Commit`, overwriting unless
+`--no-clobber`), and a `finally` block deletes every temporary file that was not committed. The result is
 written through `context.WriteLine`: as one text line per output when `context.Json` is false, or as one JSON
 document. The diagnostics and the echo of a model are part of the JSON document only; the text result is the one
 line, so a caller that needs them uses `--json`.
@@ -112,10 +112,12 @@ directory, and each page is written there as `{input name without extension}-{pa
 format (`.png` unless `--format` says otherwise); an output that has no `{page}` and is not a directory is a
 `usage-error` when the input has more than one page (a single image has one page, so its output is used as given).
 Because every target is planned and checked first, a mistake in any of them (for example an existing file with
-`--no-clobber`) is reported before any page is rendered. Pages are staged and published together: a failure while a
-later page is loaded, transformed, or encoded (for example an unsupported feature with `--strict`) leaves no new or
-partial output and every existing output untouched; the only remaining window is a failure of the final move of a
-file, which leaves the files moved before it, each complete.
+`--no-clobber`) is reported before any page is rendered. Rendering and encoding of every page completes before any
+target is touched: a failure while a later page is loaded, transformed, or encoded (for example an unsupported feature
+with `--strict`) leaves no new or partial output and every existing output untouched. The final per-target moves are
+best-effort and not transactional (no rollback is attempted): if a move itself fails (for example a target became
+no longer writable, or appeared while `--no-clobber` is set), the targets moved before it remain, each complete,
+and the error is reported.
 
 **Text result**: `wrote {output} ({width}x{height} {format}, {bytes} bytes) from {input}`, with `page {n}`
 appended for a document, for example `wrote out.png (816x1056 png, 41208 bytes) from in.svg` and

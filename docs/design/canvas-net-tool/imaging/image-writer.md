@@ -29,11 +29,17 @@ case-insensitive); the `formats` command lists the same extensions and a test ke
 **ResolveFormat(outputPath, formatOption)**: the option wins when given (an unknown name is a `usage-error`);
 otherwise the extension decides (a missing or unknown extension is a `usage-error` that says how to choose).
 
-**CheckTarget(outputPath, inputPath, noClobber)**: throws `same-input-output` when the two paths resolve to the same
-full path, or when links in either path (to a file, or to any folder on the way, including a link whose target itself
+**CheckTarget(outputPath, inputPath, noClobber)**: throws `same-input-output` when the two paths are identical after
+full-path normalization and symbolic link or junction resolution: the same full path, or links in either path (to a
+file, or to any folder on the way, including a link whose target itself
 goes through a link, as `/var` does on macOS) lead to the same file (compared ignoring case on Windows and macOS,
-whose file systems are case-insensitive by default - which can only refuse more, never less),
-`output-write-failed` when the output is an existing directory, is not a valid path (empty, a null character, too
+whose file systems are case-insensitive by default - which can only refuse more, never less). It compares path names,
+not file identity, so a hard link to the input is not detected; that is safe because the input is read and decoded
+completely before any output is written, and an output is written to a new temporary file that is moved over the target
+name, which replaces that directory entry instead of writing into the existing file - a hard-linked output name gets a
+new file and the input keeps its content. Platform file-identity checks would need operating-system-specific APIs and
+add no data safety. `CheckTarget` also throws `output-write-failed` when the output is an existing directory, is not a
+valid path (empty, a null character, too
 long, a format the system does not support), or has a file where one of its folders should be (a folder that does
 not exist is fine: `Write` creates it), and `output-exists` when it exists and `noClobber` is set. Commands call it
 before loading the input so that an output mistake is reported before any work is done; `Write` calls it again.
@@ -53,8 +59,10 @@ the size of the encoded file). A failure while staging deletes the temporary fil
 **StagedOutput.Commit()**: moves the temporary file over the target (overwriting unless `NoClobber`) and returns
 the `WriteResult`. **StagedOutput.Dispose()**: deletes the temporary file unless it was committed, so a staged
 output that is abandoned (because a later output failed) leaves nothing behind. A command that writes several
-outputs stages all of them first and commits only when every one was staged, so a failure leaves no new or
-partial output and every existing output untouched. The encoders are PNG (RGBA), JPEG (at the quality), BMP (32 bits per
+outputs stages all of them first and commits only when every one was staged, so a failure while rendering or encoding
+leaves no new or partial output and every existing output untouched; the commits are separate moves, so if one itself
+fails the outputs committed before it remain, each complete (no rollback). The encoders are PNG (RGBA), JPEG (at the
+quality), BMP (32 bits per
 pixel, with alpha), and TIFF (uncompressed, with alpha); all are deterministic, so the same pixels and options
 give the same bytes. The surface passed in is never modified or disposed.
 
