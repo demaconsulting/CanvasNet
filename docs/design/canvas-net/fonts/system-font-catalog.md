@@ -104,6 +104,22 @@ loads (or returns the process-lifetime-cached) `TrueTypeFont` for that resource 
 Never consults `Fonts` or the host operating system's installed fonts at all, so it is available
 even when the host machine has no fonts installed whatsoever.
 
+##### DiscoverFonts(directories)
+
+A public, thin, argument-validated wrapper over the same tolerant directory scan that builds
+`Fonts` (`BuildCatalogFromRoots`), for a caller that manages its own font directories (today,
+`DemaConsulting.CanvasNet.Scad`'s `text()` with `ScadFontResolutionOptions.AdditionalDirectories`).
+It never reads `Fonts` or the host's well-known directories, caches nothing (every call rescans),
+skips a missing/inaccessible directory, a symlinked subdirectory and an unparseable file exactly as
+`Fonts` does, and throws only `ArgumentNullException` for a null argument.
+
+##### FindBestMatchAmong(candidates, familyNameHint, bold, italic, serif, fixedPitch)
+
+A public, argument-validated wrapper over `FindBestMatchCore`: the same two-tier scoring as
+`FindBestMatch`, over a caller-supplied candidate list (for example the result of `DiscoverFonts`)
+instead of `Fonts`. It performs no I/O. Because tier 2 can return a generic family when the
+requested family is absent, a caller that needs an exact family compares `FamilyName` itself.
+
 ##### Internal Test-Support Entry Points
 
 - **`FindBestMatchCore(candidates, ...)`** - the scoring algorithm above, exposed over an
@@ -128,8 +144,10 @@ existing `InternalsVisibleTo` attribute on the core project.
 #### Error Handling
 
 `SystemFontCatalog`'s public surface never throws for a normal "nothing matched" or "nothing
-installed" outcome - `Fonts` returns an empty list, and `FindBestMatch` returns `null`. The one
-exception this unit ever throws is `InvalidOperationException` from `LoadBundledFallback` (via
+installed" outcome - `Fonts` and `DiscoverFonts` return an empty list, and `FindBestMatch` and
+`FindBestMatchAmong` return `null`; the only other exceptions are the `ArgumentNullException`s of
+`DiscoverFonts` and `FindBestMatchAmong` for a null argument. The one
+exception this unit ever throws otherwise is `InvalidOperationException` from `LoadBundledFallback` (via
 `LoadBundledFallbackCore`), and only when the expected embedded resource is unexpectedly absent -
 a defensive, effectively-unreachable packaging-integrity guard under normal operation, since all
 15 bundled files (the 12 Liberation Sans/Serif/Mono style variants `LoadBundledFallback` itself
@@ -163,6 +181,8 @@ sourcing/licensing provenance).
 `SystemFontCatalog` is called by `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument`
 (`PdfDocument.FontFallback.cs`'s `ResolveFallbackFont`) when resolving a `/Subtype /TrueType`
 simple font lacking an embedded `/FontFile2` stream; see _PdfDocument Unit Design_
-(`../../canvas-net-pdf/pdf-document.md`). The unit's public API is intentionally
+(`../../canvas-net-pdf/pdf-document.md`). It is also called by `DemaConsulting.CanvasNet.Scad`'s
+`ScadTextGeometry` unit (`Fonts`, `DiscoverFonts`, `FindBestMatchAmong` and `LoadBundledFallback`)
+to resolve the `font` argument of `text()`. The unit's public API is intentionally
 format-agnostic and generic, so a future non-PDF document-format consumer could call it directly
 without any change to this unit.
