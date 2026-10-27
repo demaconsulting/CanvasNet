@@ -33,6 +33,10 @@ public sealed class ScadFontResolutionOptions
     ///     The installed fonts are found by a directory scan of the well-known font folders of the operating system
     ///     and are scanned at most once per process, the first time a model asks for a font that is not found in
     ///     <see cref="AdditionalDirectories"/>. A model without a <c>font</c> argument never triggers the scan.
+    ///     The lookup in the installed fonts is <b>not cancellable</b>: the cancellation token of the render call is
+    ///     not observed while the catalog is queried, and the first lookup in the process builds a process-wide
+    ///     catalog that later lookups, in any render call, reuse, so a canceled render call can be delayed by that
+    ///     first lookup. Set this property to <see langword="false"/> to avoid it.
     /// </remarks>
     public bool UseSystemFonts { get; init; } = true;
 

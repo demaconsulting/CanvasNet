@@ -65,7 +65,7 @@ constitutes a failure.
 
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored`,
-`ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty`
+`ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls`
 
 Asserts that an empty string and a string of spaces yield nothing without a warning, that `language` and `script`
 of several values (strings, a number, a vector) change nothing and give no warning, and that a number as the text
@@ -79,6 +79,7 @@ is converted like `str()` (the text `12` equals the text `"12"`).
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScannedFacesAreNotParsedAgain`,
 `ScadRenderOptionsTests.ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories`,
 `ScadRenderSystemTests.ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled`
 
@@ -93,7 +94,9 @@ order and then ordinal path order wins a tie, and the result is the same on ever
 garbage `.ttf`, an empty `.otf`, and a font with another extension are skipped without a failure and without being
 offered (so the family of a damaged file is "not available" with a warning); that the directory list is copied and a
 later change of the
-caller's list has no effect; and, through the public options, that the directory reaches the geometry (the text
+caller's list has no effect; that the faces read while a directory is scanned are kept, so a font file removed after
+the scan still resolves without a warning (the chosen face is not parsed again); and, through the public options,
+that the directory reaches the geometry (the text
 differs from the bundled one). The system test pins literal font-unit metrics of Liberation Sans Regular.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Size: Cap-Height Size
@@ -135,15 +138,16 @@ direction, and spacing.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs: Missing Glyphs And Controls
 
-**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty`,
+**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings`
 
 Asserts that a character the bundled font does not map (a CJK ideograph) is drawn with the `.notdef` outline without
 a warning, that line feeds and tabs vanish without a trace (the text `"H\nI\tH"` equals `"HIH"`), and that spaces
-advance without drawing. The branch in which `.notdef` has no outline and the character is skipped with a warning
-cannot be reached with the bundled font the test uses (Liberation Sans draws a `.notdef` box) and no test font
-without a `.notdef` outline is available to the Scad tests; it is a short branch covered by review and not by a
-test.
+advance without drawing. For the branch in which `.notdef` has no outline, a clean-room synthetic font (empty
+`.notdef`, only `H` and `D` mapped) shows that an unmapped character (`X`) is skipped with exactly one warning per
+text instance (naming `U+0058` and `.notdef`, also for `XX` and `HXH`), draws no region (`X` alone is empty, `HXH`
+has two regions), and leaves the mapped characters unaffected.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours: Holes, Composite Glyphs, And Rejections
 

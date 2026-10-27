@@ -485,11 +485,12 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
-    ///     Validates that a character the font does not map is drawn with the font's <c>.notdef</c> glyph, that
-    ///     control characters are skipped silently, and that a non-string value is converted like <c>str()</c>.
+    ///     Validates that a character the font does not map is drawn silently with the font's <c>.notdef</c> glyph
+    ///     when that glyph has an outline, that control characters are skipped silently, and that a non-string value
+    ///     is converted like <c>str()</c>.
     /// </summary>
     [Fact]
-    public void ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty()
+    public void ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls()
     {
         // Arrange: a CJK ideograph that Liberation Sans does not map, so it is drawn as .notdef
         Assert.Equal(0, Font.GetGlyphIndex(0x4E2D));
@@ -510,6 +511,43 @@ public class ScadTextGeometryTests
         AssertSameVertices(plain, withControl);
         Assert.Empty(withControl.Warnings);
         AssertSameVertices(asString, number);
+    }
+
+    /// <summary>
+    ///     Validates that a character the font does not map is skipped with exactly one warning, and draws no
+    ///     region, when the font's <c>.notdef</c> glyph has no outline, while the mapped characters still draw.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty()
+    {
+        // Arrange: a synthetic font with an empty .notdef that maps only H and D; X is unmapped
+        using var directory = new ScadTempDirectory();
+        var family = "Synthetic Empty Notdef";
+        WriteSyntheticFont(directory.Combine("synthetic.ttf"), family);
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
+        var resolved = new ScadFontResolver(options).Resolve(new ScadFontSpec(family, false, false));
+        Assert.Equal(ScadFontSource.AdditionalDirectory, resolved.Source);
+        Assert.Equal(0, resolved.Font.GetGlyphIndex('X'));
+        Assert.Empty(resolved.Font.GetGlyphOutline(0).Subpaths);
+
+        // Act
+        var onlyMissing = Run($"text(\"X\", font = \"{family}\");", options);
+        var repeated = Run($"text(\"XX\", font = \"{family}\");", options);
+        var mixed = Run($"text(\"HXH\", font = \"{family}\");", options);
+        var mapped = Run($"text(\"HH\", font = \"{family}\");", options);
+
+        // Assert: one warning naming the character, no region for it, and the mapped characters unaffected
+        var warning = Assert.Single(onlyMissing.Warnings);
+        Assert.Contains("U+0058", warning.Message, StringComparison.Ordinal);
+        Assert.Contains(".notdef", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(ScadGeoKind.Empty, onlyMissing.Geo.Kind);
+        Assert.Empty(onlyMissing.Regions);
+        Assert.Single(repeated.Warnings);
+        Assert.Empty(repeated.Regions);
+        Assert.Single(mixed.Warnings);
+        Assert.Equal(2, mixed.Regions.Count);
+        Assert.Empty(mapped.Warnings);
+        Assert.Equal(2, mapped.Regions.Count);
     }
 
     /// <summary>
@@ -958,6 +996,35 @@ public class ScadTextGeometryTests
         // Assert: nothing threw and the valid sibling was found
         Assert.Equal(ScadFontSource.AdditionalDirectory, resolved.Source);
         Assert.True(resolved.Font.IsBold);
+    }
+
+    /// <summary>
+    ///     Validates that the faces read while the additional directories are scanned are kept, so a chosen face is
+    ///     not parsed from its file again: a font file that is removed after the scan still resolves.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ScannedFacesAreNotParsedAgain()
+    {
+        // Arrange: two synthetic fonts of different families in one directory
+        using var directory = new ScadTempDirectory();
+        var first = directory.Combine("a.ttf");
+        var second = directory.Combine("b.ttf");
+        WriteSyntheticFont(first, "Synthetic Scan First");
+        WriteSyntheticFont(second, "Synthetic Scan Second");
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
+        var resolver = new ScadFontResolver(options);
+
+        // Act: the first request scans the directory; the file of the second family is then removed
+        var resolvedFirst = resolver.Resolve(new ScadFontSpec("Synthetic Scan First", false, false));
+        File.Delete(second);
+        var resolvedSecond = resolver.Resolve(new ScadFontSpec("Synthetic Scan Second", false, false));
+
+        // Assert: the second font comes from the faces kept by the scan, with no warning
+        Assert.Equal(ScadFontSource.AdditionalDirectory, resolvedFirst.Source);
+        Assert.Null(resolvedFirst.Warning);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, resolvedSecond.Source);
+        Assert.Null(resolvedSecond.Warning);
+        Assert.NotEqual(0, resolvedSecond.Font.GetGlyphIndex('H'));
     }
 
     /// <summary>

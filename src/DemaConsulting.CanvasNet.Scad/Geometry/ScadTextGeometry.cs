@@ -50,7 +50,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         silently; control characters are skipped silently; a character the font does not map is drawn with the
 ///         font's <c>.notdef</c> glyph, or skipped with one warning when that glyph has no outline; a damaged glyph,
 ///         a mapped glyph whose subpaths are all degenerate (no area, so it is not an empty glyph like a space),
-///         or a glyph whose contours cross or touch each other other than as a hole or an island or as the overlapping
+///         or a glyph whose contours cross or touch each other, other than as a hole or an island or as the overlapping
 ///         solids of a composite glyph (which are unioned), is reported as the unsupported feature
 ///         <c>scad-text-invalid-outline</c> or <c>scad-text-overlapping-contours</c> and the whole instance is omitted.
 ///         The triangle budget is checked (with the lower bound of the slab of the vertices so far) after every glyph,

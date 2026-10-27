@@ -36,7 +36,7 @@ sections:
                 tests:
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
                   - ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored
-                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
                 title: >-
@@ -61,6 +61,7 @@ sections:
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
                   - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScannedFacesAreNotParsedAgain
                   - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
                   - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
 
@@ -112,14 +113,16 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs
                 title: >-
                   The ScadTextGeometry unit shall draw a character that the font does not map with the
-                  font's .notdef glyph, shall skip such a character with one located warning when .notdef has
-                  no outline, shall skip control characters silently, and shall let a glyph without an outline
+                  font's .notdef glyph, shall skip such a character with exactly one located warning per
+                  text instance and draw no region for it when .notdef has no outline, shall skip control
+                  characters silently, and shall let a glyph without an outline
                   (a space) advance the pen without drawing.
                 justification: |
                   A missing character must neither crash the model nor vanish unexplained; the rule must be
                   the same for every font.
                 tests:
-                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
+                  - ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours
