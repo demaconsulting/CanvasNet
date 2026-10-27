@@ -126,23 +126,6 @@ Calls `FindBestMatchCore` with an empty candidate list, and separately with a no
 containing no exact match and no generic-bucket match, asserting `null` is returned in both
 cases.
 
-##### CanvasNet-Fonts-SystemFontCatalog-ExplicitDirectoryDiscovery: Public Discovery Over Explicit Directories
-
-**Tests**: `SystemFontCatalog_Discover_ExplicitRootsFindsValidFacesAndSkipsMissingRoots`
-
-Writes two synthetic styled fonts (one in a nested subdirectory) to a temporary directory, calls
-`DiscoverFonts` with a missing root and that directory, and asserts both faces are returned with
-their family and bold/italic metadata, the missing root is skipped without throwing, and a null
-argument throws `ArgumentNullException`.
-
-##### CanvasNet-Fonts-SystemFontCatalog-ExplicitCandidateMatching: Public Matching Over an Explicit Candidate List
-
-**Tests**: `SystemFontCatalog_FindBestMatch_ExplicitCandidatesUsesExactFamilyAndStyle`
-
-Calls `FindBestMatchAmong` over a synthetic list and asserts the case-insensitive exact family with
-the exact style wins, the closest style is chosen when no exact style exists, an unknown family
-yields `null`, and null arguments throw `ArgumentNullException`.
-
 ##### CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback: Every Bundled Liberation Style Loads Successfully
 
 **Tests**: `BundledFonts_AllTwelveLiberationVariants_LoadSuccessfullyAndExposeExpectedNameAndStyle`

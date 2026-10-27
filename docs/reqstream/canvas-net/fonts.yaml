@@ -238,8 +238,6 @@ sections:
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchGenericBucket
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch
-              - CanvasNet-Fonts-SystemFontCatalog-ExplicitDirectoryDiscovery
-              - CanvasNet-Fonts-SystemFontCatalog-ExplicitCandidateMatching
               - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
               - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallbackMissingResourceGuard
             tests:

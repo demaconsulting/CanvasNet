@@ -116,33 +116,6 @@ sections:
                   - SystemFontCatalog_FindBestMatch_EmptyCandidateList_ReturnsNull
                   - SystemFontCatalog_FindBestMatch_NoFamilyAndNoBucketMatch_ReturnsNull
 
-              - id: CanvasNet-Fonts-SystemFontCatalog-ExplicitDirectoryDiscovery
-                title: >-
-                  The SystemFontCatalog type shall provide a public DiscoverFonts operation that
-                  scans only a caller-supplied set of directories (recursively) with the same
-                  tolerance as Fonts, skipping a missing directory or an unparseable file, and
-                  that rejects a null argument.
-                justification: |
-                  A caller that lets its users add private font directories (for example the
-                  OpenSCAD text() renderer) must reuse the catalog's scanning and tolerance
-                  rules rather than duplicate them, and must be able to do so without depending
-                  on the host's installed fonts.
-                tests:
-                  - SystemFontCatalog_Discover_ExplicitRootsFindsValidFacesAndSkipsMissingRoots
-
-              - id: CanvasNet-Fonts-SystemFontCatalog-ExplicitCandidateMatching
-                title: >-
-                  The SystemFontCatalog type shall provide a public FindBestMatchAmong operation
-                  that applies the FindBestMatch scoring (exact family case-insensitively,
-                  closest bold/italic style, then the generic buckets) to a caller-supplied
-                  candidate list, without consulting Fonts, and that rejects null arguments.
-                justification: |
-                  A caller with its own candidate list (for example the result of DiscoverFonts)
-                  needs the same family and style scoring as the host catalog without a second
-                  implementation that could drift from it.
-                tests:
-                  - SystemFontCatalog_FindBestMatch_ExplicitCandidatesUsesExactFamilyAndStyle
-
               - id: CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
                 title: >-
                   The SystemFontCatalog type shall load (and process-lifetime-cache) the

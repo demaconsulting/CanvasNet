@@ -12,7 +12,8 @@ in the `DemaConsulting.CanvasNet.Scad` namespace:
 - `ScadTextGeometry.Flattening.cs` — the reference height of a font, and the iterative flattening of glyph outlines
   into polygon contours
 - `ScadFontResolver.cs` — `ScadFontResolver`: parsing of the `font` argument and the deterministic resolution of a
-  font (owned by the build context, one per build), with `ScadFontSpec`, `ScadResolvedFont`, and `ScadFontSource`
+  font (owned by the build context, one per build), with `ScadFontSpec`, `ScadResolvedFont`, `ScadFontSource`, and
+  `ScadFontFace` (one face found in an additional directory)
 - `ScadFontResolutionOptions.cs` (namespace `DemaConsulting.CanvasNet.Scad`) — the public options type that
   `ScadRenderOptions.FontResolution` carries
 
@@ -44,7 +45,7 @@ parity with any other implementation's text metrics is claimed. The behavior is 
 - **`ScadResolvedFont`** — the `TrueTypeFont`, its `ScadFontSource` (`Bundled`, `AdditionalDirectory`, `System`),
   and the warning to report, if any.
 - **`ScadFontResolver`** — per build: the resolutions already made, the fonts already loaded by file and face
-  index, and the faces of the additional directories (scanned at most once).
+  index, and the faces of the additional directories (`ScadFontFace` values, scanned at most once).
 - **`Placed`** — one glyph placed on the line: its flattened contours in model units, before alignment.
 - The result is an ordinary `ScadGeo`: a single `PolygonRegion` leaf, or a `ScadShape2DKind.Csg` union of leaves
   (one per glyph component) with the tight bounds of all vertices.
@@ -161,18 +162,26 @@ fails:
 1. **No family** (no `font` argument, or an empty family): the bundled Liberation Sans in the requested style
    (`SystemFontCatalog.LoadBundledFallback`), whatever fonts the host has, silently. This is what makes text
    without a `font` reproducible.
-2. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build with
-   `SystemFontCatalog.DiscoverFonts`.
-3. **The installed fonts** when `UseSystemFonts` is `true` (the default): `SystemFontCatalog.Fonts`, scanned at most
-   once per process and only when a model asks for a font that step 2 did not find.
+2. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build, only
+   when a family is named, by the resolver itself with the public `TrueTypeFont` API: each directory in the order
+   given is searched recursively (links are not followed) for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
+   order of the full path within a directory, so the result never depends on the order the file system lists
+   files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
+   faceIndex)`, taking the family from `GetNameInfo().FamilyName` (the file name without extension when the font
+   has none) and the style from `IsBold` and `IsItalic`. A missing or unreadable directory, a file that does not
+   parse, and a face that does not parse are skipped without a diagnostic.
+3. **The installed fonts** when `UseSystemFonts` is `true` (the default): `SystemFontCatalog.FindBestMatch`, which
+   scans the host's font directories at most once per process and only when a model asks for a font that step 2 did
+   not find.
 4. **The bundled families**: `Liberation Sans`, `Liberation Serif`, `Liberation Mono`, and the generic names
    `sans-serif`/`sans`, `serif`, and `monospace`/`mono`, in the requested style.
 5. **Fallback**: the bundled sans font in the requested style, with the warning that the font is not available.
 
-Steps 2 and 3 use `SystemFontCatalog.FindBestMatchAmong` for the family and style scoring but accept **only an
-exact family match** (ignoring case): the generic-bucket substitution of the catalog is deliberately not used,
-because it would make the result depend on what the host has installed. The style is the closest match by the
-bold and italic flags. A face that is found but cannot be loaded (`InvalidDataException`, `IOException`,
+Steps 2 and 3 accept **only an exact family match** (ignoring case): for step 3 the answer of `FindBestMatch` is
+discarded when its family is not the requested one, because the generic-bucket substitution of the catalog would
+make the result depend on what the host has installed. The style is the closest match by the bold and italic flags
+(the number of differing flags is the score); the first face found wins a tie, so earlier directories and earlier
+paths win. A face that is found but cannot be loaded (`InvalidDataException`, `IOException`,
 `UnauthorizedAccessException`, and the like) resolves to the fallback with a warning that names the file; a face
 that failed to load is not tried again in the same build. Installed fonts vary from host to host, so a model that
 must render identically everywhere names no font, or sets `UseSystemFonts = false`.
@@ -211,10 +220,14 @@ Unit Design_); they are not part of this unit.
 `ScadGeo` and `ScadShape2D` (the result), `ScadGeometryContext` (reporting, budget, cancellation, and the
 resolver), and `ScadFeatureIds`; on the evaluation subsystem for `ScadInstance` and `ScadValue`; on
 `CanvasNetRender3D` for `PolygonRegion`, `Vector2D`, `CsgOperation`, and `BoundingBox3D`; and on the core
-`CanvasNet` package for the `Fonts` subsystem (`TrueTypeFont`: `GetGlyphIndex`, `GetGlyphOutline`,
-`GetAdvanceWidth`, `GetKerning`, `UnitsPerEm`, `Ascender`; `SystemFontCatalog`: `Fonts`, `DiscoverFonts`,
-`FindBestMatchAmong`, `LoadBundledFallback`) and its `Geometry.Path`. It uses no platform UI API and no native
-font library.
+`CanvasNet` system, through its public API only (no `InternalsVisibleTo` and no core API was added for it), for:
+
+- the **`Fonts` subsystem**: `TrueTypeFont` (`Load(path, faceIndex)`, `GetFaceCount`, `GetNameInfo`, `IsBold`,
+  `IsItalic`, `GetGlyphIndex`, `GetGlyphOutline`, `GetAdvanceWidth`, `GetKerning`, `UnitsPerEm`, `Ascender`) and
+  `SystemFontCatalog` (`FindBestMatch`, `LoadBundledFallback`); and
+- the **`Geometry` subsystem**: `Path`, the outline that `GetGlyphOutline` returns and that the flattening reads.
+
+It uses no platform UI API and no native font library.
 
 #### Callers
 

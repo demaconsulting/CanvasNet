@@ -199,6 +199,137 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
+    ///     Validates that an additional directory is searched recursively, that the face is chosen by exact family
+    ///     (ignoring case) and the closest bold and italic style, and that the choice is the same on every run.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle()
+    {
+        // Arrange: a bold and an italic serif face (the italic one in a subdirectory, with an upper case extension),
+        // and a face of another family
+        var directory = Directory.CreateDirectory(Path.Join(Path.GetTempPath(), "canvasnet-test-scad-styles-" + Guid.NewGuid())).FullName;
+        try
+        {
+            CopyBundledFont("LiberationSerif-Bold.ttf", Path.Join(directory, "b.ttf"));
+            CopyBundledFont("LiberationSerif-Italic.ttf", Path.Join(directory, "sub", "a.TTF"));
+            CopyBundledFont("LiberationMono-Regular.ttf", Path.Join(directory, "mono.ttf"));
+            var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory] };
+
+            // Act
+            var bold = new ScadFontResolver(options).Resolve(new ScadFontSpec("LIBERATION SERIF", true, false));
+            var italic = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Serif", false, true));
+            var mono = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Mono", false, false));
+            var tie = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Serif", true, true));
+            var again = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Serif", true, true));
+
+            // Assert: the exact family and style, from the directory, silently
+            Assert.All([bold, italic, mono, tie], r => Assert.Equal(ScadFontSource.AdditionalDirectory, r.Source));
+            Assert.All([bold, italic, mono, tie], r => Assert.Null(r.Warning));
+            Assert.True(bold.Font.IsBold);
+            Assert.False(bold.Font.IsItalic);
+            Assert.True(italic.Font.IsItalic);
+            Assert.False(italic.Font.IsBold);
+            Assert.True(mono.Font.IsFixedPitch);
+
+            // A style that no face has exactly takes the first of the closest faces in ordinal path order
+            // (the path of b.ttf sorts before the path of sub/a.TTF)
+            Assert.True(tie.Font.IsBold);
+            Assert.Equal(tie.Font.IsBold, again.Font.IsBold);
+            Assert.Equal(tie.Font.IsItalic, again.Font.IsItalic);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the directories are searched in the order given, so the first directory that holds the
+    ///     family wins when the styles are equally close.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder()
+    {
+        // Arrange: one family spread over two directories
+        var root = Directory.CreateDirectory(Path.Join(Path.GetTempPath(), "canvasnet-test-scad-order-" + Guid.NewGuid())).FullName;
+        try
+        {
+            var first = Path.Join(root, "z-first");
+            var second = Path.Join(root, "a-second");
+            CopyBundledFont("LiberationSerif-Bold.ttf", Path.Join(first, "f.ttf"));
+            CopyBundledFont("LiberationSerif-Italic.ttf", Path.Join(second, "f.ttf"));
+
+            // Act: bold italic is one flag away from both faces
+            var firstWins = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [first, second] })
+                .Resolve(new ScadFontSpec("Liberation Serif", true, true));
+            var secondWins = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [second, first] })
+                .Resolve(new ScadFontSpec("Liberation Serif", true, true));
+
+            // Assert
+            Assert.True(firstWins.Font.IsBold);
+            Assert.True(secondWins.Font.IsItalic);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a missing directory, a file that is not a font, a damaged font, and a file with another
+    ///     extension are skipped without failing, and that the family of a skipped file is then not found.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles()
+    {
+        // Arrange: a good serif face next to garbage files, and a missing directory listed first
+        var directory = Directory.CreateDirectory(Path.Join(Path.GetTempPath(), "canvasnet-test-scad-skip-" + Guid.NewGuid())).FullName;
+        try
+        {
+            var missing = Path.Join(directory, "missing");
+            CopyBundledFont("LiberationSerif-Bold.ttf", Path.Join(directory, "good.ttf"));
+            File.WriteAllText(Path.Join(directory, "garbage.ttf"), "this is not a font");
+            File.WriteAllBytes(Path.Join(directory, "empty.otf"), []);
+            CopyBundledFont("LiberationSans-Regular.ttf", Path.Join(directory, "ignored.txt"));
+            var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [missing, directory] };
+
+            // Act
+            var good = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Serif", true, false));
+            var damaged = new ScadFontResolver(options).Resolve(new ScadFontSpec("garbage", false, false));
+            var wrongExtension = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Sans", false, false));
+            var onlyMissing = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [missing] })
+                .Resolve(new ScadFontSpec("Nonexistent Family", false, false));
+
+            // Assert: the good face is found, the damaged ones are not offered, nothing throws
+            Assert.Equal(ScadFontSource.AdditionalDirectory, good.Source);
+            Assert.True(good.Font.IsBold);
+            Assert.Equal(ScadFontSource.Bundled, damaged.Source);
+            Assert.Contains("garbage", damaged.Warning, StringComparison.Ordinal);
+            Assert.Equal(ScadFontSource.Bundled, wrongExtension.Source);
+            Assert.Null(wrongExtension.Warning);
+            Assert.Equal(ScadFontSource.Bundled, onlyMissing.Source);
+            Assert.Contains("Nonexistent Family", onlyMissing.Warning, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Copies one of the bundled fonts of the core package to a file, creating its directory.
+    /// </summary>
+    /// <param name="bundledName">The bundled file name, for example <c>LiberationSerif-Bold.ttf</c>.</param>
+    /// <param name="target">The path of the copy.</param>
+    private static void CopyBundledFont(string bundledName, string target)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        using var source = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts." + bundledName)!;
+        using var file = File.Create(target);
+        source.CopyTo(file);
+    }
+
+    /// <summary>
     ///     Validates that kerning moves the pen by the font's pair adjustment (not scaled by spacing) and that
     ///     spacing multiplies the advance only, with analytic placement of the second glyph.
     /// </summary>

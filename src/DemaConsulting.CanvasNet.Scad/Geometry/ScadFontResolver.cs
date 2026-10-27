@@ -35,15 +35,26 @@ internal sealed record ScadResolvedFont(TrueTypeFont Font, ScadFontSource Source
 internal readonly record struct ScadFontSpec(string Family, bool Bold, bool Italic);
 
 /// <summary>
+///     One face of a font file found in an additional font directory.
+/// </summary>
+/// <param name="Family">The family name of the face (the file name without its extension when the font has none).</param>
+/// <param name="Bold">Whether the face is bold.</param>
+/// <param name="Italic">Whether the face is italic.</param>
+/// <param name="FilePath">The path of the font file.</param>
+/// <param name="FaceIndex">The index of the face within the file (zero for a file that is not a collection).</param>
+internal readonly record struct ScadFontFace(string Family, bool Bold, bool Italic, string FilePath, int FaceIndex);
+
+/// <summary>
 ///     Resolves the <c>font</c> argument of <c>text()</c> to a font, deterministically and without ever failing.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Why a resolver.</b> Font discovery scans directories and loading a font parses a file, so both are
 ///         done at most once per build: the resolver is owned by the build context, remembers the faces found in the
-///         additional directories and every font it has loaded, and answers repeated requests from memory. It
-///         reuses <see cref="SystemFontCatalog"/> for scanning and for the family and style scoring, so the
-///         rules are the ones the rest of the library uses.
+///         additional directories and every font it has loaded, and answers repeated requests from memory. It uses
+///         only the public font API of the core package: <see cref="TrueTypeFont"/> to read the files of the
+///         additional directories (so that a file that does not parse is skipped), and
+///         <see cref="SystemFontCatalog"/> for the installed fonts and the bundled fonts.
 ///     </para>
 ///     <para>
 ///         <b>Order.</b> No font argument (or one with no family) is the bundled Liberation Sans Regular (or the
@@ -52,8 +63,16 @@ internal readonly record struct ScadFontSpec(string Family, bool Bold, bool Ital
 ///         bundled families (<c>Liberation Sans</c>, <c>Liberation Serif</c>, <c>Liberation Mono</c> and the generic
 ///         names <c>sans-serif</c>, <c>serif</c> and <c>monospace</c>). Only an exact family match counts (ignoring
 ///         case): the generic substitution of the catalog is deliberately not used, because it would make the result
-///         depend on what the host has installed. A family that is found nowhere resolves to the bundled sans font
-///         with a warning; so does a face that was found but cannot be loaded.
+///         depend on what the host has installed. Within a family the face whose bold and italic flags differ least
+///         from the request wins, and the first one found wins a tie. A family that is found nowhere resolves to the
+///         bundled sans font with a warning; so does a face that was found but cannot be loaded.
+///     </para>
+///     <para>
+///         <b>Additional directories.</b> Each directory is searched recursively (a link to another directory is not
+///         followed) for <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c> and <c>.otc</c> files, in the order of the directories
+///         and, within a directory, in ordinal order of the full path, so the result never depends on the order the
+///         file system lists files in. A missing or unreadable directory, and a file or face that does not parse, are
+///         skipped without a diagnostic.
 ///     </para>
 ///     <para>
 ///         The resolver is used by one build on one thread and holds no state that outlives it.
@@ -80,7 +99,7 @@ internal sealed class ScadFontResolver
     private readonly Dictionary<(string Path, int Face), TrueTypeFont?> _loaded = [];
 
     /// <summary>The faces of the additional directories; <see langword="null"/> until the first lookup.</summary>
-    private IReadOnlyList<SystemFontInfo>? _additionalFaces;
+    private IReadOnlyList<ScadFontFace>? _additionalFaces;
 
     /// <summary>
     ///     Initializes a resolver.
@@ -161,10 +180,10 @@ internal sealed class ScadFontResolver
 
         // The additional directories come first, then the installed fonts; a face that cannot be loaded is reported
         string? failure = null;
-        var fromDirectories = FindExact(AdditionalFaces(), spec);
+        var fromDirectories = FindInDirectories(AdditionalFaces(), spec);
         if (fromDirectories is not null)
         {
-            var font = Load(fromDirectories.Value);
+            var font = Load(fromDirectories.Value.FilePath, fromDirectories.Value.FaceIndex);
             if (font is not null)
             {
                 return new ScadResolvedFont(font, ScadFontSource.AdditionalDirectory, null);
@@ -175,10 +194,10 @@ internal sealed class ScadFontResolver
 
         if (failure is null && _options.UseSystemFonts)
         {
-            var installed = FindExact(SystemFontCatalog.Fonts, spec);
+            var installed = FindInstalled(spec);
             if (installed is not null)
             {
-                var font = Load(installed.Value);
+                var font = Load(installed.Value.FilePath, installed.Value.FaceIndex);
                 if (font is not null)
                 {
                     return new ScadResolvedFont(font, ScadFontSource.System, null);
@@ -202,42 +221,178 @@ internal sealed class ScadFontResolver
     }
 
     /// <summary>
-    ///     Finds the face of a candidate list that has exactly the requested family, in the closest style.
+    ///     Finds the face of the additional directories that has exactly the requested family, in the closest style.
     /// </summary>
-    /// <param name="candidates">The candidates.</param>
+    /// <param name="faces">The faces of the additional directories, in search order.</param>
     /// <param name="spec">The request.</param>
-    /// <returns>The face, or <see langword="null"/> when no candidate has the family.</returns>
-    private static SystemFontInfo? FindExact(IReadOnlyList<SystemFontInfo> candidates, ScadFontSpec spec)
+    /// <returns>The face, or <see langword="null"/> when no face has the family.</returns>
+    private static ScadFontFace? FindInDirectories(IReadOnlyList<ScadFontFace> faces, ScadFontSpec spec)
+    {
+        // The score is the number of style flags that differ; the first face found wins a tie
+        ScadFontFace? best = null;
+        var bestScore = int.MaxValue;
+        foreach (var face in faces)
+        {
+            if (!Is(face.Family, spec.Family))
+            {
+                continue;
+            }
+
+            var score = (face.Bold != spec.Bold ? 1 : 0) + (face.Italic != spec.Italic ? 1 : 0);
+            if (score < bestScore)
+            {
+                best = face;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    ///     Finds the installed face that has exactly the requested family, in the closest style.
+    /// </summary>
+    /// <param name="spec">The request.</param>
+    /// <returns>The face, or <see langword="null"/> when no installed font has the family.</returns>
+    private static SystemFontInfo? FindInstalled(ScadFontSpec spec)
     {
         // The catalog may answer with a generic substitute when the family is absent; only the family itself counts
-        var match = SystemFontCatalog.FindBestMatchAmong(candidates, spec.Family, spec.Bold, spec.Italic, serif: false, fixedPitch: false);
-        return match is not null && string.Equals(match.Value.FamilyName, spec.Family, StringComparison.OrdinalIgnoreCase) ? match : null;
+        var match = SystemFontCatalog.FindBestMatch(spec.Family, spec.Bold, spec.Italic, serif: false, fixedPitch: false);
+        return match is not null && Is(match.Value.FamilyName, spec.Family) ? match : null;
     }
 
     /// <summary>
     ///     Gets the faces of the additional directories, scanning them on the first call.
     /// </summary>
     /// <returns>The faces; empty when there are no directories.</returns>
-    private IReadOnlyList<SystemFontInfo> AdditionalFaces()
+    private IReadOnlyList<ScadFontFace> AdditionalFaces()
     {
-        if (_additionalFaces is null)
-        {
-            _additionalFaces = _options.AdditionalDirectories.Count == 0
-                ? []
-                : SystemFontCatalog.DiscoverFonts(_options.AdditionalDirectories);
-        }
-
+        _additionalFaces ??= ScanDirectories(_options.AdditionalDirectories);
         return _additionalFaces;
     }
 
     /// <summary>
+    ///     Reads the faces of the font files of a list of directories.
+    /// </summary>
+    /// <param name="directories">The directories, in search order.</param>
+    /// <returns>The faces, in the order of the directories and then of the ordinal order of the file paths.</returns>
+    private static List<ScadFontFace> ScanDirectories(IReadOnlyList<string> directories)
+    {
+        var faces = new List<ScadFontFace>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var directory in directories)
+        {
+            // Sorted so that the result does not depend on the order the file system lists the files in
+            var files = new List<string>();
+            CollectFontFiles(directory, files);
+            files.Sort(StringComparer.Ordinal);
+            foreach (var file in files.Where(seen.Add))
+            {
+                AddFaces(file, faces);
+            }
+        }
+
+        return faces;
+    }
+
+    /// <summary>
+    ///     Collects the font files of a directory and of its subdirectories (except links), skipping what cannot be read.
+    /// </summary>
+    /// <param name="root">The directory; nothing is collected when it does not exist.</param>
+    /// <param name="files">The list to add the paths to.</param>
+    private static void CollectFontFiles(string root, List<string> files)
+    {
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        var pending = new Stack<string>();
+        pending.Push(Path.GetFullPath(root));
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            try
+            {
+                files.AddRange(Directory.GetFiles(directory).Where(IsFontFile));
+                // A link can point back at an ancestor, so links are not followed
+                foreach (var subdirectory in Directory.GetDirectories(directory).Where(d => !new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.ReparsePoint)))
+                {
+                    pending.Push(subdirectory);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A directory that cannot be listed contributes nothing
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Reports whether a file name has the extension of a font file the font loader supports.
+    /// </summary>
+    /// <param name="file">The file path.</param>
+    /// <returns><see langword="true"/> for <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c> and <c>.otc</c> in any case.</returns>
+    private static bool IsFontFile(string file)
+    {
+        var extension = Path.GetExtension(file);
+        return Is(extension, ".ttf") || Is(extension, ".otf") || Is(extension, ".ttc") || Is(extension, ".otc");
+    }
+
+    /// <summary>
+    ///     Reads the faces of one font file, skipping the file or the face when it does not parse.
+    /// </summary>
+    /// <param name="file">The font file.</param>
+    /// <param name="faces">The list to add the faces to.</param>
+    private static void AddFaces(string file, List<ScadFontFace> faces)
+    {
+        int count;
+        try
+        {
+            count = TrueTypeFont.GetFaceCount(file);
+        }
+        catch (Exception ex) when (IsSkippable(ex))
+        {
+            return;
+        }
+
+        for (var index = 0; index < count; index++)
+        {
+            try
+            {
+                var font = TrueTypeFont.Load(file, index);
+                var family = font.GetNameInfo().FamilyName;
+                faces.Add(new ScadFontFace(
+                    string.IsNullOrEmpty(family) ? Path.GetFileNameWithoutExtension(file) : family,
+                    font.IsBold,
+                    font.IsItalic,
+                    file,
+                    index));
+            }
+            catch (Exception ex) when (IsSkippable(ex))
+            {
+                // A face that does not parse is not offered
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Reports whether an exception means that a font file is missing, unreadable or damaged.
+    /// </summary>
+    /// <param name="ex">The exception.</param>
+    /// <returns><see langword="true"/> when the file should be skipped (or reported) rather than the build failed.</returns>
+    private static bool IsSkippable(Exception ex) =>
+        ex is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or OverflowException;
+
+    /// <summary>
     ///     Loads a face, remembering the outcome (a face that failed to load is not tried again).
     /// </summary>
-    /// <param name="face">The face.</param>
+    /// <param name="path">The font file.</param>
+    /// <param name="faceIndex">The index of the face in the file.</param>
     /// <returns>The font, or <see langword="null"/> when it cannot be loaded.</returns>
-    private TrueTypeFont? Load(SystemFontInfo face)
+    private TrueTypeFont? Load(string path, int faceIndex)
     {
-        var key = (face.FilePath, face.FaceIndex);
+        var key = (path, faceIndex);
         if (_loaded.TryGetValue(key, out var cached))
         {
             return cached;
@@ -246,9 +401,9 @@ internal sealed class ScadFontResolver
         TrueTypeFont? font;
         try
         {
-            font = TrueTypeFont.Load(face.FilePath, face.FaceIndex);
+            font = TrueTypeFont.Load(path, faceIndex);
         }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or OverflowException)
+        catch (Exception ex) when (IsSkippable(ex))
         {
             // A damaged, vanished or unreadable file is the model author's problem to hear about, not a crash
             font = null;

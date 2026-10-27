@@ -43,9 +43,12 @@ sections:
                   The ScadTextGeometry unit shall use the bundled Liberation Sans Regular font when no font is
                   named, whatever fonts the host has, and shall resolve a font argument of the form Family or
                   Family:style=Bold Italic (case-insensitive style words) by searching the additional
-                  directories, then the installed fonts when enabled, then the bundled Liberation families and
+                  directories (searched recursively, in the order given and in ordinal path order within a
+                  directory, skipping missing directories and font files that do not parse), then the
+                  installed fonts when enabled, then the bundled Liberation families and
                   the generic names sans-serif, serif, and monospace, accepting only an exact family match
-                  (case aside), and shall fall back to the bundled sans font with one located warning when the
+                  (case aside, the closest bold and italic style, the first face winning a tie), and shall
+                  fall back to the bundled sans font with one located warning when the
                   family is missing or its face cannot be loaded.
                 justification: |
                   A model that names no font must render identically on every machine; an explicit font must
@@ -55,6 +58,9 @@ sections:
                   - ScadTextGeometry_Build_DefaultFontUsesBundledLiberationSansWhenSystemFontsDisabled
                   - ScadTextGeometry_Build_FontSpecParsesFamilyAndBoldItalicStyle
                   - ScadTextGeometry_Build_MissingFontFallsBackToBundledWithWarning
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
+                  - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
                   - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
                   - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
 

@@ -240,68 +240,6 @@ public class SystemFontCatalogTests
     }
 
     /// <summary>
-    ///     Proves that the public explicit-directory discovery finds the well-formed faces of the
-    ///     directories it is given (recursively), skips a missing root without throwing, and
-    ///     rejects a null argument.
-    /// </summary>
-    [Fact]
-    public void SystemFontCatalog_Discover_ExplicitRootsFindsValidFacesAndSkipsMissingRoots()
-    {
-        // Arrange: a missing root, and a root holding a styled font plus a nested subdirectory font
-        var missingRoot = Path.Join(Path.GetTempPath(), "canvasnet-test-discover-missing-" + Guid.NewGuid());
-        var root = Directory.CreateDirectory(
-            Path.Join(Path.GetTempPath(), "canvasnet-test-discover-" + Guid.NewGuid())).FullName;
-
-        try
-        {
-            var nested = Directory.CreateDirectory(Path.Join(root, "nested")).FullName;
-            File.WriteAllBytes(Path.Join(root, "Alpha.ttf"), BuildStyledFont("Alpha", "Regular", 400, 0x40, 0));
-            File.WriteAllBytes(Path.Join(nested, "Beta.ttf"), BuildStyledFont("Beta", "Bold Italic", 700, 0x21, 1));
-
-            // Act
-            var result = SystemFontCatalog.DiscoverFonts([missingRoot, root]);
-
-            // Assert: both faces were found with their metadata, nothing else, and null is rejected
-            Assert.Equal(2, result.Count);
-            Assert.Contains(result, f => f.FamilyName == "Alpha" && !f.Bold && !f.Italic);
-            Assert.Contains(result, f => f.FamilyName == "Beta" && f.Bold && f.Italic && f.FilePath == Path.Join(nested, "Beta.ttf"));
-            Assert.Throws<ArgumentNullException>(() => SystemFontCatalog.DiscoverFonts(null!));
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    /// <summary>
-    ///     Proves that the public candidate-list overload of <see cref="SystemFontCatalog.FindBestMatchAmong"/>
-    ///     prefers the exact family and style, falls back to the closest style, and rejects null arguments.
-    /// </summary>
-    [Fact]
-    public void SystemFontCatalog_FindBestMatch_ExplicitCandidatesUsesExactFamilyAndStyle()
-    {
-        // Arrange: two families, each with a regular and a bold face
-        SystemFontInfo[] candidates =
-        [
-            new("Alpha", "Regular", false, false, false, "/alpha-regular.ttf", 0),
-            new("Beta", "Regular", false, false, false, "/beta-regular.ttf", 0),
-            new("Beta", "Bold", true, false, false, "/beta-bold.ttf", 0),
-        ];
-
-        // Act
-        var exact = SystemFontCatalog.FindBestMatchAmong(candidates, "beta", bold: true, italic: false, serif: false, fixedPitch: false);
-        var closest = SystemFontCatalog.FindBestMatchAmong(candidates, "Beta", bold: true, italic: true, serif: false, fixedPitch: false);
-        var none = SystemFontCatalog.FindBestMatchAmong(candidates, "Gamma", bold: false, italic: false, serif: false, fixedPitch: false);
-
-        // Assert
-        Assert.Equal("/beta-bold.ttf", exact!.Value.FilePath);
-        Assert.Equal("/beta-bold.ttf", closest!.Value.FilePath);
-        Assert.Null(none);
-        Assert.Throws<ArgumentNullException>(() => SystemFontCatalog.FindBestMatchAmong(null!, "Beta", false, false, false, false));
-        Assert.Throws<ArgumentNullException>(() => SystemFontCatalog.FindBestMatchAmong(candidates, null!, false, false, false, false));
-    }
-
-    /// <summary>
     ///     Proves that an unparseable candidate file (garbage bytes with a recognized font
     ///     extension) is silently skipped, while a sibling valid font file in the same directory
     ///     is still discovered.

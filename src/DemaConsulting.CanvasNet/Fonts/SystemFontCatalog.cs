@@ -1,4 +1,4 @@
-// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned rescans Segoe LOCALAPPDATA Noto Zapf
+// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
 using System.Runtime.InteropServices;
 
 namespace DemaConsulting.CanvasNet.Fonts;
@@ -190,63 +190,6 @@ public static class SystemFontCatalog
         bool serif,
         bool fixedPitch) =>
         FindBestMatchCore(Fonts, familyNameHint, bold, italic, serif, fixedPitch);
-
-    /// <summary>
-    ///     Finds the closest-matching font among an explicit, caller-supplied candidate list (for
-    ///     example the result of <see cref="DiscoverFonts"/>), with exactly the same two-tier
-    ///     family-name/style scoring as <see cref="FindBestMatch"/>.
-    /// </summary>
-    /// <remarks>
-    ///     This overload exists so a caller that manages its own font directories (for example a
-    ///     renderer that lets a user add a private font folder) can reuse this class's scoring
-    ///     instead of duplicating it. It never reads <see cref="Fonts"/>, performs no I/O, and
-    ///     does not mutate <paramref name="candidates"/>, so it is safe to call concurrently.
-    ///     Because tier 2 may return a well-known generic family when the requested family is
-    ///     absent, a caller that needs an exact family must compare
-    ///     <see cref="SystemFontInfo.FamilyName"/> with its request itself.
-    /// </remarks>
-    /// <param name="candidates">The candidate fonts to search; must not be <see langword="null"/>.</param>
-    /// <param name="familyNameHint">A plain font family name to match (see <see cref="FindBestMatch"/>).</param>
-    /// <param name="bold">Whether a bold style is requested.</param>
-    /// <param name="italic">Whether an italic style is requested.</param>
-    /// <param name="serif">Whether a serif design is requested (tier 2 only).</param>
-    /// <param name="fixedPitch">Whether a fixed-pitch design is requested (tier 2 only).</param>
-    /// <returns>The best match, or <see langword="null"/> when the list has neither an exact family nor a generic-bucket match.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="candidates"/> or <paramref name="familyNameHint"/> is <see langword="null"/>.</exception>
-    public static SystemFontInfo? FindBestMatchAmong(
-        IReadOnlyList<SystemFontInfo> candidates,
-        string familyNameHint,
-        bool bold,
-        bool italic,
-        bool serif,
-        bool fixedPitch)
-    {
-        ArgumentNullException.ThrowIfNull(candidates);
-        ArgumentNullException.ThrowIfNull(familyNameHint);
-        return FindBestMatchCore(candidates, familyNameHint, bold, italic, serif, fixedPitch);
-    }
-
-    /// <summary>
-    ///     Discovers the fonts in an explicit, caller-supplied set of directories (searched
-    ///     recursively), reading only each face's header metadata, without consulting
-    ///     <see cref="Fonts"/> or the host's well-known font directories.
-    /// </summary>
-    /// <remarks>
-    ///     The scan is exactly as tolerant as the one behind <see cref="Fonts"/>: a missing or
-    ///     inaccessible directory, a symlinked subdirectory, or an unparseable file is silently
-    ///     skipped. Nothing is cached, so every call rescans the directories; callers that
-    ///     discover repeatedly should keep the result. Results follow directory enumeration order
-    ///     per root, roots in the order given. The method reads the file system only and keeps
-    ///     no shared state, so it is safe to call concurrently.
-    /// </remarks>
-    /// <param name="directories">The directory roots to scan; must not be <see langword="null"/> (null or empty entries are skipped).</param>
-    /// <returns>Every well-formed face found; empty when nothing was found.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="directories"/> is <see langword="null"/>.</exception>
-    public static IReadOnlyList<SystemFontInfo> DiscoverFonts(IEnumerable<string> directories)
-    {
-        ArgumentNullException.ThrowIfNull(directories);
-        return BuildCatalogFromRoots(directories);
-    }
 
     /// <summary>
     ///     Loads (and process-lifetime-caches) the closest-matching bundled Liberation

@@ -29,10 +29,10 @@ Every expectation is an **analytic property computed in the test**, never a reco
   hole that crosses its solid, a bow tie), and the real glyphs `O` and `Å` check the normalization of holes and the
   split of composite glyphs; an exhaustive test builds every printable character of Basic Latin and Latin-1 in all
   twelve bundled faces and asserts no report.
-- **Font resolution.** `ScadFontResolver` is tested directly (`ParseSpec`, `Resolve` with synthetic options and a
-  temporary directory holding a copy of a bundled font) and through the module. All explicit-font tests set
-  `UseSystemFonts = false`, so they never depend on the host's fonts; the default-font tests run with the system
-  fonts enabled and prove that they are not consulted.
+- **Font resolution.** `ScadFontResolver` is tested directly (`ParseSpec`, `Resolve` with synthetic options and
+  temporary directories holding copies of bundled fonts, garbage files, and missing directories) and through the
+  module. All explicit-font tests set `UseSystemFonts = false`, so they never depend on the host's fonts; the
+  default-font tests run with the system fonts enabled and prove that they are not consulted.
 - **Integration.** Builds of complete programs show that the flat result is consumed by `linear_extrude`,
   `rotate_extrude`, a 2D `difference`, `hull`, `color`, a 3D transform, and the slab of a top-level shape, that the
   meshes are closed, and that the volume of an extruded `H` is its outline area times the height. The subsystem and
@@ -42,9 +42,10 @@ Every expectation is an **analytic property computed in the test**, never a reco
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
-- **Mocking**: None; the evaluator, the Render3D regions, and the core `Fonts` subsystem are the real implementations
-- **Files**: A temporary directory with a copy of one bundled font is created and deleted by two tests; every program
-  is an in-memory string
+- **Mocking**: None; the evaluator, the Render3D regions, and the core `Fonts` and `Geometry` subsystems are the real
+  implementations
+- **Files**: Temporary directories with copies of bundled fonts and with garbage files are created and deleted by
+  five tests; every program is an in-memory string
 - **Fonts**: Only the bundled Liberation fonts and fonts copied from them; no test depends on an installed font
 - **Isolation**: Each test builds its own program, context, and resolver; no state is shared between tests
 
@@ -72,6 +73,9 @@ is converted like `str()` (the text `12` equals the text `"12"`).
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_DefaultFontUsesBundledLiberationSansWhenSystemFontsDisabled`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_FontSpecParsesFamilyAndBoldItalicStyle`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_MissingFontFallsBackToBundledWithWarning`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles`,
 `ScadRenderOptionsTests.ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories`,
 `ScadRenderSystemTests.ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled`
 
@@ -80,7 +84,12 @@ off and with the family named explicitly; that the documented forms of the font 
 family and flags (case, spacing, other keys, empty); that the bold face is the bundled bold outline; that an
 unknown family gives one warning at the instance naming the family and the sans outline, while a generic name is
 silent and gives the bundled serif outline; that a directory holding a bold serif face is searched first and
-matched case-insensitively with the closest style; that the directory list is copied and a later change of the
+matched case-insensitively with the closest style; that an additional directory is searched recursively (a face in a
+subdirectory with an upper case extension is found), the exact family and style win, the first face in directory
+order and then ordinal path order wins a tie, and the result is the same on every run; that a missing directory, a
+garbage `.ttf`, an empty `.otf`, and a font with another extension are skipped without a failure and without being
+offered (so the family of a damaged file is "not available" with a warning); that the directory list is copied and a
+later change of the
 caller's list has no effect; and, through the public options, that the directory reaches the geometry (the text
 differs from the bundled one). The system test pins literal font-unit metrics of Liberation Sans Regular.
 
