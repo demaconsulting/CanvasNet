@@ -12,8 +12,9 @@ in the `DemaConsulting.CanvasNet.Scad` namespace:
 - `ScadTextGeometry.Flattening.cs` — the reference height of a font, and the iterative flattening of glyph outlines
   into polygon contours
 - `ScadFontResolver.cs` — `ScadFontResolver`: parsing of the `font` argument and the deterministic resolution of a
-  font (owned by the build context, one per build), with `ScadFontSpec`, `ScadResolvedFont`, `ScadFontSource`, and
-  `ScadFontFace` (one face found in an additional directory)
+  font (owned by the build context, one per build, built with the cancellation token of the build), with
+  `ScadFontSpec`, `ScadResolvedFont`, `ScadFontSource`, `ScadFontScanLimits` (the bounds of the directory scan),
+  and `ScadFontFace` (one face found in an additional directory)
 - `ScadFontResolutionOptions.cs` (namespace `DemaConsulting.CanvasNet.Scad`) — the public options type that
   `ScadRenderOptions.FontResolution` carries
 
@@ -33,7 +34,8 @@ The dialect decisions of the unit are original decisions of the CanvasNetScad di
 Design_, Clean-Room Provenance), pinned by tests; no OpenSCAD source, test, or manual text was consulted, and no
 parity with any other implementation's text metrics is claimed. The behavior is specified by the
 `CanvasNetScad-ScadGeometry-ScadTextGeometry-*` requirements (`Arguments`, `FontResolution`, `Size`, `Layout`,
-`Alignment`, `Glyphs`, `Contours`, `Flat2D`, `Invalid`, `Budget`, `Cancellation`, and `Determinism`) in
+`Alignment`, `Glyphs`, `Contours`, `Flat2D`, `Invalid`, `Budget`, `Cancellation`, `FontResolutionSafety`, and
+`Determinism`) in
 `docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml`.
 
 #### Data Model
@@ -72,7 +74,9 @@ The scale from font design units to model units is `scale = size / referenceHeig
 font is the ink height of the glyph `H`, measured on its outline flattened with a fixed fine tolerance
 (`unitsPerEm / 4096`), so that an upper case `H` is exactly `size` tall on the baseline. When the font has no
 usable `H` (not mapped, no outline), the reference height is the larger of the absolute `Ascender` and
-`unitsPerEm`, and it is never zero. This is a deterministic per-font cap-height rule and the documented
+`unitsPerEm`, and it is never zero. The measurement polls cancellation before it starts and after every flattened
+subpath, so a canceled build does not wait for the reference glyph of a hostile font. This is a deterministic
+per-font cap-height rule and the documented
 approximation of the way other tools relate a text size to a font; it is not a claim of identical sizes. For the
 bundled Liberation Sans Regular (2048 units per em) the `H` is 1409 units high, so `size = 14.09` makes one font
 unit exactly 0.01 model units (a value pinned by a system test).
@@ -120,7 +124,11 @@ segments per curve, a bound on the work of a hostile outline). The tolerance in 
 it is divided by the scale to give the tolerance in font units; the default fragment settings give about 1% of
 the size for a size of 10. Consecutive duplicate vertices and a closing duplicate are dropped; a subpath with
 fewer than three vertices or no area is dropped; an unreadable glyph (`InvalidDataException`) is reported as
-`scad-text-invalid-outline`. The flattened contours of a glyph are cached per glyph index for the instance
+`scad-text-invalid-outline`. A glyph that has drawing subpaths but keeps none of them (every subpath dropped) is
+**degenerate**, which is not the same as an empty outline: a mapped degenerate glyph is reported as
+`scad-text-invalid-outline` and omits the whole text, whereas an empty outline (a space) just advances the pen
+(`.notdef` keeps its skip-with-a-warning behavior). Cancellation is polled after every flattened subpath. The
+flattened contours of a glyph are cached per glyph index for the instance
 and are moved to their pen position by `Place`, which allocates new arrays.
 
 ##### Contours
@@ -164,12 +172,22 @@ fails:
    without a `font` reproducible.
 2. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build, only
    when a family is named, by the resolver itself with the public `TrueTypeFont` API: each directory in the order
-   given is searched recursively (links are not followed) for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
+   given is searched recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
    order of the full path within a directory, so the result never depends on the order the file system lists
    files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
    faceIndex)`, taking the family from `GetNameInfo().FamilyName` (the file name without extension when the font
-   has none) and the style from `IsBold` and `IsItalic`. A missing or unreadable directory, a file that does not
-   parse, and a face that does not parse are skipped without a diagnostic.
+   has none) and the style from `IsBold` and `IsItalic`. A missing, malformed, or unreadable directory, a file that
+   does not parse, and a face that does not parse are skipped without a diagnostic. The scan is **safe and
+   bounded**: a reparse point is never followed, whether it is a root or a subdirectory (a root that is a link is
+   not scanned); path, metadata, enumeration, and access failures (`IOException` including too-long paths and
+   races with deletion, `UnauthorizedAccessException`, `ArgumentException`, `NotSupportedException`,
+   `SecurityException`) skip that path or directory only; subdirectories are visited depth first in ordinal
+   order; and `ScadFontScanLimits` (internal; defaults of 10,000 directories, 200,000 entries, 5,000 font files,
+   and 20,000 faces, all far above a real font collection) stops the scan at the first bound reached, keeping the
+   faces found before it (which is deterministic except for the entry bound inside one directory, where the order
+   is the file system's). The scan polls the cancellation token of the build (the resolver is constructed by
+   `ScadGeometryContext` with it) before each root, directory, entry, file, and face, so a canceled build stops
+   with `OperationCanceledException` instead of completing the scan.
 3. **The installed fonts** when `UseSystemFonts` is `true` (the default): `SystemFontCatalog.FindBestMatch`, which
    scans the host's font directories at most once per process and only when a model asks for a font that step 2 did
    not find.
@@ -200,7 +218,8 @@ so a model without `text` pays nothing.
 - **Warnings** (instance empty): the invalid arguments above, a text that is too large, and (instance kept) an
   unknown argument, a surplus argument, a repeated argument, and a child object; also the font warning (the
   bundled sans font is used) and the missing-glyph warning (those characters are skipped).
-- **Unsupported features** (the whole `text` omitted): `scad-text-invalid-outline` and
+- **Unsupported features** (the whole `text` omitted): `scad-text-invalid-outline` (a damaged outline, or a mapped
+  glyph whose subpaths all lack an area) and
   `scad-text-overlapping-contours`; in strict mode the first of them throws `ScadUnsupportedFeatureException`.
   `text` itself is never reported as unsupported.
 - **Errors**: `ScadEvaluationException` with the instance's location when the lower bound of the slab of the
@@ -208,7 +227,8 @@ so a model without `text` pays nothing.
   the triangle budget. The exact charging of the slab or extrusion belongs to `ScadExtrusions` and works on the
   returned shape like for any other 2D shape.
 - **Cancellation**: `OperationCanceledException` (never wrapped), polled before the font is resolved and the text
-  laid out, after every glyph, after every flattened contour, and before every glyph's regions are built.
+  laid out, while the font directories are scanned, while the reference glyph is flattened, after every glyph,
+  after every flattened contour, and before every glyph's regions are built.
 
 `textmetrics()` and `fontmetrics()` stay recognized-but-unsupported evaluator functions (see _ScadBuiltinFunctions
 Unit Design_); they are not part of this unit.

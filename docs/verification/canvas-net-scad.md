@@ -434,7 +434,9 @@ identical to the image of the difference of the extrusions; that with the system
 font-unit metrics of Liberation Sans Regular (an `H` 1409 units high and 1144 wide with an advance of 1479, so the
 bounds of `HI` at size 14.09 are 16.91 by 14.09) hold for the default and the explicitly named family; and that the
 text fixture renders without a warning or an unsupported report and byte-identically on repeated renders and with
-one and four degrees of parallelism.
+one and four degrees of parallelism. Malformed mapped glyph outlines (reported as `scad-text-invalid-outline`) and the
+bounded, link-safe, cancellable scan of explicit font directories are covered by the unit evidence of
+`ScadTextGeometry`, not repeated here.
 
 ### Transparency: Colors With Alpha, Ghosts, And Highlights
 

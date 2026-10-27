@@ -138,7 +138,7 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
 | `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
-| `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
+| `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
 | `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
 | `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D) or no area (2D) | The hull is omitted |
@@ -222,7 +222,10 @@ designs.
 12. **Text.** `text` is built by `ScadTextGeometry` into a flat 2D shape (a union of one region leaf per glyph
     component), so it is a 2D operand of everything that accepts 2D shapes. Its dialect decisions (size is the ink
     height of `H`, no shaping, `language` and `script` ignored, alignment by the measured ink extents, the
-    font resolution order, the bundled Liberation Sans default) are in _ScadTextGeometry Unit Design_.
+    font resolution order, the bundled Liberation Sans default) are in _ScadTextGeometry Unit Design_. A mapped
+    glyph whose outline has no area is reported as `scad-text-invalid-outline` rather than dropped (an empty glyph
+    such as a space just advances), and the scan of the additional font directories is bounded, does not follow
+    links, and honors cancellation.
 
 #### Fragment Rule
 

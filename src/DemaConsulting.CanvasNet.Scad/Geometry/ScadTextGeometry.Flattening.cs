@@ -30,11 +30,15 @@ internal static partial class ScadTextGeometry
     ///     its absolute ascender and its units per em, so a text always has a positive scale.
     /// </remarks>
     /// <param name="font">The font.</param>
+    /// <param name="context">The context polled for cancellation before and during the flattening of the reference glyph.</param>
     /// <returns>The reference height in font design units; always finite and greater than zero.</returns>
-    internal static double ReferenceHeight(TrueTypeFont font)
+    /// <exception cref="OperationCanceledException">Thrown when the build is canceled.</exception>
+    internal static double ReferenceHeight(TrueTypeFont font, ScadGeometryContext context)
     {
+        // The reference outline is flattened at a fine tolerance, so cancellation gets its chance before the work starts
+        context.Poll();
         var glyph = font.GetGlyphIndex(ReferenceCodePoint);
-        if (glyph != 0 && TryFlatten(font, glyph, font.UnitsPerEm * ReferenceToleranceEm, null, out var contours) && contours.Length > 0)
+        if (glyph != 0 && TryFlatten(font, glyph, font.UnitsPerEm * ReferenceToleranceEm, context, out var contours, out _) && contours.Length > 0)
         {
             var heights = contours.SelectMany(contour => contour).Select(point => point.Y).ToArray();
             var height = heights.Max() - heights.Min();
@@ -56,16 +60,20 @@ internal static partial class ScadTextGeometry
     ///     until the control points are within <paramref name="tolerance"/> of the chord (or the depth bound is
     ///     reached), always in the same order, so the result is deterministic. Every subpath is implicitly closed.
     ///     A subpath with fewer than three distinct vertices or no area has no ink and is dropped; an empty outline
-    ///     (a space) gives no contours.
+    ///     (a space) gives no contours and is not degenerate, whereas an outline whose subpaths are all dropped is
+    ///     reported through <paramref name="degenerate"/> so the caller can tell it from a space.
     /// </remarks>
     /// <param name="font">The font.</param>
     /// <param name="glyph">The glyph index.</param>
     /// <param name="tolerance">The largest distance between a curve and its flattening, in font units; greater than zero.</param>
-    /// <param name="context">The context polled for cancellation after every contour, or <see langword="null"/> to not poll.</param>
+    /// <param name="context">The context polled for cancellation after every contour.</param>
     /// <param name="contours">The contours; empty when the glyph has no outline.</param>
+    /// <param name="degenerate"><see langword="true"/> when the outline has drawing subpaths but none of them has ink.</param>
     /// <returns><see langword="false"/> when the glyph outline is damaged and cannot be read.</returns>
-    private static bool TryFlatten(TrueTypeFont font, int glyph, double tolerance, ScadGeometryContext? context, out Vector2D[][] contours)
+    /// <exception cref="OperationCanceledException">Thrown when the build is canceled.</exception>
+    private static bool TryFlatten(TrueTypeFont font, int glyph, double tolerance, ScadGeometryContext context, out Vector2D[][] contours, out bool degenerate)
     {
+        degenerate = false;
         GeometryPath outline;
         try
         {
@@ -78,6 +86,7 @@ internal static partial class ScadTextGeometry
         }
 
         var result = new List<Vector2D[]>();
+        var dropped = false;
         foreach (var subpath in outline.Subpaths)
         {
             var points = FlattenSubpath(subpath, tolerance);
@@ -85,10 +94,16 @@ internal static partial class ScadTextGeometry
             {
                 result.Add([.. points]);
             }
+            else if (subpath.Commands.Count > 0)
+            {
+                // A subpath that draws something but encloses nothing
+                dropped = true;
+            }
 
-            context?.Poll();
+            context.Poll();
         }
 
+        degenerate = dropped && result.Count == 0;
         contours = [.. result];
         return true;
     }

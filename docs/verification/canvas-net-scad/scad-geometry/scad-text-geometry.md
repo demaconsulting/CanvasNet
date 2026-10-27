@@ -44,9 +44,12 @@ Every expectation is an **analytic property computed in the test**, never a reco
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
 - **Mocking**: None; the evaluator, the Render3D regions, and the core `Fonts` and `Geometry` subsystems are the real
   implementations
-- **Files**: Temporary directories with copies of bundled fonts and with garbage files are created and deleted by
-  five tests; every program is an in-memory string
-- **Fonts**: Only the bundled Liberation fonts and fonts copied from them; no test depends on an installed font
+- **Files**: Temporary directories with copies of bundled fonts, a clean-room synthetic font, garbage files, and
+  (where the host can create them) directory links are created and deleted by the font-resolution and degenerate-glyph
+  tests; every program is an in-memory string. The link test skips itself when links cannot be created
+- **Fonts**: Only the bundled Liberation fonts, fonts copied from them, and a synthetic font made with the
+  clean-room `SyntheticFontBuilder` of the core tests (linked into the test project unchanged); no test depends on
+  an installed font
 - **Isolation**: Each test builds its own program, context, and resolver; no state is shared between tests
 
 #### Acceptance Criteria
@@ -141,14 +144,18 @@ test.
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours: Holes, Composite Glyphs, And Rejections
 
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_GlyphContours_NormalizeHolesAndRejectOverlaps`,
-`ScadTextGeometryTests.ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions`
+`ScadTextGeometryTests.ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline`
 
 Asserts that nested contours of equal winding make one region whose hole is clockwise and whose area is the outer
 area minus the hole; that overlapping solids split into two regions; that a hole crossing its solid is rejected
 as `scad-text-overlapping-contours` and a bow tie as `scad-text-invalid-outline`; that the real `O` is one
 counter-clockwise outline with a clockwise hole whose areas add up to the region area; that the composite `Å` is
-several regions without a report; and that all 190 printable characters of Basic Latin and Latin-1 in all twelve
-bundled faces build with no warning and no unsupported feature.
+several regions without a report; that all 190 printable characters of Basic Latin and Latin-1 in all twelve
+bundled faces build with no warning and no unsupported feature; and that a synthetic font with a usable box `H` and
+a mapped `D` whose only contour is collinear builds `HH` without a report but reports `HD` as one
+`scad-text-invalid-outline` at the instance, with an empty result and no warning (a degenerate mapped glyph is
+refused rather than silently dropped).
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Flat2D: Consumption As A 2D Shape
 
@@ -183,10 +190,29 @@ meshes) and that a budget of 20 triangles is refused with the located triangle-l
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Cancellation: Cancellation
 
-**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_Cancellation_IsPolledBeforeFlattening`
+**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_Cancellation_IsPolledBeforeFlattening`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_Cancellation_IsPolledDuringReferenceHeightFlattening`
 
 Asserts that a build with an already canceled token throws `OperationCanceledException` and reports and warns
-nothing.
+nothing, and that the measurement of the reference height (the flattening of the `H` that `size` is measured
+against) called directly with a canceled context throws `OperationCanceledException`, while the same measurement
+with a live context returns the exact ink height of the `H`.
+
+##### CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety: Safe, Bounded, Cancellable Font Scan
+
+**Tests**: `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped`
+
+Asserts that a root that is a directory link (a symbolic link or a junction) contributes nothing while the real
+directory listed beside it is found (the test skips itself where the host cannot create links); that a resolver
+with an already canceled token throws `OperationCanceledException` from its scan while a live token finds the font;
+that with explicit small bounds (one font file, one face, two directories, one entry) the scan keeps only what it
+reached first in ordinal order (the bold face rather than the italic one, or the bundled family when nothing was
+read) while the default bounds find the italic face; and that a path with a NUL character, an over-long path, a
+missing path, and a path that is a file are skipped without a failure and a valid directory listed after them is
+still scanned.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism: Reproducible Output
 

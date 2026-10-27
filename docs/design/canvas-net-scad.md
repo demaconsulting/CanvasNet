@@ -32,7 +32,9 @@ and the `#` and `%` modifiers as translucent overlays; the text delivery added `
 out with a TrueType font (the bundled Liberation Sans unless a font is named) into flat 2D shapes. The text
 dialect is deliberately simple and is CanvasNetScad's own: no shaping or ligatures, `language` and `script`
 accepted and ignored, simple vertical directions, `size` as the ink height of `H`, and alignment by the measured
-ink extents; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry Unit Design_).
+ink extents; unusable mapped glyph outlines are reported rather than silently dropped, and the scan of explicit font
+directories is bounded and cancellable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
+Unit Design_).
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 

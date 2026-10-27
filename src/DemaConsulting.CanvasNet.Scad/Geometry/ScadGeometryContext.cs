@@ -93,7 +93,7 @@ internal sealed class ScadGeometryContext
     ///     Gets the font resolver of this build, created on first use so that a model without <c>text()</c> pays
     ///     nothing; it caches the scanned font directories and the loaded fonts for every <c>text()</c> of the build.
     /// </summary>
-    public ScadFontResolver FontResolver => _fontResolver ??= new ScadFontResolver(_settings.FontResolution);
+    public ScadFontResolver FontResolver => _fontResolver ??= new ScadFontResolver(_settings.FontResolution, _settings.Cancellation);
 
     /// <summary>Gets the slab thickness of a top-level 2D shape.</summary>
     public double FlatShapeThickness => _settings.FlatShapeThickness;

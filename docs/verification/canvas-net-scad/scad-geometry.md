@@ -34,7 +34,8 @@ which are used for real. The subsystem is internal, so its tests reach it throug
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
 - **Mocking**: None required
-- **Files**: None; every program is an in-memory string
+- **Files**: None at the subsystem tier (the text unit's font-resolution tests use temporary directories, see
+  _ScadTextGeometry Unit Verification Design_); every subsystem program is an in-memory string
 - **Threads**: The deep-model scenario runs the build on dedicated threads with a 256 KiB and a 256 MiB stack and
   joins each before asserting
 - **Isolation**: Each test evaluates and builds its own program and settings; no state is shared between tests
@@ -85,7 +86,9 @@ framework.
   `ScadGeometryTests.ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion` — builds a
   `linear_extrude` of a difference of an `H` of size 10 and a square and asserts no warning and no unsupported
   feature, one boolean node of two closed extrusions, and for the first the exact Y extent 0 to 10 of the glyph
-  and the Z extent 0 to 2 of the extrusion.
+  and the Z extent 0 to 2 of the extrusion. That a mapped glyph with only degenerate outlines is reported as an invalid
+  outline rather than dropped, and that font discovery is bounded and cancellable, is verified at the unit tier
+  (see _ScadTextGeometry Unit Verification Design_).
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a
   program with a valid cube, an invalid cube, `surface`, `roof`, and an `offset` on consecutive lines

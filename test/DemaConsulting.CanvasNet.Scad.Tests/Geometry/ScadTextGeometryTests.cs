@@ -5,6 +5,7 @@ using DemaConsulting.CanvasNet.Render3D.Tessellation;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
@@ -674,6 +675,202 @@ public class ScadTextGeometryTests
         Assert.Throws<OperationCanceledException>(() => ScadTextGeometry.Build(output.Roots[0], context));
         Assert.Empty(sink.UnsupportedFeatures);
         Assert.Empty(sink.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Validates that the flattening of the reference glyph (the <c>H</c> that <c>size</c> is measured against)
+    ///     polls cancellation: a canceled context stops the reference-height measurement itself.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_Cancellation_IsPolledDuringReferenceHeightFlattening()
+    {
+        // Arrange: a canceled context, and a font whose H is flattened for the measurement
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+        var context = new ScadGeometryContext(Settings(cancellation: cts.Token), new ScadReporter(sink, false));
+
+        // Act / Assert: the measurement is stopped, and the same measurement completes with a live context
+        Assert.Throws<OperationCanceledException>(() => ScadTextGeometry.ReferenceHeight(Font, context));
+        var live = new ScadGeometryContext(Settings(cancellation: TestContext.Current.CancellationToken), new ScadReporter(sink, false));
+        var height = ScadTextGeometry.ReferenceHeight(Font, live);
+        var ink = InkOf('H');
+        Assert.Equal(ink.MaxY - ink.MinY, height, Tolerance);
+    }
+
+    /// <summary>
+    ///     Validates that a mapped glyph whose only subpath has no area (a collinear contour) is reported as an
+    ///     invalid outline and omits the whole text, whereas a glyph with a real outline in the same font builds.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline()
+    {
+        // Arrange: a font with a usable H (a 600 x 700 box), a mapped D with a collinear contour and an empty space
+        using var directory = new ScadTempDirectory();
+        var family = "Synthetic Degenerate";
+        WriteSyntheticFont(directory.Combine("synthetic.ttf"), family);
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
+        var resolved = new ScadFontResolver(options).Resolve(new ScadFontSpec(family, false, false));
+        Assert.Equal(ScadFontSource.AdditionalDirectory, resolved.Source);
+        Assert.NotEqual(0, resolved.Font.GetGlyphIndex('H'));
+        Assert.NotEqual(0, resolved.Font.GetGlyphIndex('D'));
+
+        // Act
+        var usable = Run($"text(\"HH\", font = \"{family}\");", options);
+        var degenerate = Run($"\n  text(\"HD\", font = \"{family}\");", options);
+
+        // Assert: the box glyphs build, the degenerate glyph is reported and omits everything
+        Assert.Empty(usable.Warnings);
+        Assert.Empty(usable.Unsupported);
+        Assert.Equal(2, usable.Regions.Count);
+        AssertBox(usable.Bounds, 0, 10.0 + (600.0 / 700.0 * 10.0), 0, 10);
+        Assert.Equal(ScadGeoKind.Empty, degenerate.Geo.Kind);
+        var feature = Assert.Single(degenerate.Unsupported);
+        Assert.Equal(ScadFeatureIds.TextInvalidOutline, feature.Feature);
+        Assert.Equal(new ScadSourceLocation(null, 2, 3), feature.Location);
+        Assert.Empty(degenerate.Warnings);
+    }
+
+    /// <summary>
+    ///     Validates that a directory that is itself a link (a reparse point) is not scanned, while a real
+    ///     directory listed beside it is.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored()
+    {
+        // Arrange: a real directory with a font, and a link to it (skipped where links cannot be created)
+        using var directory = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", directory.Combine("real/serif.ttf"));
+        var link = directory.Combine("link");
+        if (!ScadResolverTestSupport.TryCreateDirectoryLink(link, directory.Combine("real"), out var reason))
+        {
+            Assert.Skip("Directory links cannot be created in this environment: " + reason);
+        }
+
+        var spec = new ScadFontSpec("Liberation Serif", true, false);
+
+        // Act
+        var throughLink = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [link] }).Resolve(spec);
+        var throughBoth = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [link, directory.Combine("real")] }).Resolve(spec);
+
+        // Assert: the link contributes nothing (the bundled family answers), the real directory is found
+        Assert.Equal(ScadFontSource.Bundled, throughLink.Source);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, throughBoth.Source);
+    }
+
+    /// <summary>
+    ///     Validates that the scan of the additional directories polls cancellation and stops with an exception
+    ///     instead of completing silently.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled()
+    {
+        // Arrange: a directory with a font, and a canceled token
+        using var directory = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", directory.Combine("serif.ttf"));
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var spec = new ScadFontSpec("Liberation Serif", true, false);
+
+        // Act / Assert: the canceled resolver throws, the same scan with a live token finds the font
+        Assert.Throws<OperationCanceledException>(() => new ScadFontResolver(options, cts.Token).Resolve(spec));
+        var live = new ScadFontResolver(options, TestContext.Current.CancellationToken).Resolve(spec);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, live.Source);
+    }
+
+    /// <summary>
+    ///     Validates that the scan stops deterministically at its bounds: with one font file allowed only the first
+    ///     in ordinal order is offered, and with two directories allowed the second subdirectory is not visited.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound()
+    {
+        // Arrange: two fonts in one directory, and one font in each of two subdirectories
+        using var files = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", files.Combine("a.ttf"));
+        CopyBundledFont("LiberationSerif-Italic.ttf", files.Combine("b.ttf"));
+        using var tree = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", tree.Combine("a/bold.ttf"));
+        CopyBundledFont("LiberationSerif-Italic.ttf", tree.Combine("b/italic.ttf"));
+        var italic = new ScadFontSpec("Liberation Serif", false, true);
+        var filesOptions = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [files.Path] };
+        var treeOptions = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [tree.Path] };
+        var generous = ScadFontScanLimits.Default;
+
+        // Act
+        var unbounded = new ScadFontResolver(filesOptions, default, generous).Resolve(italic);
+        var oneFile = new ScadFontResolver(filesOptions, default, generous with { FontFiles = 1 }).Resolve(italic);
+        var oneFace = new ScadFontResolver(filesOptions, default, generous with { Faces = 1 }).Resolve(italic);
+        var fullTree = new ScadFontResolver(treeOptions, default, generous).Resolve(italic);
+        var twoDirectories = new ScadFontResolver(treeOptions, default, generous with { Directories = 2 }).Resolve(italic);
+        var fewEntries = new ScadFontResolver(treeOptions, default, generous with { Entries = 1 }).Resolve(italic);
+
+        // Assert: the italic face is found when everything is read, and only the first in ordinal order otherwise
+        Assert.True(unbounded.Font.IsItalic);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, oneFile.Source);
+        Assert.False(oneFile.Font.IsItalic);
+        Assert.True(oneFile.Font.IsBold);
+        Assert.False(oneFace.Font.IsItalic);
+        Assert.True(fullTree.Font.IsItalic);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, twoDirectories.Source);
+        Assert.False(twoDirectories.Font.IsItalic);
+
+        // With one entry allowed nothing usable is read, so the bundled family answers
+        Assert.Equal(ScadFontSource.Bundled, fewEntries.Source);
+    }
+
+    /// <summary>
+    ///     Validates that malformed, over-long, missing and non-directory paths are skipped without failing, and
+    ///     that a valid directory listed after them is still scanned.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped()
+    {
+        // Arrange: bad entries first, then a file that is not a directory, then a real directory with a font
+        using var directory = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", directory.Combine("good/serif.ttf"));
+        var notADirectory = directory.Write("file.txt", "not a directory");
+        string[] paths =
+        [
+            "bad\0path",
+            new string('x', 40_000),
+            Path.Join(directory.Path, "missing", "..", "missing"),
+            notADirectory,
+            directory.Combine("good"),
+        ];
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = paths };
+
+        // Act
+        var resolved = new ScadFontResolver(options).Resolve(new ScadFontSpec("Liberation Serif", true, false));
+
+        // Assert: nothing threw and the valid sibling was found
+        Assert.Equal(ScadFontSource.AdditionalDirectory, resolved.Source);
+        Assert.True(resolved.Font.IsBold);
+    }
+
+    /// <summary>
+    ///     Writes a small, clean-room TrueType font to a file: a box <c>H</c> (600 by 700 units, advance 700), a
+    ///     mapped <c>D</c> whose only contour is collinear (no area, advance 700) and an unmapped, empty .notdef.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <param name="family">The family name of the font.</param>
+    private static void WriteSyntheticFont(string path, string family)
+    {
+        var notdef = SyntheticFontBuilder.SimpleGlyph();
+        var box = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (600, 0, true), (600, 700, true), (0, 700, true)]);
+        var line = SyntheticFontBuilder.SimpleGlyph([(0, 0, true), (300, 0, true), (600, 0, true)]);
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(3))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 0, 3))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 700, 700]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([notdef.Length, box.Length, line.Length], longFormat: false))
+            .AddTable("glyf", [.. notdef, .. box, .. line])
+            .AddTable("cmap", SyntheticFontBuilder.CmapFormat4(3, 1, [('H', 1), ('D', 2)]))
+            .AddTable("name", SyntheticFontBuilder.Name([new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 1, family), new SyntheticFontBuilder.NameRecord(3, 1, 0x0409, 2, "Regular")]))
+            .Build();
+        File.WriteAllBytes(path, data);
     }
 
     /// <summary>

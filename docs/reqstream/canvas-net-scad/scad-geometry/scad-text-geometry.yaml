@@ -129,14 +129,16 @@ sections:
                   a glyph whose solids overlap (a composite glyph) into regions that are unioned, and report a
                   damaged outline or contours that cross in any other way as the unsupported feature
                   scad-text-invalid-outline or scad-text-overlapping-contours at the instance, omitting the
-                  whole text.
+                  whole text; a mapped glyph whose subpaths all lack an area is a damaged outline (unlike a
+                  genuinely empty outline such as a space, which advances without drawing).
                 justification: |
                   Glyph outlines are the one place where the package consumes arbitrary third-party geometry;
                   holes must survive, ordinary composite glyphs must work, and what cannot be represented must
-                  be refused with a located, stable report instead of corrupting a mesh.
+                  be refused with a located, stable report instead of corrupting a mesh or silently vanishing.
                 tests:
                   - ScadTextGeometry_Build_GlyphContours_NormalizeHolesAndRejectOverlaps
                   - ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions
+                  - ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Flat2D
                 title: >-
@@ -182,13 +184,33 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Cancellation
                 title: >-
                   The ScadTextGeometry unit shall poll the cancellation token before it resolves the font and
-                  lays the text out, after every glyph, and after every flattened contour, so that a canceled
-                  build stops promptly.
+                  lays the text out, while it flattens the reference glyph that size is measured against,
+                  after every glyph, and after every flattened contour, so that a canceled build stops
+                  promptly.
                 justification: |
                   Font loading and flattening are the longest steps of a text and a long build must be
-                  abandonable.
+                  abandonable, including the measurement that precedes the first glyph.
                 tests:
                   - ScadTextGeometry_Build_Cancellation_IsPolledBeforeFlattening
+                  - ScadTextGeometry_Build_Cancellation_IsPolledDuringReferenceHeightFlattening
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety
+                title: >-
+                  The ScadTextGeometry unit shall scan the additional font directories without following a
+                  reparse point (neither a root nor a subdirectory), skip a malformed, over-long, missing, or
+                  unreadable path without failing, stop at fixed bounds on directories, entries, font files,
+                  and faces (visiting subdirectories depth first in ordinal order and keeping what was found
+                  before the bound), and poll the cancellation token of the build before every directory,
+                  file, and face so that a canceled build stops the scan with an operation canceled exception.
+                justification: |
+                  The additional directories are caller-supplied paths; scanning them must not loop through a
+                  link, crash on a bad path, take unbounded time or memory on a hostile tree, or ignore a
+                  cancellation.
+                tests:
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism
                 title: >-

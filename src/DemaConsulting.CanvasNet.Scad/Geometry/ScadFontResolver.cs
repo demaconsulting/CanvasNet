@@ -45,6 +45,20 @@ internal readonly record struct ScadFontSpec(string Family, bool Bold, bool Ital
 internal readonly record struct ScadFontFace(string Family, bool Bold, bool Italic, string FilePath, int FaceIndex);
 
 /// <summary>
+///     The bounds of the scan of the additional font directories; a scan stops at the first bound it reaches and
+///     keeps what it found before.
+/// </summary>
+/// <param name="Directories">The most directories listed.</param>
+/// <param name="Entries">The most directory entries (files and directories) examined.</param>
+/// <param name="FontFiles">The most font files accepted.</param>
+/// <param name="Faces">The most font faces loaded to read their names.</param>
+internal readonly record struct ScadFontScanLimits(int Directories, int Entries, int FontFiles, int Faces)
+{
+    /// <summary>Gets the bounds used by a build: generous for any real font collection, finite for a hostile tree.</summary>
+    public static ScadFontScanLimits Default { get; } = new(10_000, 200_000, 5_000, 20_000);
+}
+
+/// <summary>
 ///     Resolves the <c>font</c> argument of <c>text()</c> to a font, deterministically and without ever failing.
 /// </summary>
 /// <remarks>
@@ -68,11 +82,15 @@ internal readonly record struct ScadFontFace(string Family, bool Bold, bool Ital
 ///         bundled sans font with a warning; so does a face that was found but cannot be loaded.
 ///     </para>
 ///     <para>
-///         <b>Additional directories.</b> Each directory is searched recursively (a link to another directory is not
-///         followed) for <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c> and <c>.otc</c> files, in the order of the directories
-///         and, within a directory, in ordinal order of the full path, so the result never depends on the order the
-///         file system lists files in. A missing or unreadable directory, and a file or face that does not parse, are
-///         skipped without a diagnostic.
+///         <b>Additional directories.</b> Each directory is searched recursively (a link, to the directory itself or
+///         to a subdirectory, is not followed) for <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c> and <c>.otc</c> files, in the
+///         order of the directories and, within a directory, in ordinal order of the full path, so the result never
+///         depends on the order the file system lists files in. A missing, malformed or unreadable directory, and a
+///         file or face that does not parse, are skipped without a diagnostic. The scan is bounded (see
+///         <see cref="ScadFontScanLimits"/>): it stops at the first bound it reaches, visiting subdirectories depth
+///         first in ordinal order, and keeps the faces found so far. It polls the cancellation token of the build
+///         before each directory, file and face, so a canceled build stops the scan with
+///         <see cref="OperationCanceledException"/>.
 ///     </para>
 ///     <para>
 ///         The resolver is used by one build on one thread and holds no state that outlives it.
@@ -92,6 +110,12 @@ internal sealed class ScadFontResolver
     /// <summary>The options of the build.</summary>
     private readonly ScadFontResolutionOptions _options;
 
+    /// <summary>The cancellation token of the build, polled while the additional directories are scanned.</summary>
+    private readonly CancellationToken _cancellation;
+
+    /// <summary>The bounds of the scan of the additional directories.</summary>
+    private readonly ScadFontScanLimits _limits;
+
     /// <summary>The resolutions already made, by request.</summary>
     private readonly Dictionary<ScadFontSpec, ScadResolvedFont> _resolved = [];
 
@@ -105,9 +129,89 @@ internal sealed class ScadFontResolver
     ///     Initializes a resolver.
     /// </summary>
     /// <param name="options">The font resolution options, or <see langword="null"/> for the defaults.</param>
-    public ScadFontResolver(ScadFontResolutionOptions? options)
+    /// <param name="cancellation">The token polled while the additional directories are scanned.</param>
+    public ScadFontResolver(ScadFontResolutionOptions? options, CancellationToken cancellation = default)
+        : this(options, cancellation, ScadFontScanLimits.Default)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a resolver with explicit scan bounds.
+    /// </summary>
+    /// <param name="options">The font resolution options, or <see langword="null"/> for the defaults.</param>
+    /// <param name="cancellation">The token polled while the additional directories are scanned.</param>
+    /// <param name="limits">The bounds of the scan of the additional directories.</param>
+    public ScadFontResolver(ScadFontResolutionOptions? options, CancellationToken cancellation, ScadFontScanLimits limits)
     {
         _options = options ?? new ScadFontResolutionOptions();
+        _cancellation = cancellation;
+        _limits = limits;
+    }
+
+    /// <summary>
+    ///     Counts the work of one scan against the bounds.
+    /// </summary>
+    private sealed class ScanBudget(ScadFontScanLimits limits)
+    {
+        /// <summary>The directories listed so far.</summary>
+        private int _directories;
+
+        /// <summary>The directory entries examined so far.</summary>
+        private int _entries;
+
+        /// <summary>The font files accepted so far.</summary>
+        private int _fontFiles;
+
+        /// <summary>The faces examined so far.</summary>
+        private int _faces;
+
+        /// <summary>Gets a value indicating whether a bound on directories, entries or font files was reached, so no more is collected.</summary>
+        public bool CollectionStopped { get; private set; }
+
+        /// <summary>Gets a value indicating whether the bound on faces was reached, so no more is loaded.</summary>
+        public bool FacesStopped { get; private set; }
+
+        /// <summary>Counts a directory to be listed.</summary>
+        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        public bool TryCountDirectory() => Count(ref _directories, limits.Directories);
+
+        /// <summary>Counts a directory entry to be examined.</summary>
+        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        public bool TryCountEntry() => Count(ref _entries, limits.Entries);
+
+        /// <summary>Counts a font file to be accepted.</summary>
+        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        public bool TryCountFontFile() => Count(ref _fontFiles, limits.FontFiles);
+
+        /// <summary>Counts a face to be loaded.</summary>
+        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        public bool TryCountFace()
+        {
+            if (_faces >= limits.Faces)
+            {
+                FacesStopped = true;
+                return false;
+            }
+
+            _faces++;
+            return true;
+        }
+
+        /// <summary>Counts one unit against a bound, stopping the collection when it is reached.</summary>
+        /// <param name="counter">The counter.</param>
+        /// <param name="limit">The bound.</param>
+        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        private bool Count(ref int counter, int limit)
+        {
+            if (counter >= limit)
+            {
+                CollectionStopped = true;
+                return false;
+            }
+
+            counter++;
+            return true;
+        }
     }
 
     /// <summary>
@@ -276,19 +380,33 @@ internal sealed class ScadFontResolver
     /// </summary>
     /// <param name="directories">The directories, in search order.</param>
     /// <returns>The faces, in the order of the directories and then of the ordinal order of the file paths.</returns>
-    private static List<ScadFontFace> ScanDirectories(IReadOnlyList<string> directories)
+    /// <exception cref="OperationCanceledException">Thrown when the build is canceled.</exception>
+    private List<ScadFontFace> ScanDirectories(IReadOnlyList<string> directories)
     {
         var faces = new List<ScadFontFace>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var budget = new ScanBudget(_limits);
         foreach (var directory in directories)
         {
+            // Nothing more is read once a bound is reached; what was found before it stays available
+            _cancellation.ThrowIfCancellationRequested();
+            if (budget.CollectionStopped && budget.FacesStopped)
+            {
+                break;
+            }
+
             // Sorted so that the result does not depend on the order the file system lists the files in
             var files = new List<string>();
-            CollectFontFiles(directory, files);
+            CollectFontFiles(directory, files, budget);
             files.Sort(StringComparer.Ordinal);
             foreach (var file in files.Where(seen.Add))
             {
-                AddFaces(file, faces);
+                if (budget.FacesStopped)
+                {
+                    break;
+                }
+
+                AddFaces(file, faces, budget);
             }
         }
 
@@ -298,35 +416,127 @@ internal sealed class ScadFontResolver
     /// <summary>
     ///     Collects the font files of a directory and of its subdirectories (except links), skipping what cannot be read.
     /// </summary>
-    /// <param name="root">The directory; nothing is collected when it does not exist.</param>
+    /// <remarks>
+    ///     The root is not scanned when it is a link, and neither is any subdirectory that is a link. The
+    ///     subdirectories are visited depth first in ordinal order, so the part of a tree that is read when a bound is
+    ///     reached is deterministic.
+    /// </remarks>
+    /// <param name="root">The directory; nothing is collected when it does not exist or is a link.</param>
     /// <param name="files">The list to add the paths to.</param>
-    private static void CollectFontFiles(string root, List<string> files)
+    /// <param name="budget">The bounds of the scan.</param>
+    /// <exception cref="OperationCanceledException">Thrown when the build is canceled.</exception>
+    private void CollectFontFiles(string root, List<string> files, ScanBudget budget)
     {
-        if (!Directory.Exists(root))
+        if (budget.CollectionStopped)
         {
             return;
         }
 
-        var pending = new Stack<string>();
-        pending.Push(Path.GetFullPath(root));
-        while (pending.Count > 0)
+        _cancellation.ThrowIfCancellationRequested();
+        string start;
+        try
         {
-            var directory = pending.Pop();
-            try
+            if (!Directory.Exists(root))
             {
-                files.AddRange(Directory.GetFiles(directory).Where(IsFontFile));
-                // A link can point back at an ancestor, so links are not followed
-                foreach (var subdirectory in Directory.GetDirectories(directory).Where(d => !new DirectoryInfo(d).Attributes.HasFlag(FileAttributes.ReparsePoint)))
-                {
-                    pending.Push(subdirectory);
-                }
+                return;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+            start = Path.GetFullPath(root);
+
+            // A link can point anywhere, including back at an ancestor, so a root that is a link is not followed either
+            if (new DirectoryInfo(start).Attributes.HasFlag(FileAttributes.ReparsePoint))
             {
-                // A directory that cannot be listed contributes nothing
+                return;
             }
         }
+        catch (Exception ex) when (IsFileSystemFailure(ex))
+        {
+            // A path that cannot be examined (malformed, too long, not permitted) contributes nothing
+            return;
+        }
+
+        var pending = new Stack<string>();
+        pending.Push(start);
+        while (pending.Count > 0 && !budget.CollectionStopped)
+        {
+            _cancellation.ThrowIfCancellationRequested();
+            var directory = pending.Pop();
+            if (!budget.TryCountDirectory())
+            {
+                break;
+            }
+
+            ListDirectory(directory, files, pending, budget);
+        }
     }
+
+    /// <summary>
+    ///     Lists one directory: adds its font files to the result and its subdirectories (except links) to the pending stack.
+    /// </summary>
+    /// <param name="directory">The directory.</param>
+    /// <param name="files">The list to add the font files to.</param>
+    /// <param name="pending">The stack to push the subdirectories on, so that the first in ordinal order is popped first.</param>
+    /// <param name="budget">The bounds of the scan.</param>
+    private void ListDirectory(string directory, List<string> files, Stack<string> pending, ScanBudget budget)
+    {
+        var fonts = new List<string>();
+        var subdirectories = new List<string>();
+        try
+        {
+            foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos())
+            {
+                _cancellation.ThrowIfCancellationRequested();
+                if (!budget.TryCountEntry())
+                {
+                    break;
+                }
+
+                if (entry.Attributes.HasFlag(FileAttributes.Directory))
+                {
+                    // A link can point back at an ancestor, so links are not followed
+                    if (!entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    {
+                        subdirectories.Add(entry.FullName);
+                    }
+                }
+                else if (IsFontFile(entry.Name))
+                {
+                    fonts.Add(entry.FullName);
+                }
+            }
+        }
+        catch (Exception ex) when (IsFileSystemFailure(ex))
+        {
+            // A directory that cannot be listed (removed meanwhile, not permitted, ...) contributes nothing
+            return;
+        }
+
+        fonts.Sort(StringComparer.Ordinal);
+        foreach (var font in fonts)
+        {
+            if (!budget.TryCountFontFile())
+            {
+                break;
+            }
+
+            files.Add(font);
+        }
+
+        // Pushed in reverse so that the first subdirectory in ordinal order is visited first
+        subdirectories.Sort(StringComparer.Ordinal);
+        for (var i = subdirectories.Count - 1; i >= 0; i--)
+        {
+            pending.Push(subdirectories[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Reports whether an exception means that a path or directory cannot be examined or listed.
+    /// </summary>
+    /// <param name="ex">The exception.</param>
+    /// <returns><see langword="true"/> when the path should be skipped rather than the build failed.</returns>
+    private static bool IsFileSystemFailure(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException;
 
     /// <summary>
     ///     Reports whether a file name has the extension of a font file the font loader supports.
@@ -344,8 +554,11 @@ internal sealed class ScadFontResolver
     /// </summary>
     /// <param name="file">The font file.</param>
     /// <param name="faces">The list to add the faces to.</param>
-    private static void AddFaces(string file, List<ScadFontFace> faces)
+    /// <param name="budget">The bounds of the scan.</param>
+    /// <exception cref="OperationCanceledException">Thrown when the build is canceled.</exception>
+    private void AddFaces(string file, List<ScadFontFace> faces, ScanBudget budget)
     {
+        _cancellation.ThrowIfCancellationRequested();
         int count;
         try
         {
@@ -358,6 +571,12 @@ internal sealed class ScadFontResolver
 
         for (var index = 0; index < count; index++)
         {
+            _cancellation.ThrowIfCancellationRequested();
+            if (!budget.TryCountFace())
+            {
+                return;
+            }
+
             try
             {
                 var font = TrueTypeFont.Load(file, index);

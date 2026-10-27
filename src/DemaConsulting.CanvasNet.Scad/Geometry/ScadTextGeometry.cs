@@ -49,6 +49,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         <b>Failure policy.</b> Invalid arguments are warnings and yield nothing; an empty string yields nothing
 ///         silently; control characters are skipped silently; a character the font does not map is drawn with the
 ///         font's <c>.notdef</c> glyph, or skipped with one warning when that glyph has no outline; a damaged glyph,
+///         a mapped glyph whose subpaths are all degenerate (no area, so it is not an empty glyph like a space),
 ///         or a glyph whose contours cross or touch each other other than as a hole or an island or as the overlapping
 ///         solids of a composite glyph (which are unioned), is reported as the unsupported feature
 ///         <c>scad-text-invalid-outline</c> or <c>scad-text-overlapping-contours</c> and the whole instance is omitted.
@@ -290,7 +291,7 @@ internal static partial class ScadTextGeometry
         var result = new List<Placed>();
 
         // The scale from font units to model units, and the flattening tolerance in font units
-        var scale = request.Size / ReferenceHeight(font);
+        var scale = request.Size / ReferenceHeight(font, context);
         var fragments = Math.Max(ScadFragmentRule.MinimumFragments, ScadFragmentRule.Fragments(request.Size / 2.0, node.Fragments));
         var tolerance = request.Size / 2.0 * (1.0 - Math.Cos(Math.PI / fragments)) / scale;
 
@@ -323,9 +324,17 @@ internal static partial class ScadTextGeometry
             var glyph = font.GetGlyphIndex(scalar);
             if (!cache.TryGetValue(glyph, out var contours))
             {
-                if (!TryFlatten(font, glyph, tolerance, context, out contours))
+                if (!TryFlatten(font, glyph, tolerance, context, out contours, out var degenerate))
                 {
                     ReportInvalid(node, context, ScadFeatureIds.TextInvalidOutline, $"the outline of the glyph for U+{scalar:X4} is damaged");
+                    invalid = true;
+                    return result;
+                }
+
+                // A mapped glyph that draws something but encloses nothing is unusable, which is not the same as a space
+                if (degenerate && glyph != 0)
+                {
+                    ReportInvalid(node, context, ScadFeatureIds.TextInvalidOutline, $"the outline of the glyph for U+{scalar:X4} has no contour with an area");
                     invalid = true;
                     return result;
                 }

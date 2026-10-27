@@ -219,6 +219,7 @@ sections:
             children:
               - CanvasNetScad-ScadGeometry-ScadTextGeometry-Arguments
               - CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety
               - CanvasNetScad-ScadGeometry-ScadTextGeometry-Size
               - CanvasNetScad-ScadGeometry-ScadTextGeometry-Layout
               - CanvasNetScad-ScadGeometry-ScadTextGeometry-Alignment
