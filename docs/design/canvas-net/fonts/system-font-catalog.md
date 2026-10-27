@@ -1,6 +1,6 @@
 ### SystemFontCatalog
 
-<!-- cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA dogfood dogfooding -->
+<!-- cspell:ignore Dejavu Nimbus Consolas ttcf rescanned rescans Segoe LOCALAPPDATA dogfood dogfooding -->
 <!-- cspell:ignore Zapf Noto -->
 
 `SystemFontCatalog` is the second public software unit in the `Fonts` subsystem, added this

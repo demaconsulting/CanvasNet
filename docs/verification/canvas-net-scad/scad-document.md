@@ -425,16 +425,23 @@ scene options is used for geometry without a `color()`.
 `ScadRenderOptionsTests.ScadRenderOptions_Projection_Undefined_Throws`,
 `ScadRenderOptionsTests.ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive`,
 `ScadRenderOptionsTests.ScadRenderOptions_Properties_AreInitOnly`,
-`ScadRenderOptionsTests.ScadRenderOptions_Evaluation_IsComposedAndOptional`
+`ScadRenderOptionsTests.ScadRenderOptions_Evaluation_IsComposedAndOptional`,
+`ScadRenderOptionsTests.ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories`,
+`ScadRenderOptionsTests.ScadRenderOptions_FontResolution_InvalidDirectoriesAreRejected`
 
-Asserts the documented defaults (including the translucent pink highlight `(255, 64, 128, 110)` and the translucent
-gray ghost `(128, 128, 128, 80)`), that valid values are kept (overlay colors of any alpha), that a non-finite
+Asserts the documented defaults (including the translucent pink highlight `(255, 64, 128, 110)`, the translucent
+gray ghost `(128, 128, 128, 80)`, and no font resolution options), that valid values are kept (overlay colors of any
+alpha), that a non-finite
 angle (NaN and both infinities), an
 undefined projection, and a thickness that is zero, negative, or not finite are rejected with
 `ArgumentOutOfRangeException` when set, that every writable property is init-only (by reflection), that the
 default overlay colors blend with what they cover while opaque overrides are drawn in exactly their colors (a
-`#` cube and a `%` cube in an orthographic flat render), and that the
-evaluation options are kept by reference, may be omitted, and may be shared between calls.
+`#` cube and a `%` cube in an orthographic flat render), that the
+evaluation options are kept by reference, may be omitted, and may be shared between calls; that the font resolution
+options default to using the installed fonts and no additional directories, copy the caller's directory list (a
+later change has no effect and the exposed list is read-only), reject a null list and a null, empty, or white-space
+directory when set, are init-only, and reach the geometry through the public render options (a text whose font
+family is found only in an additional directory differs from the bundled one, with the system fonts disabled).
 
 #### CanvasNetScad-ScadDocument-RenderReporting: Events Of Every Stage Are Delivered Once, In Order
 

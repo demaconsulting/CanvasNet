@@ -1,4 +1,4 @@
-// cspell:ignore notdef Liberation kerned kerning ttb btt rtl ltr
+// cspell:ignore notdef Liberation kerned kerning ttb btt rtl ltr halign colour canvasnet AVTLEHI
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.Tessellation;

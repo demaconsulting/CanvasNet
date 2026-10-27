@@ -181,7 +181,7 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
                 title: >-
-                  The ScadGeometryBuilder unit shall report each of the recognized modules text, offset,
+                  The ScadGeometryBuilder unit shall report each of the recognized modules offset,
                   projection, surface, import, and roof as an unsupported feature scad-module-{name} at
                   the module's location, omit the module and its children without visiting them, keep its
                   supported siblings, and let a user module of the same name shadow the built-in so that
@@ -190,7 +190,7 @@ sections:
                   Nothing may be skipped silently: a module that is recognized but not built must be
                   named, with its location, while a module the author defined is always theirs. The hull
                   and minkowski modules are built and report their own identifiers (see the Hull and
-                  Minkowski requirements).
+                  Minkowski requirements), and the text module is built by the ScadTextGeometry unit.
                 tests:
                   - ScadUnsupportedModule_Module_IsReportedAndOmittedWithItsChildren
                   - ScadUnsupportedModule_RealisticArguments_AreReportedOnce

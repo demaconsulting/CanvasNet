@@ -6,13 +6,14 @@
 # subsystem (internal namespace DemaConsulting.CanvasNet.Scad.Geometry): the geometry builder that walks the
 # geometry-agnostic instantiation tree of an evaluation and combines it into a Render3D scene
 # (ScadGeometryBuilder), the primitive builders (ScadPrimitives), the transforms, resize, and color
-# (ScadTransforms), the linear and rotational extrusions (ScadExtrusions), and the convex hull and Minkowski sum
+# (ScadTransforms), the linear and rotational extrusions (ScadExtrusions), the text module (ScadTextGeometry), and
+# the convex hull and Minkowski sum
 # of the hull and minkowski modules (ScadHulls, part of ScadGeometryBuilder). Each requirement here links
 # down to the unit requirements that implement it.
 #
 # The subsystem boundary is the internal ScadGeometryBuilder.Build entry point, which receives the roots of an
 # evaluation and returns a scene with its source-location map. The subsystem-level tests below therefore drive
-# that entry point across all four units. See docs/verification/canvas-net-scad/scad-geometry.md for the
+# that entry point across all five units. See docs/verification/canvas-net-scad/scad-geometry.md for the
 # test-evidence mapping.
 
 sections:
@@ -203,6 +204,32 @@ sections:
             tests:
               - ScadGeometry_Build_TopLevelFlatShape_BecomesASlabOfTheConfiguredThickness
 
+          - id: CanvasNetScad-ScadGeometry-Text
+            title: >-
+              The ScadGeometry subsystem shall build the text module into 2D shapes of glyph outlines that
+              every consumer of 2D shapes accepts - transforms, 2D booleans, hull, linear_extrude,
+              rotate_extrude, colors, and the slab of a top-level shape - laying the string out with a TrueType
+              font (the bundled Liberation Sans by default), with the glyph holes preserved, without reporting
+              the text module as unsupported, and reporting what cannot be drawn instead of dropping it
+              silently.
+            justification: |
+              Labels and lettering are part of almost every printed part; text must therefore be a real 2D
+              shape rather than a special case, deterministic by default so that a model renders the same
+              everywhere, and explicit about every outline it had to refuse.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Arguments
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Size
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Layout
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Alignment
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Flat2D
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Budget
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism
+            tests:
+              - ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion
+
           - id: CanvasNetScad-ScadGeometry-Reporting
             title: >-
               The ScadGeometry subsystem shall report everything it cannot build instead of skipping it
@@ -221,6 +248,7 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Invalid
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDimensions
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullCsgOperand
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullDegenerate
@@ -264,6 +292,7 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-TriangleBudget
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiBudget
               - CanvasNetScad-ScadGeometry-ScadPrimitives-TriangleBudget
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Budget
               - CanvasNetScad-ScadGeometry-ScadExtrusions-TriangleBudget
             tests:
               - ScadGeometry_Build_TriangleBudgetExceeded_ThrowsLocatedEvaluationException
@@ -280,6 +309,7 @@ sections:
             children:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-NoRecursion
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
+              - CanvasNetScad-ScadGeometry-ScadTextGeometry-Cancellation
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-HullMinkowskiCancellation
             tests:
               - ScadGeometry_Build_DeepNestedModel_OnSmallStack_MatchesBigStack

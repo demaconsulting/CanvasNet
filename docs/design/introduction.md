@@ -208,13 +208,14 @@ software items, specifically:
   modules and children, control flow, comprehensions, and a geometry-agnostic instantiation tree, with
   deterministic, stack-independent resource limits), `ScadBuiltinFunctions` (the built-in function library
   and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
-  resolution inside a sandbox). The `ScadGeometry` subsystem has four units: `ScadGeometryBuilder` (the
+  resolution inside a sandbox). The `ScadGeometry` subsystem has five units: `ScadGeometryBuilder` (the
   iterative, recursion-free walk that combines the instantiation tree into a Render3D scene, with modifiers,
   booleans, the hull and minkowski convex combinations, the triangle budget, reporting, and the
   node-to-location map), `ScadPrimitives` (cube, sphere,
   cylinder, polyhedron, square, circle, polygon, and the fragment rule), `ScadTransforms` (translate, rotate,
-  scale, mirror, multmatrix, resize, and color), and `ScadExtrusions` (linear and rotational extrusion over a
-  symbolic 2D shape tree). The 2D Minkowski sum, text, and a few other constructs are deferred and reported as
+  scale, mirror, multmatrix, resize, and color), `ScadExtrusions` (linear and rotational extrusion over a
+  symbolic 2D shape tree), and `ScadTextGeometry` (the text module: font resolution, glyph layout, and flat 2D
+  glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` uses the `CanvasNet` system
   (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
@@ -364,8 +365,9 @@ language that parses, evaluates, builds the geometry of, and renders models: its
 `ScadEvaluation` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Evaluation`) holds the `ScadValue`,
 `ScadEvaluator`, `ScadBuiltinFunctions`, and `ScadFileResolver` units, and its internal `ScadGeometry`
 subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGeometryBuilder`,
-`ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units. It uses the `CanvasNet` system (`Surface`,
-`Rgba32`) and `CanvasNetRender3D` (the scene model, tessellation, and renderer) through their public API. See
+`ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` units. It uses the `CanvasNet` system
+(`Surface`, `Rgba32`, and, for `text`, the `Fonts` subsystem) and `CanvasNetRender3D` (the scene model, tessellation,
+and renderer) through their public API. See
 the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
@@ -766,6 +768,7 @@ src/DemaConsulting.CanvasNet.Scad/
 ├── ScadDocument.Evaluate.cs       — ScadDocument: Evaluate (headless evaluation, handler delivery)
 ├── ScadDocument.Render.cs         — ScadDocument: BuildScene and Render (geometry, rendering, delivery)
 ├── ScadRenderOptions.cs           — ScadDocument: immutable, validated render options
+├── ScadFontResolutionOptions.cs   — ScadDocument: immutable font resolution options of the text module
 ├── ScadOpenOptions.cs             — ScadDocument: immutable, validated open options
 ├── ScadSourceLocation.cs          — ScadDocument: file, line, and column value
 ├── ScadSyntaxException.cs         — ScadDocument: syntax error exception with location
@@ -817,7 +820,10 @@ src/DemaConsulting.CanvasNet.Scad/
 │   ├── ScadShape2D.cs             — ScadExtrusions: symbolic 2D shape tree
 │   ├── ScadExtrusions.cs          — ScadExtrusions: distribution over the 2D tree and slabs
 │   ├── ScadExtrusions.Linear.cs   — ScadExtrusions: linear_extrude
-│   └── ScadExtrusions.Rotate.cs   — ScadExtrusions: rotate_extrude
+│   ├── ScadExtrusions.Rotate.cs   — ScadExtrusions: rotate_extrude
+│   ├── ScadTextGeometry.cs        — ScadTextGeometry: text module, layout, alignment, and regions
+│   ├── ScadTextGeometry.Flattening.cs — ScadTextGeometry: reference height and outline flattening
+│   └── ScadFontResolver.cs        — ScadTextGeometry: font argument parsing and font resolution
 └── Evaluation/                    — ScadEvaluation subsystem (internal)
     ├── NamespaceDoc.cs            — Namespace-level XML documentation
     ├── ScadValueKind.cs           — ScadValue: value kind enumeration

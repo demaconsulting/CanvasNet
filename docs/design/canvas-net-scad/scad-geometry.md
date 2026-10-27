@@ -14,7 +14,7 @@ primitives, applies transforms and colors, combines solids and shapes with union
 shapes, applies the modifiers, enforces the triangle budget, and reports everything it cannot build. The
 subsystem is **internal**: its types are visible only to the `ScadDocument` unit and, through
 `InternalsVisibleTo`, to the test assembly. The public entry points are `ScadDocument.BuildScene` and
-`ScadDocument.Render` (see _ScadDocument Unit Design_, `scad-document.md`). The subsystem contains four units:
+`ScadDocument.Render` (see _ScadDocument Unit Design_, `scad-document.md`). The subsystem contains five units:
 
 - **ScadGeometryBuilder** — the engine and everything common to all modules: the iterative walk, the dispatch
   tables, implicit unions, the `!`, `#`, and `%` modifiers, the difference and intersection combiners and the
@@ -29,6 +29,9 @@ subsystem is **internal**: its types are visible only to the `ScadDocument` unit
   named color table); see _ScadTransforms Unit Design_ (`scad-geometry/scad-transforms.md`)
 - **ScadExtrusions** — `linear_extrude` and `rotate_extrude`, the symbolic 2D shape tree, and the slabs of
   top-level 2D shapes; see _ScadExtrusions Unit Design_ (`scad-geometry/scad-extrusions.md`)
+- **ScadTextGeometry** — `text`: font resolution, glyph layout, outline flattening and the glyph contour policy,
+  producing flat 2D shapes that every consumer of 2D shapes accepts; see _ScadTextGeometry Unit Design_
+  (`scad-geometry/scad-text-geometry.md`)
 
 The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetScad-ScadGeometry-*` requirements in `docs/reqstream/canvas-net-scad/scad-geometry.yaml`.
@@ -42,8 +45,9 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   `ScadEvaluationException` (triangle budget), `ScadUnsupportedFeatureException` (strict mode), and
   `OperationCanceledException`.
 - `ScadGeometrySettings` — `MaxTriangles` (a `long`), `FlatShapeThickness`, `ThrowOnUnsupportedFeature`, the
-  `CancellationToken`, and the optional (`Rgba32?`) `HighlightColor` and `GhostColor` (null: the defaults
-  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`).
+  `CancellationToken`, the optional (`Rgba32?`) `HighlightColor` and `GhostColor` (null: the defaults
+  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`), and the optional `ScadFontResolutionOptions` that `text`
+  uses for an explicitly named font (null: the defaults).
 - `ScadBuiltScene` — the `Scene` (an empty group when nothing was built) and the `ScadSceneMap` from every
   `MeshNode` to the source location of the module that produced it.
 - `ScadSceneOptions.Create` and `ScadSceneOptions.MapFeature` — the copy of the renderer options with a
@@ -59,7 +63,8 @@ from `CanvasNetRender3D`, the public scene-model types (`Scene`, `SceneNode`, `G
 `Mesh`, `Matrix4x4D`, `Vector3D`, `BoundingBox3D`, and, since Phase 8, `OverlayNode` and
 `Scene.ComputeBounds(bool)`), the tessellators and extruders (`PrimitiveTessellator`,
 `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and `SceneRenderOptions`; and from
-`CanvasNet`, `Rgba32`.
+`CanvasNet`, `Rgba32` and, for `text`, the `Fonts` subsystem (`TrueTypeFont`, `SystemFontCatalog`) and the
+`Geometry.Path` outlines it returns.
 The subsystem never uses the `ScadLanguage` subsystem or the syntax tree.
 
 **Consumers**: `ScadDocument.BuildScene` and `ScadDocument.Render` (through the `Build` entry point and the
@@ -131,7 +136,9 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 <!-- markdownlint-disable MD013 -->
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
-| `scad-module-text`, `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
+| `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
 | `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D) or no area (2D) | The hull is omitted |
 | `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
@@ -211,6 +218,10 @@ designs.
     argument is ignored, and a color inside either module is dropped with a warning (the result takes the enclosing
     `color`). The result of both modules is a new scene mesh at the module's location, so it is a valid operand of
     later booleans, transforms and extrusions.
+12. **Text.** `text` is built by `ScadTextGeometry` into a flat 2D shape (a union of one region leaf per glyph
+    component), so it is a 2D operand of everything that accepts 2D shapes. Its dialect decisions (size is the ink
+    height of `H`, no shaping, `language` and `script` ignored, alignment by the measured ink extents, the
+    font resolution order, the bundled Liberation Sans default) are in _ScadTextGeometry Unit Design_.
 
 #### Fragment Rule
 

@@ -107,11 +107,18 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   35.26), both finite else `ArgumentOutOfRangeException`, `Projection` (`CameraProjection`, default
   `Perspective`, must be a defined value), `SceneOptions` (`SceneRenderOptions?`, default null: the Render3D
   defaults, a white background and neutral gray surfaces; its unsupported-feature handler and strict flag are
-  ignored), `FlatShapeThickness` (default 0.1; finite and greater than zero), and the Phase 8 `HighlightColor`
+  ignored), `FlatShapeThickness` (default 0.1; finite and greater than zero), the Phase 8 `HighlightColor`
   (`Rgba32`, default `(255, 64, 128, 110)`) and `GhostColor` (`Rgba32`, default `(128, 128, 128, 80)`), the colors
   of the translucent overlays that the `#` and `%` modifiers draw (any alpha is accepted; they are handed to the
-  geometry builder through `ScadGeometrySettings`). The options **compose**
+  geometry builder through `ScadGeometrySettings`), and `FontResolution` (`ScadFontResolutionOptions?`, default
+  null: the defaults of that type; handed to the geometry builder through `ScadGeometrySettings.FontResolution`
+  for the `text` module). The options **compose**
   rather than copy the evaluation options, so there is one definition of strict mode, handlers, and limits.
+- **`ScadFontResolutionOptions`** (sealed class, init-only) — `UseSystemFonts` (default `true`) and
+  `AdditionalDirectories` (`IReadOnlyList<string>`, default empty; a null list is an `ArgumentNullException`, a
+  null, empty, or white-space entry an `ArgumentException`, both on initialization; a private copy is taken and
+  exposed read-only). Where an explicitly named `text` font is found is specified in _ScadTextGeometry Unit
+  Design_.
 - **`ScadDiagnostic`** (sealed record) — `Message` and `Location`; `ToString()` is `{Location}: {Message}` with
   the invariant culture. **`ScadUnsupportedFeature`** (sealed record) — `Feature` (an identifier such as
   `scad-function-textmetrics`), `Message`, and `Location`.

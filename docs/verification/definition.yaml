@@ -41,6 +41,7 @@ input-files:
   - docs/verification/canvas-net-scad/scad-geometry/scad-primitives.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-extrusions.md
+  - docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md

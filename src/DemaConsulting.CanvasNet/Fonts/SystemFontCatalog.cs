@@ -1,4 +1,4 @@
-// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
+// cspell:ignore Dejavu Nimbus Consolas ttcf rescanned rescans Segoe LOCALAPPDATA Noto Zapf
 using System.Runtime.InteropServices;
 
 namespace DemaConsulting.CanvasNet.Fonts;

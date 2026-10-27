@@ -1,6 +1,6 @@
 # Introduction
 
-<!-- cspell:ignore canvasnet -->
+<!-- cspell:ignore canvasnet halign -->
 <!-- cspell:ignore glyf sfnt codepoint -->
 <!-- cspell:ignore rasterizing unparseable SMIL renderable -->
 <!-- cspell:ignore unitless -->
@@ -3511,6 +3511,7 @@ be shared between threads and calls.
 | `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
 | `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
 | `GhostColor` | `(128, 128, 128, 80)`, a translucent gray | The color of the translucent ghost that the `%` modifier draws instead of a solid. Any alpha is accepted |
+| `FontResolution` | `null` (a default `ScadFontResolutionOptions`) | Where `text()` finds a font that the model names with `font = ...` (see *Text*): `UseSystemFonts` (default `true`) and `AdditionalDirectories` (default empty; copied and validated when set, a null, empty, or white-space directory is an `ArgumentException`). Text without a `font` argument always uses the bundled font and ignores these options |
 <!-- markdownlint-enable MD013 -->
 
 A `color()` in the model overrides `SceneOptions.DefaultColor` (and the alpha of a `color()` is rendered; the alpha of
@@ -3542,6 +3543,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
 | `polyhedron` | `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent | Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a warning. Concave planar faces are triangulated; an open shape is kept |
 | `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`) |
+| `text` | `text(text, size, font, halign, valign, spacing, direction, language, script)` | A 2D shape of glyph outlines; see *Text* below for the size, font, alignment, and direction rules and the limits of the dialect |
 | `translate`, `scale`, `mirror` | `translate(v)`, `scale(v)` with a number or vector, `mirror(v)` (reflection through the plane with normal `v`) | Work on solids and 2D shapes |
 | `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
 | `multmatrix` | `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix | A bottom row other than `[0, 0, 0, 1]` is `scad-multmatrix-projective` |
@@ -3603,6 +3605,72 @@ set), and the fragment budget `SceneOptions.MaxFragmentsPerTile` applies to them
 
 Examples 25 and 27 show the reports and a complete transparent model.
 
+#### Text
+
+`text()` lays a string out with a TrueType font and builds a **flat 2D shape** of the glyph outlines (holes such as the
+counter of an `O` are kept), so it works wherever a `square` does: extrude it with `linear_extrude` or
+`rotate_extrude`, subtract it with a 2D `difference`, move it with `translate` and `rotate`, take its `hull`, or color
+it. A text that is not extruded is drawn as a thin slab like any 2D shape. The arguments, in positional order:
+
+<!-- markdownlint-disable MD013 -->
+| Argument | Default | Meaning |
+| -------- | ------- | ------- |
+| `text` | required | The string. A number or another value is converted like `str()`. An empty string builds nothing and is not reported |
+| `size` | 10 | The height in model units of the glyph `H` of the selected font, so a capital `H` is exactly `size` tall and stands on the baseline (`Y = 0`). A finite number greater than zero |
+| `font` | the bundled Liberation Sans Regular | A family, `"Family"`, or a family with a style, `"Family:style=Bold Italic"` (the words `Bold` and `Italic`, or `Oblique`, in any case). See *Fonts* below |
+| `halign` | `"left"` | `"left"`, `"center"`, or `"right"`: which point of the **ink** (the drawn outline, not the advance box) is at `X = 0`: the left edge, the middle, or the right edge |
+| `valign` | `"baseline"` | `"baseline"` (the baseline is `Y = 0`), `"top"`, `"center"`, or `"bottom"`: the top edge, the middle, or the bottom edge of the ink at `Y = 0` |
+| `spacing` | 1 | A finite number that is not negative that multiplies the advance of every glyph (not the kerning); `spacing = 0` overlaps the glyphs |
+| `direction` | `"ltr"` | `"ltr"`; `"rtl"` (the characters in reverse order, laid out left to right); `"ttb"` and `"btt"` (upright characters stacked downwards or upwards by their advance, without kerning) |
+| `language`, `script` | none | Accepted with any value and **ignored** |
+<!-- markdownlint-enable MD013 -->
+
+The curve resolution follows `$fn`, `$fa`, and `$fs` like a circle of radius `size / 2` does (see *Curve Resolution*):
+the outlines are flattened so that they stay within the sagitta of such a circle. An invalid argument (for example a
+`size` of 0, or a `halign` of `"middle"`) is a warning and the text is omitted.
+
+```openscad
+// A label cut into a plate: the text is a 2D shape, so it extrudes and subtracts like one
+difference() {
+    cube([60, 16, 4]);
+    translate([30, 8, 2]) linear_extrude(height = 3) text("CanvasNet", size = 7, halign = "center", valign = "center");
+}
+```
+
+**Fonts and determinism.** Without a `font` argument the text always uses the Liberation Sans Regular font that is
+bundled with the core package, whatever fonts the machine has, so a model without a `font` renders identically
+everywhere. A named font is resolved by `ScadRenderOptions.FontResolution`: first the family is searched in the
+`AdditionalDirectories` (scanned recursively), then, when `UseSystemFonts` is `true` (the default), among the fonts
+installed on the machine, then among the bundled `Liberation Sans`, `Liberation Serif`, and `Liberation Mono`
+families (and the generic names `sans-serif`, `serif`, and `monospace`). Only an exact family name (case aside)
+matches, and the closest bold and italic style of that family is used. A family that is found nowhere, or whose
+font file cannot be loaded, gives one warning and the bundled sans font. **The result for a font that comes from
+the installed fonts depends on the machine**; set `UseSystemFonts = false`, or name only the bundled families, to
+make every named font reproducible.
+
+```csharp
+var options = new ScadRenderOptions
+{
+    FontResolution = new ScadFontResolutionOptions
+    {
+        UseSystemFonts = false,                       // do not look at the installed fonts
+        AdditionalDirectories = ["./fonts"],          // but look here first
+    },
+};
+```
+
+**Limits of the dialect** (CanvasNetScad's own decisions; no parity with any other implementation is claimed): the
+text is laid out one character at a time without shaping, ligatures, or combining marks, and `language` and
+`script` change nothing, so right-to-left scripts are not shaped (`"rtl"` only reverses the characters); the kerning
+is the one of the font's classic `kern` table; the size is the ink height of `H` and not a font-wide ascent;
+vertical text stacks upright characters by their advance width (a tall letter can touch the next one; raise `spacing`
+to separate them); a character the font does not map is drawn with the font's `.notdef`
+glyph; control characters (such as line feeds) are skipped, so text does not wrap; the functions `textmetrics()` and
+`fontmetrics()` are not supported (see *Unsupported Features and Strict Mode*). A glyph whose outline cannot be
+represented (a damaged outline, or contours that cross each other) is reported as `scad-text-invalid-outline` or
+`scad-text-overlapping-contours` and the whole text is omitted; none of the bundled fonts has such a glyph in Basic
+Latin or Latin-1. Example 28 shows lettering, alignment, and the font options.
+
 #### Curve Resolution
 
 The number of segments of a circle of radius `r` follows a public, deterministic rule: a positive `$fn` gives
@@ -3621,7 +3689,9 @@ module in a loop is reported once. The identifiers are part of the documented be
 <!-- markdownlint-disable MD013 -->
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
-| `scad-module-text`, `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-text-invalid-outline` | A glyph outline of a `text()` is damaged, or a contour of a glyph crosses itself or has no area | The whole text is omitted |
+| `scad-text-overlapping-contours` | The contours of one glyph of a `text()` overlap or touch each other other than as a hole, an island, or the overlapping solids of a composite glyph | The whole text is omitted |
 | `scad-hull-csg-operand` | A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any depth) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D: fewer than four, collinear, or coplanar points) or no area (2D) | The hull is omitted |
 | `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |
@@ -4461,7 +4531,7 @@ using DemaConsulting.CanvasNet.Scad;
 
 var document = ScadDocument.Parse("""
     cube(10);
-    translate([20, 0, 0]) text("label");
+    translate([20, 0, 0]) surface(file = "heights.dat");
     roof() { sphere(3); translate([8, 0, 0]) sphere(3); }
     cube(-1);
     offset(r = 1) square(2);
@@ -4491,7 +4561,7 @@ foreach (var feature in unsupported)
     Console.WriteLine($"{feature.Location} {feature.Feature}");
 }
 // Output:
-// model.scad:2:23 scad-module-text
+// model.scad:2:23 scad-module-surface
 // model.scad:3:1 scad-module-roof
 // model.scad:5:1 scad-module-offset
 
@@ -4508,7 +4578,7 @@ try
 }
 catch (ScadUnsupportedFeatureException ex)
 {
-    Console.WriteLine($"{ex.Location}: {ex.Feature}"); // Output: model.scad:2:23: scad-module-text
+    Console.WriteLine($"{ex.Location}: {ex.Feature}"); // Output: model.scad:2:23: scad-module-surface
 }
 ```
 
@@ -4604,6 +4674,49 @@ PngCodec.Save(image, "see-through.png");
 var scene = document.BuildScene(options);
 Console.WriteLine(scene.ComputeBounds().Max.X);                              // Output: 56
 Console.WriteLine(scene.ComputeBounds(includeOverlays: false).Max.X);        // Output: 42
+```
+
+## Example 28: Text, Alignment, and Fonts
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    // A nameplate with the name cut into it: text is a 2D shape, so it extrudes and subtracts like one
+    difference() {
+        cube([60, 16, 4]);
+        translate([30, 8, 2]) linear_extrude(height = 3)
+            text("CanvasNet", size = 7, halign = "center", valign = "center");
+    }
+
+    // Raised bold italic serif lettering on a second plate, spaced a little wider
+    translate([0, 24, 0]) {
+        cube([60, 16, 2]);
+        translate([4, 4, 2]) linear_extrude(height = 1.5)
+            text("Hello", size = 8, font = "Liberation Serif:style=Bold Italic", spacing = 1.1);
+    }
+
+    // Stacked letters, top to bottom, and a text whose characters are laid out right to left
+    translate([70, 30, 0]) linear_extrude(height = 2) text("ABC", size = 5, direction = "ttb");
+    translate([90, 0, 0]) linear_extrude(height = 2) text("12345", size = 5, direction = "rtl");
+    """);
+
+// Make the named font independent of this machine: only the bundled Liberation fonts and ./fonts are consulted
+var options = new ScadRenderOptions
+{
+    FontResolution = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = ["./fonts"] },
+};
+
+using var image = document.Render(800, 400, options);
+PngCodec.Save(image, "nameplates.png");
+
+// The size is the height of the capital H of the font, and the ink starts at X = 0 (halign = "left"): in the bundled
+// Liberation Sans, text("HI", size = 14.09) is 16.91 wide and 14.09 high
+var scene = ScadDocument.Parse("linear_extrude(height = 1) text(\"HI\", size = 14.09);").BuildScene();
+var bounds = scene.ComputeBounds();
+Console.WriteLine($"{bounds.Max.X:F2} x {bounds.Max.Y:F2}"); // Output: 16.91 x 14.09
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)
