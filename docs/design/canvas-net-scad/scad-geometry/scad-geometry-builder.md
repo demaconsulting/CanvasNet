@@ -32,8 +32,8 @@ source locations. It owns what is common to every module: the walk, the implicit
 booleans and the dimension rules, the `hull` and `minkowski` convex combinations, the table of modules that are
 recognized but not built, the triangle budget,
 cancellation, the single reporting channel, and the copy of the renderer options. What a particular primitive,
-transform, color, or extrusion builds is delegated to the `ScadPrimitives`, `ScadTransforms`, and
-`ScadExtrusions` units through the dispatch tables (see _ScadGeometry Subsystem Design_).
+transform, color, text, or extrusion builds is delegated to the `ScadPrimitives`, `ScadTransforms`,
+`ScadExtrusions`, and `ScadTextGeometry` units through the dispatch tables (see _ScadGeometry Subsystem Design_).
 
 The central decision is that the engine is **iterative**: a recursive user module nests as deeply as
 `ScadLimits.MaxRecursionDepth` allows (thousands of levels), so the engine walks the tree with an explicit stack
@@ -56,9 +56,11 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometry
 
 **`ScadGeometrySettings`** (record) holds the validated inputs of one build: `MaxTriangles` (a `long`, from
 `ScadLimits.MaxTriangles`), `FlatShapeThickness` (the slab thickness of a top-level 2D shape),
-`ThrowOnUnsupportedFeature` (strict mode), the `CancellationToken`, and the optional `HighlightColor` and
+`ThrowOnUnsupportedFeature` (strict mode), the `CancellationToken`, the optional `HighlightColor` and
 `GhostColor` (`Rgba32?`; null means the defaults `(255, 64, 128, 110)` and `(128, 128, 128, 80)`, which the
-context exposes as `HighlightColor` and `GhostColor`). **`ScadBuiltScene`** (record) is the
+context exposes as `HighlightColor` and `GhostColor`), and the optional `FontResolution`
+(`ScadFontResolutionOptions?`; null means the defaults; the context creates the `ScadFontResolver` of the build
+from it on first use). **`ScadBuiltScene`** (record) is the
 outcome: the `Scene` (an empty group when nothing was built), the `ScadSceneMap`, and the triangles charged (the
 meshes created plus the copies of `#` overlays).
 
@@ -99,8 +101,9 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 
 | Identifier                                                          | Meaning                                      |
 |---------------------------------------------------------------------|----------------------------------------------|
-| `scad-module-text`, `-offset`, `-projection`, `-surface`, `-import` | recognized module not built; omitted         |
+| `scad-module-offset`, `-projection`, `-surface`, `-import`          | recognized module not built; omitted         |
 | `scad-module-roof`                                                  | recognized module not built; omitted         |
+| `scad-text-invalid-outline`, `-overlapping-contours`                | `text` glyph outline unusable; text omitted  |
 | `scad-hull-csg-operand`, `-degenerate`, `-mixed-dimensions`         | `hull` with a boolean, flat points, 2D + 3D  |
 | `scad-minkowski-nonconvex`, `-2d`, `-mixed-dimensions`              | non-convex operand, deferred 2D sum, 2D + 3D |
 | `scad-minkowski-too-complex`                                        | work above the documented bounds             |
@@ -178,12 +181,11 @@ The tables are `FrozenDictionary` instances keyed by ordinal module name:
 
 | Table       | Modules                                                                                 |
 |-------------|-----------------------------------------------------------------------------------------|
-| Leaf        | `cube`, `sphere`, `cylinder`, `polyhedron`, `square`, `circle`, `polygon`               |
+| Leaf        | `cube`, `sphere`, `cylinder`, `polyhedron`, `square`, `circle`, `polygon`, `text`       |
 | Container   | `union`, `render` (the implicit union), `difference`, `intersection`, `translate`,      |
 |             | `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color`, `linear_extrude`,         |
 |             | `rotate_extrude`, `hull`, `minkowski`                                                   |
-| Unsupported | every other recognized built-in: `text`, `offset`, `projection`, `surface`, `import`,   |
-|             | `roof`                                                                                  |
+| Unsupported | every other recognized built-in: `offset`, `projection`, `surface`, `import`, `roof`    |
 
 `intersection_for` reaches the builder as the built-in `intersection` whose children are one group per iteration
 (the evaluator's decision), so it needs no entry of its own.
@@ -467,9 +469,10 @@ prefix gets `scad-` prepended.
 - **`ScadEvaluation` subsystem** — `ScadInstance`, `ScadInstanceKind`, `ScadModifiers`, and
   `ScadSourceLocation` (the instantiation tree); `ScadEvaluationSink` (the shared event buffer);
   `ScadLimits`; `ScadEvaluationException`; and `ScadUnsupportedFeatureException`.
-- **`ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units** — the leaf and container builders in the
-  dispatch tables (`ScadPrimitives.*`, `ScadTransforms.*`, `ScadColors.Color`, `ScadExtrusions.*`), and
-  `ScadExtrusions.MakeSlabs` for a flat model; `ScadShape2D` for the 2D shape tree.
+- **`ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` units** — the leaf and container
+  builders in the dispatch tables (`ScadPrimitives.*`, `ScadTextGeometry.Build`, `ScadTransforms.*`,
+  `ScadColors.Color`, `ScadExtrusions.*`), and `ScadExtrusions.MakeSlabs` for a flat model; `ScadShape2D` for the
+  2D shape tree. The context also creates the `ScadFontResolver` that `ScadTextGeometry` uses (one per build).
 - **`Render3D` public types** — `Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `OverlayNode`, `CsgOperation`,
   `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), `ConvexHull` and `MinkowskiSum`
   (the exact hull and the convex Minkowski sum used by `ScadHulls`), and `SceneRenderOptions`,

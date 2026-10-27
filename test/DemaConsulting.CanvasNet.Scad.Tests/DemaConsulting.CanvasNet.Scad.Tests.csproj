@@ -12,6 +12,9 @@
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
+    <!-- CS1574: the unchanged, linked SyntheticFontBuilder.cs of the core tests has doc-comment crefs to two sibling
+         test helpers that this project does not link; the warning concerns only those comments -->
+    <NoWarn>$(NoWarn);CS1574</NoWarn>
     <!-- Code Quality Configuration -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -72,6 +75,11 @@
     <None Include="ScadFixtures\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <!-- The clean-room synthetic font builder of the core tests, linked unchanged to build fonts with chosen glyphs -->
+  <ItemGroup>
+    <Compile Include="..\DemaConsulting.CanvasNet.Tests\TestSupport\SyntheticFontBuilder.cs" Link="TestSupport\SyntheticFontBuilder.cs" />
   </ItemGroup>
 
 </Project>

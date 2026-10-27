@@ -100,7 +100,7 @@ continues, which type carries the information, and where the caller sees it.
 
 The rule of thumb is: a _mistake in the model_ that still allows a meaningful result is a warning; something
 this implementation _does not provide_ is an unsupported feature; a problem that makes the result
-_meaningless or dangerous_ is an error. Geometry-level unsupported features (`text`, `offset`, `projection`,
+_meaningless or dangerous_ is an error. Geometry-level unsupported features (`surface`, `offset`, `projection`,
 and similar) are not detected here: the evaluator emits them as ordinary instances and the `ScadGeometry`
 subsystem reports them through the same sink (see _ScadGeometry Subsystem Design_).
 

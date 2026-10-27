@@ -406,11 +406,37 @@ omitted.
 `ScadRenderSystem_Unsupported_OnlySupportedGeometryIsDrawn`, `ScadRenderSystem_Unsupported_StrictModeThrowsTheFirstFeature`,
 `ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`
 
-Renders `render-unsupported.scad` with a handler and asserts nine reports (including a hull of mixed dimensions,
+Renders `render-unsupported.scad` with a handler and asserts nine reports (a `surface` on line 4, the other
+unsupported modules, a hull of mixed dimensions,
 a Minkowski sum with a boolean operand, and a `%` on a 2D shape that is not extruded), each at a distinct line of
 the fixture and in source order, that only the supported geometry is drawn (and the bounds equal those of the
 supported geometry), and that strict mode throws the first report with its feature and location; and asserts
 that no fixture other than the unsupported one throws in strict mode.
+
+### Text: Analytic Bounds, Coverage, And Composition
+
+**Tests**: `ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage`,
+`ScadRenderSystem_Text_AlignmentAndDirectionsHaveAnalyticBounds`,
+`ScadRenderSystem_Text_ExtrudedGlyphHasAnalyticHeightAndHoleCoverage`,
+`ScadRenderSystem_Text_ExtrudedBooleanMatchesDistributed2DGeometry`,
+`ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled`,
+`ScadRenderSystem_Text_RepeatedRendersAreDeterministic`
+
+Renders `text()` with the default bundled font and asserts only analytic properties computed in the test from the
+public `TrueTypeFont` API of the bundled Liberation Sans Regular and the documented formulas (no golden image):
+that a flat `HI` of size 20 has the scene bounds of its laid out ink (the baseline on Y = 0, the ink flush with
+X = 0, capitals exactly 20 tall, a slab of 0.1) and covers the analytic area of its two outlines within 3% in an
+orthographic top view with flat lighting, with background between the stems of the `H`; that seven combinations of
+alignment, spacing, and direction (`ltr`, `rtl`, `ttb`, `btt`) have the independently computed scene bounds; that
+an extruded `H` has the exact volume of its outline area times the height and an extruded `O` shows its counter as
+background and its ring in the surface color; that the image of the extrusion of a 2D difference of text is
+identical to the image of the difference of the extrusions; that with the system fonts disabled the literal
+font-unit metrics of Liberation Sans Regular (an `H` 1409 units high and 1144 wide with an advance of 1479, so the
+bounds of `HI` at size 14.09 are 16.91 by 14.09) hold for the default and the explicitly named family; and that the
+text fixture renders without a warning or an unsupported report and byte-identically on repeated renders and with
+one and four degrees of parallelism. Malformed mapped glyph outlines (reported as `scad-text-invalid-outline`) and the
+bounded, link-safe, cancellable scan of explicit font directories are covered by the unit evidence of
+`ScadTextGeometry`, not repeated here.
 
 ### Transparency: Colors With Alpha, Ghosts, And Highlights
 

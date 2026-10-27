@@ -1,5 +1,7 @@
-// cspell:ignore steelblue minkowski antialiases gons
+// cspell:ignore steelblue minkowski antialiases gons Liberation kerning ttb btt rtl ltr halign
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHelpers;
@@ -58,7 +60,7 @@ public class ScadRenderSystemTests
     public static TheoryData<string> AllFixtures => [.. FixtureNames()];
 
     /// <summary>
-    ///     Validates that the fifteen render fixtures exist, so the theories cannot silently run empty.
+    ///     Validates that the sixteen render fixtures exist, so the theories cannot silently run empty.
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Fixtures_AreDiscovered()
@@ -70,7 +72,7 @@ public class ScadRenderSystemTests
         Assert.Equal(
             [
                 "2d-csg", "bracket-csg", "extrusions", "hull", "intersection", "minkowski", "modifiers", "modules-scene",
-                "parametric", "polyhedron", "primitives", "root-modifier", "transforms", "transparency", "unsupported",
+                "parametric", "polyhedron", "primitives", "root-modifier", "text", "transforms", "transparency", "unsupported",
             ],
             names.Order(StringComparer.Ordinal).ToList());
     }
@@ -787,7 +789,7 @@ public class ScadRenderSystemTests
         // Assert
         var expected = new[]
         {
-            ("scad-module-text", 4),
+            ("scad-module-surface", 4),
             ("scad-module-offset", 5),
             ("scad-module-projection", 6),
             ("scad-module-surface", 7),
@@ -843,12 +845,198 @@ public class ScadRenderSystemTests
         var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => document.Render(40, 30, options, TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.Equal("scad-module-text", ex.Feature);
+        Assert.Equal("scad-module-surface", ex.Feature);
         Assert.Equal(4, ex.Location.Line);
         Assert.Equal(document.SourceName, ex.Location.File);
         Assert.NotEmpty(log.Unsupported);
-        Assert.Equal("scad-module-text", log.Unsupported[0].Feature);
+        Assert.Equal("scad-module-surface", log.Unsupported[0].Feature);
         Assert.Throws<ScadUnsupportedFeatureException>(() => document.BuildScene(options, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    ///     Validates that flat default-font text has the analytic bounds of its glyphs (the baseline on Y = 0, the
+    ///     ink flush with X = 0, capitals exactly <c>size</c> tall) and covers the analytic area of its outlines
+    ///     with the surface color, the counter between the stems of an H being empty.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage()
+    {
+        // Arrange: "HI" at size 20; the placement follows from the font's metrics and the documented formulas
+        var layout = TextLayout("HI", 20.0);
+        var width = layout.MaxX - layout.MinX;
+        var document = ScadDocument.Parse("text(\"HI\", size = 20);");
+        const int PixelsPerUnit = 6;
+        var widthUnits = (int)Math.Ceiling(width) + 4;
+        var view = ScadOrthoView.Top((widthUnits / 2.0) - 2.0, 10, widthUnits, 24, PixelsPerUnit);
+
+        // Act
+        var bounds = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+        using var surface = view.Render(document);
+
+        // Assert: the bounds of the slab are the bounds of the text (the slab is 0.1 thick)
+        AssertBounds(bounds, new Vector3D(0, 0, 0), new Vector3D(width, 20, 0.1), 1e-4);
+
+        // The covered area is the area of the two outlines (a flat shape rendered from above), within the pixel error
+        var covered = Count(surface, p => p != White);
+        var area = (OutlineArea('H') + OutlineArea('I')) * layout.Scale * layout.Scale * PixelsPerUnit * PixelsPerUnit;
+        Assert.InRange(covered, area * 0.97, area * 1.03);
+
+        // Between the stems of the H, above its crossbar, nothing is covered; on a stem the surface color is
+        var stemX = (layout.Ink['H'].MinX * layout.Scale) - layout.MinX + 1.0;
+        var betweenX = (((layout.Ink['H'].MinX + layout.Ink['H'].MaxX) / 2.0) * layout.Scale) - layout.MinX;
+        Assert.Equal(Gray, At(view, surface, stemX, 10.0));
+        Assert.Equal(White, At(view, surface, betweenX, 19.0));
+        Assert.Equal(White, At(view, surface, -1.0, 10.0));
+    }
+
+    /// <summary>
+    ///     Validates the alignments and directions at the scene level: for each combination the bounds of the built
+    ///     scene are the analytic extents of the laid out glyph ink, moved by the documented anchor formulas.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_AlignmentAndDirectionsHaveAnalyticBounds()
+    {
+        // Arrange: argument text, string and the layout it must have
+        (string Arguments, string Text, string Direction, double Spacing, string HAlign, string VAlign)[] cases =
+        [
+            ("halign = \"center\"", "HIT", "ltr", 1.0, "center", "baseline"),
+            ("halign = \"right\", valign = \"top\"", "HIT", "ltr", 1.0, "right", "top"),
+            ("halign = \"center\", valign = \"center\"", "HIT", "ltr", 1.0, "center", "center"),
+            ("valign = \"bottom\", spacing = 1.5", "HIT", "ltr", 1.5, "left", "bottom"),
+            ("direction = \"rtl\"", "HIT", "rtl", 1.0, "left", "baseline"),
+            ("direction = \"ttb\", halign = \"center\"", "HIT", "ttb", 1.0, "center", "baseline"),
+            ("direction = \"btt\", valign = \"top\"", "HIT", "btt", 1.0, "left", "top"),
+        ];
+
+        // Act / Assert
+        foreach (var (arguments, text, direction, spacing, halign, valign) in cases)
+        {
+            var layout = TextLayout(text, 12.0, direction, spacing);
+            var shiftX = halign switch { "center" => -(layout.MinX + layout.MaxX) / 2.0, "right" => -layout.MaxX, _ => -layout.MinX };
+            var shiftY = valign switch { "top" => -layout.MaxY, "center" => -(layout.MinY + layout.MaxY) / 2.0, "bottom" => -layout.MinY, _ => 0.0 };
+            var document = ScadDocument.Parse($"text(\"{text}\", size = 12, {arguments});");
+
+            var bounds = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+
+            AssertBounds(
+                bounds,
+                new Vector3D(layout.MinX + shiftX, layout.MinY + shiftY, 0),
+                new Vector3D(layout.MaxX + shiftX, layout.MaxY + shiftY, 0.1),
+                1e-4);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that extruded text is a solid of the analytic height: an H extruded by 6 has exactly its outline
+    ///     area times 6 as volume and a Z extent of 6, and an extruded O shows its hole as background from above while
+    ///     its ring is covered.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_ExtrudedGlyphHasAnalyticHeightAndHoleCoverage()
+    {
+        // Arrange
+        var layoutH = TextLayout("H", 20.0);
+        var solid = ScadDocument.Parse("linear_extrude(height = 6) text(\"H\", size = 20);");
+        var ring = ScadDocument.Parse("linear_extrude(height = 6) text(\"O\", size = 20);");
+
+        // Act
+        var scene = solid.BuildScene(cancellationToken: TestContext.Current.CancellationToken);
+        var ringBounds = ring.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+        var view = ScadOrthoView.Top((ringBounds.Min.X + ringBounds.Max.X) / 2.0, (ringBounds.Min.Y + ringBounds.Max.Y) / 2.0, 24, 24, 8);
+        using var surface = view.Render(ring);
+
+        // Assert: height 6 on the baseline, the volume of the prism, a closed manifold
+        AssertBounds(scene.ComputeBounds(), new Vector3D(0, 0, 0), new Vector3D(layoutH.MaxX - layoutH.MinX, 20, 6), 1e-4);
+        var mesh = Assert.Single(MeshNodes(scene)).Mesh;
+        Assert.True(mesh.IsClosed);
+        var expectedVolume = OutlineArea('H') * layoutH.Scale * layoutH.Scale * 6.0;
+        Assert.Equal(expectedVolume, mesh.SignedVolume, expectedVolume * 1e-6);
+
+        // The O: its counter (the hole) is background at the center, its ring is the surface color
+        var centerX = (ringBounds.Min.X + ringBounds.Max.X) / 2.0;
+        var centerY = (ringBounds.Min.Y + ringBounds.Max.Y) / 2.0;
+        Assert.Equal(White, At(view, surface, centerX, centerY));
+        Assert.Equal(Gray, At(view, surface, ringBounds.Min.X + 1.0, centerY));
+        Assert.Equal(Gray, At(view, surface, centerX, ringBounds.Max.Y - 1.0));
+        var covered = Count(surface, p => p != White);
+        var boxArea = (ringBounds.Max.X - ringBounds.Min.X) * (ringBounds.Max.Y - ringBounds.Min.Y) * 64;
+        Assert.InRange(covered, boxArea * 0.3, boxArea * 0.75);
+    }
+
+    /// <summary>
+    ///     Validates that a 2D boolean of text is distributed over the extrusion exactly like any other 2D shape: the
+    ///     extrusion of a difference renders the same image as the difference of the extrusions.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_ExtrudedBooleanMatchesDistributed2DGeometry()
+    {
+        // Arrange: the text minus a bar through it, extruded in the two orders
+        var distributed = ScadDocument.Parse("linear_extrude(height = 5) difference() { text(\"HE\", size = 20); translate([-1, 8]) square([40, 3]); }");
+        var outside = ScadDocument.Parse("difference() { linear_extrude(height = 5) text(\"HE\", size = 20); linear_extrude(height = 5) translate([-1, 8]) square([40, 3]); }");
+        var view = ScadOrthoView.Top(14, 10, 32, 24, 4);
+
+        // Act
+        using var first = view.Render(distributed);
+        using var second = view.Render(outside);
+
+        // Assert: identical, the bar is cut out of both stems, and the crossbar region is open
+        AssertSurfacesIdentical(first, second);
+        Assert.Equal(White, At(view, first, 1.5, 9.5));
+        Assert.Equal(Gray, At(view, first, 1.5, 4.0));
+        Assert.Equal(Gray, At(view, first, 1.5, 15.0));
+    }
+
+    /// <summary>
+    ///     Validates the metrics of the bundled font with literal values: the font units of Liberation Sans Regular
+    ///     (2048 per em, an H 1409 high and 1144 wide with an advance of 1479) give exact sizes, and an explicit
+    ///     family request resolves to the same outline when the host fonts are not consulted.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled()
+    {
+        // Arrange: size 14.09 makes one font unit exactly 0.01 model units
+        var plain = ScadDocument.Parse("text(\"H\", size = 14.09);");
+        var pair = ScadDocument.Parse("text(\"HI\", size = 14.09);");
+        var named = ScadDocument.Parse("text(\"H\", size = 14.09, font = \"Liberation Sans:style=Regular\");");
+        var withoutSystem = new ScadRenderOptions { FontResolution = new ScadFontResolutionOptions { UseSystemFonts = false } };
+
+        // Act
+        var plainBounds = plain.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
+        var pairBounds = pair.BuildScene(withoutSystem, TestContext.Current.CancellationToken).ComputeBounds();
+        var namedBounds = named.BuildScene(withoutSystem, TestContext.Current.CancellationToken).ComputeBounds();
+
+        // Assert: H is 1144 x 1409 units; in "HI" the I starts one advance (1479) later: 1479 + 380 - 168 = 1691 wide
+        AssertBounds(plainBounds, new Vector3D(0, 0, 0), new Vector3D(11.44, 14.09, 0.1), 1e-3);
+        AssertBounds(pairBounds, new Vector3D(0, 0, 0), new Vector3D(16.91, 14.09, 0.1), 1e-3);
+        AssertBounds(namedBounds, new Vector3D(0, 0, 0), new Vector3D(11.44, 14.09, 0.1), 1e-3);
+    }
+
+    /// <summary>
+    ///     Validates that repeated renders of text are byte-identical, for every degree of parallelism, and that the
+    ///     text fixture renders without a warning or an unsupported report.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Text_RepeatedRendersAreDeterministic()
+    {
+        // Arrange
+        var document = Fixture("text");
+        var log = new ScadReportLog();
+        var serial = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { MaxDegreeOfParallelism = 1 } };
+        var parallel = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { MaxDegreeOfParallelism = 4 } };
+
+        // Act
+        using var first = document.Render(160, 90, new ScadRenderOptions { Evaluation = log.Options() }, TestContext.Current.CancellationToken);
+        using var second = document.Render(160, 90, cancellationToken: TestContext.Current.CancellationToken);
+        using var one = document.Render(160, 90, serial, TestContext.Current.CancellationToken);
+        using var four = document.Render(160, 90, parallel, TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertSurfacesIdentical(first, second);
+        AssertSurfacesIdentical(first, one);
+        AssertSurfacesIdentical(first, four);
+        Assert.Empty(log.Warnings);
+        Assert.Empty(log.Unsupported);
+        Assert.True(CountNon(first, White) > 0);
     }
 
     /// <summary>
@@ -1727,6 +1915,108 @@ public class ScadRenderSystemTests
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     The ink bounds of a glyph in font design units.
+    /// </summary>
+    /// <param name="MinX">The left.</param>
+    /// <param name="MaxX">The right.</param>
+    /// <param name="MinY">The bottom.</param>
+    /// <param name="MaxY">The top.</param>
+    private readonly record struct GlyphInk(double MinX, double MaxX, double MinY, double MaxY);
+
+    /// <summary>
+    ///     The analytic layout of a text of straight-outline glyphs before alignment.
+    /// </summary>
+    /// <param name="Scale">The model units per font unit.</param>
+    /// <param name="MinX">The minimum X of the ink.</param>
+    /// <param name="MaxX">The maximum X of the ink.</param>
+    /// <param name="MinY">The minimum Y of the ink.</param>
+    /// <param name="MaxY">The maximum Y of the ink.</param>
+    /// <param name="Ink">The ink bounds in font units by character.</param>
+    private sealed record TextLayoutResult(double Scale, double MinX, double MaxX, double MinY, double MaxY, IReadOnlyDictionary<char, GlyphInk> Ink);
+
+    /// <summary>
+    ///     Lays a text out from the metrics of the bundled font and the documented formulas (the size maps the ink
+    ///     height of <c>H</c>; the pen moves by the kerning and the spacing-scaled advance), independently of the
+    ///     implementation. Only straight-outline glyphs give exact ink bounds.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="size">The size.</param>
+    /// <param name="direction">The direction, one of <c>ltr</c>, <c>rtl</c>, <c>ttb</c> and <c>btt</c>.</param>
+    /// <param name="spacing">The spacing.</param>
+    /// <returns>The scale and the ink extents before alignment.</returns>
+    private static TextLayoutResult TextLayout(string text, double size, string direction = "ltr", double spacing = 1.0)
+    {
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var reference = font.GetGlyphOutline(font.GetGlyphIndex('H')).GetBounds();
+        var scale = size / (reference.Bottom - reference.Top);
+        var ink = text.Distinct().ToDictionary(
+            c => c,
+            c =>
+            {
+                var bounds = font.GetGlyphOutline(font.GetGlyphIndex(c)).GetBounds();
+                return new GlyphInk(bounds.Left, bounds.Right, bounds.Top, bounds.Bottom);
+            });
+        var vertical = direction is "ttb" or "btt";
+        double minX = double.PositiveInfinity, maxX = double.NegativeInfinity, minY = double.PositiveInfinity, maxY = double.NegativeInfinity;
+        var pen = 0.0;
+        var previous = -1;
+        foreach (var character in direction == "rtl" ? text.Reverse() : text)
+        {
+            var glyph = font.GetGlyphIndex(character);
+            if (!vertical && previous >= 0)
+            {
+                pen += font.GetKerning(previous, glyph) * scale;
+            }
+
+            var origin = pen;
+            var advance = font.GetAdvanceWidth(glyph) * scale * spacing;
+            pen += direction == "ttb" ? -advance : advance;
+            previous = glyph;
+            var glyphInk = ink[character];
+            var offsetX = vertical ? 0.0 : origin;
+            var offsetY = vertical ? origin : 0.0;
+            minX = Math.Min(minX, (glyphInk.MinX * scale) + offsetX);
+            maxX = Math.Max(maxX, (glyphInk.MaxX * scale) + offsetX);
+            minY = Math.Min(minY, (glyphInk.MinY * scale) + offsetY);
+            maxY = Math.Max(maxY, (glyphInk.MaxY * scale) + offsetY);
+        }
+
+        return new TextLayoutResult(scale, minX, maxX, minY, maxY, ink);
+    }
+
+    /// <summary>
+    ///     Computes the area of a glyph with a single straight-edged outline in font units squared (the shoelace sum).
+    /// </summary>
+    /// <param name="character">The character; its outline must be one closed polygon of straight lines.</param>
+    /// <returns>The area.</returns>
+    private static double OutlineArea(char character)
+    {
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var subpath = Assert.Single(font.GetGlyphOutline(font.GetGlyphIndex(character)).Subpaths);
+        var points = new List<(double X, double Y)> { (subpath.Start.X, subpath.Start.Y) };
+        foreach (var command in subpath.Commands)
+        {
+            if (command.Type == PathCommandType.LineTo)
+            {
+                points.Add((command.EndPoint.X, command.EndPoint.Y));
+            }
+            else
+            {
+                Assert.Equal(PathCommandType.Close, command.Type);
+            }
+        }
+
+        var sum = 0.0;
+        for (var i = 0; i < points.Count; i++)
+        {
+            var next = points[(i + 1) % points.Count];
+            sum += (points[i].X * next.Y) - (next.X * points[i].Y);
+        }
+
+        return Math.Abs(sum) / 2.0;
     }
 
     /// <summary>

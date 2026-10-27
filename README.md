@@ -1,6 +1,7 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM deskew Otsu luma grayscale -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM deskew Otsu luma grayscale halign -->
+<!-- cspell:ignore Liberation -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -45,8 +46,8 @@ load/crop/resize/save workflows.
   highlights), plus polygon extrusion (linear/rotational), exact convex hulls, and
   Minkowski sums of convex solids
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
-  booleans, extrusions, `hull`, `minkowski`, `color` with alpha, the `%` ghost and `#` highlight modifiers, `-D`
-  variables) straight to a surface; unsupported constructs are reported
+  booleans, extrusions, `hull`, `minkowski`, `text` with a deterministic bundled font, `color` with alpha, the `%` ghost
+  and `#` highlight modifiers, `-D` variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
   including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
@@ -338,6 +339,17 @@ var seeThrough = ScadDocument.Parse("""
     """);
 using var glass = seeThrough.Render(640, 480);
 
+// Lettering: text() is a 2D shape (extrude it, subtract it, move it). Without a font argument it uses the
+// bundled Liberation Sans, so the result is the same on every machine; size is the height of a capital H
+var label = ScadDocument.Parse("""
+    difference() {
+        cube([40, 14, 3]);
+        translate([20, 7, 1.5]) linear_extrude(height = 2)
+            text("CanvasNet", size = 6, halign = "center", valign = "center");
+    }
+    """);
+using var engraved = label.Render(640, 480);
+
 // Override variables, and be told about anything that could not be built instead of losing it silently
 var options = new ScadRenderOptions
 {
@@ -348,6 +360,15 @@ var options = new ScadRenderOptions
     },
 };
 using var variant = document.Render(640, 480, options);
+
+// An explicitly named font is looked up in your own directories first, then (unless disabled) the installed fonts,
+// then the bundled Liberation families; turn the installed fonts off to make named fonts reproducible too
+var fonts = new ScadRenderOptions
+{
+    FontResolution = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = ["./fonts"] },
+};
+var named = ScadDocument.Parse("text(\"Hello\", font = \"Liberation Serif:style=Bold Italic\");");
+using var serif = named.Render(640, 480, fonts);
 ```
 
 See the [User Guide][link-releases] for the full API reference and additional worked examples,

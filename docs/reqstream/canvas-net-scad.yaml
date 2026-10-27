@@ -1,5 +1,5 @@
 ---
-# cspell:ignore openscad sandboxed uncatchable Parameterizing Minkowski multmatrix
+# cspell:ignore openscad sandboxed uncatchable Parameterizing Minkowski multmatrix textmetrics fontmetrics halign
 #
 # Software System Requirements for CanvasNetScad
 #
@@ -30,10 +30,12 @@
 # special variables that control curve resolution) and ScadDocument.Render draws it to a Surface, with
 # every construct that cannot be built reported rather than skipped. Phase 7 added the
 # hull module (3D and 2D) and the minkowski module of convex 3D children, built on the Render3D convex
-# hull and Minkowski sum. Phase 8 (this delivery) renders transparency: the alpha of a color, the
+# hull and Minkowski sum. Phase 8 renders transparency: the alpha of a color, the
 # background modifier (a translucent ghost that is not part of the model), and the highlight modifier
-# (a translucent copy), on the Render3D transparency and overlay support; the 2D Minkowski sum, offset,
-# projection, text, surface, import, and roof modules, and the two modifiers on a 2D shape that is not
+# (a translucent copy), on the Render3D transparency and overlay support. The text module (this delivery)
+# builds glyph outlines of a TrueType font into flat 2D shapes; the 2D Minkowski sum, offset,
+# projection, surface, import, and roof modules, the textmetrics and fontmetrics functions, and the two
+# modifiers on a 2D shape that is not
 # extruded, are not supported yet and are reported as unsupported features (see
 # docs/design/canvas-net-scad.md, Supported And Deferred Features). The package is packable; packaging
 # is verified by the build, which packs it, and is not a behavioral requirement.
@@ -385,7 +387,8 @@ sections:
         title: >-
           The library shall let a caller supply immutable, validated render options (evaluation
           options, camera, fitted-view angles and projection, scene options such as background color,
-          default surface color, lights, and supersampling, and the thickness of flat shapes) with
+          default surface color, lights, and supersampling, the thickness of flat shapes, and where
+          explicitly named fonts are found) with
           documented defaults - a white background, neutral gray surfaces that a model color
           overrides, and shaded lighting - rejecting invalid values when they are set and never
           changing an options instance afterwards.
@@ -502,10 +505,34 @@ sections:
           - ScadRenderSystem_Extrusions_RevolvedRingIsAnAnnulus
           - ScadRenderSystem_Symmetry_StarIsSymmetricAboutItsAxis
 
+      - id: CanvasNetScad-Text
+        title: >-
+          The library shall build the text module into flat 2D shapes of glyph outlines, deterministically
+          with the bundled Liberation Sans font unless a font is named, sized so that an upper case H is
+          the requested size tall, aligned by the measured ink extents, laid out left to right, right to
+          left, top to bottom, or bottom to top without shaping, with the holes of the glyphs kept, so
+          that text renders flat, extrudes, and takes part in 2D booleans and hulls like any 2D shape,
+          and shall let the caller control where explicitly named fonts come from through the render
+          options, reporting a missing font, a missing glyph, or an outline it cannot draw instead of
+          dropping it silently.
+        tags: [system]
+        justification: |
+          Labels and lettering are part of almost every printed part; a model with text must render the
+          same on every machine, and the author must be told what could not be drawn.
+        children:
+          - CanvasNetScad-ScadGeometry-Text
+        tests:
+          - ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage
+          - ScadRenderSystem_Text_AlignmentAndDirectionsHaveAnalyticBounds
+          - ScadRenderSystem_Text_ExtrudedGlyphHasAnalyticHeightAndHoleCoverage
+          - ScadRenderSystem_Text_ExtrudedBooleanMatchesDistributed2DGeometry
+          - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
+          - ScadRenderSystem_Text_RepeatedRendersAreDeterministic
+
       - id: CanvasNetScad-GeometryUnsupported
         title: >-
           The library shall report every construct it recognizes but cannot build or draw faithfully -
-          the text, offset, projection, surface, import, and roof modules, a hull or a minkowski whose
+          the offset, projection, surface, import, and roof modules, a hull or a minkowski whose
           operands have no hull or sum (the scad-hull-* and scad-minkowski-* identifiers), a highlight
           or background modifier on a 2D shape that is not extruded, and the other documented cases - as
           an unsupported-feature report with a stable identifier, a message, and the source location,

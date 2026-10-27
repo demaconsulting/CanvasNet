@@ -193,7 +193,8 @@ public sealed partial class ScadDocument
             evaluation.ThrowOnUnsupportedFeature,
             cancellationToken,
             options.HighlightColor,
-            options.GhostColor);
+            options.GhostColor,
+            options.FontResolution);
         return ScadGeometryBuilder.Build(output.Roots, settings, sink);
     }
 

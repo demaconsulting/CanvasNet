@@ -1,0 +1,230 @@
+---
+# cspell:ignore notdef Liberation kerning ttb btt rtl ltr halign unioned abandonable
+# Software Unit Requirements for ScadTextGeometry
+#
+# These requirements describe the design-level behavior of the ScadTextGeometry unit: the internal static class
+# that builds the text module (ScadTextGeometry, ScadTextGeometry.Flattening, and the font resolver ScadFontResolver)
+# in the DemaConsulting.CanvasNet.Scad.Geometry namespace. The unit lays a string out with a TrueType font from the
+# core Fonts subsystem and turns the glyph outlines into flat 2D regions, one region leaf per glyph component, so
+# that every consumer of 2D shapes (transforms, 2D booleans, hull, the extrusions, colors, and the top-level slab)
+# accepts text. The dialect decisions (size is the ink height of H, no shaping, language and script ignored,
+# alignment by measured ink extents) are CanvasNetScad's own and are pinned here and in the design document; they
+# are not a claim of identical results to any other implementation. Each "tests" entry cites an existing test
+# method in the DemaConsulting.CanvasNet.Scad.Tests project (ScadTextGeometryTests, plus the subsystem and system
+# tests named in the ScadGeometry and CanvasNetScad requirements); see
+# docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetScad Requirements
+    sections:
+      - title: ScadGeometry Requirements
+        sections:
+          - title: ScadTextGeometry Requirements
+            requirements:
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Arguments
+                title: >-
+                  The ScadTextGeometry unit shall bind the arguments text, size (default 10), font, halign,
+                  valign, spacing (default 1), direction, language, and script positionally or by name,
+                  convert a non-string text value as the str function does, accept language and script of any
+                  value and ignore them, and yield nothing, without a report, for an empty string or a string
+                  that has no drawable character.
+                justification: |
+                  The argument forms are the contract models are written against; language and script select
+                  shaping that the unit deliberately does not perform, so accepting and ignoring them keeps
+                  models that set them working, while an empty label is a legitimate result of a model
+                  parameter and must not be noise.
+                tests:
+                  - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
+                  - ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored
+                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
+                title: >-
+                  The ScadTextGeometry unit shall use the bundled Liberation Sans Regular font when no font is
+                  named, whatever fonts the host has, and shall resolve a font argument of the form Family or
+                  Family:style=Bold Italic (case-insensitive style words) by searching the additional
+                  directories (searched recursively, in the order given and in ordinal path order within a
+                  directory, skipping missing directories and font files that do not parse), then the
+                  installed fonts when enabled, then the bundled Liberation families and
+                  the generic names sans-serif, serif, and monospace, accepting only an exact family match
+                  (case aside, the closest bold and italic style, the first face winning a tie), and shall
+                  fall back to the bundled sans font with one located warning when the
+                  family is missing or its face cannot be loaded.
+                justification: |
+                  A model that names no font must render identically on every machine; an explicit font must
+                  be found where the author put it, and a missing font must be said out loud rather than
+                  substituted with whatever the host happens to have.
+                tests:
+                  - ScadTextGeometry_Build_DefaultFontUsesBundledLiberationSansWhenSystemFontsDisabled
+                  - ScadTextGeometry_Build_FontSpecParsesFamilyAndBoldItalicStyle
+                  - ScadTextGeometry_Build_MissingFontFallsBackToBundledWithWarning
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
+                  - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
+                  - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
+                  - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Size
+                title: >-
+                  The ScadTextGeometry unit shall scale a text so that the ink height of the glyph H of the
+                  selected font equals the size argument in model units (the scale is the size divided by that
+                  height in font design units, falling back to the larger of the absolute ascender and the
+                  units per em for a font without a usable H), so that an upper case H stands exactly size
+                  tall on the baseline.
+                justification: |
+                  The size must map to something a model author can predict and measure; the cap-height rule
+                  is deterministic per font and needs no inconsistently filled font metrics.
+                tests:
+                  - ScadTextGeometry_Build_SizeUsesSelectedFontCapHeight
+                  - ScadTextGeometry_ReferenceHeight_BundledFaces_HaveStraightLinedH
+                  - ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Layout
+                title: >-
+                  The ScadTextGeometry unit shall place the glyphs one Unicode scalar at a time without
+                  shaping or ligatures, on a baseline at Y = 0, moving the pen by the kerning of the pair times
+                  the scale before a glyph and by its advance times the scale times the spacing after it, for
+                  the directions ltr and rtl (which lays the reversed sequence out left to right), and
+                  stacking upright glyphs down (ttb) or up (btt) by the scaled, spacing-multiplied advance
+                  without kerning.
+                justification: |
+                  Layout is where a text library earns trust; the formulas must be simple enough to state and
+                  check, and the lack of shaping must be a documented limit rather than a surprise.
+                tests:
+                  - ScadTextGeometry_Build_KerningAndSpacing_AffectMeasuredPlacement
+                  - ScadTextGeometry_Build_RtlReversesGlyphOrderWithoutShaping
+                  - ScadTextGeometry_Build_TtbAndBttStackUprightGlyphs
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Alignment
+                title: >-
+                  The ScadTextGeometry unit shall align the text by the measured ink extents of all its glyphs:
+                  halign left (the default) moves the minimum X to 0, center the middle of the X extent, right
+                  the maximum X; valign baseline (the default) moves nothing, top moves the maximum Y to 0,
+                  center the middle of the Y extent, bottom the minimum Y.
+                justification: |
+                  Aligning by the ink rather than by the advance box makes labels line up with what is drawn,
+                  independently of side bearings, and is checkable from the geometry alone.
+                tests:
+                  - ScadTextGeometry_Build_HorizontalAlignment_AnchorsMeasuredInkBounds
+                  - ScadTextGeometry_Build_VerticalAlignment_AnchorsMeasuredInkBounds
+                  - ScadRenderSystem_Text_AlignmentAndDirectionsHaveAnalyticBounds
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs
+                title: >-
+                  The ScadTextGeometry unit shall draw a character that the font does not map with the
+                  font's .notdef glyph, shall skip such a character with one located warning when .notdef has
+                  no outline, shall skip control characters silently, and shall let a glyph without an outline
+                  (a space) advance the pen without drawing.
+                justification: |
+                  A missing character must neither crash the model nor vanish unexplained; the rule must be
+                  the same for every font.
+                tests:
+                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours
+                title: >-
+                  The ScadTextGeometry unit shall flatten quadratic and cubic outline curves iteratively with a
+                  tolerance derived from the fragment rule of the instance (size over two as the radius), build
+                  one region per glyph with holes and islands normalized whatever winding the font used, split
+                  a glyph whose solids overlap (a composite glyph) into regions that are unioned, and report a
+                  damaged outline or contours that cross in any other way as the unsupported feature
+                  scad-text-invalid-outline or scad-text-overlapping-contours at the instance, omitting the
+                  whole text; a mapped glyph whose subpaths all lack an area is a damaged outline (unlike a
+                  genuinely empty outline such as a space, which advances without drawing).
+                justification: |
+                  Glyph outlines are the one place where the package consumes arbitrary third-party geometry;
+                  holes must survive, ordinary composite glyphs must work, and what cannot be represented must
+                  be refused with a located, stable report instead of corrupting a mesh or silently vanishing.
+                tests:
+                  - ScadTextGeometry_Build_GlyphContours_NormalizeHolesAndRejectOverlaps
+                  - ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions
+                  - ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline
+                  - ScadTextGeometry_TryMakeRegions_TouchingSolids_AreSplitAndLeftToTheUnion
+                  - ScadTextGeometry_FlattenCubic_CollinearOvershoot_IsKept
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Flat2D
+                title: >-
+                  The ScadTextGeometry unit shall return text as a flat 2D shape (one region leaf per glyph
+                  component, combined as a union) that transforms, 2D booleans, hull, linear_extrude,
+                  rotate_extrude, color, and the slab of a top-level shape consume like any other 2D shape,
+                  with closed extruded solids and the glyph holes kept.
+                justification: |
+                  Text is only useful if it composes: it has to extrude, subtract, move, and color like a
+                  square does.
+                tests:
+                  - ScadTextGeometry_Build_TransformsBooleansAndExtrusionsConsumeTheFlatRegion
+                  - ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion
+                  - ScadRenderSystem_Text_ExtrudedGlyphHasAnalyticHeightAndHoleCoverage
+                  - ScadRenderSystem_Text_ExtrudedBooleanMatchesDistributed2DGeometry
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Invalid
+                title: >-
+                  The ScadTextGeometry unit shall report an invalid argument (a missing or non-convertible
+                  text, a size that is not a finite number greater than zero, a negative or non-finite
+                  spacing, an unknown halign, valign, or direction keyword, a font that is not a string, or a
+                  text so large that its coordinates leave the supported range) as one located warning that
+                  leaves the instance empty, and an unknown argument or a child object as a warning that
+                  leaves the text built.
+                justification: |
+                  Invalid input is the author's to fix; a located warning with an empty result is the
+                  convention of every primitive and keeps one bad label from stopping a build.
+                tests:
+                  - ScadTextGeometry_Build_InvalidArguments_WarnAndReturnEmpty
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Budget
+                title: >-
+                  The ScadTextGeometry unit shall check, after every glyph, that the lower bound of the slab
+                  of the vertices placed so far fits the triangle budget and fail with the located triangle
+                  limit error before the regions are built when it does not, and shall leave the exact
+                  charging of the slab or extrusion to the consumers of the flat shape.
+                justification: |
+                  A long string must not be a way around the resource limits, and the accounting of flat
+                  shapes must stay in one place.
+                tests:
+                  - ScadTextGeometry_Build_FlatShapeBudgetUsesExistingSlabAccounting
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Cancellation
+                title: >-
+                  The ScadTextGeometry unit shall poll the cancellation token before it resolves the font and
+                  lays the text out, while it flattens the reference glyph that size is measured against,
+                  after every glyph, and after every flattened contour, so that a canceled build stops
+                  promptly.
+                justification: |
+                  Font loading and flattening are the longest steps of a text and a long build must be
+                  abandonable, including the measurement that precedes the first glyph.
+                tests:
+                  - ScadTextGeometry_Build_Cancellation_IsPolledBeforeFlattening
+                  - ScadTextGeometry_Build_Cancellation_IsPolledDuringReferenceHeightFlattening
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety
+                title: >-
+                  The ScadTextGeometry unit shall scan the additional font directories without following a
+                  reparse point (neither a root, a subdirectory, nor a font file), skip a malformed, over-long,
+                  missing, or
+                  unreadable path without failing, stop at fixed bounds on directories, entries, font files,
+                  and faces (visiting subdirectories depth first in ordinal order and keeping what was found
+                  before the bound), and poll the cancellation token of the build before every directory,
+                  file, and face so that a canceled build stops the scan with an operation canceled exception.
+                justification: |
+                  The additional directories are caller-supplied paths; scanning them must not loop through a
+                  link, crash on a bad path, take unbounded time or memory on a hostile tree, or ignore a
+                  cancellation.
+                tests:
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped
+
+              - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism
+                title: >-
+                  The ScadTextGeometry unit shall build exactly the same vertices every time for the same
+                  text, options, and fonts, never recursing, and a render of text shall be byte-identical for
+                  every degree of parallelism.
+                justification: |
+                  Reproducible output is a design goal of the whole package, and text is the feature most
+                  exposed to the host through fonts.
+                tests:
+                  - ScadTextGeometry_Build_RepeatedCallsAreDeterministic
+                  - ScadRenderSystem_Text_RepeatedRendersAreDeterministic

@@ -92,6 +92,7 @@ includes:
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-primitives.yaml
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-extrusions.yaml
+  - docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml

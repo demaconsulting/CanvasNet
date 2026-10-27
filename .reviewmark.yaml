@@ -1578,6 +1578,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadDocument.Render.cs"    # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadRenderOptions.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
@@ -1856,6 +1857,24 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadShape2D.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadExtrusions*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadExtrusions*Tests.cs"  # unit tests
+
+  # CanvasNetScad-ScadGeometry-ScadTextGeometry Review (one per unit)
+  - id: CanvasNetScad-ScadGeometry-ScadTextGeometry
+    title: Review that CanvasNetScad ScadGeometry ScadTextGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net-scad.md"
+      - "docs/reqstream/canvas-net-scad.yaml"
+      - "docs/design/canvas-net-scad/scad-geometry.md"
+      - "docs/reqstream/canvas-net-scad/scad-geometry.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml"  # unit requirements
+      - "docs/design/canvas-net-scad/scad-geometry/scad-text-geometry.md"  # unit design
+      - "docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-text-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFontResolver.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

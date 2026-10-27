@@ -229,12 +229,13 @@ strict mode does not throw for `#` and `%` on solids or a color alpha.
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UnsupportedModule_ReportsFeatureWithLocation`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UserModuleShadowingBuiltin_IsBuiltNotReported`
 
-Asserts, for each of the six modules `text`, `offset`, `projection`, `surface`, `import`, and `roof`, that the
+Asserts, for each of the five modules `offset`, `projection`, `surface`, `import`, and `roof`, that the
 report is `scad-module-{name}` at the module's location with a message naming it, that no
 mesh is built, and that an invalid child (a cube that would warn) is never visited; that realistic arguments make
 no difference and three modules in one program are reported in order at their own lines; that supported siblings
-still build; that, of every module the evaluator recognizes, exactly the six are reported (`hull` and `minkowski`
-are built, and without children they yield nothing and report nothing, so a module added to
+still build; that, of every module the evaluator recognizes, exactly the five are reported (`hull`, `minkowski`,
+and `text` are built, and without children or arguments they yield nothing or at most a warning and report no
+unsupported feature, so a module added to
 the evaluator cannot be silently dropped); that an unsupported module under transforms yields nothing, as a
 minuend it empties the difference, and as a subtrahend it vanishes after being reported; and that a user module of
 the same name builds its own geometry without a report.
@@ -431,7 +432,7 @@ inside a used library carries the file name `lib.scad` with the line and column 
 
 Asserts that strict mode throws at the first unsupported module with its feature and location while the sink keeps
 exactly that one report, that `#` on a 2D shape throws `scad-modifier-highlight`, and that through the public options the
-handler sees `text`, `surface`, `import`, and `projection` at lines 1 to 4 in order and strict mode throws the
+handler sees `projection`, `surface`, `import`, and `offset` at lines 1 to 4 in order and strict mode throws the
 first.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Difference: Position-Preserving Difference

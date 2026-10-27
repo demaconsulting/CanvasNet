@@ -1,5 +1,7 @@
+// cspell:ignore canvasnet
 using System.Reflection;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
@@ -29,6 +31,66 @@ public class ScadRenderOptionsTests
         Assert.Equal(0.1, options.FlatShapeThickness);
         Assert.Equal(new Rgba32(255, 64, 128, 110), options.HighlightColor);
         Assert.Equal(new Rgba32(128, 128, 128, 80), options.GhostColor);
+        Assert.Null(options.FontResolution);
+    }
+
+    /// <summary>
+    ///     Validates the defaults of the font resolution options, that the directory list is copied when it is set
+    ///     (a later change of the caller's list has no effect and the exposed list cannot be used to change it), and
+    ///     that the options reach the geometry: a font directory supplied through the render options is searched.
+    /// </summary>
+    [Fact]
+    public void ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories()
+    {
+        // Arrange: a directory holding only a bold serif face, and a caller's list that changes afterwards
+        var defaults = new ScadFontResolutionOptions();
+        var directory = Directory.CreateDirectory(Path.Join(Path.GetTempPath(), "canvasnet-test-scad-options-" + Guid.NewGuid())).FullName;
+        try
+        {
+            using (var source = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts.LiberationSerif-Bold.ttf")!)
+            using (var target = File.Create(Path.Join(directory, "SerifBold.ttf")))
+            {
+                source.CopyTo(target);
+            }
+
+            var callers = new List<string> { directory };
+            var fonts = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = callers };
+            callers.Clear();
+            var document = ScadDocument.Parse("text(\"H\", font = \"Liberation Serif\");");
+
+            // Act: the same text with and without the directory (without it the bundled regular serif is used)
+            var withDirectory = document.BuildScene(new ScadRenderOptions { FontResolution = fonts }, TestContext.Current.CancellationToken).ComputeBounds();
+            var bundled = document.BuildScene(new ScadRenderOptions { FontResolution = new ScadFontResolutionOptions { UseSystemFonts = false } }, TestContext.Current.CancellationToken).ComputeBounds();
+
+            // Assert
+            Assert.True(defaults.UseSystemFonts);
+            Assert.Empty(defaults.AdditionalDirectories);
+            Assert.Equal([directory], fonts.AdditionalDirectories);
+            Assert.Throws<NotSupportedException>(() => ((IList<string>)fonts.AdditionalDirectories).Add("x"));
+            Assert.NotEqual(bundled.Max.X, withDirectory.Max.X, 3);
+            Assert.Equal(10.0, withDirectory.Max.Y, 1e-4);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a null list, and a null, empty or white-space directory are rejected when the options are
+    ///     initialized.
+    /// </summary>
+    [Fact]
+    public void ScadRenderOptions_FontResolution_InvalidDirectoriesAreRejected()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentNullException>(() => new ScadFontResolutionOptions { AdditionalDirectories = null! });
+        Assert.Throws<ArgumentException>(() => new ScadFontResolutionOptions { AdditionalDirectories = [null!] });
+        Assert.Throws<ArgumentException>(() => new ScadFontResolutionOptions { AdditionalDirectories = ["fonts", string.Empty] });
+        Assert.Throws<ArgumentException>(() => new ScadFontResolutionOptions { AdditionalDirectories = ["   "] });
+        Assert.Contains(
+            typeof(ScadFontResolutionOptions).GetProperties(),
+            p => p.Name == nameof(ScadFontResolutionOptions.UseSystemFonts) && p.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().Any(m => m.FullName == "System.Runtime.CompilerServices.IsExternalInit"));
     }
 
     /// <summary>

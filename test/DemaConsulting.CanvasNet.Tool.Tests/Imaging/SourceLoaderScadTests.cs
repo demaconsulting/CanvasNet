@@ -508,7 +508,7 @@ public class SourceLoaderScadTests
     {
         // Arrange: a model that echoes, calls a module that does not exist, and uses a module the library does not draw
         using var directory = new TempDirectory();
-        var path = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\", 3);\nmissing();\ntext(\"A\");\ncube(1);\n");
+        var path = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\", 3);\nmissing();\nsurface(\"A\");\ncube(1);\n");
 
         // Act
         using var loaded = Load(path);
@@ -520,7 +520,7 @@ public class SourceLoaderScadTests
         Assert.Contains($"{path}:2:1", warning.Message);
         Assert.Contains("missing", warning.Message);
         var unsupported = Assert.Single(loaded.Diagnostics, d => d.Severity == "unsupported");
-        Assert.Equal("scad-module-text", unsupported.Code);
+        Assert.Equal("scad-module-surface", unsupported.Code);
         Assert.Contains($"{path}:3:1", unsupported.Message);
         Assert.Null(unsupported.Page);
         Assert.NotEqual(0, CountCovered(loaded.Surface));
@@ -534,14 +534,14 @@ public class SourceLoaderScadTests
     {
         // Arrange: a model that uses a module the library does not draw
         using var directory = new TempDirectory();
-        var path = FixtureFactory.WriteText(directory.Path, "text.scad", "text(\"A\");\ncube(1);\n");
+        var path = FixtureFactory.WriteText(directory.Path, "text.scad", "surface(\"A\");\ncube(1);\n");
 
         // Act
         var exception = Assert.Throws<ToolException>(() => Load(path, strict: true));
 
         // Assert: the error names the feature, the location, and the way out
         Assert.Equal(ErrorCodes.UnsupportedFeature, exception.Code);
-        Assert.Contains("(scad-module-text)", exception.Message);
+        Assert.Contains("(scad-module-surface)", exception.Message);
         Assert.Contains($"{path}:1:1", exception.Message);
         Assert.Contains("--strict", exception.Hint);
         Assert.DoesNotContain('\n', exception.Message);
@@ -816,7 +816,7 @@ public class SourceLoaderScadTests
             (new ScadSyntaxException("Expected ';'", location), ErrorCodes.ScadError),
             (new ScadEvaluationException("Assertion failed", location), ErrorCodes.ScadError),
             (new ScadEvaluationException("Triangle limit exceeded (limit 3)", location), ErrorCodes.BudgetExceeded),
-            (new ScadUnsupportedFeatureException("scad-module-text", "not supported", location), ErrorCodes.UnsupportedFeature)
+            (new ScadUnsupportedFeatureException("scad-module-surface", "not supported", location), ErrorCodes.UnsupportedFeature)
         ];
 
         foreach (var (exception, code) in cases)

@@ -2,7 +2,7 @@
 
 <!-- cspell:ignore lexer lexing tokenization tokenizes tokenized tokenize parsers recursive-descent -->
 <!-- cspell:ignore nupkg unpackable evaluator evaluators polyhedra Minkowski undef reproducibly -->
-<!-- cspell:ignore textmetrics fontmetrics -->
+<!-- cspell:ignore textmetrics fontmetrics halign -->
 <!-- cspell:ignore multmatrix tessellators -->
 
 This document provides the system-level design for CanvasNetScad.
@@ -25,10 +25,16 @@ functions, modules and their children, control flow, comprehensions, built-in fu
 the special variables that control curve resolution) — and **render** it: `ScadDocument.Render` draws the scene
 onto a `Surface` (the core `CanvasNet` pixel buffer) with a camera fitted to the model or supplied by the
 caller. Everything that cannot be built is reported, never silently skipped. The package is packable and is
-the first release in which the roadmap's user-visible rendering capability exists; the 2D Minkowski sum, text,
+the first release in which the roadmap's user-visible rendering capability exists; the 2D Minkowski sum
 and a few other constructs remain deferred and are reported as unsupported features (see _Supported And
 Deferred Features_). Phase 7 added `hull` and `minkowski`; Phase 8 added transparency (the alpha of a color)
-and the `#` and `%` modifiers as translucent overlays.
+and the `#` and `%` modifiers as translucent overlays; the text delivery added `text()`, which lays a string
+out with a TrueType font (the bundled Liberation Sans unless a font is named) into flat 2D shapes. The text
+dialect is deliberately simple and is CanvasNetScad's own: no shaping or ligatures, `language` and `script`
+accepted and ignored, simple vertical directions, `size` as the ink height of `H`, and alignment by the measured
+ink extents; unusable mapped glyph outlines are reported rather than silently dropped, and the scan of explicit font
+directories is bounded and cancellable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
+Unit Design_).
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 
@@ -56,19 +62,20 @@ and the `#` and `%` modifiers as translucent overlays.
   instantiation tree stay internal so that they can evolve with the geometry phase. See _ScadEvaluation
   Subsystem Design_ (`canvas-net-scad/scad-evaluation.md`).
 - **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
-  `Geometry/`): the geometry builder, with four units. `ScadGeometryBuilder` walks the instantiation tree
+  `Geometry/`): the geometry builder, with five units. `ScadGeometryBuilder` walks the instantiation tree
   iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the `hull` and `minkowski`
   convex combinations of `ScadHulls`, the triangle budget, reporting, and the node-to-location map).
   `ScadPrimitives` builds `cube`, `sphere`, `cylinder`, `polyhedron`,
   `square`, `circle`, and `polygon` and resolves `$fn`, `$fa`, and `$fs`. `ScadTransforms` applies `translate`,
   `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color`. `ScadExtrusions` builds `linear_extrude` and
-  `rotate_extrude` over a symbolic 2D shape tree. The subsystem has no public types. See _ScadGeometry
+  `rotate_extrude` over a symbolic 2D shape tree. `ScadTextGeometry` builds `text` from the glyph outlines of a
+  TrueType font into flat 2D shapes. The subsystem has no public types. See _ScadGeometry
   Subsystem Design_ (`canvas-net-scad/scad-geometry.md`).
 
 Dependencies inside the system are one-directional: `ScadDocument` calls `ScadParser`, which calls
 `ScadLexer`, `ScadEvaluator`, which calls `ScadFileResolver` (which calls `ScadParser` for each included
 file), `ScadValue`, and `ScadBuiltinFunctions`, and `ScadGeometryBuilder`, which calls `ScadPrimitives`,
-`ScadTransforms`, and `ScadExtrusions`; the `ScadLanguage` subsystem never calls back into
+`ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry`; the `ScadLanguage` subsystem never calls back into
 `ScadDocument` or `ScadEvaluation` (it uses only the shared `ScadSourceLocation`, `ScadSyntaxException`, and
 `ScadDirectiveKind` value types), `ScadEvaluation` depends on `ScadLanguage`, never the reverse, and
 `ScadGeometry` depends on the instantiation tree and sink of `ScadEvaluation`, never the reverse and never on
@@ -93,8 +100,12 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
   performance settings; its handler and strict flag are ignored), `FlatShapeThickness` (the slab thickness
   of a 2D shape that is not extruded; 0.1 by default), and the Phase 8 properties `HighlightColor` (the color of
   the translucent copy that `#` draws; `(255, 64, 128, 110)` by default) and `GhostColor` (the color of the
-  translucent ghost that `%` draws; `(128, 128, 128, 80)` by default), both accepting any alpha. Every numeric
-  value is validated when set.
+  translucent ghost that `%` draws; `(128, 128, 128, 80)` by default), both accepting any alpha, and the text
+  property `FontResolution` (a `ScadFontResolutionOptions`, or `null` for the defaults; it controls where an
+  explicitly named `text()` font is found). Every numeric value is validated when set.
+- **`ScadFontResolutionOptions`** (sealed, immutable): `UseSystemFonts` (whether installed fonts are searched
+  for an explicitly named font; `true` by default) and `AdditionalDirectories` (extra directories scanned
+  before the installed fonts; empty by default, copied and validated when set).
 - **`ScadOpenOptions`** (sealed): init-only `BaseDirectory`, `LibraryPaths`, `FileResolver`, and
   `SourceName`. Parsing consumes only `SourceName`; the other three govern `include` and `use`
   resolution when the document is evaluated.
@@ -159,8 +170,12 @@ for every type's complete constructor, property, and exception detail.
 project references in
 `src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj`:
 
-- `CanvasNet` (its own package, `DemaConsulting.CanvasNet`), for the `Surface` that `Render` returns and the
-  `Rgba32` colors of the scene and the renderer options
+- `CanvasNet` (its own package, `DemaConsulting.CanvasNet`), for the `Surface` that `Render` returns, the
+  `Rgba32` colors of the scene and the renderer options, and, for `text`, two of its subsystems: the **`Fonts`**
+  subsystem (`TrueTypeFont` and `SystemFontCatalog`, including the bundled Liberation fonts) for the font files,
+  glyph lookup, outlines, advances, and kerning, and the **`Geometry`** subsystem (`Path`) for the glyph outlines
+  that a font returns. Only the `ScadTextGeometry` unit of the `ScadGeometry` subsystem uses `Fonts` and
+  `Geometry`; no core API and no `InternalsVisibleTo` entry was added for it
 - `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
   (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
   extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`,
@@ -173,7 +188,10 @@ Both are consumed as public API only and are declared as the package dependencie
 public API of `CanvasNetScad` exposes the Render3D types `Scene`, `Camera`, `CameraProjection`, and
 `SceneRenderOptions` and the core `Surface`. The `ScadLanguage` and `ScadEvaluation` subsystems use neither
 system, so parsing and evaluation behave independently of both. The dependencies are modeled in the SysML2 model
-as the `usesCanvas` and `usesRender3D` dependencies.
+as the `usesCanvas`, `usesFonts`, `usesGeometry`, and `usesRender3D` dependencies of the `CanvasNetScad` system
+(the model records dependencies at the system level only, as for every other satellite system); the unit that
+needs `Fonts` and `Geometry`, `ScadTextGeometry`, says so in its own design, verification, and model
+documentation.
 
 **`CanvasNetScad` must never reference `DemaConsulting.CanvasNet.Svg`, `DemaConsulting.CanvasNet.Pdf`,
 `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Vsdx`, or `DemaConsulting.CanvasNet.Charts`.**
@@ -496,7 +514,8 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `hull` (3D and 2D children) | Supported (Phase 7) | The convex hull of the children's points; booleans below it, mixed dimensions and degenerate points are `scad-hull-csg-operand`, `scad-hull-mixed-dimensions`, `scad-hull-degenerate`; colors inside are dropped with a warning |
 | `minkowski` (convex 3D children) | Supported (Phase 7) | Folded from the left, unions distribute; `convexity` ignored; a non-convex operand is `scad-minkowski-nonconvex`, too much work is `scad-minkowski-too-complex`, mixed dimensions are `scad-minkowski-mixed-dimensions` |
 | `minkowski` of 2D children | Deferred | Reported as `scad-minkowski-2d`; omitted |
-| `text`, `import`, `offset`, `projection`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
+| `text` (`text`, `size`, `font`, `halign`, `valign`, `spacing`, `direction`; `language` and `script` accepted and ignored) | Supported (text delivery) | See _ScadTextGeometry Unit Design_; flat 2D glyph shapes (holes kept) laid out left to right, right to left, top to bottom, or bottom to top without shaping; `size` is the ink height of `H`; alignment by the measured ink extents; the default font is the bundled Liberation Sans; an unusable outline is `scad-text-invalid-outline` or `scad-text-overlapping-contours` |
+| `import`, `offset`, `projection`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
 | Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
 <!-- markdownlint-enable MD013 -->
 
@@ -637,6 +656,14 @@ requirements, design, verification, and tests for its own scope.
    `scad-color-alpha` identifier was removed, and `scad-modifier-highlight` and `scad-modifier-background` remain
    for 2D shapes that are not extruded only. A new original fixture, `render-transparency.scad`, and analytic
    system tests, and the complete companion documentation.
-6. **Later — Text and external-file import.**
+6. **Text (delivered).** The `text` module in the new `ScadTextGeometry` unit: layout with a TrueType font from the
+   core `Fonts` subsystem (deterministic bundled Liberation Sans by default, explicit `font` resolution through
+   additional directories, installed fonts, and the bundled families), flattening of the glyph outlines into
+   flat 2D regions with holes, and integration with every consumer of 2D shapes; the additive public
+   `ScadFontResolutionOptions` and `ScadRenderOptions.FontResolution`; the `scad-text-invalid-outline` and
+   `scad-text-overlapping-contours` identifiers; a new original fixture, `render-text.scad`, and analytic system
+   tests; and the complete companion documentation. No core API was added: the text unit uses the public `Fonts`
+   and `Geometry` API of the core package only. `textmetrics()` and `fontmetrics()` remain unsupported.
+7. **Later — External-file import.**
 
 Every later phase adds members and types rather than changing the signatures delivered here.

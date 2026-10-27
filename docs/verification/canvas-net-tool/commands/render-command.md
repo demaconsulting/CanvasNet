@@ -153,8 +153,8 @@ later definition of a name wins, one entry per name, in name order); `--time 0.5
 **RenderCommand_Run_ScadDiagnosticsAndEcho_AreInTheJsonResult**,
 **RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput**, and
 **RenderCommand_Run_MaxTrianglesExceeded_FailsWithBudgetExceeded**: the JSON result of a model that echoes, warns, and
-uses `text` has the echo line and two diagnostics (source `scad`; severity `warning` with code `scad-warning`, then
-`unsupported` with `scad-module-text`; no page); with `--strict` the same model is an `unsupported-feature` error and
+uses `surface` has the echo line and two diagnostics (source `scad`; severity `warning` with code `scad-warning`, then
+`unsupported` with `scad-module-surface`; no page); with `--strict` the same model is an `unsupported-feature` error and
 no file; `--max-triangles 1` is a `budget-exceeded` error of one line with the limit and a hint that names the option,
 and no file.
 

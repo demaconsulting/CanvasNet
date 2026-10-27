@@ -3,16 +3,17 @@
 <!-- cspell:ignore evaluator minkowski multmatrix polyhedron extrusions -->
 
 This document describes the subsystem-level verification strategy for the `ScadGeometry` subsystem (internal
-namespace `DemaConsulting.CanvasNet.Scad.Geometry`), containing four units: `ScadGeometryBuilder`,
-`ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions`.
+namespace `DemaConsulting.CanvasNet.Scad.Geometry`), containing five units: `ScadGeometryBuilder`,
+`ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry`.
 
 ### Verification Approach
 
 The `ScadGeometry` subsystem is verified at two tiers. The unit tests (see _ScadGeometryBuilder_,
-_ScadPrimitives_, _ScadTransforms_, and _ScadExtrusions Unit Verification Design_ under `scad-geometry/`) verify
+_ScadPrimitives_, _ScadTransforms_, _ScadExtrusions_, and _ScadTextGeometry Unit Verification Design_ under
+`scad-geometry/`) verify
 each unit through the subsystem's internal entry point with focused programs and hand-built instantiation trees,
 including the internal types made visible to the test assembly through `InternalsVisibleTo`. The subsystem-level
-tests in `ScadGeometryTests.cs` verify the four units working together: each test evaluates a small program with
+tests in `ScadGeometryTests.cs` verify the five units working together: each test evaluates a small program with
 the real evaluator (through `ScadGeometryTestSupport.Build`, which runs `ScadEvaluator` into an
 `ScadEvaluationSink` and then calls `ScadGeometryBuilder.Build` with the same sink) and asserts on the built
 `Scene` — the closed, outward-oriented meshes and their analytic bounds and volumes, the world placement and
@@ -33,7 +34,8 @@ which are used for real. The subsystem is internal, so its tests reach it throug
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
 - **Mocking**: None required
-- **Files**: None; every program is an in-memory string
+- **Files**: None at the subsystem tier (the text unit's font-resolution tests use temporary directories, see
+  _ScadTextGeometry Unit Verification Design_); every subsystem program is an in-memory string
 - **Threads**: The deep-model scenario runs the build on dedicated threads with a 256 KiB and a 256 MiB stack and
   joins each before asserting
 - **Isolation**: Each test evaluates and builds its own program and settings; no state is shared between tests
@@ -41,7 +43,7 @@ which are used for real. The subsystem is internal, so its tests reach it throug
 ### Acceptance Criteria
 
 The `ScadGeometry` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the four unit verification documents passes without error or unexpected exception, on every target
+scenario in the five unit verification documents passes without error or unexpected exception, on every target
 framework.
 
 ### Test Scenarios
@@ -80,14 +82,21 @@ framework.
   two cubes, a rounded box from a Minkowski sum, a 2D hull that is extruded, and a block from which a hull is
   subtracted, and asserts five closed meshes of positive volume, the analytic bounds of the hull and of the
   extrusion, the bounds of the rounded box, a boolean node for the cut, and no warning or report.
+- **Text Is A 2D Shape** (requirement `CanvasNetScad-ScadGeometry-Text`):
+  `ScadGeometryTests.ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion` — builds a
+  `linear_extrude` of a difference of an `H` of size 10 and a square and asserts no warning and no unsupported
+  feature, one boolean node of two closed extrusions, and for the first the exact Y extent 0 to 10 of the glyph
+  and the Z extent 0 to 2 of the extrusion. That a mapped glyph with only degenerate outlines is reported as an invalid
+  outline rather than dropped, and that font discovery is bounded and cancellable, is verified at the unit tier
+  (see _ScadTextGeometry Unit Verification Design_).
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a
-  program with a valid cube, an invalid cube, `text`, `roof`, and an `offset` on consecutive lines
-  and asserts one mesh, one warning at the invalid cube's line, and the three reports `scad-module-text`,
+  program with a valid cube, an invalid cube, `surface`, `roof`, and an `offset` on consecutive lines
+  and asserts one mesh, one warning at the invalid cube's line, and the three reports `scad-module-surface`,
   `scad-module-roof`, and `scad-module-offset` at lines 3 to 5 in source order;
   `ScadGeometryTests.ScadGeometry_Build_StrictMode_ThrowsAtTheFirstUnsupportedFeature` — asserts that with strict
   mode the first unsupported feature (`projection` at line 2) throws a `ScadUnsupportedFeatureException` with its
-  identifier and location and that the later `text` is never reached.
+  identifier and location and that the later `surface` is never reached.
 - **Triangle Budget** (requirement `CanvasNetScad-ScadGeometry-Limits`):
   `ScadGeometryTests.ScadGeometry_Build_TriangleBudgetExceeded_ThrowsLocatedEvaluationException` — builds a cube
   and a sphere of 64 fragments with a budget of 100 triangles and asserts a `ScadEvaluationException` located at
