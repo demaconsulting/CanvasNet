@@ -2087,6 +2087,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommand*Tests.cs"  # unit tests
 
+  # CanvasNetTool-Commands-InspectCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-InspectCommand
+    title: Review that CanvasNetTool Commands InspectCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/inspect-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/inspect-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/inspect-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/inspect-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
+
   # CanvasNetTool-Imaging Review (one per subsystem)
   - id: CanvasNetTool-Imaging
     title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct

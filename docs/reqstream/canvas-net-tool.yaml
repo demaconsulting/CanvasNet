@@ -459,6 +459,32 @@ sections:
         children:
           - CanvasNetTool-Imaging-Annotate
 
+      - id: CanvasNetTool-System-InspectColors
+        title: >-
+          The tool shall report the dominant colors of an image, with their pixel counts and shares, and the luma
+          statistics (mean, range, percentiles, the automatic threshold level, and a histogram) when `inspect colors`
+          is run, after any pipeline operations given, as text or as one JSON document, without writing a file.
+        tags: [system]
+        justification: |
+          Knowing what colors and what brightness a photograph has tells an agent which levels and threshold to use
+          before it transforms the picture.
+        children:
+          - CanvasNetTool-Commands-Inspect
+          - CanvasNetTool-Imaging-Analyze
+
+      - id: CanvasNetTool-System-InspectPixel
+        title: >-
+          The tool shall report the color, alpha, and luma of the pixel at a point, and optionally the pixels around
+          it and their mean, when `inspect pixel` is run, in the coordinates of the image after any pipeline operations
+          given, as text or as one JSON document, without writing a file, and shall refuse a point outside the image
+          as a usage error.
+        tags: [system]
+        justification: |
+          Probing a stroke, a mark, or a dimension line by its coordinates is how a measurement of a sketch is checked.
+        children:
+          - CanvasNetTool-Commands-Inspect
+          - CanvasNetTool-Imaging-Analyze
+
       - id: CanvasNetTool-System-Compare
         title: >-
           The tool shall compare two images, drawings, pages of documents, or models when the `compare`

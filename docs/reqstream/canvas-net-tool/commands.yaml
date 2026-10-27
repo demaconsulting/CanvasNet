@@ -6,7 +6,7 @@
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
 #   (formats and info), RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
-#   and pad), CompareCommand (compare), and MontageCommand (montage)
+#   and pad), CompareCommand (compare), MontageCommand (montage), and InspectCommand (inspect)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -163,3 +163,25 @@ sections:
         tests:
           - CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage
           - CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp
+
+      - id: CanvasNetTool-Commands-Inspect
+        title: >-
+          The Commands subsystem shall provide the inspect command with the subcommands colors and pixel, which load
+          an image, drawing, or document page, apply the same image pipeline as render, and report the dominant colors
+          and luma statistics, or the pixel at a point and its neighborhood, as text or as one JSON document when the
+          JSON option is given, without writing a file.
+        justification: |
+          Before an agent transforms a photograph it must be able to ask what the photograph contains; a read-only
+          command with the options of render answers it without an intermediate file.
+        children:
+          - CanvasNetTool-Commands-InspectCommand-Subcommands
+          - CanvasNetTool-Commands-InspectCommand-Options
+          - CanvasNetTool-Commands-InspectCommand-Colors
+          - CanvasNetTool-Commands-InspectCommand-Pixel
+          - CanvasNetTool-Commands-InspectCommand-Pipeline
+          - CanvasNetTool-Commands-InspectCommand-Sources
+          - CanvasNetTool-Commands-InspectCommand-ReadOnly
+          - CanvasNetTool-Commands-InspectCommand-Errors
+          - CanvasNetTool-Commands-InspectCommand-Deterministic
+        tests:
+          - CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp

@@ -24,8 +24,9 @@ output.
 #### Test Scenarios
 
 **CommandRegistry_CreateDefault_ReturnsRegistry**: the default registry exists, contains the shipped commands in order
-(`formats`, `info`, `render` with its alias `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`, `compare`, and
-`montage`), and
+(`formats`, `info`, `render` with its alias `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`, `compare`, `montage`,
+and
+`inspect`), and
 every command in it resolves by its own name.
 
 **CommandRegistry_Register_TwoCommands_KeepsRegistrationOrder**: the command list is in registration order.

@@ -54,6 +54,7 @@ input-files:
   - docs/verification/canvas-net-tool/commands/render-command.md
   - docs/verification/canvas-net-tool/commands/compare-command.md
   - docs/verification/canvas-net-tool/commands/montage-command.md
+  - docs/verification/canvas-net-tool/commands/inspect-command.md
   - docs/verification/canvas-net-tool/imaging.md
   - docs/verification/canvas-net-tool/imaging/source-loader.md
   - docs/verification/canvas-net-tool/imaging/image-writer.md
