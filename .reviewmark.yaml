@@ -1873,6 +1873,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-text-geometry.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFontResolver.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
