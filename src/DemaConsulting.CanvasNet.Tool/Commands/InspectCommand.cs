@@ -136,7 +136,12 @@ internal sealed partial class InspectCommand : ICommand
     private static void RunColors(Context context, Settings settings, LoadedSource loaded, Surface surface, IReadOnlyList<AppliedOperation> operations)
     {
         var background = AnalysisBackground(settings.Source.Background);
-        var statistics = ImageAnalysis.Analyze(surface, background, settings.Count);
+
+        // The loader and the pipeline have already composited the picture over the --background (a raster source is flattened
+        // over it, a drawing or a model is rendered onto it, and a rotation or a border is filled with it), so what is still
+        // translucent here is analyzed over white: the reported background (a translucent one flattened over white) is then
+        // exactly what a fully transparent pixel of the surface counts as, and no pixel is composited twice.
+        var statistics = ImageAnalysis.Analyze(surface, new Rgba32(255, 255, 255, 255), settings.Count);
 
         if (context.Json)
         {

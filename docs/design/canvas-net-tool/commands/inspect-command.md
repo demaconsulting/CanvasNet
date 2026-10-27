@@ -53,10 +53,12 @@ border color of `render`: the `--background`, else white for a vector source, el
 also as the fill of a rotation), runs the subcommand on the resulting surface, and disposes the pixels. The operations
 reported are those of the loader followed by those of the pipeline.
 
-**Analysis background**: translucent pixels are flattened over an opaque color before they are counted: the
-`--background` when it is opaque, white when there is none, and a translucent `--background` flattened over white
-(`(c * a + 255 * (255 - a) + 127) / 255` per channel; `--background transparent` is white). The raster loader flattens
-over `--background` itself when it is given, so the analysis background only matters for what is still translucent.
+**Analysis background**: translucent pixels are flattened over white before they are counted. The loader and the
+pipeline have already composited the picture over `--background` (a raster source is flattened over it, a drawing or a
+model is rendered onto it, a rotation or a border is filled with it), so a pixel is never composited twice. The reported
+`background` is the color a fully transparent pixel counts as: the `--background` when it is opaque, white when there
+is none, and a translucent `--background` flattened over white (`(c * a + 255 * (255 - a) + 127) / 255` per channel;
+`--background transparent` is white).
 
 **inspect colors**: `ImageAnalysis.Analyze(surface, background, count)`. Text, two lines:
 

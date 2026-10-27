@@ -135,8 +135,13 @@ public class InspectCommandSourceTests
         using var byDefault = Colors(path);
         using var green = Colors(path, "--background", "#00FF00");
         using var transparent = Colors(path, "--background", "transparent");
+        using var translucent = Colors(path, "--background", "#0000FF80");
 
         // Assert: white by default (and for a transparent background), the background color when one is given
+        // (a translucent one over white, counted once: the loader's flattening is not repeated by the analysis)
+        var translucentHex = Assert.Single(translucent.RootElement.GetProperty("colors").EnumerateArray()).GetProperty("hex").GetString();
+        Assert.Equal("#7F7FFF", translucent.RootElement.GetProperty("background").GetString());
+        Assert.Equal("#7F7FFF", translucentHex);
         Assert.Equal("#FFFFFF", Assert.Single(byDefault.RootElement.GetProperty("colors").EnumerateArray()).GetProperty("hex").GetString());
         Assert.Equal("#FFFFFF", byDefault.RootElement.GetProperty("background").GetString());
         Assert.Equal("#00FF00", Assert.Single(green.RootElement.GetProperty("colors").EnumerateArray()).GetProperty("hex").GetString());
