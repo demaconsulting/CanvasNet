@@ -3509,9 +3509,12 @@ be shared between threads and calls.
 | `Projection` | `Perspective` | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera` |
 | `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
 | `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
+| `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
+| `GhostColor` | `(128, 128, 128, 80)`, a translucent gray | The color of the translucent ghost that the `%` modifier draws instead of a solid. Any alpha is accepted |
 <!-- markdownlint-enable MD013 -->
 
-A `color()` in the model overrides `SceneOptions.DefaultColor`. `ScadLimits` (in `Evaluation.Limits`) bounds every
+A `color()` in the model overrides `SceneOptions.DefaultColor` (and the alpha of a `color()` is rendered; the alpha of
+`DefaultColor` is ignored). `ScadLimits` (in `Evaluation.Limits`) bounds every
 resource of a call; besides the evaluation limits (`MaxRecursionDepth`, `MaxEvaluationSteps`,
 `MaxLoopIterations`, `MaxListLength`, `MaxStringLength`, `MaxIncludeDepth`, `MaxIncludedFiles`, `MaxInstances`,
 `MaxOutputLength`, `MaxDiagnostics`) it has `MaxTriangles` (a `long`, default 5,000,000, at least 1), the bound on
@@ -3543,7 +3546,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
 | `multmatrix` | `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix | A bottom row other than `[0, 0, 0, 1]` is `scad-multmatrix-projective` |
 | `resize` | `resize(newsize, auto)` | Scales about the origin so the children reach `newsize`; `auto` keeps proportions |
-| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins. A transparency below 1 is drawn opaque and reported |
+| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive, including `"transparent"`), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins, alpha included. An alpha below 1 (from `alpha`, which overrides the alpha inside `c`, from the fourth component, from the hex form, or from `transparent`) makes the surface **translucent** (see *Transparency, Ghosts, and Highlights*); an `alpha` without a `c` is a warning |
 | `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
 | `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
 | `hull` | `hull() { ... }` of 3D children or of 2D children | The convex hull of every vertex of the children, in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`; the hull is omitted in each case, never approximated |
@@ -3551,12 +3554,51 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
 | `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
-| `#`, `%` | | Degraded and reported (see the next section) |
+| `#` (highlight) | `#cube(5);` | The subtree is rendered normally **and** as a translucent copy in `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as `scad-modifier-highlight` (see the next section) |
+| `%` (background) | `%cube(5);` | The subtree is drawn only as a translucent ghost in `GhostColor` that is not part of the model. On a 2D shape that is not extruded it is omitted and reported as `scad-modifier-background` (see the next section) |
 <!-- markdownlint-enable MD013 -->
 
 Language features (variables, functions, modules with `children()`, `for`, `if`, `let`, comprehensions, `echo`,
 `assert`, `include` and `use`, and the built-in functions) are evaluated by the evaluator described in
 *ScadDocument* above; the geometry builder never interprets them again.
+
+#### Transparency, Ghosts, and Highlights
+
+A `color()` with an alpha below 1, `%`, and `#` make surfaces translucent. The renderer composites the surfaces
+along each viewing ray from front to back, deterministically (the same bytes for every degree of parallelism) and
+over the background color of `SceneOptions` (a transparent background keeps a partial alpha). Because translucent
+bodies and overlays are resolved like the operands of a boolean, **their meshes must be closed solids**; a
+`polyhedron` that is not closed is reported through the `scad-csg-*` identifiers (when a handler or strict mode is
+set), and the fragment budget `SceneOptions.MaxFragmentsPerTile` applies to them as to booleans.
+
+- **A color with alpha.** `color("red", 0.5) cube(10);` is a half-transparent red cube: seen from above, the near and
+  the far wall of the cube both show, each with the alpha of the color, over what lies behind. An alpha of 0 is
+  invisible but still solid, so it still cuts and still counts for a `difference`. The innermost `color` wins,
+  alpha included.
+- **A union of translucent bodies shows the boundary of the union.** Overlapping members of one union merge, as in
+  every constructive solid geometry result, so the faces of one member that lie inside another are not visible.
+  To see through independent bodies, mark them with `%`.
+- **`%` draws a ghost.** The subtree is drawn as a translucent body in `GhostColor` (its own colors are replaced)
+  and is **not part of the model**: it adds nothing to a union, subtracts nothing from a `difference`, and
+  intersects nothing (an `intersection` with a ghost is empty; a ghost as the **first** child of a `difference`
+  leaves no ordinary geometry; the ghost is still drawn). It does not count for `resize`, and `hull` and `minkowski`
+  ignore it. It **is** part of the bounds that fit the default camera, so a ghost cannot fall out of the frame. This
+  is a documented choice of this package, not a claim of parity with any other implementation.
+- **`#` draws a highlight.** The subtree is rendered **normally** (its own colors, in the model) **and** as a
+  translucent copy in `HighlightColor`. It keeps taking part in the booleans around it, so in
+  `difference() { cube(10); #translate([2, 2, 2]) cube(6); }` the highlighted cutter still cuts, and its pink body is
+  drawn inside the cut: the highlight is visible even where the subtree was subtracted. The triangles of the copy
+  count a second time against `ScadLimits.MaxTriangles` (so a highlight on a very large subtree can reach the
+  limit sooner). A `#` on a `hull` or `minkowski` child makes the child an ordinary part of the hull or sum, and its
+  copy is not drawn.
+- **2D shapes.** A `#` or `%` on a 2D shape that is not extruded (a bare `square`, `circle`, or `polygon`, which is
+  drawn as a slab) has no translucent form: `#` renders the slab normally and `%` omits it, and each is reported
+  (`scad-modifier-highlight`, `scad-modifier-background`). The modifier on an **extrusion** of the shape, for example
+  `%linear_extrude(2) circle(4);`, works fully.
+- **The alpha of `SceneOptions.DefaultColor`, `BackFaceColor`, and lights is ignored.** Only the alpha of a model
+  `color()` and of `HighlightColor` and `GhostColor` is honored.
+
+Examples 25 and 27 show the reports and a complete transparent model.
 
 #### Curve Resolution
 
@@ -3584,9 +3626,8 @@ module in a loop is reported once. The identifiers are part of the documented be
 | `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
 | `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
 | `scad-minkowski-too-complex` | A `minkowski` has a child of more than 4,096 convex parts, a step of more than 4,096 sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the module | The module is omitted |
-| `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
-| `scad-modifier-background` | The `%` modifier | The subtree is omitted |
-| `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `"transparent"`) | The geometry is drawn opaque |
+| `scad-modifier-highlight` | The `#` modifier on a 2D shape that is not extruded (on a solid, `#` is rendered and not reported) | The shape is rendered normally, without highlighting |
+| `scad-modifier-background` | The `%` modifier on a 2D shape that is not extruded (on a solid, `%` is rendered as a ghost and not reported) | The shape is omitted |
 | `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | Estimated bounds are used |
 | `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
 | `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself or has no area | That shape is omitted |
@@ -3603,7 +3644,8 @@ module in a loop is reported once. The identifiers are part of the documented be
 Pass a handler to receive the reports (and the warnings) as they are delivered, or set
 `ThrowOnUnsupportedFeature` to refuse a partial result: the first unsupported feature of any stage, after the
 earlier events were delivered, is thrown as a `ScadUnsupportedFeatureException` that carries the `Feature` and the
-`Location`. See Examples 23 to 25.
+`Location`. See Examples 23 to 25. The former identifier `scad-color-alpha` no longer exists: a color with an alpha
+below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Highlights*).
 
 ### OpenSCAD Include Sandbox
 
@@ -4419,7 +4461,7 @@ var document = ScadDocument.Parse("""
     translate([20, 0, 0]) text("label");
     roof() { sphere(3); translate([8, 0, 0]) sphere(3); }
     cube(-1);
-    %cube(2);
+    offset(r = 1) square(2);
     """, new ScadOpenOptions { SourceName = "model.scad" });
 
 // Lenient: everything that can be built is drawn, and every problem is reported once, in order, on this
@@ -4448,7 +4490,7 @@ foreach (var feature in unsupported)
 // Output:
 // model.scad:2:23 scad-module-text
 // model.scad:3:1 scad-module-roof
-// model.scad:5:2 scad-modifier-background
+// model.scad:5:1 scad-module-offset
 
 // Strict: refuse a partial result. The first unsupported feature of any stage throws, after the events that
 // preceded it were delivered to the handlers
@@ -4514,6 +4556,51 @@ foreach (var feature in report)
 // Output:
 // bad.scad:1:1 scad-hull-csg-operand
 // bad.scad:2:1 scad-minkowski-nonconvex
+```
+
+## Example 27: Transparency, Ghosts, and Highlights
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    // A half-transparent red box: its near and far walls both show
+    color("red", 0.5) cube(10);
+
+    // A plate with a hole whose cutter is highlighted: the cutter still cuts, and its pink body is drawn in the hole
+    translate([16, 0, 0]) difference() {
+        cube([10, 10, 3]);
+        #translate([5, 5, -1]) cylinder(h = 5, r = 3, $fn = 32);
+    }
+
+    // A ghost: drawn translucent gray, but not part of the model - it does not cut the block it passes through
+    translate([32, 0, 0]) difference() {
+        cube(10);
+        %translate([2, 2, 2]) cube([6, 6, 12]);
+    }
+
+    // A ghost of an extruded shape (a % on a bare 2D shape is reported, not drawn)
+    %translate([52, 5, 0]) linear_extrude(height = 4) circle(r = 4, $fn = 24);
+    """, new ScadOpenOptions { SourceName = "see-through.scad" });
+
+// The overlay colors are part of the render options; any alpha is accepted
+var options = new ScadRenderOptions
+{
+    HighlightColor = new Rgba32(255, 64, 128, 110), // the default: a translucent pink
+    GhostColor = new Rgba32(128, 128, 128, 80),     // the default: a translucent gray
+};
+
+using var image = document.Render(800, 300, options);
+PngCodec.Save(image, "see-through.png");
+
+// Nothing here is reported as unsupported: the alpha, the ghost, and the highlight are rendered. A scene that
+// uses them is resolved like a boolean, so its meshes must be closed solids; the ghost is part of the bounds
+// that fit the default camera but not of the model
+var scene = document.BuildScene(options);
+Console.WriteLine(scene.ComputeBounds().Max.X);                              // Output: 56
+Console.WriteLine(scene.ComputeBounds(includeOverlays: false).Max.X);        // Output: 42
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

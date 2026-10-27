@@ -44,7 +44,7 @@ scenario in the two unit verification documents passes without error or unexpect
   `ScadLanguageTests.ScadLanguage_Parse_AllAuthoredFixtures_Succeed`,
   `ScadLanguageTests.ScadLanguage_Parse_LineEndingVariants_ProduceIdenticalTrees`,
   `ScadLanguageTests.ScadLanguage_Parse_FixtureLineEndingConversion_ProducesIdenticalTrees` — parses all
-  forty valid fixtures (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fourteen
+  forty-one valid fixtures (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fifteen
   render fixtures) into non-empty programs;
   parses a small program joined with LF, CRLF, and CR line endings and
   asserts a single distinct tree dump and a single distinct list of statement locations (`p.scad:2:1` and

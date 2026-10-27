@@ -1,6 +1,6 @@
 ### ScadGeometryBuilder
 
-<!-- cspell:ignore evaluator minuend subtrahend subtrahends minkowski multmatrix tessellation tessellator -->
+<!-- cspell:ignore evaluator minuend subtrahend subtrahends minkowski multmatrix tessellation tessellator memoized -->
 
 The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises twelve
 source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
@@ -8,7 +8,8 @@ source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `int
 - `ScadGeometryBuilder.cs` — `ScadGeometryBuilder` (sealed partial class): the entry point `Build`, the dimension
   of the model root, and the class-level documentation of the engine
 - `ScadGeometryBuilder.Walk.cs` — the iterative post-order engine (`BuildForest`, `Frame`, `Enter`)
-- `ScadGeometryBuilder.Modifiers.cs` — the `!` (show only) pre-pass `FindShowOnlyRoots`
+- `ScadGeometryBuilder.Modifiers.cs` — the `!` (show only) pre-pass `FindShowOnlyRoots` and the `#` and `%`
+  overlays (`ApplyModifiers`, `EffectiveTriangles`)
 - `ScadGeometryBuilder.Unsupported.cs` — the leaf, container, and unsupported module tables and
   `ReportUnsupportedModule`
 - `ScadGeo.cs` — `ScadGeo` and `ScadGeoKind`: the result of building one subtree (nothing, a 3D node, or a 2D
@@ -43,7 +44,8 @@ the CanvasNetScad dialect (see _CanvasNetScad System Design_, Clean-Room Provena
 text was consulted.
 
 The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometryBuilder-*` requirements
-(`NoRecursion`, `ImplicitUnion`, `ShowOnly`, `DegradedModifiers`, `UnsupportedModules`, `Reporting`,
+(`NoRecursion`, `ImplicitUnion`, `ShowOnly`, `ModifierBackground`, `ModifierHighlight`, `ModifierFlatEdge`,
+`ModifierRobustness`, `UnsupportedModules`, `Reporting`,
 `StrictMode`, `Difference`, `Intersection`, `BooleanOperands`, `MixedDimensions`, `FlatBooleans`,
 `ResizeBounds`, `TriangleBudget`, `CoordinateRange`, `FlatSlabs`, `Cancellation`, `SceneMap`,
 `SceneOptionsCopy`, `SceneOptionsMapping`, and the Phase 7 `Hull3D`, `Hull2D`, `HullDimensions`, `HullCsgOperand`,
@@ -54,8 +56,11 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometry
 
 **`ScadGeometrySettings`** (record) holds the validated inputs of one build: `MaxTriangles` (a `long`, from
 `ScadLimits.MaxTriangles`), `FlatShapeThickness` (the slab thickness of a top-level 2D shape),
-`ThrowOnUnsupportedFeature` (strict mode), and the `CancellationToken`. **`ScadBuiltScene`** (record) is the
-outcome: the `Scene` (an empty group when nothing was built) and the `ScadSceneMap`.
+`ThrowOnUnsupportedFeature` (strict mode), the `CancellationToken`, and the optional `HighlightColor` and
+`GhostColor` (`Rgba32?`; null means the defaults `(255, 64, 128, 110)` and `(128, 128, 128, 80)`, which the
+context exposes as `HighlightColor` and `GhostColor`). **`ScadBuiltScene`** (record) is the
+outcome: the `Scene` (an empty group when nothing was built), the `ScadSceneMap`, and the triangles charged (the
+meshes created plus the copies of `#` overlays).
 
 **`ScadGeometryContext`** holds the services of one build on one thread: the `ScadReporter`, the
 `ScadSceneMap`, the settings, the cancellation schedule, and the triangle counter. `Tick()` counts one visited
@@ -99,9 +104,8 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | `scad-hull-csg-operand`, `-degenerate`, `-mixed-dimensions`         | `hull` with a boolean, flat points, 2D + 3D  |
 | `scad-minkowski-nonconvex`, `-2d`, `-mixed-dimensions`              | non-convex operand, deferred 2D sum, 2D + 3D |
 | `scad-minkowski-too-complex`                                        | work above the documented bounds             |
-| `scad-modifier-highlight`                                           | `#` renders normally, not highlighted        |
-| `scad-modifier-background`                                          | `%` subtree omitted                          |
-| `scad-color-alpha`                                                  | alpha below 1 drawn opaque (`ScadColors`)    |
+| `scad-modifier-highlight`                                           | `#` on a 2D shape: rendered normally         |
+| `scad-modifier-background`                                          | `%` on a 2D shape: omitted                   |
 | `scad-resize-approximate`                                           | `resize` used estimated bounds               |
 | `scad-multmatrix-projective`                                        | projective `multmatrix` omitted              |
 | `scad-polygon-invalid`, `scad-polyhedron-face-invalid`              | invalid 2D leaf or polyhedron omitted        |
@@ -113,8 +117,10 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | `scad-csg-degenerate-triangle`, `-inverted-mesh`                    | the producing module (see `ScadDocument`)    |
 | `scad-csg-singular-transform`                                       | collapsed world transform of an operand      |
 
-The `Module(name)` helper builds `scad-module-{name}` with underscores kept. This unit itself emits the
-`scad-module-*` identifiers of the six unsupported modules, the two `scad-modifier-*` identifiers, and the seven
+The `Module(name)` helper builds `scad-module-{name}` with underscores kept. `scad-color-alpha` no longer exists
+(Phase 8): the alpha of a color is rendered. This unit itself emits the
+`scad-module-*` identifiers of the six unsupported modules, the two `scad-modifier-*` identifiers (for 2D shapes
+only), and the seven
 `scad-hull-*` and `scad-minkowski-*` identifiers of `ScadHulls`; the
 other identifiers are emitted by the sibling units and by `ScadDocument`, and are defined here so that they live
 in one place.
@@ -159,12 +165,13 @@ scene the build returns.
 
 ##### `Enter(node, out immediate)` — dispatch
 
-In this order: (1) a `#` instance reports `scad-modifier-highlight` and continues; (2) a `%` instance reports
-`scad-modifier-background` and yields `ScadGeo.Empty` without visiting its children (an instance with both
-marks reports both); (3) a **group** (a user module, `for`, `group`, or a modifier wrapper — the instance kind,
+In this order: (1) a **group** (a user module, `for`, `group`, or a modifier wrapper — the instance kind,
 whatever its name) is the implicit union of its children, so a user module named like a built-in is a group and
-**shadows** it; (4) a built-in name in the **container table** returns its combiner; (5) a name in the **leaf
-table** builds in place; (6) anything else is an unsupported module. The `*` modifier needs no handling: the
+**shadows** it; (2) a built-in name in the **container table** returns its combiner; (3) a name in the **leaf
+table** builds in place; (4) anything else is an unsupported module. The modifiers `#` and `%` do **not** change how
+an instance is entered (its children are visited and everything inside, unsupported modules included, is
+reported): `ApplyModifiers` turns the finished result into an overlay afterwards (see _Modifiers_). The `*`
+modifier needs no handling: the
 evaluator removes a disabled statement before the instances are created.
 
 The tables are `FrozenDictionary` instances keyed by ordinal module name:
@@ -187,7 +194,8 @@ An explicit-stack depth-first walk that returns the **outermost** instances mark
 calls `context.Tick()` for every instance it visits, so cancellation is polled on the same fixed schedule as the
 rest of the build and a canceled build stops during the pre-pass of a large model. It
 never descends into a marked subtree (a `!` nested inside has no further effect) nor into a `%` subtree (that
-subtree is omitted, so a mark inside it does not take part in the model), and it visits every other instance
+subtree is a ghost, not part of the model, so a mark inside it does not take part in the model), and it visits
+every other instance
 regardless of its module, including modules that are not built. The marked subtrees become the whole model
 **without the transforms and colors of their ancestors**: the marked subtree is the **new root of the design**, as if
 the model consisted of it alone. So `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin, and a
@@ -195,16 +203,45 @@ mark under a `color` or a `rotate` is neither colored nor rotated. This holds be
 subtrees instead of the roots;
 reports for ancestors and for the unmarked rest of the model are therefore not produced. Because the evaluator
 ORs the modifiers of a one-statement block onto that statement, `%{ ! x }` is a single instance that is both the
-`!` root and omitted: the pre-pass selects it, `Enter` then omits and reports it, and the model is empty (the
-unmarked instances are not used as a fallback). Pinned by `ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing`
+`!` root and a ghost: the pre-pass selects it, `ApplyModifiers` makes it a ghost, and the model has no ordinary
+geometry (the unmarked instances are not used as a fallback). Pinned by `ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsOnlyTheGhost`
 and, for the new-root rule, by `ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors`.
 
 ##### Modifiers
 
-`!` is the pre-pass above. `#` builds the subtree normally and reports `scad-modifier-highlight` at the
-instance. `%` omits the subtree and reports `scad-modifier-background` at the instance. All three degradations
-are CanvasNetScad capability limits (reports), not errors; they can be removed by later work without changing
-the engine.
+`!` is the pre-pass above. `#` and `%` are applied by `ApplyModifiers(node, geo)` to the finished and guarded
+result of an instance (a leaf in place, a container after its combiner), in both walk paths; a result that is
+`Empty` is left alone. The mechanism is the Render3D `OverlayNode` (an independent translucent body that is
+**false** in every enclosing boolean and is composited by depth with the rest of the scene; see the Render3D
+_SceneGraph_ design):
+
+- **`%` (ghost).** A solid becomes `OverlayNode(GhostColor, [geo.Node])`. It has **no bounds** (`Bounds` is the
+  empty box, tight) but keeps its `Reach`, so `resize` and the propagated bounds ignore it while the coordinate guard
+  still sees its vertices. It does not add to a union, does not subtract from a difference, makes an intersection
+  with it empty, and as the **first** operand of a `difference` it leaves the difference without ordinary
+  geometry (the ghost is still drawn). It stays in the bounds that fit the default camera (a documented choice:
+  `Scene.ComputeBounds()` includes overlays, so the ghost cannot fall out of the frame; only `resize` uses
+  `ComputeBounds(includeOverlays: false)`). `#` and `%` on the same instance: the background wins.
+- **`#` (highlight).** A solid becomes `Group[geo.Node, OverlayNode(HighlightColor, [geo.Node])]`: the **same node**
+  is the normal geometry and the body of the overlay, so no mesh is duplicated, the bounds and reach are
+  unchanged, and the subtree takes part in the booleans around it exactly as if the modifier were absent (a
+  highlighted subtrahend still subtracts, and its translucent body is drawn through the cut). The renderer draws
+  every path to a mesh, so the **triangles of the subtree are charged to the budget a second time**
+  (`EffectiveTriangles`, an iterative, memoized count of the triangles per path); this also bounds nested
+  highlights, whose paths would double with every level, by `ScadLimits.MaxTriangles` (a failure is the usual
+  located `ScadEvaluationException`).
+- **2D shapes.** A result that is still flat has no overlay form (the overlay is a body of solids): a `#` shape is
+  rendered normally and reported as `scad-modifier-highlight`, a `%` shape is omitted and reported as
+  `scad-modifier-background`, each at the instance. The modifier on an extrusion of the shape (a solid) works
+  completely.
+- **Hull and Minkowski.** The point collectors of `ScadHulls` ignore overlay nodes, so a `%` child contributes no
+  points (a ghost-only hull builds nothing) and the overlay of a `#` child is not drawn (its normal copy is part
+  of the hull); the appearance-stripping copy turns an overlay into an empty group instead of throwing.
+- **Closed solids.** Overlays are resolved with signed crossing counters, so the meshes beneath them must be
+  closed solids; an open mesh under `#` or `%` is reported by the renderer's operand check through the
+  `scad-csg-*` identifiers like any boolean operand.
+
+All of this is pinned by `ScadGeometryBuilderModifierTests`. The modifiers are applied without recursion.
 
 ##### `ScadBooleans` combiners
 
@@ -396,8 +433,10 @@ prefix gets `scad-` prepended.
   transforms, and extrusions report their invalid arguments the same way (see their unit designs).
 - **Unsupported feature** (`ScadReporter.Unsupported`): `scad-module-{name}` with the message
   `The module '{name}' is not supported; it and its children are omitted`, `scad-modifier-highlight`
-  (`The '#' modifier is not highlighted; the subtree is rendered normally`), `scad-modifier-background`
-  (`The '%' modifier is not supported; the subtree is omitted`), and the `scad-hull-*` and `scad-minkowski-*`
+  (`The '#' modifier on a 2D shape is not highlighted; the shape is rendered normally (extrude it to draw a
+  highlight)`), `scad-modifier-background`
+  (`The '%' modifier on a 2D shape is not supported; the shape is omitted (extrude it to draw a ghost)`), and the
+  `scad-hull-*` and `scad-minkowski-*`
   identifiers of `ScadHulls` (each message names the module, the cause, and that the module is omitted), each at
   the instance's location (which names an
   included or used file when the instance came from one). The sink de-duplicates by feature and location, so a
@@ -424,7 +463,7 @@ prefix gets `scad-` prepended.
 - **`ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` units** — the leaf and container builders in the
   dispatch tables (`ScadPrimitives.*`, `ScadTransforms.*`, `ScadColors.Color`, `ScadExtrusions.*`), and
   `ScadExtrusions.MakeSlabs` for a flat model; `ScadShape2D` for the 2D shape tree.
-- **`Render3D` public types** — `Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `CsgOperation`,
+- **`Render3D` public types** — `Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `OverlayNode`, `CsgOperation`,
   `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), `ConvexHull` and `MinkowskiSum`
   (the exact hull and the convex Minkowski sum used by `ScadHulls`), and `SceneRenderOptions`,
   `SceneRenderUnsupportedFeature`, and `Light` (scene rendering).

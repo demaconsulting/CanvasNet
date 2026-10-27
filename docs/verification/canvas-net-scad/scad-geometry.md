@@ -53,10 +53,14 @@ framework.
   closed with a positive volume, the exact volume of the cube, and the analytic bounds of the cylinder and (with a
   tolerance for the faceting) the sphere, with no warning and no unsupported feature.
 - **Show-Only And Highlight Modifiers** (requirement `CanvasNetScad-ScadGeometry-Model`):
-  `ScadGeometryTests.ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsReported` — builds a model
+  `ScadGeometryTests.ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsOverlaid` — builds a model
   whose marked cube sits beside an unmarked one under a translation and asserts that the only leaf is the marked
   cube at the origin (the translation of its ancestor does not apply); builds a highlighted cube and asserts one
-  mesh and the single report `scad-modifier-highlight`.
+  mesh, an overlay beside it, and no report.
+- **Transparency Is Rendered, Not Reported** (requirement `CanvasNetScad-ScadGeometry-Transparency`):
+  `ScadGeometryTests.ScadGeometry_Build_ColorAlphaAndModifiersOnSolids_AreRenderedNotReported` — builds a cube with
+  a color alpha of 0.5, a highlighted cube, and a ghost cube and asserts no warning and no unsupported feature, the
+  alpha 128 in the appearance of the first leaf, and two overlays in the scene.
 - **Transforms And Color Compose** (requirement `CanvasNetScad-ScadGeometry-Transforms`):
   `ScadGeometryTests.ScadGeometry_Build_TransformsAndColorsOverPrimitives_ComposeWorldPlacementAndAppearance` —
   builds a red box under a translation and a quarter-turn rotation and asserts its exact world bounds and the red
@@ -78,9 +82,9 @@ framework.
   extrusion, the bounds of the rounded box, a boolean node for the cut, and no warning or report.
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a
-  program with a valid cube, an invalid cube, `text`, `roof`, and a background-marked cube on consecutive lines
+  program with a valid cube, an invalid cube, `text`, `roof`, and an `offset` on consecutive lines
   and asserts one mesh, one warning at the invalid cube's line, and the three reports `scad-module-text`,
-  `scad-module-roof`, and `scad-modifier-background` at lines 3 to 5 in source order;
+  `scad-module-roof`, and `scad-module-offset` at lines 3 to 5 in source order;
   `ScadGeometryTests.ScadGeometry_Build_StrictMode_ThrowsAtTheFirstUnsupportedFeature` — asserts that with strict
   mode the first unsupported feature (`projection` at line 2) throws a `ScadUnsupportedFeatureException` with its
   identifier and location and that the later `text` is never reached.

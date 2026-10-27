@@ -1,4 +1,5 @@
 using System.Reflection;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
@@ -26,6 +27,8 @@ public class ScadRenderOptionsTests
         Assert.Equal(CameraProjection.Perspective, options.Projection);
         Assert.Null(options.SceneOptions);
         Assert.Equal(0.1, options.FlatShapeThickness);
+        Assert.Equal(new Rgba32(255, 64, 128, 110), options.HighlightColor);
+        Assert.Equal(new Rgba32(128, 128, 128, 80), options.GhostColor);
     }
 
     /// <summary>
@@ -49,6 +52,8 @@ public class ScadRenderOptionsTests
             Projection = CameraProjection.Orthographic,
             SceneOptions = scene,
             FlatShapeThickness = 1e-9,
+            HighlightColor = new Rgba32(1, 2, 3, 0),
+            GhostColor = new Rgba32(4, 5, 6, 255),
         };
 
         // Assert
@@ -59,6 +64,41 @@ public class ScadRenderOptionsTests
         Assert.Equal(CameraProjection.Orthographic, options.Projection);
         Assert.Same(scene, options.SceneOptions);
         Assert.Equal(1e-9, options.FlatShapeThickness);
+        Assert.Equal(new Rgba32(1, 2, 3, 0), options.HighlightColor);
+        Assert.Equal(new Rgba32(4, 5, 6, 255), options.GhostColor);
+    }
+
+    /// <summary>
+    ///     Validates that the default highlight and ghost colors are translucent, and that overriding them changes the
+    ///     picture: an opaque ghost and an opaque highlight are drawn in exactly their colors (flat lighting, top view).
+    /// </summary>
+    [Fact]
+    public void ScadRenderOptions_HighlightColorAndGhostColor_DefaultsAndOverrideChangeTheLook()
+    {
+        // Arrange
+        var flat = new SceneRenderOptions { Lights = [new AmbientLight { Intensity = 1.0f }], Supersampling = 1 };
+        var camera = new Camera
+        {
+            Eye = new Vector3D(15, 5, 100),
+            Target = new Vector3D(15, 5, 0),
+            Up = Vector3D.UnitY,
+            Projection = CameraProjection.Orthographic,
+            OrthographicHeight = 20,
+        };
+        var document = ScadDocument.Parse("#cube(10);\n%translate([20, 0, 0]) cube(10);");
+        var green = new Rgba32(0, 255, 0, 255);
+        var magenta = new Rgba32(255, 0, 255, 255);
+
+        // Act: 60 by 20 pixels cover x -15..45 and y -5..15; the highlighted cube is at columns 15..25, the ghost at 35..45
+        using var wide = document.Render(60, 20, new ScadRenderOptions { Camera = camera, SceneOptions = flat }, TestContext.Current.CancellationToken);
+        using var custom = document.Render(60, 20, new ScadRenderOptions { Camera = camera, SceneOptions = flat, HighlightColor = magenta, GhostColor = green }, TestContext.Current.CancellationToken);
+
+        // Assert: the defaults blend (neither the exact option color nor the background); the overrides are exact
+        Assert.NotEqual(magenta, wide[20, 10]);
+        Assert.NotEqual(green, wide[40, 10]);
+        Assert.NotEqual(new Rgba32(255, 255, 255, 255), wide[40, 10]);
+        Assert.Equal(magenta, custom[20, 10]);
+        Assert.Equal(green, custom[40, 10]);
     }
 
     /// <summary>

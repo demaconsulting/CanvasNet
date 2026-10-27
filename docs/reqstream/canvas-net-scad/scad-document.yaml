@@ -461,20 +461,23 @@ sections:
           - id: CanvasNetScad-ScadDocument-RenderOptions
             title: >-
               The ScadRenderOptions class shall be immutable with init-only properties Evaluation,
-              Camera, ViewAzimuthDegrees, ViewElevationDegrees, Projection, SceneOptions, and
-              FlatShapeThickness, shall default to no evaluation options (the defaults apply), a
-              fitted view at the isometric azimuth and elevation with a perspective projection, the
-              default scene options, and a flat-shape thickness of 0.1, and shall reject a non-finite
-              view angle, an undefined projection, and a flat-shape thickness that is not finite and
-              positive when it is set.
+              Camera, ViewAzimuthDegrees, ViewElevationDegrees, Projection, SceneOptions,
+              FlatShapeThickness, HighlightColor, and GhostColor, shall default to no evaluation options
+              (the defaults apply), a fitted view at the isometric azimuth and elevation with a
+              perspective projection, the default scene options, a flat-shape thickness of 0.1, a
+              translucent pink highlight (255, 64, 128, alpha 110), and a translucent gray ghost (128,
+              128, 128, alpha 80), shall accept any alpha for the two overlay colors and use them for
+              the  # and % overlays, and shall reject a non-finite view angle, an undefined projection,
+              and a flat-shape thickness that is not finite and positive when it is set.
             justification: |
               Options validated at initialization let the document trust every instance, and
               immutability makes a shared options instance safe to use from several threads; composing
               the evaluation options keeps one definition of variables, limits, handlers, and strict
-              mode.
+              mode; the look of the two modifier overlays is a look-and-feel setting like the others.
             tests:
               - ScadRenderOptions_New_HasDocumentedDefaults
               - ScadRenderOptions_Initialization_AcceptsValidValues
+              - ScadRenderOptions_HighlightColorAndGhostColor_DefaultsAndOverrideChangeTheLook
               - ScadRenderOptions_ViewAngles_NonFinite_Throw
               - ScadRenderOptions_Projection_Undefined_Throws
               - ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive

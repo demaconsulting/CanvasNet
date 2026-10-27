@@ -66,7 +66,7 @@ internal sealed partial class ScadGeometryBuilder
                 var combiner = Enter(child, out var immediate);
                 if (combiner is null)
                 {
-                    top.Results.Add(Guard(child, immediate!));
+                    top.Results.Add(ApplyModifiers(child, Guard(child, immediate!)));
                 }
                 else
                 {
@@ -81,7 +81,7 @@ internal sealed partial class ScadGeometryBuilder
             var geo = top.Combine(top.Node, top.Results, _context);
             if (top.Node is not null)
             {
-                geo = Guard(top.Node, geo);
+                geo = ApplyModifiers(top.Node, Guard(top.Node, geo));
             }
 
             if (stack.Count == 0)
@@ -120,39 +120,23 @@ internal sealed partial class ScadGeometryBuilder
     }
 
     /// <summary>
-    ///     Handles an instance on entry: reports its modifiers and either builds it in place or announces that
-    ///     its children must be visited.
+    ///     Handles an instance on entry: builds it in place or announces that its children must be visited.
     /// </summary>
+    /// <remarks>
+    ///     The <c>#</c> and <c>%</c> modifiers do not change how an instance is entered: its children are visited
+    ///     and its result is built as usual, and <see cref="ApplyModifiers"/> turns the result into the highlight
+    ///     or the ghost afterwards, so everything inside (including unsupported modules) is still reported.
+    /// </remarks>
     /// <param name="node">The instance.</param>
     /// <param name="immediate">The result when the instance needed no children; otherwise <see langword="null"/>.</param>
     /// <returns>
-    ///     <see langword="null"/> when the instance was handled in place (a leaf, an unsupported module or an
-    ///     omitted background subtree) and <paramref name="immediate"/> is its result; otherwise the function that
-    ///     combines the results of the instance's children.
+    ///     <see langword="null"/> when the instance was handled in place (a leaf or an unsupported module) and
+    ///     <paramref name="immediate"/> is its result; otherwise the function that combines the results of the
+    ///     instance's children.
     /// </returns>
     private ContainerBuilder? Enter(ScadInstance node, out ScadGeo? immediate)
     {
         immediate = null;
-
-        // A highlighted subtree renders normally; the degradation is reported once per location
-        if ((node.Modifiers & ScadModifiers.Highlight) != 0)
-        {
-            _context.Reporter.Unsupported(
-                ScadFeatureIds.ModifierHighlight,
-                "The '#' modifier is not highlighted; the subtree is rendered normally",
-                node.Location);
-        }
-
-        // A background subtree is omitted (and said so)
-        if ((node.Modifiers & ScadModifiers.Background) != 0)
-        {
-            _context.Reporter.Unsupported(
-                ScadFeatureIds.ModifierBackground,
-                "The '%' modifier is not supported; the subtree is omitted",
-                node.Location);
-            immediate = ScadGeo.Empty;
-            return null;
-        }
 
         // A group (user module, for, modifier wrapper) is the implicit union of its children, whatever its name
         if (node.Kind == ScadInstanceKind.Group)

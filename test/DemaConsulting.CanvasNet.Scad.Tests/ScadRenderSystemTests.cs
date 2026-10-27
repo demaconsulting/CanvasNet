@@ -42,11 +42,23 @@ public class ScadRenderSystemTests
     /// <summary>The CSS color <c>gray</c>.</summary>
     private static readonly Rgba32 CssGray = new(128, 128, 128, 255);
 
+    /// <summary>The CSS color <c>lime</c>.</summary>
+    private static readonly Rgba32 Lime = new(0, 255, 0, 255);
+
+    /// <summary>The documented default color of the <c>#</c> overlay.</summary>
+    private static readonly Rgba32 DefaultHighlight = new(255, 64, 128, 110);
+
+    /// <summary>The documented default color of the <c>%</c> overlay.</summary>
+    private static readonly Rgba32 DefaultGhost = new(128, 128, 128, 80);
+
+    /// <summary>The fully transparent background.</summary>
+    private static readonly Rgba32 ClearBackground = new(0, 0, 0, 0);
+
     /// <summary>Gets the short names of every <c>render-*.scad</c> fixture.</summary>
     public static TheoryData<string> AllFixtures => [.. FixtureNames()];
 
     /// <summary>
-    ///     Validates that the fourteen render fixtures exist, so the theories cannot silently run empty.
+    ///     Validates that the fifteen render fixtures exist, so the theories cannot silently run empty.
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Fixtures_AreDiscovered()
@@ -58,7 +70,7 @@ public class ScadRenderSystemTests
         Assert.Equal(
             [
                 "2d-csg", "bracket-csg", "extrusions", "hull", "intersection", "minkowski", "modifiers", "modules-scene",
-                "parametric", "polyhedron", "primitives", "root-modifier", "transforms", "unsupported",
+                "parametric", "polyhedron", "primitives", "root-modifier", "transforms", "transparency", "unsupported",
             ],
             names.Order(StringComparer.Ordinal).ToList());
     }
@@ -653,8 +665,9 @@ public class ScadRenderSystemTests
     }
 
     /// <summary>
-    ///     Validates the statement modifiers: the plain cube and the <c>#</c> cube are drawn, the disabled cube and
-    ///     the <c>%</c> cube are not.
+    ///     Validates the statement modifiers: the plain cube is drawn, the disabled cube is not, the <c>#</c> cube is
+    ///     drawn with the translucent highlight in front of it, and the <c>%</c> cube is only a translucent ghost over
+    ///     the background (composites computed from the documented default colors).
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Modifiers_DrawNormalAndHighlightedAndOmitDisabledAndBackground()
@@ -665,20 +678,20 @@ public class ScadRenderSystemTests
         // Act
         using var surface = view.Render(Fixture("modifiers"));
 
-        // Assert
+        // Assert: the highlight (alpha 110) lies over the opaque cube; the ghost's front and back walls (alpha 80) over white
         Assert.Equal(Gray, At(view, surface, 5.5, 5.5));
         Assert.Equal(White, At(view, surface, 25.5, 5.5));
-        Assert.Equal(Gray, At(view, surface, 45.5, 5.5));
-        Assert.Equal(White, At(view, surface, 65.5, 5.5));
-        Assert.Equal(200, CountNon(surface, White));
+        AssertClose(Composite(White, (DefaultHighlight, 110), (Gray, 255)), At(view, surface, 45.5, 5.5));
+        AssertClose(Composite(White, (DefaultGhost, 80), (DefaultGhost, 80)), At(view, surface, 65.5, 5.5));
+        Assert.Equal(300, CountNon(surface, White));
     }
 
     /// <summary>
-    ///     Validates that the <c>#</c> and <c>%</c> modifiers are reported with their locations, and the disabled
-    ///     <c>*</c> statement is silent.
+    ///     Validates that the <c>#</c> and <c>%</c> modifiers on solids are not reported (they are rendered), and the
+    ///     disabled <c>*</c> statement is silent.
     /// </summary>
     [Fact]
-    public void ScadRenderSystem_Modifiers_HighlightAndBackgroundAreReportedAtTheirLines()
+    public void ScadRenderSystem_Modifiers_HighlightAndBackgroundAreNotReported()
     {
         // Arrange
         var log = new ScadReportLog();
@@ -687,15 +700,13 @@ public class ScadRenderSystemTests
         // Act
         using var surface = document.Render(32, 16, new ScadRenderOptions { Evaluation = log.Options() }, TestContext.Current.CancellationToken);
 
-        // Assert: one report each, in source order, and no warnings
-        Assert.Equal(["scad-modifier-highlight", "scad-modifier-background"], log.Unsupported.Select(u => u.Feature));
-        Assert.Equal([5, 6], log.Unsupported.Select(u => u.Location.Line));
-        Assert.All(log.Unsupported, u => Assert.Equal(document.SourceName, u.Location.File));
+        // Assert
+        Assert.Empty(log.Unsupported);
         Assert.Empty(log.Warnings);
     }
 
     /// <summary>
-    ///     Validates that the root modifier draws only the marked subtree.
+    ///     Validates that the root modifier draws only the marked subtree (a highlight inside it is drawn too).
     /// </summary>
     [Fact]
     public void ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree()
@@ -707,13 +718,13 @@ public class ScadRenderSystemTests
         // Act
         using var surface = view.Render(Fixture("root-modifier"), evaluation: log.Options());
 
-        // Assert: the cubes at x 0..10 and 50..60 are gone; the marked cube (10 x 10) and the small one (5 x 5) remain
+        // Assert: the cubes at x 0..10 and 50..60 are gone; the marked cube (10 x 10) and the small highlighted one (5 x 5) remain
         Assert.Equal(White, At(view, surface, 5.5, 5.5));
         Assert.Equal(Gray, At(view, surface, 25.5, 5.5));
-        Assert.Equal(Gray, At(view, surface, 37.5, 2.5));
+        AssertClose(Composite(White, (DefaultHighlight, 110), (Gray, 255)), At(view, surface, 37.5, 2.5));
         Assert.Equal(White, At(view, surface, 55.5, 5.5));
         Assert.Equal(125, CountNon(surface, White));
-        Assert.Equal(["scad-modifier-highlight"], log.Unsupported.Select(u => u.Feature));
+        Assert.Empty(log.Unsupported);
         Assert.Empty(log.Warnings);
     }
 
@@ -785,7 +796,6 @@ public class ScadRenderSystemTests
             ("scad-hull-mixed-dimensions", 10),
             ("scad-minkowski-nonconvex", 11),
             ("scad-modifier-background", 12),
-            ("scad-color-alpha", 13),
         };
         Assert.Equal(expected, log.Unsupported.Select(u => (u.Feature, u.Location.Line)).ToArray());
         Assert.All(log.Unsupported, u => Assert.Equal(document.SourceName, u.Location.File));
@@ -795,7 +805,7 @@ public class ScadRenderSystemTests
 
     /// <summary>
     ///     Validates that what the unsupported fixture cannot draw is omitted (not approximated) and what it can draw
-    ///     is drawn: bounds of the two cubes, the translucent red cube opaque.
+    ///     is drawn: bounds of the two cubes, the red cube opaque (the <c>%</c> on a 2D shape is omitted, not drawn).
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Unsupported_OnlySupportedGeometryIsDrawn()
@@ -808,7 +818,7 @@ public class ScadRenderSystemTests
         var bounds = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken).ComputeBounds();
         using var surface = view.Render(document);
 
-        // Assert: the red cube (alpha ignored) is 4 x 4 opaque, the small cube stands at x 8..9, nothing else is drawn
+        // Assert: the red cube is 4 x 4 opaque, the small cube stands at x 8..9, nothing else is drawn
         AssertBounds(bounds, new Vector3D(0, 0, 0), new Vector3D(9, 4, 4), 1e-9);
         Assert.Equal(Red, At(view, surface, 2.0, 2.0));
         Assert.Equal(Gray, At(view, surface, 8.5, 0.5));
@@ -839,6 +849,178 @@ public class ScadRenderSystemTests
         Assert.NotEmpty(log.Unsupported);
         Assert.Equal("scad-module-text", log.Unsupported[0].Feature);
         Assert.Throws<ScadUnsupportedFeatureException>(() => document.BuildScene(options, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    ///     Validates that a translucent cube, seen from above, shows its front and its back wall over the background
+    ///     (two layers of its alpha), that it blends over an opaque solid below it, and that the vector, hex and
+    ///     <c>alpha</c> argument forms of <c>color</c> give the same alpha.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_TranslucentCubeBlendsOverBackgroundAtAnalyticPixels()
+    {
+        // Arrange: x -5..105, y -5..30
+        var view = ScadOrthoView.Top(50, 12.5, 110, 35);
+
+        // Act
+        using var surface = view.Render(Fixture("transparency"));
+
+        // Assert: alpha 0.5 is 128 of 255 per layer
+        AssertClose(Composite(White, (Red, 128), (Red, 128)), At(view, surface, 5.5, 5.5));
+        AssertClose(Composite(White, (Lime, 128), (Lime, 128), (Blue, 255)), At(view, surface, 25.5, 5.5));
+        AssertClose(Composite(White, (Blue, 128), (Blue, 128)), At(view, surface, 2.5, 22.5));
+        AssertClose(Composite(White, (Red, 128), (Red, 128)), At(view, surface, 12.5, 22.5));
+        AssertClose(Composite(White, (Lime, 128), (Lime, 128)), At(view, surface, 22.5, 22.5));
+        Assert.Equal(White, At(view, surface, 16.5, 5.5));
+    }
+
+    /// <summary>
+    ///     Validates that a translucent difference shows its cut surface in the cutter's own (opaque) color through the
+    ///     cavity while the body around it stays translucent.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_TranslucentDifferenceShowsCavity()
+    {
+        // Arrange
+        var view = ScadOrthoView.Top(50, 12.5, 110, 35);
+
+        // Act
+        using var surface = view.Render(Fixture("transparency"));
+
+        // Assert: the blind cavity (x 43..47, y 3..7) has an opaque floor; the rim is the translucent red body
+        Assert.Equal(Gray, At(view, surface, 45.5, 5.5));
+        AssertClose(Composite(White, (Red, 128), (Red, 128)), At(view, surface, 41.5, 1.5));
+        AssertClose(Composite(White, (Red, 128), (Red, 128)), At(view, surface, 48.5, 8.5));
+    }
+
+    /// <summary>
+    ///     Validates that a ghost is translucent gray, does not cut the solid it passes through, and (as the ghost of an
+    ///     extruded 2D shape) is drawn like any other ghost.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_GhostIsTranslucentGrayAndNotSubtracted()
+    {
+        // Arrange
+        var view = ScadOrthoView.Top(50, 12.5, 110, 35);
+        var orange = new Rgba32(255, 165, 0, 255);
+
+        // Act
+        using var surface = view.Render(Fixture("transparency"));
+
+        // Assert: the orange cube is intact under the ghost (tinted, not cut); the ghost beside it and the ghost of
+        // the extruded circle show their front and back walls over white
+        Assert.Equal(orange, At(view, surface, 61.5, 1.5));
+        AssertClose(Composite(White, (DefaultGhost, 80), (orange, 255)), At(view, surface, 65.5, 5.5));
+        AssertClose(Composite(White, (DefaultGhost, 80), (DefaultGhost, 80)), At(view, surface, 80.5, 5.5));
+        AssertClose(Composite(White, (DefaultGhost, 80), (DefaultGhost, 80)), At(view, surface, 44.5, 24.5));
+        Assert.Equal(White, At(view, surface, 72.5, 5.5));
+    }
+
+    /// <summary>
+    ///     Validates that a highlighted subtrahend still cuts its hole and that its translucent pink body is drawn
+    ///     through the hole.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_HighlightedCutterShowsPinkThroughTheCut()
+    {
+        // Arrange
+        var view = ScadOrthoView.Top(50, 12.5, 110, 35);
+
+        // Act
+        using var surface = view.Render(Fixture("transparency"));
+
+        // Assert: the hole is not the cube's gray top, it shows two pink layers over white
+        Assert.Equal(Gray, At(view, surface, 91.5, 1.5));
+        AssertClose(Composite(White, (DefaultHighlight, 110), (DefaultHighlight, 110)), At(view, surface, 95.5, 5.5));
+    }
+
+    /// <summary>
+    ///     Validates that the default camera fits the bounds including ghosts (so a ghost that is far from the model is
+    ///     in the frame) and not the bounds without them.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_FitCameraIncludesGhostBounds()
+    {
+        // Arrange
+        var document = ScadDocument.Parse("cube(1);\n%translate([40, 0, 0]) cube(1);");
+        var options = new ScadRenderOptions();
+        var scene = document.BuildScene(options, TestContext.Current.CancellationToken);
+
+        // Act
+        var camera = ScadDocument.FitCamera(scene, options, 1.0);
+        using var surface = document.Render(100, 100, options, TestContext.Current.CancellationToken);
+
+        // Assert: the camera is the fit of the bounds with the ghost, which differs from the fit without it
+        var withGhost = Camera.FitToBounds(scene.ComputeBounds(), options.ViewAzimuthDegrees, options.ViewElevationDegrees, 1.0, options.Projection);
+        var withoutGhost = Camera.FitToBounds(scene.ComputeBounds(includeOverlays: false), options.ViewAzimuthDegrees, options.ViewElevationDegrees, 1.0, options.Projection);
+        Assert.Equal(withGhost.Eye, camera.Eye);
+        Assert.Equal(withGhost.Target, camera.Target);
+        Assert.NotEqual(withoutGhost.Eye, camera.Eye);
+        Assert.Equal(41.0, scene.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(1.0, scene.ComputeBounds(includeOverlays: false).Max.X, 1e-9);
+        Assert.True(CountNon(surface, White) > 0);
+    }
+
+    /// <summary>
+    ///     Validates that the transparency fixture renders byte-identically with one and with many threads, with the
+    ///     default lights and the fitted camera.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_ParallelAndSequentialAreByteIdentical()
+    {
+        // Arrange
+        var document = Fixture("transparency");
+        var serial = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { MaxDegreeOfParallelism = 1 } };
+        var parallel = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { MaxDegreeOfParallelism = 8 } };
+
+        // Act
+        using var one = document.Render(200, 100, serial, TestContext.Current.CancellationToken);
+        using var many = document.Render(200, 100, parallel, TestContext.Current.CancellationToken);
+
+        // Assert
+        AssertSurfacesIdentical(one, many);
+        Assert.True(CountNon(one, White) > 0);
+    }
+
+    /// <summary>
+    ///     Validates that a transparency model that needs more fragments per tile than the budget allows fails with the
+    ///     located-evaluation-exception contract of the render (the fragment budget advice) instead of exhausting memory.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_FragmentBudgetExceeded_ThrowsScadEvaluationException()
+    {
+        // Arrange
+        var options = new ScadRenderOptions { SceneOptions = new SceneRenderOptions { MaxFragmentsPerTile = 16 } };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => Fixture("transparency").Render(200, 100, options, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<RenderBudgetExceededException>(ex.InnerException);
+        Assert.Contains("MaxFragmentsPerTile", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that over a transparent background the result keeps a partial alpha (the accumulated coverage of the
+    ///     two walls) with the straight color of the surface.
+    /// </summary>
+    [Fact]
+    public void ScadRenderSystem_Transparency_TransparentBackground_KeepsPartialAlpha()
+    {
+        // Arrange
+        var view = ScadOrthoView.Top(50, 12.5, 110, 35);
+        var look = new SceneRenderOptions { Lights = [new AmbientLight { Intensity = 1.0f }], Supersampling = 1, BackgroundColor = ClearBackground };
+
+        // Act
+        using var surface = view.Render(Fixture("transparency"), look);
+
+        // Assert: two layers of alpha 128 cover 192 of 255; the color is the red, unmixed
+        var pixel = At(view, surface, 5.5, 5.5);
+        Assert.InRange(pixel.A, 191, 193);
+        Assert.Equal(255, pixel.R);
+        Assert.Equal(0, pixel.G);
+        Assert.Equal(0, pixel.B);
+        Assert.Equal(ClearBackground, At(view, surface, 16.5, 5.5));
     }
 
     /// <summary>
@@ -1057,7 +1239,7 @@ public class ScadRenderSystemTests
         var options = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { ThrowOnUnsupportedFeature = true } };
 
         // Act / Assert: every fixture that is entirely supported renders
-        foreach (var name in FixtureNames().Where(n => n is not ("unsupported" or "modifiers" or "root-modifier")))
+        foreach (var name in FixtureNames().Where(n => n is not "unsupported"))
         {
             using var surface = Fixture(name).Render(32, 24, options, TestContext.Current.CancellationToken);
             Assert.True(CountNon(surface, White) > 0, name);
@@ -1081,7 +1263,7 @@ public class ScadRenderSystemTests
         // Assert
         Assert.Empty(log.Warnings);
         Assert.Empty(log.Echo);
-        Assert.Equal(name is "unsupported" or "modifiers" or "root-modifier", log.Unsupported.Count > 0);
+        Assert.Equal(name is "unsupported", log.Unsupported.Count > 0);
         Assert.True(CountNon(surface, White) > 0);
     }
 
@@ -1545,5 +1727,45 @@ public class ScadRenderSystemTests
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     Composites translucent layers front to back over an opaque background with the closed form of the renderer's
+    ///     accumulation: a layer takes its alpha of what remains, and what remains is shown through it.
+    /// </summary>
+    /// <param name="background">The opaque background.</param>
+    /// <param name="layers">The layers from the nearest to the farthest, each with its straight alpha from 0 to 255.</param>
+    /// <returns>The opaque result, rounded to the nearest level.</returns>
+    private static Rgba32 Composite(Rgba32 background, params (Rgba32 Color, int Alpha)[] layers)
+    {
+        double remaining = 1.0, r = 0.0, g = 0.0, b = 0.0;
+        foreach (var (color, alpha) in layers)
+        {
+            var weight = remaining * alpha / 255.0;
+            r += weight * color.R;
+            g += weight * color.G;
+            b += weight * color.B;
+            remaining -= weight;
+        }
+
+        r += remaining * background.R;
+        g += remaining * background.G;
+        b += remaining * background.B;
+        return new Rgba32((byte)Math.Round(r), (byte)Math.Round(g), (byte)Math.Round(b), 255);
+    }
+
+    /// <summary>
+    ///     Asserts that two opaque colors agree within a small tolerance per channel (the integer arithmetic of the
+    ///     renderer rounds each layer).
+    /// </summary>
+    /// <param name="expected">The expected color.</param>
+    /// <param name="actual">The actual color.</param>
+    /// <param name="tolerance">The tolerance per channel.</param>
+    private static void AssertClose(Rgba32 expected, Rgba32 actual, int tolerance = 2)
+    {
+        Assert.InRange(actual.R, Math.Max(0, expected.R - tolerance), Math.Min(255, expected.R + tolerance));
+        Assert.InRange(actual.G, Math.Max(0, expected.G - tolerance), Math.Min(255, expected.G + tolerance));
+        Assert.InRange(actual.B, Math.Max(0, expected.B - tolerance), Math.Min(255, expected.B + tolerance));
+        Assert.Equal(255, actual.A);
     }
 }

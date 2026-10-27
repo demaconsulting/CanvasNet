@@ -135,9 +135,9 @@ public class ScadUnsupportedModuleTests
     }
 
     /// <summary>
-    ///     Validates the modifiers on an unsupported module: <c>#</c> adds the highlight report to the module report,
-    ///     <c>%</c> omits the module before it is looked at, and <c>!</c> makes it the model (so it is reported and
-    ///     the rest is dropped).
+    ///     Validates the modifiers on an unsupported module: the module is reported exactly as without a modifier
+    ///     (it builds nothing, so there is nothing to highlight or ghost, and no modifier report is added), and
+    ///     <c>!</c> makes it the model (so it is reported and the rest is dropped).
     /// </summary>
     [Fact]
     public void ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule()
@@ -148,8 +148,8 @@ public class ScadUnsupportedModuleTests
         var showOnly = Build("cube(1);\n!offset(1) square(1);");
 
         // Assert
-        Assert.Equal(["scad-modifier-highlight", "scad-module-roof"], highlighted.Features);
-        Assert.Equal(["scad-modifier-background"], background.Features);
+        Assert.Equal(["scad-module-roof"], highlighted.Features);
+        Assert.Equal(["scad-module-roof"], background.Features);
         Assert.Equal(["scad-module-offset"], showOnly.Features);
         Assert.Empty(showOnly.Meshes);
     }
