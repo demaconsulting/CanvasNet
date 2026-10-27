@@ -100,7 +100,7 @@ most two full-size surfaces ever exist.
 | `levels` | `black`, `white`, `gamma`, `width`, `height` |
 | `brightness`, `contrast` | `amount`, `width`, `height` |
 | `auto-levels` | `clip`, then `black`, `white` and `applied: true`, or only `applied: false` for a flat image, then `width`, `height` |
-| `deskew` | `skewDegrees`, `rotateDegrees`, `confidence`, `applied`, then (only when applied) `fill`, `filter`, then `width`, `height` |
+| `deskew` | `skewDegrees`, `rotateDegrees`, `confidence`, `applied`, then `reason` when a size limit skips the correction, then (only when applied) `fill`, `filter`, then `width`, `height` |
 | `trim` | `tolerance`, `x`, `y`, `width`, `height` (the box kept), `trimmed`, `empty` |
 | `grid` | `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height` |
 <!-- markdownlint-enable MD013 -->
@@ -126,13 +126,15 @@ like the paper and survive a viewer that paints transparency black), else transp
 that nobody asked for.
 
 **Deskew**: `ImageGeometry.EstimateSkew` is run on the surface. The skew is corrected only when it was estimated
-(`Estimated`), its size is at least `MinCorrectedSkew` (0.05 degrees), and its confidence is at least `MinConfidence`
-(0.4, the value pinned by the design of `ImageGeometry`; very wide images with random content can approach it);
-otherwise the surface is copied unchanged and `applied` is `false`. When it is corrected the surface is rotated by the
-negative of the skew (`rotateDegrees = -skewDegrees`, a signed clockwise angle; the angle is normalized to 0 up to 360
-before the rotation) with the rules of rotate, so the report gives the skew that was found (positive when the lines
-descend to the right), the correction, the confidence, and the fill and filter. Text mode prints nothing extra; the
-numbers are in the `--json` result.
+(`Estimated`), its size is at least `MinCorrectedSkew` (0.05 degrees), its confidence is at least `MinConfidence`
+(0.4, the value pinned by the design of `ImageGeometry`; very wide images with random content can approach it), and
+the expanded canvas fits the maximum dimension. Otherwise the surface is copied unchanged and `applied` is `false`;
+when the size limit is the reason, the operation also reports `reason: "rotated image would exceed the maximum size"`.
+This automatic skip is non-fatal, unlike an explicit `--rotate` request. When it is corrected the surface is rotated by
+the negative of the skew (`rotateDegrees = -skewDegrees`, a signed clockwise angle; the angle is normalized to 0 up
+to 360 before the rotation) with the rules of rotate, so the report gives the skew that was found (positive when the
+lines descend to the right), the correction, the confidence, and the fill and filter. Text mode prints a warning for
+the size-limit skip; the numbers are in the `--json` result.
 
 **Trim**: `ImageGeometry.FindTrimBounds` with the tolerance; the surface is cropped to the box (a copy of the box, not of
 the whole image). An image that is all background is copied unchanged and reported with the whole image as the box,
@@ -154,7 +156,8 @@ each row, the order of the rows, or both.
 #### Error Handling
 
 `ToolException` with `usage-error` (malformed or out-of-range value, crop outside the image or empty, a setting
-without its operation) and `size-limit` (a size, box, or border, or a rotated canvas, above the maximum). A null
+without its operation) and `size-limit` (a size, box, or border, or an explicitly requested rotated canvas, above the
+maximum). An oversized automatic deskew is copied unchanged and reported as a non-fatal operation reason. A null
 argument throws `ArgumentNullException`; an unknown verb name, or a verb without its operand, is a defect of the caller
 (`ArgumentException`, `ArgumentNullException`). Any other exception is a defect and propagates.
 

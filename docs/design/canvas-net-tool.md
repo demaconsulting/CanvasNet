@@ -215,9 +215,10 @@ loaded.
 - Fill and defaults of the photo operations: the corners that a rotation (and `--deskew`) exposes are filled with
   `--rotate-fill`, else with `--background` when it is given, else with opaque white when every pixel of the image is
   opaque (a photograph, a scan, or a flattened drawing, whose corners then look like paper), else transparent; the
-  canvas grows to the bounding box of the rotated image and a result larger than 8192 pixels on a side is refused as
-  `size-limit`; `--trim-tolerance` defaults to 8, `--auto-levels-clip` to 1 percent, and the `--grid` color to
-  `#FF00FFA0`. The `deskew` quantities: a tilt is corrected only when it is at least 0.05 degrees and its confidence
-  is at least 0.4.
+  canvas grows to the bounding box of the rotated image. An explicitly requested rotation larger than 8192 pixels on
+  a side is refused as `size-limit`; automatic deskew instead leaves an oversized correction unchanged, reports a
+  reason, and emits a warning. `--trim-tolerance` defaults to 8, `--auto-levels-clip` to 1 percent, and the `--grid`
+  color to `#FF00FFA0`. The `deskew` quantities: a tilt is corrected only when it is at least 0.05 degrees and its
+  confidence is at least 0.4.
 - Path safety: caller-supplied path components used for temporary files are validated by
   `PathHelpers.SafePathCombine`.

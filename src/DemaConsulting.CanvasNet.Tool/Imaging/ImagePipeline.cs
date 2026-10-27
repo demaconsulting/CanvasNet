@@ -21,8 +21,9 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         The transformations are written over <see cref="Surface"/> rows, because the surface itself offers only
 ///         crop, resize, and composite. Rotation by a right angle is an exact pixel move, rotation by any other angle
 ///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. A
-///         result larger than <see cref="Surface.MaxDimension"/> is refused before it is allocated, with the code
-///         <c>size-limit</c>.
+///         An explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
+///         before allocation, with the code <c>size-limit</c>. Deskew is best effort: when its automatic correction
+///         would exceed that limit, it copies the input and reports why it was skipped.
 ///     </para>
 ///     <para>
 ///         The operations that change pixels in place (grayscale, invert, threshold, levels, brightness, contrast,
@@ -740,8 +741,9 @@ internal static class ImagePipeline
     /// </returns>
     /// <remarks>
     ///     The skew is corrected only when it was estimated, its size is at least
-    ///     <see cref="ImageGeometry.MinCorrectedSkew"/> degrees, and its confidence at least
-    ///     <see cref="ImageGeometry.MinConfidence"/>; otherwise the image is copied unchanged.
+    ///     <see cref="ImageGeometry.MinCorrectedSkew"/> degrees, its confidence at least
+    ///     <see cref="ImageGeometry.MinConfidence"/>, and the expanded canvas fits the maximum size. Otherwise
+    ///     the image is copied unchanged; a size-limit skip includes a <c>reason</c> in its operation report.
     /// </remarks>
     private static (Surface, AppliedOperation) ApplyDeskew(Surface source, DeskewOperation deskew, Rgba32? userBackground)
     {
@@ -764,6 +766,21 @@ internal static class ImagePipeline
 
         var rotateDegrees = -estimate.Degrees;
         var normalized = rotateDegrees < 0 ? rotateDegrees + 360 : rotateDegrees;
+        var (rotatedWidth, rotatedHeight) = ImageGeometry.RotatedSize(source.Width, source.Height, normalized);
+        if (rotatedWidth > Surface.MaxDimension || rotatedHeight > Surface.MaxDimension)
+        {
+            var copy = source.Crop(0, 0, source.Width, source.Height);
+            return (copy, SourceLoader.Operation(
+                "deskew",
+                ("skewDegrees", estimate.Degrees),
+                ("rotateDegrees", 0.0),
+                ("confidence", estimate.Confidence),
+                ("applied", false),
+                ("reason", "rotated image would exceed the maximum size"),
+                ("width", copy.Width),
+                ("height", copy.Height)));
+        }
+
         var fill = ResolveFill(source, deskew.Fill, userBackground);
         var nearest = deskew.Filter == ResamplingMode.Nearest;
         var result = ImageGeometry.RotateArbitrary(source, normalized, fill, nearest);

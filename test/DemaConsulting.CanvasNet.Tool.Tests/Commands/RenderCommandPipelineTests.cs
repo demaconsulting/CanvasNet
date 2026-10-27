@@ -859,6 +859,43 @@ public class RenderCommandPipelineTests
     }
 
     /// <summary>
+    ///     Test that an oversized automatic deskew succeeds, leaves the output unchanged, and warns in text mode.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning()
+    {
+        // Arrange: a two-degree skew whose expanded 8192-pixel-wide canvas exceeds the limit
+        using var directory = new TempDirectory();
+        var input = directory.Combine("wide.png");
+        using (var surface = FixtureFactory.SketchPhoto(8192, 400, 2.0))
+        {
+            PngCodec.Save(surface, input);
+        }
+
+        var jsonOutput = directory.Combine("json.png");
+        var textOutput = directory.Combine("text.png");
+
+        // Act: run the same best-effort operation in JSON and normal output modes
+        var json = Run(null, true, input, "--deskew", "-o", jsonOutput);
+        using var context = Context.Create([]);
+        var (text, diagnostics) = ToolHost.Capture(() =>
+            new RenderCommand().Run(context, [input, "--deskew", "-o", textOutput]));
+
+        // Assert: both commands succeed, preserve the size, report the reason, and warn without failing
+        using var document = JsonDocument.Parse(json);
+        var operation = document.RootElement.GetProperty("operations").EnumerateArray()
+            .Single(o => o.GetProperty("op").GetString() == "deskew");
+        Assert.False(operation.GetProperty("applied").GetBoolean());
+        Assert.Equal("rotated image would exceed the maximum size", operation.GetProperty("reason").GetString());
+        Assert.Equal(8192, operation.GetProperty("width").GetInt32());
+        Assert.Equal(400, operation.GetProperty("height").GetInt32());
+        using var result = PngCodec.Load(jsonOutput);
+        Assert.Equal((8192, 400), (result.Width, result.Height));
+        Assert.Contains("wrote ", text);
+        Assert.Contains("warning: deskew was not applied: rotated image would exceed the maximum size", diagnostics);
+    }
+
+    /// <summary>
     ///     Test that the corners a rotation exposes are filled with --rotate-fill, else the --background, else white for an opaque image.
     /// </summary>
     [Fact]

@@ -137,7 +137,7 @@ internal sealed record AutoLevelsOperation(double ClipPercent) : IImageOperation
 }
 
 /// <summary>
-///     Estimates the skew of the near-horizontal lines of the image and rotates it level.
+///     Estimates the skew of the near-horizontal lines of the image and rotates it level when the correction fits.
 /// </summary>
 /// <param name="Fill">The color that fills the exposed corners, or <see langword="null"/> for the pipeline's default rule.</param>
 /// <param name="Filter">The resampling filter of the rotation.</param>

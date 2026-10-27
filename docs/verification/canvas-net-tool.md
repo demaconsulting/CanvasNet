@@ -354,6 +354,10 @@ white by default for an opaque image), and the center is still paper.
 rendered with `--deskew --rotate-fill #C8C8C8 --json`; the operation is applied with a skew between 3.5 and 4.5, the
 opposite correction, and a confidence of at least 0.4; deskewing the result finds a remaining skew of at most 0.5.
 
+**RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning**: an 8192x400 image with a two-degree skew is
+rendered with `--deskew`; the command succeeds, the output remains 8192x400, JSON reports `applied:false` with the
+size-limit reason, and normal output includes a non-fatal warning.
+
 **CanvasNetTool_Photo_Trim_CropsUniformBorder**: a 100x80 block on a white image with a near-white ring around it is
 trimmed with the default tolerance (the box 30,20 100x80, the file 100x80) and with `--trim-tolerance 2` (the ring is kept,
 102x82).

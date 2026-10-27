@@ -358,6 +358,34 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
+    ///     Writes a non-fatal warning to the error console and log file (if logging is enabled).
+    /// </summary>
+    /// <param name="message">The warning message to write.</param>
+    /// <remarks>
+    ///     A warning does not set the error state, so the command can complete successfully while still drawing
+    ///     attention to a best-effort operation that was skipped.
+    /// </remarks>
+    public void WriteWarning(string message)
+    {
+        if (!Silent)
+        {
+            if (Console.IsErrorRedirected)
+            {
+                Console.Error.WriteLine(message);
+            }
+            else
+            {
+                var previousColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Error.WriteLine(message);
+                Console.ForegroundColor = previousColor;
+            }
+        }
+
+        _logWriter?.WriteLine(message);
+    }
+
+    /// <summary>
     ///     Writes an error message to the error console and log file (if logging is enabled).
     /// </summary>
     /// <param name="message">The error message to write.</param>

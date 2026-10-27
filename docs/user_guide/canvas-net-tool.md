@@ -528,6 +528,9 @@ a sketch, a table edge) and turns the image by the opposite angle, so that those
 - The corners that the rotation exposes are filled with the color described under _Rotation by any angle_, and the canvas
   grows to hold the whole image. Tell the tool to use the paper color with `--rotate-fill` when the border should not
   show.
+- Deskew is best effort. If the automatic correction would make either side larger than 8192 pixels, the image is
+  left unchanged, the JSON operation reports `applied:false` and `reason:"rotated image would exceed the maximum size"`,
+  and normal output prints a non-fatal warning. An explicit `--rotate` of the same image still fails with `size-limit`.
 - The JSON result reports the tilt, the correction, and the confidence:
   `{"op":"deskew","skewDegrees":3.95,"rotateDegrees":-3.95,"confidence":0.915,"applied":true,"fill":"#FFFFFF","filter":"bilinear","width":334,"height":222}`
   (`fill` and `filter` only when it was applied; `rotateDegrees` is 0 when it was not). `confidence` runs from 0 to 1;

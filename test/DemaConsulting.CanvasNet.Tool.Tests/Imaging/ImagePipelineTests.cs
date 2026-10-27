@@ -1249,6 +1249,26 @@ public class ImagePipelineTests
     }
 
     /// <summary>
+    ///     Test that an oversized automatic correction is skipped without changing the image or failing the pipeline.
+    /// </summary>
+    [Fact]
+    public void ImagePipeline_Apply_DeskewTooLarge_LeavesImageUnchangedAndReportsReason()
+    {
+        // Arrange: a wide image whose two-degree correction expands beyond the maximum dimension
+        using var input = FixtureFactory.SketchPhoto(8192, 400, 2.0);
+
+        // Act: automatic deskew must treat the size limit as a best-effort skip
+        using var result = ImagePipeline.Apply(input, Parse("--deskew"), Transparent, out var applied);
+
+        // Assert: the command succeeds, preserves the pixels and size, and explains the skipped correction
+        SurfaceAssert.Equal(input, result);
+        var step = Assert.Single(applied);
+        Assert.False(Field<bool>(step, "applied"));
+        Assert.Equal("rotated image would exceed the maximum size", Field<string>(step, "reason"));
+        Assert.Equal((8192, 400), SizeOf(step));
+    }
+
+    /// <summary>
     ///     Test that an image without structure or without skew is copied unchanged, and the angle and confidence are still reported.
     /// </summary>
     [Fact]

@@ -165,6 +165,10 @@ internal sealed partial class RenderCommand : ICommand
             foreach (var output in outputs)
             {
                 context.WriteLine(RenderText(output));
+                foreach (var warning in RenderWarnings(output))
+                {
+                    context.WriteWarning(warning);
+                }
             }
         }
     }
@@ -345,6 +349,23 @@ internal sealed partial class RenderCommand : ICommand
         return string.Create(
             CultureInfo.InvariantCulture,
             $"wrote {result.Path} ({result.Width}x{result.Height} {result.Format.ToFormatName()}, {result.Bytes} bytes) from {output.Info.Path}{page}");
+    }
+
+    /// <summary>
+    ///     Renders non-fatal warnings recorded by image operations.
+    /// </summary>
+    /// <param name="output">The rendered page.</param>
+    /// <returns>Warning lines for operation reports that explain a skipped best-effort operation.</returns>
+    private static IEnumerable<string> RenderWarnings(PageOutput output)
+    {
+        foreach (var operation in output.Operations.Where(o => o.Op == "deskew"))
+        {
+            var reason = operation.Fields.FirstOrDefault(f => f.Key == "reason").Value;
+            if (reason is string text)
+            {
+                yield return $"warning: deskew was not applied: {text}";
+            }
+        }
     }
 
     /// <summary>

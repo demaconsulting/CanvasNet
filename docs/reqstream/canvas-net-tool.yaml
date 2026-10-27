@@ -440,7 +440,8 @@ sections:
         title: >-
           The tool shall straighten an image with `--deskew`, finding the tilt of its near-horizontal lines within
           15 degrees, rotating it level only when the tilt is clear, and reporting the angle, the correction, and
-          the confidence in the JSON result.
+          the confidence in the JSON result; when the automatic correction would exceed the maximum image size, it
+          shall leave the image unchanged, report `applied: false` with a reason, and complete successfully.
         tags: [system]
         justification: |
           A tilted photograph of ruled or drawn lines is levelled without the user measuring an angle, and the
@@ -449,6 +450,7 @@ sections:
           - CanvasNetTool-Imaging-Geometry
         tests:
           - CanvasNetTool_Photo_Deskew_StraightensTiltedLinesAndReportsAngleInJson
+          - RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning
 
       - id: CanvasNetTool-System-Trim
         title: >-

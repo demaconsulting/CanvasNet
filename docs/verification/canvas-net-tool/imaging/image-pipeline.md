@@ -31,7 +31,8 @@ N/A - standard test environment; the tests use only in-memory surfaces.
   canvas, fills the corners by the documented rule, and uses the nearest or the bilinear kernel; a canvas above 8192
   pixels is `size-limit`; a value that is not an angle is a usage error.
 - The tone adjustments, deskew, trim, and grid give the documented pixels and report their parameters, the level and
-  points they chose, the angle and the confidence.
+  points they chose, the angle and the confidence. Deskew skips an expanded canvas over 8192 pixels without failing,
+  preserves the input pixels and size, reports `applied: false` with a reason, and emits a warning in text mode.
 - Settings without their operation, and malformed or out-of-range values, are usage errors that name the option.
 - A size, a box, or a border above 8192 pixels is `size-limit`, and exactly 8192 works.
 - The input is never modified or disposed (also for in-place operations and failures), and the same operations give the
@@ -86,6 +87,11 @@ reported with `auto` true, and split into black and white.
 **ImagePipeline_Apply_Deskew_RotatesByNegativeSkewAndReportsAngle**: ruled lines tilted by 5 degrees are found within 0.2
 degrees, the correction is exactly the negative of the skew, the confidence is at least 0.4, the canvas grows, and the
 estimate of the result is within 0.3 degrees of level.
+
+**ImagePipeline_Apply_DeskewTooLarge_LeavesImageUnchangedAndReportsReason**: an 8192x400 image with ruled lines tilted
+by 2 degrees is estimated successfully, but its expanded correction would be 8201 pixels wide; deskew returns a copy
+of the original 8192x400 pixels, reports `applied: false`, and gives the reason that the rotated image would exceed
+the maximum size.
 
 **ImagePipeline_Apply_DeskewNoStructure_LeavesImageUnchanged**: a blank image and lines that are already level are copied
 unchanged, `applied` is false, the correction is 0, and no fill is reported.
