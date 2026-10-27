@@ -1,7 +1,7 @@
 # Introduction
 
 <!-- cspell:ignore glyf sfnt cmap loca hmtx hhea codepoint Zapf Noto Visio visio rasterizer tessellator -->
-<!-- cspell:ignore multmatrix Minkowski canvasnet -->
+<!-- cspell:ignore multmatrix Minkowski canvasnet deskew deskews Deskew Otsu -->
 
 This document provides the detailed design for CanvasNet, a .NET library
 providing a canvas-based drawing and rendering API.
@@ -223,8 +223,9 @@ software items, specifically:
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
-  images and documents with the CanvasNet libraries, clean up photographs of sketches, and measure their colors, and offers a small, stable error contract (exit codes 0
-  and 1, concise error text, stable error codes, and a versioned JSON result contract). It follows the DEMA
+  images and documents with the CanvasNet libraries, clean up photographs of sketches, and measure their colors, and
+  offers a small, stable error contract (exit codes 0 and 1, concise error text, stable error codes, and a versioned
+  JSON result contract). It follows the DEMA
   Consulting tool template and contains six
   direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
@@ -909,7 +910,7 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
     ├── SurfaceOperations.cs       — SourceLoader: flatten, transparency, and fit-into-a-box helpers
-    ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, and the photo operations)
+    ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
     ├── ImageAdjustments.cs        — ImageAdjustments: luma, grayscale, invert, threshold, Otsu, levels, and auto-levels
     ├── ImageGeometry.cs           — ImageGeometry: rotation by any angle, the rotated size, and trim

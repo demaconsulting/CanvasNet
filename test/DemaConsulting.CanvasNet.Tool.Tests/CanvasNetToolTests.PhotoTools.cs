@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet deskew deskewed otsu luma grayscale napkin
+// cspell:ignore canvasnet deskew deskewed otsu luma grayscale napkin thresholded colours
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
