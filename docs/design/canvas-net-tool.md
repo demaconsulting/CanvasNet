@@ -1,6 +1,6 @@
 # System Design
 
-<!-- cspell:ignore canvasnet Visio scad openscad psnr rmse ssim -->
+<!-- cspell:ignore canvasnet Visio scad openscad psnr rmse ssim deskew otsu luma grayscale gamma -->
 
 This document provides the system-level design for CanvasNetTool.
 
@@ -18,7 +18,9 @@ The tool follows the DEMA Consulting tool template (a `Program` entry point, a `
 command line and the output channels, a self-validation mode, and safe path helpers) and adds a
 `Commands` subsystem that dispatches the first non-option argument to a registered command, and an `Imaging`
 subsystem that turns files into pixels and pixels into files. Its commands inspect (`formats`, `info`), render and
-transform (`render`, `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`), compare (`compare`), and compose
+transform (`render`, `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`), clean up photographs and sketches (the
+tone, deskew, trim, and grid operations of `render`, and `rotate` by any angle), measure (`inspect colors` and
+`inspect pixel`), compare (`compare`), and compose
 (`montage`) images. The system
 consists of six direct units and two subsystems:
 
@@ -46,8 +48,8 @@ consists of six direct units and two subsystems:
   `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
   `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
-  threshold gating), and `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
-  pages). See
+  threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
+  pages), and `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands). See
   _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
   turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
@@ -55,14 +57,18 @@ consists of six direct units and two subsystems:
   and SVG, of the pages of PDF, PPTX, and VSDX documents, and of a view of an OpenSCAD model, with the size
   policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
   flattening, and the mapping of library exceptions to expected errors),
-  `ImagePipeline` (the ordered crop, resize, fit, rotate, flip, and pad operations, which the `render` command
-  and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad` share),
+  `ImagePipeline` (the ordered crop, resize, fit, rotate by any angle, flip, pad, tone-adjustment, deskew, trim, and
+  grid operations, which the `render` command, the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`, and
+  `inspect` share),
+  `ImageAdjustments` (luma, grayscale, invert, threshold with the Otsu method, levels, brightness, contrast, and
+  auto-levels), `ImageGeometry` (rotation by any angle with canvas expansion and fill, skew estimation, and trim),
+  `GridOverlay` (the labeled coordinate grid), `ImageAnalysis` (dominant colors, luma statistics, and pixel samples),
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy),
   `ImageComparison` (the exact error metrics, the windowed structural similarity, the per-cell grid, the threshold
   checks, and the difference, overlay, and side-by-side pictures of two images of the same size), and
   `ContactSheet` (the layout and composition of a contact sheet, with labels drawn in the bundled font). It is a
-  subsystem because loading, transforming, comparing, composing, and writing are separate responsibilities that are
-  reviewed and tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
+  subsystem because loading, transforming, analyzing, comparing, composing, and writing are separate responsibilities
+  that are reviewed and tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,
 `Commands`, `ResultWriter`, and `Validation`; `Validation` calls back into `Program.Run` (to exercise the tool
@@ -192,7 +198,9 @@ loaded.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
   bundled (see _Dependencies_). The package readme is the repository README, so README links must be
   absolute URLs.
-- Threading: single-threaded console application; no shared mutable state between invocations. Tests that
+- Threading: a console application with no shared mutable state between invocations. The pixel operations of the
+  photo tools may use row-partitioned parallel loops whose outputs are disjoint, and reduce histograms in fixed blocks
+  that are merged in order, so a result never depends on the number of cores. Tests that
   redirect the console run sequentially.
 - Resource lifecycle: `Context` is `IDisposable`; callers dispose it to flush and close the log file.
 - Output contract: standard output carries results and standard error carries diagnostics, so a caller may
@@ -200,7 +208,15 @@ loaded.
 - Determinism: for the same inputs, tool version, and machine, command output is deterministic; JSON documents
   are additionally independent of the current culture and the console code page (numbers use the invariant
   culture and non-ASCII characters are escaped); the metrics of `compare` are computed from exact integer sums with
-  one final division, so they do not vary from run to run, and the labels of `montage` use the bundled font; output that
+  one final division, so they do not vary from run to run, the tone operations, the skew estimation, the trim, and the
+  analysis use integer arithmetic (the rotation uses `double` sampling), and the labels of `montage` and `--grid` use the
+  bundled font; output that
   depends on installed fonts (text in SVG, PDF, PowerPoint, and Visio documents) may differ between machines.
+- Fill and defaults of the photo operations: the corners that a rotation (and `--deskew`) exposes are filled with
+  `--rotate-fill`, else with `--background` when it is given, else with opaque white when every pixel of the image is
+  opaque (a photograph, a scan, or a flattened drawing, whose corners then look like paper), else transparent; the
+  canvas grows to the bounding box of the rotated image and a result larger than 8192 pixels on a side is refused as
+  `size-limit`; `--trim-tolerance` defaults to 8, `--auto-levels-clip` to 1 percent, and the `--grid` color to
+  `#FF00FFA0`. The `deskew` quantities: a tilt is corrected only when it is at least 0.05 degrees and its confidence is at least 0.4.
 - Path safety: caller-supplied path components used for temporary files are validated by
   `PathHelpers.SafePathCombine`.

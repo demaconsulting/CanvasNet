@@ -36,7 +36,10 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
 (`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
-reported as passed, are named in the TRX file, and the run reports thirteen tests in all.
+reported as passed, are named in the TRX file, and the run reports fourteen tests in all.
+
+**Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded**: the photo self-test (`CanvasNetTool_Adjustments`) passes
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test.
 
 **Validation_Run_NullContext_ThrowsArgumentNullException**: a null context throws.
 

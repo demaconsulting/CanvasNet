@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad psnr rmse ssim -->
+<!-- cspell:ignore canvasnet dpi pptx vsdx scad openscad psnr rmse ssim deskew deskewing grayscale luma otsu gamma -->
 
 This document describes the system-level verification strategy for CanvasNetTool.
 
@@ -25,10 +25,12 @@ results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasN
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, and `CanvasNetTool_Montage`), which
+`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`, and
+`CanvasNetTool_Adjustments`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (thirteen tests); the compare and montage self-tests are smoke tests, and the detailed coverage of both
-commands is in the unit, subsystem, and system tests.
+kept small (fourteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
+operation once on a generated sketch), and the detailed coverage of these commands and operations is in the unit,
+subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
 start-up files, the library assemblies, and the third-party libraries bundled for every target framework) and
 smoke-tests the installed tool (`formats --json`, an SVG `render`, and a `crop`); the self-validation covers the PDF
@@ -69,6 +71,14 @@ belong to the "Sequential" collection because console redirection is process-wid
   `threshold-failed` after writing its result, pictures, and (with `--json`) a failure document that carries the
   metrics; `montage` writes a contact sheet of images and of every page of documents, with bundled-font labels, and
   refuses a sheet that is too large before loading any input; both write the same bytes and text for the same inputs.
+- The photo operations (`--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`,
+  `--auto-levels`, `--deskew`, `--trim`, `--grid`, and a rotation by any angle with `--rotate-fill`) write the pixels
+  their formulas give, report what they chose (the level of an automatic threshold, the points of auto-levels, the
+  angle, correction, and confidence of deskew, the box of trim) in the JSON result, apply in the order written, and
+  write the same bytes for the same input; `inspect colors` and `inspect pixel` report the dominant colors, the luma
+  statistics, and the value of a pixel and its window as text or as one JSON document, in the coordinates of the image
+  after the pipeline, write no file, and refuse a bad subcommand or a point outside the image as a usage error.
+  They are verified in `CanvasNetToolTests.PhotoTools.cs`, on generated sketches.
 
 ## Test Scenarios
 
@@ -323,3 +333,56 @@ the output text and the bytes of the sheet are identical.
 
 **CanvasNetTool_Help_ListsCompareAndMontage**: the top-level help lists both commands and `compare --help` and
 `montage --help` show their usage lines.
+
+**CanvasNetTool_Photo_GrayscaleThresholdLevels_WriteExpectedPixels**: a row of six pixels (red, green, blue, and the
+grays 200, 100, and 50) is rendered as real processes with `--grayscale` (the luma 77, 149, 29, and the grays
+unchanged), `--threshold 100` (white only for the luma above 100), `--levels 50,150` (the grays become 255, 128, 0), and
+`--brightness 20` (220, 120, 70).
+
+**CanvasNetTool_Photo_AutoLevels_StretchesContrastAndReportsPoints**: a sketch with paper at 200 and ink at 100 is
+rendered with `--auto-levels --json`; the operation reports `applied`, black 100, and white 200, and the ink is black
+and the paper white in the file.
+
+**CanvasNetTool_Photo_RotateObliqueAngle_ExpandsCanvasAndFillsCorners**: a 160x100 sketch is rotated by 30 degrees with
+`--rotate-fill #ff0000` and with the default; the operation reports 30 degrees and 189x167, the corners are red (and
+white by default for an opaque image), and the center is still paper.
+
+**CanvasNetTool_Photo_RotateVerbWithFill_MatchesRenderEquivalent**: `rotate <input> 30` and `rotate <input> -12.5` with
+`--rotate-fill #00ff00` are run as real processes; each writes one result line and the same bytes as `render --rotate`.
+
+**CanvasNetTool_Photo_Deskew_StraightensTiltedLinesAndReportsAngleInJson**: a sketch with six lines tilted 4 degrees is
+rendered with `--deskew --rotate-fill #C8C8C8 --json`; the operation is applied with a skew between 3.5 and 4.5, the
+opposite correction, and a confidence of at least 0.4; deskewing the result finds a remaining skew of at most 0.5.
+
+**CanvasNetTool_Photo_Trim_CropsUniformBorder**: a 100x80 block on a white image with a near-white ring around it is
+trimmed with the default tolerance (the box 30,20 100x80, the file 100x80) and with `--trim-tolerance 2` (the ring is kept,
+102x82).
+
+**CanvasNetTool_Photo_Grid_DrawsLabeledLinesAtSpacing**: a 160x100 sketch gets `--grid 20,#FF0000`; the operation reports
+8 vertical and 5 horizontal lines and labels, the pixels on a vertical and a horizontal line are red, a pixel between the
+lines is unchanged, the label box at the origin changes the pixels under it, and the input file is not modified.
+
+**CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson**: `inspect colors --json` on 70 red and 30 blue pixels
+as a real process; one document with the colors `#FF0000` (70 pixels, 0.7) and `#0000FF` (30), the luma minimum 29,
+maximum 77, mean 62.6, a histogram of 16 counts, one color with `--count 1`, and no file written.
+
+**CanvasNetTool_Inspect_Pixel_ReportsValueAndNeighborhood**: `inspect pixel` on the gradient at `3,2 --radius 1` as a
+real process; the JSON document has the point, the color and hex of the pixel, and the clipped 3x3 window at 2,1; the
+text line starts `pixel 3,2 of`; after `--crop 2,1,4,4` the point `1,1` is the same pixel.
+
+**CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors**: a missing subcommand, a misspelled subcommand, an option of
+the other subcommand, a point outside the image, a point that is not numbers, `--count` for `pixel`, and a missing input
+are run in-process; each returns exit code 1 with `usage-error` (or `input-not-found`) in the message and in the document
+and no stack trace.
+
+**CanvasNetTool_Help_ListsInspectAndPhotoOptions**: the top-level help lists `inspect`, `inspect --help` shows both usage
+lines, and `render --help` lists the photo options.
+
+**CanvasNetTool_Photo_NapkinWorkflow_ChainedOperationsApplyInOrderAndReport**: the workflow of the user guide on a 400x300
+tilted, low-contrast sketch: `--fit 300x300 --auto-levels --deskew --trim` reports the four operations in order (300x225
+after the fit, both corrections applied, a skew between 2.4 and 3.6, a trim box that matches the file); `--grid 50` on the
+result reports the final size; and `inspect colors --auto-levels` reports `#FFFFFF` as the dominant color.
+
+**CanvasNetTool_Photo_SameInputsTwice_WriteIdenticalBytes**: three option sets that use the photo operations (including
+Otsu, deskew, an oblique rotation, gamma, and the grid) are rendered twice in-process; the two files of each are
+byte-identical.
