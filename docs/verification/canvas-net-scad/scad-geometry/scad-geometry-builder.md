@@ -198,6 +198,11 @@ that `%circle(2)` builds nothing and reports `scad-modifier-background` once at 
 `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_InsideHullChild_IsNotPartOfTheHullAndDoesNotThrow`,
 `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_InsideMinkowskiChild_IsOrdinarySummandOrNothing`,
 `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HullOfOnlyAGhost_BuildsNothing`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightInsideHull_IsNotChargedAndHasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightInsideMinkowski_IsNotChargedAndHasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_SingleChildMinkowski_StripsOverlays`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_SingleChildHull_HasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_NestedHighlightsAroundHull_AreBoundedByTheTriangleBudget`,
 `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_StrictMode_DoesNotThrowFor3DModifiersOrAlpha`
 
 Asserts that a hand-made tree 20,000 groups deep with a ghost on every group builds to the same 20,000 nested
@@ -205,7 +210,11 @@ overlays on a 64 KiB stack as on a 256 MiB stack, that a canceled token stops a 
 ghosted instances, that a `%` child of a `hull` does not stretch the hull (also when a colored sibling makes the
 unit strip appearances from a copy, which turns the overlay into an empty group) while a `#` child is an ordinary
 member of the hull and leaves no overlay, that the same holds for `minkowski` (a `#` child is an ordinary summand, a
-`%` child contributes nothing), that a hull of only a ghost builds nothing without throwing, and that
+`%` child contributes nothing), that a hull of only a ghost builds nothing without throwing, that a `#` below a
+`hull` or `minkowski` (also nested in a group, and also on a lone child) creates no overlay and charges exactly what
+the plain operation charges (so a budget that fits the plain hull is not exceeded by a highlight copy that is never
+drawn) while a `#` on the hull itself still charges its copy, that a lone ghost child of a `minkowski` builds
+nothing, and that forty nested highlights around a `hull` still fail the budget, and that
 strict mode does not throw for `#` and `%` on solids or a color alpha.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules: Modules That Are Not Built

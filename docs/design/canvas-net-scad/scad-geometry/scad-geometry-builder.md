@@ -234,9 +234,14 @@ _SceneGraph_ design):
   rendered normally and reported as `scad-modifier-highlight`, a `%` shape is omitted and reported as
   `scad-modifier-background`, each at the instance. The modifier on an extrusion of the shape (a solid) works
   completely.
-- **Hull and Minkowski.** The point collectors of `ScadHulls` ignore overlay nodes, so a `%` child contributes no
-  points (a ghost-only hull builds nothing) and the overlay of a `#` child is not drawn (its normal copy is part
-  of the hull); the appearance-stripping copy turns an overlay into an empty group instead of throwing.
+- **Hull and Minkowski.** The builder counts the `hull` and `minkowski` frames it is inside (`_convexDepth`,
+  incremented when such a frame is pushed and decremented when it is popped, so the modifiers of the instance itself
+  are applied outside it). While the count is positive, `ApplyModifiers` creates no overlay and charges nothing: `#`
+  returns the solid unchanged (an ordinary member of the hull or sum) and `%` returns `Empty` (a ghost is false in
+  every boolean and is never drawn there), at any depth below the container, for a lone child as well as for several.
+  A hull or sum of only ghosts therefore builds nothing and reports nothing. A `#` outside any hull or minkowski
+  keeps its charge, so nested highlights stay bounded. The point collectors of `ScadHulls` and the
+  appearance-stripping copy still ignore an overlay (an empty group) as a safety net.
 - **Closed solids.** Overlays are resolved with signed crossing counters, so the meshes beneath them must be
   closed solids; an open mesh under `#` or `%` is reported by the renderer's operand check through the
   `scad-csg-*` identifiers like any boolean operand.

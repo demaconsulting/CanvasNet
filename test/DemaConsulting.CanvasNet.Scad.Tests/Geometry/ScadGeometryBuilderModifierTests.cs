@@ -451,6 +451,105 @@ public class ScadGeometryBuilderModifierTests
     }
 
     /// <summary>
+    ///     Validates that a <c>#</c> below a <c>hull</c> creates no overlay and is not charged, so a hull whose
+    ///     highlight copy would not have fit the triangle budget still builds, charging exactly what the plain hull
+    ///     charges, at any depth below the hull, while a <c>#</c> on the hull itself still charges its copy.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Modifiers_HighlightInsideHull_IsNotChargedAndHasNoOverlay()
+    {
+        // Arrange: the budget fits the plain hull (peak 52) but not a charged highlight copy of a child (peak 64)
+        const string Plain = "hull() { cube(1); translate([3, 0, 0]) cube(1); }";
+        var settings = Settings(maxTriangles: 60);
+
+        // Act
+        var plain = Build(Plain, settings);
+        var direct = Build("hull() { #cube(1); translate([3, 0, 0]) cube(1); }", settings);
+        var nested = Build("hull() { translate([0, 0, 0]) union() { #cube(1); } translate([3, 0, 0]) cube(1); }", settings);
+        var onTheHull = Build("#hull() { cube(1); translate([3, 0, 0]) cube(1); }", Settings(maxTriangles: 200));
+
+        // Assert
+        Assert.Equal(plain.TrianglesCharged, direct.TrianglesCharged);
+        Assert.Equal(plain.TrianglesCharged, nested.TrianglesCharged);
+        Assert.Empty(Overlays(direct.Scene));
+        Assert.Empty(Overlays(nested.Scene));
+        Assert.Single(Overlays(onTheHull.Scene));
+        Assert.Equal(plain.TrianglesCharged + plain.MeshTriangles, onTheHull.TrianglesCharged);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>#</c> below a <c>minkowski</c> is not charged and creates no overlay, and that a <c>#</c>
+    ///     after the <c>minkowski</c> is charged and drawn as usual.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Modifiers_HighlightInsideMinkowski_IsNotChargedAndHasNoOverlay()
+    {
+        // Arrange / Act
+        var plain = Build("minkowski() { cube(4); cube(1); }");
+        var highlighted = Build("minkowski() { #cube(4); #cube(1); }");
+        var after = Build("minkowski() { cube(4); cube(1); }\n#translate([20, 0, 0]) cube(1);");
+
+        // Assert
+        Assert.Equal(plain.TrianglesCharged, highlighted.TrianglesCharged);
+        Assert.Empty(Overlays(highlighted.Scene));
+        Assert.Single(Overlays(after.Scene));
+    }
+
+    /// <summary>
+    ///     Validates that a lone <c>minkowski</c> child that is highlighted is the plain solid without an overlay, and
+    ///     that a lone ghost child builds nothing (a ghost contributes nothing, as in a multi-child sum).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Modifiers_SingleChildMinkowski_StripsOverlays()
+    {
+        // Arrange / Act
+        var highlight = Build("minkowski() { #cube(1); }");
+        var ghost = Build("minkowski() { %cube(1); }");
+        var ghostGroup = Build("minkowski() { %union() { cube(1); } }");
+
+        // Assert
+        var leaf = Assert.Single(highlight.Leaves);
+        AssertBounds(leaf.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(1, 1, 1), 1e-9);
+        Assert.Empty(Overlays(highlight.Scene));
+        Assert.Equal(12, highlight.TrianglesCharged);
+        Assert.Empty(ghost.Meshes);
+        Assert.Empty(Overlays(ghost.Scene));
+        Assert.Empty(ghostGroup.Meshes);
+        Assert.Empty(Overlays(ghostGroup.Scene));
+        Assert.Empty(highlight.Unsupported);
+        Assert.Empty(ghost.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a lone highlighted <c>hull</c> child builds the hull of the solid without an overlay.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Modifiers_SingleChildHull_HasNoOverlay()
+    {
+        // Arrange / Act
+        var highlight = Build("hull() { #cube(1); }");
+
+        // Assert
+        var leaf = Assert.Single(highlight.Leaves);
+        AssertBounds(leaf.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(1, 1, 1), 1e-9);
+        Assert.Empty(Overlays(highlight.Scene));
+    }
+
+    /// <summary>
+    ///     Validates that a nested highlight outside any <c>hull</c> stays bounded by the triangle budget even when a
+    ///     <c>hull</c> sits inside it (the hull only exempts its own children).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Modifiers_NestedHighlightsAroundHull_AreBoundedByTheTriangleBudget()
+    {
+        // Arrange
+        const string Source = "module m(n) #union() { hull() { cube(1); translate([2, 0, 0]) cube(1); } if (n > 0) m(n - 1); }\nm(40);";
+
+        // Act / Assert
+        Assert.Throws<ScadEvaluationException>(() => Build(Source));
+    }
+
+    /// <summary>
     ///     Validates that a hand-made tree 20,000 levels deep with a ghost on every group builds on a 64 KiB caller
     ///     stack exactly as on a big stack (the modifier code never recurses).
     /// </summary>

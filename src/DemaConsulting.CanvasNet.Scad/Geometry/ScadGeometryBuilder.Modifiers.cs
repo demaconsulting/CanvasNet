@@ -32,6 +32,11 @@ internal sealed partial class ScadGeometryBuilder
     ///         therefore cannot multiply the work beyond <see cref="ScadLimits.MaxTriangles"/>).
     ///     </para>
     ///     <para>
+    ///         <b>Inside <c>hull</c> and <c>minkowski</c>.</b> Their result is one new mesh and no overlay of a child is
+    ///         drawn, so below either of them no overlay is created and nothing is charged: <c>#</c> leaves the solid as
+    ///         an ordinary member and <c>%</c> contributes nothing (the same as a ghost in any other boolean).
+    ///     </para>
+    ///     <para>
     ///         <b>2D shapes.</b> A result that is still flat has no overlay form (the overlay is a body of solids): a
     ///         <c>#</c> shape renders normally and a <c>%</c> shape is omitted, and both are reported as unsupported
     ///         (<see cref="ScadFeatureIds.ModifierHighlight"/>, <see cref="ScadFeatureIds.ModifierBackground"/>). The
@@ -53,6 +58,13 @@ internal sealed partial class ScadGeometryBuilder
         if (geo.Kind == ScadGeoKind.Flat)
         {
             return background ? OmitBackgroundShape(node) : ReportHighlightedShape(node, geo);
+        }
+
+        // A hull or a Minkowski sum never draws the overlay of a child (the sum is one new mesh), so inside one the
+        // highlight is just the solid and the ghost contributes nothing; no copy exists, so none is charged
+        if (_convexDepth > 0)
+        {
+            return background ? ScadGeo.Empty : geo;
         }
 
         if (background)

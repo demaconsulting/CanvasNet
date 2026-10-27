@@ -156,7 +156,9 @@ sections:
                   The ScadGeometryBuilder unit shall apply the highlight and background modifiers without
                   recursion (a tree of 20,000 nested ghosts builds on a 64 KiB caller stack as on a large
                   one), poll cancellation while building them, leave a ghost or the overlay of a highlight that is
-                  a child of a hull or a minkowski out of the operation (and build without failing), and not
+                  a child of a hull or a minkowski out of the operation at any depth below it (no overlay is
+                  created and no triangles are charged for it, also for a lone child, and a lone ghost builds
+                  nothing) and build without failing, and not
                   throw in strict mode for the
                   modifiers on solids.
                 justification: |
@@ -169,6 +171,11 @@ sections:
                   - ScadGeometryBuilder_Modifiers_InsideHullChild_IsNotPartOfTheHullAndDoesNotThrow
                   - ScadGeometryBuilder_Modifiers_InsideMinkowskiChild_IsOrdinarySummandOrNothing
                   - ScadGeometryBuilder_Modifiers_HullOfOnlyAGhost_BuildsNothing
+                  - ScadGeometryBuilder_Modifiers_HighlightInsideHull_IsNotChargedAndHasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_HighlightInsideMinkowski_IsNotChargedAndHasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_SingleChildMinkowski_StripsOverlays
+                  - ScadGeometryBuilder_Modifiers_SingleChildHull_HasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_NestedHighlightsAroundHull_AreBoundedByTheTriangleBudget
                   - ScadGeometryBuilder_Modifiers_StrictMode_DoesNotThrowFor3DModifiersOrAlpha
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules

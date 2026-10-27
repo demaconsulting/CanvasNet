@@ -3589,8 +3589,9 @@ set), and the fragment budget `SceneOptions.MaxFragmentsPerTile` applies to them
   `difference() { cube(10); #translate([2, 2, 2]) cube(6); }` the highlighted cutter still cuts, and its pink body is
   drawn inside the cut: the highlight is visible even where the subtree was subtracted. The triangles of the copy
   count a second time against `ScadLimits.MaxTriangles` (so a highlight on a very large subtree can reach the
-  limit sooner). A `#` on a `hull` or `minkowski` child makes the child an ordinary part of the hull or sum, and its
-  copy is not drawn.
+  limit sooner). A `#` on a `hull` or `minkowski` child (at any depth below it) makes the child an ordinary part of
+  the hull or sum: no copy is built or drawn, so it is not charged against the limit either; a `%` there contributes
+  nothing, and a `minkowski` or `hull` of only a ghost builds nothing.
 - **2D shapes.** A `#` or `%` on a 2D shape that is not extruded (a bare `square`, `circle`, or `polygon`, which is
   drawn as a slab) has no translucent form: `#` renders the slab normally and `%` omits it, and each is reported
   (`scad-modifier-highlight`, `scad-modifier-background`). The modifier on an **extrusion** of the shape, for example

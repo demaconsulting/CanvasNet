@@ -54,6 +54,9 @@ internal sealed partial class ScadGeometryBuilder
     /// <summary>The effective triangle count of the nodes visited by <see cref="EffectiveTriangles"/>, by reference.</summary>
     private readonly Dictionary<SceneNode, long> _effectiveTriangles = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>The number of <c>hull</c> and <c>minkowski</c> instances whose children are being built (overlays are not created inside them).</summary>
+    private int _convexDepth;
+
     /// <summary>
     ///     Initializes a builder.
     /// </summary>

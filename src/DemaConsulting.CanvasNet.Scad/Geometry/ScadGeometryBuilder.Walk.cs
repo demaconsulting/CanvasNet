@@ -70,6 +70,12 @@ internal sealed partial class ScadGeometryBuilder
                 }
                 else
                 {
+                    // Everything below a hull or a Minkowski sum is built without overlays (they are never drawn there)
+                    if (IsConvexCombination(combiner))
+                    {
+                        _convexDepth++;
+                    }
+
                     stack.Add(new Frame(child, child.Children, combiner));
                 }
 
@@ -78,6 +84,11 @@ internal sealed partial class ScadGeometryBuilder
 
             // All children are visited: combine them and hand the result to the parent
             stack.RemoveAt(stack.Count - 1);
+            if (IsConvexCombination(top.Combine))
+            {
+                _convexDepth--;
+            }
+
             var geo = top.Combine(top.Node, top.Results, _context);
             if (top.Node is not null)
             {
@@ -92,6 +103,14 @@ internal sealed partial class ScadGeometryBuilder
             stack[^1].Results.Add(geo);
         }
     }
+
+    /// <summary>
+    ///     Tells whether a container builder is <c>hull</c> or <c>minkowski</c>, which discard the overlays of their children.
+    /// </summary>
+    /// <param name="combiner">The builder.</param>
+    /// <returns><see langword="true"/> for the hull and the Minkowski sum.</returns>
+    private static bool IsConvexCombination(ContainerBuilder combiner) =>
+        combiner == ScadHulls.Hull || combiner == ScadHulls.Minkowski;
 
     /// <summary>
     ///     Rejects a result whose coordinates are not finite or exceed <see cref="ScadGeo.MaxCoordinate"/>.
