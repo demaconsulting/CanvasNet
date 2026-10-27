@@ -6,6 +6,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-scad/scad-geometry.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-geometry.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-geometry.yaml */
+        comment /* Within the CanvasNetScad system only the ScadTextGeometry unit of this subsystem uses the core CanvasNet system's Fonts and Geometry subsystems (see the unit's model and the CanvasNetScadSystem dependencies); the other units use Render3D and, for the result, nothing of Fonts or Geometry. */
 
         part scadGeometryBuilder : ScadGeometryBuilder;
         part scadPrimitives : ScadPrimitives;

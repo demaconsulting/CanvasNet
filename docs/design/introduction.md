@@ -217,9 +217,11 @@ software items, specifically:
   symbolic 2D shape tree), and `ScadTextGeometry` (the text module: font resolution, glyph layout, and flat 2D
   glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
-  supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` uses the `CanvasNet` system
-  (`Surface`, `Rgba32`) and `CanvasNetRender3D` (the scene, tessellation, and rendering API) through their
-  public API, and must never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
+  supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` depends on the `CanvasNet`
+  system's `Canvas` subsystem (`Surface`, `Rgba32`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
+  `SystemFontCatalog`, and the bundled Liberation fonts) and `Geometry` (`Path`, the glyph outlines) subsystems,
+  and on `CanvasNetRender3D` (the scene, tessellation, and rendering API), all through their public API, and must
+  never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
@@ -365,9 +367,10 @@ language that parses, evaluates, builds the geometry of, and renders models: its
 `ScadEvaluation` subsystem (namespace `DemaConsulting.CanvasNet.Scad.Evaluation`) holds the `ScadValue`,
 `ScadEvaluator`, `ScadBuiltinFunctions`, and `ScadFileResolver` units, and its internal `ScadGeometry`
 subsystem (namespace `DemaConsulting.CanvasNet.Scad.Geometry`) holds the `ScadGeometryBuilder`,
-`ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` units. It uses the `CanvasNet` system
-(`Surface`, `Rgba32`, and, for `text`, the `Fonts` subsystem) and `CanvasNetRender3D` (the scene model, tessellation,
-and renderer) through their public API. See
+`ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` units. It depends on the `CanvasNet`
+system's `Canvas` (`Surface`, `Rgba32`), `Fonts` (for `text`: `TrueTypeFont` and `SystemFontCatalog`), and
+`Geometry` (for `text`: the `Path` of a glyph outline) subsystems, and on `CanvasNetRender3D` (the scene model,
+tessellation, and renderer), through their public API. See
 the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
@@ -869,8 +872,10 @@ src/DemaConsulting.CanvasNet.Scad/
     └── ScadFileResolver.Paths.cs  — ScadFileResolver: path normalization and sandbox
 ```
 
-`CanvasNetScad` uses the `CanvasNet` system (`Surface`, `Rgba32`) and `CanvasNetRender3D` (scene model,
-tessellation, rendering) through their public API from the `ScadGeometry` subsystem and the `BuildScene` and
+`CanvasNetScad` uses the `CanvasNet` system (`Surface` and `Rgba32` of `Canvas`; for `text`, `TrueTypeFont` and
+`SystemFontCatalog` of `Fonts` and `Path` of `Geometry`) and `CanvasNetRender3D` (scene model,
+tessellation, rendering) through their public API from the `ScadGeometry` subsystem (the `ScadTextGeometry` unit
+for `Fonts` and `Geometry`) and the `BuildScene` and
 `Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 

@@ -169,8 +169,11 @@ project references in
 `src/DemaConsulting.CanvasNet.Scad/DemaConsulting.CanvasNet.Scad.csproj`:
 
 - `CanvasNet` (its own package, `DemaConsulting.CanvasNet`), for the `Surface` that `Render` returns, the
-  `Rgba32` colors of the scene and the renderer options, and, for `text`, the `Fonts` subsystem (`TrueTypeFont`
-  and `SystemFontCatalog`, including the bundled Liberation fonts) and its `Geometry.Path` outlines
+  `Rgba32` colors of the scene and the renderer options, and, for `text`, two of its subsystems: the **`Fonts`**
+  subsystem (`TrueTypeFont` and `SystemFontCatalog`, including the bundled Liberation fonts) for the font files,
+  glyph lookup, outlines, advances, and kerning, and the **`Geometry`** subsystem (`Path`) for the glyph outlines
+  that a font returns. Only the `ScadTextGeometry` unit of the `ScadGeometry` subsystem uses `Fonts` and
+  `Geometry`; no core API and no `InternalsVisibleTo` entry was added for it
 - `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
   (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
   extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`,
@@ -183,7 +186,10 @@ Both are consumed as public API only and are declared as the package dependencie
 public API of `CanvasNetScad` exposes the Render3D types `Scene`, `Camera`, `CameraProjection`, and
 `SceneRenderOptions` and the core `Surface`. The `ScadLanguage` and `ScadEvaluation` subsystems use neither
 system, so parsing and evaluation behave independently of both. The dependencies are modeled in the SysML2 model
-as the `usesCanvas` and `usesRender3D` dependencies.
+as the `usesCanvas`, `usesFonts`, `usesGeometry`, and `usesRender3D` dependencies of the `CanvasNetScad` system
+(the model records dependencies at the system level only, as for every other satellite system); the unit that
+needs `Fonts` and `Geometry`, `ScadTextGeometry`, says so in its own design, verification, and model
+documentation.
 
 **`CanvasNetScad` must never reference `DemaConsulting.CanvasNet.Svg`, `DemaConsulting.CanvasNet.Pdf`,
 `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Vsdx`, or `DemaConsulting.CanvasNet.Charts`.**
@@ -653,9 +659,9 @@ requirements, design, verification, and tests for its own scope.
    additional directories, installed fonts, and the bundled families), flattening of the glyph outlines into
    flat 2D regions with holes, and integration with every consumer of 2D shapes; the additive public
    `ScadFontResolutionOptions` and `ScadRenderOptions.FontResolution`; the `scad-text-invalid-outline` and
-   `scad-text-overlapping-contours` identifiers; the additive `SystemFontCatalog.DiscoverFonts` and
-   `FindBestMatchAmong` in the core package; a new original fixture, `render-text.scad`, and analytic system
-   tests; and the complete companion documentation. `textmetrics()` and `fontmetrics()` remain unsupported.
+   `scad-text-overlapping-contours` identifiers; a new original fixture, `render-text.scad`, and analytic system
+   tests; and the complete companion documentation. No core API was added: the text unit uses the public `Fonts`
+   and `Geometry` API of the core package only. `textmetrics()` and `fontmetrics()` remain unsupported.
 7. **Later — External-file import.**
 
 Every later phase adds members and types rather than changing the signatures delivered here.

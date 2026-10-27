@@ -64,7 +64,8 @@ from `CanvasNetRender3D`, the public scene-model types (`Scene`, `SceneNode`, `G
 `Scene.ComputeBounds(bool)`), the tessellators and extruders (`PrimitiveTessellator`,
 `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and `SceneRenderOptions`; and from
 `CanvasNet`, `Rgba32` and, for `text`, the `Fonts` subsystem (`TrueTypeFont`, `SystemFontCatalog`) and the
-`Geometry.Path` outlines it returns.
+`Geometry` subsystem (`Path`, the glyph outlines that a font returns), all through public API only; of this
+subsystem only the `ScadTextGeometry` unit uses `Fonts` and `Geometry`.
 The subsystem never uses the `ScadLanguage` subsystem or the syntax tree.
 
 **Consumers**: `ScadDocument.BuildScene` and `ScadDocument.Render` (through the `Build` entry point and the
