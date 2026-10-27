@@ -2,7 +2,7 @@
 
 ![Imaging Structure](ImagingView.svg)
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad luma otsu grayscale -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad luma otsu grayscale deskews -->
 
 ### Overview
 
@@ -15,7 +15,8 @@ subsystem rather than a single unit because loading, transforming, and writing a
 distinct requirements and tests. It contains nine units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
-`ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
+`ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone of, deskews, trims, and
+draws a grid on pixels in the order the options were written,
 `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
@@ -41,8 +42,9 @@ and directives), load one page into a
 several of its pages.
 
 **ImagePipeline.Parse(reader, verb, verbOperand)** and **ImagePipeline.Apply(input, operations, defaultPadColor,
-out applied)** (provided to the commands): read the ordered operations of a command line (the operation of a verb
-command first), and apply them to a surface, giving a new surface and the list of what was done.
+out applied, userBackground)** (provided to the commands): read the ordered operations of a command line (the operation
+of a verb command first), and apply them to a surface (running the units `ImageAdjustments`, `ImageGeometry`, and
+`GridOverlay` for the photo operations), giving a new surface and the list of what was done.
 
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
 (provided to the commands): choose the output format, check an output (or all the outputs of a command against all its

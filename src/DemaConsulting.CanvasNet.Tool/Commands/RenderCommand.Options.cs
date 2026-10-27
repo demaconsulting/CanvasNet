@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg tif tiff RRGGBB RRGGBBAA
+// cspell:ignore canvasnet jpeg tif tiff RRGGBB RRGGBBAA deskew otsu midtones
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tool.Imaging;
 
@@ -17,10 +17,12 @@ internal sealed partial class RenderCommand
     ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the options of
     ///     an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
     ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the image pipeline
-    ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--flip</c>,
-    ///     <c>--pad</c>, <c>--pad-color</c>, <c>--filter</c>), then the output
-    ///     options (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>). The verb commands share
-    ///     this table.
+    ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--rotate-fill</c>,
+    ///     <c>--flip</c>, <c>--pad</c>, <c>--pad-color</c>, <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>,
+    ///     <c>--levels</c>, <c>--brightness</c>, <c>--contrast</c>, <c>--auto-levels</c>, <c>--auto-levels-clip</c>,
+    ///     <c>--deskew</c>, <c>--trim</c>, <c>--trim-tolerance</c>, <c>--grid</c>, <c>--filter</c>), then the output
+    ///     options (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>). The verb commands and
+    ///     <c>inspect</c> share this table (<c>inspect</c> without the output options).
     /// </remarks>
     internal static readonly IReadOnlyList<OptionSpec> OptionTable =
     [
@@ -46,10 +48,23 @@ internal sealed partial class RenderCommand
         new(ImagePipeline.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
         new(ImagePipeline.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
         new(ImagePipeline.AllowUpscaleOption, [], false, "Let --fit enlarge an image that is smaller than the box"),
-        new(ImagePipeline.RotateOption, [], true, "Rotate clockwise by 90, 180, or 270 degrees", "degrees"),
+        new(ImagePipeline.RotateOption, [], true, "Rotate clockwise by any angle in degrees, for example 90 or -3.5; an angle that is not a multiple of 90 grows the canvas and fills the corners (see --rotate-fill)", "degrees"),
+        new(ImagePipeline.RotateFillOption, [], true, "Color of the corners a --rotate or --deskew exposes (default: the --background, else white for an opaque image, else transparent)", "color"),
         new(ImagePipeline.FlipOption, [], true, "Mirror: h (left to right), v (top to bottom), or both", "axis"),
         new(ImagePipeline.PadOption, [], true, "Add a border of N pixels on every side, or l,t,r,b pixels on each side", "N|l,t,r,b"),
         new(ImagePipeline.PadColorOption, [], true, "Color of the border added by --pad (default: the --background, else white for a drawing or document, else transparent)", "color"),
+        new(ImagePipeline.GrayscaleOption, [], false, "Turn every pixel gray (its luma); transparency is kept"),
+        new(ImagePipeline.InvertOption, [], false, "Invert the colors; transparency is kept"),
+        new(ImagePipeline.ThresholdOption, [], true, "Turn the image black and white: pixels with a luma above the level (0-255) become white; auto chooses the level with Otsu's method", "0-255|auto"),
+        new(ImagePipeline.LevelsOption, [], true, "Map the levels black..white to 0..255, with an optional gamma (0.1-10; above 1 brightens the midtones), for example 20,230 or 20,230,1.2", "black,white[,gamma]"),
+        new(ImagePipeline.BrightnessOption, [], true, "Add an amount (-255 to 255) to every color level", "-255..255"),
+        new(ImagePipeline.ContrastOption, [], true, "Change the contrast around mid-gray by a percentage (-100 to 100)", "-100..100"),
+        new(ImagePipeline.AutoLevelsOption, [], false, "Stretch the levels so the darkest and lightest pixels become black and white (ignoring 1% of the pixels at each end; see --auto-levels-clip)"),
+        new(ImagePipeline.AutoLevelsClipOption, [], true, "Percentage of the pixels --auto-levels ignores at each end, 0-20 (default 1)", "percent"),
+        new(ImagePipeline.DeskewOption, [], false, "Straighten the image: find the tilt of its near-horizontal lines (within 15 degrees) and rotate it level; the angle is in the --json result"),
+        new(ImagePipeline.TrimOption, [], false, "Crop away the uniform border around the content (the background is the most common color of the four corners)"),
+        new(ImagePipeline.TrimToleranceOption, [], true, "How far a pixel may differ from the background and still count as background, 0-255 (default 8)", "0-255"),
+        new(ImagePipeline.GridOption, [], true, "Draw a labeled coordinate grid with a line every N pixels (8-4096) in the color given (default #FF00FFA0); put it last to read the final coordinates", "N[,color]"),
         new(ImagePipeline.FilterOption, [], true, "Resampling filter of a resize or fit: auto (default), nearest, bilinear, bicubic, lanczos3, or area", "name"),
         new("--output", ["-o"], true, "The output file; its extension selects the format", "file"),
         new("--format", [], true, "Output format: png, jpeg, bmp, or tiff (overrides the extension)", "format"),
@@ -126,6 +141,49 @@ internal sealed partial class RenderCommand
                              ? "Add -o <file>, for example: canvasnet render input.svg -o output.png"
                              : $"Add -o <file>, for example: canvasnet {verb} input.png {VerbTexts[verb].Operand} -o output.png");
 
+        var source = ReadSourceOptions(reader);
+        var quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality;
+
+        if (reader.Has("--page") && reader.Has("--all-pages"))
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                "The options --page and --all-pages cannot be used together.",
+                "Use --page N for one page, or --all-pages for every page.");
+        }
+
+        // Validate the format name now so that a typo is reported before anything is loaded
+        var formatOption = reader.Get("--format");
+        var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
+        var flattenBackground = source.Background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
+        var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
+
+        // The operand of a verb is the second positional (the first is the input); every operation is parsed now so
+        // that a malformed one is reported before anything is loaded
+        var operations = ImagePipeline.Parse(reader, verb, verb == null ? null : reader.Positionals[1]);
+        return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"), operations);
+    }
+
+    /// <summary>
+    ///     Reads the options that decide how an input is loaded.
+    /// </summary>
+    /// <param name="reader">The parsed arguments of a command that declares the source options.</param>
+    /// <returns>
+    ///     The page, resolution, strictness, size (<c>--scale</c>, <c>--width</c>, <c>--height</c>, or <c>--size</c>),
+    ///     background, EXIF orientation, resampling filter, and model view options.
+    /// </returns>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> when a value is malformed or out of range or the sizing options contradict
+    ///     each other; and with code <c>size-limit</c> when <c>--size</c> names a side larger than the maximum.
+    /// </exception>
+    /// <remarks>
+    ///     The options of the output (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>,
+    ///     <c>--all-pages</c>) are not read here; <c>render</c> reads them itself and <c>inspect</c> has none.
+    /// </remarks>
+    internal static SourceOptions ReadSourceOptions(ArgumentReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
         var width = reader.GetInt("--width", 1, int.MaxValue);
         var height = reader.GetInt("--height", 1, int.MaxValue);
         var scale = reader.GetDouble("--scale", 0.001, Surface.MaxDimension);
@@ -141,17 +199,7 @@ internal sealed partial class RenderCommand
         }
 
         var background = reader.Get("--background") is { } colorText ? ArgumentReader.ParseColor(colorText, "--background") : (Rgba32?)null;
-        var quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality;
-
-        if (reader.Has("--page") && reader.Has("--all-pages"))
-        {
-            throw new ToolException(
-                ErrorCodes.UsageError,
-                "The options --page and --all-pages cannot be used together.",
-                "Use --page N for one page, or --all-pages for every page.");
-        }
-
-        var source = new SourceOptions
+        return new SourceOptions
         {
             Page = reader.Get("--page") is { } pageText ? ArgumentReader.ParsePage(pageText, "--page") : 1,
             Dpi = reader.Get("--dpi") is { } dpiText ? ArgumentReader.ParseDpi(dpiText, "--dpi") : null,
@@ -166,17 +214,6 @@ internal sealed partial class RenderCommand
                 : ResamplingMode.Auto,
             Scad = ReadScadOptions(reader)
         };
-
-        // Validate the format name now so that a typo is reported before anything is loaded
-        var formatOption = reader.Get("--format");
-        var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
-        var flattenBackground = background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
-        var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
-
-        // The operand of a verb is the second positional (the first is the input); every operation is parsed now so
-        // that a malformed one is reported before anything is loaded
-        var operations = ImagePipeline.Parse(reader, verb, verb == null ? null : reader.Positionals[1]);
-        return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"), operations);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet
+// cspell:ignore canvasnet deskew
 using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
@@ -81,10 +81,13 @@ internal sealed partial class RenderCommand
             ]),
         ["rotate"] = new(
             "<degrees>",
-            "Rotate an image, drawing, or document page by 90, 180, or 270 degrees",
-            "Rotates clockwise by 90, 180, or 270 degrees (-90 is 270). Other angles are not supported yet.",
+            "Rotate an image, drawing, or document page by any angle",
+            "Rotates clockwise by the angle in degrees (-90 is 270, 3.5 or -3.5 level a slightly tilted scan)." + Environment.NewLine
+            + "A multiple of 90 degrees is an exact pixel move; any other angle grows the canvas to hold the whole image" + Environment.NewLine
+            + "and fills the corners with --rotate-fill (default: the --background, else white for an opaque image, else transparent).",
             [
                 "canvasnet rotate scan.png 90 -o upright.png",
+                "canvasnet rotate scan.png -3.5 --rotate-fill white -o level.png",
                 "canvasnet rotate scan.jpg 180 -o flipped.jpg --quality 85"
             ]),
         ["flip"] = new(
@@ -119,7 +122,8 @@ internal sealed partial class RenderCommand
                + text.Description + Environment.NewLine
                + $"'{verb}' is 'render' with this one operation first, so it takes every option of render (--page, --dpi," + Environment.NewLine
                + "--background, --format, --quality, --no-clobber, --json, ...). The operations given as options" + Environment.NewLine
-               + "(--crop, --resize, --fit, --rotate, --flip, --pad) are applied after it, in the order written." + Environment.NewLine
+               + "(--crop, --resize, --fit, --rotate, --flip, --pad, --grayscale, --threshold, --deskew, --trim, --grid, ...)" + Environment.NewLine
+               + "are applied after it, in the order written." + Environment.NewLine
                + Environment.NewLine
                + "Examples:" + Environment.NewLine
                + string.Join(Environment.NewLine, text.Examples.Select(e => "  " + e));

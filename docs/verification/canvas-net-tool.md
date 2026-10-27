@@ -221,10 +221,11 @@ equivalent `render` invocation.
 **CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage**: the top-level help lists the five verbs and
 `crop --help` shows its usage line with the operand and the options of `render`.
 
-**CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors**: an angle of 45 or 7.5
-degrees, a crop that starts outside the image, a border of 9000 pixels, and a size of 10000x10 are run in-process;
-each returns exit code 1 with `usage-error` (the rotations say they are not supported yet, the crop names the image
-size) or `size-limit` in the message and in the JSON document, without a stack trace and with no output.
+**CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors**: an angle that is not a number,
+a grid spacing of 3, levels with equal black and white points, a crop that starts outside the image, a border of 9000
+pixels, and a size of 10000x10 are run in-process; each returns exit code 1 with `usage-error` (the value and the option
+are named in the message, the crop names the image size) or `size-limit` in the message and in the JSON document, without
+a stack trace and with no output.
 
 **CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes**: a PNG, a JPEG, an SVG, a PDF, a presentation, a
 drawing, and a model are rendered twice to every output format at a given width; the two files are byte-identical.

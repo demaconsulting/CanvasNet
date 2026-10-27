@@ -1,5 +1,5 @@
 ---
-# cspell:ignore scad openscad ssim otsu
+# cspell:ignore scad openscad ssim otsu grayscale deskew deskewed
 # Imaging Subsystem Requirements
 #
 # PURPOSE:
@@ -76,8 +76,9 @@ sections:
       - id: CanvasNetTool-Imaging-Transform
         title: >-
           The Imaging subsystem shall transform loaded pixels with an ordered pipeline of operations
-          (crop, resize, fit, rotate, flip, and pad) applied in the order written, and shall give the same
-          transformed pixels when the same operations are applied twice.
+          (crop, resize, fit, rotate by any angle, flip, pad, tone adjustment, deskew, trim, and grid) applied in
+          the order written, and shall give the same transformed pixels when the same operations are applied
+          twice.
         justification: |
           Every command that changes an image applies the same operations the same way, in one decode and
           one encode, so that the order of the options is the order of the effects.
@@ -86,12 +87,19 @@ sections:
           - CanvasNetTool-Imaging-ImagePipeline-Crop
           - CanvasNetTool-Imaging-ImagePipeline-Resize
           - CanvasNetTool-Imaging-ImagePipeline-Rotate
+          - CanvasNetTool-Imaging-ImagePipeline-RotateAngle
           - CanvasNetTool-Imaging-ImagePipeline-Flip
           - CanvasNetTool-Imaging-ImagePipeline-Pad
+          - CanvasNetTool-Imaging-ImagePipeline-Adjustments
+          - CanvasNetTool-Imaging-ImagePipeline-Deskew
+          - CanvasNetTool-Imaging-ImagePipeline-Trim
+          - CanvasNetTool-Imaging-ImagePipeline-Grid
+          - CanvasNetTool-Imaging-ImagePipeline-Ownership
           - CanvasNetTool-Imaging-ImagePipeline-SizeLimit
           - CanvasNetTool-Imaging-ImagePipeline-Arguments
         tests:
           - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
+          - Imaging_Photo_SameInputsTwice_WriteIdenticalBytes
 
       - id: CanvasNetTool-Imaging-Compare
         title: >-
@@ -158,6 +166,8 @@ sections:
           - CanvasNetTool-Imaging-ImageAdjustments-AutoLevels
           - CanvasNetTool-Imaging-ImageAdjustments-Deterministic
           - CanvasNetTool-Imaging-ImageAdjustments-Arguments
+        tests:
+          - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
 
       - id: CanvasNetTool-Imaging-Geometry
         title: >-
@@ -181,6 +191,8 @@ sections:
           - CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
           - CanvasNetTool-Imaging-ImageGeometry-SkewDeterministic
           - CanvasNetTool-Imaging-ImageGeometry-Arguments
+        tests:
+          - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
 
       - id: CanvasNetTool-Imaging-Annotate
         title: >-

@@ -1,4 +1,4 @@
-// cspell:ignore jpeg tiff tif exif gif jpeg2000 scad
+// cspell:ignore jpeg tiff tif exif gif jpeg2000 scad deskew deskewed
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Pdf;
@@ -571,5 +571,87 @@ public class ImagingSubsystemTests
 
             Assert.True(drawn, $"Cell {index} is empty");
         }
+    }
+
+    /// <summary>
+    ///     Writes a JPEG of a tilted sketch whose EXIF orientation says it must be turned a quarter turn, runs the photo
+    ///     pipeline over it as the render command does, and writes the result as a PNG.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="tag">A name that makes the files of one run different from those of another.</param>
+    /// <returns>The loaded size, what the pipeline did, the transformed pixels, and the path of the PNG.</returns>
+    private static (int Width, int Height, IReadOnlyList<AppliedOperation> Applied, Surface Result, string Path) RunPhotoPipeline(TempDirectory directory, string tag)
+    {
+        // The stored picture is the upright sketch turned a quarter turn counter-clockwise; orientation 6 turns it back
+        var jpeg = directory.Combine("napkin.jpg");
+        if (!File.Exists(jpeg))
+        {
+            using var upright = FixtureFactory.SketchPhoto(400, 300, 4.0);
+            using var stored = ImagePipeline.Apply(upright, [new RotateOperation(270)], new Rgba32(0, 0, 0, 0), out _);
+            using var stream = new MemoryStream();
+            JpegCodec.Save(stored, stream);
+            File.WriteAllBytes(jpeg, FixtureFactory.InsertExifOrientation(stream.ToArray(), 6, true));
+        }
+
+        using var loaded = SourceLoader.Load(jpeg, new SourceOptions());
+        var operations = ImagePipeline.Parse(
+            ArgumentReader.Parse("render", ["--auto-levels", "--deskew", "--trim"], DemaConsulting.CanvasNet.Tool.Commands.RenderCommand.OptionTable),
+            null,
+            null);
+        var transformed = ImagePipeline.Apply(loaded.Surface, operations, new Rgba32(0, 0, 0, 0), out var applied, null);
+        var output = directory.Combine($"sketch-{tag}.png");
+        ImageWriter.Write(transformed, output, jpeg, WriteOptions.Default);
+        return (loaded.Surface.Width, loaded.Surface.Height, applied, transformed, output);
+    }
+
+    /// <summary>
+    ///     Test that a photo is loaded upright, its contrast stretched, straightened, trimmed to its content, and written.
+    /// </summary>
+    [Fact]
+    public void Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten()
+    {
+        // Arrange / Act
+        using var directory = new TempDirectory();
+        var (width, height, applied, transformed, output) = RunPhotoPipeline(directory, "one");
+        using var result = transformed;
+
+        // Assert: the EXIF orientation made the 400x300 sketch upright before the pipeline ran
+        Assert.Equal((400, 300), (width, height));
+        Assert.Equal(["auto-levels", "deskew", "trim"], applied.Select(a => a.Op));
+
+        // The contrast was stretched, the tilt of 4 degrees found and undone, and the white border trimmed away
+        Assert.Contains(applied[0].Fields, f => f.Key == "applied" && f.Value is true);
+        var skew = (double)applied[1].Fields.Single(f => f.Key == "skewDegrees").Value;
+        Assert.InRange(skew, 3.6, 4.4);
+        Assert.Contains(applied[1].Fields, f => f.Key == "applied" && f.Value is true);
+        Assert.Contains(applied[2].Fields, f => f.Key == "trimmed" && f.Value is true);
+        var deskewedHeight = (int)applied[1].Fields.Single(f => f.Key == "height").Value;
+        Assert.True(result.Height < deskewedHeight);
+
+        // The written PNG is the transformed surface, and the straightened lines are level
+        using var decoded = PngCodec.Load(output);
+        SurfaceAssert.Equal(result, decoded);
+        Assert.InRange(ImageGeometry.EstimateSkew(decoded).Degrees, -0.4, 0.4);
+    }
+
+    /// <summary>
+    ///     Test that the photo pipeline gives the same bytes every time.
+    /// </summary>
+    [Fact]
+    public void Imaging_Photo_SameInputsTwice_WriteIdenticalBytes()
+    {
+        // Arrange / Act
+        using var directory = new TempDirectory();
+        var (_, _, firstApplied, first, firstPath) = RunPhotoPipeline(directory, "first");
+        var (_, _, secondApplied, second, secondPath) = RunPhotoPipeline(directory, "second");
+        first.Dispose();
+        second.Dispose();
+
+        // Assert: the same reports and the same bytes
+        Assert.Equal(firstApplied.Select(a => a.Op), secondApplied.Select(a => a.Op));
+        Assert.Equal(
+            firstApplied.SelectMany(a => a.Fields).Select(f => $"{f.Key}={f.Value}"),
+            secondApplied.SelectMany(a => a.Fields).Select(f => $"{f.Key}={f.Value}"));
+        Assert.Equal(File.ReadAllBytes(firstPath), File.ReadAllBytes(secondPath));
     }
 }

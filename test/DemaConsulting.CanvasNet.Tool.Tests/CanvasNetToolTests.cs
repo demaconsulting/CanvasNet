@@ -1448,7 +1448,7 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
-    ///     Test that an angle that is not a right angle, and a region outside the image, are concise expected errors
+    ///     Test that an invalid operation value, and a region outside the image, are concise expected errors
     ///     (exit code 1, the code in the JSON document, no stack trace) and write nothing.
     /// </summary>
     [Fact]
@@ -1460,8 +1460,9 @@ public partial class CanvasNetToolTests
         var output = directory.Combine("out.png");
         (string[] Args, string Code, string Text)[] cases =
         [
-            (["rotate", input, "45"], "usage-error", "not supported yet"),
-            (["render", input, "--rotate", "7.5"], "usage-error", "not supported yet"),
+            (["rotate", input, "abc"], "usage-error", "Invalid value 'abc'"),
+            (["render", input, "--grid", "3"], "usage-error", "Invalid value '3' for --grid"),
+            (["render", input, "--levels", "5,5"], "usage-error", "Invalid value '5,5' for --levels"),
             (["crop", input, "50,50,10,10"], "usage-error", "outside the 12x8 image"),
             (["pad", input, "9000"], "size-limit", "8192"),
             (["resize", input, "10000x10"], "size-limit", "8192")

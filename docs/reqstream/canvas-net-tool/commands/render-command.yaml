@@ -1,11 +1,11 @@
 ---
-# cspell:ignore scad openscad
+# cspell:ignore scad openscad grayscale deskew
 # Software Unit Requirements for the RenderCommand Class
 #
 # The RenderCommand class is the render command (alias convert) and the verb commands crop, resize,
 # rotate, flip, and pad (the same class constructed with a verb): it loads an input file, applies the
-# source options and the image pipeline, and writes the result as PNG, JPEG, BMP, or TIFF, reporting it
-# as one text line or one JSON document.
+# source options and the image pipeline (including the photo tools), and writes the result as PNG, JPEG, BMP,
+# or TIFF, reporting it as one text line or one JSON document.
 
 sections:
   - title: RenderCommand Unit Requirements
@@ -15,9 +15,12 @@ sections:
           The render command shall declare its options (page, all-pages, dpi, scale, width, height,
           size, background, no-auto-orient, strict, the model options view, azimuth, elevation,
           projection, define, time, default-color, and max-triangles, the pipeline options crop,
-          resize, fit, allow-upscale, rotate, flip, pad, pad-color, and filter, output, format,
-          quality, and no-clobber) in one table that also drives the help, and shall be registered
-          under the names render and convert.
+          resize, fit, allow-upscale, rotate, rotate-fill, flip, pad, pad-color, grayscale, invert,
+          threshold, levels, brightness, contrast, auto-levels, auto-levels-clip, deskew, trim,
+          trim-tolerance, grid, and filter, output, format,
+          quality, and no-clobber) in one table that also drives the help (and is shared by the verb
+          commands and the inspect command), shall read the source options in one reusable routine, and
+          shall be registered under the names render and convert.
         justification: |
           Declaring the options once keeps the help from drifting from what the command accepts, and the
           alias lets users who think in terms of conversion find the command.
@@ -26,6 +29,7 @@ sections:
           - RenderCommand_DefaultRegistry_RegistersRenderAndConvert
           - RenderCommand_Usage_DescribesModelOptionsAndIncludeRule
           - RenderCommand_Help_ListsPipelineOptionsAndVerbs
+          - RenderCommand_ReadSourceOptions_SameAsBefore
 
       - id: CanvasNetTool-Commands-RenderCommand-Pipeline
         title: >-
@@ -34,6 +38,7 @@ sections:
           sized the source (so a vector source is never scaled twice) and before the output is written,
           using one decode and one encode; shall take the border color from the pad-color option, else
           from the background option, else white for a vector source and transparent for a raster; shall
+          pass the background option on to the pipeline as the fill of a rotation; shall
           list each operation in order with its parameters and result size between the operations of
           the loader and the flattening of a JPEG; shall read every operation before anything is decoded
           so that a mistake in one is reported first, and shall write nothing, and leave an existing
@@ -59,12 +64,28 @@ sections:
           - RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing
           - RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched
           - RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit
+          - RenderCommand_Run_RotateFillAndBackground_ChooseFill
+
+      - id: CanvasNetTool-Commands-RenderCommand-PhotoOptions
+        title: >-
+          The render command shall apply the photo operations grayscale, invert, threshold, levels,
+          brightness, contrast, auto-levels (with auto-levels-clip), deskew, trim (with trim-tolerance), and
+          grid, and the settings rotate-fill and filter of a rotation, given as options in the same
+          ordered pipeline as the operations above, and shall report the angle and the confidence that
+          deskew found, with every other parameter of each operation, in the JSON result.
+        justification: |
+          A photographed sketch is cleaned up by a chain of these operations in one invocation, and the
+          numbers the operations chose (the threshold level, the skew angle) are the facts an agent needs
+          from the result.
+        tests:
+          - RenderCommand_Run_PhotoOptions_AppearInHelpAndRunInOrder
+          - RenderCommand_Run_DeskewJson_ReportsAngleAndConfidence
 
       - id: CanvasNetTool-Commands-RenderCommand-Verbs
         title: >-
           The commands crop, resize, rotate, flip, and pad shall each be the render command with one
           operation placed first, taken from a positional operand after the input (a geometry, a size,
-          an angle, an axis, or a border), shall accept every option of render, shall apply the
+          an angle (any number of degrees), an axis, or a border), shall accept every option of render, shall apply the
           operations given as options after the operand's, in the order written wherever they stand on
           the line, shall write exactly the file that the equivalent render invocation writes, shall
           report the verb as the command of a JSON result, and shall report a missing, extra, or
@@ -83,6 +104,7 @@ sections:
           - RenderCommand_Verb_EveryInputKind_RotatesNaturalSize
           - RenderCommand_Verb_DocumentPageAndDpi_AreHonored
           - RenderCommand_Verb_MissingOrExtraArguments_AreUsageErrors
+          - RenderCommand_Run_RotateVerbAnyAngle_MatchesRenderEquivalent
 
       - id: CanvasNetTool-Commands-RenderCommand-Scad
         title: >-

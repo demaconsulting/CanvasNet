@@ -1,11 +1,12 @@
 ---
-# cspell:ignore lanczos
+# cspell:ignore lanczos grayscale deskew
 # Software Unit Requirements for the ImagePipeline Class
 #
 # The ImagePipeline class is the ordered image pipeline: it reads the transformation options of a command
-# line (crop, resize, fit, rotate, flip, pad, with the settings of the border color, upscaling, and
-# resampling filter) into operations, and applies them, in the order written, to the pixels of a surface.
-# The render command and the verb commands crop, resize, rotate, flip, and pad share it.
+# line (crop, resize, fit, rotate by any angle, flip, pad, the tone adjustments, deskew, trim, and grid, with the
+# settings of the border color, upscaling, resampling filter, rotation fill, auto-levels clip, and trim tolerance)
+# into operations, and applies them, in the order written, to the pixels of a surface. The render command, the
+# inspect command, and the verb commands crop, resize, rotate, flip, and pad share it.
 
 sections:
   - title: ImagePipeline Unit Requirements
@@ -22,6 +23,7 @@ sections:
           for.
         tests:
           - ImagePipeline_Apply_OperationOrder_CropThenResizeDiffersFromResizeThenCrop
+          - ImagePipeline_Apply_OperationOrder_CropThenDeskewDiffersFromDeskewThenCrop
           - ImagePipeline_Parse_KeepsCommandLineOrderAndPutsVerbFirst
           - ImagePipeline_Parse_EachVerb_ParsesItsOperand
           - ImagePipeline_Apply_Chain_ReportsEachStepInOrderWithSizes
@@ -65,18 +67,107 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImagePipeline-Rotate
         title: >-
-          The ImagePipeline class shall rotate clockwise by 90, 180, or 270 degrees (a negative angle
-          turning the other way), swapping the width and the height for a quarter turn, and shall
-          reject any other angle as a usage error that says the rotation is not supported yet.
+          The ImagePipeline class shall rotate clockwise by a multiple of 90 degrees as an exact move of
+          pixels (a negative angle turning the other way, swapping the width and the height for a quarter
+          turn), and shall treat a rotation by 0 or by a full turn as a copy of the image.
         justification: |
-          Quarter turns are exact moves of pixels; an arbitrary angle needs interpolation and a larger
-          canvas, which is not offered yet, and must be refused rather than approximated.
+          Quarter turns are exact moves of pixels that need no interpolation and no larger canvas, and
+          turning by nothing must be a valid no-op so that a script can pass any angle it computed.
         tests:
           - ImagePipeline_Apply_Rotate90_TurnsClockwiseAndSwapsSize
           - ImagePipeline_Apply_Rotate180_ReversesBothAxes
           - ImagePipeline_Apply_Rotate270_TurnsCounterClockwiseAndSwapsSize
           - ImagePipeline_Apply_NegativeAngleAndFullTurn_AreEquivalentRotations
-          - ImagePipeline_Parse_BadValue_ThrowsUsageError
+          - ImagePipeline_Apply_ZeroAndFullTurn_AreCopies
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-RotateAngle
+        title: >-
+          The ImagePipeline class shall rotate clockwise by any finite angle in degrees (a negative angle, or one
+          of a full turn or more, being the same rotation as its angle from 0 up to 360) that is not a multiple
+          of 90, onto a canvas expanded to hold the whole image, with nearest-neighbor sampling for the filter
+          nearest and bilinear sampling for every other filter, filling the corners with the color of the
+          operation, else the background the user gave, else opaque white when no pixel of the image being
+          rotated is transparent, else transparent, reporting the angle, fill, filter, and size, and shall
+          refuse a canvas larger than 8192 pixels on a side with the error code size-limit and a hint to shrink the
+          image first.
+        justification: |
+          A photographed page is seldom level; rotating it by the angle that levels it without cutting off the
+          corners, and showing paper-white corners rather than black ones, is the purpose of the operation, and
+          an oversized result must fail early with advice.
+        tests:
+          - ImagePipeline_Apply_ArbitraryAngle_ExpandsCanvasAndReports
+          - ImagePipeline_Apply_NegativeObliqueAngle_EqualsComplement
+          - ImagePipeline_Apply_RotateFill_DefaultRuleOpaqueWhiteTransparentOrBackground
+          - ImagePipeline_Apply_RotateFilterNearest_UsesNearest
+          - ImagePipeline_Apply_RotateTooLarge_ThrowsSizeLimit
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Adjustments
+        title: >-
+          The ImagePipeline class shall read from the command line, in the order written, the operations
+          grayscale, invert, threshold (a level from 0 to 255 or auto), levels (black, white, and an optional
+          gamma, the black level below the white level), brightness (-255 to 255), contrast (-100 to 100), and
+          auto-levels (with a clip of 0 to 20 percent, default 1), shall apply each to the pixels with the
+          ImageAdjustments unit, and shall report each with its parameters and size, including the level an
+          automatic threshold chose and the points auto-levels found (or that a flat image was left unchanged).
+        justification: |
+          Cleaning up a photograph is a chain of tone adjustments whose order matters; one pipeline applies them
+          in a single pass over one decode, and the report gives an agent the numbers it would otherwise have to
+          guess.
+        tests:
+          - ImagePipeline_Parse_AdjustmentOptions_KeepCommandLineOrder
+          - ImagePipeline_Apply_GrayscaleInvertThreshold_ProduceExpectedPixels
+          - ImagePipeline_Apply_ThresholdAuto_ReportsLevel
+          - ImagePipeline_Apply_LevelsBrightnessContrast_ApplyTablesInOrder
+          - ImagePipeline_Apply_AutoLevels_ReportsPointsAndFlatImageIsUnchanged
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Deskew
+        title: >-
+          The ImagePipeline class shall estimate the skew of an image with the ImageGeometry unit and, when the
+          skew was estimated, is at least 0.05 degrees, and has a confidence of at least 0.4, rotate the image by
+          the negative of the skew with the rotation rules above, and otherwise copy it unchanged, reporting in
+          both cases the skew, the signed correction (0 when none), the confidence, and whether it was applied.
+        justification: |
+          A wrong correction is worse than none; the thresholds leave an image without line structure alone,
+          and reporting the angle and the confidence lets an agent decide whether to trust or repeat the step.
+        tests:
+          - ImagePipeline_Apply_Deskew_RotatesByNegativeSkewAndReportsAngle
+          - ImagePipeline_Apply_DeskewNoStructure_LeavesImageUnchanged
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Trim
+        title: >-
+          The ImagePipeline class shall crop an image to the content inside its uniform border with the
+          ImageGeometry unit and a tolerance from 0 to 255 (default 8), reporting the tolerance, the box, whether
+          anything was trimmed, and, for an image that is all background, that it is empty and was left unchanged.
+        justification: |
+          A photograph of a drawing is framed by paper or table; cropping to the content removes it, and an
+          image with no content must be reported rather than reduced to nothing.
+        tests:
+          - ImagePipeline_Apply_Trim_CropsToContentAndReportsBox
+          - ImagePipeline_Apply_TrimAllBackground_IsUnchangedAndReportsEmpty
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Grid
+        title: >-
+          The ImagePipeline class shall draw a labeled coordinate grid with the GridOverlay unit, with a spacing
+          from 8 to 4096 pixels and a color (default  # FF00FFA0), on a copy of the image that the caller does not
+          see changed, and shall report the spacing, the color, and the numbers of lines and labels drawn.
+        justification: |
+          A grid turns a picture into something positions and sizes can be read from; drawing it on a copy keeps
+          the loaded pixels intact, and the report says what was drawn.
+        tests:
+          - ImagePipeline_Apply_Grid_DrawsOverCopyAndNeverModifiesInput
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-Ownership
+        title: >-
+          The ImagePipeline class shall run an operation that changes pixels in place on a surface it owns - an
+          intermediate surface, or a copy when the current surface is the input - so that the input is never
+          changed, at most two full-size surfaces exist at a time, and a chain of adjustments gives the same
+          pixels as running each step separately.
+        justification: |
+          Tone adjustments touch every pixel; doing them in place avoids a full-size copy for each step, and the
+          rule for who owns a surface is what keeps the caller's pixels safe.
+        tests:
+          - ImagePipeline_Apply_InPlaceOperations_NeverModifyTheInputAndDisposeIntermediates
+          - ImagePipeline_Apply_ChainedAdjustments_MatchSeparateRuns
 
       - id: CanvasNetTool-Imaging-ImagePipeline-Flip
         title: >-
@@ -119,10 +210,11 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImagePipeline-Arguments
         title: >-
-          The ImagePipeline class shall report a malformed operation value, an upscale switch without a
-          fit, and a border color without a pad as a usage error, shall never modify or dispose the
-          input surface (also when an operation fails), shall dispose its intermediate surfaces, and
-          shall give the same pixels for the same input and operations every time.
+          The ImagePipeline class shall report a malformed or out-of-range operation value, a setting
+          (upscale, border color, rotation fill, auto-levels clip, trim tolerance) without the operation it
+          modifies, as a usage error, shall never modify or dispose the input surface (also when an operation
+          fails), shall dispose its intermediate surfaces, and shall give the same pixels for the same input and
+          operations every time.
         justification: |
           Mistakes must be reported as stable usage errors before anything is written, the loaded pixels
           belong to the caller, and reproducible results make output comparable.
