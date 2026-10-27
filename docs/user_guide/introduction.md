@@ -3581,8 +3581,10 @@ set), and the fragment budget `SceneOptions.MaxFragmentsPerTile` applies to them
 - **`%` draws a ghost.** The subtree is drawn as a translucent body in `GhostColor` (its own colors are replaced)
   and is **not part of the model**: it adds nothing to a union, subtracts nothing from a `difference`, and
   intersects nothing (an `intersection` with a ghost is empty; a ghost as the **first** child of a `difference`
-  leaves no ordinary geometry; the ghost is still drawn). It does not count for `resize`, and `hull` and `minkowski`
-  ignore it. It **is** part of the bounds that fit the default camera, so a ghost cannot fall out of the frame. This
+  leaves no ordinary geometry; the ghost is still drawn). It contributes no propagated bounds, so `resize`
+  ignores it, and `hull` and `minkowski` ignore it too. It **is** part of `Scene.ComputeBounds()`, the bounds that
+  fit the default camera, so a ghost cannot fall out of the frame (`ComputeBounds(includeOverlays: false)` leaves it
+  out). This
   is a documented choice of this package, not a claim of parity with any other implementation.
 - **`#` draws a highlight.** The subtree is rendered **normally** (its own colors, in the model) **and** as a
   translucent copy in `HighlightColor`. It keeps taking part in the booleans around it, so in
@@ -4597,8 +4599,8 @@ using var image = document.Render(800, 300, options);
 PngCodec.Save(image, "see-through.png");
 
 // Nothing here is reported as unsupported: the alpha, the ghost, and the highlight are rendered. A scene that
-// uses them is resolved like a boolean, so its meshes must be closed solids; the ghost is part of the bounds
-// that fit the default camera but not of the model
+// uses them is resolved like a boolean, so its meshes must be closed solids; the ghost is part of the scene bounds
+// that fit the default camera but not of the model (it adds no propagated bounds, so resize ignores it)
 var scene = document.BuildScene(options);
 Console.WriteLine(scene.ComputeBounds().Max.X);                              // Output: 56
 Console.WriteLine(scene.ComputeBounds(includeOverlays: false).Max.X);        // Output: 42

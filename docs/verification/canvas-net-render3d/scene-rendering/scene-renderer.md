@@ -384,14 +384,20 @@ opaque ones for views from outside and inside.
 `SceneRendererTransparencyTests.SceneRenderer_Render_OverlayBehindOpaque_Hidden`,
 `SceneRendererTransparencyTests.SceneRenderer_Render_OverlayDoesNotParticipateInEnclosingDifference`,
 `SceneRendererTransparencyTests.SceneRenderer_Render_HighlightPattern_SubtractedBodyShowsAsOverlayThroughCut`,
-`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayOpaqueColor_ActsAsIndependentBody`
+`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayOpaqueColor_ActsAsIndependentBody`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_CameraInsideOverlay_ShowsBackFaceColorAtOverlayAlpha`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_CameraInsideOverlayInsideTranslucentSolid_CompositesBothExits`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_CameraOutsideOverlay_KeepsOwnColorFarWall`
 
 Asserts that an overlay above an opaque box tints it with its own color (replacing the child's
 appearance) over the exact blue elsewhere, that an overlay below an opaque box leaves all 100 pixels
 blue, that an overlay inside a translucent slab's difference is not cut out (four layers: slab, overlay
 top and bottom, slab), that a cutter used both as a subtrahend and inside an overlay still cuts a green
 pocket and shows the pink body in front of it while the plain cut shows the pure green, and that an
-opaque overlay is an independent opaque body (16 red pixels over the blue box).
+opaque overlay is an independent opaque body (16 red pixels over the blue box), that a camera inside an
+overlay cube sees the back-face color at the overlay alpha everywhere (like a camera inside a translucent
+solid), that a camera inside an overlay nested in a translucent solid composites both exits (overlay first,
+each at its own alpha), and that the far wall seen from outside keeps the overlay's own color.
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-OpaqueUnchanged: Opaque Scenes Render As Before
 

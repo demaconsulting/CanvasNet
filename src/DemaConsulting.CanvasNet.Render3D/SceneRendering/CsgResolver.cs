@@ -45,8 +45,9 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         is used (for a back-facing fragment this is a cut surface of a subtrahend, or the far wall of a
 ///         translucent solid, whose color the renderer already computed from the flipped normal and the
 ///         triangle's own color). The <see cref="ScreenTriangle.ExitColor"/> is used only for the
-///         <em>first</em> change of the main program when it is an exit (the ray starts inside the main solid
-///         and the viewer sees the inside of material). Within the group the candidates are the
+///         <em>first</em> change of each program (the main program or an overlay program) when it is an exit
+///         (the ray starts inside that solid and the viewer sees the inside of material, in the back-face color
+///         at the owning appearance's alpha); every later change uses <see cref="ScreenTriangle.EnterColor"/>. Within the group the candidates are the
 ///         fragments whose leaf changed state; those whose leaf <em>alone</em> explains the change
 ///         (reverting just that leaf restores the previous result) are preferred, then the lower draw
 ///         priority and then the lower triangle index decide. If the chosen depth lies beyond the far
@@ -104,6 +105,12 @@ internal sealed class CsgResolver
 
     /// <summary>The layers produced by the current tie group (one at most per program).</summary>
     private readonly Layer[] _layers;
+
+    /// <summary>The serial of the sample in which each program last changed its result (zero before any); a program's first change in a sample is the one that still differs from the current serial.</summary>
+    private readonly long[] _firstChangeSample;
+
+    /// <summary>The serial of the sample being resolved (incremented for every sample, so it is never zero while resolving).</summary>
+    private long _sample;
 
     /// <summary>The signed crossing counter per leaf (all zero between samples).</summary>
     private readonly int[] _counters;
@@ -170,6 +177,7 @@ internal sealed class CsgResolver
         _inside = new bool[_programs.Length];
         _touched = new bool[_programs.Length];
         _layers = new Layer[_programs.Length];
+        _firstChangeSample = new long[_programs.Length];
         _counters = new int[leafCount];
         _bits = new ulong[(leafCount + 63) >> 6];
         _changed = new bool[leafCount];
@@ -255,6 +263,7 @@ internal sealed class CsgResolver
 
         // A total order makes the outcome independent of how the fragments were collected
         fragments.Sort(default(FragmentOrder));
+        _sample++;
 
         // The counter at the ray start is minus the sum of all signed crossings (front +1, back -1)
         foreach (var fragment in fragments)
@@ -319,7 +328,6 @@ internal sealed class CsgResolver
     {
         first = default;
         var found = false;
-        var mainChanged = false;
         var start = 0;
 
         while (start < fragments.Length)
@@ -396,11 +404,11 @@ internal sealed class CsgResolver
                         continue;
                     }
 
-                    // Only the first change of the main program can be an exit from a ray that started inside it
+                    // Only the first change of a program can be an exit from a ray that started inside it
                     ref readonly var visible = ref triangles[chosen.Triangle];
-                    var useExit = p == 0 && !mainChanged && !now;
+                    var useExit = !now && _firstChangeSample[p] != _sample;
+                    _firstChangeSample[p] = _sample;
                     _layers[layerCount++] = new Layer(chosen, visible.Priority, p != 0, useExit ? visible.ExitColor : visible.EnterColor);
-                    mainChanged |= p == 0;
                 }
 
                 ClearChanged(group, triangles);

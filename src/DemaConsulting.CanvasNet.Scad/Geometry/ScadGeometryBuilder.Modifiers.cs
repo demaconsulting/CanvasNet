@@ -17,8 +17,10 @@ internal sealed partial class ScadGeometryBuilder
     ///         <b><c>%</c> (ghost).</b> The solid becomes an <see cref="OverlayNode"/> in
     ///         <see cref="ScadGeometryContext.GhostColor"/>: it is drawn translucent, but it is <i>false</i> in every
     ///         enclosing boolean (it does not add to a union, does not subtract from a difference, and an
-    ///         intersection with it is empty), and it contributes no bounds, so <c>resize</c> and the
-    ///         propagated bounds ignore it. It does count as reach, so the coordinate guard still sees its vertices.
+    ///         intersection with it is empty), and it contributes no propagated bounds (its
+    ///         <c>ScadGeo.Bounds</c> is empty), so <c>resize</c> and the bounds of enclosing geometry ignore it; it is
+    ///         nevertheless part of <c>Scene.ComputeBounds()</c>, which fits the default camera. It does count as reach, so the
+    ///         coordinate guard still sees its vertices.
     ///         A ghost as the <i>first</i> operand of a <c>difference</c> therefore leaves the difference empty.
     ///         When both modifiers are present the background wins.
     ///     </para>

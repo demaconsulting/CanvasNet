@@ -138,7 +138,8 @@ the requested size:
    degrees loosened it), the **exact vertex bounds** are recomputed on demand — `new Scene(node).ComputeBounds(
    includeOverlays: false)` for a solid (a `%` ghost is not part of the geometry whose size is requested),
    `ScadShape2D.ComputeVertexBounds()` for a 2D shape — so a rotated child ends up with exactly the
-   requested size. A ghost also contributes no propagated bounds (see _ScadGeometryBuilder Unit Design_).
+   requested size. A ghost also contributes no propagated bounds, so the tight-box path ignores it too (see
+    _ScadGeometryBuilder Unit Design_); it remains part of the scene bounds that fit the default camera.
 4. **Factors** (`ComputeFactors`). Per axis (three for a solid, only X and Y for a 2D shape), a positive
    `newsize` component gives `newsize / size`; the first such factor is the reference. An axis with a positive
    `newsize` but no extent warns `resize: the children have no extent along X; they are not resized along it`

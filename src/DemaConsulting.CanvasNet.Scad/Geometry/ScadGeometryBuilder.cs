@@ -29,7 +29,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         marked subtrees (without the transforms and colors of their ancestors), <c>#</c> renders normally and
 ///         additionally as a translucent highlight overlay that shares the subtree's meshes (it still takes part in
 ///         the booleans around it), <c>%</c> draws a translucent ghost overlay instead of the subtree (the ghost
-///         does not take part in the booleans and has no bounds); on a 2D shape that is not extruded both are
+///         does not take part in the booleans and contributes no propagated bounds, so <c>resize</c> and the bounds of
+///         enclosing geometry ignore it, yet it is part of <c>Scene.ComputeBounds()</c>, which fits the default
+///         camera); on a 2D shape that is not extruded both are
 ///         reported (see <c>ScadGeometryBuilder.Modifiers.cs</c>).
 ///     </para>
 ///     <para>

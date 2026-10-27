@@ -386,8 +386,10 @@ sections:
                   the overlay's color and alpha, depth-composited with the rest of the scene: in
                   front of an opaque body it tints it, behind one it is hidden, it neither subtracts
                   from nor intersects an enclosing boolean, a subtrahend that is also drawn as an
-                  overlay shows its overlay through the cut, and an opaque overlay is an
-                  independent opaque body.
+                  overlay shows its overlay through the cut, an opaque overlay is an
+                  independent opaque body, and a camera inside an overlay body sees the exit in
+                  the back-face color at the overlay alpha, like a camera inside a translucent
+                  solid.
                 justification: |
                   Ghosts and highlights must be visible without changing the solid they annotate;
                   rendering them as independent bodies in the same composite keeps them correct
@@ -398,6 +400,9 @@ sections:
                   - SceneRenderer_Render_OverlayDoesNotParticipateInEnclosingDifference
                   - SceneRenderer_Render_HighlightPattern_SubtractedBodyShowsAsOverlayThroughCut
                   - SceneRenderer_Render_OverlayOpaqueColor_ActsAsIndependentBody
+                  - SceneRenderer_Render_CameraInsideOverlay_ShowsBackFaceColorAtOverlayAlpha
+                  - SceneRenderer_Render_CameraInsideOverlayInsideTranslucentSolid_CompositesBothExits
+                  - SceneRenderer_Render_CameraOutsideOverlay_KeepsOwnColorFarWall
 
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-OpaqueUnchanged
                 title: >-

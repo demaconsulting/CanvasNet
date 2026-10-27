@@ -215,13 +215,15 @@ result of an instance (a leaf in place, a container after its combiner), in both
 **false** in every enclosing boolean and is composited by depth with the rest of the scene; see the Render3D
 _SceneGraph_ design):
 
-- **`%` (ghost).** A solid becomes `OverlayNode(GhostColor, [geo.Node])`. It has **no bounds** (`Bounds` is the
-  empty box, tight) but keeps its `Reach`, so `resize` and the propagated bounds ignore it while the coordinate guard
-  still sees its vertices. It does not add to a union, does not subtract from a difference, makes an intersection
-  with it empty, and as the **first** operand of a `difference` it leaves the difference without ordinary
-  geometry (the ghost is still drawn). It stays in the bounds that fit the default camera (a documented choice:
-  `Scene.ComputeBounds()` includes overlays, so the ghost cannot fall out of the frame; only `resize` uses
-  `ComputeBounds(includeOverlays: false)`). `#` and `%` on the same instance: the background wins.
+- **`%` (ghost).** A solid becomes `OverlayNode(GhostColor, [geo.Node])`. It contributes **no propagated bounds**
+  (`Bounds` is the empty box, tight) but keeps its `Reach`, so `resize`, `hull`, `minkowski`, and the bounds of
+  enclosing geometry ignore it while the coordinate guard still sees its vertices. It does not add to a
+  union, does not subtract from a difference, makes an intersection with it empty, and as the **first**
+  operand of a `difference` it leaves the difference without ordinary geometry (the ghost is still drawn).
+  It is, however, part of the scene bounds that fit the default camera (a documented choice:
+  `Scene.ComputeBounds()` includes overlays, so the ghost cannot fall out of the frame); the propagated
+  bounds are separate from the scene bounds, and `resize` measures a non-tight solid with
+  `ComputeBounds(includeOverlays: false)`. `#` and `%` on the same instance: the background wins.
 - **`#` (highlight).** A solid becomes `Group[geo.Node, OverlayNode(HighlightColor, [geo.Node])]`: the **same node**
   is the normal geometry and the body of the overlay, so no mesh is duplicated, the bounds and reach are
   unchanged, and the subtree takes part in the booleans around it exactly as if the modifier were absent (a

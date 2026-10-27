@@ -154,7 +154,8 @@ Asserts that `%cube(1)` is a scene whose root is an overlay in the default ghost
 holds the cube, with no ordinary mesh, 12 triangles charged (a ghost is not drawn twice), and no report or
 warning; that the colors of the settings replace the defaults for both overlays; that a `%` union beside an
 ordinary cube leaves the cube the only ordinary mesh; that a rotated cube beside a ghost 50 units away is
-resized to exactly 4 by 4 by 4 (the ghost has no bounds) while the ghost is still in the scene; that a ghost in a
+resized to exactly 4 by 4 by 4 (the ghost contributes no propagated bounds) while the ghost is still in the
+scene; that a ghost in a
 `difference` is an overlay operand beside the ordinary minuend (it does not subtract) and as the first operand
 stays the first operand of the node (no ordinary geometry); that `#%` is the ghost; that a translation around a
 colored ghost moves it (scene bounds 5..6) while the ordinary bounds are empty and the overlay keeps the ghost

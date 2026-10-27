@@ -363,7 +363,8 @@ composites correctly with other content.
 - **Cut surfaces and far walls.** The cut surface of a difference uses the subtrahend's own color and
   alpha; the far wall of a translucent solid (and a cavity wall) uses the triangle's own base color
   with the normal flipped toward the viewer. The back-face (exit) color is used only for the first
-  event of the main body when the ray starts inside it, exactly as before.
+  event of a body (the main body or an overlay body) when the ray starts inside it; the main body
+  behaves exactly as before.
 - **Alpha 0** is a fully transparent surface that is still solid: it takes part in the boolean
   structure but adds no color.
 - **Solids required.** Like constructive solid geometry, a scene that uses transparency or overlays is
@@ -487,9 +488,10 @@ Transparency extends the fragment-list resolver; it adds no new budget machinery
    **layer**, not the end: for every group, each program owning a changed leaf is re-evaluated in
    ascending program order and, if its result flipped, its fragment is chosen exactly as before
    (restricted to that program's leaves). A layer's color is the triangle's `EnterColor`, except the
-   `ExitColor` for the first change of the main program when it is an exit (the ray started inside
-   it). The layers of one group are applied overlay programs first, then by draw priority and triangle
-   index, so an overlay in front of a coincident main face tints it.
+   `ExitColor` for the first change of each program (the main program or an overlay program) when it
+   is an exit (the ray started inside that body). The layers of one group are applied overlay programs
+   first, then by draw priority and triangle index, so an overlay in front of a coincident main face
+   tints it.
 5. **Compositing.** `LayerCompositor` accumulates the layers front to back in integer arithmetic: with
    the remaining transmittance `T` (255 at the start) a layer of alpha `a` takes `w = (T * a + 127) /
    255` of it and adds `w * color`; an alpha of 255 takes all of `T`, which ends the sweep. The

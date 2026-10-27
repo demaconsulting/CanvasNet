@@ -634,4 +634,60 @@ public class SceneRendererTransparencyTests
         var expected = Composite(White, new Rgba32(Magenta.R, Magenta.G, Magenta.B, 128));
         Assert.Equal(32 * 32, Render3DTestHelpers.CountPixels(surface, expected));
     }
+
+    /// <summary>
+    ///     Validates that a camera inside an overlay body sees the overlay's exit with the back-face color at the overlay alpha,
+    ///     like a camera inside a translucent main solid.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_CameraInsideOverlay_ShowsBackFaceColorAtOverlayAlpha()
+    {
+        // Arrange: eye at the center of an overlay cube
+        var scene = new Scene(new OverlayNode(Pink, [Box((-10, -10, -10), (10, 10, 10), Green)]));
+        var camera = Camera.LookAt(Vector3D.Zero, new Vector3D(0, 0, -1), Vector3D.UnitY);
+
+        // Act
+        using var surface = Render(scene, camera, 32, 32, Flat());
+
+        // Assert: every ray leaves the overlay through a wall: the back-face color at the overlay alpha over the background
+        var expected = Composite(White, new Rgba32(Magenta.R, Magenta.G, Magenta.B, Pink.A));
+        Assert.Equal(32 * 32, Render3DTestHelpers.CountPixels(surface, expected));
+    }
+
+    /// <summary>
+    ///     Validates that a camera inside an overlay that lies inside a translucent solid composites both exits, the overlay first.
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_CameraInsideOverlayInsideTranslucentSolid_CompositesBothExits()
+    {
+        // Arrange: eye at the center of a translucent cube that contains an overlay cube
+        var alpha = new Rgba32(30, 60, 220, 128);
+        var scene = new Scene(new GroupNode([Box((-10, -10, -10), (10, 10, 10), alpha), new OverlayNode(Pink, [Box((-5, -5, -5), (5, 5, 5), Green)])]));
+        var camera = Camera.LookAt(Vector3D.Zero, new Vector3D(0, 0, -1), Vector3D.UnitY);
+
+        // Act
+        using var surface = Render(scene, camera, 32, 32, Flat());
+
+        // Assert: the overlay exit (first) and then the main exit, each in the back-face color at its own alpha
+        var expected = Composite(White, new Rgba32(Magenta.R, Magenta.G, Magenta.B, Pink.A), new Rgba32(Magenta.R, Magenta.G, Magenta.B, alpha.A));
+        Assert.Equal(32 * 32, Render3DTestHelpers.CountPixels(surface, expected));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay entered from outside after the camera has left it keeps the own-color shades (exit shade only for a ray start).
+    /// </summary>
+    [Fact]
+    public void SceneRenderer_Render_CameraOutsideOverlay_KeepsOwnColorFarWall()
+    {
+        // Arrange: eye in front of an overlay cube
+        var scene = new Scene(new OverlayNode(Pink, [Box((-10, -10, -10), (10, 10, 10), Green)]));
+        var camera = Camera.LookAt(new Vector3D(0, 0, 40), new Vector3D(0, 0, 0), Vector3D.UnitY);
+
+        // Act
+        using var surface = Render(scene, camera, 32, 32, Flat());
+
+        // Assert: the center ray sees the near wall and the far wall in the overlay color
+        var expected = Composite(White, Pink, Pink);
+        Assert.Equal(expected, surface[16, 16]);
+    }
 }

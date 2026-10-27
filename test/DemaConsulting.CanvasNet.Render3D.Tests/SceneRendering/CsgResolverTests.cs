@@ -858,6 +858,23 @@ public class CsgResolverTests
         ResolveWith(new CsgResolver(programs, background), triangles, fragments, Epsilon, far);
 
     /// <summary>
+    ///     Composites straight-alpha layers, nearest first, over a background with the resolver's integer arithmetic.
+    /// </summary>
+    /// <param name="background">The background.</param>
+    /// <param name="layers">The layers, nearest first.</param>
+    /// <returns>The composite.</returns>
+    private static Rgba32 Composite(Rgba32 background, params Rgba32[] layers)
+    {
+        var compositor = default(LayerCompositor);
+        foreach (var layer in layers)
+        {
+            compositor.Add(layer);
+        }
+
+        return compositor.Finish(background);
+    }
+
+    /// <summary>
     ///     Validates that a single opaque layer returns its color exactly over any background.
     /// </summary>
     [Fact]
@@ -1099,6 +1116,72 @@ public class CsgResolverTests
         Assert.Equal(new Rgba32(127, 255, 127, 255), result.Color);
         Assert.Equal(2.0f, result.Depth);
         Assert.Equal(1, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that a ray starting inside an overlay body shows the exit shade with the overlay's alpha,
+    ///     exactly like a ray starting inside a translucent main solid.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_RayStartsInsideOverlay_UsesExitColorWithAlpha()
+    {
+        // Arrange: opaque green main [3, 4] behind a translucent overlay whose only fragment ahead is its back face at 2;
+        // the exit shade is translucent red, the enter shade is translucent blue
+        var green = new Rgba32(0, 255, 0, 255);
+        var exit = new Rgba32(255, 0, 0, 128);
+        var enter = new Rgba32(0, 0, 255, 128);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, green, green), TriColor(0, true, 0, green, green),
+            TriColor(1, true, 1, enter, exit),
+        ];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(2, 2), F(3, 0), F(4, 1)]);
+
+        // Assert: the exit layer tints the green main face; depth and meta come from the overlay's back face
+        Assert.Equal(Composite(White, exit, green), result.Color);
+        Assert.Equal(2.0f, result.Depth);
+        Assert.Equal((1 << 1) | 1, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that only the first change of an overlay uses the exit shade: a second pass through the overlay
+    ///     enters and leaves it with the enter shade.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OverlayRayStartsInsideThenReenters_UsesExitShadeOnlyOnce()
+    {
+        // Arrange: the ray leaves the overlay at 1 (its start was inside), re-enters at 2 and leaves again at 3
+        var exit = new Rgba32(255, 0, 0, 128);
+        var enter = new Rgba32(0, 0, 255, 128);
+        ScreenTriangle[] triangles = [TriColor(0, false, 1, enter, exit), TriColor(0, true, 1, enter, exit), TriColor(0, false, 1, enter, exit), TriColor(0, true, 1, enter, exit)];
+
+        // Act: the leaf has a back face at 1 and 3 and a front face at 2, so the ray starts inside it twice over
+        var result = ResolveLayers([LeafProgram(0, 1)], White, triangles, [F(1, 1), F(2, 2), F(3, 3)]);
+
+        // Assert: exit shade, then the enter shade at the front face, then the enter shade at the far wall
+        Assert.Equal(Composite(White, exit, enter, enter), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that the exit shade of a program is not used for the first change of another program.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_RayStartsInsideMainAndOverlay_EachProgramUsesItsOwnFirstExit()
+    {
+        // Arrange: both programs start inside; the overlay leaves at 1, the main leaves at 2
+        var mainExit = new Rgba32(255, 0, 0, 128);
+        var mainEnter = new Rgba32(1, 1, 1, 128);
+        var ghostExit = new Rgba32(0, 0, 255, 64);
+        var ghostEnter = new Rgba32(2, 2, 2, 64);
+        ScreenTriangle[] triangles = [TriColor(0, true, 0, mainEnter, mainExit), TriColor(1, true, 1, ghostEnter, ghostExit)];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(1, 1), F(2, 0)]);
+
+        // Assert
+        Assert.Equal(Composite(White, ghostExit, mainExit), result.Color);
     }
 
     /// <summary>

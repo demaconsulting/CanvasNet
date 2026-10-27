@@ -185,8 +185,11 @@ designs.
 8. **Modifiers.** `!` makes the outermost marked subtrees the new root of the design, without the transforms and
    colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `%{ !x }` with
    a single child is one instance that is both, so only its ghost remains and the model has no ordinary geometry.
-   `%` and `#` are overlays (see the unit design): a ghost is false in every enclosing boolean and has no bounds; a
-   highlight is a translucent copy of a subtree that still takes part in the booleans. The alpha of a color is the
+   `%` and `#` are overlays (see the unit design): a ghost is false in every enclosing boolean and
+   contributes no propagated bounds (`resize`, `hull`, `minkowski`, and the bounds of enclosing geometry
+   ignore it) but is part of `Scene.ComputeBounds()`, the bounds that fit the default camera
+   (`ComputeBounds(includeOverlays: false)` leaves it out); a highlight is a translucent copy of a subtree
+   that still takes part in the booleans. The alpha of a color is the
    alpha of the appearance (`scad-color-alpha` no longer exists).
 9. **Mesh locations.** The meshes of an extrusion are mapped to the location of the extrusion module; the slab of
    a top-level 2D shape is mapped to the location of its 2D leaf.

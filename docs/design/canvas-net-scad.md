@@ -488,7 +488,7 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `linear_extrude`, `rotate_extrude` | Supported (Phase 6) | See _ScadExtrusions Unit Design_; `convexity` is accepted and ignored |
 | `!` (show only) | Supported (Phase 6) | The marked subtree becomes the new root of the design, without the transforms and colors of its ancestors |
 | `#` (highlight) | Supported (Phase 8) | On a solid: the subtree renders normally **and** as a translucent copy (`HighlightColor`) that shares its meshes and still takes part in the booleans around it; on a 2D shape that is not extruded: rendered normally and reported as `scad-modifier-highlight` |
-| `%` (background) | Supported (Phase 8) | On a solid: a translucent ghost (`GhostColor`) that is not part of the model (it does not cut, add, or count for `resize`; it is in the fitted view); on a 2D shape that is not extruded: omitted and reported as `scad-modifier-background` |
+| `%` (background) | Supported (Phase 8) | On a solid: a translucent ghost (`GhostColor`) that is not part of the model (it does not cut or add, contributes no propagated bounds so `resize` ignores it, but is part of `Scene.ComputeBounds()` and so of the fitted view); on a 2D shape that is not extruded: omitted and reported as `scad-modifier-background` |
 | Color with alpha below 1, `transparent` | Supported (Phase 8) | The alpha becomes the alpha of the appearance and surfaces are composited; nothing is reported |
 | `ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles` | Supported (Phase 6) | Evaluation options, strict mode, and handlers cover every stage |
 | Geometry-level unsupported-feature reporting | Supported (Phase 6) | Identifier table in _ScadGeometry Subsystem Design_ |
@@ -573,9 +573,10 @@ _ScadGeometry Subsystem Design_ and the unit designs:
  7. The `!` modifier makes the outermost marked subtrees the new root of the design, **without** the transforms
     and colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin).
     `%` draws a **ghost** (a translucent gray body that does not take part in the model: it is false in every
-    enclosing union, difference, and intersection, has no bounds for `resize`, but is included in the bounds
-    that fit the default camera - a documented CanvasNet choice, not a parity claim, because excluding it could
-    push the ghost out of the frame). `#` renders the subtree normally **and** as a translucent pink copy that
+    enclosing union, difference, and intersection, contributes no propagated bounds (so `resize` ignores
+    it), but is part of `Scene.ComputeBounds()`, the bounds that fit the default camera - a documented
+    CanvasNet choice, not a parity claim, because excluding it could push the ghost out of the frame).
+    `#` renders the subtree normally **and** as a translucent pink copy that
     shares its meshes and keeps taking part in the booleans (a highlighted subtrahend still cuts, and its copy
     is drawn where it cut), so the highlight is visible even where the subtree was subtracted. A color alpha
     below 1 makes the surface translucent. A union of translucent bodies shows only the boundary of the union

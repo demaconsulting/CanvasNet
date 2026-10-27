@@ -157,8 +157,9 @@ public sealed class ScadRenderOptions
     ///     subtree; translucent neutral gray (128, 128, 128, alpha 80) by default. Any alpha is accepted.
     /// </summary>
     /// <remarks>
-    ///     The ghost does not take part in the boolean operations around it, does not count for <c>resize</c>, and
-    ///     is part of the bounds that fit the default camera. It replaces every <c>color()</c> inside the subtree.
+    ///     The ghost does not take part in the boolean operations around it and contributes no propagated bounds
+    ///     (<c>resize</c>, <c>hull</c>, and <c>minkowski</c> ignore it), but it is part of <c>Scene.ComputeBounds()</c>, the
+    ///     bounds that fit the default camera. It replaces every <c>color()</c> inside the subtree.
     ///     A <c>%</c> on a 2D shape that is not extruded is reported as unsupported and omitted instead.
     /// </remarks>
     public Rgba32 GhostColor { get; init; } = ScadGeometryContext.DefaultGhostColor;

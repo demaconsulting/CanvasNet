@@ -185,13 +185,17 @@ as before (a regression guard).
 `CsgResolverTests.CsgResolver_Resolve_OpaqueFirstLayer_StopsSweep_AndEqualsLegacyResult`,
 `CsgResolverTests.CsgResolver_Resolve_TranslucentExitAfterEnter_UsesOwnShadeNotBackFaceColor`,
 `CsgResolverTests.CsgResolver_Resolve_RayStartsInsideTranslucentMain_UsesExitColorWithAlpha`,
+`CsgResolverTests.CsgResolver_Resolve_RayStartsInsideOverlay_UsesExitColorWithAlpha`,
+`CsgResolverTests.CsgResolver_Resolve_OverlayRayStartsInsideThenReenters_UsesExitShadeOnlyOnce`,
+`CsgResolverTests.CsgResolver_Resolve_RayStartsInsideMainAndOverlay_EachProgramUsesItsOwnFirstExit`,
 `CsgResolverTests.CsgResolver_Resolve_LayersBeyondFar_AreIgnored`
 
 Asserts, with hand-built triangles whose shades carry explicit alpha and hand-computed closed-form
 composites (for example 128 + 64 of a translucent red and the remaining 63 of an opaque blue giving
 `(192, 0, 63, 255)`), that the far wall of a translucent solid uses its own shade and never an
 opaque exit shade, that a ray starting inside a translucent main solid shows the exit shade with its
-alpha, that layers beyond the far distance are ignored, and that an opaque first layer gives exactly
+alpha, that a ray starting inside an overlay body does the same for that overlay (only its first change,
+tracked per program), that layers beyond the far distance are ignored, and that an opaque first layer gives exactly
 the classic result over a transparent, a translucent and an opaque background.
 
 ##### CanvasNetRender3D-SceneRendering-CsgResolver-LayerOrder: Layers Are Ordered By Depth And Overlays Are Independent

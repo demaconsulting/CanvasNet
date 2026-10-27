@@ -119,8 +119,11 @@ For one sample's fragments:
    If the result became inside, the chosen triangle's `EnterColor` is the shade; if it became
    outside, its `EnterColor` as well (the far wall of a translucent solid, a cavity wall: the
    triangle's own color with the normal flipped toward the viewer), except the **first** change of
-   the main program (index 0) when it is an exit - the ray started inside the main solid - which uses
-   the triangle's `ExitColor`. Overlay programs always use `EnterColor`. The renderer precomputes
+   a program (the main program or an overlay program) when it is an exit - the ray started inside that
+   solid - which uses the triangle's `ExitColor` (the back-face color at the owning appearance's alpha).
+   Every later change of that program uses `EnterColor`; the "first change" is tracked per program
+   and per sample, so a ray that starts inside both the main solid and an overlay body shows the exit
+   shade of each. The renderer precomputes
    these shades per triangle, with the alpha of the owning appearance: for a front-facing triangle the
    viewer-facing normal shades with the leaf color when entering; for a back-facing triangle entering
    means a **cut surface** exposed by a subtrahend, shaded with the flipped normal and that leaf's

@@ -90,8 +90,9 @@ sections:
                   modifier as a ghost: an overlay node in the ghost color (a translucent gray by default,
                   or the color of the settings) that holds the subtree, is not part of the model (it
                   adds nothing to a union, subtracts nothing from a difference, and leaves a difference
-                  whose first operand it is without ordinary geometry), contributes no bounds (so resize
-                  ignores it) but is still checked by the coordinate guard, is visited like any other
+                  whose first operand it is without ordinary geometry), contributes no propagated bounds (so
+                  resize ignores it) but remains part of the scene bounds that fit the default camera and is
+                  still checked by the coordinate guard, is visited like any other
                   subtree so that unsupported modules and invalid arguments inside it are still
                   reported, keeps the transforms around it, wins over the highlight modifier on the
                   same instance, and reports nothing; the modifier on an extrusion of a 2D shape is a

@@ -205,8 +205,9 @@ sections:
                   fragments, and composite the remainder over the background color (honoring its
                   alpha); a layer's color shall be the triangle's enter shade with the alpha of its
                   appearance, so that the far wall of a translucent solid uses its own shade, and
-                  only the first change of the main program, when it is an exit because the ray
-                  starts inside the main solid, shall use the exit shade; layers beyond the far
+                  only the first change of each program (the main program or an overlay program),
+                  when it is an exit because the ray starts inside that solid, shall use the exit
+                  shade; layers beyond the far
                   distance shall be ignored, and with an opaque first layer the result shall equal
                   the classic first-visible-surface result over any background.
                 justification: |
@@ -218,6 +219,9 @@ sections:
                   - CsgResolver_Resolve_OpaqueFirstLayer_StopsSweep_AndEqualsLegacyResult
                   - CsgResolver_Resolve_TranslucentExitAfterEnter_UsesOwnShadeNotBackFaceColor
                   - CsgResolver_Resolve_RayStartsInsideTranslucentMain_UsesExitColorWithAlpha
+                  - CsgResolver_Resolve_RayStartsInsideOverlay_UsesExitColorWithAlpha
+                  - CsgResolver_Resolve_OverlayRayStartsInsideThenReenters_UsesExitShadeOnlyOnce
+                  - CsgResolver_Resolve_RayStartsInsideMainAndOverlay_EachProgramUsesItsOwnFirstExit
                   - CsgResolver_Resolve_LayersBeyondFar_AreIgnored
 
               - id: CanvasNetRender3D-SceneRendering-CsgResolver-LayerOrder
