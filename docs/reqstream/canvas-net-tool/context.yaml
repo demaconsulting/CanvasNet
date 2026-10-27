@@ -78,6 +78,7 @@ sections:
         tests:
           - Context_WriteLine_NotSilent_WritesToConsole
           - Context_WriteError_NotSilent_WritesToConsole
+          - Context_WriteWarning_NotSilent_WritesToConsoleWithoutError
 
       - id: CanvasNetTool-Context-Silent
         title: The Context class shall suppress console output when the silent flag is set.
@@ -88,6 +89,7 @@ sections:
           - Context_Create_SilentFlag_SetsSilentTrue
           - Context_WriteLine_Silent_DoesNotWriteToConsole
           - Context_WriteError_Silent_DoesNotWriteToConsole
+          - Context_WriteWarning_SilentWithLog_WritesOnlyToLogFile
 
       - id: CanvasNetTool-Context-Log
         title: The Context class shall additionally write output to a log file when the log flag is set.
@@ -97,6 +99,7 @@ sections:
         tests:
           - Context_Create_LogFlag_OpensLogFile
           - Context_WriteError_WritesToLogFile
+          - Context_WriteWarning_SilentWithLog_WritesOnlyToLogFile
 
       - id: CanvasNetTool-Context-LogFailure
         title: The Context class shall report an error when the specified log file cannot be opened.

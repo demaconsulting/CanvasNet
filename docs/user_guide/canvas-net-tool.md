@@ -1,10 +1,12 @@
 # The canvasnet Command-Line Tool
 
-<!-- cspell:ignore canvasnet Visio RRGGBBAA psnr rmse ssim -->
+<!-- cspell:ignore canvasnet Visio RRGGBBAA psnr rmse ssim midtones deskew deskewed deskewing Otsu luma grayscale -->
+<!-- cspell:ignore bilinear percentile percentiles gamma -->
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
-document pages, and OpenSCAD models. It is built to be driven by programs as well as by people: a command's standard
+document pages, and OpenSCAD models, cleans up photographs of sketches (contrast, tilt, borders, and a coordinate
+grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's standard
 output holds only
 its own result, every result can be written as one JSON document, a failure is reported with a stable error code, and
 the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
@@ -112,15 +114,18 @@ parse standard output alone in both cases; the text report on standard error is 
 | `render` (alias `convert`) | Render or convert a file to PNG, JPEG, BMP, or TIFF, with optional transformations |
 | `crop` | Cut a rectangle out of an image |
 | `resize` | Resample an image to an exact size |
-| `rotate` | Rotate an image by 90, 180, or 270 degrees |
+| `rotate` | Rotate an image clockwise by any angle |
 | `flip` | Mirror an image |
 | `pad` | Add a border around an image |
 | `compare` | Measure how much two images differ, write pictures of the differences, and check thresholds |
 | `montage` | Compose images and document pages into one contact sheet |
+| `inspect` | Report the dominant colors and luma statistics (`colors`), or the value of a pixel (`pixel`) |
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, and
-so on, not only rasters).
+so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`, and so on; see _Photos
+and Sketches_) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
+as well.
 
 ### Formats Read and Written
 
@@ -227,8 +232,10 @@ output file (or one per page). `convert` is another name for the same command. T
 1. **Load and size the source**: decode or draw it at its natural size, at the size set by `--dpi`, `--scale`,
    `--width`, `--height`, or `--size`, turn a JPEG upright by its EXIF orientation, and flatten a drawing over the
    background.
-2. **Apply the pipeline operations** `--crop`, `--resize`, `--fit`, `--rotate`, `--flip`, and `--pad`, in the order
-   they are written on the command line. The same operation may be repeated.
+2. **Apply the pipeline operations** `--crop`, `--resize`, `--fit`, `--rotate`, `--flip`, `--pad`, and the photo
+   operations `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`,
+   `--deskew`, `--trim`, and `--grid`, in the order they are written on the command line. The same operation may be
+   repeated.
 3. **Write** the output atomically (through a temporary file in the same folder).
 
 The options of `render` are listed in the following tables.
@@ -258,15 +265,43 @@ background.
 | `--resize <WxH>` | Resample to exactly this size; repeatable |
 | `--fit <WxH>` | Shrink to fit inside the box, keeping the aspect ratio; an image that already fits is unchanged |
 | `--allow-upscale` | Let `--fit` also enlarge an image that is smaller than the box |
-| `--rotate <degrees>` | Rotate clockwise by 90, 180, or 270 degrees (-90 is 270) |
+| `--rotate <degrees>` | Rotate clockwise by any angle (-90 is 270); other than a multiple of 90 grows the canvas |
+| `--rotate-fill <color>` | The color of the corners that `--rotate` or `--deskew` exposes (see _Photos and Sketches_) |
 | `--flip <h\|v\|both>` | Mirror left to right (`h`), top to bottom (`v`), or both |
 | `--pad <N\|l,t,r,b>` | Add a border of N pixels on every side, or `l,t,r,b` pixels on the left, top, right, bottom |
 | `--pad-color <color>` | The color of the border added by `--pad` (see _Defaults_) |
 | `--filter <name>` | Resampling filter: `auto` (default), `nearest`, `bilinear`, `bicubic`, `lanczos3`, or `area` |
 
-`--filter`, `--pad-color`, and `--allow-upscale` are settings of the whole command (the last one wins), not steps.
-`--allow-upscale` without `--fit` and `--pad-color` without `--pad` are a `usage-error`, because they would do nothing.
-A result larger than 8192 pixels on a side (for example by padding) is refused with `size-limit`.
+`--filter`, `--pad-color`, `--rotate-fill`, and `--allow-upscale` are settings of the whole command (the last one
+wins), not steps. `--allow-upscale` without `--fit`, `--pad-color` without `--pad`, and `--rotate-fill` without
+`--rotate` or `--deskew` are a `usage-error`, because they would do nothing. `--filter` also chooses how a rotation by
+an oblique angle samples the image: `nearest` copies the nearest pixel, and every other value (including the
+default) uses bilinear interpolation. A result larger than 8192 pixels on a side (for example by padding) is refused
+with `size-limit`.
+
+The photo operations have options of their own:
+
+<!-- markdownlint-disable MD013 -->
+
+| Photo option | Meaning |
+| --- | --- |
+| `--grayscale` | Turn every pixel gray (its luma); transparency is kept |
+| `--invert` | Invert the colors; transparency is kept |
+| `--threshold <0-255\|auto>` | Turn the image black and white: a pixel whose luma is above the level becomes white, the others black; `auto` chooses the level with Otsu's method |
+| `--levels <black,white[,gamma]>` | Map the levels `black`..`white` to 0..255, with an optional gamma (0.1 to 10; above 1 brightens the midtones), for example `20,230` or `20,230,1.2` |
+| `--brightness <-255..255>` | Add an amount to every color level |
+| `--contrast <-100..100>` | Change the contrast around mid-gray by a percentage |
+| `--auto-levels` | Stretch the levels so that the darkest and lightest pixels become black and white (ignoring 1% of the pixels at each end) |
+| `--auto-levels-clip <percent>` | The percentage of the pixels `--auto-levels` ignores at each end, 0 to 20 (default 1); needs `--auto-levels` |
+| `--deskew` | Find the tilt of the near-horizontal lines (within 15 degrees) and rotate the image level |
+| `--trim` | Crop away the uniform border around the content |
+| `--trim-tolerance <0-255>` | How far a pixel may differ from the border color and still count as border (default 8); needs `--trim` |
+| `--grid <N[,color]>` | Draw a labeled coordinate grid with a line every N pixels (8 to 4096) in a color (default `#FF00FFA0`) |
+
+<!-- markdownlint-enable MD013 -->
+
+These options are explained in _Photos and Sketches_. `--threshold` and `--grid` of `render` are unrelated to the
+`--threshold` and `--grid` of `compare` (a metric limit and a number of cells): each command has its own.
 
 | Output option | Meaning |
 | --- | --- |
@@ -295,6 +330,9 @@ canvasnet render photo.jpg --crop 10%,10%,80%,80% --fit 800x600 -o small.png
 
 # A transparent icon: shrink into 256x256, then add an 8 pixel white border
 canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png
+
+# A photo of a sketch: shrink, stretch the contrast, level it, crop to the drawing
+canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json
 ```
 
 #### Several Pages
@@ -392,7 +430,7 @@ pictures of a PPTX and the approximated constructs of a VSDX.
 ```text
 canvasnet crop   <input> <geometry>      -o <output> [options]
 canvasnet resize <input> <WxH>           -o <output> [options]
-canvasnet rotate <input> <90|180|270>    -o <output> [options]
+canvasnet rotate <input> <degrees>       -o <output> [options]
 canvasnet flip   <input> <h|v|both>      -o <output> [options]
 canvasnet pad    <input> <N|l,t,r,b>     -o <output> [options]
 ```
@@ -408,6 +446,7 @@ canvasnet crop photo.png 200x100+10+10 -o part.png
 canvasnet crop slide.pdf 0,0,50%,100% --page 2 --dpi 150 -o left-half.png
 canvasnet resize photo.png 800x600 --filter lanczos3 -o photo-small.png
 canvasnet rotate scan.png 90 -o scan-upright.png
+canvasnet rotate scan.png 3.5 --rotate-fill white -o scan-level.png
 canvasnet flip logo.png h -o logo-mirrored.png
 canvasnet pad icon.png 16 --pad-color '#336699' -o icon-framed.png
 canvasnet pad icon.png 0,0,32,32 -o icon-padded.png
@@ -420,11 +459,160 @@ The semantics of the operations are:
   that starts at or beyond the right or bottom edge, or is smaller than one pixel, is a `usage-error`. A percentage
   is a percentage of the image at that point of the pipeline.
 - **resize** produces exactly the given size (the aspect ratio is not kept). Use `--fit` on `render` to keep it.
-- **rotate** turns the image clockwise by a right angle. Any other angle (0, 360, 45, ...) is a `usage-error`:
-  rotation by other angles is not supported.
+- **rotate** turns the image clockwise by the angle in degrees; a negative angle turns it counterclockwise (`-90` is
+  `270`). A multiple of 90 degrees is an exact move of the pixels (and 0 or 360 changes nothing). Any other angle grows
+  the canvas to the bounding box of the turned image, so that no corner is cut off, and fills the new corners with
+  `--rotate-fill` (see _Photos and Sketches_ for the rule); a 160x100 image turned by 30 degrees becomes 189x167. An
+  angle that is not a number, or a result larger than 8192 pixels on a side (`size-limit`), is refused.
 - **flip** mirrors the image: `h` left to right, `v` top to bottom, `both` is a rotation by 180 degrees.
 - **pad** adds a border of the given widths, in pixels. The color is `--pad-color`, which defaults as described in
   _Defaults_.
+
+### Photos and Sketches
+
+The photo operations prepare a photograph or a scan of a drawing for reading and measuring. They are options of
+`render` (and of the verb commands and `inspect`), they run in the order written like every other operation, and they
+work on every input that `render` reads. They never change the input file.
+
+```bash
+canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json
+canvasnet render sketch.png --grayscale --threshold auto -o sketch-bw.png --json
+canvasnet render sketch.png --grid 100 -o sketch-grid.png
+```
+
+**Order.** Put `--fit` first: shrinking a 12-megapixel photo before the other steps makes every step faster and keeps a
+rotation within the 8192-pixel limit. Then adjust the tone (`--auto-levels`, `--levels`, `--contrast`), straighten
+(`--deskew`), crop (`--trim`), make it black and white (`--threshold`, `--invert`), and put `--grid` **last**, because the
+grid labels are the coordinates of the picture at the point where the grid is drawn.
+
+**Tone: `--grayscale`, `--invert`, `--levels`, `--brightness`, `--contrast`.** These change the color channels and keep
+the alpha channel.
+
+- `--grayscale` sets red, green, and blue to the luma of the pixel, `(77 R + 150 G + 29 B + 128) >> 8` (integer
+  arithmetic).
+- `--invert` replaces each channel `c` by `255 - c`.
+- `--levels black,white[,gamma]` maps `black` (0 to 254) to 0 and `white` (1 to 255, above `black`) to 255, with levels
+  outside the range clamped. The result is `255 * t^(1/gamma)` where `t = (v - black) / (white - black)` clamped to 0..1;
+  a gamma above 1 brightens the midtones, and the default gamma is 1.
+- `--brightness n` adds `n` (an integer from -255 to 255) to every channel, clamped to 0..255.
+- `--contrast c` (-100 to 100) scales the distance from mid-gray: with `C = c * 255 / 100` the factor is
+  `259 (C + 255) / (255 (259 - C))`, and a channel `v` becomes `factor * (v - 128) + 128`, clamped. 0 changes nothing.
+
+**`--threshold <0-255|auto>`.** Every pixel becomes opaque white when its luma is above the level and opaque black
+otherwise (transparent pixels count as their color over white). With `auto` the level is chosen by Otsu's method over the
+histogram of the whole image: the level that best separates dark ink from light paper. When several levels separate
+equally well, the one in the middle of the gap is used. The method is global: a photo with strongly uneven lighting may
+need `--auto-levels` or `--contrast` first, or a manual level taken from `inspect colors`. The JSON result reports
+`{"op":"threshold","auto":true,"level":109,...}`.
+
+**`--auto-levels`.** It looks at the histogram of the luma and finds the black point (the level below which
+`--auto-levels-clip` percent of the pixels, 1 by default, lie) and the white point (the same from the top), then applies
+`--levels black,white` to the color channels. Because the points come from the luma, hue is kept; a color cast (a yellow
+cast from lamp light) is **not** removed. A flat image, one whose points are less than one level apart, is left
+unchanged. The JSON result reports `{"op":"auto-levels","clip":1,"black":42,"white":233,"applied":true,...}` (`black` and
+`white` are omitted when `applied` is false). A sparse line drawing can have less ink than the clip (a thin pen on a big
+sheet is often under 1% of the pixels): then the black point is the paper level and the image is not stretched
+(`"applied":false`); lower the clip, for example `--auto-levels-clip 0.1`, or `0` to use the darkest pixel.
+
+**`--deskew`.** It estimates the tilt of the dominant near-horizontal structure (text lines, ruled lines, the baseline of
+a sketch, a table edge) and turns the image by the opposite angle, so that those lines become level.
+
+- The search covers -15 to +15 degrees. A positive tilt means the lines descend to the right; the image is rotated by
+  the negative of the tilt.
+- It assumes **dark marks on a lighter ground**; use `--invert` before `--deskew` for light marks on a dark ground.
+  Marks are the pixels that are clearly darker than their surroundings, so uneven lighting does not matter. An image
+  larger than 1024 pixels is analyzed at reduced size.
+- It corrects the tilt only when the tilt is at least 0.05 degrees and the confidence is at least 0.4. When the image has
+  no clear structure (a blank picture, noise, a photo of a landscape) the confidence is low and the image is **copied
+  unchanged**: check `applied` in the JSON result instead of assuming the picture was straightened.
+- The corners that the rotation exposes are filled with the color described under _Rotation by any angle_, and the canvas
+  grows to hold the whole image. Tell the tool to use the paper color with `--rotate-fill` when the border should not
+  show.
+- Deskew is best effort. If the automatic correction would make either side larger than 8192 pixels, the image is
+  left unchanged, the JSON operation reports `applied:false` and `reason:"rotated image would exceed the maximum size"`,
+  and normal output prints a non-fatal warning. An explicit `--rotate` of the same image still fails with `size-limit`.
+- The JSON result reports the tilt, the correction, and the confidence:
+  `{"op":"deskew","skewDegrees":3.95,"rotateDegrees":-3.95,"confidence":0.915,"applied":true,"fill":"#FFFFFF","filter":"bilinear","width":334,"height":222}`
+  (`fill` and `filter` only when it was applied; `rotateDegrees` is 0 when it was not). `confidence` runs from 0 to 1;
+  a result below 0.4 is never applied, so report it to the user rather than trusting it.
+
+**`--trim` and `--trim-tolerance`.** The border color is the most common color of the four corner pixels. `--trim` crops
+the image to the smallest rectangle that holds every pixel that differs from the border color by more than the tolerance
+(the largest difference of any channel, alpha included; default 8, and all fully transparent pixels count as equal).
+This removes the table around a sheet of paper (after `--deskew`, whose corners are filled with the paper color) or a
+white margin. If nothing differs from the border color, the image is left as it is and the JSON result reports
+`"empty":true`; if the content reaches all four edges nothing is cut and it reports `"trimmed":false`. The JSON
+result also gives the box that was kept (`x`, `y`, `width`, `height`). There is no margin option: add one afterwards
+with `--pad`.
+
+**`--grid <N[,color]>`.** It draws one-pixel lines at every multiple of N pixels (8 to 4096) from the left and top
+edges, blended over the picture in the color (default `#FF00FFA0`, a translucent magenta), and writes the pixel
+coordinate of each vertical line along the top and of each horizontal line along the left edge, in the bundled font and
+on a small backing box so that the numbers can be read on any picture. Labels that would overlap are drawn only on
+every second or third line. Use it to read positions and sizes off a picture in pixels. The JSON result reports the
+spacing, the color, the numbers of `verticalLines`, `horizontalLines`, and `labels`, and the size.
+
+**Rotation by any angle.** `--rotate` and the `rotate` command take any angle in degrees, clockwise. The canvas grows to
+the bounding box of the turned image. The pixels are sampled with bilinear interpolation (an edge between the image and
+the fill is smoothed), or by copying the nearest pixel with `--filter nearest`. The corners are filled with, in this
+order: `--rotate-fill`; the `--background` when it is given; opaque white when every pixel of the image is opaque (a
+photo, a scan, or a flattened drawing, so that the corners look like paper); otherwise transparent. A result larger than
+8192 pixels on a side is a `size-limit` error, with the advice to shrink the image first (`--fit 4096x4096` before
+`--rotate` or `--deskew`).
+
+The JSON result of an oblique `rotate` has `degrees` (the angle normalized to 0 to 360), `fill`, and `filter` besides
+the size; a right-angle `rotate` reports `degrees` and the size only.
+
+### inspect
+
+```text
+canvasnet inspect colors <input> [--count N] [options]
+canvasnet inspect pixel  <input> <x,y> [--radius R] [options]
+```
+
+`inspect` reads what the pixels of an image contain, without writing a file. It loads the input like `render` and
+accepts every source and pipeline option of `render` (`--page`, `--dpi`, `--background`, `--crop`, `--fit`, `--deskew`,
+`--auto-levels`, and so on; not the output options or `--all-pages`), so the numbers are those of the picture after the
+pipeline: `inspect colors photo.jpg --crop 100,100,50,50` answers "what color is this region", and the point of
+`inspect pixel` is a coordinate of the processed picture. The subcommand comes first; a missing or misspelled one is a
+`usage-error` that names the closest (`Did you mean 'colors'?`), and an option of the other subcommand is a
+`usage-error` too.
+
+| Option | Meaning |
+| --- | --- |
+| `--count <N>` | `colors`: the number of dominant colors to report, 1 to 32 (default 8) |
+| `--radius <R>` | `pixel`: also report the pixels within R of the point and their mean, 0 to 8 (default 0) |
+
+**`inspect colors`.** Every pixel is flattened over the background (white unless `--background` says otherwise) and
+sorted into a color bucket of 16 levels per channel; buckets whose colors lie within about 32 levels of a more common
+one are merged, so the shades of a paper in uneven light are one color. For each reported color the tool gives the
+color, the number of pixels, and the fraction of the image, most common first. It also reports the luma statistics: the
+mean, the lowest and highest level, the 1st, 50th, and 99th percentile, the level `--threshold auto` would choose (`otsu`),
+and a histogram of 16 counts (levels 0 to 15, 16 to 31, ...). Use them to choose `--levels` and `--threshold` values.
+
+```text
+$ canvasnet inspect colors napkin.jpg --count 3
+colors of napkin.jpg (4032x3024): #F2EFE6 71.23%, #2B2A2A 9.10%, #8A7F6B 4.00%
+luma: mean 201.31, min 3, max 255, p1 24, p50 232, p99 255, otsu 118
+```
+
+**`inspect pixel`.** The point is `x,y` in pixels, counted from 0,0 at the top left of the processed image; a point
+outside it is a `usage-error`. The result is the color as hex, as red, green, blue, and alpha, and its luma. With
+`--radius R` the window of `(2R+1)` by `(2R+1)` pixels around the point (cut off at the image edge) is reported as well,
+with its mean color.
+
+```text
+$ canvasnet inspect pixel sketch.png 412,230 --radius 2
+pixel 412,230 of sketch.png (1204x802): #1B1B1B rgb(27,27,27) alpha 255 luma 27
+mean of 5x5 at 410,228: #4A4A4A
+```
+
+With `--json`, `inspect` writes one document (`command` is `inspect` and `subcommand` is `colors` or `pixel`) that has
+the envelope of `render` (`tool`, `input`, `operations`, `image`, `diagnostics`, `echo`) followed by, for `colors`,
+`background`, `colors` (a list of `{"hex","r","g","b","pixels","fraction"}`), and `luma`
+(`{"mean","min","max","p1","p50","p99","otsu","histogram"}`), and for `pixel`, `point` (`{"x","y"}`), `pixel`
+(`{"r","g","b","a","hex","luma"}`), and, only with `--radius` above 0, `neighborhood` (`{"x","y","width","height","mean",
+"pixels"}`, the pixels as rows of hex colors).
 
 ### compare
 
@@ -709,7 +897,7 @@ The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 c
 | Geometry | `x,y,w,h` or `WxH+X+Y`; each value in pixels (`10`, `10px`) or percent (`10%`); `WxH` alone is at 0,0 | `10,10,200,100`, `200x100+10+10`, `10%,10%,80%,80%` |
 | Color | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (alpha **last**), the same without `#`, a basic CSS name, or `transparent` | `#336699`, `#33669980`, `white`, `transparent` |
 | Border | One number for every side, or `l,t,r,b` | `8`, `0,0,32,32` |
-| Degrees | A number; for `rotate` a right angle | `90`, `-90` |
+| Degrees | A number, clockwise; negative turns counterclockwise | `90`, `-90`, `3.5` |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -786,9 +974,17 @@ starts with the same envelope.
 | `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
 | `flatten` | `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder) |
 | `crop` | `x`, `y`, `width`, `height`, `clamped` |
-| `rotate` | `degrees`, `width`, `height` (the size after rotating) |
+| `rotate` | `degrees`, `width`, `height` (the size after rotating); an angle that is not a multiple of 90 also has `fill` (the corner color) and `filter` (`nearest` or `bilinear`), and `degrees` is then the angle normalized to 0 up to 360 |
 | `flip` | `axis` (`horizontal`, `vertical`, or `both`), `width`, `height` |
 | `pad` | `left`, `top`, `right`, `bottom`, `color`, `width`, `height` |
+| `grayscale`, `invert` | `width`, `height` |
+| `threshold` | `auto` (whether the level was chosen by Otsu's method), `level`, `width`, `height` |
+| `levels` | `black`, `white`, `gamma`, `width`, `height` |
+| `brightness`, `contrast` | `amount`, `width`, `height` |
+| `auto-levels` | `clip`, `applied`, and when applied `black` and `white`; `width`, `height` |
+| `deskew` | `skewDegrees` (the tilt that was found; positive when lines descend to the right), `rotateDegrees` (the correction, 0 when none), `confidence` (0 to 1), `applied`, and when applied `fill` and `filter`; `width`, `height` |
+| `trim` | `tolerance`, `x`, `y`, `width`, `height` (the box that was kept), `trimmed`, `empty` |
+| `grid` | `spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height` |
 
 The order of `operations` is: the steps of loading and sizing, the pipeline steps in the order written, and finally
 the `flatten` of a JPEG output. With `--all-pages` every operation also carries its `page`. The set of operations may
@@ -796,7 +992,7 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 
 `compare --json` adds `a`, `b`, `size`, `options`, `metrics`, `grid`, `worstCells`, `thresholds`, and `outputs`, and
 `montage --json` adds `sheet`, `cells`, and `outputs`; both documents are described in the sections of the commands
-(_compare_ and _montage_).
+(_compare_ and _montage_). `inspect --json` adds `subcommand` and the fields described in _inspect_.
 
 ### Failure Documents
 
@@ -862,6 +1058,12 @@ and hint may be improved at any time.
 | Resampling filter | `auto` | `--filter` |
 | `--fit` | Shrinks only | `--allow-upscale` |
 | Pad color | `--pad-color`, else `--background`, else white for a drawing or document page and transparent for a raster | `--pad-color` |
+| Rotation fill (`--rotate`, `--deskew`) | `--rotate-fill`, else `--background`, else opaque white when every pixel is opaque, else transparent | `--rotate-fill` |
+| Rotation sampling | Bilinear | `--filter nearest` |
+| Photo options: `--trim-tolerance`, `--auto-levels-clip`, `--levels` gamma, `--grid` color | 8, 1 percent, 1, `#FF00FFA0` | The options |
+| Deskew | Searches -15 to +15 degrees; corrects a tilt of at least 0.05 degrees found with a confidence of at least 0.4 | Not adjustable |
+| Largest result of a rotation | 8192 pixels on a side (`size-limit`) | Shrink first with `--fit` |
+| Inspect: number of colors, radius | 8, 0 | `--count`, `--radius` |
 | Page of a document | 1 | `--page`, `--all-pages` |
 | Compare: tolerance, grid, gain, overlay weight | 8, `4x4`, 4, 0.5 | `--tolerance`, `--grid`, `--gain`, `--overlay-weight` |
 | Compare: inputs of different sizes | Refused (`size-mismatch`) | `--resize-to a\|b\|WxH`, with `--fit contain\|stretch` |
@@ -939,36 +1141,82 @@ this reliable:
 
 ### Recipe: From a Napkin Sketch to an OpenSCAD Model
 
+A photograph of a hand-drawn sketch is tilted, dim, and surrounded by a table. These steps clean it up, measure it, and
+turn it into a model that can be checked against it. Every command accepts `--json`; the numbers it reports (the tilt that
+was found, the points of the auto-levels, the crop box) tell an agent what the tool did.
+
 1. Inspect the photo; a phone JPEG is turned upright automatically by its EXIF orientation:
 
    ```bash
    canvasnet info napkin.jpg --json
    ```
 
-2. Prepare a picture to look at: crop away the table, and shrink it so that it is cheap to view:
+2. Look at the lighting: the dominant colors and the luma statistics say how dark the ink is, how light the paper is,
+   and what `--threshold auto` would pick:
 
    ```bash
-   canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png --json
+   canvasnet inspect colors napkin.jpg --count 5 --json
    ```
 
-3. Write `bracket.scad`, with the dimensions read from the sketch as variables (`width = 40;`, ...).
-4. Render named views of the model and look at them next to the sketch:
+3. Clean it up in one command (one decode, one encode). `--fit` goes first, so the following steps are fast and the
+   rotation stays within the size limit; `--auto-levels` lifts the paper to white and the ink to black; `--deskew`
+   levels the lines (the JSON `deskew` operation reports `skewDegrees`, `confidence`, and `applied`: if `applied` is false
+   the picture had no clear lines, so level it by hand with `rotate <angle>`); `--trim` crops the picture to the drawing
+   (the corners that the rotation exposed are white, like the paper):
+
+   ```bash
+   canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json
+   ```
+
+4. Make a high-contrast copy to read the ink strokes (and the level that was chosen, in the `threshold` operation of
+   the result). Use `--threshold 140` instead of `auto` to set the level yourself, taken from `inspect colors`:
+
+   ```bash
+   canvasnet render sketch.png --grayscale --threshold auto -o sketch-bw.png --json
+   ```
+
+5. Put a grid over the picture, so that dimensions can be read off it in pixels. The grid is always the last operation,
+   because its numbers are the coordinates of the picture at that point:
+
+   ```bash
+   canvasnet render sketch.png --grid 100 -o sketch-grid.png
+   ```
+
+6. Probe the end of a stroke or of a dimension arrow by its coordinates, with a few pixels around it to see the ink
+   color; `inspect pixel` on `sketch.png` uses the same coordinates as the grid of step 5:
+
+   ```bash
+   canvasnet inspect pixel sketch.png 412,230 --radius 2 --json
+   ```
+
+7. Write `bracket.scad`, with the dimensions read from the sketch as variables (`width = 40;`, ...). A length in the model
+   is the length in pixels times the scale (a known real dimension divided by its length in pixels).
+8. Render named views of the model, and compare a view with the sketch (`--resize-to a` draws the model at the size of
+   the sketch; the side-by-side picture shows both and where they differ):
 
    ```bash
    canvasnet render bracket.scad --view front -o bracket-front.png --json
    canvasnet render bracket.scad --view top -o bracket-top.png
    canvasnet render bracket.scad --view right -o bracket-right.png
    canvasnet render bracket.scad --view iso -o bracket-iso.png
+   canvasnet compare sketch.png bracket-front.png --resize-to a --grid 4x4 --side-by-side cmp.png --json
    ```
 
-5. Adjust the model, or try a dimension without editing it by overriding a variable:
+9. Adjust the model, or try a dimension without editing it by overriding a variable:
 
    ```bash
    canvasnet render bracket.scad --view top -D width=55 -D hole=6 -o bracket-top-wide.png
    ```
 
-6. Before finishing, render once with `--strict --json`: it fails if the model uses something the renderer cannot
-   draw (so that the picture would be missing it), and `diagnostics` shows what.
+10. Before finishing, render once with `--strict --json`: it fails if the model uses something the renderer cannot
+    draw (so that the picture would be missing it), and `diagnostics` shows what.
+
+Things to try when a step does not give the expected picture: a photo with a strong shadow across it needs
+`--contrast` or `--levels` before `--threshold auto` (Otsu's method uses one level for the whole picture); a thin pen
+line may cover less than 1% of the pixels, so check `applied` of `auto-levels` and lower `--auto-levels-clip` if it is
+false; a sketch of
+light lines on a dark ground needs `--invert` before `--deskew`; a `--trim` that removes nothing means the border is not
+uniform (raise `--trim-tolerance`, or crop by hand with `--crop`).
 
 ### Recipe: Check an OpenSCAD Model Against a Sketch
 
@@ -977,7 +1225,7 @@ render step. A sketch drawn from the front is compared with the front view; `--r
 of the (prepared) sketch, and `--overlay` blends the two so that the agent can see where the outline drifts:
 
 ```bash
-canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png
+canvasnet render napkin.jpg --fit 1600x1600 --auto-levels --deskew --trim -o napkin-view.png
 canvasnet compare napkin-view.png bracket.scad --b-view front --resize-to a --background white \
   --overlay overlay-front.png --side-by-side cmp-front.png --threshold ssim=0.6 --json
 ```
@@ -1048,7 +1296,15 @@ pictures side by side.
   alpha: transparency is flattened.
 - **Models.** Only one view per command, and no animation. A model that needs `text`, `import`, or other unsupported
   constructs is drawn without them.
-- **Rotation.** Only 90, 180, and 270 degrees.
+- **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
+  here). Rotating, then rotating back, does not restore the original pixels. The canvas grows to hold the image, and a
+  result larger than 8192 pixels on a side is refused (shrink first with `--fit`).
+- **Photo tools.** `--deskew` assumes dark marks on a lighter ground and near-horizontal structure within 15 degrees;
+  it leaves an image without a clear structure unchanged (`applied` is false). `--threshold auto` is a global method
+  (Otsu), so uneven lighting needs a tone step first. `--auto-levels` works on the luma and does not remove a color
+  cast. `inspect colors` merges shades within about 32 levels. These operations use whole-number arithmetic wherever a
+  number decides a pixel (only the sampling of a rotation uses floating point), and the same input and command line
+  give the same file on the same machine and tool version.
 - **Size.** 8192 pixels on a side at most; an image that large uses about 256 MB of memory per copy, so large pipelines
   need memory.
 - **Concurrency.** Each command is independent, so several may run in parallel as long as they write different files.
@@ -1083,9 +1339,10 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RotateFlipPad - Passed
 ✓ CanvasNetTool_Compare - Passed
 ✓ CanvasNetTool_Montage - Passed
+✓ CanvasNetTool_Adjustments - Passed
 
-Total Tests: 13
-Passed: 13
+Total Tests: 14
+Passed: 14
 Failed: 0
 ```
 
@@ -1104,6 +1361,7 @@ Failed: 0
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |
 | `CanvasNetTool_Montage` | `montage` composes a labeled sheet of the expected size and layout |
+| `CanvasNetTool_Adjustments` | The photo tools, `--deskew`, `--trim`, `--grid`, and `inspect` work on a tilted sketch |
 
 The exit code is 0 when every test passed and 1 when any failed. Add `--results <file>` to record the outcome as a
 TRX file (`.trx`) or a JUnit XML file (`.xml`), for example for a quality system that collects test evidence:

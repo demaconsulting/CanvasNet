@@ -1,0 +1,80 @@
+---
+# cspell:ignore luma
+# Software Unit Requirements for the GridOverlay Class
+#
+# The GridOverlay class draws a labeled coordinate grid over the pixels of a surface in place, so that positions and
+# sizes can be read off the picture. It works on surfaces only: it knows nothing of files, options, or commands. Its
+# blending is exact integer arithmetic, its labels use the bundled font, and its rows are processed in parallel with
+# disjoint output, so the pixels are the same on every run.
+
+sections:
+  - title: GridOverlay Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Imaging-GridOverlay-Lines
+        title: >-
+          The GridOverlay class shall draw one-pixel vertical lines at x = k * spacing and one-pixel horizontal lines
+          at y = k * spacing for k from 0 inside the surface, so that the lines at 0 are the first column and row,
+          and shall change a pixel at most once where lines cross, replacing it when the line color is opaque.
+        justification: |
+          Lines at whole multiples of a spacing, starting at the edge, let a reader count off pixel positions; a
+          crossing that is blended once keeps the grid uniform, and an opaque color must be exactly that color.
+        tests:
+          - GridOverlay_Draw_Spacing_DrawsOnePixelLinesAtMultiples
+          - GridOverlay_Draw_Intersections_AreBlendedOnce
+          - GridOverlay_Draw_OpaqueColor_ReplacesPixels
+
+      - id: CanvasNetTool-Imaging-GridOverlay-Blend
+        title: >-
+          The GridOverlay class shall blend a translucent line color over a pixel by source-over in exact integer
+          arithmetic, giving (c a + p (255 - a) + 127) / 255 for each channel of an opaque pixel and, for a pixel with
+          alpha pa, the alpha (255 a + pa (255 - a) + 127) / 255 and the color (c a 255 + p pa (255 - a)) / (outA 255)
+          rounded, or transparent black when the result alpha is 0.
+        justification: |
+          A translucent grid keeps the picture visible underneath; integer arithmetic gives the same pixels on every
+          machine, and the formula is one a test can compute by hand.
+        tests:
+          - GridOverlay_Draw_TranslucentColorOverOpaque_UsesIntegerSourceOver
+          - GridOverlay_Draw_TranslucentColorOverTransparent_ComputesResultAlpha
+
+      - id: CanvasNetTool-Imaging-GridOverlay-Labels
+        title: >-
+          The GridOverlay class shall label the lines with their pixel coordinate in the bundled 12-pixel font,
+          vertical lines at the top edge and horizontal lines at the left edge, in a box that is filled with a white
+          backing when the line color has a luma below 128 and a black backing otherwise (alpha 192), label only every
+          n-th line when a spacing is too small for every label, and skip a label whose box does not lie fully inside
+          the surface.
+        justification: |
+          The picture, not a separate table, should say where a position is; labels that overlap or hang over the
+          edge are unreadable, and a backing in the opposite brightness keeps the digits legible on any picture.
+        tests:
+          - GridOverlay_Draw_Labels_DrawnAtTopAndLeftEdgesInBundledFont
+          - GridOverlay_Draw_SmallSpacing_LabelsOnlyEveryNthLineWithoutOverlap
+          - GridOverlay_Draw_LabelOutsideImage_IsSkipped
+          - GridOverlay_Draw_DarkAndLightColors_ChooseLightAndDarkBacking
+
+      - id: CanvasNetTool-Imaging-GridOverlay-Result
+        title: >-
+          The GridOverlay class shall report the number of vertical lines, horizontal lines, and labels it drew.
+        justification: |
+          The counts go into the operation record of a result, so a caller can check what the overlay did without
+          reading pixels.
+        tests:
+          - GridOverlay_Draw_ReturnsLineAndLabelCounts
+
+      - id: CanvasNetTool-Imaging-GridOverlay-Deterministic
+        title: >-
+          The GridOverlay class shall give the same pixels when the same grid is drawn on the same pixels twice.
+        justification: |
+          Results are compared, cached, and checked into source control; they must not depend on how many cores ran
+          the work or on the fonts installed on the machine.
+        tests:
+          - GridOverlay_Draw_SameInputTwice_ProducesIdenticalPixels
+
+      - id: CanvasNetTool-Imaging-GridOverlay-Arguments
+        title: >-
+          The GridOverlay class shall reject a null surface and a spacing below 8 or above 4096.
+        justification: |
+          Each of these is a defect of the caller (the pipeline validates user input first) and must fail fast and
+          clearly.
+        tests:
+          - GridOverlay_Draw_InvalidArguments_Throw

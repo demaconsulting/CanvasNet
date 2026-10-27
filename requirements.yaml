@@ -106,12 +106,17 @@ includes:
   - docs/reqstream/canvas-net-tool/commands/render-command.yaml
   - docs/reqstream/canvas-net-tool/commands/compare-command.yaml
   - docs/reqstream/canvas-net-tool/commands/montage-command.yaml
+  - docs/reqstream/canvas-net-tool/commands/inspect-command.yaml
   - docs/reqstream/canvas-net-tool/imaging.yaml
   - docs/reqstream/canvas-net-tool/imaging/source-loader.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-writer.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-pipeline.yaml
   - docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml
   - docs/reqstream/canvas-net-tool/imaging/contact-sheet.yaml
+  - docs/reqstream/canvas-net-tool/imaging/image-adjustments.yaml
+  - docs/reqstream/canvas-net-tool/imaging/image-geometry.yaml
+  - docs/reqstream/canvas-net-tool/imaging/grid-overlay.yaml
+  - docs/reqstream/canvas-net-tool/imaging/image-analysis.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

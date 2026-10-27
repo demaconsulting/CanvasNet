@@ -2,7 +2,7 @@
 
 ![Imaging Structure](ImagingView.svg)
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad openscad luma otsu grayscale deskews -->
 
 ### Overview
 
@@ -12,15 +12,21 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains five units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains nine units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
-`ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
+`ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone of, deskews, trims, and
+draws a grid on pixels in the order the options were written,
 `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
-pictures, and `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
-the bundled font. The supporting
+pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
+the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
+fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels), and `ImageGeometry`, which rotates pixels by
+any angle onto an expanded canvas with a fill color, finds the content bounds inside a uniform border, and estimates the
+skew of near-horizontal lines, `GridOverlay`, which draws a labeled coordinate grid over pixels in place, and
+`ImageAnalysis`, which reports the dominant colors, the luma statistics, and the pixels at a point of an image. The
+supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -36,8 +42,9 @@ and directives), load one page into a
 several of its pages.
 
 **ImagePipeline.Parse(reader, verb, verbOperand)** and **ImagePipeline.Apply(input, operations, defaultPadColor,
-out applied)** (provided to the commands): read the ordered operations of a command line (the operation of a verb
-command first), and apply them to a surface, giving a new surface and the list of what was done.
+out applied, userBackground)** (provided to the commands): read the ordered operations of a command line (the operation
+of a verb command first), and apply them to a surface (running the units `ImageAdjustments`, `ImageGeometry`, and
+`GridOverlay` for the photo operations), giving a new surface and the list of what was done.
 
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
 (provided to the commands): choose the output format, check an output (or all the outputs of a command against all its
@@ -46,6 +53,23 @@ inputs) before any work is done, and write a surface atomically.
 **ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image, label)**,
 and **ContactSheet.Detach()** (provided to the commands): calculate the geometry of a sheet (refusing one that is too
 large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
+
+**ImageAdjustments.Grayscale**, **Invert**, **Threshold**, **ApplyTable**, **AutoLevels**, and the table and histogram
+helpers (provided to the pipeline and the analysis): adjust the pixels of a surface the caller owns in place, and
+calculate luma, histograms, the Otsu threshold, and the levels, brightness, and contrast tables.
+
+**ImageGeometry.CheckRotatedSize(width, height, degrees)**, **ImageGeometry.RotateArbitrary(source, degrees, fill,
+nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, **ImageGeometry.Trim(surface, tolerance)**, and
+**ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas, rotate by any angle
+onto an expanded canvas with a fill color, find or crop to the content inside a uniform border, and estimate the skew of
+the near-horizontal lines of an image with a confidence.
+
+**GridOverlay.Draw(surface, spacing, color)** (provided to the pipeline): draw a labeled coordinate grid in place and
+report the lines and labels drawn.
+
+**ImageAnalysis.Analyze(surface, background, count)** and **ImageAnalysis.Sample(surface, x, y, radius)** (provided to
+the commands): find the dominant colors and the luma statistics of an image, and read the pixel at a point and the mean
+of the window around it.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to

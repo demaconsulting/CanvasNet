@@ -1,6 +1,6 @@
 ### RenderCommand
 
-<!-- cspell:ignore canvasnet jpeg jpg tiff tif exif pptx vsdx dpi scad openscad Dlabel -->
+<!-- cspell:ignore canvasnet jpeg jpg tiff tif exif pptx vsdx dpi scad openscad Dlabel grayscale deskew -->
 
 #### Verification Approach
 
@@ -43,9 +43,15 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 #### Test Scenarios
 
 **RenderCommand_Metadata_DescribesCommandAndOptions** and **RenderCommand_DefaultRegistry_RegistersRenderAndConvert**:
-the name, the alias, the summary, the usage line with examples, the thirty-one options in order (the short alias `-o`),
+the name, the alias, the summary, the usage line with examples, the forty-four options in order (the short alias `-o`),
 every option with a description and a value name exactly when it takes a value; the default registry resolves both
 names to the one command.
+
+**RenderCommand_ReadSourceOptions_SameAsBefore**: the source options read from an empty command line are the defaults
+(page 1, no resolution, scale, size, or background, automatic orientation, not strict, the automatic filter, no model
+options); a command line with a page, resolution, scale, background with alpha, `--no-auto-orient`, `--strict`, a filter,
+and a view gives exactly those settings; `--size` gives the width and height; `--size` with `--scale` and a width of 0
+are usage errors, as they always were.
 
 **RenderCommand_Run_PngToPng_WritesFileAndTextLine**: a PNG rendered to a PNG writes the same pixels and the one-line
 text result.
@@ -172,8 +178,26 @@ PDF is a usage error that names the kind; page 2 of a model is `page-out-of-rang
 `-D`), the 800x800 default size, and the rule that include and use files are read from the folder of the model and
 below only.
 
-**RenderCommand_Help_ListsPipelineOptionsAndVerbs**: the help of `render` lists the nine pipeline options, and the
+**RenderCommand_Help_ListsPipelineOptionsAndVerbs**: the help of `render` lists the pipeline options (the nine of the
+geometry pipeline and the thirteen photo options and settings), and the
 registry lists each verb in the command list, has a usage line for it, and resolves its name in any case.
+
+**RenderCommand_Run_PhotoOptions_AppearInHelpAndRunInOrder**: every photo option is declared exactly once in the table
+and in the options of a verb, the usage of `render` and of `rotate` mention the photo tools, and a chain of grayscale,
+invert, brightness, contrast, automatic threshold, and grid on the 12x8 gradient reports its six operations in the order
+written, writes a black and white picture, and tints the pixels on a grid line.
+
+**RenderCommand_Run_RotateVerbAnyAngle_MatchesRenderEquivalent**: `rotate` with 30, -3.5, `45deg`, 0, and -90 and a fill
+writes the bytes `render --rotate` writes.
+
+**RenderCommand_Run_DeskewJson_ReportsAngleAndConfidence**: ruled lines tilted by 5 degrees give a `deskew` operation
+in the
+JSON with `skewDegrees` between 4.8 and 5.2, `rotateDegrees` equal to its negative, a confidence of at least 0.4,
+`applied` true, and the size of the grown canvas that equals the size of the written file.
+
+**RenderCommand_Run_RotateFillAndBackground_ChooseFill**: the corner exposed by a 45-degree rotation is white for an opaque
+image, the color of `--rotate-fill`, the `--background` color when only that is given, the fill when both are given,
+and transparent for an image with a transparent pixel.
 
 **RenderCommand_Run_MultiOpJson_ListsOperationsInOrder**: a translucent PNG enlarged to 24 wide by `--width`, then
 cropped, flipped, rotated, and padded, and written as JPEG, reports as exact text the loader's `resize`, the four
@@ -209,11 +233,12 @@ top-left quarter of both pages of the PDF is 96x64 and 64x96 with a `crop` opera
 written twice is byte-identical as PNG, JPEG, BMP, and TIFF.
 
 **RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing**, **RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched**,
-and **RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit**: unsupported angles, malformed operands and
-options, a crop outside the image (also after an earlier crop), a size or border beyond the maximum, a border color
-without a pad, an upscale switch without a fit, and an unknown option are usage or size errors with the documented
-messages and no output; a crop that fails after a pad leaves an existing output file as it was; a border that makes
-8193 pixels is `size-limit` naming `8193x8188`.
+and **RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit**: malformed operands (an angle that is not a number)
+and options, a crop outside the image (also after an earlier crop), a size or border beyond the maximum, a border color
+without a pad, a rotation fill without a rotation, a clip without auto-levels, a trim tolerance without trim, an upscale
+switch without a fit, a grid spacing or levels out of range, and an unknown option are usage or size errors with the
+documented messages and no output; a crop that fails after a pad leaves an existing output file as it was; a border that
+makes 8193 pixels is `size-limit` naming `8193x8188`.
 
 **RenderCommand_Verb_Metadata_DescribesVerbAndSharesRenderOptions** and **RenderCommand_Verb_UnknownVerb_ThrowsArgumentException**:
 each verb has its own name, no alias, a summary, the usage line with its operand and examples, and the options of

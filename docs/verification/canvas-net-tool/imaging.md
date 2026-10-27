@@ -1,13 +1,15 @@
 ## Imaging
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx dpi scad -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx dpi scad deskew deskewed -->
 
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, and `ContactSheet`
+`ImageComparison`, `ContactSheet`, `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis`
 (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
-Verification Design_, _ImageComparison Unit Verification Design_, and _ContactSheet Unit Verification Design_
+Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
+_ImageAdjustments Unit Verification Design_, _ImageGeometry Unit Verification Design_, _GridOverlay Unit Verification
+Design_, and _ImageAnalysis Unit Verification Design_
 under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
@@ -71,6 +73,16 @@ written.
 natural size, taken through a crop of the left half, a quarter turn, and a blue border by the pipeline, and written as
 PNG: the three operations are reported in order, the file decodes to exactly the transformed surface, which equals the
 same operations applied by hand to the cropped load, the border pixel is blue, and the loaded surface is unchanged.
+
+**Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten**: a JPEG of a sketch with ruled lines tilted by 4 degrees,
+stored a quarter turn away with the EXIF orientation 6, is loaded upright (400x300), taken through the pipeline
+operations auto-levels, deskew, and trim, and written as PNG: the three operations are reported in order, the contrast
+stretch was applied, the skew found is within 0.4 degrees of 4 and was corrected, the trim cropped the white border
+the rotation left (the result is smaller than the rotated canvas), the PNG decodes to exactly the transformed surface,
+and the skew that remains in it is within 0.4 degrees of level.
+
+**Imaging_Photo_SameInputsTwice_WriteIdenticalBytes**: the same photo pipeline run twice on the same JPEG reports the same
+operations with the same parameters (the angle, the confidence, and the points) and writes identical PNG bytes.
 
 **Imaging_Compare_LoadedSourcesAreComparedAndVisualized**: the SVG fixture is loaded at its natural size and compared
 with a raster copy of it that has one black pixel at 50,40, the vector being loaded into a box of the raster's size with

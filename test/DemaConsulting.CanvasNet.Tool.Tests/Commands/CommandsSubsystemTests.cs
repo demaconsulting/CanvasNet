@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet rmse
+// cspell:ignore canvasnet rmse deskew
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -329,5 +329,42 @@ public class CommandsSubsystemTests
         Assert.Contains("--resize-to <a|b|WxH>", compare.StdOut);
         Assert.Contains("Usage: canvasnet montage <inputs...> -o <output> [options]", montage.StdOut);
         Assert.Contains("-o, --output <file>", montage.StdOut);
+    }
+
+    /// <summary>
+    ///     Test that the default registry runs the inspect command through the entry point and lists it in the help.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp()
+    {
+        // Arrange: a PNG in a temporary directory
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+
+        // Act: both subcommands through the default registry, a failing one, the help, and the help by name
+        var colors = ToolHost.Invoke("inspect", "colors", input, "--count", "2");
+        var pixel = ToolHost.Invoke("inspect", "pixel", input, "1,1", "--json");
+        var failing = ToolHost.Invoke("inspect", "palette", input);
+        var top = ToolHost.Invoke("--help");
+        var help = ToolHost.Invoke("inspect", "--help");
+        var byName = ToolHost.Invoke("help", "inspect");
+
+        // Assert: success with nothing on standard error; the failing one is an expected error naming the command
+        Assert.Equal(0, colors.ExitCode);
+        Assert.StartsWith($"colors of {input} (12x8): ", colors.StdOut);
+        Assert.Equal(string.Empty, colors.StdErr);
+        Assert.Equal(0, pixel.ExitCode);
+        Assert.Contains("\"command\":\"inspect\",\"subcommand\":\"pixel\"", pixel.StdOut);
+        Assert.Equal(1, failing.ExitCode);
+        Assert.Contains("Error: usage-error:", failing.StdErr);
+        Assert.Contains("Unknown inspect subcommand 'palette'", failing.StdErr);
+
+        // Assert: listed with its summary, with both usages and the options of render
+        Assert.Contains("Report the dominant colors of an image, or the pixel at a point", top.StdOut);
+        Assert.Contains("Usage: canvasnet inspect colors <input> [--count N] [options]", help.StdOut);
+        Assert.Contains("canvasnet inspect pixel <input> <x,y> [--radius R] [options]", help.StdOut);
+        Assert.Contains("--radius <R>", help.StdOut);
+        Assert.Contains("--deskew", help.StdOut);
+        Assert.Contains("Usage: canvasnet inspect colors <input> [--count N] [options]", byName.StdOut);
     }
 }

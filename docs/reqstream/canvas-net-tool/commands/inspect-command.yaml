@@ -1,0 +1,127 @@
+---
+# cspell:ignore luma otsu grayscale deskew
+# Software Unit Requirements for the InspectCommand Class
+#
+# The InspectCommand class is the inspect command with its subcommands colors and pixel: it loads one page of an
+# input exactly as the render command does, applies the same image pipeline, and reports what the pixels contain (the
+# dominant colors and luma statistics, or the pixel at a point and its neighborhood) as one or two text lines or one
+# JSON document. It is read-only: it writes no file.
+
+sections:
+  - title: InspectCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-InspectCommand-Subcommands
+        title: >-
+          The inspect command shall be one registered command with the subcommands colors and pixel, taken from the
+          first positional argument (in any case), and shall report a missing subcommand, an unknown one (suggesting
+          the closest name), an option of the other subcommand, and a wrong number of operands as usage errors.
+        justification: |
+          The command registry is flat, and a subcommand keeps two related questions (what colors are here, what is
+          this pixel) under one name; a mistake in the subcommand must say what the choices are.
+        tests:
+          - InspectCommand_Run_ColorsAndPixel_AreDispatched
+          - InspectCommand_Run_MissingOrUnknownSubcommand_ThrowsUsageErrorWithSuggestion
+          - InspectCommand_Run_OptionOfOtherSubcommand_ThrowsUsageError
+
+      - id: CanvasNetTool-Commands-InspectCommand-Options
+        title: >-
+          The inspect command shall declare, in one table that also drives the help, every source option and every
+          pipeline option of the render command with the same declarations (and none of the options of the output or
+          all-pages), and the options count of colors and radius of pixel, and shall show both usages with examples in
+          its help.
+        justification: |
+          Reusing the declarations of the render command gives the shared options one grammar everywhere, so that what
+          is learned for a render works for an inspection; the options of an output the command does not write would
+          only mislead.
+        tests:
+          - InspectCommand_Options_SharedWithRenderExceptOutputOptions
+          - InspectCommand_Help_ListsBothSubcommands
+
+      - id: CanvasNetTool-Commands-InspectCommand-Colors
+        title: >-
+          The inspect colors command shall report the dominant colors of the image (the most common first, at most
+          the number given by count from 1 to 32, default 8) with their pixel counts and shares of the pixels, and the
+          luma statistics, as two text lines or, with the JSON option, as one document with the subcommand, the tool,
+          the input, the operations, the image size, the background, the colors with their hex, channels, pixels, and
+          fraction, the luma statistics with a 16-bin histogram, the diagnostics, and the echoed text, in that order.
+        justification: |
+          What colors an image contains, and how its brightness is distributed, are the facts a person or an agent
+          needs to choose the levels and threshold of a photograph without trial and error.
+        tests:
+          - InspectCommand_Colors_Text_PrintsColorsAndLumaLines
+          - InspectCommand_Colors_Json_HasDocumentedShape
+          - InspectCommand_Colors_Count_LimitsTheList
+
+      - id: CanvasNetTool-Commands-InspectCommand-Pixel
+        title: >-
+          The inspect pixel command shall report the pixel at a point x,y of the image (as stored, with its hex color,
+          channels, alpha, and the luma over white) and, with a radius from 1 to 8, the window around it clipped to the
+          image with its rectangle, the mean, and every pixel, as one or two text lines or, with the JSON option, as
+          one document with the subcommand, the tool, the input, the operations, the image size, the point, the pixel,
+          the neighborhood (only with a radius), the diagnostics, and the echoed text, in that order, and shall report
+          a malformed point, a point outside the image (naming the point and the image size), and a bad radius as usage
+          errors.
+        justification: |
+          Reading one pixel and its surroundings is how a stroke, a mark, or a dimension line is checked; a point that
+          is outside the image is a mistake the user can correct.
+        tests:
+          - InspectCommand_Pixel_Text_PrintsHexRgbAlphaAndLuma
+          - InspectCommand_Pixel_Json_HasDocumentedShape
+          - InspectCommand_Pixel_RadiusWithJson_ListsNeighborhood
+          - InspectCommand_Pixel_BadOrOutsidePoint_ThrowsUsageError
+
+      - id: CanvasNetTool-Commands-InspectCommand-Pipeline
+        title: >-
+          The inspect command shall apply the operations of the image pipeline given as options, in the order written,
+          before it analyzes the image, so that the colors are those of the cropped, adjusted, or straightened image
+          and the point is a coordinate of the image after the operations, and shall list the operations in the
+          result.
+        justification: |
+          Asking what color a region is, or what a pixel is after a deskew, needs no intermediate file when the same
+          pipeline that render uses runs first.
+        tests:
+          - InspectCommand_Colors_AfterCrop_AnalyzesTheCroppedRegion
+          - InspectCommand_Pixel_AfterPipeline_UsesPipelineCoordinates
+
+      - id: CanvasNetTool-Commands-InspectCommand-Sources
+        title: >-
+          The inspect command shall load its input as the render command does, so that an EXIF orientation is applied
+          unless disabled, an SVG drawing and an OpenSCAD model are rendered, the page chosen with the page option of a
+          document is the one analyzed, and transparent pixels are flattened over the background color (white by
+          default, a translucent background being flattened over white first) before they are counted, and shall
+          report the background used.
+        justification: |
+          The analysis must describe the picture the user would get from a render of the same input and options, not
+          the raw bytes of the file.
+        tests:
+          - InspectCommand_Colors_JpegWithExif_UsesUprightImage
+          - InspectCommand_Colors_SvgAndScad_AreRenderedFirst
+          - InspectCommand_Colors_DocumentPage_UsesChosenPage
+          - InspectCommand_Colors_TransparentPng_FlattensOverBackground
+
+      - id: CanvasNetTool-Commands-InspectCommand-ReadOnly
+        title: >-
+          The inspect command shall write no file, whatever its subcommand, options, and result format.
+        justification: |
+          An inspection is a question, and a question must have no side effect on the files of the person who asked it.
+        tests:
+          - InspectCommand_Run_WritesNoFiles
+
+      - id: CanvasNetTool-Commands-InspectCommand-Errors
+        title: >-
+          The inspect command shall report a missing or unsupported input, a page that does not exist, a malformed or
+          out-of-range value, a setting without its operation, a model option for an input that is not a model, an
+          unknown option (including every option of the output), and a result larger than the maximum image size as
+          expected errors with stable codes.
+        justification: |
+          Mistakes must produce stable, actionable errors, never a stack trace.
+        tests:
+          - InspectCommand_Errors_AreExpectedErrorsWithStableCodes
+
+      - id: CanvasNetTool-Commands-InspectCommand-Deterministic
+        title: >-
+          The inspect command shall write the same result bytes when the same input and options are inspected twice.
+        justification: |
+          Results are compared, cached, and checked into source control; they must not vary between runs.
+        tests:
+          - InspectCommand_Json_SameInputTwice_IsByteIdentical

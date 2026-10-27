@@ -1,4 +1,4 @@
-// cspell:ignore lanczos canvasnet
+// cspell:ignore lanczos canvasnet deskew otsu
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -6,22 +6,29 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 
 /// <summary>
 ///     The ordered image pipeline: parses the transformation options of a command line (crop, resize, fit, rotate,
-///     flip, pad) and applies them, in the order written, to a surface.
+///     flip, pad, the photo adjustments, deskew, trim, and grid) and applies them, in the order written, to a surface.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The pipeline is shared by the <c>render</c> command and the verb commands <c>crop</c>, <c>resize</c>,
-///         <c>rotate</c>, <c>flip</c>, and <c>pad</c>: a verb is <c>render</c> with one operation, taken from its
-///         positional operand, placed before the operations given as options. The operations are applied left to
-///         right, so <c>--crop</c> followed by <c>--resize</c> gives a different image than the reverse. One decode
-///         and one encode serve the whole chain; every intermediate surface is disposed as soon as the next one
-///         exists.
+///         The pipeline is shared by the <c>render</c> command, the <c>inspect</c> command, and the verb commands
+///         <c>crop</c>, <c>resize</c>, <c>rotate</c>, <c>flip</c>, and <c>pad</c>: a verb is <c>render</c> with one
+///         operation, taken from its positional operand, placed before the operations given as options. The
+///         operations are applied left to right, so <c>--crop</c> followed by <c>--resize</c> gives a different image
+///         than the reverse. One decode and one encode serve the whole chain; every intermediate surface is disposed as
+///         soon as the next one exists.
 ///     </para>
 ///     <para>
 ///         The transformations are written over <see cref="Surface"/> rows, because the surface itself offers only
-///         crop, resize, and composite. Rotation is limited to the right angles, which are exact pixel moves. A
-///         result larger than <see cref="Surface.MaxDimension"/> is refused before it is allocated, with the code
-///         <c>size-limit</c>.
+///         crop, resize, and composite. Rotation by a right angle is an exact pixel move, rotation by any other angle
+///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. An
+///         explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
+///         before allocation, with the code <c>size-limit</c>. Deskew is best effort: when its automatic correction
+///         would exceed that limit, it copies the input and reports why it was skipped.
+///     </para>
+///     <para>
+///         The operations that change pixels in place (grayscale, invert, threshold, levels, brightness, contrast,
+///         auto-levels, grid) work on a surface the pipeline owns: an intermediate surface, or a copy when the current
+///         surface is the caller's input, which is never modified. So at most two full-size surfaces exist at a time.
 ///     </para>
 ///     <para>
 ///         The loader's own sizing (<c>--scale</c>, <c>--width</c>, <c>--height</c>, <c>--size</c> of a raster,
@@ -51,6 +58,11 @@ internal static class ImagePipeline
     public const string RotateOption = "--rotate";
 
     /// <summary>
+    ///     The name of the option that sets the color that fills the corners a rotation exposes.
+    /// </summary>
+    public const string RotateFillOption = "--rotate-fill";
+
+    /// <summary>
     ///     The name of the option that flips.
     /// </summary>
     public const string FlipOption = "--flip";
@@ -74,6 +86,76 @@ internal static class ImagePipeline
     ///     The name of the option that chooses the resampling filter.
     /// </summary>
     public const string FilterOption = "--filter";
+
+    /// <summary>
+    ///     The name of the option that makes the image gray.
+    /// </summary>
+    public const string GrayscaleOption = "--grayscale";
+
+    /// <summary>
+    ///     The name of the option that complements the colors.
+    /// </summary>
+    public const string InvertOption = "--invert";
+
+    /// <summary>
+    ///     The name of the option that turns the image into black and white.
+    /// </summary>
+    public const string ThresholdOption = "--threshold";
+
+    /// <summary>
+    ///     The name of the option that maps levels through a black point, white point, and gamma.
+    /// </summary>
+    public const string LevelsOption = "--levels";
+
+    /// <summary>
+    ///     The name of the option that adds to the levels.
+    /// </summary>
+    public const string BrightnessOption = "--brightness";
+
+    /// <summary>
+    ///     The name of the option that changes the contrast.
+    /// </summary>
+    public const string ContrastOption = "--contrast";
+
+    /// <summary>
+    ///     The name of the option that stretches the levels to the full range.
+    /// </summary>
+    public const string AutoLevelsOption = "--auto-levels";
+
+    /// <summary>
+    ///     The name of the option that sets the percentage of pixels <see cref="AutoLevelsOption"/> ignores at each end.
+    /// </summary>
+    public const string AutoLevelsClipOption = "--auto-levels-clip";
+
+    /// <summary>
+    ///     The name of the option that straightens the image.
+    /// </summary>
+    public const string DeskewOption = "--deskew";
+
+    /// <summary>
+    ///     The name of the option that crops to the content.
+    /// </summary>
+    public const string TrimOption = "--trim";
+
+    /// <summary>
+    ///     The name of the option that sets the tolerance of <see cref="TrimOption"/>.
+    /// </summary>
+    public const string TrimToleranceOption = "--trim-tolerance";
+
+    /// <summary>
+    ///     The name of the option that draws a coordinate grid.
+    /// </summary>
+    public const string GridOption = "--grid";
+
+    /// <summary>
+    ///     The default tolerance of <see cref="TrimOption"/>.
+    /// </summary>
+    public const int DefaultTrimTolerance = 8;
+
+    /// <summary>
+    ///     The distance in degrees from a multiple of 90 within which a rotation is an exact pixel move.
+    /// </summary>
+    private const double RightAngleEpsilon = 1e-9;
 
     /// <summary>
     ///     The names of the verb commands, each of which is the pipeline with one operation taken from an operand.
@@ -134,7 +216,10 @@ internal static class ImagePipeline
     /// </summary>
     /// <param name="reader">
     ///     The parsed arguments of a command that declares <c>--crop</c>, <c>--resize</c>, <c>--fit</c>,
-    ///     <c>--rotate</c>, <c>--flip</c>, <c>--pad</c>, <c>--pad-color</c>, <c>--allow-upscale</c>, and <c>--filter</c>.
+    ///     <c>--rotate</c>, <c>--rotate-fill</c>, <c>--flip</c>, <c>--pad</c>, <c>--pad-color</c>, <c>--allow-upscale</c>,
+    ///     <c>--filter</c>, <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>, <c>--levels</c>, <c>--brightness</c>,
+    ///     <c>--contrast</c>, <c>--auto-levels</c>, <c>--auto-levels-clip</c>, <c>--deskew</c>, <c>--trim</c>,
+    ///     <c>--trim-tolerance</c>, and <c>--grid</c>.
     /// </param>
     /// <param name="verb">The verb command being run (one of <see cref="VerbNames"/>), or <see langword="null"/> for <c>render</c>.</param>
     /// <param name="verbOperand">The positional operand of the verb; ignored when <paramref name="verb"/> is <see langword="null"/>.</param>
@@ -144,13 +229,16 @@ internal static class ImagePipeline
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="reader"/> is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> when a value is malformed, a rotation is not a right angle,
-    ///     <c>--allow-upscale</c> is given without <c>--fit</c>, or <c>--pad-color</c> without a pad; and with code
-    ///     <c>size-limit</c> when a size or border is larger than <see cref="Surface.MaxDimension"/>.
+    ///     Thrown with code <c>usage-error</c> when a value is malformed or out of range, a setting is given without
+    ///     the operation it modifies (<c>--allow-upscale</c> without <c>--fit</c>, <c>--pad-color</c> without a pad,
+    ///     <c>--rotate-fill</c> without a rotation or deskew, <c>--auto-levels-clip</c> without <c>--auto-levels</c>,
+    ///     <c>--trim-tolerance</c> without <c>--trim</c>); and with code <c>size-limit</c> when a size or border is
+    ///     larger than <see cref="Surface.MaxDimension"/>.
     /// </exception>
     /// <remarks>
-    ///     <c>--filter</c>, <c>--pad-color</c>, and <c>--allow-upscale</c> are settings of the whole command line,
-    ///     not steps: the last occurrence of each applies to every step it concerns.
+    ///     <c>--filter</c>, <c>--pad-color</c>, <c>--allow-upscale</c>, <c>--rotate-fill</c>, <c>--auto-levels-clip</c>,
+    ///     and <c>--trim-tolerance</c> are settings of the whole command line, not steps: the last occurrence of each
+    ///     applies to every step it concerns.
     /// </remarks>
     public static IReadOnlyList<IImageOperation> Parse(ArgumentReader reader, string? verb, string? verbOperand)
     {
@@ -159,12 +247,15 @@ internal static class ImagePipeline
         var filter = reader.Get(FilterOption) is { } filterText ? ParseFilter(filterText, FilterOption) : ResamplingMode.Auto;
         var allowUpscale = reader.Has(AllowUpscaleOption);
         Rgba32? padColor = reader.Get(PadColorOption) is { } colorText ? ArgumentReader.ParseColor(colorText, PadColorOption) : null;
+        Rgba32? rotateFill = reader.Get(RotateFillOption) is { } fillText ? ArgumentReader.ParseColor(fillText, RotateFillOption) : null;
+        var clip = reader.GetDouble(AutoLevelsClipOption, 0, ImageAdjustments.MaxClipPercent);
+        var trimTolerance = reader.GetInt(TrimToleranceOption, 0, ImageGeometry.MaxTrimTolerance);
 
         var operations = new List<IImageOperation>();
         if (verb != null)
         {
             var operand = verbOperand ?? throw new ArgumentNullException(nameof(verbOperand));
-            operations.Add(ParseVerb(verb, operand, filter, padColor));
+            operations.Add(ParseVerb(verb, operand, filter, padColor, rotateFill));
         }
 
         foreach (var (name, value) in reader.Ordered)
@@ -174,9 +265,19 @@ internal static class ImagePipeline
                 CropOption => new CropOperation(ArgumentReader.ParseGeometry(value!, name)),
                 ResizeOption => ParseResize(value!, name, filter),
                 FitOption => ParseFit(value!, name, allowUpscale, filter),
-                RotateOption => new RotateOperation(ParseRotation(value!, name)),
+                RotateOption => new RotateOperation(ParseRotation(value!, name), rotateFill, filter),
                 FlipOption => new FlipOperation(ArgumentReader.ParseFlip(value!, name)),
                 PadOption => new PadOperation(ArgumentReader.ParsePad(value!, name), padColor),
+                GrayscaleOption => new GrayscaleOperation(),
+                InvertOption => new InvertOperation(),
+                ThresholdOption => ParseThreshold(value!, name),
+                LevelsOption => ParseLevels(value!, name),
+                BrightnessOption => new BrightnessOperation(ArgumentReader.ParseInt(value!, name, -255, 255)),
+                ContrastOption => new ContrastOperation(ArgumentReader.ParseNumber(value!, name, -100, 100)),
+                AutoLevelsOption => new AutoLevelsOperation(clip ?? ImageAdjustments.DefaultClipPercent),
+                DeskewOption => new DeskewOperation(rotateFill, filter),
+                TrimOption => new TrimOperation(trimTolerance ?? DefaultTrimTolerance),
+                GridOption => ParseGrid(value!, name),
                 _ => null
             };
             if (operation != null)
@@ -185,23 +286,41 @@ internal static class ImagePipeline
             }
         }
 
-        if (allowUpscale && !operations.OfType<FitOperation>().Any())
+        RequireOperation<FitOperation>(operations, allowUpscale, AllowUpscaleOption, FitOption, FitOption + " WxH");
+        RequireOperation<PadOperation>(operations, padColor != null, PadColorOption, "a pad", $"{PadOption} N");
+        RequireOperation<AutoLevelsOperation>(operations, clip != null, AutoLevelsClipOption, AutoLevelsOption, AutoLevelsOption);
+        RequireOperation<TrimOperation>(operations, trimTolerance != null, TrimToleranceOption, TrimOption, TrimOption);
+        if (rotateFill != null && !operations.Any(o => o is RotateOperation or DeskewOperation))
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
-                $"The option {AllowUpscaleOption} only applies with {FitOption}.",
-                $"Add {FitOption} WxH, or remove {AllowUpscaleOption}.");
-        }
-
-        if (padColor != null && !operations.OfType<PadOperation>().Any())
-        {
-            throw new ToolException(
-                ErrorCodes.UsageError,
-                $"The option {PadColorOption} only applies with a pad.",
-                $"Add {PadOption} N, or remove {PadColorOption}.");
+                $"The option {RotateFillOption} only applies with a rotation or {DeskewOption}.",
+                $"Add {RotateOption} <degrees> or {DeskewOption}, or remove {RotateFillOption}.");
         }
 
         return operations;
+    }
+
+    /// <summary>
+    ///     Requires that a setting that was given has an operation to apply to.
+    /// </summary>
+    /// <typeparam name="T">The type of the operation the setting modifies.</typeparam>
+    /// <param name="operations">The operations that were parsed.</param>
+    /// <param name="given"><see langword="true"/> when the setting was given.</param>
+    /// <param name="setting">The name of the setting, for the message.</param>
+    /// <param name="applies">What the setting applies with, for the message.</param>
+    /// <param name="suggestion">The operation to add, for the hint.</param>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the setting was given without an operation of the type.</exception>
+    private static void RequireOperation<T>(List<IImageOperation> operations, bool given, string setting, string applies, string suggestion)
+        where T : IImageOperation
+    {
+        if (given && !operations.OfType<T>().Any())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {setting} only applies with {applies}.",
+                $"Add {suggestion}, or remove {setting}.");
+        }
     }
 
     /// <summary>
@@ -211,6 +330,10 @@ internal static class ImagePipeline
     /// <param name="operations">The operations, from <see cref="Parse"/>.</param>
     /// <param name="defaultPadColor">The color of a border that names none.</param>
     /// <param name="applied">What each operation did, in order: its parameters and the size of its result.</param>
+    /// <param name="userBackground">
+    ///     The background color the user gave, or <see langword="null"/>; the fill of a rotation that names none, ahead of
+    ///     the default rule.
+    /// </param>
     /// <returns>
     ///     A new surface, which the caller owns and disposes. It is always a different surface than
     ///     <paramref name="input"/>, even for an empty list of operations (then a copy).
@@ -218,18 +341,22 @@ internal static class ImagePipeline
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
     ///     Thrown with code <c>usage-error</c> when a crop region lies entirely outside the image or is empty at that
-    ///     point of the pipeline, and with code <c>size-limit</c> when a border would make the image larger than
-    ///     <see cref="Surface.MaxDimension"/>.
+    ///     point of the pipeline, and with code <c>size-limit</c> when a border or a rotation would make the image
+    ///     larger than <see cref="Surface.MaxDimension"/>.
     /// </exception>
     /// <remarks>
     ///     Every intermediate surface is disposed as soon as the next one has been made, and also when an operation
-    ///     fails, so a failure leaves nothing behind but the input.
+    ///     fails, so a failure leaves nothing behind but the input. An operation that changes pixels in place is given
+    ///     the current surface when the pipeline owns it and a copy of the input otherwise, and returns that surface.
+    ///     The fill of a rotation (or deskew) is its own color, else <paramref name="userBackground"/>, else opaque
+    ///     white when the surface being rotated has no pixel that is not opaque, else transparent.
     /// </remarks>
     public static Surface Apply(
         Surface input,
         IReadOnlyList<IImageOperation> operations,
         Rgba32 defaultPadColor,
-        out IReadOnlyList<AppliedOperation> applied)
+        out IReadOnlyList<AppliedOperation> applied,
+        Rgba32? userBackground = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(operations);
@@ -240,8 +367,8 @@ internal static class ImagePipeline
         {
             foreach (var operation in operations)
             {
-                var (next, step) = Execute(current, operation, defaultPadColor);
-                if (!ReferenceEquals(current, input))
+                var (next, step) = Execute(current, !ReferenceEquals(current, input), operation, defaultPadColor, userBackground);
+                if (!ReferenceEquals(current, input) && !ReferenceEquals(current, next))
                 {
                     current.Dispose();
                 }
@@ -276,15 +403,16 @@ internal static class ImagePipeline
     /// <param name="operand">The operand as typed.</param>
     /// <param name="filter">The resampling filter of the command line.</param>
     /// <param name="padColor">The border color of the command line, or <see langword="null"/>.</param>
+    /// <param name="rotateFill">The fill color of a rotation of the command line, or <see langword="null"/>.</param>
     /// <returns>The operation.</returns>
     /// <exception cref="ToolException">Thrown with code <c>usage-error</c> or <c>size-limit</c> when the operand is not valid for the verb.</exception>
-    private static IImageOperation ParseVerb(string verb, string operand, ResamplingMode filter, Rgba32? padColor)
+    private static IImageOperation ParseVerb(string verb, string operand, ResamplingMode filter, Rgba32? padColor, Rgba32? rotateFill)
     {
         return verb switch
         {
             "crop" => new CropOperation(ArgumentReader.ParseGeometry(operand, "<geometry>")),
             "resize" => ParseResize(operand, "<size>", filter),
-            "rotate" => new RotateOperation(ParseRotation(operand, "<degrees>")),
+            "rotate" => new RotateOperation(ParseRotation(operand, "<degrees>"), rotateFill, filter),
             "flip" => new FlipOperation(ArgumentReader.ParseFlip(operand, "<axis>")),
             "pad" => new PadOperation(ArgumentReader.ParsePad(operand, "<border>"), padColor),
             _ => throw new ArgumentException($"'{verb}' is not an image verb.", nameof(verb))
@@ -319,45 +447,411 @@ internal static class ImagePipeline
     }
 
     /// <summary>
-    ///     Parses a rotation, which must be a right angle.
+    ///     Parses a rotation by any angle.
     /// </summary>
-    /// <param name="text">The angle in degrees, clockwise; a negative angle turns the other way (<c>-90</c> is 270).</param>
+    /// <param name="text">The angle in degrees, clockwise, optionally followed by <c>deg</c>; a negative angle turns the other way (<c>-90</c> is 270).</param>
     /// <param name="name">The option or operand name, for messages.</param>
-    /// <returns>90, 180, or 270.</returns>
-    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is not an angle, or the angle is not a right angle.</exception>
-    private static int ParseRotation(string text, string name)
+    /// <returns>The angle from 0 up to (not including) 360; a full turn is 0.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is not a finite number of degrees.</exception>
+    private static double ParseRotation(string text, string name)
     {
         var degrees = ArgumentReader.ParseDegrees(text, name);
-        if (degrees is 90 or 180 or 270)
+        return degrees >= 360 ? 0 : degrees;
+    }
+
+    /// <summary>
+    ///     Parses the value of <c>--threshold</c>.
+    /// </summary>
+    /// <param name="text">The level, a whole number from 0 to 255, or <c>auto</c> (any case).</param>
+    /// <param name="name">The option name, for messages.</param>
+    /// <returns>The operation; the level is <see langword="null"/> for <c>auto</c>.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is neither <c>auto</c> nor a level.</exception>
+    private static ThresholdOperation ParseThreshold(string text, string name)
+    {
+        if (string.Equals(text.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
         {
-            return (int)degrees;
+            return new ThresholdOperation(null);
         }
 
-        throw new ToolException(
+        if (!int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var level) || level < 0 || level > 255)
+        {
+            throw Invalid(text, name, "an integer from 0 to 255, or auto", "auto");
+        }
+
+        return new ThresholdOperation(level);
+    }
+
+    /// <summary>
+    ///     Parses the value of <c>--levels</c>.
+    /// </summary>
+    /// <param name="text">The levels, <c>black,white</c> or <c>black,white,gamma</c>.</param>
+    /// <param name="name">The option name, for messages.</param>
+    /// <returns>The operation; the gamma is 1 when it is left out.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when a value is malformed or out of range, or the black level is not below the white level.</exception>
+    private static LevelsOperation ParseLevels(string text, string name)
+    {
+        var parts = text.Split(',');
+        if (parts.Length is < 2 or > 3)
+        {
+            throw Invalid(text, name, "black,white or black,white,gamma", "20,230");
+        }
+
+        var black = ArgumentReader.ParseInt(parts[0].Trim(), name, 0, 254);
+        var white = ArgumentReader.ParseInt(parts[1].Trim(), name, 1, 255);
+        var gamma = parts.Length == 3
+            ? ArgumentReader.ParseNumber(parts[2].Trim(), name, ImageAdjustments.MinGamma, ImageAdjustments.MaxGamma)
+            : 1.0;
+        if (black >= white)
+        {
+            throw Invalid(text, name, "a black level below the white level", "20,230");
+        }
+
+        return new LevelsOperation(black, white, gamma);
+    }
+
+    /// <summary>
+    ///     Parses the value of <c>--grid</c>.
+    /// </summary>
+    /// <param name="text">The grid, <c>spacing</c> or <c>spacing,color</c>.</param>
+    /// <param name="name">The option name, for messages.</param>
+    /// <returns>The operation; the color is <see langword="null"/> when it is left out.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the spacing or the color is malformed or out of range.</exception>
+    private static GridOperation ParseGrid(string text, string name)
+    {
+        var parts = text.Split(',', 2);
+        var spacing = ArgumentReader.ParseInt(parts[0].Trim(), name, GridOverlay.MinSpacing, GridOverlay.MaxSpacing);
+        Rgba32? color = parts.Length == 2 ? ArgumentReader.ParseColor(parts[1], name) : null;
+        return new GridOperation(spacing, color);
+    }
+
+    /// <summary>
+    ///     Creates the usage error for a malformed value.
+    /// </summary>
+    /// <param name="text">The text as typed.</param>
+    /// <param name="option">The option name.</param>
+    /// <param name="expected">What was expected.</param>
+    /// <param name="example">An example value.</param>
+    /// <returns>The error.</returns>
+    private static ToolException Invalid(string text, string option, string expected, string example)
+    {
+        return new ToolException(
             ErrorCodes.UsageError,
-            $"Rotation by {degrees.ToString("0.##", CultureInfo.InvariantCulture)} degrees is not supported yet; only 90, 180, and 270 degrees are.",
-            "Use 90, 180, or 270 (clockwise).");
+            $"Invalid value '{text}' for {option}: expected {expected}.",
+            $"Example: {option} {example}");
     }
 
     /// <summary>
     ///     Carries out one operation.
     /// </summary>
-    /// <param name="source">The surface; it is not modified or disposed.</param>
+    /// <param name="source">The surface; it is not modified or disposed, unless the operation works in place and <paramref name="owned"/> is <see langword="true"/>.</param>
+    /// <param name="owned"><see langword="true"/> when the pipeline owns <paramref name="source"/>, so an in-place operation may change it.</param>
     /// <param name="operation">The operation.</param>
     /// <param name="defaultPadColor">The color of a border that names none.</param>
-    /// <returns>The new surface and the description of what was done.</returns>
-    private static (Surface Result, AppliedOperation Applied) Execute(Surface source, IImageOperation operation, Rgba32 defaultPadColor)
+    /// <param name="userBackground">The background color the user gave, or <see langword="null"/>.</param>
+    /// <returns>The new surface (the same surface for an in-place operation on an owned one) and the description of what was done.</returns>
+    private static (Surface Result, AppliedOperation Applied) Execute(
+        Surface source,
+        bool owned,
+        IImageOperation operation,
+        Rgba32 defaultPadColor,
+        Rgba32? userBackground)
     {
         return operation switch
         {
             CropOperation crop => ApplyCrop(source, crop),
             ResizeOperation resize => ApplyResize(source, resize),
             FitOperation fit => ApplyFit(source, fit),
-            RotateOperation rotate => ApplyRotate(source, rotate),
+            RotateOperation rotate => ApplyRotate(source, rotate, userBackground),
             FlipOperation flip => ApplyFlip(source, flip),
             PadOperation pad => ApplyPad(source, pad, defaultPadColor),
+            GrayscaleOperation => InPlace(source, owned, surface =>
+            {
+                ImageAdjustments.Grayscale(surface);
+                return SourceLoader.Operation("grayscale", ("width", surface.Width), ("height", surface.Height));
+            }),
+            InvertOperation => InPlace(source, owned, surface =>
+            {
+                ImageAdjustments.Invert(surface);
+                return SourceLoader.Operation("invert", ("width", surface.Width), ("height", surface.Height));
+            }),
+            ThresholdOperation threshold => InPlace(source, owned, surface => ApplyThreshold(surface, threshold)),
+            LevelsOperation levels => InPlace(source, owned, surface => ApplyLevels(surface, levels)),
+            BrightnessOperation brightness => InPlace(source, owned, surface =>
+            {
+                ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildBrightnessTable(brightness.Amount));
+                return SourceLoader.Operation("brightness", ("amount", brightness.Amount), ("width", surface.Width), ("height", surface.Height));
+            }),
+            ContrastOperation contrast => InPlace(source, owned, surface =>
+            {
+                ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildContrastTable(contrast.Amount));
+                return SourceLoader.Operation("contrast", ("amount", contrast.Amount), ("width", surface.Width), ("height", surface.Height));
+            }),
+            AutoLevelsOperation autoLevels => InPlace(source, owned, surface => ApplyAutoLevels(surface, autoLevels)),
+            DeskewOperation deskew => ApplyDeskew(source, deskew, userBackground),
+            TrimOperation trim => ApplyTrim(source, trim),
+            GridOperation grid => InPlace(source, owned, surface => ApplyGrid(surface, grid)),
             _ => throw new InvalidOperationException($"The image operation {operation.GetType().Name} is not handled by the pipeline.")
         };
+    }
+
+    /// <summary>
+    ///     Runs an operation that changes pixels in place on a surface the pipeline owns.
+    /// </summary>
+    /// <param name="source">The current surface.</param>
+    /// <param name="owned"><see langword="true"/> when the pipeline owns <paramref name="source"/>; otherwise (it is the caller's input) a copy is changed.</param>
+    /// <param name="change">The operation: changes the surface it is given and describes what it did.</param>
+    /// <returns>The changed surface and the description.</returns>
+    private static (Surface, AppliedOperation) InPlace(Surface source, bool owned, Func<Surface, AppliedOperation> change)
+    {
+        var target = owned ? source : source.Crop(0, 0, source.Width, source.Height);
+        try
+        {
+            return (target, change(target));
+        }
+        catch
+        {
+            if (!owned)
+            {
+                target.Dispose();
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    ///     Turns a surface into black and white.
+    /// </summary>
+    /// <param name="surface">The surface to change.</param>
+    /// <param name="threshold">The operation.</param>
+    /// <returns>The description: the level used, and whether it was chosen automatically.</returns>
+    private static AppliedOperation ApplyThreshold(Surface surface, ThresholdOperation threshold)
+    {
+        var automatic = threshold.Level == null;
+        var level = threshold.Level ?? ImageAdjustments.OtsuThreshold(ImageAdjustments.LumaHistogram(surface));
+        ImageAdjustments.Threshold(surface, level);
+        return SourceLoader.Operation(
+            "threshold",
+            ("auto", automatic),
+            ("level", level),
+            ("width", surface.Width),
+            ("height", surface.Height));
+    }
+
+    /// <summary>
+    ///     Maps the levels of a surface through a black point, a white point, and a gamma.
+    /// </summary>
+    /// <param name="surface">The surface to change.</param>
+    /// <param name="levels">The operation.</param>
+    /// <returns>The description.</returns>
+    private static AppliedOperation ApplyLevels(Surface surface, LevelsOperation levels)
+    {
+        ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildLevelsTable(levels.Black, levels.White, levels.Gamma));
+        return SourceLoader.Operation(
+            "levels",
+            ("black", levels.Black),
+            ("white", levels.White),
+            ("gamma", levels.Gamma),
+            ("width", surface.Width),
+            ("height", surface.Height));
+    }
+
+    /// <summary>
+    ///     Stretches the levels of a surface to the full range.
+    /// </summary>
+    /// <param name="surface">The surface to change.</param>
+    /// <param name="autoLevels">The operation.</param>
+    /// <returns>The description: the points found, or <c>applied: false</c> for a flat image, which is left unchanged.</returns>
+    private static AppliedOperation ApplyAutoLevels(Surface surface, AutoLevelsOperation autoLevels)
+    {
+        return ImageAdjustments.AutoLevels(surface, autoLevels.ClipPercent) is { } points
+            ? SourceLoader.Operation(
+                "auto-levels",
+                ("clip", autoLevels.ClipPercent),
+                ("black", points.Black),
+                ("white", points.White),
+                ("applied", true),
+                ("width", surface.Width),
+                ("height", surface.Height))
+            : SourceLoader.Operation(
+                "auto-levels",
+                ("clip", autoLevels.ClipPercent),
+                ("applied", false),
+                ("width", surface.Width),
+                ("height", surface.Height));
+    }
+
+    /// <summary>
+    ///     Draws a coordinate grid over a surface.
+    /// </summary>
+    /// <param name="surface">The surface to change.</param>
+    /// <param name="grid">The operation.</param>
+    /// <returns>The description: the spacing, the color, and the numbers of lines and labels drawn.</returns>
+    private static AppliedOperation ApplyGrid(Surface surface, GridOperation grid)
+    {
+        var color = grid.Color ?? GridOverlay.DefaultColor;
+        var result = GridOverlay.Draw(surface, grid.Spacing, color);
+        return SourceLoader.Operation(
+            "grid",
+            ("spacing", grid.Spacing),
+            ("color", SourceLoader.FormatColor(color)),
+            ("verticalLines", result.VerticalLines),
+            ("horizontalLines", result.HorizontalLines),
+            ("labels", result.Labels),
+            ("width", surface.Width),
+            ("height", surface.Height));
+    }
+
+    /// <summary>
+    ///     Crops a surface to the content inside a uniform border.
+    /// </summary>
+    /// <param name="source">The surface.</param>
+    /// <param name="trim">The operation.</param>
+    /// <returns>
+    ///     The cropped surface and its description: the box, whether anything was <c>trimmed</c>, and <c>empty</c> when the
+    ///     whole image is background (then the image is copied unchanged).
+    /// </returns>
+    private static (Surface, AppliedOperation) ApplyTrim(Surface source, TrimOperation trim)
+    {
+        var bounds = ImageGeometry.FindTrimBounds(source, trim.Tolerance);
+        var (x, y, width, height) = bounds ?? (0, 0, source.Width, source.Height);
+        var result = source.Crop(x, y, width, height);
+        var trimmed = width != source.Width || height != source.Height;
+        return (result, SourceLoader.Operation(
+            "trim",
+            ("tolerance", trim.Tolerance),
+            ("x", x),
+            ("y", y),
+            ("width", width),
+            ("height", height),
+            ("trimmed", trimmed),
+            ("empty", bounds == null)));
+    }
+
+    /// <summary>
+    ///     Straightens a surface by the skew its near-horizontal lines have.
+    /// </summary>
+    /// <param name="source">The surface.</param>
+    /// <param name="deskew">The operation.</param>
+    /// <param name="userBackground">The background color the user gave, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The rotated surface (a copy when the skew is not corrected) and its description: <c>skewDegrees</c> (positive
+    ///     when lines descend to the right), <c>rotateDegrees</c> (the signed clockwise correction, 0 when none),
+    ///     <c>confidence</c>, and <c>applied</c>; when a size limit skips the correction, also <c>reason</c> (after
+    ///     <c>applied</c>).
+    /// </returns>
+    /// <remarks>
+    ///     The skew is corrected only when it was estimated, its size is at least
+    ///     <see cref="ImageGeometry.MinCorrectedSkew"/> degrees, its confidence at least
+    ///     <see cref="ImageGeometry.MinConfidence"/>, and the expanded canvas (<see cref="ImageGeometry.RotatedSize"/>,
+    ///     the size <see cref="ImageGeometry.RotateArbitrary"/> allocates) fits <see cref="Surface.MaxDimension"/>.
+    ///     Otherwise the image is copied unchanged; a size-limit skip includes a <c>reason</c> in its operation report.
+    /// </remarks>
+    private static (Surface, AppliedOperation) ApplyDeskew(Surface source, DeskewOperation deskew, Rgba32? userBackground)
+    {
+        var estimate = ImageGeometry.EstimateSkew(source);
+        var correct = estimate.Estimated
+                      && Math.Abs(estimate.Degrees) >= ImageGeometry.MinCorrectedSkew
+                      && estimate.Confidence >= ImageGeometry.MinConfidence;
+        if (!correct)
+        {
+            return SkipDeskew(source, estimate, null);
+        }
+
+        var rotateDegrees = -estimate.Degrees;
+        var normalized = rotateDegrees < 0 ? rotateDegrees + 360 : rotateDegrees;
+        var (rotatedWidth, rotatedHeight) = ImageGeometry.RotatedSize(source.Width, source.Height, normalized);
+        if (rotatedWidth > Surface.MaxDimension || rotatedHeight > Surface.MaxDimension)
+        {
+            return SkipDeskew(source, estimate, "rotated image would exceed the maximum size");
+        }
+
+        var fill = ResolveFill(source, deskew.Fill, userBackground);
+        var nearest = deskew.Filter == ResamplingMode.Nearest;
+        var result = ImageGeometry.RotateArbitrary(source, normalized, fill, nearest);
+        return (result, SourceLoader.Operation(
+            "deskew",
+            ("skewDegrees", estimate.Degrees),
+            ("rotateDegrees", rotateDegrees),
+            ("confidence", estimate.Confidence),
+            ("applied", true),
+            ("fill", SourceLoader.FormatColor(fill)),
+            ("filter", nearest ? "nearest" : "bilinear"),
+            ("width", result.Width),
+            ("height", result.Height)));
+    }
+
+    /// <summary>
+    ///     Copies a surface unchanged and describes a deskew that was not applied.
+    /// </summary>
+    /// <param name="source">The surface.</param>
+    /// <param name="estimate">The skew estimate.</param>
+    /// <param name="reason">Why the correction was skipped when a limit caused it, or <see langword="null"/> when the skew simply needs no correction.</param>
+    /// <returns>The copy and its description (<c>reason</c> only when one was given).</returns>
+    private static (Surface, AppliedOperation) SkipDeskew(Surface source, SkewEstimate estimate, string? reason)
+    {
+        var copy = source.Crop(0, 0, source.Width, source.Height);
+        var fields = new List<(string, object)>
+        {
+            ("skewDegrees", estimate.Degrees),
+            ("rotateDegrees", 0.0),
+            ("confidence", estimate.Confidence),
+            ("applied", false),
+        };
+        if (reason != null)
+        {
+            fields.Add(("reason", reason));
+        }
+
+        fields.Add(("width", copy.Width));
+        fields.Add(("height", copy.Height));
+        return (copy, SourceLoader.Operation("deskew", [.. fields]));
+    }
+
+    /// <summary>
+    ///     Chooses the color that fills the corners a rotation exposes.
+    /// </summary>
+    /// <param name="source">The surface being rotated.</param>
+    /// <param name="explicitFill">The fill the operation names, or <see langword="null"/>.</param>
+    /// <param name="userBackground">The background color the user gave, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The operation's own fill; else the user's background; else opaque white when every pixel of the surface is opaque
+    ///     (a photograph or a flattened drawing: the corners look like paper); else transparent.
+    /// </returns>
+    private static Rgba32 ResolveFill(Surface source, Rgba32? explicitFill, Rgba32? userBackground)
+    {
+        if (explicitFill is { } own)
+        {
+            return own;
+        }
+
+        if (userBackground is { } background)
+        {
+            return background;
+        }
+
+        return IsOpaque(source) ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0);
+    }
+
+    /// <summary>
+    ///     Determines whether every pixel of a surface is opaque.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <returns><see langword="true"/> when no pixel has an alpha below 255.</returns>
+    private static bool IsOpaque(Surface surface)
+    {
+        for (var y = 0; y < surface.Height; y++)
+        {
+            foreach (var pixel in surface.GetRowSpan(y))
+            {
+                if (pixel.A != 255)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -458,13 +952,36 @@ internal static class ImagePipeline
     }
 
     /// <summary>
-    ///     Rotates a surface clockwise by a right angle.
+    ///     Rotates a surface clockwise by any angle.
     /// </summary>
     /// <param name="source">The surface.</param>
     /// <param name="rotate">The operation.</param>
-    /// <returns>The rotated surface and its description; for 90 and 270 degrees the width and height are swapped.</returns>
-    private static (Surface, AppliedOperation) ApplyRotate(Surface source, RotateOperation rotate)
+    /// <param name="userBackground">The background color the user gave, or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The rotated surface and its description. A right angle is an exact pixel move (for 90 and 270 degrees the width
+    ///     and height are swapped) and 0 is a copy; any other angle is <see cref="ImageGeometry.RotateArbitrary"/> onto an
+    ///     expanded canvas, filled with the fill of the rule at <see cref="ResolveFill"/>, and also reports <c>fill</c> and
+    ///     <c>filter</c> (<c>nearest</c> or <c>bilinear</c>).
+    /// </returns>
+    /// <exception cref="ToolException">Thrown with code <c>size-limit</c> when the expanded canvas would be larger than <see cref="Surface.MaxDimension"/>.</exception>
+    private static (Surface, AppliedOperation) ApplyRotate(Surface source, RotateOperation rotate, Rgba32? userBackground)
     {
+        var quarters = Math.Round(rotate.Degrees / 90.0);
+        if (Math.Abs(rotate.Degrees - (quarters * 90.0)) >= RightAngleEpsilon)
+        {
+            var fill = ResolveFill(source, rotate.Fill, userBackground);
+            var nearest = rotate.Filter == ResamplingMode.Nearest;
+            var turned = ImageGeometry.RotateArbitrary(source, rotate.Degrees, fill, nearest);
+            return (turned, SourceLoader.Operation(
+                "rotate",
+                ("degrees", rotate.Degrees),
+                ("fill", SourceLoader.FormatColor(fill)),
+                ("filter", nearest ? "nearest" : "bilinear"),
+                ("width", turned.Width),
+                ("height", turned.Height)));
+        }
+
+        var degrees = (((int)(quarters * 90.0) % 360) + 360) % 360;
         var width = source.Width;
         var height = source.Height;
 
@@ -472,8 +989,11 @@ internal static class ImagePipeline
         var rotatedWidth = height;
         var rotatedHeight = width;
         Surface result;
-        switch (rotate.Degrees)
+        switch (degrees)
         {
+            case 0:
+                result = source.Crop(0, 0, width, height);
+                break;
             case 90:
                 // A pixel at (x, y) of the source lands at (height - 1 - y, x): the top row becomes the right column
                 result = new Surface(rotatedWidth, rotatedHeight);
@@ -505,7 +1025,7 @@ internal static class ImagePipeline
                 break;
         }
 
-        return (result, SourceLoader.Operation("rotate", ("degrees", rotate.Degrees), ("width", result.Width), ("height", result.Height)));
+        return (result, SourceLoader.Operation("rotate", ("degrees", degrees), ("width", result.Width), ("height", result.Height)));
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet pdf endobj endstream xref startxref rmse ssim
+// cspell:ignore canvasnet pdf endobj endstream xref startxref rmse ssim deskew otsu thresholded
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -54,6 +54,7 @@ internal static class Validation
         RunRotateFlipPadTest(context, testResults);
         RunCompareTest(context, testResults);
         RunMontageTest(context, testResults);
+        RunAdjustmentsTest(context, testResults);
         var totalTests = testResults.Results.Count;
         var passedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Passed);
         var failedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Failed);
@@ -764,6 +765,238 @@ internal static class Validation
 
             return "The first cell has no label";
         });
+    }
+
+    /// <summary>
+    ///     The width of the sketch the adjustments self-test generates.
+    /// </summary>
+    private const int SketchWidth = 160;
+
+    /// <summary>
+    ///     The height of the sketch the adjustments self-test generates.
+    /// </summary>
+    private const int SketchHeight = 100;
+
+    /// <summary>
+    ///     The tilt, in degrees clockwise, of the lines of the sketch the adjustments self-test generates.
+    /// </summary>
+    private const double SketchTiltDegrees = 3.0;
+
+    /// <summary>
+    ///     The gray level of the paper of the sketch.
+    /// </summary>
+    private const byte SketchPaper = 200;
+
+    /// <summary>
+    ///     The gray level of the ink of the sketch.
+    /// </summary>
+    private const byte SketchInk = 40;
+
+    /// <summary>
+    ///     Runs a test of the photo operations: it generates a light-gray sketch with four dark lines tilted by three
+    ///     degrees and checks the results of the tone operations, deskew, rotation by an oblique angle, trim, grid, and
+    ///     inspect on it.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunAdjustmentsTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_Adjustments", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "sketch.png");
+            using (var sketch = CreateSketchSurface())
+            {
+                PngCodec.Save(sketch, input);
+            }
+
+            return CheckToneOperations(directory, input)
+                   ?? CheckDeskewAndRotate(directory, input)
+                   ?? CheckTrimAndGrid(directory, input)
+                   ?? CheckInspect(directory, input);
+        });
+    }
+
+    /// <summary>
+    ///     Creates the sketch of the adjustments self-test: gray paper with four dark two-pixel lines tilted clockwise by
+    ///     <see cref="SketchTiltDegrees"/>, drawn with plain arithmetic.
+    /// </summary>
+    /// <returns>A new opaque surface; the pixel at 80,19 is ink and the pixel at 0,0 is paper.</returns>
+    private static Surface CreateSketchSurface()
+    {
+        var surface = new Surface(SketchWidth, SketchHeight);
+        var paper = new Rgba32(SketchPaper, SketchPaper, SketchPaper, 255);
+        var ink = new Rgba32(SketchInk, SketchInk, SketchInk, 255);
+        for (var y = 0; y < SketchHeight; y++)
+        {
+            for (var x = 0; x < SketchWidth; x++)
+            {
+                surface[x, y] = paper;
+            }
+        }
+
+        var slope = Math.Tan(SketchTiltDegrees * Math.PI / 180.0);
+        for (var line = 1; line <= 4; line++)
+        {
+            var baseline = SketchHeight * line / 5.0;
+            for (var x = 0; x < SketchWidth; x++)
+            {
+                var top = (int)Math.Round(baseline + ((x - (SketchWidth / 2.0)) * slope) - 1.0);
+                surface[x, top] = ink;
+                surface[x, top + 1] = ink;
+            }
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Checks the black and white result of an automatic threshold and the stretch of auto-levels.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="input">The sketch.</param>
+    /// <returns><see langword="null"/> when the results are right; otherwise a description of the failure.</returns>
+    private static string? CheckToneOperations(string directory, string input)
+    {
+        // Grayscale then an automatic (Otsu) threshold: every pixel is black or white, the ink black, the paper white
+        var blackAndWhite = PathHelpers.SafePathCombine(directory, "bw.png");
+        var json = RunCommand(
+            directory, "render", input, "--grayscale", "--threshold", "auto", "-o", blackAndWhite, "--json");
+        using (var document = JsonDocument.Parse(json))
+        {
+            var thresholdOperation = document.RootElement.GetProperty("operations").EnumerateArray().Last();
+            var level = thresholdOperation.GetProperty("level").GetInt32();
+            if (thresholdOperation.GetProperty("op").GetString() != "threshold" || level < 1 || level > 254)
+            {
+                return "The automatic threshold did not report a level between 1 and 254";
+            }
+        }
+
+        var black = new Rgba32(0, 0, 0, 255);
+        var white = new Rgba32(255, 255, 255, 255);
+        using (var thresholded = PngCodec.Load(blackAndWhite))
+        {
+            if (!AllPixelsAre(thresholded, black, white) || thresholded[80, 19] != black || thresholded[0, 0] != white)
+            {
+                return "The thresholded image is not black and white with black ink on white paper";
+            }
+        }
+
+        // Auto-levels stretches the ink (40) and the paper (200) to the ends of the range
+        var stretchedPath = PathHelpers.SafePathCombine(directory, "levels.png");
+        RunCommand(directory, "render", input, "--auto-levels", "-o", stretchedPath);
+        using var stretched = PngCodec.Load(stretchedPath);
+        return stretched[80, 19].R <= 5 && stretched[0, 0].R >= 250
+            ? null
+            : "Auto-levels did not stretch the ink and the paper to the ends of the range";
+    }
+
+    /// <summary>
+    ///     Checks that deskew finds the tilt of the sketch and rotates it level, and that an oblique rotation grows the
+    ///     canvas and fills the corners.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="input">The sketch.</param>
+    /// <returns><see langword="null"/> when the results are right; otherwise a description of the failure.</returns>
+    private static string? CheckDeskewAndRotate(string directory, string input)
+    {
+        // Deskew reports the tilt it found (clockwise positive) and corrects it
+        var leveled = PathHelpers.SafePathCombine(directory, "leveled.png");
+        var json = RunCommand(directory, "render", input, "--deskew", "-o", leveled, "--json");
+        using (var document = JsonDocument.Parse(json))
+        {
+            var deskewOperation = document.RootElement.GetProperty("operations").EnumerateArray().Last();
+            if (deskewOperation.GetProperty("op").GetString() != "deskew"
+                || !deskewOperation.GetProperty("applied").GetBoolean()
+                || Math.Abs(deskewOperation.GetProperty("skewDegrees").GetDouble() - SketchTiltDegrees) > 0.7)
+            {
+                return "Deskew did not find the tilt of the lines";
+            }
+        }
+
+        // Rotating 160x100 by 30 degrees needs a canvas of 189x167; the corners take the fill color
+        var rotatedPath = PathHelpers.SafePathCombine(directory, "rotated.png");
+        RunCommand(directory, "rotate", input, "30", "--rotate-fill", "#ff0000", "-o", rotatedPath);
+        using var rotated = PngCodec.Load(rotatedPath);
+        return rotated.Width == 189 && rotated.Height == 167 && rotated[0, 0] == new Rgba32(255, 0, 0, 255)
+            ? null
+            : "The rotated image has the wrong size or corner color";
+    }
+
+    /// <summary>
+    ///     Checks that trim crops to the content inside a border and that the grid draws over a copy of the image.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="input">The sketch.</param>
+    /// <returns><see langword="null"/> when the results are right; otherwise a description of the failure.</returns>
+    private static string? CheckTrimAndGrid(string directory, string input)
+    {
+        // A white border of 10 pixels is trimmed away again: the box is the sketch
+        var trimmedPath = PathHelpers.SafePathCombine(directory, "trimmed.png");
+        var json = RunCommand(
+            directory, "render", input, "--pad", "10", "--pad-color", "#ffffff", "--trim", "-o", trimmedPath, "--json");
+        using (var document = JsonDocument.Parse(json))
+        {
+            var trimOperation = document.RootElement.GetProperty("operations").EnumerateArray().Last();
+            if (trimOperation.GetProperty("op").GetString() != "trim"
+                || trimOperation.GetProperty("width").GetInt32() != SketchWidth
+                || trimOperation.GetProperty("height").GetInt32() != SketchHeight)
+            {
+                return "Trim did not crop to the content box";
+            }
+        }
+
+        // The grid line at x=20 changes the pixel at 20,50 of the copy, and the input file is not changed
+        var gridPath = PathHelpers.SafePathCombine(directory, "grid.png");
+        RunCommand(directory, "render", input, "--grid", "20", "-o", gridPath);
+        using var original = CreateSketchSurface();
+        using var gridded = PngCodec.Load(gridPath);
+        using var stored = PngCodec.Load(input);
+        return gridded.Width == SketchWidth && gridded.Height == SketchHeight
+               && gridded[20, 50] != original[20, 50] && SurfacesEqual(stored, original)
+            ? null
+            : "The grid did not change the pixel on its line, or the input was changed";
+    }
+
+    /// <summary>
+    ///     Checks that the inspect commands report the paper color as the dominant color and as the color of a pixel.
+    /// </summary>
+    /// <param name="directory">The directory for the files.</param>
+    /// <param name="input">The sketch.</param>
+    /// <returns><see langword="null"/> when the results are right; otherwise a description of the failure.</returns>
+    private static string? CheckInspect(string directory, string input)
+    {
+        var colorsJson = RunCommand(directory, "inspect", "colors", input, "--json");
+        var pixelJson = RunCommand(directory, "inspect", "pixel", input, "0,0", "--json");
+        using var colors = JsonDocument.Parse(colorsJson);
+        using var pixel = JsonDocument.Parse(pixelJson);
+        var dominant = colors.RootElement.GetProperty("colors").EnumerateArray().First().GetProperty("hex").GetString();
+        var sample = pixel.RootElement.GetProperty("pixel").GetProperty("hex").GetString();
+        return dominant == "#C8C8C8" && sample == dominant
+            ? null
+            : "The inspect commands did not report the paper color";
+    }
+
+    /// <summary>
+    ///     Determines whether every pixel of a surface is one of two colors.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="first">The first color.</param>
+    /// <param name="second">The second color.</param>
+    /// <returns><see langword="true"/> when no pixel has another color.</returns>
+    private static bool AllPixelsAre(Surface surface, Rgba32 first, Rgba32 second)
+    {
+        for (var y = 0; y < surface.Height; y++)
+        {
+            foreach (var pixel in surface.GetRowSpan(y))
+            {
+                if (pixel != first && pixel != second)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

@@ -2087,6 +2087,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommand*Tests.cs"  # unit tests
 
+  # CanvasNetTool-Commands-InspectCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-InspectCommand
+    title: Review that CanvasNetTool Commands InspectCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/inspect-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/inspect-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/inspect-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/inspect-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
+
   # CanvasNetTool-Imaging Review (one per subsystem)
   - id: CanvasNetTool-Imaging
     title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct
@@ -2185,6 +2201,70 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/imaging/contact-sheet.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageAdjustments Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageAdjustments
+    title: Review that CanvasNetTool Imaging ImageAdjustments Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-adjustments.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-adjustments.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-adjustments.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-adjustments.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAdjustments.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAdjustmentsTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageGeometry Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageGeometry
+    title: Review that CanvasNetTool Imaging ImageGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-geometry.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-geometry.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageGeometry*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageGeometry*Tests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-GridOverlay Review (one per unit)
+  - id: CanvasNetTool-Imaging-GridOverlay
+    title: Review that CanvasNetTool Imaging GridOverlay Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/grid-overlay.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/grid-overlay.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/grid-overlay.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/grid-overlay.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/GridOverlay.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/GridOverlayTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageAnalysis Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageAnalysis
+    title: Review that CanvasNetTool Imaging ImageAnalysis Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-analysis.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-analysis.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-analysis.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-analysis.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAnalysis.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAnalysisTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

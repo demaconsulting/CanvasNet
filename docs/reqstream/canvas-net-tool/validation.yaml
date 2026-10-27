@@ -1,5 +1,5 @@
 ---
-# cspell:ignore scad openscad
+# cspell:ignore scad openscad deskew
 # Software Unit Requirements for the Validation Class
 #
 # The Validation class provides the self-validation framework, running tests that demonstrate the
@@ -105,3 +105,19 @@ sections:
           - Validation_Run_CompareMontageSelfTests_PassAndAreRecorded
           - CanvasNetTool_Compare
           - CanvasNetTool_Montage
+
+      - id: CanvasNetTool-Validation-AdjustmentsSelfTest
+        title: >-
+          The Validation class shall run the adjustments self-test, which generates a PNG sketch with four tilted
+          lines and runs the render command with an automatic threshold, auto-levels, deskew, an oblique rotation,
+          trim, and a grid, the rotate verb, and the inspect colors and inspect pixel commands on it in-process,
+          checking the decoded pixels, sizes, and JSON documents.
+        justification: |
+          The adjustments self-test proves, in the deployment environment, that the tone operations, the skew
+          estimation, the arbitrary-angle rotation, the trim, the grid with its bundled-font labels, the analysis,
+          and the commands work together; its name is a contract with the qualification evidence. It is a smoke
+          test of every photo operation in one run: the detailed coverage is in the unit and subsystem tests, and
+          the self-validation suite is kept small.
+        tests:
+          - Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded
+          - CanvasNetTool_Adjustments

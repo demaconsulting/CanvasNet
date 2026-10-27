@@ -1,6 +1,6 @@
 # CanvasNet
 
-<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM -->
+<!-- cspell:ignore SFNT codepoints Noto Zapf Visio canvasnet PSNR RMSE SSIM deskew Otsu luma grayscale -->
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
 
@@ -46,7 +46,8 @@ load/crop/resize/save workflows.
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
   booleans, extrusions, `hull`, `minkowski`, `-D` variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
-- 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract
+- 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
+  including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -114,17 +115,27 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `render` (alias `convert`) | Write PNG, JPEG, BMP, or TIFF from an image, drawing, page, or model             |
 | `crop`                     | Cut a rectangle (pixels or percent) out of an image                              |
 | `resize`                   | Resample an image to an exact size                                               |
-| `rotate`                   | Rotate by 90, 180, or 270 degrees                                                |
+| `rotate`                   | Rotate clockwise by any angle (grows the canvas, fills the corners)              |
 | `flip`                     | Mirror horizontally, vertically, or both                                         |
 | `pad`                      | Add a border around an image                                                     |
 | `compare`                  | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid)                 |
 | `montage`                  | Compose images and document pages into one labeled contact sheet                 |
+| `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
 
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and SCAD, and applies `--crop`, `--resize`,
-`--fit`, `--rotate`, `--flip`, and `--pad` in the order written; `crop`, `resize`, `rotate`, `flip`, and `pad` are
+`--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo operations
+`--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`,
+and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are
 the same pipeline with one operation first. Defaults: an existing output is replaced (`--no-clobber` refuses),
 vector sources are flattened over white, a JPEG is turned upright by its EXIF orientation, document pages are
 drawn at 96 dpi (`--page`, `--all-pages`, `--dpi`), and no side of an image may exceed 8192 pixels.
+
+The photo operations clean up a photograph of a sketch so it can be read and measured: `--auto-levels` stretches the
+contrast, `--deskew` finds the tilt of the near-horizontal lines (within 15 degrees) and levels the image, reporting the
+angle and a confidence in the `--json` result, `--trim` crops away the uniform border, `--threshold auto` makes it
+black and white (Otsu's method), and `--grid 100` draws a labeled coordinate grid to read positions off the picture
+(put it last). `inspect colors <input>` reports the dominant colors and the luma statistics, and
+`inspect pixel <input> <x,y>` the value of a pixel, in the coordinates of the image after the same operations.
 
 A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|top|bottom`, orthographic unless
 `--projection perspective`) at 800x800 pixels unless a size is given, with `-D name=value` setting its variables, for
@@ -164,8 +175,15 @@ canvasnet compare ref.png redraw.svg --resize-to a --grid 4x4 --side-by-side cmp
 # 3c. Review every slide of a deck in one picture
 canvasnet montage deck.pptx --all-pages --labels -o overview.png --json
 
-# 4. A napkin photo: crop and shrink it to look at, then draw named views of the OpenSCAD model written from it
-canvasnet render napkin.jpg --crop 5%,10%,90%,80% --fit 1600x1600 -o napkin-view.png
+# 4. A napkin photo: clean it up (shrink, stretch contrast, level, crop to the drawing; the JSON result reports the angle)
+canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json
+
+# 4b. Read coordinates off the picture with a grid, probe a pixel, and see the dominant colors
+canvasnet render sketch.png --grid 100 -o sketch-grid.png
+canvasnet inspect pixel sketch.png 412,230 --radius 2 --json
+canvasnet inspect colors sketch.png --count 5 --json
+
+# 4c. Draw named views of the OpenSCAD model written from the sketch
 canvasnet render bracket.scad --view front -o front.png --json
 canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 ```

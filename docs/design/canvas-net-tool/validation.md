@@ -1,6 +1,6 @@
 ## Validation
 
-<!-- cspell:ignore Postconditions scad openscad rmse ssim -->
+<!-- cspell:ignore Postconditions scad openscad rmse ssim deskew -->
 
 ![CanvasNetTool Structure](CanvasNetToolView.svg)
 
@@ -20,8 +20,8 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
-`CanvasNetTool_Compare` and `CanvasNetTool_Montage` (thirteen in total; the suite is deliberately kept small, so
-further coverage belongs in the unit and subsystem tests).
+`CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments` (fourteen in
+total; the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests).
 Each is
 recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool".
@@ -94,6 +94,21 @@ composes two copies of the PNG into 32x32 cells in two columns with labels and r
 and in the file, white padding at the corner, the image fitted and centered in the first cell, and text pixels in its
 label strip. These exercise the comparison, the
 contact sheet with its bundled-font labels, the picture creators, and the commands together.
+
+**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 14th and last self-test).
+It generates a 160x100 PNG sketch with `CreateSketchSurface` (light-gray paper `#C8C8C8` with four dark two-pixel lines
+tilted 3 degrees clockwise, drawn with plain arithmetic, so that the pixel at 80,19 is ink and the pixel at 0,0 is
+paper) and runs the checks of four helpers in turn, stopping at the first failure. `CheckToneOperations` runs
+`render --grayscale --threshold auto --json` and requires an automatic level from 1 to 254, only black and white pixels,
+black ink and white paper, then `render --auto-levels` and requires the ink at most 5 and the paper at least 250.
+`CheckDeskewAndRotate` runs `render --deskew --json` and requires `applied` and a reported skew within 0.7 degrees of 3,
+then `rotate 30 --rotate-fill #ff0000` and requires a 189x167 image (the canvas that holds a 160x100 image turned 30
+degrees) with a red corner. `CheckTrimAndGrid` pads the sketch with a white border of 10 pixels and trims it, requiring
+the `trim` operation to report the 160x100 content box, then renders `--grid 20` and requires that the pixel at 20,50
+differs from the sketch and that the input file still equals the generated sketch. `CheckInspect` runs `inspect colors`
+and `inspect pixel 0,0` with `--json` and requires that the first dominant color and the pixel are both `#C8C8C8`.
+This exercises the tone operations, the skew estimation, the arbitrary-angle rotation, the trim, the grid with its
+bundled-font labels, the analysis, and the commands together.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg jpg tiff tif exif pdf pptx vsdx scad rotat
+// cspell:ignore canvasnet jpeg jpg tiff tif exif pdf pptx vsdx scad rotat deskew
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -631,7 +631,7 @@ public class RenderCommandPipelineTests
     /// <param name="message">Text the message contains.</param>
     /// <param name="args">The arguments after the input.</param>
     [Theory]
-    [InlineData("rotate", "usage-error", "Rotation by 45 degrees is not supported yet", "45")]
+    [InlineData("rotate", "usage-error", "Invalid value 'abc' for <degrees>", "abc")]
     [InlineData("rotate", "usage-error", "Invalid value 'sideways' for <degrees>", "sideways")]
     [InlineData("crop", "usage-error", "Invalid value '1,2' for <geometry>", "1,2")]
     [InlineData("crop", "usage-error", "outside the 12x8 image", "12,0,3,3")]
@@ -642,7 +642,12 @@ public class RenderCommandPipelineTests
     [InlineData("pad", "usage-error", "Invalid value '1,2' for <border>", "1,2")]
     [InlineData("pad", "size-limit", "which is larger than the maximum of 8192", "8190")]
     [InlineData("crop", "usage-error", "--pad-color only applies with a pad", "0,0,2,2", "--pad-color", "red")]
-    [InlineData(null, "usage-error", "Rotation by 30 degrees is not supported yet", "--rotate", "30")]
+    [InlineData("crop", "usage-error", "--rotate-fill only applies with a rotation or --deskew", "0,0,2,2", "--rotate-fill", "red")]
+    [InlineData(null, "usage-error", "Invalid value 'abc' for --rotate", "--rotate", "abc")]
+    [InlineData(null, "usage-error", "Invalid value '3' for --grid", "--grid", "3")]
+    [InlineData(null, "usage-error", "Invalid value '5,5' for --levels", "--levels", "5,5")]
+    [InlineData(null, "usage-error", "--trim-tolerance only applies with --trim", "--trim-tolerance", "5")]
+    [InlineData(null, "usage-error", "--auto-levels-clip only applies with --auto-levels", "--auto-levels-clip", "5")]
     [InlineData(null, "usage-error", "Invalid value 'x' for --flip", "--flip", "x")]
     [InlineData(null, "usage-error", "--allow-upscale only applies with --fit", "--allow-upscale")]
     [InlineData(null, "usage-error", "Invalid value 'blurry' for --filter", "--filter", "blurry")]
@@ -738,7 +743,12 @@ public class RenderCommandPipelineTests
         var topHelp = registry.RenderHelp();
 
         // Assert: every pipeline option in the render help, every verb in the command list and in its own help
-        foreach (var option in new[] { "--crop", "--resize", "--fit", "--allow-upscale", "--rotate", "--flip", "--pad", "--pad-color", "--filter" })
+        foreach (var option in new[]
+                 {
+                     "--crop", "--resize", "--fit", "--allow-upscale", "--rotate", "--flip", "--pad", "--pad-color", "--filter",
+                     "--rotate-fill", "--grayscale", "--invert", "--threshold", "--levels", "--brightness", "--contrast",
+                     "--auto-levels", "--auto-levels-clip", "--deskew", "--trim", "--trim-tolerance", "--grid"
+                 })
         {
             Assert.Contains(option, renderHelp);
         }
@@ -749,5 +759,233 @@ public class RenderCommandPipelineTests
             Assert.Contains($"canvasnet {verb} <input>", registry.RenderHelp(verb));
             Assert.Same(registry.Find(verb), registry.Find(verb.ToUpperInvariant()));
         }
+    }
+
+    /// <summary>
+    ///     Test that the photo options are declared once for render and the verbs and run in the order written.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_PhotoOptions_AppearInHelpAndRunInOrder()
+    {
+        // Arrange: every photo option is in the option table once, and in the usage text of render and the verbs
+        string[] photoOptions =
+        [
+            "--rotate-fill", "--grayscale", "--invert", "--threshold", "--levels", "--brightness", "--contrast",
+            "--auto-levels", "--auto-levels-clip", "--deskew", "--trim", "--trim-tolerance", "--grid"
+        ];
+        foreach (var option in photoOptions)
+        {
+            Assert.Single(RenderCommand.OptionTable, spec => spec.Name == option);
+            Assert.Contains(option, new RenderCommand("rotate").Options.Select(o => o.Name));
+        }
+
+        Assert.Contains("--threshold", new RenderCommand().Usage);
+        Assert.Contains("--deskew", new RenderCommand("rotate").Usage);
+
+        // Act: run a chain on the PNG gradient
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var output = directory.Combine("out.png");
+        var json = Run(null, true, input, "--grayscale", "--invert", "--brightness", "10", "--contrast", "5", "--threshold", "auto", "--grid", "8", "-o", output);
+
+        // Assert: the operations come in the order written, and the pixels are black and white with the grid on top
+        Assert.Equal(["grayscale", "invert", "brightness", "contrast", "threshold", "grid"], OperationNames(json).TakeLast(6));
+        using var result = PngCodec.Load(output);
+        Assert.Equal((12, 8), (result.Width, result.Height));
+
+        // Away from the grid lines the pixels are pure black or white; on the line at x = 8 they are tinted
+        Assert.True(result[3, 3].R is 0 or 255 && result[3, 3].G == result[3, 3].R && result[3, 3].B == result[3, 3].R);
+        Assert.NotEqual(result[8, 3].R, result[8, 3].G);
+    }
+
+    /// <summary>
+    ///     Test that the rotate verb accepts any angle and writes what render --rotate writes.
+    /// </summary>
+    /// <param name="operand">The angle.</param>
+    [Theory]
+    [InlineData("30")]
+    [InlineData("-3.5")]
+    [InlineData("45deg")]
+    [InlineData("0")]
+    [InlineData("-90")]
+    public void RenderCommand_Run_RotateVerbAnyAngle_MatchesRenderEquivalent(string operand)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var viaVerb = directory.Combine("verb.png");
+        var viaRender = directory.Combine("render.png");
+
+        // Act
+        Run("rotate", false, input, operand, "--rotate-fill", "white", "-o", viaVerb);
+        Run(null, false, input, "--rotate", operand, "--rotate-fill", "white", "-o", viaRender);
+
+        // Assert
+        Assert.Equal(File.ReadAllBytes(viaRender), File.ReadAllBytes(viaVerb));
+    }
+
+    /// <summary>
+    ///     Test that the JSON of a deskew reports the angle that was found, the correction, and the confidence.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_DeskewJson_ReportsAngleAndConfidence()
+    {
+        // Arrange: ruled lines that descend to the right by 5 degrees
+        using var directory = new TempDirectory();
+        var input = directory.Combine("tilted.png");
+        using (var surface = FixtureFactory.SketchPhoto(400, 300, 5.0))
+        {
+            PngCodec.Save(surface, input);
+        }
+
+        var output = directory.Combine("level.png");
+
+        // Act
+        var json = Run(null, true, input, "--deskew", "-o", output);
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var operation = document.RootElement.GetProperty("operations").EnumerateArray().Single(o => o.GetProperty("op").GetString() == "deskew");
+        var skew = operation.GetProperty("skewDegrees").GetDouble();
+        Assert.InRange(skew, 4.8, 5.2);
+        Assert.Equal(-skew, operation.GetProperty("rotateDegrees").GetDouble());
+        Assert.True(operation.GetProperty("confidence").GetDouble() >= ImageGeometry.MinConfidence);
+        Assert.True(operation.GetProperty("applied").GetBoolean());
+        var reported = document.RootElement.GetProperty("outputs")[0];
+        using var result = PngCodec.Load(output);
+        Assert.Equal(result.Width, reported.GetProperty("width").GetInt32());
+        Assert.Equal(operation.GetProperty("width").GetInt32(), result.Width);
+        Assert.True(result.Width > 400);
+    }
+
+    /// <summary>
+    ///     Test that an oversized automatic deskew succeeds, leaves the output unchanged, and warns in text mode.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning()
+    {
+        // Arrange: a two-degree skew whose expanded 8192-pixel-wide canvas exceeds the limit
+        using var directory = new TempDirectory();
+        var input = directory.Combine("wide.png");
+        using (var surface = FixtureFactory.SketchPhoto(8192, 400, 2.0))
+        {
+            PngCodec.Save(surface, input);
+        }
+
+        var jsonOutput = directory.Combine("json.png");
+        var textOutput = directory.Combine("text.png");
+
+        // Act: run the same best-effort operation in JSON and normal output modes
+        var json = Run(null, true, input, "--deskew", "-o", jsonOutput);
+        using var context = Context.Create([]);
+        var (text, diagnostics) = ToolHost.Capture(() =>
+            new RenderCommand().Run(context, [input, "--deskew", "-o", textOutput]));
+
+        // Assert: both commands succeed, preserve the size, report the reason, and warn without failing
+        using var document = JsonDocument.Parse(json);
+        var operation = document.RootElement.GetProperty("operations").EnumerateArray()
+            .Single(o => o.GetProperty("op").GetString() == "deskew");
+        Assert.False(operation.GetProperty("applied").GetBoolean());
+        Assert.Equal("rotated image would exceed the maximum size", operation.GetProperty("reason").GetString());
+        Assert.Equal(8192, operation.GetProperty("width").GetInt32());
+        Assert.Equal(400, operation.GetProperty("height").GetInt32());
+        using var result = PngCodec.Load(jsonOutput);
+        using var original = PngCodec.Load(input);
+        Assert.Equal((8192, 400), (result.Width, result.Height));
+        SurfaceAssert.Equal(original, result);
+        Assert.Equal(0, context.ExitCode);
+        Assert.Contains("wrote ", text);
+        Assert.Contains("warning: deskew was not applied: rotated image would exceed the maximum size", diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that the corners a rotation exposes are filled with --rotate-fill, else the --background, else white for an opaque image.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_RotateFillAndBackground_ChooseFill()
+    {
+        // Arrange: an opaque gradient and a copy with a transparent pixel
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "png");
+        var holey = directory.Combine("holey.png");
+        using (var surface = FixtureFactory.CreateGradient())
+        {
+            surface[0, 0] = new Rgba32(0, 0, 0, 0);
+            PngCodec.Save(surface, holey);
+        }
+
+        // Act
+        var byDefault = directory.Combine("default.png");
+        var withFill = directory.Combine("fill.png");
+        var withBackground = directory.Combine("background.png");
+        var fillBeatsBackground = directory.Combine("both.png");
+        var transparent = directory.Combine("transparent.png");
+        Run(null, false, input, "--rotate", "45", "-o", byDefault);
+        Run(null, false, input, "--rotate", "45", "--rotate-fill", "#00FF00", "-o", withFill);
+        Run(null, false, input, "--rotate", "45", "--background", "#0000FF", "-o", withBackground);
+        Run(null, false, input, "--rotate", "45", "--rotate-fill", "#00FF00", "--background", "#0000FF", "-o", fillBeatsBackground);
+        Run(null, false, holey, "--rotate", "45", "-o", transparent);
+
+        // Assert: the pixel in the top-left corner is the fill
+        Assert.Equal(new Rgba32(255, 255, 255, 255), PixelAt(byDefault));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), PixelAt(withFill));
+        Assert.Equal(new Rgba32(0, 0, 255, 255), PixelAt(withBackground));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), PixelAt(fillBeatsBackground));
+        Assert.Equal(new Rgba32(0, 0, 0, 0), PixelAt(transparent));
+    }
+
+    /// <summary>
+    ///     Reads the top-left pixel of a PNG file.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <returns>The pixel.</returns>
+    private static Rgba32 PixelAt(string path)
+    {
+        using var surface = PngCodec.Load(path);
+        return surface[0, 0];
+    }
+
+    /// <summary>
+    ///     Test that reading the source options from a command line gives the documented settings and defaults, as the render command always did.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_ReadSourceOptions_SameAsBefore()
+    {
+        // Arrange / Act
+        var defaults = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", [], RenderCommand.OptionTable));
+        var given = RenderCommand.ReadSourceOptions(ArgumentReader.Parse(
+            "render",
+            ["--page", "2", "--dpi", "150", "--scale", "2", "--background", "#11223344", "--no-auto-orient", "--strict", "--filter", "lanczos3", "--view", "top"],
+            RenderCommand.OptionTable));
+        var sized = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", ["--size", "40x30"], RenderCommand.OptionTable));
+
+        // Assert
+        Assert.Equal(1, defaults.Page);
+        Assert.Null(defaults.Dpi);
+        Assert.Null(defaults.Scale);
+        Assert.Null(defaults.Width);
+        Assert.Null(defaults.Background);
+        Assert.True(defaults.AutoOrient);
+        Assert.False(defaults.Strict);
+        Assert.Equal(ResamplingMode.Auto, defaults.Filter);
+        Assert.Null(defaults.Scad);
+
+        Assert.Equal(2, given.Page);
+        Assert.Equal(150, given.Dpi);
+        Assert.Equal(2, given.Scale);
+        Assert.Equal(new Rgba32(0x11, 0x22, 0x33, 0x44), given.Background);
+        Assert.False(given.AutoOrient);
+        Assert.True(given.Strict);
+        Assert.Equal(ResamplingMode.Lanczos3, given.Filter);
+        Assert.Equal("top", given.Scad?.View);
+        Assert.Equal((40, 30), (sized.Width, sized.Height));
+
+        // The errors are the same usage errors as before
+        var conflict = Assert.Throws<ToolException>(() => RenderCommand.ReadSourceOptions(
+            ArgumentReader.Parse("render", ["--size", "40x30", "--scale", "2"], RenderCommand.OptionTable)));
+        Assert.Equal(ErrorCodes.UsageError, conflict.Code);
+        Assert.Contains("--size and --scale cannot be used together", conflict.Message);
+        Assert.Throws<ToolException>(() => RenderCommand.ReadSourceOptions(
+            ArgumentReader.Parse("render", ["--width", "0"], RenderCommand.OptionTable)));
     }
 }

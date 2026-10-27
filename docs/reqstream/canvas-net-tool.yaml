@@ -1,5 +1,5 @@
 ---
-# cspell:ignore canvasnet scad openscad psnr rmse ssim
+# cspell:ignore canvasnet scad openscad psnr rmse ssim grayscale deskew
 # CanvasNetTool System-Level Requirements
 # CanvasNetTool System-Level Requirements
 #
@@ -44,6 +44,7 @@ sections:
         tests:
           - CanvasNetTool_HelpFlag_Provided_OutputsUsageInformation
           - CanvasNetTool_Help_ListsCompareAndMontage
+          - CanvasNetTool_Help_ListsInspectAndPhotoOptions
 
       - id: CanvasNetTool-System-Validate
         title: The tool shall execute self-validation tests when the validate flag is provided.
@@ -60,6 +61,7 @@ sections:
           - CanvasNetTool-Validation-Formats
           - CanvasNetTool-Validation-ImagingSelfTests
           - CanvasNetTool-Validation-CompareMontageSelfTests
+          - CanvasNetTool-Validation-AdjustmentsSelfTest
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 
@@ -172,6 +174,7 @@ sections:
           - CanvasNetTool_ExpectedFailure_CommandThrowsToolException_ReportsConciseError
           - CanvasNetTool_Compare_Errors_AreReportedAsExpectedErrors
           - CanvasNetTool_Montage_Errors_AreReportedAsExpectedErrors
+          - CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors
 
       - id: CanvasNetTool-System-ErrorMessage
         title: >-
@@ -306,6 +309,8 @@ sections:
           - CanvasNetTool_Json_BadGlobalOption_WritesErrorDocument
           - CanvasNetTool_Json_SilentFlag_SuppressesErrorDocument
           - CanvasNetTool_Compare_ThresholdNotMetWithJson_WritesFailureDocumentWithMetrics
+          - CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson
+          - CanvasNetTool_Photo_Deskew_StraightensTiltedLinesAndReportsAngleInJson
 
       - id: CanvasNetTool-System-Formats
         title: >-
@@ -359,26 +364,29 @@ sections:
         title: >-
           The tool shall apply the operations `--crop` (a rectangle `x,y,w,h` or `WxH+X+Y` in pixels or
           percent), `--resize WxH`, `--fit WxH` (shrinking only unless `--allow-upscale`), `--rotate`
-          (90, 180, or 270 degrees; any other angle is refused as not supported yet), `--flip h|v|both`,
+          (any angle in degrees, clockwise), `--flip h|v|both`,
           and `--pad` (one width or left, top, right, bottom) with `--pad-color`, with the resampling
-          filter chosen by `--filter`, to a rendered image in the order they are written, in one decode
+          filter chosen by `--filter`, together with the photo operations `--grayscale`, `--invert`,
+          `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`,
+          and `--grid`, to a rendered image in the order they are written, in one decode
           and one encode, and shall list each operation applied, in order, with its parameters and the
           size of its result, in the JSON result.
         tags: [system]
         justification: |
-          Agents prepare images for other tools (crop a region, shrink it, add a margin); one ordered
-          pipeline in a single invocation avoids intermediate files and lossy re-encoding, and the
-          result says what was done so the agent can verify it.
+          Agents prepare images for other tools (crop a region, shrink it, add a margin, clean up a
+          photograph); one ordered pipeline in a single invocation avoids intermediate files and lossy
+          re-encoding, and the result says what was done so the agent can verify it.
         children:
           - CanvasNetTool-Imaging-Transform
         tests:
           - CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder
           - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+          - CanvasNetTool_Photo_NapkinWorkflow_ChainedOperationsApplyInOrderAndReport
 
       - id: CanvasNetTool-System-TransformCommands
         title: >-
           The tool shall offer the commands `crop <input> <geometry>`, `resize <input> <WxH>`,
-          `rotate <input> <degrees>`, `flip <input> <h|v|both>`, and `pad <input> <border>`, each
+          `rotate <input> <degrees>` (any angle), `flip <input> <h|v|both>`, and `pad <input> <border>`, each
           writing to the file named by `-o`, accepting every option of `render` (so further operations
           may follow the operand), and writing exactly the file that the equivalent `render` invocation
           writes.
@@ -393,6 +401,114 @@ sections:
           - CanvasNetTool_TransformCommands_EachVerb_MatchesRenderEquivalent
           - CanvasNetTool_TransformCommands_Help_ListsVerbsAndTheirUsage
           - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-Adjustments
+        title: >-
+          The tool shall adjust the tone and color of a rendered image with `--grayscale`, `--invert`,
+          `--threshold <0-255|auto>`, `--levels <black>,<white>[,<gamma>]`, `--brightness`, `--contrast`, and
+          `--auto-levels` (with `--auto-levels-clip`), and shall report the level an automatic threshold chose
+          and the points auto-levels found in the JSON result.
+        tags: [system]
+        justification: |
+          A photograph of a sketch needs its contrast raised and its colors removed before its strokes can be
+          read; the same options on every machine give the same pixels, and the reported numbers tell an agent
+          what the tool chose.
+        children:
+          - CanvasNetTool-Imaging-Adjust
+          - CanvasNetTool-Imaging-Transform
+        tests:
+          - CanvasNetTool_Photo_GrayscaleThresholdLevels_WriteExpectedPixels
+          - CanvasNetTool_Photo_AutoLevels_StretchesContrastAndReportsPoints
+
+      - id: CanvasNetTool-System-RotateAnyAngle
+        title: >-
+          The tool shall rotate an image clockwise by any angle with `--rotate` and the command `rotate`,
+          growing the canvas to hold the whole image and filling the corners with `--rotate-fill` (by default
+          the background, else white for an opaque image, else transparent), and shall refuse a result larger
+          than 8192 pixels on a side as an expected error.
+        tags: [system]
+        justification: |
+          Photographs and scans are rarely level; rotating by the angle that levels them, without cutting off the
+          corners, is the first step of cleaning them up.
+        children:
+          - CanvasNetTool-Imaging-Geometry
+        tests:
+          - CanvasNetTool_Photo_RotateObliqueAngle_ExpandsCanvasAndFillsCorners
+          - CanvasNetTool_Photo_RotateVerbWithFill_MatchesRenderEquivalent
+
+      - id: CanvasNetTool-System-Deskew
+        title: >-
+          The tool shall straighten an image with `--deskew`, finding the tilt of its near-horizontal lines within
+          15 degrees, rotating it level only when the tilt is clear, and reporting the angle, the correction, and
+          the confidence in the JSON result; when the automatic correction would exceed the maximum image size, it
+          shall leave the image unchanged, report `applied: false` with a reason, and complete successfully.
+        tags: [system]
+        justification: |
+          A tilted photograph of ruled or drawn lines is levelled without the user measuring an angle, and the
+          reported angle and confidence let an agent decide whether to trust the result.
+        children:
+          - CanvasNetTool-Imaging-Geometry
+        tests:
+          - CanvasNetTool_Photo_Deskew_StraightensTiltedLinesAndReportsAngleInJson
+          - RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning
+
+      - id: CanvasNetTool-System-Trim
+        title: >-
+          The tool shall crop an image to the content inside its uniform border with `--trim` and
+          `--trim-tolerance`, and shall report the box that was kept.
+        tags: [system]
+        justification: |
+          A photograph of a drawing is surrounded by paper or table; cropping it to the drawing makes the
+          coordinates and sizes of later steps relative to the drawing.
+        children:
+          - CanvasNetTool-Imaging-Geometry
+        tests:
+          - CanvasNetTool_Photo_Trim_CropsUniformBorder
+
+      - id: CanvasNetTool-System-Grid
+        title: >-
+          The tool shall draw a labeled coordinate grid over a rendered image with `--grid <spacing>[,<color>]`,
+          so that positions and sizes can be read off the picture in pixels, and shall report the lines and
+          labels drawn.
+        tags: [system]
+        justification: |
+          A grid with coordinates on the picture lets a person or an agent measure a sketch without further
+          tools.
+        children:
+          - CanvasNetTool-Imaging-Annotate
+        tests:
+          - CanvasNetTool_Photo_Grid_DrawsLabeledLinesAtSpacing
+
+      - id: CanvasNetTool-System-InspectColors
+        title: >-
+          The tool shall report the dominant colors of an image, with their pixel counts and shares, and the luma
+          statistics (mean, range, percentiles, the automatic threshold level, and a histogram) when `inspect colors`
+          is run, after any pipeline operations given, as text or as one JSON document, without writing a file.
+        tags: [system]
+        justification: |
+          Knowing what colors and what brightness a photograph has tells an agent which levels and threshold to use
+          before it transforms the picture.
+        children:
+          - CanvasNetTool-Commands-Inspect
+          - CanvasNetTool-Imaging-Analyze
+        tests:
+          - CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson
+
+      - id: CanvasNetTool-System-InspectPixel
+        title: >-
+          The tool shall report the color, alpha, and luma of the pixel at a point, and optionally the pixels around
+          it and their mean, when `inspect pixel` is run, in the coordinates of the image after any pipeline operations
+          given, as text or as one JSON document, without writing a file, and shall refuse a point outside the image
+          as a usage error.
+        tags: [system]
+        justification: |
+          Probing a stroke, a mark, or a dimension line by its coordinates is how a measurement of a sketch is checked.
+        children:
+          - CanvasNetTool-Commands-Inspect
+          - CanvasNetTool-Imaging-Analyze
+        tests:
+          - CanvasNetTool_Inspect_Pixel_ReportsValueAndNeighborhood
+          - CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors
 
       - id: CanvasNetTool-System-Compare
         title: >-
@@ -626,6 +742,7 @@ sections:
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
           - CanvasNetTool_Compare_SameInputsTwice_WriteIdenticalBytes
           - CanvasNetTool_Montage_SameInputsTwice_WriteIdenticalBytes
+          - CanvasNetTool_Photo_SameInputsTwice_WriteIdenticalBytes
 
       - id: CanvasNetTool-System-InputErrors
         title: >-

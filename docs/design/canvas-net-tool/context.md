@@ -57,6 +57,10 @@ opens the log file with auto-flush.
 (if open). The message is colored red only when standard error is not redirected, so redirected error output
 contains no control characters.
 
+**WriteWarning**: Writes a non-fatal message to standard error (unless silent) and to the log file (if open) without
+setting the error state, so the exit code stays 0. The message is colored yellow only when standard error is not
+redirected.
+
 **Dispose**: Disposes the log file writer, flushing buffered content.
 
 ### Error Handling
@@ -65,7 +69,7 @@ contains no control characters.
 before the command name, a missing option value, or an out-of-range or non-integer `--depth`; the messages are
 concise and carry no parameter-name suffix. It throws `InvalidOperationException` ("Failed to open log file
 '{path}': {detail}") when the log file cannot be opened. These exceptions propagate to `Program.Execute`, which
-reports them as expected failures. `WriteLine` and `WriteError` do not throw. `Dispose` is idempotent.
+reports them as expected failures. `WriteLine`, `WriteWarning`, and `WriteError` do not throw. `Dispose` is idempotent.
 
 ### Dependencies
 

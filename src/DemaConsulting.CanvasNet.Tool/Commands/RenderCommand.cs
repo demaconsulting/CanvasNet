@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet jpeg tif tiff
+// cspell:ignore canvasnet jpeg tif tiff deskew
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
@@ -28,7 +28,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///     </para>
 ///     <para>
 ///         The image pipeline (<see cref="ImagePipeline"/>) runs between the load and the write: the operations
-///         <c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--rotate</c>, <c>--flip</c>, and <c>--pad</c> are applied to
+///         <c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--rotate</c>, <c>--flip</c>, <c>--pad</c>, and the photo tools
+///         <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>, <c>--levels</c>, <c>--brightness</c>,
+///         <c>--contrast</c>, <c>--auto-levels</c>, <c>--deskew</c>, <c>--trim</c>, and <c>--grid</c> are applied to
 ///         the loaded pixels in the order they were written, so one decode and one encode serve the whole chain. The
 ///         verbs <c>crop</c>, <c>resize</c>, <c>rotate</c>, <c>flip</c>, and <c>pad</c> are this same class constructed
 ///         with a verb: the verb's positional operand becomes the first operation. The size options of the source
@@ -76,8 +78,10 @@ internal sealed partial class RenderCommand : ICommand
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
         + "pixels unless a size is given; -D sets its variables. Its include and use directives are read from the" + Environment.NewLine
         + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
-        + "The operations --crop, --resize, --fit, --rotate, --flip, and --pad (repeatable) are applied in the order" + Environment.NewLine
-        + "written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are commands of their own." + Environment.NewLine
+        + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
+        + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
+        + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine
+        + "commands of their own. --rotate takes any angle; --deskew and --json report the tilt that was found." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet render drawing.svg -o drawing.png" + Environment.NewLine
@@ -88,6 +92,9 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
+        + "  canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json" + Environment.NewLine
+        + "  canvasnet render sketch.png --grayscale --threshold auto -o bw.png" + Environment.NewLine
+        + "  canvasnet render sketch.png --grid 100 -o sketch-grid.png" + Environment.NewLine
         + "  canvasnet render shot.png -o shot.jpg --quality 85 --json" + Environment.NewLine
         + "  canvasnet convert scan.tif -o scan.png --no-clobber";
 
@@ -158,6 +165,10 @@ internal sealed partial class RenderCommand : ICommand
             foreach (var output in outputs)
             {
                 context.WriteLine(RenderText(output));
+                foreach (var warning in RenderWarnings(output))
+                {
+                    context.WriteWarning(warning);
+                }
             }
         }
     }
@@ -272,7 +283,7 @@ internal sealed partial class RenderCommand : ICommand
             if (settings.Operations.Count > 0)
             {
                 var defaultPad = settings.Source.Background ?? (loaded.IsVector ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0));
-                transformed = ImagePipeline.Apply(surface, settings.Operations, defaultPad, out applied);
+                transformed = ImagePipeline.Apply(surface, settings.Operations, defaultPad, out applied, settings.Source.Background);
                 surface = transformed;
             }
 
@@ -338,6 +349,23 @@ internal sealed partial class RenderCommand : ICommand
         return string.Create(
             CultureInfo.InvariantCulture,
             $"wrote {result.Path} ({result.Width}x{result.Height} {result.Format.ToFormatName()}, {result.Bytes} bytes) from {output.Info.Path}{page}");
+    }
+
+    /// <summary>
+    ///     Renders non-fatal warnings recorded by image operations.
+    /// </summary>
+    /// <param name="output">The rendered page.</param>
+    /// <returns>Warning lines for operation reports that explain a skipped best-effort operation.</returns>
+    private static IEnumerable<string> RenderWarnings(PageOutput output)
+    {
+        foreach (var operation in output.Operations.Where(o => o.Op == "deskew"))
+        {
+            var reason = operation.Fields.FirstOrDefault(f => f.Key == "reason").Value;
+            if (reason is string text)
+            {
+                yield return $"warning: deskew was not applied: {text}";
+            }
+        }
     }
 
     /// <summary>

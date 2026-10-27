@@ -1,6 +1,6 @@
 ### RenderCommand
 
-<!-- cspell:ignore canvasnet jpeg tiff tif jpg pptx vsdx dpi scad openscad -->
+<!-- cspell:ignore canvasnet jpeg tiff tif jpg pptx vsdx dpi scad openscad grayscale deskew -->
 
 ![Commands Structure](CommandsView.svg)
 
@@ -8,7 +8,8 @@
 
 `RenderCommand` is the `render` command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`,
 `flip`, and `pad`: it loads an image, drawing, document page, or 3D model view, transforms it with the image
-pipeline, and writes it as PNG, JPEG, BMP, or TIFF. Its single responsibility is to turn a command line into one
+pipeline (including the photo tools: tone adjustments, deskew, trim, and grid), and writes it as PNG, JPEG, BMP, or
+TIFF. Its single responsibility is to turn a command line into one
 pass of load, transform, and write for one page or every page, and to report the result. The unit is the partial
 class `RenderCommand` in `RenderCommand.cs` (the run and the reporting), `RenderCommand.Options.cs` (the option
 table and the reading of the settings), and `RenderCommand.Verbs.cs` (the verbs). The verbs are not separate
@@ -25,8 +26,14 @@ verb and `render` share every line of the run, `crop in.png 10,10,100,100 -o out
 `--azimuth <degrees>`, `--elevation <degrees>`, `--projection <type>`, `--define <name=value>` (alias `-D`,
 repeatable), `--time <T>`, `--default-color <color>`, and `--max-triangles <N>`, the options of the image
 pipeline `--crop <geometry>`, `--resize <WxH>`, `--fit <WxH>`, `--allow-upscale`, `--rotate <degrees>`,
-`--flip <axis>`, `--pad <N|l,t,r,b>`, `--pad-color <color>`, and `--filter <name>`, then `-o`/`--output <file>`,
-`--format <format>`, `--quality <1-100>`, and `--no-clobber`, in the order they are listed in the help.
+`--rotate-fill <color>`, `--flip <axis>`, `--pad <N|l,t,r,b>`, `--pad-color <color>`, the photo tools
+`--grayscale`, `--invert`, `--threshold <0-255|auto>`, `--levels <black,white[,gamma]>`, `--brightness <n>`,
+`--contrast <n>`, `--auto-levels`, `--auto-levels-clip <percent>`, `--deskew`, `--trim`, `--trim-tolerance <0-255>`,
+and `--grid <N[,color]>`, and `--filter <name>`, then `-o`/`--output <file>`,
+`--format <format>`, `--quality <1-100>`, and `--no-clobber`, in the order they are listed in the help. The photo tools
+are declared here once, so `render`, the verbs, and `inspect` accept them with one grammar; `compare` and `montage` pick
+their options from the table by name (`SpecsFor`) and so do not inherit them (`compare --threshold metric=value` and
+`compare --grid CxR` are unrelated to `render --threshold` and `--grid`).
 
 **Settings** (record): the `Input` path, the `Output` path, the `SourceOptions`, the `WriteOptions`, `AllPages`, and
 the `Operations` of the image pipeline, produced by `ReadSettings`.
@@ -48,19 +55,24 @@ combine, and says how an OpenSCAD model is drawn (the views, the 800 by 800 defa
 
 **ReadSettings(reader, verb)**: requires exactly one positional argument (the input) for `render`, and exactly two
 (the input and the operand, in that order) for a verb; requires `-o` (the hint shows an example of the command);
-reads the size
+reads the options that decide how the input is loaded with `ReadSourceOptions`; reads `--quality` as 1 to
+100 (default 90); rejects `--page` together with `--all-pages`; reads `--all-pages` as a switch; and validates
+`--format` early. A JPEG is flattened over the background color when it has some
+opacity, otherwise over white. The option values reach `SourceLoader` and `ImageWriter` through `SourceOptions` and
+`WriteOptions`. Last, `ImagePipeline.Parse` reads the operations (the verb's first, then the options in
+command-line order), so a malformed operation is reported before anything is decoded.
+
+**ReadSourceOptions(reader)**: `internal`, extracted from `ReadSettings` without a change of grammar so that `inspect`
+reads the same source options. Reads the size
 options (`--width` and `--height` as whole numbers of at least 1, `--scale` as a number from 0.001 to 8192, `--size`
 with `ArgumentReader.ParseSize`, which refuses a side beyond the maximum with `size-limit`); rejects `--size`
 combined with `--scale`, `--width`, or `--height`, and `--scale` combined with `--width` or `--height`
 (`usage-error`); reads `--page` with `ArgumentReader.ParsePage` (1 or more) and `--dpi` with
-`ArgumentReader.ParseDpi` (greater than 0 and at most 2400), and rejects `--page` together with `--all-pages`;
-reads `--strict` and `--all-pages` as switches; reads `--background` with `ParseColor`; reads `--filter` (which the
+`ArgumentReader.ParseDpi` (greater than 0 and at most 2400); reads `--strict`; reads `--background` with `ParseColor`;
+reads `--no-auto-orient`; reads `--filter` (which the
 loader uses for the resize of a raster that `--scale`, `--width`, or `--height` ask for, and the pipeline uses for
-`--resize` and `--fit`); reads `--quality` as 1 to
-100 (default 90); and validates `--format` early. A JPEG is flattened over the background color when it has some
-opacity, otherwise over white. The option values reach `SourceLoader` and `ImageWriter` through `SourceOptions` and
-`WriteOptions`. Last, `ImagePipeline.Parse` reads the operations (the verb's first, then the options in
-command-line order), so a malformed operation is reported before anything is decoded.
+`--resize` and `--fit`); and reads the model options with `ReadScadOptions`. It returns the `SourceOptions`. The options
+of the output (`--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`) are not read here.
 
 **ReadScadOptions(reader)**: when none of the model options was given, returns `null` (the loader then uses the
 defaults: the `iso` view, orthographic). Otherwise reads `--view` (one of the names in `SourceLoader.ScadViews`, in
@@ -99,7 +111,10 @@ disposed in a `finally` block after the staging) and stages the transformed surf
 with none, stages the loaded surface. It returns the page's report and the `StagedOutput`. A border with no color
 of its own gets the default: the `--background` color when given (also a transparent one), otherwise white for a
 vector source (SVG, document page, model, which the loader flattened over white) and
-transparent for a raster. Everything the pipeline does happens before the output is published, so a failing operation
+transparent for a raster. The `--background` color the user gave is also passed to `ImagePipeline.Apply` as the fill of
+a rotation (a rotation without `--rotate-fill` fills its corners with it; without a background the pipeline's rule
+applies: opaque white for an image with no transparent pixel, else transparent). Everything the pipeline does happens
+before the output is published, so a failing operation
 (for example a crop that starts outside the image after an earlier crop) writes nothing and leaves an existing output
 untouched.
 
@@ -140,7 +155,7 @@ fields after the envelope, in this order:
 | --- | ----- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
-| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`), `flip` (`axis`, `width`, `height`), and `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
+| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
 | `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
 | `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, or `scad`), `severity` (`unsupported`, or `warning` for a model), `code` (the feature token, or `scad-warning`), `message`, and `page` (documents only) |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
@@ -153,11 +168,14 @@ unknown option, contradictory or malformed sizes,
 a quality out of range, an unknown format, `--page` with `--all-pages`, a page or a resolution that is not a
 number in range, `--all-pages` with an output that is the same file for every page, a view or projection that does
 not exist, a model value that is malformed or out of range, a definition that is not `name=value`, a model
-option for an input that is not a model, a malformed operation value, an angle that is not 90, 180, or 270 degrees,
-`--allow-upscale` without `--fit`, `--pad-color` without a pad, and a crop that starts outside the image or is
+option for an input that is not a model, a malformed or out-of-range operation value (an angle that is not a number, a
+threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of range),
+`--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
+`--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, and a crop that starts outside the
+image or is
 smaller than a pixel) are `ToolException` with
-`usage-error`; a size, box, or border larger than the maximum, or a border that makes the image larger than the
-maximum, is `size-limit`. Input failures come from `SourceLoader`
+`usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the
+maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
 `--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model -
 `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a failed `assert`, or an `include` that cannot be
@@ -180,3 +198,5 @@ every `ToolException`.
   verb (`crop`, `resize`, `rotate`, `flip`, and `pad`).
 - **CompareCommand** and **MontageCommand** - the option declarations (`SpecsFor`), `ReadScadOptions`,
   `ScadOptionNames`, `ParseScadView`, and `WriteField`.
+- **InspectCommand** - the option table (`OptionTable` without the output options), `ReadSourceOptions`, and
+  `WriteField`.

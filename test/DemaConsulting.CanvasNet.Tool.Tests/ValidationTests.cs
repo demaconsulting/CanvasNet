@@ -107,7 +107,7 @@ public class ValidationTests
             // Act: run the self-validation
             var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
 
-            // Assert: each self-test passed and is named in the results file, and thirteen self-tests ran in all
+            // Assert: each self-test passed and is named in the results file, and fourteen self-tests ran in all
             Assert.Equal(0, context.ExitCode);
             var content = File.ReadAllText(resultsFile);
             foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
@@ -116,7 +116,35 @@ public class ValidationTests
                 Assert.Contains(name, content);
             }
 
-            Assert.Contains("Total Tests: 13", stdOut);
+            Assert.Contains("Total Tests: 14", stdOut);
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run executes the adjustments self-test and records it in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded()
+    {
+        // Arrange: a temporary TRX path and a context that is not silent
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+
+        try
+        {
+            using var context = Context.Create(["--results", resultsFile]);
+
+            // Act: run the self-validation
+            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+            // Assert: the photo-operations self-test passed, is named in the results file, and no test failed
+            Assert.Equal(0, context.ExitCode);
+            Assert.Contains("✓ CanvasNetTool_Adjustments - Passed", stdOut);
+            Assert.Contains("CanvasNetTool_Adjustments", File.ReadAllText(resultsFile));
+            Assert.Contains("Failed: 0", stdOut);
         }
         finally
         {

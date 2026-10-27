@@ -71,6 +71,7 @@ internal sealed class CommandRegistry
 
         registry.Register(new CompareCommand());
         registry.Register(new MontageCommand());
+        registry.Register(new InspectCommand());
 
         return registry;
     }
