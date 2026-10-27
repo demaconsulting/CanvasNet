@@ -199,8 +199,9 @@ fails:
    faceIndex)`, taking the family from `GetNameInfo().FamilyName` (the file name without extension when the font
    has none) and the style from `IsBold` and `IsItalic`. A missing, malformed, or unreadable directory, a file that
    does not parse, and a face that does not parse are skipped without a diagnostic. The scan is **safe and
-   bounded**: a reparse point is never followed, whether it is a root or a subdirectory (a root that is a link is
-   not scanned); path, metadata, enumeration, and access failures (`IOException` including too-long paths and
+   bounded**: a reparse point is never followed, whether it is a root, a subdirectory, or a font file (a root that
+   is a link is not scanned, and a linked font file is not read); path, metadata, enumeration, and access failures
+   (`IOException` including too-long paths and
    races with deletion, `UnauthorizedAccessException`, `ArgumentException`, `NotSupportedException`,
    `SecurityException`) skip that path or directory only; subdirectories are visited depth first in ordinal
    order; and `ScadFontScanLimits` (internal; defaults of 10,000 directories, 200,000 entries, 5,000 font files,

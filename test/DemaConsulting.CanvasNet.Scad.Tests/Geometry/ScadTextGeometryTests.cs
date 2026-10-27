@@ -842,6 +842,34 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
+    ///     Validates that a font file that is a symbolic link (a reparse point) is not read, even though it is named
+    ///     like a font and points at a real one, while a real font file in a directory listed beside it is.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored()
+    {
+        // Arrange: a real font outside the scanned folder, and a link to it inside (skipped where links cannot be created)
+        using var directory = new ScadTempDirectory();
+        CopyBundledFont("LiberationSerif-Bold.ttf", directory.Combine("outside/serif.ttf"));
+        Directory.CreateDirectory(directory.Combine("scanned"));
+        var link = directory.Combine("scanned/linked.ttf");
+        if (!ScadResolverTestSupport.TryCreateFileLink(link, directory.Combine("outside/serif.ttf"), out var reason))
+        {
+            Assert.Skip("File links cannot be created in this environment: " + reason);
+        }
+
+        var spec = new ScadFontSpec("Liberation Serif", true, false);
+
+        // Act
+        var throughLink = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Combine("scanned")] }).Resolve(spec);
+        var throughBoth = new ScadFontResolver(new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Combine("scanned"), directory.Combine("outside")] }).Resolve(spec);
+
+        // Assert: the linked file contributes nothing (the bundled family answers), the real file is found
+        Assert.Equal(ScadFontSource.Bundled, throughLink.Source);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, throughBoth.Source);
+    }
+
+    /// <summary>
     ///     Validates that the scan of the additional directories polls cancellation and stops with an exception
     ///     instead of completing silently.
     /// </summary>

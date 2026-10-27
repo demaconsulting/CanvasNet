@@ -43,7 +43,7 @@ public sealed class ScadFontResolutionOptions
     /// <remarks>
     ///     A directory that does not exist, is malformed or cannot be read, and a file in it that is not a usable
     ///     font, is skipped silently. The scan is recursive but does not follow links: a directory that is itself a
-    ///     link (a reparse point) is not scanned, and neither is a linked subdirectory. The scan is bounded: it stops
+    ///     link (a reparse point) is not scanned, and neither is a linked subdirectory or a linked font file. The scan is bounded: it stops
     ///     at a fixed, generous limit of directories, entries, font files and faces and keeps the fonts found before
     ///     it, and it honors the cancellation of the render call. The list is copied when it is set, so the instance
     ///     does not change when the caller's list does. The directories are scanned once per render call, the first

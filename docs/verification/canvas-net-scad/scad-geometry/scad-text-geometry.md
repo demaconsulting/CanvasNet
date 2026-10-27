@@ -158,10 +158,9 @@ area minus the hole; that overlapping solids split into two regions; that a hole
 as `scad-text-overlapping-contours` and a bow tie as `scad-text-invalid-outline`; that solids that only touch (at a
 corner, along an edge) are split into two regions without a report, which pins the documented limit that the split
 does not detect zero-area contact and leaves it to the union; that a cubic whose control points lie on the chord
-line beyond its end point is subdivided (the control point distance is measured to the chord segment, here exactly
-
-1) and keeps its overshoot; that the real `O` is one
-counter-clockwise outline with a clockwise hole whose areas add up to the region area; that the composite `Å` is
+line beyond its end point is subdivided (the control point distance is measured to the chord segment, here exactly 1)
+and keeps its overshoot; that the real `O` is one counter-clockwise outline with a clockwise hole whose areas add up
+to the region area; that the composite `Å` is
 several regions without a report; that all 190 printable characters of Basic Latin and Latin-1 in all twelve
 bundled faces build with no warning and no unsupported feature; and that a synthetic font with a usable box `H` and
 a mapped `D` whose only contour is collinear builds `HH` without a report but reports `HD` as one
@@ -211,13 +210,16 @@ with a live context returns the exact ink height of the `H`.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety: Safe, Bounded, Cancellable Font Scan
 
-**Tests**: `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped`
 
 Asserts that a root that is a directory link (a symbolic link or a junction) contributes nothing while the real
-directory listed beside it is found (the test skips itself where the host cannot create links); that a resolver
+directory listed beside it is found (the test skips itself where the host cannot create links); that a font file that
+is a symbolic link contributes nothing while a real copy beside it is found (skipped likewise where file links cannot
+be created); that a resolver
 with an already canceled token throws `OperationCanceledException` from its scan while a live token finds the font;
 that with explicit small bounds (one font file, one face, two directories, one entry) the scan keeps only what it
 reached first in ordinal order (the bold face rather than the italic one, or the bundled family when nothing was

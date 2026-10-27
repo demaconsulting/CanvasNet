@@ -1,8 +1,8 @@
 // Original CanvasNet test fixture: text() with the default (bundled) font, written for this repository.
 // Everything is extruded (a flat 2D shape next to solids is a mixed-dimension union), and the first line is the
 // reference: a capital H is exactly size tall, so the extruded "HIT" is 10 tall with its ink flush with x = 0.
-// Line 6: centered text with glyphs that have holes. Line 7: a line with a descender. Line 8: a 2D difference of text.
-// Line 9: a hull of text. Line 10: a rotate_extrude of a glyph.
+// Line 7: centered text with glyphs that have holes. Line 8: a line with a descender. Line 9: a 2D difference of text.
+// Line 10: a hull of text. Line 11: a rotate_extrude of a glyph.
 linear_extrude(height = 2) text("HIT", size = 10);
 translate([0, -20, 0]) linear_extrude(height = 2) text("OBA", size = 10, halign = "center", valign = "center");
 translate([0, -40, 0]) linear_extrude(height = 4) text("RgO", size = 10);

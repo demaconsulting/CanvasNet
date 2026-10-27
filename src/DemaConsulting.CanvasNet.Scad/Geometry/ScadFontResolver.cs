@@ -417,7 +417,8 @@ internal sealed class ScadFontResolver
     ///     Collects the font files of a directory and of its subdirectories (except links), skipping what cannot be read.
     /// </summary>
     /// <remarks>
-    ///     The root is not scanned when it is a link, and neither is any subdirectory that is a link. The
+    ///     The root is not scanned when it is a link, and neither is any subdirectory that is a link; a font file that
+    ///     is a link is not collected either. The
     ///     subdirectories are visited depth first in ordinal order, so the part of a tree that is read when a bound is
     ///     reached is deterministic.
     /// </remarks>
@@ -471,7 +472,8 @@ internal sealed class ScadFontResolver
     }
 
     /// <summary>
-    ///     Lists one directory: adds its font files to the result and its subdirectories (except links) to the pending stack.
+    ///     Lists one directory: adds its font files (except links) to the result and its subdirectories (except links) to
+    ///     the pending stack.
     /// </summary>
     /// <param name="directory">The directory.</param>
     /// <param name="files">The list to add the font files to.</param>
@@ -499,8 +501,9 @@ internal sealed class ScadFontResolver
                         subdirectories.Add(entry.FullName);
                     }
                 }
-                else if (IsFontFile(entry.Name))
+                else if (IsFontFile(entry.Name) && !entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
                 {
+                    // A linked file can read from outside the font directory, so links are not followed here either
                     fonts.Add(entry.FullName);
                 }
             }
