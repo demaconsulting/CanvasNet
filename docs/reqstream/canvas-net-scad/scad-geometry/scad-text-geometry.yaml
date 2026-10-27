@@ -76,6 +76,7 @@ sections:
                   is deterministic per font and needs no inconsistently filled font metrics.
                 tests:
                   - ScadTextGeometry_Build_SizeUsesSelectedFontCapHeight
+                  - ScadTextGeometry_ReferenceHeight_BundledFaces_HaveStraightLinedH
                   - ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Layout
@@ -139,6 +140,8 @@ sections:
                   - ScadTextGeometry_Build_GlyphContours_NormalizeHolesAndRejectOverlaps
                   - ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions
                   - ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline
+                  - ScadTextGeometry_TryMakeRegions_TouchingSolids_AreSplitAndLeftToTheUnion
+                  - ScadTextGeometry_FlattenCubic_CollinearOvershoot_IsKept
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Flat2D
                 title: >-

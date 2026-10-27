@@ -99,10 +99,14 @@ differs from the bundled one). The system test pins literal font-unit metrics of
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Size: Cap-Height Size
 
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_SizeUsesSelectedFontCapHeight`,
+`ScadTextGeometryTests.ScadTextGeometry_ReferenceHeight_BundledFaces_HaveStraightLinedH`,
 `ScadRenderSystemTests.ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage`
 
 Asserts that an `H` is exactly `size` tall at sizes 0.5, 10, and 25 in the sans font and in the serif font (with the
-width of its own font, so the font was really selected), and, at the system level, that the bounds of a rendered
+width of its own font, so the font was really selected); that the `H` of all twelve bundled faces is drawn with
+straight lines only and stays `size` tall under a coarse `$fn` (so the two flattening bases, the fixed fine one of the
+reference measurement and the fragment-derived one of the output, cannot differ for a bundled font; a curved `H`
+of a third-party font is the documented limit in the design); and, at the system level, that the bounds of a rendered
 `HI` and the covered pixel count (the area of the two outlines times the squared pixel density, within 3%) are
 analytic and that the counter of the `H` is background.
 
@@ -145,11 +149,18 @@ test.
 
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_GlyphContours_NormalizeHolesAndRejectOverlaps`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_AllBundledLatinGlyphs_BuildValidRegions`,
-`ScadTextGeometryTests.ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline`
+`ScadTextGeometryTests.ScadTextGeometry_Build_DegenerateMappedGlyph_ReportsInvalidOutline`,
+`ScadTextGeometryTests.ScadTextGeometry_TryMakeRegions_TouchingSolids_AreSplitAndLeftToTheUnion`,
+`ScadTextGeometryTests.ScadTextGeometry_FlattenCubic_CollinearOvershoot_IsKept`
 
 Asserts that nested contours of equal winding make one region whose hole is clockwise and whose area is the outer
 area minus the hole; that overlapping solids split into two regions; that a hole crossing its solid is rejected
-as `scad-text-overlapping-contours` and a bow tie as `scad-text-invalid-outline`; that the real `O` is one
+as `scad-text-overlapping-contours` and a bow tie as `scad-text-invalid-outline`; that solids that only touch (at a
+corner, along an edge) are split into two regions without a report, which pins the documented limit that the split
+does not detect zero-area contact and leaves it to the union; that a cubic whose control points lie on the chord
+line beyond its end point is subdivided (the control point distance is measured to the chord segment, here exactly
+
+1) and keeps its overshoot; that the real `O` is one
 counter-clockwise outline with a clockwise hole whose areas add up to the region area; that the composite `Å` is
 several regions without a report; that all 190 printable characters of Basic Latin and Latin-1 in all twelve
 bundled faces build with no warning and no unsupported feature; and that a synthetic font with a usable box `H` and

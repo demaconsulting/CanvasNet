@@ -81,6 +81,15 @@ approximation of the way other tools relate a text size to a font; it is not a c
 bundled Liberation Sans Regular (2048 units per em) the `H` is 1409 units high, so `size = 14.09` makes one font
 unit exactly 0.01 model units (a value pinned by a system test).
 
+**Known limit.** The reference glyph is flattened with the fixed fine tolerance, while the output glyphs are
+flattened with the tolerance derived from the fragment rule, which depends on `size` and so on the scale itself.
+Using one basis for both would make the scale circular, so the unit keeps two bases. The `H` of all twelve bundled
+faces is drawn with straight lines only (checked by a test), so its flattening does not depend on the tolerance and
+an `H` of a bundled font is exactly `size` tall at every `$fn`, `$fa`, and `$fs`. An `H` with curved edges in a font
+supplied through an additional directory (or an installed font) can come out slightly shorter than `size` (by at
+most the flattening tolerance, about 1% of the size under the default fragment settings, and only when the curve
+peak is not an on-curve vertex), and the result is still deterministic.
+
 ##### Layout
 
 Glyphs are placed one Unicode scalar at a time (`string.EnumerateRunes`; an unpaired surrogate is U+FFFD). There
@@ -117,7 +126,9 @@ large) and the instance is empty.
 up) and flattens every subpath into a polygon: lines are copied, quadratic curves are converted to cubics, and
 cubic curves are flattened by **iterative de Casteljau subdivision** with an explicit stack (first half before
 second half, so the order is fixed): a curve is emitted as its end point when the larger distance of its two
-control points from its chord is at most the tolerance, or when the subdivision depth reaches ten (at most 1,024
+control points from its chord **segment** (the finite segment from the start to the end, so a control point that
+lies on the chord line beyond an end point still counts and a curve that overshoots its chord keeps the overshoot)
+is at most the tolerance, or when the subdivision depth reaches ten (at most 1,024
 segments per curve, a bound on the work of a hostile outline). The tolerance in model units is
 `(size / 2) * (1 - cos(pi / n))` with `n = max(3, fragments(size / 2))`, the sagitta of a circle of radius
 `size / 2` under the instance's `$fn`, `$fa`, and `$fs` (the fragment rule of _ScadPrimitives Unit Design_), and
@@ -147,6 +158,16 @@ cedilla) as overlapping solids, which the nonzero fill rule reads as their union
    unioned by the caller. Holes that fall in no solid make the split fail.
 4. If a component is still rejected, the contours overlap in a way that is neither a hole, an island, nor
    overlapping solids: `scad-text-overlapping-contours`.
+
+**Known limit: touching solids.** The split does not tell overlapping solids from solids that merely touch (a
+zero-area contact at a vertex or along an edge): every contour that winds like the largest one is a solid, and
+solids that touch are accepted as separate regions, exactly like the glyph components that touch one another
+(kerned pairs, `spacing = 0`). Detecting the contact here would need a polygon intersection of its own and would
+reject glyphs that fonts really draw this way (a cedilla or an accent that touches its base), omitting the whole
+text. The contact is instead left to the union that consumes the leaves: an extrusion builds one closed mesh per
+region, and a union of meshes whose contact is not a valid solid is reported by the renderer through the mapped
+`scad-csg-*` identifiers (for example `scad-csg-non-manifold-edge`, see _ScadGeometryBuilder Unit Design_) at the
+producing module. The same holds for touching glyphs.
 
 An invalid glyph omits the **whole** `text` (a partial word would silently change the meaning of what is drawn)
 with an unsupported-feature report at the instance; the check of all 12 bundled faces over Basic Latin and
@@ -200,7 +221,8 @@ discarded when its family is not the requested one, because the generic-bucket s
 make the result depend on what the host has installed. The style is the closest match by the bold and italic flags
 (the number of differing flags is the score); the first face found wins a tie, so earlier directories and earlier
 paths win. A face that is found but cannot be loaded (`InvalidDataException`, `IOException`,
-`UnauthorizedAccessException`, and the like) resolves to the fallback with a warning that names the file; a face
+`UnauthorizedAccessException`, `SecurityException`, and the like) resolves to the fallback with a warning that names
+the file; a face
 that failed to load is not tried again in the same build. Installed fonts vary from host to host, so a model that
 must render identically everywhere names no font, or sets `UseSystemFonts = false`.
 

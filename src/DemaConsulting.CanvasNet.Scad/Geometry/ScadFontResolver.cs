@@ -601,7 +601,7 @@ internal sealed class ScadFontResolver
     /// <param name="ex">The exception.</param>
     /// <returns><see langword="true"/> when the file should be skipped (or reported) rather than the build failed.</returns>
     private static bool IsSkippable(Exception ex) =>
-        ex is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or OverflowException;
+        ex is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or OverflowException or System.Security.SecurityException;
 
     /// <summary>
     ///     Loads a face, remembering the outcome (a face that failed to load is not tried again).

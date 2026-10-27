@@ -186,7 +186,7 @@ internal static partial class ScadTextGeometry
     /// <param name="p3">The end.</param>
     /// <param name="tolerance">The tolerance in font units.</param>
     /// <param name="output">The vertex list to append to.</param>
-    private static void FlattenCubic(Vector2D p0, Vector2D p1, Vector2D p2, Vector2D p3, double tolerance, List<Vector2D> output)
+    internal static void FlattenCubic(Vector2D p0, Vector2D p1, Vector2D p2, Vector2D p3, double tolerance, List<Vector2D> output)
     {
         // An explicit stack keeps the order (first half before second half) without recursion
         var stack = new Stack<(Vector2D A, Vector2D B, Vector2D C, Vector2D D, int Depth)>();
@@ -213,27 +213,43 @@ internal static partial class ScadTextGeometry
     }
 
     /// <summary>
-    ///     Measures how far the control points of a cubic are from its chord, an upper bound of the distance between
-    ///     the curve and the chord.
+    ///     Measures how far the control points of a cubic are from its chord segment, an upper bound of the distance
+    ///     between the curve and the chord.
     /// </summary>
+    /// <remarks>
+    ///     The distance is measured to the finite segment from the start to the end, not to the infinite line through
+    ///     them, so a control point that lies on the line but beyond an end point (a curve that overshoots its chord
+    ///     and comes back) still counts. The curve lies in the convex hull of its control points and the distance to
+    ///     a segment is a convex function, so the larger of the two control point distances bounds the whole curve.
+    /// </remarks>
     /// <param name="a">The start.</param>
     /// <param name="b">The first control point.</param>
     /// <param name="c">The second control point.</param>
     /// <param name="d">The end.</param>
-    /// <returns>The larger distance of the two control points from the chord (from the start when the chord is a point).</returns>
-    private static double ControlDistance(Vector2D a, Vector2D b, Vector2D c, Vector2D d)
+    /// <returns>The larger distance of the two control points from the chord segment (from the start when the chord is a point).</returns>
+    internal static double ControlDistance(Vector2D a, Vector2D b, Vector2D c, Vector2D d) =>
+        Math.Max(DistanceToSegment(b, a, d), DistanceToSegment(c, a, d));
+
+    /// <summary>
+    ///     Computes the distance from a point to a finite line segment.
+    /// </summary>
+    /// <param name="point">The point.</param>
+    /// <param name="start">The start of the segment.</param>
+    /// <param name="end">The end of the segment; equal to the start for a point.</param>
+    /// <returns>The distance to the nearest point of the segment.</returns>
+    private static double DistanceToSegment(Vector2D point, Vector2D start, Vector2D end)
     {
-        var chord = d - a;
-        var length = Math.Sqrt((chord.X * chord.X) + (chord.Y * chord.Y));
-        if (length <= 0.0)
+        var segment = end - start;
+        var lengthSquared = (segment.X * segment.X) + (segment.Y * segment.Y);
+        if (lengthSquared <= 0.0)
         {
-            return Math.Max(Distance(a, b), Distance(a, c));
+            return Distance(point, start);
         }
 
-        // Distance from the infinite line through a and d
-        var db = Math.Abs(((b.X - a.X) * chord.Y) - ((b.Y - a.Y) * chord.X)) / length;
-        var dc = Math.Abs(((c.X - a.X) * chord.Y) - ((c.Y - a.Y) * chord.X)) / length;
-        return Math.Max(db, dc);
+        // The parameter of the foot of the perpendicular, clamped onto the segment
+        var t = (((point.X - start.X) * segment.X) + ((point.Y - start.Y) * segment.Y)) / lengthSquared;
+        t = Math.Clamp(t, 0.0, 1.0);
+        return Distance(point, new Vector2D(start.X + (t * segment.X), start.Y + (t * segment.Y)));
     }
 
     /// <summary>

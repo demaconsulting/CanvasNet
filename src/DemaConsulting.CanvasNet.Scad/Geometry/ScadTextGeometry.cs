@@ -508,6 +508,11 @@ internal static partial class ScadTextGeometry
     ///         are unioned by the caller). When a component is still rejected the contours overlap in a way that is
     ///         neither a hole nor an island.
     ///     </para>
+    ///     <para>
+    ///         The split does not tell overlapping solids from solids that merely touch: touching solids are accepted
+    ///         as separate regions, like touching glyphs, and the contact is left to the union of the consumers
+    ///         (documented limit; see the design of the unit).
+    ///     </para>
     /// </remarks>
     /// <param name="contours">The contours of one glyph in model units.</param>
     /// <param name="feature">The feature to report when no regions can be made: <see cref="ScadFeatureIds.TextInvalidOutline"/> or <see cref="ScadFeatureIds.TextOverlappingContours"/>.</param>

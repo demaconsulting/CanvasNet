@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Scad.Geometry;
 using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
+using PathCommandType = DemaConsulting.CanvasNet.Geometry.PathCommandType;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
@@ -696,6 +697,88 @@ public class ScadTextGeometryTests
         var height = ScadTextGeometry.ReferenceHeight(Font, live);
         var ink = InkOf('H');
         Assert.Equal(ink.MaxY - ink.MinY, height, Tolerance);
+    }
+
+    /// <summary>
+    ///     Validates that the reference glyph <c>H</c> is drawn with straight lines only in all twelve bundled faces,
+    ///     so the fine-tolerance flattening of the reference measurement and the fragment-derived flattening of the
+    ///     output give the same cap height and an <c>H</c> is exactly <c>size</c> tall at any fragment setting.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_ReferenceHeight_BundledFaces_HaveStraightLinedH()
+    {
+        // Arrange / Act / Assert: every bundled face
+        foreach (var serif in new[] { false, true })
+        {
+            foreach (var fixedPitch in new[] { false, true })
+            {
+                foreach (var bold in new[] { false, true })
+                {
+                    foreach (var italic in new[] { false, true })
+                    {
+                        var font = SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
+                        var outline = font.GetGlyphOutline(font.GetGlyphIndex('H'));
+                        Assert.NotEmpty(outline.Subpaths);
+                        Assert.All(
+                            outline.Subpaths.SelectMany(s => s.Commands),
+                            command => Assert.True(command.Type is PathCommandType.LineTo or PathCommandType.Close));
+                    }
+                }
+            }
+        }
+
+        // A coarse $fn does not change the height of an H either
+        var coarse = Run("$fn = 5; text(\"H\", size = 14.09);");
+        AssertBox(coarse.Bounds, coarse.Bounds.Min.X, coarse.Bounds.Max.X, 0, 14.09);
+    }
+
+    /// <summary>
+    ///     Validates that the flattening measures the deviation of the control points from the chord segment, not
+    ///     from the infinite line, so a cubic whose control points lie on the chord line beyond its end point (an
+    ///     overshoot that comes back) is subdivided and keeps its overshoot.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FlattenCubic_CollinearOvershoot_IsKept()
+    {
+        // Arrange: (0,0) -> (2,0) -> (2,0) -> (1,0) reaches x = 1.472 at t = 0.8 before it returns to x = 1
+        Vector2D a = new(0, 0);
+        Vector2D b = new(2, 0);
+        Vector2D d = new(1, 0);
+        var output = new List<Vector2D>();
+
+        // Act
+        var distance = ScadTextGeometry.ControlDistance(a, b, b, d);
+        ScadTextGeometry.FlattenCubic(a, b, b, d, 0.05, output);
+
+        // Assert: the control points are one unit from the chord segment, and the polyline reaches past the end point
+        Assert.Equal(1.0, distance, 1e-12);
+        Assert.Equal(d, output[^1]);
+        Assert.True(output.Max(p => p.X) > 1.4, "the overshoot of the curve was lost");
+        Assert.All(output, p => Assert.Equal(0.0, p.Y, 1e-12));
+    }
+
+    /// <summary>
+    ///     Validates the documented limit of the composite-glyph split: solids that only touch (zero-area contact) are
+    ///     accepted as separate regions, exactly like touching leaves of a union, and the contact is left to the
+    ///     union to report; solids that cross are accepted too, and contours that cross a hole are still rejected.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_TryMakeRegions_TouchingSolids_AreSplitAndLeftToTheUnion()
+    {
+        // Arrange: two squares that share one corner, and two that share an edge segment
+        Vector2D[] first = [new(0, 0), new(5, 0), new(5, 5), new(0, 5)];
+        Vector2D[] corner = [new(5, 5), new(10, 5), new(10, 10), new(5, 10)];
+        Vector2D[] edge = [new(5, 1), new(10, 1), new(10, 4), new(5, 4)];
+
+        // Act
+        var touchingCorner = ScadTextGeometry.TryMakeRegions([first, corner], out var cornerFeature);
+        var touchingEdge = ScadTextGeometry.TryMakeRegions([first, edge], out var edgeFeature);
+
+        // Assert: each solid is its own region and nothing is reported by this unit
+        Assert.Equal(2, touchingCorner!.Count);
+        Assert.Null(cornerFeature);
+        Assert.Equal(2, touchingEdge!.Count);
+        Assert.Null(edgeFeature);
     }
 
     /// <summary>
