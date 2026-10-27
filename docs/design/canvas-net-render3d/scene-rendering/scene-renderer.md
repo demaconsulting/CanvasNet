@@ -40,8 +40,8 @@ and a deterministic per-tile fragment budget.
   | Property | Default | Validation |
   | -------- | ------- | ---------- |
   | `BackgroundColor` | opaque white | none; alpha honored |
-  | `DefaultColor` | `(180, 180, 180)` | none; alpha ignored |
-  | `BackFaceColor` | `(200, 70, 70)` | none; alpha ignored |
+  | `DefaultColor` | `(180, 180, 180)` | none; alpha ignored (also for translucency) |
+  | `BackFaceColor` | `(200, 70, 70)` | none; alpha ignored (also for translucency) |
   | `Lights` | `null` | list copied; a null element throws `ArgumentException`; `null` selects `Light.DefaultRig`; an empty list is valid (unlit black) |
   | `SpecularStrength` | 0.10 | finite, 0 to 1 |
   | `SpecularPower` | 32 | finite, greater than 0 |
@@ -68,9 +68,10 @@ and a deterministic per-tile fragment budget.
   `int` winner metadata, `Rgba32` color) and the tile's origin and size; `Begin` fills the depth
   with positive infinity (an untouched sample).
 - **`TileWorker`**: one per worker (one in sequential mode, one per `Parallel.For` worker
-  otherwise, created by `localInit`): the `TileWorkspace`, and when the scene has a CSG program a
+  otherwise, created by `localInit`): the `TileWorkspace`, and when the scene takes the fragment path a
   `FragmentBuffer` constructed with `MaxFragmentsPerTile` and a `CsgResolver` over the shared
-  immutable `CsgProgram`. Workers share no mutable state.
+  immutable programs (the main program first, then the overlay programs) and the background color.
+  Workers share no mutable state.
 - **`CsgOperandValidator` feature tokens**: `render3d-csg-open-mesh`,
   `render3d-csg-non-manifold-edge`, `render3d-csg-inconsistent-winding`,
   `render3d-csg-degenerate-triangle`, `render3d-csg-inverted-mesh`,
@@ -79,6 +80,18 @@ and a deterministic per-tile fragment budget.
 - **Constants**: tile size 32 x 32 output pixels; a cancellation check every 4096 triangles (also
   while collecting fragments); depth tolerance factor 1e-6; automatic near floor factor 1e-4; near
   margin 0.99 and far margin 1.01.
+
+#### Transparency
+
+The alpha of a `NodeAppearance` (and of an `OverlayNode` color) is honored; the alpha of the default
+and back-face colors is not. A translucent or overlay scene is resolved by the fragment-list path
+with the layer compositing of the `CsgResolver` unit; the budget, the cancellation cadence, the
+exception unwrapping, the tiling and the antialiasing are exactly those of constructive solid
+geometry, and overlay and translucent triangles are ordinary fragments of the same buffer (an overlay
+of the same size doubles the fragments of its tile). The meshes of such a scene are validated like
+CSG operands (same tokens), because the signed crossing counters require closed outward solids; the
+validator message names "a constructive solid geometry or transparent scene". Opaque scenes without
+overlay are untouched.
 
 #### Key Methods
 
@@ -89,15 +102,20 @@ and a deterministic per-tile fragment budget.
    token is checked. Building the `ViewTransform` runs `Camera.Validate()`, which throws
    `ArgumentException` for eye equal to target, a zero up vector, an orthographic camera without a
    height, or near not below far.
-2. **Select the path.** `CsgCompiler.Compile(scene.Root)` yields the CSG program and the leaf of
-   each instance. No program (a union-only scene: meshes, groups, union `CsgNode`s, and
-   single-operand booleans) means the z-buffer path: output is unchanged, no `FragmentBuffer` or
+2. **Select the path.** `CsgCompiler.Compile(scene.Root)` yields the main program, the overlay
+   programs and the leaf of each instance, and a pre-pass over `Scene.EnumerateInstances()` notes
+   whether any instance appearance has an alpha below 255 (translucent). No program, no
+   translucent instance and no overlay (an opaque union-only scene: meshes, groups, union
+   `CsgNode`s, and single-operand booleans) means the z-buffer path: output is unchanged, no
+   `FragmentBuffer` or
    `CsgResolver` is allocated, `MaxFragmentsPerTile` is ignored, and operands are never validated.
-   Any other scene takes the CSG path. The internal `RenderWithFragmentPath` seam shares the
-   implementation but forces a union-only scene onto the fragment-list path with the one-leaf
+   Any other scene (a boolean, an overlay or a translucent appearance) takes the fragment path; a
+   translucent union-only scene gets the one-leaf program `L0`. The internal
+   `RenderWithFragmentPath` seam shares the
+   implementation but forces an opaque union-only scene onto the fragment-list path with the one-leaf
    program `L0` (so tests can prove equivalence with the z-buffer); the seam never validates
    operands.
-3. **Validate operands** (natural CSG path only): `CsgOperandValidator.Validate` runs before any
+3. **Validate operands** (natural fragment path only): `CsgOperandValidator.Validate` runs before any
    transform or rendering work, as described under _Operand validation_ below.
 4. **Flatten and transform**: for each `Scene.EnumerateInstances()` instance, compose
    `world * translate(-eye) * rotation` and transform every vertex in double precision into a
@@ -130,7 +148,9 @@ and a deterministic per-tile fragment budget.
    `FrontEnter = Shade(n, leaf color)`, `FrontExit = Shade(n, BackFaceColor)`,
    `BackEnter = Shade(-n, leaf color)` (the cut surface of a subtrahend: its own color lit from the
    flipped normal), and `BackExit = ShadeBackFace(n) = Shade(-n, BackFaceColor)`; the rasterizer
-   picks the pair by screen facing. The depth tolerance is
+   picks the pair by screen facing. The alpha of the owning appearance (255 without one) is then set
+   on all four shades, so the lighting stays opaque and the default and back-face colors never
+   contribute alpha. The depth tolerance is
    `eps = 1e-6 * max(diameter, farthestDepth)`.
 8. **Binning**: `TileBinner.Bin` counts per-tile triangles in a first pass, prefix-sums the counts
    into offsets, and fills a flat index array in a second pass, so each tile's list is in ascending
@@ -158,8 +178,10 @@ allowed) and sample rectangle (`k` times larger) and calls `TileWorkspace.Begin`
   3. `EndCounting`, then the **fill pass**: `AddTriangle` for the same triangles in the same order,
      with the same cancellation cadence.
   4. `CsgResolver.ResolveTile`: per sample, sort the fragments by (depth, triangle), infer each
-     leaf's initial state from the whole ray, sweep the tie groups, and take the first group that
-     flips the root as the visible surface; it writes depth, color, and metadata into the
+     leaf's initial state from the whole ray, sweep the tie groups and accumulate the surface layers
+     (the first layer of the main program or of an overlay program, then every further change, until
+     an opaque layer); it writes the composite color with the depth and metadata of the first layer
+     into the
      `TileWorkspace` exactly as the z-buffer does and checks the token once per sample row.
 
 The token is therefore observed at the start of every tile, every 4096 triangles of both passes,
@@ -183,7 +205,8 @@ leaks:
 
 ##### Operand validation (`CsgOperandValidator`)
 
-`Validate(scene, options, token)` runs only for natural CSG-path scenes and only when
+`Validate(scene, options, token)` runs only for natural fragment-path scenes (a boolean, an overlay or
+a translucent appearance) and only when
 `UnsupportedFeatureHandler` is set or `ThrowOnUnsupportedFeature` is true (otherwise it returns
 immediately: no analysis cost). It walks `scene.EnumerateInstances()` in pre-order, skips an
 already analyzed `MeshNode` (deduplication by reference, so a node shared by several parents or

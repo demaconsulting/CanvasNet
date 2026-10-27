@@ -3007,8 +3007,9 @@ catch (NotSupportedException ex)
 A `Scene` is an immutable tree of nodes. Each node has a `Transform` (a `Matrix4x4D`, default
 identity) applied to the node and everything below it, and an optional `Appearance`. A node's
 effective color is that of the innermost node that has an appearance; the alpha of a node color is
-ignored (surfaces are opaque). A group is the union of its children; a `CsgNode` combines its
-children by union, difference, or intersection (see *Constructive Solid Geometry* below).
+honored (see *Transparency and Overlays* below). A group is the union of its children; a `CsgNode`
+combines its children by union, difference, or intersection (see *Constructive Solid Geometry*
+below), and an `OverlayNode` is an independent translucent body (see *Transparency and Overlays*).
 
 ```csharp
 public abstract class SceneNode
@@ -3038,13 +3039,21 @@ public sealed class CsgNode : SceneNode
     public IReadOnlyList<SceneNode> Children { get; } // for Difference the first is the minuend
 }
 
-public sealed record NodeAppearance(Rgba32 Color);
+public sealed class OverlayNode : SceneNode
+{
+    public OverlayNode(Rgba32 color, IEnumerable<SceneNode> children);
+    public Rgba32 Color { get; } // replaces every appearance beneath the overlay; alpha is honored
+    public IReadOnlyList<SceneNode> Children { get; } // their union is the overlay body
+}
+
+public sealed record NodeAppearance(Rgba32 Color); // alpha below 255 makes the surface translucent
 
 public sealed class Scene
 {
     public Scene(SceneNode root);
     public SceneNode Root { get; }
-    public BoundingBox3D ComputeBounds(); // tight world-space bounds
+    public BoundingBox3D ComputeBounds(); // tight world-space bounds, overlay bodies included
+    public BoundingBox3D ComputeBounds(bool includeOverlays); // false leaves the overlay bodies out
 }
 ```
 
@@ -3054,11 +3063,69 @@ order: the node that comes first in a depth-first traversal wins.
 
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode` and `CsgNode` for a
-  null child list, and by `Scene` for a null root.
-- `ArgumentException`: Thrown by `GroupNode` and `CsgNode` for a null child, and when a node
-  `Transform` contains a non-finite element.
+- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode`, `CsgNode` and
+  `OverlayNode` for a null child list, and by `Scene` for a null root.
+- `ArgumentException`: Thrown by `GroupNode`, `CsgNode` and `OverlayNode` for a null child, and when a
+  node `Transform` contains a non-finite element.
 - `ArgumentOutOfRangeException`: Thrown by `CsgNode` for an undefined `CsgOperation` value.
+
+### Transparency and Overlays
+
+The alpha channel of a `NodeAppearance` color is honored. A color with alpha below 255 makes the
+visible surfaces of the solid translucent: the renderer composites the surfaces along each view ray
+from the nearest to the farthest, deterministically and independent of any submission order, until it
+meets an opaque surface, and then composites the remainder over `SceneRenderOptions.BackgroundColor`
+(whose own alpha is honored, so over a transparent background the pixel keeps its color with the
+accumulated alpha). A translucent box therefore shows its far wall through its front, and a
+translucent box in front of an opaque one shows a blend of the two. An alpha of 0 is invisible but the
+body is still solid, so it still takes part in a difference or intersection. The alpha of
+`SceneRenderOptions.DefaultColor`, `BackFaceColor` and of a light color remains ignored.
+
+```csharp
+// A translucent red cube in front of an opaque blue floor: the pixel blends red (twice: front and
+// back wall of the cube) with the blue floor behind it
+var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(2, 2, 2), center: true))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 2)),
+    Appearance = new NodeAppearance(new Rgba32(200, 40, 40, 128)),
+};
+var floor = new MeshNode(PrimitiveTessellator.Box(new Vector3D(8, 8, 1), center: true))
+{
+    Appearance = new NodeAppearance(new Rgba32(30, 60, 220, 255)),
+};
+var scene = new Scene(new GroupNode([floor, cube]));
+```
+
+Members of one union **merge**: a union of overlapping translucent bodies shows only the boundary of
+the union, and geometry fully enclosed by a translucent solid of the same union is not visible (this
+is the only meaning consistent with difference and intersection). The cut surface of a translucent
+difference is drawn with the subtrahend's own color and alpha.
+
+An `OverlayNode` expresses an **independent** see-through body (a ghost or a highlight). Its children
+(a union) are drawn with the overlay's `Color` (alpha honored; it replaces every appearance beneath
+the overlay, and the overlay node's own `Appearance` is ignored), and the overlay is **false** in every
+enclosing boolean: it does not add to, subtract from, or intersect the solid. It is depth-composited
+with the rest of the scene, so it tints what is behind it, is hidden behind opaque geometry, and can
+sit anywhere, including inside a solid that is translucent. An overlay nested in an overlay is a plain
+group (the outer color wins). To highlight a subtrahend, put the same node both in the difference and,
+wrapped in an overlay, beside it:
+
+```csharp
+var cutter = new MeshNode(PrimitiveTessellator.Cylinder(6, 1.0, 1.0, 32, center: true));
+var overlay = new OverlayNode(new Rgba32(255, 64, 128, 110), [cutter]);
+var part = new CsgNode(CsgOperation.Difference, [cube, new GroupNode([cutter, overlay])]);
+```
+
+`Scene.ComputeBounds()` (and so `RenderFitted` and `Camera.FitToBounds`) includes the overlay bodies
+so that a ghost stays in the picture; `Scene.ComputeBounds(false)` leaves them out, for example to size
+only the solid.
+
+**Requirements.** Like constructive solid geometry, translucency and overlays are resolved with signed
+surface crossings, so every mesh in such a scene should be a closed, consistently wound, outward-oriented
+solid (see *Operands must be solids* below); the renderer checks and reports them with the same
+tokens and options. Such scenes are rendered per pixel from stored surface crossings and are subject to
+`MaxFragmentsPerTile` (an overlay of the same size doubles the fragments of its tile); an opaque scene
+without overlays is rendered exactly as before, with no extra memory.
 
 ### Constructive Solid Geometry
 
@@ -3088,7 +3155,8 @@ example an inside-out cube next to a valid one - is reported even when the total
 positive. The `PrimitiveTessellator` box, sphere, cylinder, and
 cone meshes satisfy this; for a closed mesh with a negative `SignedVolume` (inside-out), use
 `Mesh.Reverse`. Checking applies to every mesh in a scene that contains a difference or an
-intersection, not only the direct operands, because an open mesh anywhere in the scene would vanish
+intersection (or a translucent appearance or an overlay, see *Transparency and Overlays*), not only
+the direct operands, because an open mesh anywhere in the scene would vanish
 from the result. By default the renderer is **tolerant**: it renders anyway, and the output is
 deterministic but visibly wrong where an operand is not a solid. To find out about such operands,
 set `SceneRenderOptions.UnsupportedFeatureHandler` (called once per problem, on the calling
@@ -3127,10 +3195,11 @@ source.
 
 Rendering behavior worth knowing:
 
-- **Unions are free.** A scene whose `CsgNode`s are all unions (or whose difference/intersection
+- **Unions are free.** An opaque scene whose `CsgNode`s are all unions (or whose difference/intersection
   nodes have a single child) is rendered exactly as a scene of groups: the same z-buffer path, no
   extra memory, no operand analysis, and byte-identical output to a render without `CsgNode`.
-- **Per-tile budget.** A scene with a difference or an intersection stores every surface crossing
+- **Per-tile budget.** A scene with a difference or an intersection (or a translucent appearance or an
+  overlay) stores every surface crossing
   of a 32 x 32 pixel tile. `SceneRenderOptions.MaxFragmentsPerTile` (default 4 Mi, about 32 MB per
   worker) bounds that memory; a tile that needs more throws `RenderBudgetExceededException`
   (with the `MaxFragmentsPerTile` that was exceeded), identically for every thread count. Lower
@@ -3158,8 +3227,8 @@ Rendering behavior worth knowing:
 - **Determinism.** At any given `Supersampling` setting, the output is byte-identical for every
   `MaxDegreeOfParallelism` and every run, as for scenes without CSG. (Different `Supersampling`
   factors naturally produce different antialiasing.)
-- **Bounds.** `Scene.ComputeBounds` includes every operand, even the removed parts, so
-  `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
+- **Bounds.** `Scene.ComputeBounds()` includes every operand, even the removed parts (and every overlay
+  body), so `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
 
 ### Camera
 
@@ -3264,14 +3333,14 @@ public sealed class SceneRenderOptions
     public static SceneRenderOptions Default { get; }
 
     public Rgba32 BackgroundColor { get; init; } // default opaque white; alpha is honored
-    public Rgba32 DefaultColor { get; init; } // default (180, 180, 180): nodes without an appearance
-    public Rgba32 BackFaceColor { get; init; } // default (200, 70, 70): surfaces seen from behind
+    public Rgba32 DefaultColor { get; init; } // default (180, 180, 180): nodes without an appearance; alpha is ignored
+    public Rgba32 BackFaceColor { get; init; } // default (200, 70, 70): surfaces seen from behind; alpha is ignored
     public IReadOnlyList<Light>? Lights { get; init; } // null = Light.DefaultRig; copied
     public float SpecularStrength { get; init; } // default 0.10; 0 to 1
     public float SpecularPower { get; init; } // default 32; greater than 0
     public int Supersampling { get; init; } // default 3; 1 to 4 samples per axis
     public int MaxDegreeOfParallelism { get; init; } // default -1; 1 = sequential
-    public long MaxFragmentsPerTile { get; init; } // default 4 Mi; 1 to Array.MaxLength; CSG scenes only
+    public long MaxFragmentsPerTile { get; init; } // default 4 Mi; 1 to Array.MaxLength; per-pixel scenes only
     public Action<SceneRenderUnsupportedFeature>? UnsupportedFeatureHandler { get; init; } // default null
     public bool ThrowOnUnsupportedFeature { get; init; } // default false (tolerant)
 }
@@ -3284,9 +3353,10 @@ choose how many tiles to render at once, `1` renders sequentially, and the outpu
 for every setting. A back-facing surface is not culled but painted with `BackFaceColor`, which makes
 inside-out or open meshes easy to spot.
 
-The last three properties apply to scenes with a `CsgNode` difference or intersection (see
-*Constructive Solid Geometry*): `MaxFragmentsPerTile` bounds the per-tile fragment storage and is
-ignored for scenes without such nodes, `UnsupportedFeatureHandler` receives a
+The last three properties apply to scenes that are resolved per pixel - a `CsgNode` difference or
+intersection, a translucent appearance, or an `OverlayNode` (see *Constructive Solid Geometry* and
+*Transparency and Overlays*): `MaxFragmentsPerTile` bounds the per-tile fragment storage and is
+ignored for opaque scenes without such nodes, `UnsupportedFeatureHandler` receives a
 `SceneRenderUnsupportedFeature` for each operand problem, and `ThrowOnUnsupportedFeature` turns the
 first problem into a `SceneRenderUnsupportedFeatureException` instead.
 
@@ -3338,10 +3408,10 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `ArgumentException`: Thrown by `Render` when the camera is invalid (eye equals target, an
   orthographic camera without `OrthographicHeight`, or `NearPlane` not less than `FarPlane`).
 - `OperationCanceledException`: Thrown when `cancellationToken` is cancelled.
-- `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection needs
-  more than `MaxFragmentsPerTile` fragments in a tile.
-- `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
-  operand is not a closed, outward-oriented solid.
+- `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection, a
+  translucent appearance or an overlay needs more than `MaxFragmentsPerTile` fragments in a tile.
+- `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG,
+  translucent or overlay mesh is not a closed, outward-oriented solid.
 
 ### ScadDocument
 

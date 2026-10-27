@@ -44,3 +44,8 @@ unexpected exception.
   `SceneModelTests.SceneModel_NestedGroups_BoundsMatchAnalytic` — builds nested groups with
   different translations and asserts that `Scene.ComputeBounds` equals the analytic union of the
   transformed cube extents.
+- **Overlay Body Instances And Bounds Match Analytic**:
+  `SceneModelTests.SceneModel_OverlayBody_InstancesAndBoundsMatchAnalytic` — builds a cube and, under
+  a translated group, an overlay holding a shifted cube, and asserts that the enumerated overlay
+  instance is marked, carries the overlay's forced color, and that the bounds with and without
+  overlays (and the default bounds) equal the analytic boxes.

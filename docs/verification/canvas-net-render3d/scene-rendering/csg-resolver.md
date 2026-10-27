@@ -1,9 +1,10 @@
 ### CsgResolver Unit Verification Design
 
-<!-- cspell:ignore subtrahend subtrahends minuend postfix speckle rasterizer -->
+<!-- cspell:ignore subtrahend subtrahends minuend postfix speckle rasterizer transmittance -->
 
 This document describes the unit-level verification strategy for the internal `CsgCompiler`,
-`CsgCompilation`, `CsgProgram`, `CsgInstruction`, `CsgOpCode`, and `CsgResolver` types.
+`CsgCompilation`, `CsgProgram`, `CsgInstruction`, `CsgOpCode`, `LayerCompositor`, and `CsgResolver`
+types.
 
 #### Verification Approach
 
@@ -79,7 +80,7 @@ malformed instruction sequences are rejected.
 `CsgProgramTests.CsgCompiler_Compile_DeeplyNestedUnion_CollapsesIteratively`
 
 Asserts that scenes made only of meshes, groups, unions, and single-child booleans (also 10 000 deep)
-produce no program and map every instance to one leaf.
+produce no program (an overlay, which would, is covered below) and map every instance to one leaf.
 
 ##### CanvasNetRender3D-SceneRendering-CsgResolver-InitialState: The Ray Start State Is Inferred From The Whole Ray
 
@@ -157,6 +158,71 @@ that the visible depth, event kind, chosen fragment, and metadata match the anal
 sorted and shuffled fragment orders give identical results, that the totals prove the test is not
 vacuous (visible surfaces, exits from inside material, and exact ties all occur), and that random
 unbalanced fragment lists neither throw nor leave state behind.
+
+##### CanvasNetRender3D-SceneRendering-CsgResolver-Overlays: Overlay Bodies Compile To Programs Of Their Own
+
+**Tests**: `CsgProgramTests.CsgCompiler_Compile_OverlayNode_IsFalseInMainAndGetsOwnProgram`,
+`CsgProgramTests.CsgCompiler_Compile_OverlayInsideUnion_DoesNotCollapseMainLeaf_ButSiblingsStillCollapse`,
+`CsgProgramTests.CsgCompiler_Compile_OverlayInsideDifference_LeafOfInstanceFollowsPreOrder`,
+`CsgProgramTests.CsgCompiler_Compile_NestedOverlay_IsGroupInsideOverlayBody`,
+`CsgProgramTests.CsgCompiler_Compile_SharedNodeInMainAndOverlay_ClassifiedPerContext`,
+`CsgProgramTests.CsgCompiler_Compile_EmptyOverlay_AddsNoProgram`,
+`CsgProgramTests.CsgCompiler_Compile_OnlyOverlays_MainProgramIsFalse`,
+`CsgProgramTests.CsgCompiler_Compile_NoOverlay_ProgramAndLeavesUnchanged`
+
+Asserts the exact postfix text of the main and overlay programs (an overlay is `FALSE` in the main
+program and a difference with it leaves the minuend), that a subtree with an overlay is not
+collapsed while sibling subtrees are, that leaf numbers and the instance-to-leaf map follow the
+pre-order of `Scene.EnumerateInstances` (compared with the enumeration and its overlay markers), that a
+nested overlay is a plain group in a union-only body and in a boolean body, that a node shared by the
+main tree and an overlay body is classified per context, that an empty overlay adds no program, that
+a scene of only an overlay has the main program `FALSE`, and that a scene without overlays compiles
+as before (a regression guard).
+
+##### CanvasNetRender3D-SceneRendering-CsgResolver-Layers: Surface Layers Accumulate Front To Back
+
+**Tests**: `CsgResolverTests.CsgResolver_Resolve_TranslucentFront_CompositesOverOpaqueBack`,
+`CsgResolverTests.CsgResolver_Resolve_OpaqueFirstLayer_StopsSweep_AndEqualsLegacyResult`,
+`CsgResolverTests.CsgResolver_Resolve_TranslucentExitAfterEnter_UsesOwnShadeNotBackFaceColor`,
+`CsgResolverTests.CsgResolver_Resolve_RayStartsInsideTranslucentMain_UsesExitColorWithAlpha`,
+`CsgResolverTests.CsgResolver_Resolve_LayersBeyondFar_AreIgnored`
+
+Asserts, with hand-built triangles whose shades carry explicit alpha and hand-computed closed-form
+composites (for example 128 + 64 of a translucent red and the remaining 63 of an opaque blue giving
+`(192, 0, 63, 255)`), that the far wall of a translucent solid uses its own shade and never an
+opaque exit shade, that a ray starting inside a translucent main solid shows the exit shade with its
+alpha, that layers beyond the far distance are ignored, and that an opaque first layer gives exactly
+the classic result over a transparent, a translucent and an opaque background.
+
+##### CanvasNetRender3D-SceneRendering-CsgResolver-LayerOrder: Layers Are Ordered By Depth And Overlays Are Independent
+
+**Tests**: `CsgResolverTests.CsgResolver_Resolve_TwoTranslucentLayers_AreOrderedByDepth_NotInsertion`,
+`CsgResolverTests.CsgResolver_Resolve_OverlayCoincidentWithMain_OverlayIsInFront`,
+`CsgResolverTests.CsgResolver_Resolve_OverlayBehindOpaqueMain_IsHidden`,
+`CsgResolverTests.CsgResolver_Resolve_OverlayLeavesDoNotAffectMainProgram`,
+`CsgResolverTests.CsgResolver_Resolve_ScratchIsClearedBetweenSamples_WithOverlays`,
+`CsgResolverTests.CsgResolver_Constructor_NullOrEmptyProgramList_Throws`
+
+Asserts that all 24 insertion orders of four fragments give the depth-ordered composite (and that the
+reverse color order would differ), that an overlay layer coincident with an opaque main face tints it
+(overlay first, depth and metadata from the overlay), that an overlay behind an opaque main surface is
+hidden, that an overlay inside a translucent difference is neither subtracted nor intersected, that a
+resolver reused for samples with different fragments leaves no state behind, and the argument checks of
+the program-list constructor (null list, empty list, null program, a leaf claimed by two programs).
+
+##### CanvasNetRender3D-SceneRendering-CsgResolver-LayerCompositing: Layers Composite In Exact Integer Arithmetic
+
+**Tests**: `CsgResolverTests.LayerCompositor_SingleOpaqueLayer_ReturnsLayerColorExactly`,
+`CsgResolverTests.LayerCompositor_HalfAlphaOverOpaqueBackground_MatchesClosedForm`,
+`CsgResolverTests.LayerCompositor_TransparentBackground_YieldsAccumulatedAlphaAndStraightColor`,
+`CsgResolverTests.LayerCompositor_ManyLayers_TransmittanceNeverGoesNegative_AndOpaqueStops`,
+`CsgResolverTests.LayerCompositor_AlphaZeroLayers_ContributeNothing`
+
+Asserts that a single opaque layer returns its color exactly over every background, that one layer of
+alpha 1, 64, 127, 128, 200 or 254 over an opaque background is within one level of the closed form
+`(a*c + (255-a)*b + 127) / 255`, that over a transparent background the layer color is unchanged with
+the accumulated alpha, that forty translucent layers never exceed alpha 255 and that an opaque layer
+afterwards ends accumulation, and that alpha-zero layers leave the background untouched.
 
 #### Acceptance Criteria
 

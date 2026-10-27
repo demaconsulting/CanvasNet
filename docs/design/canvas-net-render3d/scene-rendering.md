@@ -21,8 +21,9 @@ onto a new core `Surface`. It contains six units:
 - **FragmentBuffer** — the internal per-worker `FragmentBuffer` that collects every fragment of a
   tile for the fragment-list CSG path; see _FragmentBuffer Unit Design_
   (`scene-rendering/fragment-buffer.md`)
-- **CsgResolver** — the internal `CsgCompiler`, `CsgProgram`, and `CsgResolver` that compile the
-  scene tree and resolve each sample's visible CSG surface; see _CsgResolver Unit Design_
+- **CsgResolver** — the internal `CsgCompiler`, `CsgProgram`, `LayerCompositor`, and `CsgResolver` that
+  compile the scene tree (and the overlay bodies) and resolve each sample's visible surface layers;
+  see _CsgResolver Unit Design_
   (`scene-rendering/csg-resolver.md`)
 - **SceneRenderer** — the public `SceneRenderer`, `SceneRenderOptions`,
   `RenderBudgetExceededException`, `SceneRenderUnsupportedFeature`, and
@@ -50,8 +51,9 @@ library supplies `System.Numerics.Vector3`, `Parallel.For`, and `CancellationTok
 
 `SceneRenderer` is the orchestrator and the only unit with public entry points that render. For
 one render it (1) builds a `ViewTransform` from the `Camera` (the `Camera` unit), (2) compiles the
-scene tree with `CsgCompiler` to choose the path: a scene without a difference or intersection of
-two or more operands has no program and uses the z-buffer path, any other scene uses the
+scene tree with `CsgCompiler` to choose the path: an opaque scene without a difference or intersection
+of two or more operands and without an overlay has no program and uses the z-buffer path, any other
+scene (a boolean, an overlay or a translucent appearance) uses the
 fragment-list path, and for such a scene `CsgOperandValidator` reports unsuitable operands before
 any rendering work, (3) flattens the `Scene` and transforms vertices to camera-relative view space,
 (4) shades each triangle once with `LightingModel` (the `Lighting` unit; four shades on the
@@ -78,14 +80,18 @@ algorithms are in the unit designs.
 
 **Fragment-list CSG.** Difference and intersection cannot be resolved by a depth test, so the
 subsystem resolves them per sample from all of a sample's fragments: `CsgCompiler` turns the scene
-tree into a `CsgProgram` over union-collapsed leaves (and reports no program for a union-only scene,
-which keeps the z-buffer fast path and allocates no fragment storage); `FragmentBuffer` collects
+tree into a `CsgProgram` over union-collapsed leaves (and reports no program for an opaque union-only
+scene without overlay,
+which keeps the z-buffer fast path and allocates no fragment storage); an overlay body gets a program of
+its own; `FragmentBuffer` collects
 every fragment of a tile through the same `IFragmentVisitor` rasterization in an exact-sized count
 pass and fill pass, with a deterministic per-tile budget that `SceneRenderer` surfaces as
 `RenderBudgetExceededException` (unwrapped from the `AggregateException` of a parallel render, with
 cancellation taking precedence); and `CsgResolver` sorts a sample's fragments, infers the ray's
 starting state, applies atomic tie groups (widened by the triangles' depth slope for independently
-placed coincident faces), and writes the visible surface into the `TileWorkspace` in the same form
+placed coincident faces), accumulates the surface layers of the main solid and of the overlays front to
+back with `LayerCompositor` (until an opaque layer; translucent surfaces and overlays), and writes
+the visible surface into the `TileWorkspace` in the same form
 the z-buffer does, so the existing `SampleResolver`, tiling, and supersampling are reused
 unchanged. `SceneRenderer` classifies the facing of mirrored operands with the winding correction
 it already applies, and validates the meshes of a fragment-list scene (see _SceneRenderer Unit

@@ -189,9 +189,11 @@ public sealed class SceneRenderOptions
     ///     Gets the maximum number of fragments (covered samples of all triangles) a single 32 by 32
     ///     pixel render tile may need when the scene is resolved per pixel, which is the case for
     ///     scenes that use a <see cref="SceneModel.CsgOperation.Difference"/> or
-    ///     <see cref="SceneModel.CsgOperation.Intersection"/>. It bounds the memory of that step
+    ///     <see cref="SceneModel.CsgOperation.Intersection"/>, an <see cref="SceneModel.OverlayNode"/> or a
+    ///     translucent <see cref="SceneModel.NodeAppearance"/> (overlay and translucent triangles are ordinary
+    ///     fragments of the same buffer). It bounds the memory of that step
     ///     (roughly 8 to 12 bytes per fragment per worker); when a tile would exceed it the render
-    ///     throws <see cref="RenderBudgetExceededException"/> deterministically. Scenes that only
+    ///     throws <see cref="RenderBudgetExceededException"/> deterministically. Opaque scenes that only
     ///     use unions are never subject to the budget. Defaults to 4 Mi (4 * 1024 * 1024).
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown (from the <see langword="init"/> accessor) when the value is less than 1 or greater than <see cref="Array.MaxLength"/>.</exception>

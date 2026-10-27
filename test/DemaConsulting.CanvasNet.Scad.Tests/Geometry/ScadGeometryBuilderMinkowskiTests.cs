@@ -405,6 +405,31 @@ public class ScadGeometryBuilderMinkowskiTests
     }
 
     /// <summary>
+    ///     Validates that the appearance-stripping copy turns an overlay into an empty group (an overlay is not part of a hull
+    ///     or Minkowski operand) instead of throwing, keeping the transform and the rest of the scene.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilder_Minkowski_StripAppearances_OverlayNode_BecomesEmptyGroup()
+    {
+        // Arrange: a group of a mesh and an overlay of another mesh
+        var mesh = PrimitiveTessellator.Box(new Vector3D(1, 1, 1));
+        var overlay = new OverlayNode(new Rgba32(255, 0, 0, 100), [new MeshNode(mesh)]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(2, 0, 0)) };
+        var root = new GroupNode([new MeshNode(mesh), overlay]);
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(new ScadEvaluationSink(ScadLimits.Default), false));
+
+        // Act
+        var stripped = ScadHulls.StripAppearances(ScadGeo.FromSolid(root, mesh.Bounds, true, false), context);
+
+        // Assert
+        var copy = Assert.IsType<GroupNode>(stripped.Node);
+        Assert.Equal(2, copy.Children.Count);
+        Assert.IsType<MeshNode>(copy.Children[0]);
+        var emptied = Assert.IsType<GroupNode>(copy.Children[1]);
+        Assert.Empty(emptied.Children);
+        Assert.Equal(overlay.Transform, emptied.Transform);
+    }
+
+    /// <summary>
     ///     Validates the appearance-stripping copy on a deep DAG: a chain of a hundred thousand groups whose two children
     ///     are the same next group has 2^100000 paths, so the copy must visit each node once (and iteratively), and every
     ///     copy must be shared by both of its parents.

@@ -3,7 +3,8 @@
 <!-- cspell:ignore rasterizer rasterization rasterized prefix -->
 
 The `FragmentBuffer` unit is a software unit in the `SceneRendering` subsystem. It is an
-internal, per-worker, reusable store for the fragments of one tile on the fragment-list CSG path:
+internal, per-worker, reusable store for the fragments of one tile on the fragment-list path (constructive
+solid geometry, translucent surfaces and overlays):
 
 - `FragmentBuffer` (sealed class): the two-pass collection protocol, the budget check, and the
   per-sample access
@@ -17,7 +18,8 @@ All types are internal to the assembly (visible to the test assembly through
 
 #### Purpose
 
-A depth test keeps only the nearest fragment per sample, but difference and intersection need
+A depth test keeps only the nearest fragment per sample, but difference and intersection (and
+translucent surfaces and overlays, which composite several layers) need
 **every** surface a sample's ray crosses. `FragmentBuffer` gathers all of them for one tile into
 contiguous, exact-sized storage without any per-sample allocation, and refuses to grow beyond a
 configured budget so memory stays bounded and a too-complex scene fails in a repeatable way.

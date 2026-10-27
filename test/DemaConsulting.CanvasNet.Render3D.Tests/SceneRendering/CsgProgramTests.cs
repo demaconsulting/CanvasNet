@@ -1,5 +1,6 @@
 // cspell:ignore ANDNOT
 
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
@@ -429,5 +430,172 @@ public class CsgProgramTests
 
         // Assert
         Assert.False(Eval(program));
+    }
+
+    /// <summary>
+    ///     Creates an overlay node.
+    /// </summary>
+    /// <param name="children">The children.</param>
+    /// <returns>The node.</returns>
+    private static OverlayNode Overlay(params SceneNode[] children) => new(new Rgba32(255, 0, 0, 100), children);
+
+    /// <summary>
+    ///     Validates that an overlay is FALSE in the main program and its body gets a program of its own.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_OverlayNode_IsFalseInMainAndGetsOwnProgram()
+    {
+        // Arrange: m0 - overlay(m1)
+        var root = Csg(CsgOperation.Difference, M(), Overlay(M()));
+
+        // Act
+        var result = CsgCompiler.Compile(root);
+
+        // Assert
+        Assert.Equal("L0 FALSE ANDNOT", result.Program!.Disassemble());
+        Assert.Equal([0, 1], result.LeafOfInstance);
+        Assert.Equal(2, result.LeafCount);
+        var overlay = Assert.Single(result.OverlayPrograms!);
+        Assert.Equal("L1", overlay.Disassemble());
+        Assert.True(Eval(result.Program, 0));
+        Assert.False(Eval(result.Program, 1));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay prevents collapsing its own ancestors but not sibling subtrees.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_OverlayInsideUnion_DoesNotCollapseMainLeaf_ButSiblingsStillCollapse()
+    {
+        // Arrange: group(group(m, m), overlay(m), group(m, m))
+        var root = Group(Group(M(), M()), Overlay(M()), Group(M(), M()));
+
+        // Act
+        var result = CsgCompiler.Compile(root);
+
+        // Assert
+        Assert.Equal("L0 FALSE OR L2 OR", result.Program!.Disassemble());
+        Assert.Equal([0, 0, 1, 2, 2], result.LeafOfInstance);
+        Assert.Equal(3, result.LeafCount);
+        Assert.Equal("L1", Assert.Single(result.OverlayPrograms!).Disassemble());
+    }
+
+    /// <summary>
+    ///     Validates that leaf numbers follow the pre-order of the instance enumeration when an overlay sits inside a difference.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_OverlayInsideDifference_LeafOfInstanceFollowsPreOrder()
+    {
+        // Arrange: m0 - overlay(m1, m2) - m3, scene built so the enumeration can be compared
+        var root = Csg(CsgOperation.Difference, M(), Overlay(M(), M()), M());
+        var scene = new Scene(root);
+
+        // Act
+        var result = CsgCompiler.Compile(root);
+
+        // Assert
+        Assert.Equal("L0 FALSE ANDNOT L2 ANDNOT", result.Program!.Disassemble());
+        Assert.Equal([0, 1, 1, 2], result.LeafOfInstance);
+        Assert.Equal(scene.EnumerateInstances().Count(), result.LeafOfInstance.Length);
+        Assert.Equal([false, true, true, false], scene.EnumerateInstances().Select(i => i.InOverlay));
+        Assert.Equal("L1", Assert.Single(result.OverlayPrograms!).Disassemble());
+    }
+
+    /// <summary>
+    ///     Validates that an overlay nested in an overlay body is a plain group, also inside a boolean body.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_NestedOverlay_IsGroupInsideOverlayBody()
+    {
+        // Arrange: a union-only body with a nested overlay, and a body whose difference holds a nested overlay
+        var unionScene = Group(M(), Overlay(M(), Overlay(M())));
+        var booleanScene = Overlay(Csg(CsgOperation.Difference, M(), Overlay(M())));
+
+        // Act
+        var union = CsgCompiler.Compile(unionScene);
+        var boolean = CsgCompiler.Compile(booleanScene);
+
+        // Assert: the whole union body is one leaf; the boolean body is a normal difference of two leaves
+        Assert.Equal("L0 FALSE OR", union.Program!.Disassemble());
+        Assert.Equal([0, 1, 1], union.LeafOfInstance);
+        Assert.Equal("L1", Assert.Single(union.OverlayPrograms!).Disassemble());
+        Assert.Equal("FALSE", boolean.Program!.Disassemble());
+        Assert.Equal("L0 L1 ANDNOT", Assert.Single(boolean.OverlayPrograms!).Disassemble());
+        Assert.Equal([0, 1], boolean.LeafOfInstance);
+    }
+
+    /// <summary>
+    ///     Validates that a node shared by the main tree and an overlay body is classified separately per context.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_SharedNodeInMainAndOverlay_ClassifiedPerContext()
+    {
+        // Arrange: shared = group(m, overlay(m)); root = group(shared, overlay(shared))
+        var shared = Group(M(), Overlay(M()));
+        var root = Group(shared, Overlay(shared));
+
+        // Act
+        var result = CsgCompiler.Compile(root);
+
+        // Assert: in the main tree the shared node holds an overlay, inside the overlay body it is plain union
+        Assert.Equal("L0 FALSE OR FALSE OR", result.Program!.Disassemble());
+        Assert.Equal([0, 1, 2, 2], result.LeafOfInstance);
+        Assert.Equal(["L1", "L2"], result.OverlayPrograms!.Select(p => p.Disassemble()));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay without meshes adds no program.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_EmptyOverlay_AddsNoProgram()
+    {
+        // Arrange
+        var root = Group(M(), Overlay(), Overlay(Group()));
+
+        // Act
+        var result = CsgCompiler.Compile(root);
+
+        // Assert
+        Assert.Equal("L0 FALSE OR FALSE OR", result.Program!.Disassemble());
+        Assert.Empty(result.OverlayPrograms!);
+        Assert.Equal([0], result.LeafOfInstance);
+    }
+
+    /// <summary>
+    ///     Validates that a scene made only of an overlay has a FALSE main program.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_OnlyOverlays_MainProgramIsFalse()
+    {
+        // Arrange / Act
+        var result = CsgCompiler.Compile(Overlay(M(), M()));
+
+        // Assert
+        Assert.Equal("FALSE", result.Program!.Disassemble());
+        Assert.False(Eval(result.Program));
+        Assert.Equal(1, result.LeafCount);
+        Assert.Equal([0, 0], result.LeafOfInstance);
+        Assert.Equal("L0", Assert.Single(result.OverlayPrograms!).Disassemble());
+    }
+
+    /// <summary>
+    ///     Validates that a scene without overlays compiles exactly as before and has no overlay programs.
+    /// </summary>
+    [Fact]
+    public void CsgCompiler_Compile_NoOverlay_ProgramAndLeavesUnchanged()
+    {
+        // Arrange
+        var difference = Csg(CsgOperation.Difference, Group(M(), M()), M());
+
+        // Act
+        var boolean = CsgCompiler.Compile(difference);
+        var unionOnly = CsgCompiler.Compile(Group(M(), M()));
+
+        // Assert
+        Assert.Equal("L0 L1 ANDNOT", boolean.Program!.Disassemble());
+        Assert.Empty(boolean.OverlayPrograms ?? []);
+        Assert.Equal([0, 0, 1], boolean.LeafOfInstance);
+        Assert.Null(unionOnly.Program);
+        Assert.Empty(unionOnly.OverlayPrograms ?? []);
     }
 }

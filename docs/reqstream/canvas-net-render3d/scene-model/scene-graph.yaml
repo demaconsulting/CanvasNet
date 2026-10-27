@@ -2,10 +2,11 @@
 # Software Unit Requirements for SceneGraph
 #
 # These requirements describe the design-level behavior of the SceneGraph unit: the public
-# SceneNode, MeshNode, GroupNode, CsgNode, CsgOperation, NodeAppearance, and Scene types (and the
-# internal SceneInstance record) in the DemaConsulting.CanvasNet.Render3D.SceneModel namespace. A
-# group's semantics is the implicit union of its children; boolean operations (difference,
-# intersection) are expressed with CsgNode.
+# SceneNode, MeshNode, GroupNode, CsgNode, OverlayNode, CsgOperation, NodeAppearance, and Scene types
+# (and the internal SceneInstance record) in the DemaConsulting.CanvasNet.Render3D.SceneModel
+# namespace. A group's semantics is the implicit union of its children; boolean operations
+# (difference, intersection) are expressed with CsgNode; an independent translucent body (ghost or
+# highlight) is expressed with OverlayNode.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -59,13 +60,17 @@ sections:
               - id: CanvasNetRender3D-SceneModel-SceneGraph-AppearanceInheritance
                 title: >-
                   The Scene shall resolve each mesh instance's appearance as that of its innermost
-                  enclosing node that specifies one, and report no appearance when none does.
+                  enclosing node that specifies one (its color's alpha being honored by the
+                  renderer), except beneath an OverlayNode, whose color replaces every appearance
+                  beneath it, and report no appearance when none does.
                 justification: |
                   Innermost-wins inheritance lets a caller color an assembly and override a single
-                  part.
+                  part; a forced overlay color makes an overlay body look the same whatever its
+                  parts were colored.
                 tests:
                   - Scene_EnumerateInstances_InnermostAppearanceWins
                   - Scene_EnumerateInstances_NoAppearance_ReportsNull
+                  - OverlayNode_EnumerateInstances_ForcesOverlayColorOverInnerAppearances_AndMarksInOverlay
 
               - id: CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds
                 title: >-
@@ -129,3 +134,48 @@ sections:
                   - CsgNode_SingleChild_EnumeratesThatChild
                   - Scene_ComputeBounds_CsgNode_IncludesAllOperands
                   - Scene_EnumerateInstances_TenThousandNestedCsgNodes_DoesNotOverflowStack
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-OverlayNode
+                title: >-
+                  The OverlayNode constructor shall accept a color (its alpha being honored) and a
+                  sequence of child nodes forming a union, reject a null sequence with
+                  ArgumentNullException and a null child element with ArgumentException,
+                  defensively copy the children, allow an empty overlay, and keep the closed
+                  scene-node hierarchy.
+                justification: |
+                  An independent translucent body (a ghost or highlight) needs an immutable,
+                  validated node whose color is part of the node, so that the renderer can treat
+                  it as a body of its own without caller-managed bookkeeping.
+                tests:
+                  - OverlayNode_Constructor_CopiesChildren_RejectsNullChild_AndNullEnumerable
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-OverlayEnumeration
+                title: >-
+                  The Scene shall enumerate the children of an OverlayNode like those of a group
+                  (pre-order, child-then-parent transform composition, once per path), mark every
+                  instance beneath it as being in an overlay, give it the overlay's color as a
+                  forced appearance over any inner appearance, treat an overlay nested in an
+                  overlay as a plain group with the outer color, and enumerate ten thousand nested
+                  overlays without stack overflow.
+                justification: |
+                  The renderer recovers the overlay bodies from the same traversal that yields the
+                  instances; a forced color and an overlay marker are all it needs to tell the
+                  overlay's meshes from the main solid's.
+                tests:
+                  - OverlayNode_EnumerateInstances_ForcesOverlayColorOverInnerAppearances_AndMarksInOverlay
+                  - OverlayNode_NestedOverlay_ActsAsGroupWithOuterColor
+                  - OverlayNode_Transform_ComposesLikeGroup
+                  - Scene_EnumerateInstances_DeepOverlayNesting_IsIterative
+
+              - id: CanvasNetRender3D-SceneModel-SceneGraph-OverlayBounds
+                title: >-
+                  The Scene shall include overlay bodies in the bounds returned by ComputeBounds()
+                  (equal to ComputeBounds(true)) and provide a ComputeBounds(bool) overload whose
+                  false argument leaves them out, caching each result.
+                justification: |
+                  A fitted camera must frame a ghost so that it stays in the picture, whereas
+                  geometry operations that size the solid itself (such as a resize) must not be
+                  influenced by an overlay.
+                tests:
+                  - Scene_ComputeBounds_WithoutOverlays_SkipsOverlayInstances
+                  - Scene_ComputeBounds_Default_IncludesOverlays

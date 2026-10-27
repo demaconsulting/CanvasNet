@@ -242,4 +242,36 @@ public class SceneRenderingTests
         Assert.True(Render3DTestHelpers.DistinctColors(a).Count > 4);
         Render3DTestHelpers.AssertSurfacesIdentical(a, b);
     }
+
+    /// <summary>
+    ///     Validates the whole subsystem on a transparent scene: a translucent cube, an opaque cube behind it and an
+    ///     overlay ghost render with the lit, composited colors of the layers, validated and deterministic across
+    ///     sequential and parallel tiles.
+    /// </summary>
+    [Fact]
+    public void SceneRendering_TransparentScene_LayersCompositeDeterministically()
+    {
+        // Arrange: a translucent blue cube in front of an opaque red cube, and a gray ghost sphere beside them
+        var front = new MeshNode(PrimitiveTessellator.Box(new Vector3D(6, 6, 2), center: true))
+        {
+            Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 4)),
+            Appearance = new NodeAppearance(new Rgba32(30, 60, 220, 120)),
+        };
+        var back = new MeshNode(PrimitiveTessellator.Box(new Vector3D(10, 10, 2), center: true)) { Appearance = new NodeAppearance(new Rgba32(220, 40, 40, 255)) };
+        var ghost = new OverlayNode(new Rgba32(128, 128, 128, 90), [new MeshNode(PrimitiveTessellator.Sphere(2.0, 32)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(8, 0, 0)) }]);
+        var scene = new Scene(new GroupNode([front, back, ghost]));
+        var camera = Camera.FitToBounds(scene.ComputeBounds(), 30.0, 40.0, 1.0);
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var sequential = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = 1, UnsupportedFeatureHandler = reports.Add };
+        var parallel = new SceneRenderOptions { Supersampling = 2, MaxDegreeOfParallelism = -1 };
+
+        // Act
+        using var a = SceneRenderer.Render(scene, camera, 120, 120, sequential, TestContext.Current.CancellationToken);
+        using var b = SceneRenderer.Render(scene, camera, 120, 120, parallel, TestContext.Current.CancellationToken);
+
+        // Assert: closed solids raise no report, the image holds blended colors beyond the pure appearances, and tiles agree
+        Assert.Empty(reports);
+        Assert.True(Render3DTestHelpers.DistinctColors(a).Count > 8);
+        Render3DTestHelpers.AssertSurfacesIdentical(a, b);
+    }
 }

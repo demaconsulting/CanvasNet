@@ -629,4 +629,25 @@ public class CsgOperandValidatorTests
         Assert.False(CsgOperandValidator.IsEnabled(SceneRenderOptions.Default));
         Assert.True(CsgOperandValidator.IsEnabled(new SceneRenderOptions { ThrowOnUnsupportedFeature = true }));
     }
+
+    /// <summary>
+    ///     Validates that the meshes beneath an overlay are checked like CSG operands.
+    /// </summary>
+    [Fact]
+    public void CsgOperandValidator_Validate_OverlayMeshes_AreChecked()
+    {
+        // Arrange: a healthy cube plus an overlay whose body is an open quad
+        var open = new MeshNode(CreateDefective("quad"));
+        var scene = new Scene(new GroupNode([new MeshNode(Cube), new OverlayNode(new Rgba32(255, 0, 0, 100), [open])]));
+        var reports = new List<SceneRenderUnsupportedFeature>();
+        var options = new SceneRenderOptions { Supersampling = 1, UnsupportedFeatureHandler = reports.Add };
+
+        // Act
+        CsgOperandValidator.Validate(scene, options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal("render3d-csg-open-mesh", report.Feature);
+        Assert.Same(open, report.Node);
+    }
 }

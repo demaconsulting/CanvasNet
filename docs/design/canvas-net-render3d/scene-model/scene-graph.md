@@ -1,6 +1,6 @@
 ### SceneGraph
 
-The `SceneGraph` unit is the third software unit in the `SceneModel` subsystem. It comprises six
+The `SceneGraph` unit is the third software unit in the `SceneModel` subsystem. It comprises seven
 public types in the `DemaConsulting.CanvasNet.Render3D.SceneModel` namespace plus one internal
 type:
 
@@ -9,6 +9,8 @@ type:
 - `MeshNode` (sealed class): a leaf node referencing a `Mesh`
 - `GroupNode` (sealed class): a node grouping child nodes (their union)
 - `CsgNode` (sealed class): a node combining child nodes with a boolean `CsgOperation`
+- `OverlayNode` (sealed class): an independent, typically translucent body (a color and a union of
+  children) that takes no part in any ancestor's boolean operation
 - `CsgOperation` (enum): `Union`, `Difference` (first child minus the rest), `Intersection`
 - `NodeAppearance` (sealed record): a per-node surface color
 - `Scene` (sealed class): the root of a scene, with bounds computation and instance enumeration
@@ -37,15 +39,29 @@ see exactly the same instances in the same order.
   is that child. A `CsgNode`'s transform and appearance apply to its operands exactly as a group's
   do. The operands of a difference or intersection are expected to be closed, outward-oriented
   meshes (see the `Mesh` unit's topology-defect classification).
-- **`NodeAppearance(Rgba32 Color)`**: a surface color; the alpha of the color is ignored in this
-  phase (surfaces are opaque).
-- **`Scene`**: a non-null `Root`, and a lazily computed, cached `BoundingBox3D`. The bounds are the
+- **`NodeAppearance(Rgba32 Color)`**: a surface color; the alpha of the color is honored (a value
+  below 255 makes the visible surfaces translucent, 0 is invisible but still solid); the renderer
+  composites the layers (see the `CsgResolver` unit). Members of one union merge, so only the
+  boundary of a union of translucent bodies is visible.
+- **`OverlayNode(Rgba32 color, IEnumerable<SceneNode> children)`**: a read-only list `Children`
+  copied from the constructor argument (a null sequence throws `ArgumentNullException`, a null
+  element `ArgumentException`; an empty overlay is allowed) and the `Color`. The overlay's color
+  **replaces** every appearance beneath it (a forced override, unlike innermost-wins; the overlay
+  node's own `Appearance` property is ignored); its alpha is honored (255 is an opaque independent
+  body). In the boolean structure of every ancestor an overlay is false: it does not union,
+  subtract or intersect. An overlay nested inside another overlay body is a plain group, so the
+  outer color wins. The transform composes like a group's.
+- **`Scene`**: a non-null `Root`, and two lazily computed, cached `BoundingBox3D` values (with and
+  without overlay bodies). The bounds are the
   union of **all** operand instances, which for a difference or intersection conservatively
   encloses (and may exceed) the visible result; this keeps camera framing and the depth range
-  enclosing every operand.
-- **`SceneInstance(Mesh, World, Appearance, Order, Node)`**: the composed world matrix, the
-  effective appearance, the zero-based pre-order index of the mesh node (which is the instance's
-  draw priority), and the originating `MeshNode` (used to attribute diagnostics). The boolean
+  enclosing every operand. Overlay bodies are included by default (a fitted camera keeps a ghost in
+  the picture) and left out by `ComputeBounds(false)`.
+- **`SceneInstance(Mesh, World, Appearance, Order, Node, InOverlay)`**: the composed world matrix, the
+  effective appearance (the forced overlay color beneath an overlay), the zero-based pre-order index
+  of the mesh node (which is the instance's
+  draw priority), the originating `MeshNode` (used to attribute diagnostics) and whether the
+  instance lies beneath an overlay. The boolean
   structure is not stored in the instance: a consumer that needs it walks `CsgNode`/`GroupNode`
   children itself in the same pre-order, which numbers the mesh nodes identically.
 
@@ -61,16 +77,24 @@ bottom-up, cycles cannot be built.
 - `CsgNode(CsgOperation, IEnumerable<SceneNode>)`: an undefined operation throws
   `ArgumentOutOfRangeException`; a null sequence throws `ArgumentNullException`; a null element
   throws `ArgumentException`; the sequence is copied.
+- `OverlayNode(Rgba32, IEnumerable<SceneNode>)`: a null sequence throws `ArgumentNullException`; a
+  null element throws `ArgumentException`; the sequence is copied.
 - `Scene(SceneNode root)`: null root throws `ArgumentNullException`.
 - `Scene.ComputeBounds()`: the **tight** bounds, computed by transforming every vertex of every
   instance by its world matrix in double precision and taking the union (not the union of
   transformed bounding boxes, which can be loose under rotation). An empty scene or a scene of
-  empty groups yields `BoundingBox3D.Empty`. The result is cached.
+  empty groups yields `BoundingBox3D.Empty`. The result is cached. It equals `ComputeBounds(true)`.
+- `Scene.ComputeBounds(bool includeOverlays)`: the same computation, skipping the instances beneath an
+  `OverlayNode` when the argument is `false` (a scene of only overlays then has empty bounds); each of
+  the two results is cached separately.
 - `Scene.EnumerateInstances()` (internal): an **iterative, explicit-stack, depth-first pre-order**
-  traversal. For each node: `world = node.Transform * parentWorld` (child transform applied first);
-  `appearance = node.Appearance ?? parentAppearance`; a `MeshNode` yields one `SceneInstance` with
-  the next order index; a `GroupNode` or a `CsgNode` pushes its children in reverse so the first
-  child is visited (and numbered) first (every operand of a boolean node is enumerated; the
+  traversal. For each node: `world = node.Transform * parentWorld`;
+  `appearance = forced ?? node.Appearance ?? parentAppearance`, with `forced` the color of the
+  outermost enclosing overlay (none outside overlays); a `MeshNode` yields one `SceneInstance` with
+  the next order index; a `GroupNode`, a `CsgNode` or an `OverlayNode` pushes its children in
+  reverse so the first
+  child is visited (and numbered) first (every operand of a boolean node and every overlay child is
+  enumerated; the
   traversal never drops a node kind). The traversal uses no recursion, so a hierarchy nested ten
   thousand levels deep cannot overflow the call stack.
 

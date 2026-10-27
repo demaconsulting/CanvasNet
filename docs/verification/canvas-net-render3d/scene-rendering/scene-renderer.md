@@ -1,7 +1,7 @@
 ### SceneRenderer Unit Verification Design
 
 <!-- cspell:ignore Binner binner supersampling supersamples subtrahend subtrahends minuend speckle -->
-<!-- cspell:ignore tessellated -->
+<!-- cspell:ignore tessellated transmittance -->
 
 This document describes the unit-level verification strategy for the `SceneRenderer` and
 `SceneRenderOptions` classes, the diagnostic types `RenderBudgetExceededException`,
@@ -27,14 +27,19 @@ with three techniques. **Flat shading with an unmistakable back-face color** mak
 name the surface that produced it. **Independent oracles** (an analytic box-CSG evaluation at every
 pixel of a top-down view, including seeded random trees; a tessellated sphere's cross-section;
 the equivalent baked mesh for mirrored operands; the z-buffer image for union-only scenes) judge
-correctness without golden images. **Contract probes** drive the budget (bisection for the exact
+correctness without golden images. Transparency is verified with the same flat shading and top-down
+grids of one pixel per unit, so every pixel is the composite of known layers; the expected colors are
+hard-coded for the basic cases and otherwise computed with the separately verified
+`LayerCompositor`. **Contract probes** drive the budget (bisection for the exact
 boundary, sequential and parallel), cancellation precedence, and the operand-reporting delivery
 rules (recording handler, strict mode, deduplication and order, scope, and ordering relative to
 rendering work) through the public options. The internal `SceneRenderer.RenderWithFragmentPath`
 seam is used to prove the equivalence of the two paths.
 
 Unit tests reside in `SceneRendererTests.cs`, `SceneRendererCsgTests.cs` (fragment-list rendering,
-budget, mirrored CSG operands, fast path, determinism), `CsgOperandValidatorTests.cs` (operand
+budget, mirrored CSG operands, fast path, determinism), `SceneRendererTransparencyTests.cs`
+(translucent appearances, overlays, opaque regression, budget, validation, determinism),
+`CsgOperandValidatorTests.cs` (operand
 reporting), `SceneRenderOptionsTests.cs`, `SceneRenderDiagnosticsTests.cs`, `TileBinnerTests.cs`,
 and `SampleResolverTests.cs` within the `DemaConsulting.CanvasNet.Render3D.Tests` project, in the
 `SceneRendering` folder. Shared helpers (flat-shading options, orthographic cameras, quad and box
@@ -346,6 +351,88 @@ classification.
 Renders a scene with coincident faces, a mirrored operand, and several leaves with a maximum degree
 of parallelism of 1, 2, and -1, repeated, at each supersampling factor, and asserts byte-identical
 surfaces (acceptance scenario A10).
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-Transparency: Translucent Appearances Composite Over The Background
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentBox_BlendsAppearanceColorWithBackground`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentBoxOverOpaqueBox_ShowsBlend`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentBox_ShowsBackWallThroughFront`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentUnion_MergesOverlappingSolids_NoInteriorFaces`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentDifference_ShowsCutSurfaceWithSubtrahendColor`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_AlphaZeroAppearance_IsInvisibleButSolid`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TransparentBackground_ResolvesToPartialAlphaWithLayerColor`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentEdges_AreAntialiased`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_CameraInsideTranslucentSolid_RendersWithoutFailure`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_DefaultColorAndBackFaceColorAlpha_AreStillIgnored`
+
+Renders top-down grids of one pixel per unit with flat shading, so each pixel's color is the
+composite of known layers and is asserted exactly: a translucent box shows both walls over the white
+background (`(214, 93, 93, 255)` for alpha 128, the hard-coded closed form, also computed with the
+compositor), a translucent box over an opaque box shows the blend and leaves the opaque box exact
+elsewhere, an oblique view of a translucent cube shows only the two-layer composite, two overlapping
+translucent members of one union show the same two-layer pixel in the overlap as outside it (no
+interior faces), a translucent difference shows the translucent cut surface in the subtrahend's own
+color, an alpha-0 subtrahend cuts a pocket (one layer instead of two) but adds no color, a transparent
+background keeps the layer color with alpha 192, 3 x 3 supersampling gives edge pixels strictly
+between the background and the interior, a camera inside a translucent cube sees the back-face color
+at the appearance alpha everywhere, and default and back-face colors with alpha render identically to
+opaque ones for views from outside and inside.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-OverlayRendering: Overlays Are Independent Translucent Bodies
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_OverlayInFrontOfOpaque_Tints`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayBehindOpaque_Hidden`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayDoesNotParticipateInEnclosingDifference`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_HighlightPattern_SubtractedBodyShowsAsOverlayThroughCut`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayOpaqueColor_ActsAsIndependentBody`
+
+Asserts that an overlay above an opaque box tints it with its own color (replacing the child's
+appearance) over the exact blue elsewhere, that an overlay below an opaque box leaves all 100 pixels
+blue, that an overlay inside a translucent slab's difference is not cut out (four layers: slab, overlay
+top and bottom, slab), that a cutter used both as a subtrahend and inside an overlay still cuts a green
+pocket and shows the pink body in front of it while the plain cut shows the pure green, and that an
+opaque overlay is an independent opaque body (16 red pixels over the blue box).
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-OpaqueUnchanged: Opaque Scenes Render As Before
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueUnionScene_StillUsesZBufferAndIsByteIdenticalToFragmentPath`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueCsgScene_IsUnchangedByTransparencySupport`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OpaqueOpenMeshUnion_IsStillNotValidated`
+
+Asserts that an opaque union of boxes renders with a fragment budget of one (the z-buffer path never
+touches it) and byte-identically to the forced fragment path, that an opaque cube minus a pocket box
+renders exactly the three pure colors with the analytic counts (84 blue, 16 green, 44 white), and that
+an opaque union with an open quad is rendered without any report even in strict mode.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyBudget: Translucent And Overlay Fragments Use The Budget
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_ExceedingFragmentBudget_ThrowsRenderBudgetExceeded`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_OverlayFragments_CountTowardTheBudget`
+
+Asserts that a translucent union-only scene with a budget of 10 throws `RenderBudgetExceededException`
+carrying that budget, sequentially and in parallel, and that, by bisecting the smallest sufficient
+budget of a one-tile image, a translucent box with an identical overlay box needs exactly twice the
+budget of the box alone and throws with the smaller budget.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyValidation: Translucent And Overlay Meshes Are Validated
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentOpenMesh_IsReportedAndStrictThrows`,
+`CsgOperandValidatorTests.CsgOperandValidator_Validate_OverlayMeshes_AreChecked`
+
+Asserts that an open translucent quad is reported once as `render3d-csg-open-mesh` with its node to a
+recording handler and throws `SceneRenderUnsupportedFeatureException` in strict mode, and that the
+validator reports an open mesh that lies beneath an overlay.
+
+##### CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyDeterminism: Transparent Output Is Byte-Identical
+
+**Tests**: `SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_ParallelAndSequentialAreByteIdentical`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_RepeatedRendersAreByteIdentical`,
+`SceneRendererTransparencyTests.SceneRenderer_Render_TranslucentScene_CancellationThrowsOperationCanceled`
+
+Renders a scene of a translucent difference, translucent spheres, an overlay ghost and an opaque box
+with a maximum degree of parallelism of 1, 2 and -1 at each supersampling factor, and repeatedly, and
+asserts byte-identical surfaces with many distinct blended colors; a pre-cancelled token stops the
+render with `OperationCanceledException`, sequentially and in parallel.
 
 #### Acceptance Criteria
 

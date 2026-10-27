@@ -27,7 +27,9 @@ mirrored equivalence, numeric precision, exactly-once edge coverage) the scenari
 surfaces byte for byte. Constructive solid geometry is verified the same way: pixels identify the
 visible surface through flat shading, and analytic oracles (a disc area, the clipped silhouette,
 exact byte equality across degrees of parallelism) replace golden images; its budget and
-operand-reporting contracts are verified through the public options and exceptions.
+operand-reporting contracts are verified through the public options and exceptions. Transparency and
+overlays are verified through the public node types and render output as well: the composited pixel
+colors of known layers, the independence of overlays, and byte equality across parallelism.
 
 System tests reside in `Render3DSystemIntegrationTests.cs` within the
 `DemaConsulting.CanvasNet.Render3D.Tests` project; the shared helpers (pixel counting, color-region
@@ -264,6 +266,20 @@ a flush (coincident-face) box minus a mirrored asymmetric solid, next to an inte
 spheres, with a `FitToBounds` camera, for supersampling 1, 2, and 3, and asserts byte-identical
 surfaces for a maximum degree of parallelism of 1, 2, and -1 and for a repeated automatic render
 (acceptance scenario A10).
+
+### Transparency: Translucent CSG Scene With An Overlay Renders Composited And Deterministic
+
+**Test**: `CanvasNetRender3D_SystemIntegration_Transparency_TranslucentCsgSceneWithOverlayRendersCompositedAndDeterministic`
+
+Satisfies `CanvasNetRender3D-Transparency` (and, with the unit and subsystem scenarios,
+`CanvasNetRender3D-Determinism` for transparent scenes). Builds, with the public API only, a
+translucent blue cube with a spherical pocket and an overlay gray ghost sphere beside it, and renders
+it from above with an orthographic camera over an opaque white background. Asserts that the corner is
+the background, that a pixel on the cube beside the pocket is blended (not the background, alpha 255),
+that the ghost pixel is a blend of the gray overlay over the background (its red channel strictly
+between the overlay's and the background's), that sequential, automatically parallel and repeated
+renders are byte-identical, and that `Scene.ComputeBounds(false)` is smaller than the default bounds,
+which equal `ComputeBounds(true)`.
 
 ### Antialiasing: Half-Covered Pixel Blends To Mid Color
 

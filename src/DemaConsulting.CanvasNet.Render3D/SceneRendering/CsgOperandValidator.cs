@@ -14,10 +14,11 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         is visibly wrong, so the renderer names the problem instead of hiding it.
 ///     </para>
 ///     <para>
-///         <b>Scope.</b> The validator is called only for scenes that take the CSG path (at least one
-///         difference or intersection with two or more operands). <em>Every</em> mesh instance of such a
-///         scene is checked, not only the direct operands, because all leaves share the signed-counter
-///         semantics. Union-only scenes are rendered by the z-buffer, never need closed meshes and are
+///         <b>Scope.</b> The validator is called only for scenes that take the fragment-list path: at least one
+///         difference or intersection with two or more operands, an <see cref="OverlayNode"/>, or a translucent
+///         appearance (alpha below 255). <em>Every</em> mesh instance of such a
+///         scene is checked, overlay bodies included, not only the direct operands, because all leaves share the signed-counter
+///         semantics. Opaque union-only scenes are rendered by the z-buffer, never need closed meshes and are
 ///         never validated. Nothing is analyzed when there is neither a handler nor strict mode.
 ///     </para>
 ///     <para>
@@ -117,27 +118,27 @@ internal static class CsgOperandValidator
 
             if ((defects & MeshTopologyDefects.BoundaryEdge) != 0)
             {
-                Report(options, OpenMeshFeature, "A mesh used in a constructive solid geometry scene is open (it has boundary edges); results near it are undefined.", instance.Node);
+                Report(options, OpenMeshFeature, "A mesh used in a constructive solid geometry or transparent scene is open (it has boundary edges); results near it are undefined.", instance.Node);
             }
 
             if ((defects & MeshTopologyDefects.NonManifoldEdge) != 0)
             {
-                Report(options, NonManifoldFeature, "A mesh used in a constructive solid geometry scene has an edge shared by three or more triangles; results near it are undefined.", instance.Node);
+                Report(options, NonManifoldFeature, "A mesh used in a constructive solid geometry or transparent scene has an edge shared by three or more triangles; results near it are undefined.", instance.Node);
             }
 
             if ((defects & MeshTopologyDefects.InconsistentWinding) != 0)
             {
-                Report(options, InconsistentWindingFeature, "A mesh used in a constructive solid geometry scene has inconsistently wound triangles; results near it are undefined.", instance.Node);
+                Report(options, InconsistentWindingFeature, "A mesh used in a constructive solid geometry or transparent scene has inconsistently wound triangles; results near it are undefined.", instance.Node);
             }
 
             if ((defects & MeshTopologyDefects.DegenerateTriangle) != 0)
             {
-                Report(options, DegenerateTriangleFeature, "A mesh used in a constructive solid geometry scene has degenerate (repeated vertex or zero-area) triangles; they are ignored and may leave gaps.", instance.Node);
+                Report(options, DegenerateTriangleFeature, "A mesh used in a constructive solid geometry or transparent scene has degenerate (repeated vertex or zero-area) triangles; they are ignored and may leave gaps.", instance.Node);
             }
 
             if (mesh.IsInverted)
             {
-                Report(options, InvertedMeshFeature, "A mesh used in a constructive solid geometry scene has a shell wound inside out (its orientation disagrees with its nesting: outer shells must be outward, cavity shells inward); its inside and outside are swapped there.", instance.Node);
+                Report(options, InvertedMeshFeature, "A mesh used in a constructive solid geometry or transparent scene has a shell wound inside out (its orientation disagrees with its nesting: outer shells must be outward, cavity shells inward); its inside and outside are swapped there.", instance.Node);
             }
         }
     }
@@ -184,7 +185,7 @@ internal static class CsgOperandValidator
         var determinant = instance.World.Determinant;
         if (!double.IsFinite(determinant) || determinant == 0.0)
         {
-            Report(options, SingularTransformFeature, "A mesh instance in a constructive solid geometry scene has a singular (zero-determinant or non-finite) world transform; it collapses to nothing and removes its crossings.", instance.Node);
+            Report(options, SingularTransformFeature, "A mesh instance in a constructive solid geometry or transparent scene has a singular (zero-determinant or non-finite) world transform; it collapses to nothing and removes its crossings.", instance.Node);
             return;
         }
 
@@ -199,7 +200,7 @@ internal static class CsgOperandValidator
         {
             if (!MeshTopology.TryGetFaceNormal(viewVertices[indices[t]], viewVertices[indices[t + 1]], viewVertices[indices[t + 2]], out _))
             {
-                Report(options, DegenerateTriangleFeature, "A mesh instance in a constructive solid geometry scene has triangles that are degenerate after its world transform (extreme flattening or overflow); they are ignored and may leave gaps.", instance.Node);
+                Report(options, DegenerateTriangleFeature, "A mesh instance in a constructive solid geometry or transparent scene has triangles that are degenerate after its world transform (extreme flattening or overflow); they are ignored and may leave gaps.", instance.Node);
                 return;
             }
         }

@@ -19,7 +19,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 ///         Semantics of degenerate nodes: a node without children is empty (it is never inside)
 ///         for <b>every</b> operation, including <see cref="CsgOperation.Intersection"/>; a node
 ///         with one child is that child for every operation. The scene bounds
-///         (<see cref="Scene.ComputeBounds"/>) always include every operand, so they conservatively
+///         (<see cref="Scene.ComputeBounds()"/>) always include every operand, so they conservatively
 ///         enclose the result of a difference or an intersection.
 ///     </para>
 ///     <para>

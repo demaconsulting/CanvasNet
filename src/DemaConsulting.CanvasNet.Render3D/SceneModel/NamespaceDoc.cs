@@ -9,7 +9,8 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 ///     <c>BoundingBox3D</c> math types; the immutable indexed triangle <c>Mesh</c>
 ///     (with <c>MeshBuilder</c>); and the scene graph made of <c>SceneNode</c>
 ///     derivatives (<c>MeshNode</c>, <c>GroupNode</c>, <c>CsgNode</c> with its
-///     <c>CsgOperation</c>), <c>NodeAppearance</c>
+///     <c>CsgOperation</c>, and the independent translucent body <c>OverlayNode</c>), <c>NodeAppearance</c>
+///     (whose alpha is honored)
 ///     and the <c>Scene</c> root.
 /// </summary>
 /// <remarks>

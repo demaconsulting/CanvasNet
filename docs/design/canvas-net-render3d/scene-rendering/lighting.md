@@ -59,6 +59,10 @@ a unit view-space normal that faces the viewer and returns an opaque `Rgba32`:
 and the back-face color, so a surface seen from behind is lit as if its normal pointed at the
 viewer.
 
+The shades are always opaque: transparency is not part of lighting. `SceneRenderer` sets the alpha of
+the owning `NodeAppearance` on the shades of a fragment-path triangle after shading, and the alpha of
+the base, light and back-face colors passed to `Shade` is ignored.
+
 An empty light list is valid and produces black (unlit) surfaces; supplying an explicit
 `AmbientLight` of intensity 1 produces a flat color. A null light list in `SceneRenderOptions`
 selects `Light.DefaultRig`.

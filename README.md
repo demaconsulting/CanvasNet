@@ -41,7 +41,8 @@ load/crop/resize/save workflows.
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
 - 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG
-  (union/difference/intersection), plus polygon extrusion (linear/rotational), exact convex hulls, and
+  (union/difference/intersection), translucent surfaces and independent overlay bodies (ghosts and
+  highlights), plus polygon extrusion (linear/rotational), exact convex hulls, and
   Minkowski sums of convex solids
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
   booleans, extrusions, `hull`, `minkowski`, `-D` variables) straight to a surface; unsupported constructs are reported

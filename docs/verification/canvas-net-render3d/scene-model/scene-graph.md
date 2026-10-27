@@ -1,8 +1,8 @@
 ### SceneGraph Unit Verification Design
 
 This document describes the unit-level verification strategy for the `SceneNode`, `MeshNode`,
-`GroupNode`, `CsgNode`, `CsgOperation`, `NodeAppearance`, and `Scene` types and the internal
-`SceneInstance`.
+`GroupNode`, `CsgNode`, `OverlayNode`, `CsgOperation`, `NodeAppearance`, and `Scene` types and the
+internal `SceneInstance`.
 
 #### Verification Approach
 
@@ -57,10 +57,12 @@ enumerated once per path.
 ##### CanvasNetRender3D-SceneModel-SceneGraph-AppearanceInheritance: Innermost Appearance Wins
 
 **Tests**: `SceneGraphTests.Scene_EnumerateInstances_InnermostAppearanceWins`,
-`SceneGraphTests.Scene_EnumerateInstances_NoAppearance_ReportsNull`
+`SceneGraphTests.Scene_EnumerateInstances_NoAppearance_ReportsNull`,
+`SceneGraphTests.OverlayNode_EnumerateInstances_ForcesOverlayColorOverInnerAppearances_AndMarksInOverlay`
 
 Asserts that a mesh node's own appearance overrides its ancestors', that an ancestor's appearance is
-inherited when the node has none, and that an instance with no appearance anywhere reports `null`.
+inherited when the node has none, that an instance with no appearance anywhere reports `null`, and
+that beneath an overlay the overlay's color replaces every appearance.
 
 ##### CanvasNetRender3D-SceneModel-SceneGraph-SceneBounds: Scene Bounds Are Tight
 
@@ -110,6 +112,37 @@ silently dropped node kind); that a node shared by two CSG parents is enumerated
 none; that a single-child node of every operation enumerates exactly that child; that the scene
 bounds of a difference and an intersection include the far operand; and that ten thousand nested
 CSG nodes are enumerated without stack overflow.
+
+##### CanvasNetRender3D-SceneModel-SceneGraph-OverlayNode: OverlayNode Validates Its Arguments
+
+**Test**: `SceneGraphTests.OverlayNode_Constructor_CopiesChildren_RejectsNullChild_AndNullEnumerable`
+
+Asserts that the color is kept, that later changes of the caller's child list do not affect the node,
+that an empty overlay is allowed, and that a null child sequence throws `ArgumentNullException` and a
+null child element `ArgumentException`.
+
+##### CanvasNetRender3D-SceneModel-SceneGraph-OverlayEnumeration: Overlay Bodies Are Enumerated With A Forced Color
+
+**Tests**: `SceneGraphTests.OverlayNode_EnumerateInstances_ForcesOverlayColorOverInnerAppearances_AndMarksInOverlay`,
+`SceneGraphTests.OverlayNode_NestedOverlay_ActsAsGroupWithOuterColor`,
+`SceneGraphTests.OverlayNode_Transform_ComposesLikeGroup`,
+`SceneGraphTests.Scene_EnumerateInstances_DeepOverlayNesting_IsIterative`
+
+Asserts that the instances beneath an overlay are enumerated in pre-order with the overlay's color
+replacing their own and their ancestors' appearances (including the overlay node's own
+`Appearance`) and marked as being in an overlay, while an instance outside keeps its appearance; that
+an overlay nested in an overlay is a plain group with the outer color; that the overlay's transform
+composes child-then-parent like a group's; and that ten thousand nested overlays are enumerated
+without stack overflow with the single instance marked and the scene bounds correct.
+
+##### CanvasNetRender3D-SceneModel-SceneGraph-OverlayBounds: Overlay Bodies Can Be Left Out Of The Bounds
+
+**Tests**: `SceneGraphTests.Scene_ComputeBounds_WithoutOverlays_SkipsOverlayInstances`,
+`SceneGraphTests.Scene_ComputeBounds_Default_IncludesOverlays`
+
+Asserts, for a unit cube beside a far overlay cube, that `ComputeBounds(false)` covers only the cube,
+`ComputeBounds(true)` and `ComputeBounds()` cover both, a scene of only an overlay has empty bounds
+without overlays, and repeated calls return the cached values.
 
 #### Acceptance Criteria
 

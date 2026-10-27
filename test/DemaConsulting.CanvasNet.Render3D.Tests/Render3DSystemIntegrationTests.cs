@@ -621,6 +621,43 @@ public class Render3DSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates transparency through the public API: a translucent difference plus an overlay ghost renders
+    ///     composited over the background (neither opaque nor background in the translucent and ghost regions), the
+    ///     result is byte-identical across parallelism and repeated runs, and the overlay-free bounds are smaller
+    ///     than the default bounds.
+    /// </summary>
+    [Fact]
+    public void CanvasNetRender3D_SystemIntegration_Transparency_TranslucentCsgSceneWithOverlayRendersCompositedAndDeterministic()
+    {
+        // Arrange: a translucent blue cube with a spherical pocket, and a gray ghost sphere beside it
+        var cube = Render3DTestHelpers.ColoredBox(new Vector3D(-4, -4, -4), new Vector3D(8, 8, 8), new Rgba32(30, 60, 220, 128));
+        var pocket = new MeshNode(PrimitiveTessellator.Sphere(2.0, 32)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 4)) };
+        var ghost = new OverlayNode(new Rgba32(128, 128, 128, 80), [new MeshNode(PrimitiveTessellator.Sphere(2.0, 32)) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(7, 0, 0)) }]);
+        var scene = new Scene(new GroupNode([new CsgNode(CsgOperation.Difference, [cube, pocket]), ghost]));
+        var topDown = Render3DTestHelpers.OrthoCamera(new Vector3D(0, 0, 50), Vector3D.Zero, Vector3D.UnitY, 16.0);
+        var options = new SceneRenderOptions { Supersampling = 1, BackgroundColor = White, MaxDegreeOfParallelism = 1 };
+
+        // Act
+        using var sequential = SceneRenderer.Render(scene, topDown, 160, 160, options, TestContext.Current.CancellationToken);
+        using var parallel = SceneRenderer.Render(scene, topDown, 160, 160, new SceneRenderOptions { Supersampling = 1, MaxDegreeOfParallelism = -1 }, TestContext.Current.CancellationToken);
+        using var again = SceneRenderer.Render(scene, topDown, 160, 160, new SceneRenderOptions { Supersampling = 1, MaxDegreeOfParallelism = -1 }, TestContext.Current.CancellationToken);
+
+        // Assert: cube region (away from the pocket) and ghost region are blended, the corner is background
+        var cubeSide = ToPixel(topDown, new Vector3D(-3, -3, 0), 160, 160);
+        var ghostCenter = ToPixel(topDown, new Vector3D(7, 0, 0), 160, 160);
+        var corner = ToPixel(topDown, new Vector3D(-7.5, 7.5, 0), 160, 160);
+        Assert.Equal(White, sequential[corner.X, corner.Y]);
+        Assert.NotEqual(White, sequential[cubeSide.X, cubeSide.Y]);
+        Assert.NotEqual(White, sequential[ghostCenter.X, ghostCenter.Y]);
+        Assert.Equal(255, sequential[cubeSide.X, cubeSide.Y].A);
+        Assert.True(sequential[ghostCenter.X, ghostCenter.Y].R < 255 && sequential[ghostCenter.X, ghostCenter.Y].R > 128);
+        Render3DTestHelpers.AssertSurfacesIdentical(sequential, parallel);
+        Render3DTestHelpers.AssertSurfacesIdentical(parallel, again);
+        Assert.True(scene.ComputeBounds(false).Max.X < scene.ComputeBounds(true).Max.X);
+        Assert.Equal(scene.ComputeBounds(), scene.ComputeBounds(true));
+    }
+
+    /// <summary>
     ///     Validates polygon extrusion end to end through the public API on the z-buffer path: a square plate with a
     ///     circular hole renders the hole as background, the plate with the analytic area, and (from an oblique
     ///     perspective view) the inner wall of the hole as a surface shaded differently from the top face.
