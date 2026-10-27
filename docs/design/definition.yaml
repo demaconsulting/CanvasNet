@@ -62,6 +62,8 @@ input-files:
   - docs/design/canvas-net-tool/imaging/contact-sheet.md
   - docs/design/canvas-net-tool/imaging/image-adjustments.md
   - docs/design/canvas-net-tool/imaging/image-geometry.md
+  - docs/design/canvas-net-tool/imaging/grid-overlay.md
+  - docs/design/canvas-net-tool/imaging/image-analysis.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md

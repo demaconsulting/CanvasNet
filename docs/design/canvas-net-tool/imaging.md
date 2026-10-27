@@ -12,7 +12,7 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains seven units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains nine units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, and a view of an OpenSCAD model),
 `ImagePipeline`, which crops, resizes, fits, rotates, flips, and pads pixels in the order the options were written,
@@ -23,7 +23,9 @@ pictures, `ContactSheet`, which composes a grid of images, each fitted into a ce
 the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
 fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels), and `ImageGeometry`, which rotates pixels by
 any angle onto an expanded canvas with a fill color, finds the content bounds inside a uniform border, and estimates the
-skew of near-horizontal lines. The supporting
+skew of near-horizontal lines, `GridOverlay`, which draws a labeled coordinate grid over pixels in place, and
+`ImageAnalysis`, which reports the dominant colors, the luma statistics, and the pixels at a point of an image. The
+supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
@@ -59,6 +61,13 @@ nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, **ImageGeometr
 **ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas, rotate by any angle
 onto an expanded canvas with a fill color, find or crop to the content inside a uniform border, and estimate the skew of
 the near-horizontal lines of an image with a confidence.
+
+**GridOverlay.Draw(surface, spacing, color)** (provided to the pipeline): draw a labeled coordinate grid in place and
+report the lines and labels drawn.
+
+**ImageAnalysis.Analyze(surface, background, count)** and **ImageAnalysis.Sample(surface, x, y, radius)** (provided to
+the commands): find the dominant colors and the luma statistics of an image, and read the pixel at a point and the mean
+of the window around it.
 
 **ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
 **ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to

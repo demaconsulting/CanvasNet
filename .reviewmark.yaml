@@ -2218,6 +2218,38 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageGeometry*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageGeometry*Tests.cs"  # unit tests
 
+  # CanvasNetTool-Imaging-GridOverlay Review (one per unit)
+  - id: CanvasNetTool-Imaging-GridOverlay
+    title: Review that CanvasNetTool Imaging GridOverlay Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/grid-overlay.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/grid-overlay.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/grid-overlay.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/grid-overlay.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/GridOverlay.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/GridOverlayTests.cs"  # unit tests
+
+  # CanvasNetTool-Imaging-ImageAnalysis Review (one per unit)
+  - id: CanvasNetTool-Imaging-ImageAnalysis
+    title: Review that CanvasNetTool Imaging ImageAnalysis Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/imaging.md"
+      - "docs/reqstream/canvas-net-tool/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/imaging/image-analysis.yaml"   # unit requirements
+      - "docs/design/canvas-net-tool/imaging/image-analysis.md"        # unit design
+      - "docs/verification/canvas-net-tool/imaging/image-analysis.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/imaging/image-analysis.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAnalysis.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAnalysisTests.cs"  # unit tests
+
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark
     title: Review that BuildMark Provides Required Functionality
