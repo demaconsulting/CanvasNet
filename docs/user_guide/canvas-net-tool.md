@@ -404,9 +404,14 @@ a picture drawn without a file it asked for would be silently wrong. A syntax er
 file, line, and column of the mistake. A model that would produce more triangles than `--max-triangles` fails with
 `budget-exceeded`.
 
-A construct the model uses but the renderer does not support (for example `text`, `import`, or `surface`) is left
+A construct the model uses but the renderer does not support (for example `import`, `surface`, or `offset`) is left
 out and reported in the `diagnostics` of the JSON result. With `--strict` it is a failure instead
 (`unsupported-feature`). The `echo` output of a model is returned in the `echo` list of the JSON result.
+
+A model's `text()` is drawn with the Liberation Sans font that is bundled with the library, so lettering looks the same
+on every machine; a model that names another font with `font = "..."` finds it among the fonts installed on the
+machine that runs the tool (then among the bundled Liberation families; a family that is nowhere gives a warning), so
+such a drawing can differ from machine to machine. The tool has no option for font folders.
 
 ```bash
 canvasnet render part.scad --view top -D width=30 -o part-top.png --json
@@ -963,7 +968,7 @@ starts with the same envelope.
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}` and `page` for a
   document (`source` is `scad`, `pptx`, or `vsdx`; `code` is the library's stable feature token, such as
-  `scad-module-text`).
+  `scad-module-surface`).
 - `echo`: the text a SCAD model printed with `echo`.
 
 | `op` | Fields besides `op` |

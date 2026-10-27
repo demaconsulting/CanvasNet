@@ -162,7 +162,7 @@ public class RenderCommandScadTests
     {
         // Arrange: a model that echoes, warns, and uses an unsupported module
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\");\nmissing();\ntext(\"A\");\ncube(1);\n");
+        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\");\nmissing();\nsurface(\"A\");\ncube(1);\n");
 
         // Act
         var stdOut = Run(true, input, "--size", "32x32", "-o", directory.Combine("o.png"));
@@ -176,7 +176,7 @@ public class RenderCommandScadTests
         Assert.Equal("scad", notes[0].GetProperty("source").GetString());
         Assert.Equal("scad-warning", notes[0].GetProperty("code").GetString());
         Assert.Equal("unsupported", notes[1].GetProperty("severity").GetString());
-        Assert.Equal("scad-module-text", notes[1].GetProperty("code").GetString());
+        Assert.Equal("scad-module-surface", notes[1].GetProperty("code").GetString());
         Assert.False(notes[1].TryGetProperty("page", out _));
     }
 
@@ -188,7 +188,7 @@ public class RenderCommandScadTests
     {
         // Arrange: a model that uses an unsupported module
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "text.scad", "text(\"A\");\ncube(1);\n");
+        var input = FixtureFactory.WriteText(directory.Path, "text.scad", "surface(\"A\");\ncube(1);\n");
         var output = directory.Combine("o.png");
 
         // Act

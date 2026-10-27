@@ -124,7 +124,7 @@ from `Strict`, and handlers that collect the `echo` lines, the warnings, and the
 `SceneRenderOptions` whose `BackgroundColor` is the background option (white by default; zero alpha is a
 transparent picture) and whose `DefaultColor` is the default color when one is given, so no flatten step is needed.
 A warning becomes a note (`scad`, `warning`, `scad-warning`, the library's `file:line:column: message`); an
-unsupported feature becomes a note (`scad`, `unsupported`, the feature identifier such as `scad-module-text`, the
+unsupported feature becomes a note (`scad`, `unsupported`, the feature identifier such as `scad-module-surface`, the
 position and message); the echo lines are returned as the library prints them, with their `ECHO:` prefix. A name
 the library does not accept as a variable (it is an `ArgumentException` from constructing the options) is a
 `usage-error`. The picture is the same for the same model and options: the library's render is deterministic.

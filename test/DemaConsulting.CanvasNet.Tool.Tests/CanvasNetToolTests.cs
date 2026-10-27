@@ -1264,7 +1264,7 @@ public partial class CanvasNetToolTests
     {
         // Arrange: a model that echoes, warns, and uses an unsupported module
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\", 3);\nmissing();\ntext(\"A\");\ncube(1);\n");
+        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\", 3);\nmissing();\nsurface(\"A\");\ncube(1);\n");
 
         // Act
         var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "--size", "16x16", "-o", directory.Combine("o.png"), "--json");
@@ -1274,7 +1274,7 @@ public partial class CanvasNetToolTests
         using var document = JsonDocument.Parse(stdOut);
         Assert.Equal(["ECHO: \"hello\", 3"], document.RootElement.GetProperty("echo").EnumerateArray().Select(e => e.GetString()));
         Assert.Equal(
-            ["scad-warning", "scad-module-text"],
+            ["scad-warning", "scad-module-surface"],
             document.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()));
     }
 
@@ -1329,7 +1329,7 @@ public partial class CanvasNetToolTests
         var include = FixtureFactory.WriteText(directory.Path, "include.scad", "include <nothing.scad>\ncube(1);\n");
         var runaway = FixtureFactory.WriteText(directory.Path, "runaway.scad", "module m() { m(); }\nm();\n");
         var asserted = FixtureFactory.WriteText(directory.Path, "assert.scad", "assert(false, \"no\");\n");
-        var text = FixtureFactory.WriteText(directory.Path, "text.scad", "text(\"A\");\ncube(1);\n");
+        var text = FixtureFactory.WriteText(directory.Path, "text.scad", "surface(\"A\");\ncube(1);\n");
         var garbage = directory.Combine("garbage.scad");
         File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(300));
         (string[] Args, string Code)[] cases =

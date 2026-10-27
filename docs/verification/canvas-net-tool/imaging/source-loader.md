@@ -177,8 +177,8 @@ a `usage-error` that mentions `-D`; `$t` changes the model and is listed only wh
 
 **SourceLoader_Load_EchoWarningAndUnsupported_AreReturned** and
 **SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature**: a model that echoes, calls a module
-that does not exist, and uses `text` returns the echo line with its `ECHO:` prefix, a `scad-warning` note with the
-position, and an `unsupported` note whose code is `scad-module-text`, and the picture is still drawn; with strict mode
+that does not exist, and uses `surface` returns the echo line with its `ECHO:` prefix, a `scad-warning` note with the
+position, and an `unsupported` note whose code is `scad-module-surface`, and the picture is still drawn; with strict mode
 the same model is an `unsupported-feature` error that names the feature and the position in one line, with a hint
 that mentions `--strict`.
 

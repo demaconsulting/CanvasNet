@@ -270,7 +270,7 @@ module `block`, the function `half`, and no directives.
 
 **CanvasNetTool_Scad_Diagnostics_AreReportedInJson**: a model that echoes, calls a module that does not exist, and uses
 an unsupported module renders with exit code 0; the JSON result has the echo line and, in order, the `scad-warning` and
-`scad-module-text` diagnostics.
+`scad-module-surface` diagnostics.
 
 **CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly**: a model that includes and uses files in a subfolder
 renders without notes; a model that includes a file that does not exist and a model that includes a file outside its
