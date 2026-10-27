@@ -120,6 +120,7 @@ sections:
           - ImageGeometry_EstimateSkew_SignConvention_DescendingToRightIsPositive
           - ImageGeometry_EstimateSkew_LargeImage_DownscalesAndStillFindsAngle
           - ImageGeometry_EstimateSkew_LightGroundUnevenLighting_StillFindsAngle
+          - ImageGeometry_EstimateSkew_MarkContrastAtThreshold_IsMarkOnlyWhenAtLeastTenLevelsDarker
 
       - id: CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
         title: >-

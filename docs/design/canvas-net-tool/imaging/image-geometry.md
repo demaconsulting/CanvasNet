@@ -94,7 +94,7 @@ the record `SkewEstimate(Degrees, Confidence, Estimated)`.
    (possibly partial, at the edges) `f` by `f` block, `n` being the number of pixels in it, so transparency is flattened
    over white. Rows are computed in parallel into disjoint output.
 2. **Dark marks** (immune to uneven lighting): from an integral image (`long`), a pixel of value `v` whose window of
-   radius 8 (clipped to the plane) holds `count` pixels with the sum `sum` is a mark when `sum - v * count > 10 * count`,
+   radius 8 (clipped to the plane) holds `count` pixels with the sum `sum` is a mark when `sum - v * count >= 10 * count`,
    that is when it is at least 10 levels darker than the local mean (exact integers). The marks are collected once into
    two `int` arrays.
 3. **Too few marks.** With fewer than `max(100, 0.0005 * w * h)` marks the result is `SkewEstimate(0, 0, false)`.

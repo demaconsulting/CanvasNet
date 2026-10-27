@@ -486,6 +486,52 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that WriteWarning writes to standard error when not silent, without setting the error exit code.
+    /// </summary>
+    [Fact]
+    public void Context_WriteWarning_NotSilent_WritesToConsoleWithoutError()
+    {
+        // Arrange: a non-silent context
+        using var context = Context.Create([]);
+
+        // Act: write a warning
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteWarning("something was skipped"));
+
+        // Assert: it appears on standard error only and the exit code stays 0
+        Assert.Contains("something was skipped", stdErr);
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that WriteWarning writes nothing to the console when silent, but still reaches the log file.
+    /// </summary>
+    [Fact]
+    public void Context_WriteWarning_SilentWithLog_WritesOnlyToLogFile()
+    {
+        // Arrange: a temporary log file path and a silent context that logs
+        var logFile = Path.GetTempFileName();
+
+        try
+        {
+            // Act: write a warning
+            string stdErr;
+            using (var context = Context.Create(["--silent", "--log", logFile]))
+            {
+                (_, stdErr) = ToolHost.Capture(() => context.WriteWarning("logged warning"));
+            }
+
+            // Assert: nothing is on standard error, and the log file holds the warning
+            Assert.Equal(string.Empty, stdErr);
+            Assert.Contains("logged warning", File.ReadAllText(logFile));
+        }
+        finally
+        {
+            File.Delete(logFile);
+        }
+    }
+
+    /// <summary>
     ///     Test that WriteError writes nothing when silent.
     /// </summary>
     [Fact]

@@ -153,6 +153,49 @@ public class ImageGeometryDeskewTests
     }
 
     /// <summary>
+    ///     Verifies that a pixel exactly 10 levels below its window mean is a dark mark, and one 9 levels below is not.
+    /// </summary>
+    /// <param name="markLevel">The level of the one mark pixel of each period of 17 columns.</param>
+    /// <param name="brighterCount">How many of the other 16 pixels of the period are 111 rather than 110.</param>
+    /// <param name="expectedEstimated">Whether enough marks are found for the skew to be estimated.</param>
+    [Theory]
+    [InlineData(100, 10, true)]
+    [InlineData(101, 9, false)]
+    public void ImageGeometry_EstimateSkew_MarkContrastAtThreshold_IsMarkOnlyWhenAtLeastTenLevelsDarker(
+        int markLevel,
+        int brighterCount,
+        bool expectedEstimated)
+    {
+        // Arrange: identical rows of a period of 17 columns, so every window of 17 by 17 holds exactly one period
+        // per row and its mean is exactly 110 (the sum of the period is 17 * 110 = 1870); the mark is then
+        // exactly 10 (or 9) levels below the mean of its window, and no other pixel is a mark
+        using var picture = new Surface(340, 20);
+        for (var x = 0; x < picture.Width; x++)
+        {
+            var phase = x % 17;
+            var level = 110;
+            if (phase == 0)
+            {
+                level = markLevel;
+            }
+            else if (phase <= brighterCount)
+            {
+                level = 111;
+            }
+            for (var y = 0; y < picture.Height; y++)
+            {
+                picture[x, y] = new Rgba32((byte)level, (byte)level, (byte)level, 255);
+            }
+        }
+
+        // Act: estimate the skew, which needs at least 100 marks
+        var estimate = ImageGeometry.EstimateSkew(picture);
+
+        // Assert: the 380 marks at exactly 10 levels are found, the none at 9 levels are not
+        Assert.Equal(expectedEstimated, estimate.Estimated);
+    }
+
+    /// <summary>
     ///     Verifies that random noise has no line structure, so its confidence is below the confidence the pipeline needs.
     /// </summary>
     [Fact]

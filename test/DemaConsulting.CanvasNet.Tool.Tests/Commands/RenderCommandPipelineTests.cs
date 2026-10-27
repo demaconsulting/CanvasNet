@@ -890,7 +890,10 @@ public class RenderCommandPipelineTests
         Assert.Equal(8192, operation.GetProperty("width").GetInt32());
         Assert.Equal(400, operation.GetProperty("height").GetInt32());
         using var result = PngCodec.Load(jsonOutput);
+        using var original = PngCodec.Load(input);
         Assert.Equal((8192, 400), (result.Width, result.Height));
+        SurfaceAssert.Equal(original, result);
+        Assert.Equal(0, context.ExitCode);
         Assert.Contains("wrote ", text);
         Assert.Contains("warning: deskew was not applied: rotated image would exceed the maximum size", diagnostics);
     }

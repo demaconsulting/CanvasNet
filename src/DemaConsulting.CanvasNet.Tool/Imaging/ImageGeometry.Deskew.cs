@@ -72,7 +72,7 @@ internal static partial class ImageGeometry
     ///     estimate is made on an <b>analysis plane</b>: with <c>f = ceil(max(W, H) / 1024)</c> each analysis pixel is the
     ///     integer mean, <c>(sum + n / 2) / n</c>, of the <see cref="ImageAdjustments.Luma"/> of its (possibly partial)
     ///     <c>f</c> by <c>f</c> block, so transparency is flattened over white. A pixel of the plane is a <b>dark mark</b>
-    ///     when <c>sum - v * count &gt; 10 * count</c> for the window of radius 8 around it (clipped to the plane; at least
+    ///     when <c>sum - v * count &gt;= 10 * count</c> for the window of radius 8 around it (clipped to the plane; at least
     ///     10 levels darker than the local mean, exact integers), which is immune to uneven lighting. With fewer than
     ///     <c>max(100, 0.0005 * w * h)</c> marks the result is not estimated. Otherwise the <b>score</b> of an angle
     ///     <c>φ</c> (in hundredths of a degree, <c>k</c>) is the sum over the bins of the squared count of marks, the marks
@@ -317,7 +317,7 @@ internal static partial class ImageGeometry
                 var pixels = (long)(x1 - x0 + 1) * (y1 - y0 + 1);
                 var sum = integral[((y1 + 1) * stride) + x1 + 1] - integral[(y0 * stride) + x1 + 1]
                     - integral[((y1 + 1) * stride) + x0] + integral[(y0 * stride) + x0];
-                if (sum - (plane[(y * width) + x] * pixels) > ForegroundContrast * pixels)
+                if (sum - (plane[(y * width) + x] * pixels) >= ForegroundContrast * pixels)
                 {
                     xs[count] = x;
                     ys[count] = y;

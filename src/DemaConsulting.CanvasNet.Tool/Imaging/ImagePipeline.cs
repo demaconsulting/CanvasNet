@@ -20,8 +20,8 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///     <para>
 ///         The transformations are written over <see cref="Surface"/> rows, because the surface itself offers only
 ///         crop, resize, and composite. Rotation by a right angle is an exact pixel move, rotation by any other angle
-///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. A
-///         An explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
+///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. An
+///         explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
 ///         before allocation, with the code <c>size-limit</c>. Deskew is best effort: when its automatic correction
 ///         would exceed that limit, it copies the input and reports why it was skipped.
 ///     </para>
@@ -737,13 +737,15 @@ internal static class ImagePipeline
     /// <returns>
     ///     The rotated surface (a copy when the skew is not corrected) and its description: <c>skewDegrees</c> (positive
     ///     when lines descend to the right), <c>rotateDegrees</c> (the signed clockwise correction, 0 when none),
-    ///     <c>confidence</c>, and <c>applied</c>.
+    ///     <c>confidence</c>, and <c>applied</c>; when a size limit skips the correction, also <c>reason</c> (after
+    ///     <c>applied</c>).
     /// </returns>
     /// <remarks>
     ///     The skew is corrected only when it was estimated, its size is at least
     ///     <see cref="ImageGeometry.MinCorrectedSkew"/> degrees, its confidence at least
-    ///     <see cref="ImageGeometry.MinConfidence"/>, and the expanded canvas fits the maximum size. Otherwise
-    ///     the image is copied unchanged; a size-limit skip includes a <c>reason</c> in its operation report.
+    ///     <see cref="ImageGeometry.MinConfidence"/>, and the expanded canvas (<see cref="ImageGeometry.RotatedSize"/>,
+    ///     the size <see cref="ImageGeometry.RotateArbitrary"/> allocates) fits <see cref="Surface.MaxDimension"/>.
+    ///     Otherwise the image is copied unchanged; a size-limit skip includes a <c>reason</c> in its operation report.
     /// </remarks>
     private static (Surface, AppliedOperation) ApplyDeskew(Surface source, DeskewOperation deskew, Rgba32? userBackground)
     {
@@ -753,15 +755,7 @@ internal static class ImagePipeline
                       && estimate.Confidence >= ImageGeometry.MinConfidence;
         if (!correct)
         {
-            var copy = source.Crop(0, 0, source.Width, source.Height);
-            return (copy, SourceLoader.Operation(
-                "deskew",
-                ("skewDegrees", estimate.Degrees),
-                ("rotateDegrees", 0.0),
-                ("confidence", estimate.Confidence),
-                ("applied", false),
-                ("width", copy.Width),
-                ("height", copy.Height)));
+            return SkipDeskew(source, estimate, null);
         }
 
         var rotateDegrees = -estimate.Degrees;
@@ -769,16 +763,7 @@ internal static class ImagePipeline
         var (rotatedWidth, rotatedHeight) = ImageGeometry.RotatedSize(source.Width, source.Height, normalized);
         if (rotatedWidth > Surface.MaxDimension || rotatedHeight > Surface.MaxDimension)
         {
-            var copy = source.Crop(0, 0, source.Width, source.Height);
-            return (copy, SourceLoader.Operation(
-                "deskew",
-                ("skewDegrees", estimate.Degrees),
-                ("rotateDegrees", 0.0),
-                ("confidence", estimate.Confidence),
-                ("applied", false),
-                ("reason", "rotated image would exceed the maximum size"),
-                ("width", copy.Width),
-                ("height", copy.Height)));
+            return SkipDeskew(source, estimate, "rotated image would exceed the maximum size");
         }
 
         var fill = ResolveFill(source, deskew.Fill, userBackground);
@@ -794,6 +779,33 @@ internal static class ImagePipeline
             ("filter", nearest ? "nearest" : "bilinear"),
             ("width", result.Width),
             ("height", result.Height)));
+    }
+
+    /// <summary>
+    ///     Copies a surface unchanged and describes a deskew that was not applied.
+    /// </summary>
+    /// <param name="source">The surface.</param>
+    /// <param name="estimate">The skew estimate.</param>
+    /// <param name="reason">Why the correction was skipped when a limit caused it, or <see langword="null"/> when the skew simply needs no correction.</param>
+    /// <returns>The copy and its description (<c>reason</c> only when one was given).</returns>
+    private static (Surface, AppliedOperation) SkipDeskew(Surface source, SkewEstimate estimate, string? reason)
+    {
+        var copy = source.Crop(0, 0, source.Width, source.Height);
+        var fields = new List<(string, object)>
+        {
+            ("skewDegrees", estimate.Degrees),
+            ("rotateDegrees", 0.0),
+            ("confidence", estimate.Confidence),
+            ("applied", false),
+        };
+        if (reason != null)
+        {
+            fields.Add(("reason", reason));
+        }
+
+        fields.Add(("width", copy.Width));
+        fields.Add(("height", copy.Height));
+        return (copy, SourceLoader.Operation("deskew", [.. fields]));
     }
 
     /// <summary>

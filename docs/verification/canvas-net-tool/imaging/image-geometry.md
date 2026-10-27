@@ -120,6 +120,11 @@ brightens by 80 levels from left to right, the ink 70 levels darker than the pap
 **ImageGeometry_EstimateSkew_BlankImage_IsNotEstimated**: uniform paper, paper with 30 dark pixels (fewer than the 100
 needed), and a transparent surface give 0 degrees, confidence 0, and not estimated.
 
+**ImageGeometry_EstimateSkew_MarkContrastAtThreshold_IsMarkOnlyWhenAtLeastTenLevelsDarker**: a 340 by 20 picture of
+identical rows with a period of 17 columns (one pixel of 100, ten of 111, and six of 110, so that every window mean is
+exactly 110) has 380 marks that are exactly 10 levels below their window mean and is estimated; the same picture with
+a mark of 101 (9 levels below) has none and is not estimated.
+
 **ImageGeometry_EstimateSkew_RandomNoise_HasLowConfidence**: noise of 400 by 300, 800 by 800, 1000 by 250, and 300 by
 900 pixels is estimated but with a confidence below `MinConfidence`; this pins the constant together with the line tests
 above.

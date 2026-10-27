@@ -88,6 +88,12 @@ goes to standard output only, and nothing is written when silent.
 **Context_WriteError_NotSilent_WritesToConsole** and **Context_WriteError_Silent_DoesNotWriteToConsole**: errors
 go to standard error only, and nothing is written when silent.
 
+**Context_WriteWarning_NotSilent_WritesToConsoleWithoutError**: a warning goes to standard error only and the exit
+code stays 0.
+
+**Context_WriteWarning_SilentWithLog_WritesOnlyToLogFile**: a silent context writes nothing to standard error, but the
+warning reaches the log file.
+
 **Context_WriteError_SetsErrorExitCode**: after `WriteError` the exit code is 1 even when the message was
 suppressed.
 
