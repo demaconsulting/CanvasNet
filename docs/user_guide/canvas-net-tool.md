@@ -1299,7 +1299,7 @@ pictures side by side.
 - **One frame.** A GIF is read as its first frame.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.
-- **Models.** Only one view per command, and no animation. A model that needs `text`, `import`, or other unsupported
+- **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
   here). Rotating, then rotating back, does not restore the original pixels. The canvas grows to hold the image, and a
