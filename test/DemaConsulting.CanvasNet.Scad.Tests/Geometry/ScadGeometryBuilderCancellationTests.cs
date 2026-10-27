@@ -97,7 +97,7 @@ public class ScadGeometryBuilderCancellationTests
         cts.Cancel();
         var sink = new ScadEvaluationSink(ScadLimits.Default);
         var output = ScadEvaluatorTestSupport.Run(
-            "for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!text(\"x\");",
+            "for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!surface(\"x\");",
             new ScadEvaluationSettings(),
             null,
             sink);
@@ -118,10 +118,10 @@ public class ScadGeometryBuilderCancellationTests
     public void ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes()
     {
         // Arrange / Act
-        var result = Build("for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!text(\"x\");");
+        var result = Build("for (i = [1:1000]) translate([i, 0, 0]) cube(1);\n!surface(\"x\");");
 
         // Assert
         Assert.Empty(result.Meshes);
-        Assert.Contains("scad-module-text", result.Features);
+        Assert.Contains("scad-module-surface", result.Features);
     }
 }

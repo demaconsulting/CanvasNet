@@ -103,7 +103,7 @@ public class ScadGeometryTests
     public void ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations()
     {
         // Arrange: one construct per line
-        const string Source = "cube(2);\ncube(-1);\ntext(\"a\");\nroof() cube(1);\noffset(1) square(1);";
+        const string Source = "cube(2);\ncube(-1);\nsurface(\"a\");\nroof() cube(1);\noffset(1) square(1);";
 
         // Act
         var result = Build(Source);
@@ -112,7 +112,7 @@ public class ScadGeometryTests
         Assert.Single(result.Meshes);
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(2, warning.Location.Line);
-        Assert.Equal(["scad-module-text", "scad-module-roof", "scad-module-offset"], result.Features);
+        Assert.Equal(["scad-module-surface", "scad-module-roof", "scad-module-offset"], result.Features);
         Assert.Equal([3, 4, 5], result.Unsupported.Select(u => u.Location.Line).ToArray());
     }
 
@@ -148,6 +148,31 @@ public class ScadGeometryTests
     }
 
     /// <summary>
+    ///     Validates that a text region works with the rest of the subsystem: it is a flat shape that takes part in a
+    ///     2D difference and is consumed by <c>linear_extrude</c>, without warnings or unsupported reports, and the
+    ///     extruded glyph has the height that <c>size</c> asks for.
+    /// </summary>
+    [Fact]
+    public void ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion()
+    {
+        // Arrange / Act: an H (10 tall) with a slot cut out of its crossbar, extruded 2 units
+        var result = Build("linear_extrude(height = 2) difference() { text(\"H\", size = 10); translate([2, 4]) square([2, 2]); }");
+
+        // Assert: one difference of two closed extrusions, the first being the H
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Features);
+        Assert.NotNull(FindDifference(result.Scene));
+        var leaves = result.Leaves;
+        Assert.Equal(2, leaves.Count);
+        var glyph = leaves[0].WorldMesh;
+        Assert.True(glyph.IsClosed);
+        Assert.Equal(0.0, glyph.Bounds.Min.Y, 1e-9);
+        Assert.Equal(10.0, glyph.Bounds.Max.Y, 1e-9);
+        Assert.Equal(0.0, glyph.Bounds.Min.Z, 1e-9);
+        Assert.Equal(2.0, glyph.Bounds.Max.Z, 1e-9);
+    }
+
+    /// <summary>
     ///     Validates that strict mode stops at the first unsupported feature with its identifier and location.
     /// </summary>
     [Fact]
@@ -158,7 +183,7 @@ public class ScadGeometryTests
 
         // Act
         var exception = Assert.Throws<ScadUnsupportedFeatureException>(
-            () => Build("cube(1);\nprojection() cube(1);\ntext(\"a\");", settings));
+            () => Build("cube(1);\nprojection() cube(1);\nsurface(\"a\");", settings));
 
         // Assert
         Assert.Equal("scad-module-projection", exception.Feature);

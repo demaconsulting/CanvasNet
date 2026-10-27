@@ -165,6 +165,18 @@ public sealed class ScadRenderOptions
     public Rgba32 GhostColor { get; init; } = ScadGeometryContext.DefaultGhostColor;
 
     /// <summary>
+    ///     Gets where the <c>text()</c> module looks for the font named by its <c>font</c> argument, or
+    ///     <see langword="null"/> (default) for a default <see cref="ScadFontResolutionOptions"/> (the installed fonts of
+    ///     the host are searched).
+    /// </summary>
+    /// <remarks>
+    ///     Only an explicit <c>font</c> argument is affected: text without one always uses the bundled Liberation Sans
+    ///     Regular font. See <see cref="ScadFontResolutionOptions"/> for the search order and how to make an explicit
+    ///     font independent of the host.
+    /// </remarks>
+    public ScadFontResolutionOptions? FontResolution { get; init; }
+
+    /// <summary>
     ///     Validates a view angle.
     /// </summary>
     /// <param name="value">The angle in degrees.</param>

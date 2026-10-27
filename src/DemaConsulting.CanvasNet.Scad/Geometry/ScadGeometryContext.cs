@@ -14,13 +14,15 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// <param name="Cancellation">The token polled while building.</param>
 /// <param name="HighlightColor">The color of the <c>#</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultHighlightColor"/>.</param>
 /// <param name="GhostColor">The color of the <c>%</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultGhostColor"/>.</param>
+/// <param name="FontResolution">Where <c>text()</c> finds an explicitly named font, or <see langword="null"/> for the defaults of <see cref="ScadFontResolutionOptions"/>.</param>
 internal sealed record ScadGeometrySettings(
     long MaxTriangles,
     double FlatShapeThickness,
     bool ThrowOnUnsupportedFeature,
     CancellationToken Cancellation,
     Rgba32? HighlightColor = null,
-    Rgba32? GhostColor = null);
+    Rgba32? GhostColor = null,
+    ScadFontResolutionOptions? FontResolution = null);
 
 /// <summary>
 ///     The outcome of building a model: the scene and the map from its mesh nodes back to source locations.
@@ -66,6 +68,9 @@ internal sealed class ScadGeometryContext
     /// <summary>The number of triangles charged so far.</summary>
     private long _triangles;
 
+    /// <summary>The lazily created font resolver of the build.</summary>
+    private ScadFontResolver? _fontResolver;
+
     /// <summary>
     ///     Initializes a context.
     /// </summary>
@@ -83,6 +88,12 @@ internal sealed class ScadGeometryContext
 
     /// <summary>Gets the node-to-location map filled by <see cref="CreateMeshNode"/>.</summary>
     public ScadSceneMap Map { get; }
+
+    /// <summary>
+    ///     Gets the font resolver of this build, created on first use so that a model without <c>text()</c> pays
+    ///     nothing; it caches the scanned font directories and the loaded fonts for every <c>text()</c> of the build.
+    /// </summary>
+    public ScadFontResolver FontResolver => _fontResolver ??= new ScadFontResolver(_settings.FontResolution);
 
     /// <summary>Gets the slab thickness of a top-level 2D shape.</summary>
     public double FlatShapeThickness => _settings.FlatShapeThickness;

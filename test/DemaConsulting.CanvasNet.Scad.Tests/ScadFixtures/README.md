@@ -97,6 +97,7 @@ named after the topic, not after any other implementation's behavior.
 | `render-root-modifier.scad` | The `!` modifier: only the marked subtree is drawn (a highlight inside it included) |
 | `render-parametric.scad` | A peg board whose size comes from variables that the tests override (the `-D` equivalent) |
 | `render-unsupported.scad` | One recognized but unsupported construct per line (modules, a hull of mixed dimensions, a Minkowski sum with a boolean operand, a `%` on a 2D shape that is not extruded) next to supported geometry |
+| `render-text.scad` | `text()` with the default bundled font, all extruded: centered text with holes, an extruded line with a descender, an extruded 2D difference of text, a 2D hull of text and a `rotate_extrude` of a glyph |
 | `render-transparency.scad` | Color alpha (vector, hex, `alpha=`), a translucent cube alone and over an opaque plate, a translucent difference with a blind cavity, a `%` ghost that passes through a solid without cutting it, a `#` on a subtracted cylinder, and a `%` of an extruded circle |
 | `render-hull.scad` | `hull` of two cubes (a hexagonal prism), of 2D squares (extruded), of two spheres (a capsule), and as a cutter in a difference |
 | `render-minkowski.scad` | `minkowski` of a block and a ball (a rounded box), of a union of blocks (distributed), and of a hull and a cube |

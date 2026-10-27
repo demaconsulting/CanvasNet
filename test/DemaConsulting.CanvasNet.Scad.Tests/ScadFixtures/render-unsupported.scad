@@ -1,7 +1,7 @@
 // Original CanvasNet test fixture: constructs that are recognized but not drawn, one per line so that each report
 // has a known location (lines 10 and 11: a hull of mixed dimensions, a Minkowski sum with a boolean operand; line
 // 12: a % on a 2D shape that is not extruded). Only the red cube and the small cube at x 8..9 are drawn.
-text("CanvasNet");
+surface(file = "logo.dat");
 offset(r = 2) square(10);
 projection() cube(10);
 surface(file = "heights.dat");

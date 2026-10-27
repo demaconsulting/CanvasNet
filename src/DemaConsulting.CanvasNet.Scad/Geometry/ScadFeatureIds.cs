@@ -28,6 +28,12 @@ internal static class ScadFeatureIds
     /// <summary>A <c>polyhedron</c> face cannot be triangulated; the polyhedron is omitted.</summary>
     public const string PolyhedronFaceInvalid = "scad-polyhedron-face-invalid";
 
+    /// <summary>A <c>text</c> glyph outline is damaged or a contour of a glyph crosses itself or is degenerate; the whole text is omitted.</summary>
+    public const string TextInvalidOutline = "scad-text-invalid-outline";
+
+    /// <summary>The contours of one <c>text</c> glyph overlap or touch each other (not nested as hole and island); the whole text is omitted.</summary>
+    public const string TextOverlappingContours = "scad-text-overlapping-contours";
+
     /// <summary>Catch-all for a Render3D rejection of an input the argument checks accepted.</summary>
     public const string GeometryRejected = "scad-geometry-rejected";
 
