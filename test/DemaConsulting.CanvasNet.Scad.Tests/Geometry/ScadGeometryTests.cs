@@ -103,7 +103,7 @@ public class ScadGeometryTests
     public void ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations()
     {
         // Arrange: one construct per line
-        const string Source = "cube(2);\ncube(-1);\ntext(\"a\");\nroof() cube(1);\n%cube(1);";
+        const string Source = "cube(2);\ncube(-1);\ntext(\"a\");\nroof() cube(1);\noffset(1) square(1);";
 
         // Act
         var result = Build(Source);
@@ -112,7 +112,7 @@ public class ScadGeometryTests
         Assert.Single(result.Meshes);
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(2, warning.Location.Line);
-        Assert.Equal(["scad-module-text", "scad-module-roof", "scad-modifier-background"], result.Features);
+        Assert.Equal(["scad-module-text", "scad-module-roof", "scad-module-offset"], result.Features);
         Assert.Equal([3, 4, 5], result.Unsupported.Select(u => u.Location.Line).ToArray());
     }
 
@@ -203,21 +203,42 @@ public class ScadGeometryTests
     }
 
     /// <summary>
-    ///     Validates that the show-only modifier makes the marked subtree the whole model, without the transform of
-    ///     its ancestors, and that the highlight modifier still builds the geometry and is reported.
+    ///     Validates that a color alpha and the modifiers on solids are rendered, not reported: the alpha reaches the
+    ///     appearance, and the highlight and the ghost are overlays, with no warning and no unsupported feature.
     /// </summary>
     [Fact]
-    public void ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsReported()
+    public void ScadGeometry_Build_ColorAlphaAndModifiersOnSolids_AreRenderedNotReported()
+    {
+        // Arrange / Act
+        var result = Build("color(\"red\", 0.5) cube(1);\n#translate([3, 0, 0]) cube(1);\n%translate([6, 0, 0]) cube(1);");
+
+        // Assert
+        Assert.Empty(result.Features);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(2, result.Leaves.Count);
+        Assert.Equal(128, result.Leaves[0].Appearance!.Color.A);
+        var group = Assert.IsType<GroupNode>(result.Scene.Root);
+        Assert.Equal(2, group.Children.OfType<OverlayNode>().Count() + group.Children.OfType<GroupNode>().SelectMany(g => g.Children.OfType<OverlayNode>()).Count());
+    }
+
+    /// <summary>
+    ///     Validates that the show-only modifier makes the marked subtree the whole model, without the transform of
+    ///     its ancestors, and that the highlight modifier still builds the geometry and overlays it without a report.
+    /// </summary>
+    [Fact]
+    public void ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsOverlaid()
     {
         // Arrange / Act: the marked cube sits under a translation that must not apply to it
         var showOnly = Build("translate([100, 0, 0]) { cube(1); !cube(2); }");
         var highlight = Build("#cube(1);");
 
-        // Assert: only the marked cube is built, at the origin; the highlighted cube is built and reported
+        // Assert: only the marked cube is built, at the origin; the highlighted cube is built and overlaid
         var leaf = Assert.Single(showOnly.Leaves);
         AssertBounds(leaf.WorldMesh.Bounds, new Vector3D(0, 0, 0), new Vector3D(2, 2, 2), 1e-9);
         Assert.Single(highlight.Meshes);
-        Assert.Equal(["scad-modifier-highlight"], highlight.Features);
+        Assert.Empty(highlight.Features);
+        var group = Assert.IsType<GroupNode>(highlight.Scene.Root);
+        Assert.Contains(group.Children, child => child is OverlayNode);
     }
 
     /// <summary>

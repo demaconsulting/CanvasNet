@@ -75,7 +75,8 @@ internal static partial class ScadTransforms
         }
         else if (!union.IsTight)
         {
-            bounds = union.Kind == ScadGeoKind.Solid ? new Scene(union.Node!).ComputeBounds() : union.Shape!.ComputeVertexBounds();
+            // Ghosts (the '%' modifier) are not part of the geometry whose size is requested
+            bounds = union.Kind == ScadGeoKind.Solid ? new Scene(union.Node!).ComputeBounds(includeOverlays: false) : union.Shape!.ComputeVertexBounds();
         }
 
         var factors = ComputeFactors(instance, context, union.Kind == ScadGeoKind.Solid ? 3 : 2, bounds, newSize, auto);

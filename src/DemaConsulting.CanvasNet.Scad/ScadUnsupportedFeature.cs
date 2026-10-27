@@ -12,8 +12,9 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///     <c>roof</c>), <c>scad-hull-csg-operand</c>, <c>scad-hull-degenerate</c>, <c>scad-hull-mixed-dimensions</c>
 ///     (a <c>hull</c> that cannot be built), <c>scad-minkowski-nonconvex</c>, <c>scad-minkowski-2d</c>,
 ///     <c>scad-minkowski-mixed-dimensions</c>, <c>scad-minkowski-too-complex</c> (a <c>minkowski</c> that cannot be
-///     built), <c>scad-modifier-highlight</c> and <c>scad-modifier-background</c>,
-///     <c>scad-color-alpha</c>, <c>scad-resize-approximate</c>, <c>scad-multmatrix-projective</c>,
+///     built), <c>scad-modifier-highlight</c> and <c>scad-modifier-background</c> (a <c>#</c> or <c>%</c> on a 2D
+///     shape that is not extruded; on a solid they render as a highlight and a ghost and are not reported),
+///     <c>scad-resize-approximate</c>, <c>scad-multmatrix-projective</c>,
 ///     <c>scad-polygon-invalid</c>, <c>scad-polyhedron-face-invalid</c>, <c>scad-linear-extrude-scale</c>,
 ///     <c>scad-linear-extrude-apex-multiple-contours</c>, <c>scad-rotate-extrude-axis-crossing</c>,
 ///     <c>scad-rotate-extrude-axis-contact</c>, <c>scad-geometry-rejected</c> (geometry), and <c>scad-csg-open-mesh</c>,

@@ -41,10 +41,12 @@ load/crop/resize/save workflows.
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
 - 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG
-  (union/difference/intersection), plus polygon extrusion (linear/rotational), exact convex hulls, and
+  (union/difference/intersection), translucent surfaces and independent overlay bodies (ghosts and
+  highlights), plus polygon extrusion (linear/rotational), exact convex hulls, and
   Minkowski sums of convex solids
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
-  booleans, extrusions, `hull`, `minkowski`, `-D` variables) straight to a surface; unsupported constructs are reported
+  booleans, extrusions, `hull`, `minkowski`, `color` with alpha, the `%` ghost and `#` highlight modifiers, `-D`
+  variables) straight to a surface; unsupported constructs are reported
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
   including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
@@ -325,6 +327,16 @@ var document = ScadDocument.Parse("""
     """);
 using var image = document.Render(640, 480);
 PngCodec.Save(image, "part.png");
+
+// Translucent surfaces: color alpha, a % ghost that is not part of the model, and a # highlight that still cuts
+var seeThrough = ScadDocument.Parse("""
+    difference() {
+        color("steelblue", 0.6) cube(20);
+        #translate([10, 10, -1]) cylinder(h = 22, r = 5, $fn = 48);
+    }
+    %translate([30, 0, 0]) cube(20);
+    """);
+using var glass = seeThrough.Render(640, 480);
 
 // Override variables, and be told about anything that could not be built instead of losing it silently
 var options = new ScadRenderOptions

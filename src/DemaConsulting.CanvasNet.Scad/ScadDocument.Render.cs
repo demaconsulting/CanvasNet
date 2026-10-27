@@ -19,7 +19,10 @@ public sealed partial class ScadDocument
     ///         The model is the implicit union of the top-level instances (or, when the program uses <c>!</c>, of
     ///         the marked subtrees). Solids become mesh nodes in right-handed Z-up model space; a 2D shape that is
     ///         not extruded becomes a thin slab of <see cref="ScadRenderOptions.FlatShapeThickness"/>. A model that
-    ///         produces no geometry yields a scene with an empty root, which renders as the background.
+    ///         produces no geometry yields a scene with an empty root, which renders as the background. A <c>color</c>
+    ///         alpha becomes the alpha of the appearance of the geometry, and the <c>#</c> and <c>%</c> modifiers on solids
+    ///         become Render3D overlays (<see cref="OverlayNode"/>): <c>scene.ComputeBounds()</c> includes them, while
+    ///         <c>scene.ComputeBounds(includeOverlays: false)</c> measures the model without ghosts and highlights.
     ///     </para>
     ///     <para>
     ///         Everything that cannot be built is reported, never silently skipped: invalid arguments as warnings,
@@ -188,7 +191,9 @@ public sealed partial class ScadDocument
             evaluation.Limits.MaxTriangles,
             options.FlatShapeThickness,
             evaluation.ThrowOnUnsupportedFeature,
-            cancellationToken);
+            cancellationToken,
+            options.HighlightColor,
+            options.GhostColor);
         return ScadGeometryBuilder.Build(output.Roots, settings, sink);
     }
 

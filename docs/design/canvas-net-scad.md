@@ -27,7 +27,8 @@ onto a `Surface` (the core `CanvasNet` pixel buffer) with a camera fitted to the
 caller. Everything that cannot be built is reported, never silently skipped. The package is packable and is
 the first release in which the roadmap's user-visible rendering capability exists; the 2D Minkowski sum, text,
 and a few other constructs remain deferred and are reported as unsupported features (see _Supported And
-Deferred Features_). Phase 7 added `hull` and `minkowski`.
+Deferred Features_). Phase 7 added `hull` and `minkowski`; Phase 8 added transparency (the alpha of a color)
+and the `#` and `%` modifiers as translucent overlays.
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 
@@ -89,8 +90,11 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
   reporting, and strict mode for every stage), `Camera` (null fits the view to the model),
   `ViewAzimuthDegrees` and `ViewElevationDegrees` (the fitted view; the isometric angles by default),
   `Projection` (the fitted view; perspective by default), `SceneOptions` (the renderer's look-and-feel and
-  performance settings; its handler and strict flag are ignored), and `FlatShapeThickness` (the slab thickness
-  of a 2D shape that is not extruded; 0.1 by default). Every value is validated when set.
+  performance settings; its handler and strict flag are ignored), `FlatShapeThickness` (the slab thickness
+  of a 2D shape that is not extruded; 0.1 by default), and the Phase 8 properties `HighlightColor` (the color of
+  the translucent copy that `#` draws; `(255, 64, 128, 110)` by default) and `GhostColor` (the color of the
+  translucent ghost that `%` draws; `(128, 128, 128, 80)` by default), both accepting any alpha. Every numeric
+  value is validated when set.
 - **`ScadOpenOptions`** (sealed): init-only `BaseDirectory`, `LibraryPaths`, `FileResolver`, and
   `SourceName`. Parsing consumes only `SourceName`; the other three govern `include` and `use`
   resolution when the document is evaluated.
@@ -126,7 +130,7 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 | `ScadDocument.Evaluate(...)` | Inbound and outbound | `ScadEvaluationOptions`, a `CancellationToken`; a `ScadEvaluationResult` | Synchronous; thread-safe on a shared document; options validated when set; handlers run on the calling thread after evaluation; the file resolver callback runs only on the calling thread |
 | `ScadDocument.BuildScene(...)` | Inbound and outbound | `ScadRenderOptions`, a `CancellationToken`; a Render3D `Scene` | Synchronous; thread-safe on a shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack |
 | `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input |
-| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions` | View angles finite, projection defined, thickness finite and positive; instance immutable |
+| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions`, two `Rgba32` colors | View angles finite, projection defined, thickness finite and positive, overlay colors of any alpha; instance immutable |
 | `ScadEvaluationOptions.Variables` | Inbound | Name to value dictionary | Names match an optional `$` then ASCII letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw `ArgumentException` when set |
 | `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
 | `ScadEvaluationResult` | Outbound | Read-only lists and a count | Cannot be turned into mutable collections |
@@ -143,7 +147,8 @@ are accessed only by `Evaluate`, `BuildScene`, and `Render` (which evaluate), on
 and only inside the sandbox described in _Risk Control Measures_. The types of the `ScadLanguage`,
 `ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
 `InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
-`scad-modifier-*`, `scad-color-alpha`, `scad-csg-*`, the Phase 7 `scad-hull-*` and `scad-minkowski-*`, and the
+`scad-modifier-*` (a `#` or `%` on a 2D shape that is not extruded only), `scad-csg-*`, the Phase 7 `scad-hull-*`
+and `scad-minkowski-*`, and the
 others) are listed with their triggers in
 _ScadGeometry Subsystem Design_ and in the user guide. See the unit and subsystem design documents
 for every type's complete constructor, property, and exception detail.
@@ -482,9 +487,9 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `union`, `render`, implicit unions, `difference`, `intersection`, `intersection_for`, for solids and 2D shapes | Supported (Phase 6) | 2D booleans are symbolic and are distributed over by extrusion; mixed dimensions warn |
 | `linear_extrude`, `rotate_extrude` | Supported (Phase 6) | See _ScadExtrusions Unit Design_; `convexity` is accepted and ignored |
 | `!` (show only) | Supported (Phase 6) | The marked subtree becomes the new root of the design, without the transforms and colors of its ancestors |
-| `#` (highlight) | Degraded (Phase 6) | Built normally and reported as `scad-modifier-highlight` until true highlighting exists |
-| `%` (background) | Degraded (Phase 6) | Omitted and reported as `scad-modifier-background` until true background rendering exists |
-| Color with alpha below 1, `transparent` | Degraded (Phase 6) | Drawn opaque and reported as `scad-color-alpha` |
+| `#` (highlight) | Supported (Phase 8) | On a solid: the subtree renders normally **and** as a translucent copy (`HighlightColor`) that shares its meshes and still takes part in the booleans around it; on a 2D shape that is not extruded: rendered normally and reported as `scad-modifier-highlight` |
+| `%` (background) | Supported (Phase 8) | On a solid: a translucent ghost (`GhostColor`) that is not part of the model (it does not cut or add, contributes no propagated bounds so `resize` ignores it, but is part of `Scene.ComputeBounds()` and so of the fitted view); on a 2D shape that is not extruded: omitted and reported as `scad-modifier-background` |
+| Color with alpha below 1, `transparent` | Supported (Phase 8) | The alpha becomes the alpha of the appearance and surfaces are composited; nothing is reported |
 | `ScadDocument.BuildScene`, `ScadDocument.Render`, `ScadRenderOptions`, `ScadLimits.MaxTriangles` | Supported (Phase 6) | Evaluation options, strict mode, and handlers cover every stage |
 | Geometry-level unsupported-feature reporting | Supported (Phase 6) | Identifier table in _ScadGeometry Subsystem Design_ |
 | Packaging as a NuGet package, README and user guide | Delivered (Phase 6) | `IsPackable` is enabled |
@@ -566,8 +571,21 @@ _ScadGeometry Subsystem Design_ and the unit designs:
     the 3D members, and a difference or intersection keeps the dimension of its first non-empty operand; each
     warns about what it drops.
  7. The `!` modifier makes the outermost marked subtrees the new root of the design, **without** the transforms
-    and colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `#` and
-    `%` and a color alpha below 1 are **degraded and reported**.
+    and colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin).
+    `%` draws a **ghost** (a translucent gray body that does not take part in the model: it is false in every
+    enclosing union, difference, and intersection, contributes no propagated bounds (so `resize` ignores
+    it), but is part of `Scene.ComputeBounds()`, the bounds that fit the default camera - a documented
+    CanvasNet choice, not a parity claim, because excluding it could push the ghost out of the frame).
+    `#` renders the subtree normally **and** as a translucent pink copy that
+    shares its meshes and keeps taking part in the booleans (a highlighted subtrahend still cuts, and its copy
+    is drawn where it cut), so the highlight is visible even where the subtree was subtracted. A color alpha
+    below 1 makes the surface translucent. A union of translucent bodies shows only the boundary of the union
+    (overlapping members merge, like any CSG result); independent see-through bodies are expressed with `%`.
+    Translucent models and overlays are resolved with signed crossing counters, so their meshes must be closed
+    solids (an open `polyhedron` is reported through the `scad-csg-*` identifiers). A `#` or `%` on a 2D shape that
+    is not extruded has no overlay form: `#` is rendered normally and `%` omitted, and both are reported.
+    A `%` that is a child of `hull` or `minkowski` is not part of the hull or the sum (and a highlight there is
+    not drawn). The triangles of a `#` copy count against `ScadLimits.MaxTriangles` a second time.
  8. Rendering is deterministic (byte-identical images for any degree of parallelism) and uses a neutral gray on
     a white background, with a view fitted to the model by default, unless the model or the options say
     otherwise.
@@ -612,8 +630,13 @@ requirements, design, verification, and tests for its own scope.
    `ScadHulls`), the seven `scad-hull-*` and `scad-minkowski-*` unsupported-feature identifiers, original render
    fixtures and analytic system tests, and the complete companion documentation. The 2D Minkowski sum remains
    deferred and is reported as `scad-minkowski-2d`.
-5. **Phase 8 — Highlight, background, and transparency (planned)**, replacing the degraded `#`, `%`, and color
-   alpha behavior and removing their reports.
+5. **Phase 8 — Highlight, background, and transparency (delivered).** `ScadColors` carries the alpha of a color
+   into the appearance; `%` builds a ghost and `#` a translucent copy as Render3D `OverlayNode` instances (built
+   in the Phase 8 transparency work of `CanvasNetRender3D`), configured by the additive `ScadRenderOptions`
+   properties `HighlightColor` and `GhostColor`; `resize` sizes from the bounds without overlays; the
+   `scad-color-alpha` identifier was removed, and `scad-modifier-highlight` and `scad-modifier-background` remain
+   for 2D shapes that are not extruded only. A new original fixture, `render-transparency.scad`, and analytic
+   system tests, and the complete companion documentation.
 6. **Later — Text and external-file import.**
 
 Every later phase adds members and types rather than changing the signatures delivered here.

@@ -26,8 +26,13 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         (<c>text</c>, <c>offset</c>, <c>projection</c>, <c>surface</c>, <c>import</c>, <c>roof</c>)
 ///         is reported as an unsupported feature (see <see cref="ScadFeatureIds"/>) and yields
 ///         nothing, so nothing is silently skipped. Modifiers: <c>!</c> replaces the model with the outermost
-///         marked subtrees (without the transforms and colors of their ancestors), <c>#</c> renders normally and is
-///         reported as degraded, <c>%</c> omits the subtree and is reported.
+///         marked subtrees (without the transforms and colors of their ancestors), <c>#</c> renders normally and
+///         additionally as a translucent highlight overlay that shares the subtree's meshes (it still takes part in
+///         the booleans around it), <c>%</c> draws a translucent ghost overlay instead of the subtree (the ghost
+///         does not take part in the booleans and contributes no propagated bounds, so <c>resize</c> and the bounds of
+///         enclosing geometry ignore it, yet it is part of <c>Scene.ComputeBounds()</c>, which fits the default
+///         camera); on a 2D shape that is not extruded both are
+///         reported (see <c>ScadGeometryBuilder.Modifiers.cs</c>).
 ///     </para>
 ///     <para>
 ///         <b>Dimensions.</b> A 2D result is a symbolic <see cref="ScadShape2D"/> tree (booleans, planar transforms and
@@ -42,8 +47,17 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </remarks>
 internal sealed partial class ScadGeometryBuilder
 {
+    /// <summary>The largest effective triangle count that is tracked (far above any budget; keeps sums from overflowing).</summary>
+    private const long EffectiveCap = long.MaxValue / 4;
+
     /// <summary>The services of this build.</summary>
     private readonly ScadGeometryContext _context;
+
+    /// <summary>The effective triangle count of the nodes visited by <see cref="EffectiveTriangles"/>, by reference.</summary>
+    private readonly Dictionary<SceneNode, long> _effectiveTriangles = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>The number of <c>hull</c> and <c>minkowski</c> instances whose children are being built (overlays are not created inside them).</summary>
+    private int _convexDepth;
 
     /// <summary>
     ///     Initializes a builder.

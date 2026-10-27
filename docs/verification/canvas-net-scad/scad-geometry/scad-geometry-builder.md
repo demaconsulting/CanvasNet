@@ -122,27 +122,101 @@ report, and that `union` and `render` give one group while a lone child is itsel
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_SeveralShowOnly_UnionInOrderAndNestedMarkIgnored`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored`,
-`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing`,
+`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsOnlyTheGhost`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_ShowOnly_StillIgnoresBackgroundSubtree`,
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule`
 
 Asserts that a marked subtree is the new root of the design: it replaces the model without the translation around it
 and without reports for its ancestors, so `translate([10, 0, 0]) { !cube(1); }` is a cube at the origin and a mark
 under `color("red") rotate(...) translate(...)` is neither colored nor moved, that several marks are combined in
 document order and a nested mark has no effect, that a mark inside a
-`%` subtree is ignored (the model stays the ordinary instances) and a subtree marked both `!` and `%` yields
-nothing but the background report, that `%{ !x }` with a single child builds nothing and reports the omission, and
+`%` subtree is ignored (the model stays the ordinary instances, and the ghost holds both cubes) and a subtree marked
+both `!` and `%` is only a ghost, that `%{ !x }` with a single child builds no ordinary geometry and reports
+nothing, and
 that `!` on an unsupported module makes it the model (it is reported and the rest is dropped).
 
-##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers: The `#` And `%` Modifiers
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierBackground: The `%` Ghost
 
-**Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_Highlight_RendersAndReports`,
-`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_Background_OmitsSubtreeAndReports`,
+**Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_Background_DrawsGhostInsteadOfTheSubtreeAndNoReport`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Background3D_BuildsOnlyAnOverlay_NoMainGeometry`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_CustomColors_AreUsedForBothOverlays`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Background_ContributesNoBounds_ButIsInReach`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_BackgroundInsideDifference_DoesNotSubtract`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_BackgroundFirstOperandOfDifference_LeavesMainEmpty`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_BothHighlightAndBackground_BackgroundWins`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_UnderTransformAndColor_AppliesTransformAndKeepsOverlayColor`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Background3DOfExtrudedShape_Works`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_ChildrenOfBackground_AreVisited_UnsupportedInsideIsReported`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_OutOfRangeBackground_IsRejectedByCoordinateGuard`,
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule`
 
-Asserts that `#` builds the cube and reports `scad-modifier-highlight` once at 1:2, that `%` over a union omits
-everything below it (nothing under it is built or reported) and reports `scad-modifier-background` once at 1:3,
-and that on an unsupported module `#` adds the highlight report to the module report while `%` omits the module
-before it is looked at.
+Asserts that `%cube(1)` is a scene whose root is an overlay in the default ghost color `(128, 128, 128, 80)` that
+holds the cube, with no ordinary mesh, 12 triangles charged (a ghost is not drawn twice), and no report or
+warning; that the colors of the settings replace the defaults for both overlays; that a `%` union beside an
+ordinary cube leaves the cube the only ordinary mesh; that a rotated cube beside a ghost 50 units away is
+resized to exactly 4 by 4 by 4 (the ghost contributes no propagated bounds) while the ghost is still in the
+scene; that a ghost in a
+`difference` is an overlay operand beside the ordinary minuend (it does not subtract) and as the first operand
+stays the first operand of the node (no ordinary geometry); that `#%` is the ghost; that a translation around a
+colored ghost moves it (scene bounds 5..6) while the ordinary bounds are empty and the overlay keeps the ghost
+color; that `%` on a
+`linear_extrude` is a full ghost; that an unsupported module and an invalid cube inside a ghost are still
+reported (at their lines); that a ghost 2e100 away, and one that only an enclosing translation pushes beyond the
+limit (its reach), is rejected as `scad-geometry-rejected` at the instance and leaves no overlay; and that on an
+unsupported module `#` and `%` add no modifier report to the module report.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierHighlight: The `#` Highlight
+
+**Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_Highlight_RendersNormallyWithOverlayAndNoReport`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Highlight3D_BuildsNormalGeometryAndOverlayWithoutReport`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Highlight_SharesMeshNodes_ChargesTheOverlayCopyAgainstTheBudget`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightCopyOverTheBudget_ThrowsLocatedEvaluationException`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_NestedHighlights_AreBoundedByTheTriangleBudget`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightInsideDifference_StillSubtractsAndHasOverlay`,
+`ScadGeometryTests.ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsOverlaid`
+
+Asserts that `#cube(1)` is a group of the ordinary cube mesh and an overlay in the default highlight color
+`(255, 64, 128, 110)` whose only child **is** that mesh node (no second mesh), with no report or warning; that
+the charge is 24 triangles against 12 for the plain cube (the copy the renderer draws), so a budget of 20 fails at
+the instance's line with a `ScadEvaluationException` and forty nested highlights fail the default budget instead
+of building 2^40 paths; that a highlighted subtrahend stays an operand of the `difference` node and has its
+overlay; and that under `!` a highlight is built with the marked subtree.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierFlatEdge: The Modifiers On A 2D Shape
+
+**Tests**: `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Highlight2D_IsRenderedNormallyAndReported`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Background2D_IsOmittedAndReported`,
+`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightOnAFlatShape`
+
+Asserts that `#square(1)` builds the slab without an overlay and reports `scad-modifier-highlight` once at 2:4,
+that `%circle(2)` builds nothing and reports `scad-modifier-background` once at 2:4, and that strict mode throws
+`scad-modifier-highlight` for `#square(1)`.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierRobustness: Modifier Guarantees
+
+**Tests**: `ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_DeeplyNested_IsIterative`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Cancellation_IsPolledWhileBuildingOverlays`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_InsideHullChild_IsNotPartOfTheHullAndDoesNotThrow`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_InsideMinkowskiChild_IsOrdinarySummandOrNothing`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HullOfOnlyAGhost_BuildsNothing`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightInsideHull_IsNotChargedAndHasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_HighlightInsideMinkowski_IsNotChargedAndHasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_SingleChildMinkowski_StripsOverlays`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_SingleChildHull_HasNoOverlay`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_NestedHighlightsAroundHull_AreBoundedByTheTriangleBudget`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_StrictMode_DoesNotThrowFor3DModifiersOrAlpha`
+
+Asserts that a hand-made tree 20,000 groups deep with a ghost on every group builds to the same 20,000 nested
+overlays on a 64 KiB stack as on a 256 MiB stack, that a canceled token stops a model of 1,000 highlighted and 1,000
+ghosted instances, that a `%` child of a `hull` does not stretch the hull (also when a colored sibling makes the
+unit strip appearances from a copy, which turns the overlay into an empty group) while a `#` child is an ordinary
+member of the hull and leaves no overlay, that the same holds for `minkowski` (a `#` child is an ordinary summand, a
+`%` child contributes nothing), that a hull of only a ghost builds nothing without throwing, that a `#` below a
+`hull` or `minkowski` (also nested in a group, and also on a lone child) creates no overlay and charges exactly what
+the plain operation charges (so a budget that fits the plain hull is not exceeded by a highlight copy that is never
+drawn) while a `#` on the hull itself still charges its copy, that a lone ghost child of a `minkowski` builds
+nothing, and that forty nested highlights around a `hull` still fail the budget, and that
+strict mode does not throw for `#` and `%` on solids or a color alpha.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules: Modules That Are Not Built
 
@@ -351,12 +425,12 @@ inside a used library carries the file name `lib.scad` with the line and column 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-StrictMode: Strict Mode
 
 **Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_StrictMode_ThrowsAtFirstUnsupported`,
-`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightModifier`,
+`ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightOnAFlatShape`,
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_StrictMode_ThrowsAtTheFirst`,
 `ScadUnsupportedModuleTests.ScadUnsupportedModule_PublicHandlerAndStrictMode_SeeEveryModule`
 
 Asserts that strict mode throws at the first unsupported module with its feature and location while the sink keeps
-exactly that one report, that `#` throws `scad-modifier-highlight`, and that through the public options the
+exactly that one report, that `#` on a 2D shape throws `scad-modifier-highlight`, and that through the public options the
 handler sees `text`, `surface`, `import`, and `projection` at lines 1 to 4 in order and strict mode throws the
 first.
 

@@ -54,7 +54,10 @@ two-pixel tolerance for edge pixels); a through-hole shows the background at its
 ring, and a plate with two holes show their cut-outs; a vase's silhouette has the profile's radius at every
 sampled row; a twisted bar turns a quarter turn; the bounds of a transform chain, an extrusion, and a model
 built from variable overrides equal the analytic values; a mirrored solid renders pixel-identical to the same
-solid placed by hand; and the `!`, `#`, and `%` modifiers draw and report as documented. The unsupported-feature
+solid placed by hand; transparency is composited (a translucent cube over white and over an opaque plate, a cavity
+in a translucent difference, a ghost that does not cut, a highlighted cutter that shows through its cut, and a
+transparent background that keeps a partial alpha) with expected pixels computed from the closed form of
+front-to-back compositing; and the `!`, `#`, and `%` modifiers draw as documented. The unsupported-feature
 scenarios assert the exact list of identifiers and line numbers reported by `render-unsupported.scad`, that only
 the supported geometry is drawn, and that strict mode throws the first report. The default look (white
 background, neutral gray, shaded colors), the fitted camera (equal to the Render3D fitted render of the same
@@ -77,8 +80,8 @@ implementation, grammar, manual, or example (clean-room provenance, documented i
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
   (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
 - **Dependencies**: No external services, databases, or network access required. The fixture files in
-  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (forty valid `.scad` files — ten parse
-  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and fourteen
+  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (forty-one valid `.scad` files — ten parse
+  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and fifteen
   render fixtures `render-*.scad` without expectation files — three
   `invalid-*.scad` files, the include libraries in `libs/`, and a provenance `README.md`) are copied to the
   test output directory and located relative to the test assembly
@@ -135,8 +138,8 @@ to the caller's list does not alter the options), and that a supplied `SourceNam
 
 **Test**: `CanvasNetScad_SystemIntegration_Syntax_AllAuthoredFixturesParse`
 
-Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly forty documents
-result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fourteen render fixtures), each
+Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly forty-one documents
+result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fifteen render fixtures), each
 named by its path. The fixtures cover
 assignments, modules and functions, control flow, expressions and
 operators, list comprehensions, function literals, modifiers, include and use directives, lexical forms, a
@@ -323,7 +326,8 @@ asserts that overriding a variable changes the built bounds, that a width of zer
 **Test**: `CanvasNetScad_SystemIntegration_RenderOptions_AreValidatedAndImmutable`
 
 Asserts the defaults of `ScadRenderOptions` (no evaluation options, no camera, the isometric angles, a
-perspective projection, no scene options, a flat-shape thickness of 0.1), that a non-finite angle, an undefined
+perspective projection, no scene options, a flat-shape thickness of 0.1, and the translucent highlight and ghost
+colors), that a non-finite angle, an undefined
 projection, and a thickness of zero are rejected when set, that a zero triangle limit is rejected, and, by
 reflection, that every writable property is init-only. The look defaults are verified by
 `ScadRenderSystem_Defaults_AreWhiteBackgroundAndNeutralCadGray`,
@@ -395,21 +399,48 @@ report at its own line and column and only the sibling cube is drawn; and that, 
 identifiers are thrown by the models that trigger them and reported once without strict mode, the model being
 omitted.
 
-### Unsupported Features And Modifiers: Reported At Their Locations
+### Unsupported Features: Reported At Their Locations
 
 **Tests**: `CanvasNetScad_SystemIntegration_Render_UnsupportedFeaturesAreReportedOrThrown`,
 `ScadRenderSystem_Unsupported_EveryConstructIsReportedOnceAtItsLocation`,
 `ScadRenderSystem_Unsupported_OnlySupportedGeometryIsDrawn`, `ScadRenderSystem_Unsupported_StrictModeThrowsTheFirstFeature`,
-`ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`, `ScadRenderSystem_Modifiers_DrawNormalAndHighlightedAndOmitDisabledAndBackground`,
-`ScadRenderSystem_Modifiers_HighlightAndBackgroundAreReportedAtTheirLines`, `ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree`
+`ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`
 
-Renders `render-unsupported.scad` with a handler and asserts ten reports (including a hull of mixed dimensions
-and a Minkowski sum with a boolean operand), each at a distinct line of the fixture
-and in source order, that only the supported geometry is drawn (and the bounds equal those of the supported
-geometry), that a color alpha is drawn opaque, and that strict mode throws the first report with its feature
-and location; asserts that no supported fixture throws in strict mode; and asserts that the `!`, `#`, `%`, and
-`*` modifiers draw and report as documented at the lines of `render-modifiers.scad` and
-`render-root-modifier.scad`.
+Renders `render-unsupported.scad` with a handler and asserts nine reports (including a hull of mixed dimensions,
+a Minkowski sum with a boolean operand, and a `%` on a 2D shape that is not extruded), each at a distinct line of
+the fixture and in source order, that only the supported geometry is drawn (and the bounds equal those of the
+supported geometry), and that strict mode throws the first report with its feature and location; and asserts
+that no fixture other than the unsupported one throws in strict mode.
+
+### Transparency: Colors With Alpha, Ghosts, And Highlights
+
+**Tests**: `CanvasNetScad_SystemIntegration_Render_TransparencyFixtureRendersWithoutReports`,
+`ScadRenderSystem_Modifiers_DrawNormalAndHighlightedAndOmitDisabledAndBackground`,
+`ScadRenderSystem_Modifiers_HighlightAndBackgroundAreNotReported`, `ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree`,
+`ScadRenderSystem_Transparency_TranslucentCubeBlendsOverBackgroundAtAnalyticPixels`,
+`ScadRenderSystem_Transparency_TranslucentDifferenceShowsCavity`,
+`ScadRenderSystem_Transparency_GhostIsTranslucentGrayAndNotSubtracted`,
+`ScadRenderSystem_Transparency_HighlightedCutterShowsPinkThroughTheCut`,
+`ScadRenderSystem_Transparency_FitCameraIncludesGhostBounds`,
+`ScadRenderSystem_Transparency_ParallelAndSequentialAreByteIdentical`,
+`ScadRenderSystem_Transparency_FragmentBudgetExceeded_ThrowsScadEvaluationException`,
+`ScadRenderSystem_Transparency_TransparentBackground_KeepsPartialAlpha`
+
+Renders `render-modifiers.scad`, `render-root-modifier.scad`, and `render-transparency.scad` and asserts, at pixel
+centers of an orthographic top view with flat lighting, composites computed in the test from the documented colors
+with the closed form of front-to-back compositing (within two levels per channel): a translucent cube shows its front
+and its back wall over white (two layers of alpha 128), a translucent cube floats over an opaque plate, the
+vector, hex, and `alpha=` color forms agree, a translucent difference shows an opaque cavity floor in the
+subtrahend's color while its rim stays translucent, a ghost is translucent gray and does not cut the orange cube it
+passes through (the cube is tinted, not cut), a highlighted cutter still cuts and shows two pink layers through
+the hole, and the ghost of an extruded circle is drawn like any ghost; that the `#` and `*` and `%` modifiers of the
+modifier fixtures are not reported while `!` still draws only the marked subtree (with the highlight inside it);
+that the default camera fits the bounds with the ghost (not the bounds without it); that renders with one and with
+eight degrees of parallelism are byte-identical; that a fragment budget of 16 fails with a
+`ScadEvaluationException` carrying the `RenderBudgetExceededException`; that over a transparent background the
+alpha is the accumulated coverage (192) with the unmixed color; and, through the public API in strict mode, that
+the transparency fixture raises neither a report nor a warning and a translucent pixel is neither the pure color
+nor the background.
 
 ### Geometry Limits: Triangle Limit Fails Closed
 
@@ -428,7 +459,7 @@ Renders a deeply nested module chain (400 nested translations ending in a cube) 
 a caller thread with a 256 KiB stack and asserts the analytic pixels (the cube drawn exactly where the chain puts
 it and nowhere else; the block with its hole); asserts that a canceled token stops both `Render` and
 `BuildScene` with `OperationCanceledException`; and, for every authored render fixture (a theory), asserts that
-rendering raises no warning and no echo (only the three fixtures that exercise unsupported features report
+rendering raises no warning and no echo (only the fixture that exercises unsupported features reports
 them) and draws the model, and that two default renders and renders with one and with four degrees of
 parallelism are byte-identical.
 

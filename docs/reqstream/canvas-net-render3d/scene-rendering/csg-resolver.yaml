@@ -1,13 +1,14 @@
 ---
-# cspell:ignore subtrahend subtrahends minuend postfix
+# cspell:ignore subtrahend subtrahends minuend postfix transmittance
 #
 # Software Unit Requirements for CsgResolver
 #
 # These requirements describe the design-level behavior of the CsgResolver unit: the internal
-# CsgCompiler (scene tree to postfix CsgProgram over union-collapsed leaves), CsgProgram (the
-# immutable bitset-evaluated expression) and CsgResolver (per-sample resolution of the visible
-# surface from a sorted fragment list using signed crossing counters and atomic tie groups) types in
-# the DemaConsulting.CanvasNet.Render3D.SceneRendering namespace.
+# CsgCompiler (scene tree to postfix CsgProgram over union-collapsed leaves, plus one program per
+# overlay body), CsgProgram (the immutable bitset-evaluated expression), LayerCompositor (the
+# integer front-to-back layer accumulator) and CsgResolver (per-sample resolution of the visible
+# surface layers from a sorted fragment list using signed crossing counters and atomic tie groups)
+# types in the DemaConsulting.CanvasNet.Render3D.SceneRendering namespace.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -60,9 +61,9 @@ sections:
               - id: CanvasNetRender3D-SceneRendering-CsgResolver-FastPath
                 title: >-
                   The CsgCompiler shall produce no program for a scene without a difference or
-                  intersection of two or more children (including a single mesh and empty nodes),
-                  mapping all instances to a single leaf, so that such scenes are rendered by the
-                  z-buffer without any fragment storage.
+                  intersection of two or more children and without an overlay (including a single
+                  mesh and empty nodes), mapping all instances to a single leaf, so that such scenes
+                  are rendered by the z-buffer without any fragment storage when they are opaque.
                 justification: |
                   The nearest front face of a union of closed solids is always on the union's
                   boundary, so the common union-only scene needs neither fragment lists nor CSG
@@ -91,7 +92,9 @@ sections:
               - id: CanvasNetRender3D-SceneRendering-CsgResolver-VisibleSurface
                 title: >-
                   The CsgResolver shall report as the visible surface of a sample the fragment at
-                  which the CSG result first changes along the ray, using the triangle's enter shade
+                  which the CSG result first changes along the ray, which is the first layer of the
+                  sample (an opaque first layer ends the sweep and gives the classic result), using
+                  the triangle's enter shade
                   when the result changes from outside to inside and its exit shade when it changes
                   from inside to outside, so that a cut made by a subtrahend shows the subtrahend's
                   back face with its own color, a union leaf stays inside until its last overlapping
@@ -166,3 +169,99 @@ sections:
                   - CsgResolver_Resolve_UnbalancedFragments_AreBoundedDeterministicAndLeaveNoState
                   - CsgResolver_Resolve_RandomBoxTrees_MatchAnalyticOracle
                   - CsgResolver_Resolve_MoreThan64Leaves_MatchesAnalyticOracle
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-Overlays
+                title: >-
+                  The CsgCompiler shall treat an OverlayNode as FALSE in the main program (it
+                  neither unions, subtracts nor intersects) and compile the body of every non-empty
+                  overlay, when it is met in pre-order, into a program of its own over the same
+                  global leaf numbering (a union-only body is one collapsed leaf, a body with
+                  booleans gets normal frames, an overlay nested in a body is a plain group, a
+                  subtree containing an overlay is not collapsed while its sibling subtrees still
+                  are, a node shared by the main tree and an overlay body is classified per
+                  context, an overlay without meshes adds no program, and a scene of only overlays
+                  has the main program FALSE), keeping the leaf of every instance in the pre-order
+                  of Scene.EnumerateInstances and leaving scenes without overlays unchanged.
+                justification: |
+                  Overlays are independent bodies: compiling each into its own program lets the
+                  resolver track them with their own signed counters without disturbing the boolean
+                  structure of the main solid, and the unchanged compilation of overlay-free scenes
+                  guarantees that existing scenes render as before.
+                tests:
+                  - CsgCompiler_Compile_OverlayNode_IsFalseInMainAndGetsOwnProgram
+                  - CsgCompiler_Compile_OverlayInsideUnion_DoesNotCollapseMainLeaf_ButSiblingsStillCollapse
+                  - CsgCompiler_Compile_OverlayInsideDifference_LeafOfInstanceFollowsPreOrder
+                  - CsgCompiler_Compile_NestedOverlay_IsGroupInsideOverlayBody
+                  - CsgCompiler_Compile_SharedNodeInMainAndOverlay_ClassifiedPerContext
+                  - CsgCompiler_Compile_EmptyOverlay_AddsNoProgram
+                  - CsgCompiler_Compile_OnlyOverlays_MainProgramIsFalse
+                  - CsgCompiler_Compile_NoOverlay_ProgramAndLeavesUnchanged
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-Layers
+                title: >-
+                  The CsgResolver shall continue the sweep after the first change of a program's
+                  result, treating every further change as another surface layer, accumulate the
+                  layers front to back until an opaque layer, the far distance or the end of the
+                  fragments, and composite the remainder over the background color (honoring its
+                  alpha); a layer's color shall be the triangle's enter shade with the alpha of its
+                  appearance, so that the far wall of a translucent solid uses its own shade, and
+                  only the first change of each program (the main program or an overlay program),
+                  when it is an exit because the ray starts inside that solid, shall use the exit
+                  shade; layers beyond the far
+                  distance shall be ignored, and with an opaque first layer the result shall equal
+                  the classic first-visible-surface result over any background.
+                justification: |
+                  Translucent surfaces let the surfaces behind them show: the composite of all
+                  layers up to the first opaque one is the correct pixel, and the classic opaque
+                  behavior must remain the special case so that existing scenes do not change.
+                tests:
+                  - CsgResolver_Resolve_TranslucentFront_CompositesOverOpaqueBack
+                  - CsgResolver_Resolve_OpaqueFirstLayer_StopsSweep_AndEqualsLegacyResult
+                  - CsgResolver_Resolve_TranslucentExitAfterEnter_UsesOwnShadeNotBackFaceColor
+                  - CsgResolver_Resolve_RayStartsInsideTranslucentMain_UsesExitColorWithAlpha
+                  - CsgResolver_Resolve_RayStartsInsideOverlay_UsesExitColorWithAlpha
+                  - CsgResolver_Resolve_OverlayRayStartsInsideThenReenters_UsesExitShadeOnlyOnce
+                  - CsgResolver_Resolve_RayStartsInsideMainAndOverlay_EachProgramUsesItsOwnFirstExit
+                  - CsgResolver_Resolve_LayersBeyondFar_AreIgnored
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-LayerOrder
+                title: >-
+                  The CsgResolver shall order layers by depth independent of the insertion order of
+                  the fragments, evaluate the main program and any number of overlay programs over
+                  their own leaves (an overlay never influences the main program and is hidden
+                  behind an opaque main surface), apply within one tie group the layers of overlay
+                  programs before the main layer so that an overlay in front of a coincident main
+                  face tints it, leave no state behind between samples, and reject a null or empty
+                  program list, a null program, or a leaf claimed by two programs.
+                justification: |
+                  Order independence keeps tile-parallel output byte-identical; overlay-first ties
+                  make a highlighted body that coincides with the solid visible instead of hidden
+                  by its own copy; and independent per-program state is what makes an overlay a
+                  separate body.
+                tests:
+                  - CsgResolver_Resolve_TwoTranslucentLayers_AreOrderedByDepth_NotInsertion
+                  - CsgResolver_Resolve_OverlayCoincidentWithMain_OverlayIsInFront
+                  - CsgResolver_Resolve_OverlayBehindOpaqueMain_IsHidden
+                  - CsgResolver_Resolve_OverlayLeavesDoNotAffectMainProgram
+                  - CsgResolver_Resolve_ScratchIsClearedBetweenSamples_WithOverlays
+                  - CsgResolver_Constructor_NullOrEmptyProgramList_Throws
+
+              - id: CanvasNetRender3D-SceneRendering-CsgResolver-LayerCompositing
+                title: >-
+                  The LayerCompositor shall accumulate straight-alpha layers front to back in exact
+                  integer arithmetic (each layer takes the share of the remaining transmittance
+                  given by its alpha), return a single opaque layer's color exactly, match the
+                  closed-form blend of one translucent layer over an opaque background within one
+                  level, give the accumulated alpha with the unchanged layer color over a
+                  transparent background, never let the transmittance go negative, stop
+                  accumulating at an opaque layer, and let layers of alpha zero contribute nothing.
+                justification: |
+                  The pixel value must be a pure, platform-independent function of the ordered
+                  layers so that renders are reproducible, and the opaque case must reduce to the
+                  layer color exactly so that opaque scenes are unchanged.
+                tests:
+                  - LayerCompositor_SingleOpaqueLayer_ReturnsLayerColorExactly
+                  - LayerCompositor_HalfAlphaOverOpaqueBackground_MatchesClosedForm
+                  - LayerCompositor_TransparentBackground_YieldsAccumulatedAlphaAndStraightColor
+                  - LayerCompositor_ManyLayers_TransmittanceNeverGoesNegative_AndOpaqueStops
+                  - LayerCompositor_AlphaZeroLayers_ContributeNothing

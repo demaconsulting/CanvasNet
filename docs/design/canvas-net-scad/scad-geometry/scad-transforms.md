@@ -135,9 +135,11 @@ the requested size:
 3. **Bounds.** If the union is approximate (a difference or an intersection is inside), the propagated upper
    bound is used and the unsupported feature `scad-resize-approximate` is reported at the instance; the resize
    is still applied with that extent. Otherwise, if the box is not tight (a rotation that is not a multiple of 90
-   degrees loosened it), the **exact vertex bounds** are recomputed on demand — `new Scene(node).ComputeBounds()`
-   for a solid, `ScadShape2D.ComputeVertexBounds()` for a 2D shape — so a rotated child ends up with exactly the
-   requested size.
+   degrees loosened it), the **exact vertex bounds** are recomputed on demand — `new Scene(node).ComputeBounds(
+   includeOverlays: false)` for a solid (a `%` ghost is not part of the geometry whose size is requested),
+   `ScadShape2D.ComputeVertexBounds()` for a 2D shape — so a rotated child ends up with exactly the
+   requested size. A ghost also contributes no propagated bounds, so the tight-box path ignores it too (see
+    _ScadGeometryBuilder Unit Design_); it remains part of the scene bounds that fit the default camera.
 4. **Factors** (`ComputeFactors`). Per axis (three for a solid, only X and Y for a 2D shape), a positive
    `newsize` component gives `newsize / size`; the first such factor is the reference. An axis with a positive
    `newsize` but no extent warns `resize: the children have no extent along X; they are not resized along it`
@@ -160,13 +162,18 @@ the requested size:
 - `alpha` must be a finite number and is clamped to 0..1; it **overrides** any alpha from `c`.
 - An invalid `c` warns `color: c must be a color name, a hex string …; the color is ignored` and an invalid
   `alpha` warns `color: alpha must be a number from 0 to 1; it is ignored`; both keep the children.
-- If the final alpha is below 1, the unsupported feature `scad-color-alpha` is reported once at the instance
-  location (also when there is no color, no children, or the color is invalid), and the surface is drawn opaque.
+- If the final alpha is below 1 it is carried into the appearance (see below) and nothing is reported (Phase 8;
+  the former `scad-color-alpha` report no longer exists). An `alpha` **without** a `c` argument has nothing to
+  apply to: it warns `color: alpha needs a color c; it is ignored` and colors nothing.
 - The children are unioned; when the union is empty or no valid `c` was given (`color()`, `color(alpha=…)`, an
   invalid color) it is returned unchanged. Otherwise a solid is wrapped in a `GroupNode` with
-  `Appearance = new NodeAppearance(color)`, and a 2D shape in a `ScadShape2D` color node; the bounds and
+  `Appearance = new NodeAppearance(new Rgba32(r, g, b, round(alpha * 255)))` (alpha 1 when none was given;
+  rounding half away from zero), and a 2D shape in a `ScadShape2D` color node (so an extruded shape and a flat slab
+  keep the alpha); the bounds and
   flags are carried over. Because Render3D resolves the appearance of the innermost group, the **innermost
-  color wins** and siblings are unaffected.
+  color wins**, alpha included, and siblings are unaffected. The renderer honors the alpha (see the Render3D
+  transparency design): a surface with alpha below 255 is composited, alpha 0 is invisible but still solid, and
+  a body that is translucent must be a closed solid.
 
 ##### Shared helpers
 
@@ -190,11 +197,11 @@ finite numbers padded with a fill value; `ReadMatrixRows` reads three or four ro
 | `resize` bounds | exact; recomputed from vertices after a non-axis-aligned rotation |
 | `resize` over `difference`/`intersection` | `scad-resize-approximate`; still resized with the estimated extent |
 | Projective `multmatrix` | `scad-multmatrix-projective`; children omitted |
-| Alpha below 1, `transparent` | drawn opaque; `scad-color-alpha` |
+| Alpha below 1, `transparent` | carried into the appearance alpha and rendered; no report |
 | `convexity`, `$`-names | accepted and ignored silently |
 
-Identifiers reported by this unit (`ScadFeatureIds`): `scad-multmatrix-projective`, `scad-resize-approximate`,
-and `scad-color-alpha`. All other problems are warnings.
+Identifiers reported by this unit (`ScadFeatureIds`): `scad-multmatrix-projective` and `scad-resize-approximate`.
+All other problems are warnings.
 
 #### Error Handling
 
@@ -204,7 +211,7 @@ and `scad-color-alpha`. All other problems are warnings.
   the children: a zero `rotate` axis, a zero `mirror` normal, `v` ignored for a vector `rotate`, an invalid
   color or alpha, and the Z part of a transform of a 2D shape. A `resize` axis without extent is skipped with a
   warning.
-- **Unsupported feature**: `scad-multmatrix-projective`, `scad-resize-approximate`, and `scad-color-alpha`.
+- **Unsupported feature**: `scad-multmatrix-projective` and `scad-resize-approximate`.
   In strict mode (`ThrowOnUnsupportedFeature`) the reporter throws `ScadUnsupportedFeatureException` at the
   first report of a feature at a location (repeats at the same location are silent); the unit does not catch
   it.

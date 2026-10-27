@@ -41,8 +41,9 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   ScadEvaluationSink sink)` — builds the scene of an evaluated model and returns a `ScadBuiltScene`; throws
   `ScadEvaluationException` (triangle budget), `ScadUnsupportedFeatureException` (strict mode), and
   `OperationCanceledException`.
-- `ScadGeometrySettings` — `MaxTriangles` (a `long`), `FlatShapeThickness`, `ThrowOnUnsupportedFeature`, and the
-  `CancellationToken`.
+- `ScadGeometrySettings` — `MaxTriangles` (a `long`), `FlatShapeThickness`, `ThrowOnUnsupportedFeature`, the
+  `CancellationToken`, and the optional (`Rgba32?`) `HighlightColor` and `GhostColor` (null: the defaults
+  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`).
 - `ScadBuiltScene` — the `Scene` (an empty group when nothing was built) and the `ScadSceneMap` from every
   `MeshNode` to the source location of the module that produced it.
 - `ScadSceneOptions.Create` and `ScadSceneOptions.MapFeature` — the copy of the renderer options with a
@@ -55,7 +56,8 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
 `ScadEvaluationSink` that buffers warnings and unsupported-feature reports; from the `ScadDocument` unit, the
 public `ScadLimits`, `ScadEvaluationException`, `ScadUnsupportedFeatureException`, and `ScadSourceLocation`;
 from `CanvasNetRender3D`, the public scene-model types (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`,
-`Mesh`, `Matrix4x4D`, `Vector3D`, `BoundingBox3D`), the tessellators and extruders (`PrimitiveTessellator`,
+`Mesh`, `Matrix4x4D`, `Vector3D`, `BoundingBox3D`, and, since Phase 8, `OverlayNode` and
+`Scene.ComputeBounds(bool)`), the tessellators and extruders (`PrimitiveTessellator`,
 `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`, `MinkowskiSum`), and `SceneRenderOptions`; and from
 `CanvasNet`, `Rgba32`.
 The subsystem never uses the `ScadLanguage` subsystem or the syntax tree.
@@ -100,7 +102,7 @@ Classification_), applied to geometry:
 | Class | Mechanism | Examples | Continues? |
 | ----- | --------- | -------- | ---------- |
 | **Warning** | `ScadDiagnostic` through the shared sink, at the instance's location | an invalid or non-finite argument (a non-positive size, a wrong type), an unknown, surplus, or repeated argument, a child object under a primitive, a singular transform, a zero `rotate` axis or `mirror` normal, an invalid `color`, a mixed 2D and 3D combination, a 3D child under an extrusion, a polyhedron wound the wrong way round | Yes; an invalid instance is empty (a zero `rotate` axis or `mirror` normal, an invalid `color` value, and an invalid `alpha` warn and keep their children untransformed or uncolored) |
-| **Unsupported feature** | `ScadUnsupportedFeature` through the shared sink; in strict mode a `ScadUnsupportedFeatureException` at the first one | a recognized module that is not built, a `hull` or `minkowski` whose operands have no hull or sum, a degraded modifier, a color alpha, an extrusion the Render3D extruders cannot build, a renderer operand defect (see the identifier table) | Yes (the instance or subtree is omitted, or degraded), unless strict |
+| **Unsupported feature** | `ScadUnsupportedFeature` through the shared sink; in strict mode a `ScadUnsupportedFeatureException` at the first one | a recognized module that is not built, a `hull` or `minkowski` whose operands have no hull or sum, a `#` or `%` on a 2D shape that is not extruded, an extrusion the Render3D extruders cannot build, a renderer operand defect (see the identifier table) | Yes (the instance or subtree is omitted, or degraded), unless strict |
 | **Error** | `ScadEvaluationException` with the location of the module | the triangle budget would be exceeded (`MaxTriangles`), including for hostile sizes whose estimate would overflow | No |
 | **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during the build | No |
 <!-- markdownlint-enable MD013 -->
@@ -137,9 +139,8 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
 | `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
 | `scad-minkowski-too-complex` | A child has more than 4,096 convex parts, a fold step needs more than 4,096 convex sums, two meshes have more than `MinkowskiSum.MaxPairwiseSums` pairwise vertex sums, or the module needs more than that many in total | The module is omitted |
-| `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
-| `scad-modifier-background` | The `%` modifier | The subtree is omitted |
-| `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `transparent`) | The geometry is drawn opaque |
+| `scad-modifier-highlight` | The `#` modifier on a 2D shape that is not extruded (a `#` on a solid is rendered and not reported) | The shape is built normally, without highlighting |
+| `scad-modifier-background` | The `%` modifier on a 2D shape that is not extruded (a `%` on a solid is rendered as a ghost and not reported) | The shape is omitted |
 | `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | The estimated bounds are used |
 | `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
 | `scad-polygon-invalid` | A `polygon`, or any 2D leaf after transformation under an extrusion or slab, that is self-crossing or zero-area | That leaf is omitted |
@@ -183,8 +184,13 @@ designs.
    _Tessellation_ subsystem). The raise never takes effect for a fragment count of at least three.
 8. **Modifiers.** `!` makes the outermost marked subtrees the new root of the design, without the transforms and
    colors of their ancestors (`translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin); `%{ !x }` with
-   a single child is one instance that is both, so it is omitted and the model
-   is empty.
+   a single child is one instance that is both, so only its ghost remains and the model has no ordinary geometry.
+   `%` and `#` are overlays (see the unit design): a ghost is false in every enclosing boolean and
+   contributes no propagated bounds (`resize`, `hull`, `minkowski`, and the bounds of enclosing geometry
+   ignore it) but is part of `Scene.ComputeBounds()`, the bounds that fit the default camera
+   (`ComputeBounds(includeOverlays: false)` leaves it out); a highlight is a translucent copy of a subtree
+   that still takes part in the booleans. The alpha of a color is the
+   alpha of the appearance (`scad-color-alpha` no longer exists).
 9. **Mesh locations.** The meshes of an extrusion are mapped to the location of the extrusion module; the slab of
    a top-level 2D shape is mapped to the location of its 2D leaf.
 10. **Colors.** The named color table is the CSS table already in this repository's SVG codec (authored

@@ -23,7 +23,10 @@
 # rotational extrusion of those regions into closed, outward-oriented meshes.
 # Phase 7 adds the exact convex hull of point sets (three-dimensional meshes and planar polygons) and
 # the Minkowski sum of convex solids, which rejects non-convex operands instead of approximating them.
-# Transparency and file-format front ends are added by later phases; their requirements will be
+# Phase 8 adds transparency: the alpha of a node appearance is honored through the fragment-list
+# path (surface layers composited front to back over the background) and the new OverlayNode adds
+# independent translucent bodies (ghosts, highlights); opaque scenes are unchanged.
+# File-format front ends are added by later phases; their requirements will be
 # added to this file (and new per-unit files) when each phase lands, mirroring
 # canvas-net-pptx.yaml's own per-phase header-comment convention.
 
@@ -32,8 +35,8 @@ sections:
     requirements:
       - id: CanvasNetRender3D-Scene
         title: >-
-          The library shall let a caller assemble an immutable scene from mesh, group, and
-          constructive-solid-geometry nodes that
+          The library shall let a caller assemble an immutable scene from mesh, group,
+          constructive-solid-geometry and overlay (independent translucent body) nodes that
           carry double-precision transforms and optional per-node colors, compute its tight
           world-space bounding box, and reject invalid input (null arguments, non-finite
           transforms or vertices, malformed index lists) at construction time rather than
@@ -167,7 +170,8 @@ sections:
       - id: CanvasNetRender3D-Appearance
         title: >-
           The library shall color surfaces with a neutral default color unless a node supplies its
-          own color (the innermost enclosing node's color winning), shall paint back-facing
+          own color (the innermost enclosing node's color winning, and its alpha honored - see
+          the transparency requirement), shall paint back-facing
           surfaces with a configurable back-face color, and shall fill uncovered pixels with a
           configurable background color whose transparency is preserved in the output.
         tags: [system]
@@ -226,6 +230,27 @@ sections:
           - CanvasNetRender3D_SystemIntegration_Csg_CubeMinusSphereShowsCavity
           - CanvasNetRender3D_SystemIntegration_Csg_BudgetAndOperandReporting
 
+      - id: CanvasNetRender3D-Transparency
+        title: >-
+          The library shall honor the alpha of a node's appearance color by compositing the
+          surfaces of a translucent scene front to back over the background (a translucent solid
+          showing what lies behind it, an alpha of zero being invisible but still solid) and
+          shall provide an overlay node that renders its children as an independent translucent
+          body, depth-composited with the rest of the scene without taking part in any enclosing
+          boolean operation and optionally excluded from the scene bounds, with a result that is
+          byte-identical across parallelism and runs, subject to the same fragment budget and
+          operand reporting as constructive solid geometry, and leaving opaque scenes unchanged.
+        tags: [system]
+        justification: |
+          Translucent materials and see-through ghosts or highlights are how a CAD model shows
+          what is hidden or what an operation removes; they must be exact and reproducible, safe
+          in memory, honest about operands that are not solids, and free for opaque scenes.
+        children:
+          - CanvasNetRender3D-SceneModel-SceneGraph
+          - CanvasNetRender3D-SceneRendering-TransparencyRendering
+        tests:
+          - CanvasNetRender3D_SystemIntegration_Transparency_TranslucentCsgSceneWithOverlayRendersCompositedAndDeterministic
+
       - id: CanvasNetRender3D-Antialiasing
         title: >-
           The library shall antialias edges by ordered-grid supersampling of 1 to 4 samples per
@@ -270,6 +295,7 @@ sections:
           - CanvasNetRender3D-SceneRendering-Rasterization
           - CanvasNetRender3D-SceneRendering-Rendering
           - CanvasNetRender3D-SceneRendering-CsgRendering
+          - CanvasNetRender3D-SceneRendering-TransparencyRendering
         tests:
           - CanvasNetRender3D_SystemIntegration_Determinism_ParallelAndSequentialRendersAreByteIdentical
           - CanvasNetRender3D_SystemIntegration_Determinism_RepeatedRenderIsByteIdentical

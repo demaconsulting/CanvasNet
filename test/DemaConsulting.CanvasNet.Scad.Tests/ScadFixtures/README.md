@@ -28,6 +28,16 @@ any other implementation, and the render fixtures have no expected-output files 
 OpenSCAD itself is licensed under the GPL and its manual under CC BY-SA. Nothing from either is included here, and
 nothing may be added to this folder that is. If a new fixture is needed, author it fresh.
 
+`render-transparency.scad` (Phase 8) and the transparency edits of `render-modifiers.scad` and `render-unsupported.scad`
+are original works of the same kind, written for CanvasNet in this repository. The translucent boxes, the cavity, the
+ghost, the highlighted cutter, and the colors with alpha were invented for these tests; the expected pixels are not
+read from any image or program: the tests compute them from the closed form of front-to-back alpha compositing of the
+documented colors (a half-transparent surface seen from above shows its near and far wall) and from the documented
+default overlay colors of `ScadRenderOptions`. Nothing in them was derived from, compared with, or checked against
+OpenSCAD's source code, test corpus, manual text, manual examples, or rendering behavior; the semantics of the `%` and
+`#` modifiers in CanvasNet (a ghost that is not part of the model, a highlight that still takes part in the booleans)
+are written down in `docs/design/canvas-net-scad.md` as CanvasNet's own decisions.
+
 `.scad` files are not spell-checked by the repository lint, and the repository normalizes text files to LF line
 endings on checkout. Tests that depend on other line-ending conventions build their input in code instead.
 
@@ -83,10 +93,11 @@ named after the topic, not after any other implementation's behavior.
 | `render-2d-csg.scad` | 2D `difference` and `intersection` of circles and squares distributed into extrusions |
 | `render-polyhedron.scad` | A pyramid, an octahedron and an L-shaped prism with a concave face, faces listed clockwise from outside |
 | `render-modules-scene.scad` | A recursive staircase, a ring of posts made with a loop and `children()`, and a painting module |
-| `render-modifiers.scad` | The `*`, `#` and `%` modifiers: disabled, highlighted (drawn, reported) and background (omitted, reported) |
-| `render-root-modifier.scad` | The `!` modifier: only the marked subtree is drawn |
+| `render-modifiers.scad` | The `*`, `#` and `%` modifiers: disabled (nothing drawn), highlighted (drawn, with a translucent copy in front) and background (only a translucent ghost) |
+| `render-root-modifier.scad` | The `!` modifier: only the marked subtree is drawn (a highlight inside it included) |
 | `render-parametric.scad` | A peg board whose size comes from variables that the tests override (the `-D` equivalent) |
-| `render-unsupported.scad` | One recognized but unsupported construct per line (modules, a hull of mixed dimensions, a Minkowski sum with a boolean operand, background modifier, color alpha) next to supported geometry |
+| `render-unsupported.scad` | One recognized but unsupported construct per line (modules, a hull of mixed dimensions, a Minkowski sum with a boolean operand, a `%` on a 2D shape that is not extruded) next to supported geometry |
+| `render-transparency.scad` | Color alpha (vector, hex, `alpha=`), a translucent cube alone and over an opaque plate, a translucent difference with a blind cavity, a `%` ghost that passes through a solid without cutting it, a `#` on a subtracted cylinder, and a `%` of an extruded circle |
 | `render-hull.scad` | `hull` of two cubes (a hexagonal prism), of 2D squares (extruded), of two spheres (a capsule), and as a cutter in a difference |
 | `render-minkowski.scad` | `minkowski` of a block and a ball (a rounded box), of a union of blocks (distributed), and of a hull and a cube |
 | `libs/defs.scad`, `libs/nested/inner.scad`, `libs/shapes.scad` | Files included or used by `eval-include-main.scad`; they are not enumerated by the parse tests |

@@ -822,6 +822,509 @@ public class CsgResolverTests
         Assert.Throws<ArgumentNullException>(() => new CsgResolver(null!));
     }
 
+    /// <summary>The program holding only leaf 0.</summary>
+    private static CsgProgram LeafProgram(int leaf, int leafCount) => new([new CsgInstruction(CsgOpCode.PushLeaf, leaf)], leafCount);
+
+    /// <summary>The union of leaf 0 and leaf 1.</summary>
+    private static CsgProgram UnionProgram() =>
+        new([new CsgInstruction(CsgOpCode.PushLeaf, 0), new CsgInstruction(CsgOpCode.PushLeaf, 1), new CsgInstruction(CsgOpCode.Or, 0)], 2);
+
+    /// <summary>The opaque white background of the layer tests.</summary>
+    private static readonly Rgba32 White = new(255, 255, 255, 255);
+
+    /// <summary>Creates a triangle with explicit shades.</summary>
+    /// <param name="leaf">The leaf.</param>
+    /// <param name="back">Whether the triangle is back-facing.</param>
+    /// <param name="priority">The draw priority.</param>
+    /// <param name="enter">The enter shade.</param>
+    /// <param name="exit">The exit shade.</param>
+    /// <returns>The triangle.</returns>
+    private static ScreenTriangle TriColor(int leaf, bool back, int priority, Rgba32 enter, Rgba32 exit) =>
+        new() { Leaf = leaf, BackFacing = back, Priority = priority, EnterColor = enter, ExitColor = exit };
+
+    /// <summary>Resolves one sample with a program list and a background on a copy of the fragments.</summary>
+    /// <param name="programs">The programs (main first).</param>
+    /// <param name="background">The background.</param>
+    /// <param name="triangles">The triangles.</param>
+    /// <param name="fragments">The fragments.</param>
+    /// <param name="far">The far distance.</param>
+    /// <returns>The outcome.</returns>
+    private static (bool Found, float Depth, Rgba32 Color, int Meta) ResolveLayers(
+        CsgProgram[] programs,
+        Rgba32 background,
+        ScreenTriangle[] triangles,
+        FragmentBuffer.Fragment[] fragments,
+        float far = Far) =>
+        ResolveWith(new CsgResolver(programs, background), triangles, fragments, Epsilon, far);
+
+    /// <summary>
+    ///     Composites straight-alpha layers, nearest first, over a background with the resolver's integer arithmetic.
+    /// </summary>
+    /// <param name="background">The background.</param>
+    /// <param name="layers">The layers, nearest first.</param>
+    /// <returns>The composite.</returns>
+    private static Rgba32 Composite(Rgba32 background, params Rgba32[] layers)
+    {
+        var compositor = default(LayerCompositor);
+        foreach (var layer in layers)
+        {
+            compositor.Add(layer);
+        }
+
+        return compositor.Finish(background);
+    }
+
+    /// <summary>
+    ///     Validates that a single opaque layer returns its color exactly over any background.
+    /// </summary>
+    [Fact]
+    public void LayerCompositor_SingleOpaqueLayer_ReturnsLayerColorExactly()
+    {
+        // Arrange
+        Rgba32[] backgrounds = [new(0, 0, 0, 0), White, new(10, 20, 30, 128)];
+        Rgba32[] layers = [new(0, 0, 0, 255), new(255, 255, 255, 255), new(17, 130, 241, 255)];
+
+        foreach (var layer in layers)
+        {
+            foreach (var background in backgrounds)
+            {
+                // Act
+                var compositor = default(LayerCompositor);
+                compositor.Add(layer);
+
+                // Assert
+                Assert.True(compositor.IsOpaque);
+                Assert.Equal(layer, compositor.Finish(background));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a translucent layer over an opaque background matches the closed form within one level.
+    /// </summary>
+    [Fact]
+    public void LayerCompositor_HalfAlphaOverOpaqueBackground_MatchesClosedForm()
+    {
+        // Arrange
+        var color = new Rgba32(200, 100, 20, 0);
+        var background = new Rgba32(10, 250, 90, 255);
+
+        foreach (var alpha in new byte[] { 1, 64, 127, 128, 200, 254 })
+        {
+            // Act
+            var compositor = default(LayerCompositor);
+            compositor.Add(new Rgba32(color.R, color.G, color.B, alpha));
+            var result = compositor.Finish(background);
+
+            // Assert
+            Assert.False(compositor.IsOpaque);
+            Assert.Equal(255, result.A);
+            Assert.InRange(result.R, ((alpha * color.R) + ((255 - alpha) * background.R) + 127) / 255 - 1, (((alpha * color.R) + ((255 - alpha) * background.R) + 127) / 255) + 1);
+            Assert.InRange(result.G, ((alpha * color.G) + ((255 - alpha) * background.G) + 127) / 255 - 1, (((alpha * color.G) + ((255 - alpha) * background.G) + 127) / 255) + 1);
+            Assert.InRange(result.B, ((alpha * color.B) + ((255 - alpha) * background.B) + 127) / 255 - 1, (((alpha * color.B) + ((255 - alpha) * background.B) + 127) / 255) + 1);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that over a transparent background the result keeps the straight layer color with the accumulated alpha.
+    /// </summary>
+    [Fact]
+    public void LayerCompositor_TransparentBackground_YieldsAccumulatedAlphaAndStraightColor()
+    {
+        // Arrange
+        var compositor = default(LayerCompositor);
+        compositor.Add(new Rgba32(100, 150, 200, 100));
+
+        // Act
+        var result = compositor.Finish(new Rgba32(0, 0, 0, 0));
+
+        // Assert
+        Assert.Equal(new Rgba32(100, 150, 200, 100), result);
+        Assert.Equal(new Rgba32(0, 0, 0, 0), default(LayerCompositor).Finish(new Rgba32(0, 0, 0, 0)));
+    }
+
+    /// <summary>
+    ///     Validates that the transmittance never goes negative and an opaque layer ends accumulation.
+    /// </summary>
+    [Fact]
+    public void LayerCompositor_ManyLayers_TransmittanceNeverGoesNegative_AndOpaqueStops()
+    {
+        // Arrange
+        var compositor = default(LayerCompositor);
+        var previousAlpha = 0;
+
+        // Act / Assert: the accumulated alpha only grows and never exceeds 255
+        for (var i = 0; i < 40; i++)
+        {
+            compositor.Add(new Rgba32(255, 0, 0, 200));
+            var alpha = compositor.Finish(new Rgba32(0, 0, 0, 0)).A;
+            Assert.InRange(alpha, previousAlpha, 255);
+            previousAlpha = alpha;
+        }
+
+        Assert.True(previousAlpha > 250);
+        compositor.Add(new Rgba32(0, 255, 0, 255));
+        Assert.True(compositor.IsOpaque);
+        var final = compositor.Finish(White);
+        Assert.Equal(255, final.A);
+        Assert.Equal(255, final.R);
+        Assert.Equal(0, final.G);
+    }
+
+    /// <summary>
+    ///     Validates that fully transparent layers change nothing.
+    /// </summary>
+    [Fact]
+    public void LayerCompositor_AlphaZeroLayers_ContributeNothing()
+    {
+        // Arrange
+        var compositor = default(LayerCompositor);
+
+        // Act
+        compositor.Add(new Rgba32(1, 2, 3, 0));
+        compositor.Add(new Rgba32(250, 251, 252, 0));
+
+        // Assert
+        Assert.False(compositor.IsOpaque);
+        Assert.Equal(White, compositor.Finish(White));
+        Assert.Equal(new Rgba32(0, 0, 0, 0), compositor.Finish(new Rgba32(0, 0, 0, 0)));
+    }
+
+    /// <summary>
+    ///     Validates the closed-form composite of a translucent solid in front of an opaque one.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_TranslucentFront_CompositesOverOpaqueBack()
+    {
+        // Arrange: translucent red solid [1, 2] in front of an opaque blue solid [3, 4]; union program
+        var red = new Rgba32(255, 0, 0, 128);
+        var blue = new Rgba32(0, 0, 255, 255);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, red, red), TriColor(0, true, 0, red, red),
+            TriColor(1, false, 1, blue, blue), TriColor(1, true, 1, blue, blue),
+        ];
+        var fragments = new[] { F(1, 0), F(2, 1), F(3, 2), F(4, 3) };
+
+        // Act
+        var result = ResolveLayers([UnionProgram()], White, triangles, fragments);
+
+        // Assert: 128 + 64 of red, the remaining 63 of blue; the opaque layer ends the sweep
+        Assert.True(result.Found);
+        Assert.Equal(new Rgba32(192, 0, 63, 255), result.Color);
+        Assert.Equal(1.0f, result.Depth);
+        Assert.Equal(0, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that the layer order follows depth, never the insertion order of the fragments.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_TwoTranslucentLayers_AreOrderedByDepth_NotInsertion()
+    {
+        // Arrange: two separate translucent solids, red [1, 2] and blue [3, 4]
+        var red = new Rgba32(255, 0, 0, 128);
+        var blue = new Rgba32(0, 0, 255, 128);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, red, red), TriColor(0, true, 0, red, red),
+            TriColor(1, false, 1, blue, blue), TriColor(1, true, 1, blue, blue),
+        ];
+        var expected = default(LayerCompositor);
+        expected.Add(red);
+        expected.Add(red);
+        expected.Add(blue);
+        expected.Add(blue);
+        var resolver = new CsgResolver([UnionProgram()], White);
+
+        // Act / Assert: every insertion order yields the depth-ordered composite
+        var sorted = new[] { F(1, 0), F(2, 1), F(3, 2), F(4, 3) };
+        foreach (var order in Permutations([0, 1, 2, 3]))
+        {
+            var result = ResolveWith(resolver, triangles, [.. order.Select(i => sorted[i])]);
+            Assert.True(result.Found);
+            Assert.Equal(expected.Finish(White), result.Color);
+        }
+
+        // The composite really depends on the depth order (swapping the colors changes it)
+        var swapped = default(LayerCompositor);
+        swapped.Add(blue);
+        swapped.Add(blue);
+        swapped.Add(red);
+        swapped.Add(red);
+        Assert.NotEqual(expected.Finish(White), swapped.Finish(White));
+    }
+
+    /// <summary>
+    ///     Validates that an opaque first layer stops the sweep and gives exactly the classic result over any background.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OpaqueFirstLayer_StopsSweep_AndEqualsLegacyResult()
+    {
+        // Arrange: the classic A - B ray that hits the minuend first, with more events behind it
+        var fragments = new[] { F(4, 1), F(2, 2), F(1, 0), F(3, 3) };
+        var program = CsgCompiler.Compile(Difference()).Program!;
+        var legacy = ResolveWith(new CsgResolver(program), DifferenceTriangles(), fragments);
+
+        // Act: a transparent, a translucent and an opaque background, plus an unused overlay program
+        var results = new[]
+        {
+            ResolveLayers([program], new Rgba32(0, 0, 0, 0), DifferenceTriangles(), fragments),
+            ResolveLayers([program], new Rgba32(1, 2, 3, 77), DifferenceTriangles(), fragments),
+            ResolveLayers([program], White, DifferenceTriangles(), fragments),
+        };
+
+        // Assert
+        Assert.Equal(Enter(0, 0), legacy.Color);
+        Assert.All(results, r => Assert.Equal(legacy, r));
+    }
+
+    /// <summary>
+    ///     Validates that the far wall of a translucent solid uses its own shade, not the back-face (exit) shade.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_TranslucentExitAfterEnter_UsesOwnShadeNotBackFaceColor()
+    {
+        // Arrange: the back triangle's exit shade is an opaque green that would hide everything if it were used
+        var red = new Rgba32(255, 0, 0, 128);
+        var blue = new Rgba32(0, 0, 255, 128);
+        var green = new Rgba32(0, 255, 0, 255);
+        ScreenTriangle[] triangles = [TriColor(0, false, 0, red, green), TriColor(0, true, 0, blue, green)];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 1)], White, triangles, [F(1, 0), F(2, 1)]);
+
+        // Assert: 128 of red, 64 of blue, 63 of the white background
+        Assert.Equal(new Rgba32(191, 63, 127, 255), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that a ray starting inside a translucent main solid shows the exit shade with its alpha.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_RayStartsInsideTranslucentMain_UsesExitColorWithAlpha()
+    {
+        // Arrange: only the back face is ahead; the exit shade is translucent green, the enter shade is opaque red
+        var exit = new Rgba32(0, 255, 0, 128);
+        ScreenTriangle[] triangles = [TriColor(0, true, 0, new Rgba32(255, 0, 0, 255), exit)];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 1)], White, triangles, [F(2, 0)]);
+
+        // Assert
+        Assert.True(result.Found);
+        Assert.Equal(new Rgba32(127, 255, 127, 255), result.Color);
+        Assert.Equal(2.0f, result.Depth);
+        Assert.Equal(1, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that a ray starting inside an overlay body shows the exit shade with the overlay's alpha,
+    ///     exactly like a ray starting inside a translucent main solid.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_RayStartsInsideOverlay_UsesExitColorWithAlpha()
+    {
+        // Arrange: opaque green main [3, 4] behind a translucent overlay whose only fragment ahead is its back face at 2;
+        // the exit shade is translucent red, the enter shade is translucent blue
+        var green = new Rgba32(0, 255, 0, 255);
+        var exit = new Rgba32(255, 0, 0, 128);
+        var enter = new Rgba32(0, 0, 255, 128);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, green, green), TriColor(0, true, 0, green, green),
+            TriColor(1, true, 1, enter, exit),
+        ];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(2, 2), F(3, 0), F(4, 1)]);
+
+        // Assert: the exit layer tints the green main face; depth and meta come from the overlay's back face
+        Assert.Equal(Composite(White, exit, green), result.Color);
+        Assert.Equal(2.0f, result.Depth);
+        Assert.Equal((1 << 1) | 1, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that only the first change of an overlay uses the exit shade: a second pass through the overlay
+    ///     enters and leaves it with the enter shade.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OverlayRayStartsInsideThenReenters_UsesExitShadeOnlyOnce()
+    {
+        // Arrange: the ray leaves the overlay at 1 (its start was inside), re-enters at 2 and leaves again at 3
+        var exit = new Rgba32(255, 0, 0, 128);
+        var enter = new Rgba32(0, 0, 255, 128);
+        ScreenTriangle[] triangles = [TriColor(0, false, 1, enter, exit), TriColor(0, true, 1, enter, exit), TriColor(0, false, 1, enter, exit), TriColor(0, true, 1, enter, exit)];
+
+        // Act: the leaf has a back face at 1 and 3 and a front face at 2, so the ray starts inside it twice over
+        var result = ResolveLayers([LeafProgram(0, 1)], White, triangles, [F(1, 1), F(2, 2), F(3, 3)]);
+
+        // Assert: exit shade, then the enter shade at the front face, then the enter shade at the far wall
+        Assert.Equal(Composite(White, exit, enter, enter), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that the exit shade of a program is not used for the first change of another program.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_RayStartsInsideMainAndOverlay_EachProgramUsesItsOwnFirstExit()
+    {
+        // Arrange: both programs start inside; the overlay leaves at 1, the main leaves at 2
+        var mainExit = new Rgba32(255, 0, 0, 128);
+        var mainEnter = new Rgba32(1, 1, 1, 128);
+        var ghostExit = new Rgba32(0, 0, 255, 64);
+        var ghostEnter = new Rgba32(2, 2, 2, 64);
+        ScreenTriangle[] triangles = [TriColor(0, true, 0, mainEnter, mainExit), TriColor(1, true, 1, ghostEnter, ghostExit)];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(1, 1), F(2, 0)]);
+
+        // Assert
+        Assert.Equal(Composite(White, ghostExit, mainExit), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that layers beyond the far distance are ignored.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_LayersBeyondFar_AreIgnored()
+    {
+        // Arrange
+        var red = new Rgba32(255, 0, 0, 128);
+        ScreenTriangle[] triangles = [TriColor(0, false, 0, red, red), TriColor(0, true, 0, red, red)];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 1)], White, triangles, [F(1, 0), F(2, 1)], far: 1.5f);
+
+        // Assert: only the front layer counts
+        Assert.True(result.Found);
+        Assert.Equal(new Rgba32(255, 127, 127, 255), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that an overlay layer is applied before a coincident main layer, so it tints rather than hides.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OverlayCoincidentWithMain_OverlayIsInFront()
+    {
+        // Arrange: main opaque green and overlay translucent red share depth 1 (main has the lower triangle index and priority)
+        var green = new Rgba32(0, 255, 0, 255);
+        var red = new Rgba32(255, 0, 0, 128);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, green, green), TriColor(0, true, 0, green, green),
+            TriColor(1, false, 1, red, red), TriColor(1, true, 1, red, red),
+        ];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(1, 0), F(5, 1), F(1, 2), F(4, 3)]);
+
+        // Assert: 128 of red over the remaining 127 of green; depth and meta come from the overlay layer
+        Assert.Equal(new Rgba32(128, 127, 0, 255), result.Color);
+        Assert.Equal(1.0f, result.Depth);
+        Assert.Equal(1 << 1, result.Meta);
+    }
+
+    /// <summary>
+    ///     Validates that an overlay behind an opaque main surface is hidden.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OverlayBehindOpaqueMain_IsHidden()
+    {
+        // Arrange: opaque green main [1, 2], translucent red overlay [3, 4]
+        var green = new Rgba32(0, 255, 0, 255);
+        var red = new Rgba32(255, 0, 0, 128);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, green, green), TriColor(0, true, 0, green, green),
+            TriColor(1, false, 1, red, red), TriColor(1, true, 1, red, red),
+        ];
+
+        // Act
+        var result = ResolveLayers([LeafProgram(0, 2), LeafProgram(1, 2)], White, triangles, [F(1, 0), F(2, 1), F(3, 2), F(4, 3)]);
+
+        // Assert
+        Assert.Equal(green, result.Color);
+        Assert.Equal(1.0f, result.Depth);
+    }
+
+    /// <summary>
+    ///     Validates that overlay leaves never influence the main program (an overlay does not subtract).
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_OverlayLeavesDoNotAffectMainProgram()
+    {
+        // Arrange: translucent main A [1, 4] containing a translucent overlay [2, 3]; compiled as A - overlay(B)
+        var main = new Rgba32(0, 200, 0, 128);
+        var ghost = new Rgba32(255, 0, 0, 64);
+        var compilation = CsgCompiler.Compile(new CsgNode(CsgOperation.Difference, [M(), new OverlayNode(ghost, [M()])]));
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, main, main), TriColor(0, true, 0, main, main),
+            TriColor(1, false, 1, ghost, ghost), TriColor(1, true, 1, ghost, ghost),
+        ];
+        var fragments = new[] { F(1, 0), F(2, 2), F(3, 3), F(4, 1) };
+        var expected = default(LayerCompositor);
+        expected.Add(main);
+        expected.Add(ghost);
+        expected.Add(ghost);
+        expected.Add(main);
+
+        // Act
+        var result = ResolveLayers([compilation.Program!, .. compilation.OverlayPrograms!], White, triangles, fragments);
+
+        // Assert: main enters, overlay enters and leaves, main leaves; there is no cut where the overlay is
+        Assert.Equal(expected.Finish(White), result.Color);
+    }
+
+    /// <summary>
+    ///     Validates that no scratch state survives between samples when overlays are present.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Resolve_ScratchIsClearedBetweenSamples_WithOverlays()
+    {
+        // Arrange
+        var main = new Rgba32(0, 200, 0, 128);
+        var ghost = new Rgba32(255, 0, 0, 64);
+        ScreenTriangle[] triangles =
+        [
+            TriColor(0, false, 0, main, main), TriColor(0, true, 0, main, main),
+            TriColor(1, false, 1, ghost, ghost), TriColor(1, true, 1, ghost, ghost),
+        ];
+        var resolver = new CsgResolver([LeafProgram(0, 2), LeafProgram(1, 2)], White);
+        var sampleA = new[] { F(1, 0), F(2, 2), F(3, 3), F(4, 1) };
+        var sampleB = new[] { F(2, 3), F(2.5f, 1), F(0.5f, 2) };
+        var sampleC = new[] { F(1, 2), F(1.2f, 3), F(5, 0), F(6, 1) };
+
+        // Act
+        var first = ResolveWith(resolver, triangles, sampleA);
+        var other = ResolveWith(resolver, triangles, sampleB);
+        var third = ResolveWith(resolver, triangles, sampleC);
+        var again = ResolveWith(resolver, triangles, sampleA);
+
+        // Assert
+        Assert.Equal(first, again);
+        Assert.NotEqual(first, other);
+        Assert.NotEqual(first, third);
+        Assert.Equal(other, ResolveWith(new CsgResolver([LeafProgram(0, 2), LeafProgram(1, 2)], White), triangles, sampleB));
+    }
+
+    /// <summary>
+    ///     Validates the argument checks of the program-list constructor.
+    /// </summary>
+    [Fact]
+    public void CsgResolver_Constructor_NullOrEmptyProgramList_Throws()
+    {
+        // Arrange / Act / Assert
+        Assert.Throws<ArgumentNullException>(() => new CsgResolver((IReadOnlyList<CsgProgram>)null!));
+        Assert.Throws<ArgumentException>(() => new CsgResolver(Array.Empty<CsgProgram>()));
+        Assert.Throws<ArgumentException>(() => new CsgResolver([LeafProgram(0, 1), null!]));
+
+        // A leaf may belong to only one program
+        Assert.Throws<ArgumentException>(() => new CsgResolver([LeafProgram(0, 1), LeafProgram(0, 1)]));
+    }
+
     /// <summary>
     ///     Creates a random box mesh node and records its box.
     /// </summary>

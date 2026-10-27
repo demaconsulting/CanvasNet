@@ -1,4 +1,5 @@
 using System.Globalization;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 
@@ -11,18 +12,22 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// <param name="FlatShapeThickness">The slab thickness of a top-level 2D shape.</param>
 /// <param name="ThrowOnUnsupportedFeature">Whether the first unsupported feature throws.</param>
 /// <param name="Cancellation">The token polled while building.</param>
+/// <param name="HighlightColor">The color of the <c>#</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultHighlightColor"/>.</param>
+/// <param name="GhostColor">The color of the <c>%</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultGhostColor"/>.</param>
 internal sealed record ScadGeometrySettings(
     long MaxTriangles,
     double FlatShapeThickness,
     bool ThrowOnUnsupportedFeature,
-    CancellationToken Cancellation);
+    CancellationToken Cancellation,
+    Rgba32? HighlightColor = null,
+    Rgba32? GhostColor = null);
 
 /// <summary>
 ///     The outcome of building a model: the scene and the map from its mesh nodes back to source locations.
 /// </summary>
 /// <param name="Scene">The scene; an empty group when the model produced no geometry.</param>
 /// <param name="Map">The location map of the scene's mesh nodes.</param>
-/// <param name="TrianglesCharged">The triangles charged against the budget, which equals the triangles of all the meshes created.</param>
+/// <param name="TrianglesCharged">The triangles charged against the budget: the triangles of all the meshes created plus those of every <c>#</c> copy (which the renderer draws a second time).</param>
 internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged);
 
 /// <summary>
@@ -43,6 +48,12 @@ internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long Triang
 /// </remarks>
 internal sealed class ScadGeometryContext
 {
+    /// <summary>The default color of the <c>#</c> overlay: translucent pink-red (255, 64, 128, alpha 110).</summary>
+    public static readonly Rgba32 DefaultHighlightColor = new(255, 64, 128, 110);
+
+    /// <summary>The default color of the <c>%</c> overlay: translucent neutral gray (128, 128, 128, alpha 80).</summary>
+    public static readonly Rgba32 DefaultGhostColor = new(128, 128, 128, 80);
+
     /// <summary>The number of instances between two cancellation polls.</summary>
     private const int PollInterval = 256;
 
@@ -75,6 +86,12 @@ internal sealed class ScadGeometryContext
 
     /// <summary>Gets the slab thickness of a top-level 2D shape.</summary>
     public double FlatShapeThickness => _settings.FlatShapeThickness;
+
+    /// <summary>Gets the color of the translucent copy that <c>#</c> draws (a translucent pink-red unless the settings override it).</summary>
+    public Rgba32 HighlightColor => _settings.HighlightColor ?? DefaultHighlightColor;
+
+    /// <summary>Gets the color of the translucent ghost that <c>%</c> draws (a translucent gray unless the settings override it).</summary>
+    public Rgba32 GhostColor => _settings.GhostColor ?? DefaultGhostColor;
 
     /// <summary>Gets the number of triangles charged so far.</summary>
     public long TrianglesCharged => _triangles;

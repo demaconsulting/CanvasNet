@@ -20,9 +20,15 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///     <para>
 ///         <b>Dialect.</b> The color applies to the implicit union of the children with the <i>innermost wins</i>
 ///         rule of the renderer: a nested <c>color</c> overrides an outer one. An unrecognized value is a warning
-///         and leaves the children uncolored by this module; <c>color()</c> without <c>c</c> changes nothing. An
-///         alpha below 1 is not rendered: the surface is drawn opaque and the degradation is reported as the
-///         unsupported feature <c>scad-color-alpha</c> (transparency is planned for a later release).
+///         and leaves the children uncolored by this module; <c>color()</c> without <c>c</c> changes nothing.
+///     </para>
+///     <para>
+///         <b>Alpha.</b> The alpha (from <c>alpha</c>, from the fourth vector component, from the last hex pair or
+///         from <c>transparent</c>) becomes the alpha channel of the node's <see cref="NodeAppearance"/>
+///         (<c>round(alpha * 255)</c>), and the renderer composites translucent surfaces (see
+///         <see cref="NodeAppearance"/>); an alpha of 0 is a surface that is invisible but still solid. As with the
+///         color, the innermost <c>color</c> wins, alpha included. An <c>alpha</c> without <c>c</c> has nothing to
+///         apply to: it is warned about and ignored. Nothing is reported as unsupported.
 ///     </para>
 ///     <para>
 ///         The methods are stateless and thread-safe.
@@ -64,19 +70,17 @@ internal static class ScadColors
             if (ScadArguments.TryNumber(alphaValue, out var number))
             {
                 alpha = Math.Clamp(number, 0.0, 1.0);
+
+                // An alpha has nothing to apply to when no color was given at all
+                if (!args.TryGet("c", out _))
+                {
+                    context.Reporter.Warn("color: alpha needs a color c; it is ignored", instance.Location);
+                }
             }
             else
             {
                 context.Reporter.Warn("color: alpha must be a number from 0 to 1; it is ignored", instance.Location);
             }
-        }
-
-        if (alpha < 1.0)
-        {
-            context.Reporter.Unsupported(
-                ScadFeatureIds.ColorAlpha,
-                "Transparency is not supported yet; a color with alpha below 1 is drawn opaque",
-                instance.Location);
         }
 
         var union = ScadBooleans.Union(instance, results, context);
@@ -85,7 +89,8 @@ internal static class ScadColors
             return union;
         }
 
-        var appearance = new NodeAppearance(color.Value);
+        var opaque = color.Value;
+        var appearance = new NodeAppearance(new Rgba32(opaque.R, opaque.G, opaque.B, ToByte(alpha ?? 1.0)));
         if (union.Kind == ScadGeoKind.Solid)
         {
             return ScadGeo.FromSolid(new GroupNode([union.Node!]) { Appearance = appearance }, union.Bounds, union.IsTight, union.IsApproximate, union.Reach);

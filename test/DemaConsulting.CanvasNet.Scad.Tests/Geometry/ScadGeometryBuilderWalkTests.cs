@@ -147,7 +147,8 @@ public class ScadGeometryBuilderWalkTests
 
     /// <summary>
     ///     Validates that a <c>!</c> inside a <c>%</c> subtree does not take part, so the model stays the union of
-    ///     the ordinary instances, and that a subtree marked both <c>!</c> and <c>%</c> yields nothing.
+    ///     the ordinary instances (plus the ghost), and that a subtree marked both <c>!</c> and <c>%</c> is the whole
+    ///     model as a ghost only: no ordinary geometry and no report.
     /// </summary>
     [Fact]
     public void ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored()
@@ -158,57 +159,59 @@ public class ScadGeometryBuilderWalkTests
 
         // Assert
         Assert.Equal(8.0, inside.SingleMesh.SignedVolume, 1e-12);
-        Assert.Equal(["scad-modifier-background"], inside.Features);
+        Assert.Empty(inside.Features);
         Assert.Empty(both.Meshes);
-        Assert.Equal(["scad-modifier-background"], both.Features);
+        Assert.IsType<OverlayNode>(both.Scene.Root);
+        Assert.Empty(both.Features);
     }
 
     /// <summary>
     ///     Validates that a <c>%</c> block around a single marked instance OR-s both modifiers onto that instance (as the
-    ///     evaluator does), so the instance is both the <c>!</c> root and omitted: nothing is built and the omission is
-    ///     reported.
+    ///     evaluator does), so the instance is both the <c>!</c> root and a ghost: nothing ordinary is built and the
+    ///     model is the ghost, without a report.
     /// </summary>
     [Fact]
-    public void ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing()
+    public void ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsOnlyTheGhost()
     {
         // Arrange / Act
         var result = Build("% { ! cube(1); }\ncube(2);");
 
         // Assert
         Assert.Empty(result.Meshes);
-        Assert.Equal(["scad-modifier-background"], result.Features);
+        Assert.IsType<OverlayNode>(result.Scene.Root);
+        Assert.Empty(result.Features);
     }
 
     /// <summary>
-    ///     Validates that <c>#</c> renders normally and is reported once at the instance's location.
+    ///     Validates that <c>#</c> renders normally, adds an overlay, and reports nothing for a solid.
     /// </summary>
     [Fact]
-    public void ScadGeometryBuilder_Build_Highlight_RendersAndReports()
+    public void ScadGeometryBuilder_Build_Highlight_RendersNormallyWithOverlayAndNoReport()
     {
         // Arrange / Act
         var result = Build("#cube(1);");
 
         // Assert
         Assert.Equal(1.0, result.SingleMesh.SignedVolume, 1e-12);
-        var report = Assert.Single(result.Unsupported);
-        Assert.Equal("scad-modifier-highlight", report.Feature);
-        Assert.Equal(new ScadSourceLocation(null, 1, 2), report.Location);
+        Assert.IsType<GroupNode>(result.Scene.Root);
+        Assert.Empty(result.Unsupported);
     }
 
     /// <summary>
-    ///     Validates that <c>%</c> omits the subtree (nothing under it is built or reported) and reports once.
+    ///     Validates that <c>%</c> draws the subtree as a ghost instead of building it as geometry (the ghost is not
+    ///     part of the model) and reports nothing for a solid.
     /// </summary>
     [Fact]
-    public void ScadGeometryBuilder_Build_Background_OmitsSubtreeAndReports()
+    public void ScadGeometryBuilder_Build_Background_DrawsGhostInsteadOfTheSubtreeAndNoReport()
     {
         // Arrange / Act
         var result = Build("% union() { cube(1); translate([1, 0, 0]) cube(1); }\ncube(2);");
 
-        // Assert
+        // Assert: one ordinary cube, plus a ghost group of the other two
         Assert.Equal(8.0, result.SingleMesh.SignedVolume, 1e-12);
-        var report = Assert.Single(result.Unsupported);
-        Assert.Equal("scad-modifier-background", report.Feature);
-        Assert.Equal(new ScadSourceLocation(null, 1, 3), report.Location);
+        var group = Assert.IsType<GroupNode>(result.Scene.Root);
+        Assert.Contains(group.Children, child => child is OverlayNode);
+        Assert.Empty(result.Unsupported);
     }
 
     /// <summary>
@@ -312,14 +315,14 @@ public class ScadGeometryBuilderWalkTests
     }
 
     /// <summary>
-    ///     Validates that strict mode also throws for the degraded modifiers, and that a repeated report of the
-    ///     same feature at the same location (after the first threw) is not an error of its own.
+    ///     Validates that strict mode also throws for the degraded modifiers (a <c>#</c> on a 2D shape that is not
+    ///     extruded).
     /// </summary>
     [Fact]
-    public void ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightModifier()
+    public void ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightOnAFlatShape()
     {
         // Arrange / Act
-        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => Build("#cube(1);", Settings(strict: true)));
+        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => Build("#square(1);", Settings(strict: true)));
 
         // Assert
         Assert.Equal("scad-modifier-highlight", ex.Feature);

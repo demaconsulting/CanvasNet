@@ -852,6 +852,9 @@ internal static class ScadHulls
                 {
                     Transform = csg.Transform,
                 },
+
+                // An overlay is not part of a hull or Minkowski operand, so it becomes an empty group
+                OverlayNode overlay => new GroupNode([]) { Transform = overlay.Transform },
                 _ => throw new InvalidOperationException($"Unknown scene node type {node.GetType().FullName}."),
             };
             copies.Add(node, copy);

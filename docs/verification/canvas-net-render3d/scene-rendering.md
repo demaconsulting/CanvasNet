@@ -72,3 +72,12 @@ unexpected exception.
   more than four distinct (shaded and antialiased) colors, and that the two renders are
   byte-identical. This proves that path selection, fragment collection, resolution, shading,
   supersampling, tile parallelism, and operand validation compose.
+- **Transparent Scene Composites Layers Deterministically** (requirement
+  `CanvasNetRender3D-SceneRendering-TransparencyRendering`):
+  `SceneRenderingTests.SceneRendering_TransparentScene_LayersCompositeDeterministically` — renders a
+  translucent blue cube in front of an opaque red cube and an overlay gray ghost sphere beside them
+  through the integrated `SceneRenderer` (default lights, supersampling 2, a handler attached) once
+  sequentially and once with automatic parallelism, and asserts that the closed solids raise no
+  operand report, that the image holds many distinct blended colors beyond the pure appearances, and
+  that the two renders are byte-identical. This proves that the overlay program, the layer
+  compositing, the lighting, the supersampling and the tile parallelism compose.

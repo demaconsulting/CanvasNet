@@ -204,12 +204,14 @@ the factor about the origin; and that `convexity` is accepted silently.
 **Tests**: `ScadResizeTests.ScadResize_RotatedChild_UsesExactVertexExtent`,
 `ScadResizeTests.ScadResize_Union_UsesTheWholeExtent`,
 `ScadResizeTests.ScadResize_ExactChildren_ReportNothing`,
-`ScadResizeTests.ScadResize_Flat_ResizesInThePlane`
+`ScadResizeTests.ScadResize_Flat_ResizesInThePlane`,
+`ScadGeometryBuilderModifierTests.ScadGeometryBuilder_Modifiers_Background_ContributesNoBounds_ButIsInReach`
 
 Asserts that a hexagonal cylinder rotated by 30 degrees (whose rotated bounding box is loose) is resized to exactly
 10 along X within 1e-9 with no report, that two cubes three apart are sized as one union (factor 2.5), that a
 nested chain of translate, rotate, union, cube, and sphere reports neither a warning nor an unsupported feature,
-and that 2D resizing uses X and Y only (a third component is ignored).
+that 2D resizing uses X and Y only (a third component is ignored), and that a `%` ghost 50 units away from a
+rotated cube does not take part in the exact extent (the cube is resized to exactly 4 by 4 by 4).
 
 _Additional evidence, not cited by the requirement:_ the approximate-bounds report is exercised at the builder
 level by `ScadGeometryBuilderBooleanTests.ScadBooleans_Resize_OverBoolean_ReportsApproximateBoundsAndStillResizes`
@@ -261,16 +263,20 @@ appearance respectively, that all three children of one color are colored, that 
 translate and a scale in either order, and that a 2D shape (alone, and a union of a translated square and
 circle) gives colored slabs.
 
-##### CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha: Alpha Degradation
+##### CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha: Alpha Is Rendered
 
-**Tests**: `ScadColorsTests.ScadColors_AlphaBelowOne_ReportsAndDrawsOpaque`,
-`ScadColorsTests.ScadColors_FullAlpha_IsNotReportedAndAlphaArgumentOverrides`,
-`ScadColorsTests.ScadColors_AlphaOnly_ReportsWithoutColoring`,
-`ScadColorsTests.ScadColors_StrictMode_ThrowsForAlpha`
+**Tests**: `ScadColorsTests.ScadColors_AlphaBelowOne_SetsAppearanceAlphaWithoutReport`,
+`ScadColorsTests.ScadColors_FullAlpha_AlphaArgumentOverridesColorAlpha`,
+`ScadColorsTests.ScadColors_AlphaOnly_WarnsAndDoesNotColor`,
+`ScadColorsTests.ScadColors_NestedColor_InnermostAlphaWins`,
+`ScadColorsTests.ScadColors_AlphaOn2DShape_ReachesTheExtrusion`,
+`ScadColorsTests.ScadColors_AlphaBelowOne_DoesNotThrowInStrictMode`
 
-Asserts that an alpha below 1 through the positional alpha, the named alpha, a vector, `#RRGGBBAA`, `#RGBA`,
-`transparent`, and an `alpha` that overrides a vector alpha of 1 draws the color opaque (`transparent` as black)
-with exactly one `scad-color-alpha` report at the instance and no warning; that alpha 1, 7, `#ff0000ff`, and
-an `alpha` of 1 overriding a vector alpha of 0.2 report nothing; that an alpha without a color, or with no children,
-reports but colors nothing; and that strict mode throws `ScadUnsupportedFeatureException` with the feature and
-location.
+Asserts that an alpha below 1 through the positional alpha (128 for 0.5), the named alpha (0), a vector (0.25 gives
+64), `#RRGGBBAA`, `#RGBA`, `transparent` (alpha 0), and an `alpha` that overrides a vector alpha of 1 (0.1 gives 26)
+becomes the alpha channel of the appearance color with the color channels unchanged and neither a warning nor a
+report; that alpha 1 or more, `#ff0000ff`, and an `alpha` of 1 overriding a vector alpha of 0.2 keep alpha 255,
+while an `alpha` of 0.2 overriding an opaque vector gives 51; that an alpha without a color warns `alpha needs a
+color` at the instance and colors nothing, while an alpha with a color but no children is silent; that the
+innermost color wins with its alpha in both nesting orders; that the alpha of a color on a 2D shape reaches the
+extruded solid and the slab of a bare shape; and that strict mode does not throw for an alpha.

@@ -16,10 +16,10 @@ internal static class ScadFeatureIds
     /// <summary>The prefix of the identifier of a recognized module that is not built (followed by the module name).</summary>
     public const string ModulePrefix = "scad-module-";
 
-    /// <summary>The <c>#</c> modifier was degraded: the subtree renders normally and is not highlighted.</summary>
+    /// <summary>The <c>#</c> modifier on a 2D shape: the shape renders normally and is not highlighted (a 3D result is highlighted and not reported).</summary>
     public const string ModifierHighlight = "scad-modifier-highlight";
 
-    /// <summary>The <c>%</c> modifier omitted its subtree.</summary>
+    /// <summary>The <c>%</c> modifier on a 2D shape: the shape is omitted (a 3D result is drawn as a ghost and not reported).</summary>
     public const string ModifierBackground = "scad-modifier-background";
 
     /// <summary>A <c>polygon</c> was rejected as invalid (self-touching, crossing, zero area, non-finite).</summary>
@@ -30,9 +30,6 @@ internal static class ScadFeatureIds
 
     /// <summary>Catch-all for a Render3D rejection of an input the argument checks accepted.</summary>
     public const string GeometryRejected = "scad-geometry-rejected";
-
-    /// <summary>A <c>color</c> with alpha below 1 was drawn opaque.</summary>
-    public const string ColorAlpha = "scad-color-alpha";
 
     /// <summary>A <c>resize</c> of children that contain a difference or an intersection used estimated bounds.</summary>
     public const string ResizeApproximate = "scad-resize-approximate";

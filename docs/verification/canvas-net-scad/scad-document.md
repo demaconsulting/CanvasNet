@@ -420,15 +420,20 @@ scene options is used for geometry without a `color()`.
 
 **Tests**: `ScadRenderOptionsTests.ScadRenderOptions_New_HasDocumentedDefaults`,
 `ScadRenderOptionsTests.ScadRenderOptions_Initialization_AcceptsValidValues`,
+`ScadRenderOptionsTests.ScadRenderOptions_HighlightColorAndGhostColor_DefaultsAndOverrideChangeTheLook`,
 `ScadRenderOptionsTests.ScadRenderOptions_ViewAngles_NonFinite_Throw`,
 `ScadRenderOptionsTests.ScadRenderOptions_Projection_Undefined_Throws`,
 `ScadRenderOptionsTests.ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive`,
 `ScadRenderOptionsTests.ScadRenderOptions_Properties_AreInitOnly`,
 `ScadRenderOptionsTests.ScadRenderOptions_Evaluation_IsComposedAndOptional`
 
-Asserts the documented defaults, that valid values are kept, that a non-finite angle (NaN and both infinities), an
+Asserts the documented defaults (including the translucent pink highlight `(255, 64, 128, 110)` and the translucent
+gray ghost `(128, 128, 128, 80)`), that valid values are kept (overlay colors of any alpha), that a non-finite
+angle (NaN and both infinities), an
 undefined projection, and a thickness that is zero, negative, or not finite are rejected with
-`ArgumentOutOfRangeException` when set, that every writable property is init-only (by reflection), and that the
+`ArgumentOutOfRangeException` when set, that every writable property is init-only (by reflection), that the
+default overlay colors blend with what they cover while opaque overrides are drawn in exactly their colors (a
+`#` cube and a `%` cube in an orthographic flat render), and that the
 evaluation options are kept by reference, may be omitted, and may be shared between calls.
 
 #### CanvasNetScad-ScadDocument-RenderReporting: Events Of Every Stage Are Delivered Once, In Order

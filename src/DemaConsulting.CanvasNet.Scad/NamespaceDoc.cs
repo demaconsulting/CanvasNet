@@ -22,6 +22,11 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         surface is public so that the internals can evolve.
 ///     </para>
 ///     <para>
+///         Rendering is honest about transparency: a <c>color</c> alpha below 1 is a translucent surface, the
+///         <c>%</c> modifier draws a translucent ghost and <c>#</c> a translucent highlight (see
+///         <c>ScadRenderOptions.GhostColor</c> and <c>HighlightColor</c>).
+///     </para>
+///     <para>
 ///         Clean-room provenance: this package was written from general knowledge of the language only;
 ///         no GPL-licensed OpenSCAD source code, grammar, test corpus or manual text was consulted, copied
 ///         or paraphrased. Exact parity with any other implementation is a non-goal.

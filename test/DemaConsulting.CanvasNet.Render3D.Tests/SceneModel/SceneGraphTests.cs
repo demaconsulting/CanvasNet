@@ -512,4 +512,158 @@ public class SceneGraphTests
         Assert.Equal(10_000.0, instance.World.M41);
         Assert.Equal(10_000.0, bounds.Min.X);
     }
+
+    /// <summary>
+    ///     Validates that <see cref="OverlayNode"/> copies its children and rejects a null enumerable or child.
+    /// </summary>
+    [Fact]
+    public void OverlayNode_Constructor_CopiesChildren_RejectsNullChild_AndNullEnumerable()
+    {
+        // Arrange
+        var color = new Rgba32(10, 20, 30, 40);
+        var source = new List<SceneNode> { new MeshNode(UnitCube) };
+
+        // Act
+        var overlay = new OverlayNode(color, source);
+        source.Add(new MeshNode(UnitCube));
+
+        // Assert
+        Assert.Equal(color, overlay.Color);
+        Assert.Single(overlay.Children);
+        Assert.Empty(new OverlayNode(color, []).Children);
+        Assert.Throws<ArgumentNullException>(() => new OverlayNode(color, null!));
+        Assert.Throws<ArgumentException>(() => new OverlayNode(color, [new MeshNode(UnitCube), null!]));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay forces its color over every inner appearance and marks its instances.
+    /// </summary>
+    [Fact]
+    public void OverlayNode_EnumerateInstances_ForcesOverlayColorOverInnerAppearances_AndMarksInOverlay()
+    {
+        // Arrange: a plain red mesh beside an overlay whose children carry their own appearances
+        var red = new NodeAppearance(new Rgba32(255, 0, 0, 255));
+        var green = new NodeAppearance(new Rgba32(0, 255, 0, 255));
+        var overlayColor = new Rgba32(1, 2, 3, 77);
+        var overlay = new OverlayNode(
+            overlayColor,
+            [new MeshNode(UnitCube) { Appearance = green }, new GroupNode([new MeshNode(UnitCube)]) { Appearance = green }])
+        {
+            Appearance = red,
+        };
+        var scene = new Scene(new GroupNode([new MeshNode(UnitCube) { Appearance = red }, overlay]));
+
+        // Act
+        var instances = scene.EnumerateInstances().ToList();
+
+        // Assert: the first is outside the overlay, the other two are forced to the overlay color
+        Assert.Equal(3, instances.Count);
+        Assert.False(instances[0].InOverlay);
+        Assert.Equal(red, instances[0].Appearance);
+        Assert.All(instances.Skip(1), i => Assert.True(i.InOverlay));
+        Assert.All(instances.Skip(1), i => Assert.Equal(overlayColor, i.Appearance!.Color));
+        Assert.Equal([0, 1, 2], instances.Select(i => i.Order));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay nested inside an overlay is a plain group and the outer color wins.
+    /// </summary>
+    [Fact]
+    public void OverlayNode_NestedOverlay_ActsAsGroupWithOuterColor()
+    {
+        // Arrange
+        var outerColor = new Rgba32(200, 0, 0, 90);
+        var innerColor = new Rgba32(0, 0, 200, 200);
+        var inner = new OverlayNode(innerColor, [new MeshNode(UnitCube)]);
+        var scene = new Scene(new OverlayNode(outerColor, [inner, new MeshNode(UnitCube)]));
+
+        // Act
+        var instances = scene.EnumerateInstances().ToList();
+
+        // Assert
+        Assert.Equal(2, instances.Count);
+        Assert.All(instances, i => Assert.True(i.InOverlay));
+        Assert.All(instances, i => Assert.Equal(outerColor, i.Appearance!.Color));
+    }
+
+    /// <summary>
+    ///     Validates that an overlay's transform composes like a group's.
+    /// </summary>
+    [Fact]
+    public void OverlayNode_Transform_ComposesLikeGroup()
+    {
+        // Arrange
+        var mesh = new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateScale(2.0) };
+        var overlay = new OverlayNode(new Rgba32(1, 1, 1, 255), [mesh]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(10, 0, 0)) };
+        var scene = new Scene(new GroupNode([overlay]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 5, 0)) });
+
+        // Act
+        var instance = Assert.Single(scene.EnumerateInstances());
+
+        // Assert: (1,1,1) -> (2,2,2) -> (12,2,2) -> (12,7,2)
+        Assert.Equal(new Vector3D(12, 7, 2), instance.World.TransformPoint(Vector3D.One));
+    }
+
+    /// <summary>
+    ///     Validates that bounds without overlays skip overlay instances.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_WithoutOverlays_SkipsOverlayInstances()
+    {
+        // Arrange: a unit cube at the origin and an overlay cube far away
+        var far = new OverlayNode(new Rgba32(1, 1, 1, 255), [new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(100, 0, 0)) }]);
+        var scene = new Scene(new GroupNode([new MeshNode(UnitCube), far]));
+
+        // Act
+        var without = scene.ComputeBounds(false);
+        var withOverlays = scene.ComputeBounds(true);
+        var onlyOverlays = new Scene(far).ComputeBounds(false);
+
+        // Assert (repeated calls hit both caches)
+        Assert.Equal(Vector3D.One, without.Max);
+        Assert.Equal(101.0, withOverlays.Max.X);
+        Assert.True(onlyOverlays.IsEmpty);
+        Assert.Equal(without, scene.ComputeBounds(false));
+        Assert.Equal(withOverlays, scene.ComputeBounds(true));
+    }
+
+    /// <summary>
+    ///     Validates that the default bounds include overlays, equal to <c>ComputeBounds(true)</c>.
+    /// </summary>
+    [Fact]
+    public void Scene_ComputeBounds_Default_IncludesOverlays()
+    {
+        // Arrange
+        var far = new OverlayNode(new Rgba32(1, 1, 1, 255), [new MeshNode(UnitCube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(100, 0, 0)) }]);
+        var scene = new Scene(new GroupNode([new MeshNode(UnitCube), far]));
+
+        // Act / Assert
+        Assert.Equal(scene.ComputeBounds(true), scene.ComputeBounds());
+        Assert.Equal(101.0, scene.ComputeBounds().Max.X);
+    }
+
+    /// <summary>
+    ///     Validates that very deep overlay nesting is enumerated without recursion-related stack overflow.
+    /// </summary>
+    [Fact]
+    public void Scene_EnumerateInstances_DeepOverlayNesting_IsIterative()
+    {
+        // Arrange: 10 000 nested overlays, each translating by +1 in X around one mesh
+        SceneNode node = new MeshNode(UnitCube);
+        for (var i = 0; i < 10_000; i++)
+        {
+            node = new OverlayNode(new Rgba32(9, 9, 9, 100), [node]) { Transform = Matrix4x4D.CreateTranslation(Vector3D.UnitX) };
+        }
+
+        var scene = new Scene(node);
+
+        // Act
+        var instance = Assert.Single(scene.EnumerateInstances());
+
+        // Assert
+        Assert.Equal(10_000.0, instance.World.M41);
+        Assert.True(instance.InOverlay);
+        Assert.Equal(10_000.0, scene.ComputeBounds(true).Min.X);
+        Assert.True(scene.ComputeBounds(false).IsEmpty);
+    }
 }

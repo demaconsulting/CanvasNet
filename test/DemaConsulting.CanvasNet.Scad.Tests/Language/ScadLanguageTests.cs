@@ -101,8 +101,8 @@ public class ScadLanguageTests
         // Act: parse each fixture with its path as the source name
         var programs = fixtures.Select(path => ScadParser.Parse(File.ReadAllText(path), path)).ToList();
 
-        // Assert: all valid fixtures (ten parse fixtures, sixteen golden evaluation fixtures and fourteen render fixtures) parse into non-empty programs
-        Assert.Equal(40, fixtures.Count);
+        // Assert: all valid fixtures (ten parse fixtures, sixteen golden evaluation fixtures and fifteen render fixtures) parse into non-empty programs
+        Assert.Equal(41, fixtures.Count);
         Assert.All(programs, p => Assert.NotEmpty(p.Statements));
     }
 

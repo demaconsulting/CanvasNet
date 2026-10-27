@@ -3007,8 +3007,9 @@ catch (NotSupportedException ex)
 A `Scene` is an immutable tree of nodes. Each node has a `Transform` (a `Matrix4x4D`, default
 identity) applied to the node and everything below it, and an optional `Appearance`. A node's
 effective color is that of the innermost node that has an appearance; the alpha of a node color is
-ignored (surfaces are opaque). A group is the union of its children; a `CsgNode` combines its
-children by union, difference, or intersection (see *Constructive Solid Geometry* below).
+honored (see *Transparency and Overlays* below). A group is the union of its children; a `CsgNode`
+combines its children by union, difference, or intersection (see *Constructive Solid Geometry*
+below), and an `OverlayNode` is an independent translucent body (see *Transparency and Overlays*).
 
 ```csharp
 public abstract class SceneNode
@@ -3038,13 +3039,21 @@ public sealed class CsgNode : SceneNode
     public IReadOnlyList<SceneNode> Children { get; } // for Difference the first is the minuend
 }
 
-public sealed record NodeAppearance(Rgba32 Color);
+public sealed class OverlayNode : SceneNode
+{
+    public OverlayNode(Rgba32 color, IEnumerable<SceneNode> children);
+    public Rgba32 Color { get; } // replaces every appearance beneath the overlay; alpha is honored
+    public IReadOnlyList<SceneNode> Children { get; } // their union is the overlay body
+}
+
+public sealed record NodeAppearance(Rgba32 Color); // alpha below 255 makes the surface translucent
 
 public sealed class Scene
 {
     public Scene(SceneNode root);
     public SceneNode Root { get; }
-    public BoundingBox3D ComputeBounds(); // tight world-space bounds
+    public BoundingBox3D ComputeBounds(); // tight world-space bounds, overlay bodies included
+    public BoundingBox3D ComputeBounds(bool includeOverlays); // false leaves the overlay bodies out
 }
 ```
 
@@ -3054,11 +3063,69 @@ order: the node that comes first in a depth-first traversal wins.
 
 **Exceptions:**
 
-- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode` and `CsgNode` for a
-  null child list, and by `Scene` for a null root.
-- `ArgumentException`: Thrown by `GroupNode` and `CsgNode` for a null child, and when a node
-  `Transform` contains a non-finite element.
+- `ArgumentNullException`: Thrown by `MeshNode` for a null mesh, by `GroupNode`, `CsgNode` and
+  `OverlayNode` for a null child list, and by `Scene` for a null root.
+- `ArgumentException`: Thrown by `GroupNode`, `CsgNode` and `OverlayNode` for a null child, and when a
+  node `Transform` contains a non-finite element.
 - `ArgumentOutOfRangeException`: Thrown by `CsgNode` for an undefined `CsgOperation` value.
+
+### Transparency and Overlays
+
+The alpha channel of a `NodeAppearance` color is honored. A color with alpha below 255 makes the
+visible surfaces of the solid translucent: the renderer composites the surfaces along each view ray
+from the nearest to the farthest, deterministically and independent of any submission order, until it
+meets an opaque surface, and then composites the remainder over `SceneRenderOptions.BackgroundColor`
+(whose own alpha is honored, so over a transparent background the pixel keeps its color with the
+accumulated alpha). A translucent box therefore shows its far wall through its front, and a
+translucent box in front of an opaque one shows a blend of the two. An alpha of 0 is invisible but the
+body is still solid, so it still takes part in a difference or intersection. The alpha of
+`SceneRenderOptions.DefaultColor`, `BackFaceColor` and of a light color remains ignored.
+
+```csharp
+// A translucent red cube in front of an opaque blue floor: the pixel blends red (twice: front and
+// back wall of the cube) with the blue floor behind it
+var cube = new MeshNode(PrimitiveTessellator.Box(new Vector3D(2, 2, 2), center: true))
+{
+    Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 0, 2)),
+    Appearance = new NodeAppearance(new Rgba32(200, 40, 40, 128)),
+};
+var floor = new MeshNode(PrimitiveTessellator.Box(new Vector3D(8, 8, 1), center: true))
+{
+    Appearance = new NodeAppearance(new Rgba32(30, 60, 220, 255)),
+};
+var scene = new Scene(new GroupNode([floor, cube]));
+```
+
+Members of one union **merge**: a union of overlapping translucent bodies shows only the boundary of
+the union, and geometry fully enclosed by a translucent solid of the same union is not visible (this
+is the only meaning consistent with difference and intersection). The cut surface of a translucent
+difference is drawn with the subtrahend's own color and alpha.
+
+An `OverlayNode` expresses an **independent** see-through body (a ghost or a highlight). Its children
+(a union) are drawn with the overlay's `Color` (alpha honored; it replaces every appearance beneath
+the overlay, and the overlay node's own `Appearance` is ignored), and the overlay is **false** in every
+enclosing boolean: it does not add to, subtract from, or intersect the solid. It is depth-composited
+with the rest of the scene, so it tints what is behind it, is hidden behind opaque geometry, and can
+sit anywhere, including inside a solid that is translucent. An overlay nested in an overlay is a plain
+group (the outer color wins). To highlight a subtrahend, put the same node both in the difference and,
+wrapped in an overlay, beside it:
+
+```csharp
+var cutter = new MeshNode(PrimitiveTessellator.Cylinder(6, 1.0, 1.0, 32, center: true));
+var overlay = new OverlayNode(new Rgba32(255, 64, 128, 110), [cutter]);
+var part = new CsgNode(CsgOperation.Difference, [cube, new GroupNode([cutter, overlay])]);
+```
+
+`Scene.ComputeBounds()` (and so `RenderFitted` and `Camera.FitToBounds`) includes the overlay bodies
+so that a ghost stays in the picture; `Scene.ComputeBounds(false)` leaves them out, for example to size
+only the solid.
+
+**Requirements.** Like constructive solid geometry, translucency and overlays are resolved with signed
+surface crossings, so every mesh in such a scene should be a closed, consistently wound, outward-oriented
+solid (see *Operands must be solids* below); the renderer checks and reports them with the same
+tokens and options. Such scenes are rendered per pixel from stored surface crossings and are subject to
+`MaxFragmentsPerTile` (an overlay of the same size doubles the fragments of its tile); an opaque scene
+without overlays is rendered exactly as before, with no extra memory.
 
 ### Constructive Solid Geometry
 
@@ -3088,7 +3155,8 @@ example an inside-out cube next to a valid one - is reported even when the total
 positive. The `PrimitiveTessellator` box, sphere, cylinder, and
 cone meshes satisfy this; for a closed mesh with a negative `SignedVolume` (inside-out), use
 `Mesh.Reverse`. Checking applies to every mesh in a scene that contains a difference or an
-intersection, not only the direct operands, because an open mesh anywhere in the scene would vanish
+intersection (or a translucent appearance or an overlay, see *Transparency and Overlays*), not only
+the direct operands, because an open mesh anywhere in the scene would vanish
 from the result. By default the renderer is **tolerant**: it renders anyway, and the output is
 deterministic but visibly wrong where an operand is not a solid. To find out about such operands,
 set `SceneRenderOptions.UnsupportedFeatureHandler` (called once per problem, on the calling
@@ -3127,10 +3195,11 @@ source.
 
 Rendering behavior worth knowing:
 
-- **Unions are free.** A scene whose `CsgNode`s are all unions (or whose difference/intersection
+- **Unions are free.** An opaque scene whose `CsgNode`s are all unions (or whose difference/intersection
   nodes have a single child) is rendered exactly as a scene of groups: the same z-buffer path, no
   extra memory, no operand analysis, and byte-identical output to a render without `CsgNode`.
-- **Per-tile budget.** A scene with a difference or an intersection stores every surface crossing
+- **Per-tile budget.** A scene with a difference or an intersection (or a translucent appearance or an
+  overlay) stores every surface crossing
   of a 32 x 32 pixel tile. `SceneRenderOptions.MaxFragmentsPerTile` (default 4 Mi, about 32 MB per
   worker) bounds that memory; a tile that needs more throws `RenderBudgetExceededException`
   (with the `MaxFragmentsPerTile` that was exceeded), identically for every thread count. Lower
@@ -3158,8 +3227,8 @@ Rendering behavior worth knowing:
 - **Determinism.** At any given `Supersampling` setting, the output is byte-identical for every
   `MaxDegreeOfParallelism` and every run, as for scenes without CSG. (Different `Supersampling`
   factors naturally produce different antialiasing.)
-- **Bounds.** `Scene.ComputeBounds` includes every operand, even the removed parts, so
-  `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
+- **Bounds.** `Scene.ComputeBounds()` includes every operand, even the removed parts (and every overlay
+  body), so `RenderFitted` and `Camera.FitToBounds` frame everything and may leave extra margin.
 
 ### Camera
 
@@ -3264,14 +3333,14 @@ public sealed class SceneRenderOptions
     public static SceneRenderOptions Default { get; }
 
     public Rgba32 BackgroundColor { get; init; } // default opaque white; alpha is honored
-    public Rgba32 DefaultColor { get; init; } // default (180, 180, 180): nodes without an appearance
-    public Rgba32 BackFaceColor { get; init; } // default (200, 70, 70): surfaces seen from behind
+    public Rgba32 DefaultColor { get; init; } // default (180, 180, 180): nodes without an appearance; alpha is ignored
+    public Rgba32 BackFaceColor { get; init; } // default (200, 70, 70): surfaces seen from behind; alpha is ignored
     public IReadOnlyList<Light>? Lights { get; init; } // null = Light.DefaultRig; copied
     public float SpecularStrength { get; init; } // default 0.10; 0 to 1
     public float SpecularPower { get; init; } // default 32; greater than 0
     public int Supersampling { get; init; } // default 3; 1 to 4 samples per axis
     public int MaxDegreeOfParallelism { get; init; } // default -1; 1 = sequential
-    public long MaxFragmentsPerTile { get; init; } // default 4 Mi; 1 to Array.MaxLength; CSG scenes only
+    public long MaxFragmentsPerTile { get; init; } // default 4 Mi; 1 to Array.MaxLength; per-pixel scenes only
     public Action<SceneRenderUnsupportedFeature>? UnsupportedFeatureHandler { get; init; } // default null
     public bool ThrowOnUnsupportedFeature { get; init; } // default false (tolerant)
 }
@@ -3284,9 +3353,10 @@ choose how many tiles to render at once, `1` renders sequentially, and the outpu
 for every setting. A back-facing surface is not culled but painted with `BackFaceColor`, which makes
 inside-out or open meshes easy to spot.
 
-The last three properties apply to scenes with a `CsgNode` difference or intersection (see
-*Constructive Solid Geometry*): `MaxFragmentsPerTile` bounds the per-tile fragment storage and is
-ignored for scenes without such nodes, `UnsupportedFeatureHandler` receives a
+The last three properties apply to scenes that are resolved per pixel - a `CsgNode` difference or
+intersection, a translucent appearance, or an `OverlayNode` (see *Constructive Solid Geometry* and
+*Transparency and Overlays*): `MaxFragmentsPerTile` bounds the per-tile fragment storage and is
+ignored for opaque scenes without such nodes, `UnsupportedFeatureHandler` receives a
 `SceneRenderUnsupportedFeature` for each operand problem, and `ThrowOnUnsupportedFeature` turns the
 first problem into a `SceneRenderUnsupportedFeatureException` instead.
 
@@ -3338,10 +3408,10 @@ Passing a `CancellationToken` lets you abandon a long render: cancellation throw
 - `ArgumentException`: Thrown by `Render` when the camera is invalid (eye equals target, an
   orthographic camera without `OrthographicHeight`, or `NearPlane` not less than `FarPlane`).
 - `OperationCanceledException`: Thrown when `cancellationToken` is cancelled.
-- `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection needs
-  more than `MaxFragmentsPerTile` fragments in a tile.
-- `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG
-  operand is not a closed, outward-oriented solid.
+- `RenderBudgetExceededException`: Thrown when a scene with a CSG difference or intersection, a
+  translucent appearance or an overlay needs more than `MaxFragmentsPerTile` fragments in a tile.
+- `SceneRenderUnsupportedFeatureException`: Thrown when `ThrowOnUnsupportedFeature` is set and a CSG,
+  translucent or overlay mesh is not a closed, outward-oriented solid.
 
 ### ScadDocument
 
@@ -3439,9 +3509,12 @@ be shared between threads and calls.
 | `Projection` | `Perspective` | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera` |
 | `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
 | `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
+| `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
+| `GhostColor` | `(128, 128, 128, 80)`, a translucent gray | The color of the translucent ghost that the `%` modifier draws instead of a solid. Any alpha is accepted |
 <!-- markdownlint-enable MD013 -->
 
-A `color()` in the model overrides `SceneOptions.DefaultColor`. `ScadLimits` (in `Evaluation.Limits`) bounds every
+A `color()` in the model overrides `SceneOptions.DefaultColor` (and the alpha of a `color()` is rendered; the alpha of
+`DefaultColor` is ignored). `ScadLimits` (in `Evaluation.Limits`) bounds every
 resource of a call; besides the evaluation limits (`MaxRecursionDepth`, `MaxEvaluationSteps`,
 `MaxLoopIterations`, `MaxListLength`, `MaxStringLength`, `MaxIncludeDepth`, `MaxIncludedFiles`, `MaxInstances`,
 `MaxOutputLength`, `MaxDiagnostics`) it has `MaxTriangles` (a `long`, default 5,000,000, at least 1), the bound on
@@ -3473,7 +3546,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
 | `multmatrix` | `multmatrix(m)` with a 4 x 4 (or 3 x 4) column-vector matrix | A bottom row other than `[0, 0, 0, 1]` is `scad-multmatrix-projective` |
 | `resize` | `resize(newsize, auto)` | Scales about the origin so the children reach `newsize`; `auto` keeps proportions |
-| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins. A transparency below 1 is drawn opaque and reported |
+| `color` | `color(c, alpha)`; `c` is a CSS color name (case-insensitive, including `"transparent"`), `"#RGB"`, `"#RGBA"`, `"#RRGGBB"`, `"#RRGGBBAA"`, or `[r, g, b]`/`[r, g, b, a]` with components 0 to 1 | The innermost color wins, alpha included. An alpha below 1 (from `alpha`, which overrides the alpha inside `c`, from the fourth component, from the hex form, or from `transparent`) makes the surface **translucent** (see *Transparency, Ghosts, and Highlights*); an `alpha` without a `c` is a warning |
 | `union`, `render`, `difference`, `intersection`, `intersection_for` | Booleans of solids and of 2D shapes | `difference` subtracts every later child from the first; an empty first child gives an empty result; mixed 2D and 3D children keep the dimension of the first operand and warn about the others |
 | `linear_extrude` | `linear_extrude(height, center, convexity, twist, slices, scale)` | `height` defaults to 100; a positive `twist` turns **clockwise seen from +Z**; `scale` is a number or `[sx, sy]` (both zero makes an apex) |
 | `hull` | `hull() { ... }` of 3D children or of 2D children | The convex hull of every vertex of the children, in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`; the hull is omitted in each case, never approximated |
@@ -3481,12 +3554,54 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
 | `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
-| `#`, `%` | | Degraded and reported (see the next section) |
+| `#` (highlight) | `#cube(5);` | The subtree is rendered normally **and** as a translucent copy in `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as `scad-modifier-highlight` (see the next section) |
+| `%` (background) | `%cube(5);` | The subtree is drawn only as a translucent ghost in `GhostColor` that is not part of the model. On a 2D shape that is not extruded it is omitted and reported as `scad-modifier-background` (see the next section) |
 <!-- markdownlint-enable MD013 -->
 
 Language features (variables, functions, modules with `children()`, `for`, `if`, `let`, comprehensions, `echo`,
 `assert`, `include` and `use`, and the built-in functions) are evaluated by the evaluator described in
 *ScadDocument* above; the geometry builder never interprets them again.
+
+#### Transparency, Ghosts, and Highlights
+
+A `color()` with an alpha below 1, `%`, and `#` make surfaces translucent. The renderer composites the surfaces
+along each viewing ray from front to back, deterministically (the same bytes for every degree of parallelism) and
+over the background color of `SceneOptions` (a transparent background keeps a partial alpha). Because translucent
+bodies and overlays are resolved like the operands of a boolean, **their meshes must be closed solids**; a
+`polyhedron` that is not closed is reported through the `scad-csg-*` identifiers (when a handler or strict mode is
+set), and the fragment budget `SceneOptions.MaxFragmentsPerTile` applies to them as to booleans.
+
+- **A color with alpha.** `color("red", 0.5) cube(10);` is a half-transparent red cube: seen from above, the near and
+  the far wall of the cube both show, each with the alpha of the color, over what lies behind. An alpha of 0 is
+  invisible but still solid, so it still cuts and still counts for a `difference`. The innermost `color` wins,
+  alpha included.
+- **A union of translucent bodies shows the boundary of the union.** Overlapping members of one union merge, as in
+  every constructive solid geometry result, so the faces of one member that lie inside another are not visible.
+  To see through independent bodies, mark them with `%`.
+- **`%` draws a ghost.** The subtree is drawn as a translucent body in `GhostColor` (its own colors are replaced)
+  and is **not part of the model**: it adds nothing to a union, subtracts nothing from a `difference`, and
+  intersects nothing (an `intersection` with a ghost is empty; a ghost as the **first** child of a `difference`
+  leaves no ordinary geometry; the ghost is still drawn). It contributes no propagated bounds, so `resize`
+  ignores it, and `hull` and `minkowski` ignore it too. It **is** part of `Scene.ComputeBounds()`, the bounds that
+  fit the default camera, so a ghost cannot fall out of the frame (`ComputeBounds(includeOverlays: false)` leaves it
+  out). This
+  is a documented choice of this package, not a claim of parity with any other implementation.
+- **`#` draws a highlight.** The subtree is rendered **normally** (its own colors, in the model) **and** as a
+  translucent copy in `HighlightColor`. It keeps taking part in the booleans around it, so in
+  `difference() { cube(10); #translate([2, 2, 2]) cube(6); }` the highlighted cutter still cuts, and its pink body is
+  drawn inside the cut: the highlight is visible even where the subtree was subtracted. The triangles of the copy
+  count a second time against `ScadLimits.MaxTriangles` (so a highlight on a very large subtree can reach the
+  limit sooner). A `#` on a `hull` or `minkowski` child (at any depth below it) makes the child an ordinary part of
+  the hull or sum: no copy is built or drawn, so it is not charged against the limit either; a `%` there contributes
+  nothing, and a `minkowski` or `hull` of only a ghost builds nothing.
+- **2D shapes.** A `#` or `%` on a 2D shape that is not extruded (a bare `square`, `circle`, or `polygon`, which is
+  drawn as a slab) has no translucent form: `#` renders the slab normally and `%` omits it, and each is reported
+  (`scad-modifier-highlight`, `scad-modifier-background`). The modifier on an **extrusion** of the shape, for example
+  `%linear_extrude(2) circle(4);`, works fully.
+- **The alpha of `SceneOptions.DefaultColor`, `BackFaceColor`, and lights is ignored.** Only the alpha of a model
+  `color()` and of `HighlightColor` and `GhostColor` is honored.
+
+Examples 25 and 27 show the reports and a complete transparent model.
 
 #### Curve Resolution
 
@@ -3514,9 +3629,8 @@ module in a loop is reported once. The identifiers are part of the documented be
 | `scad-minkowski-2d` | A `minkowski` of 2D children (deferred) | The module is omitted |
 | `scad-minkowski-mixed-dimensions` | A `minkowski` has both 2D and 3D children | The module is omitted |
 | `scad-minkowski-too-complex` | A `minkowski` has a child of more than 4,096 convex parts, a step of more than 4,096 sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the module | The module is omitted |
-| `scad-modifier-highlight` | The `#` modifier | The subtree is built normally, without highlighting |
-| `scad-modifier-background` | The `%` modifier | The subtree is omitted |
-| `scad-color-alpha` | A color with alpha below 1 (vector, hex, `alpha=`, or `"transparent"`) | The geometry is drawn opaque |
+| `scad-modifier-highlight` | The `#` modifier on a 2D shape that is not extruded (on a solid, `#` is rendered and not reported) | The shape is rendered normally, without highlighting |
+| `scad-modifier-background` | The `%` modifier on a 2D shape that is not extruded (on a solid, `%` is rendered as a ghost and not reported) | The shape is omitted |
 | `scad-resize-approximate` | `resize` over children that contain a difference or an intersection | Estimated bounds are used |
 | `scad-multmatrix-projective` | `multmatrix` with a bottom row other than `[0, 0, 0, 1]` | The module and its children are omitted |
 | `scad-polygon-invalid` | A `polygon` (or a 2D shape after transformation under an extrusion) that crosses itself or has no area | That shape is omitted |
@@ -3533,7 +3647,8 @@ module in a loop is reported once. The identifiers are part of the documented be
 Pass a handler to receive the reports (and the warnings) as they are delivered, or set
 `ThrowOnUnsupportedFeature` to refuse a partial result: the first unsupported feature of any stage, after the
 earlier events were delivered, is thrown as a `ScadUnsupportedFeatureException` that carries the `Feature` and the
-`Location`. See Examples 23 to 25.
+`Location`. See Examples 23 to 25. The former identifier `scad-color-alpha` no longer exists: a color with an alpha
+below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Highlights*).
 
 ### OpenSCAD Include Sandbox
 
@@ -4349,7 +4464,7 @@ var document = ScadDocument.Parse("""
     translate([20, 0, 0]) text("label");
     roof() { sphere(3); translate([8, 0, 0]) sphere(3); }
     cube(-1);
-    %cube(2);
+    offset(r = 1) square(2);
     """, new ScadOpenOptions { SourceName = "model.scad" });
 
 // Lenient: everything that can be built is drawn, and every problem is reported once, in order, on this
@@ -4378,7 +4493,7 @@ foreach (var feature in unsupported)
 // Output:
 // model.scad:2:23 scad-module-text
 // model.scad:3:1 scad-module-roof
-// model.scad:5:2 scad-modifier-background
+// model.scad:5:1 scad-module-offset
 
 // Strict: refuse a partial result. The first unsupported feature of any stage throws, after the events that
 // preceded it were delivered to the handlers
@@ -4444,6 +4559,51 @@ foreach (var feature in report)
 // Output:
 // bad.scad:1:1 scad-hull-csg-operand
 // bad.scad:2:1 scad-minkowski-nonconvex
+```
+
+## Example 27: Transparency, Ghosts, and Highlights
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Scad;
+
+var document = ScadDocument.Parse("""
+    // A half-transparent red box: its near and far walls both show
+    color("red", 0.5) cube(10);
+
+    // A plate with a hole whose cutter is highlighted: the cutter still cuts, and its pink body is drawn in the hole
+    translate([16, 0, 0]) difference() {
+        cube([10, 10, 3]);
+        #translate([5, 5, -1]) cylinder(h = 5, r = 3, $fn = 32);
+    }
+
+    // A ghost: drawn translucent gray, but not part of the model - it does not cut the block it passes through
+    translate([32, 0, 0]) difference() {
+        cube(10);
+        %translate([2, 2, 2]) cube([6, 6, 12]);
+    }
+
+    // A ghost of an extruded shape (a % on a bare 2D shape is reported, not drawn)
+    %translate([52, 5, 0]) linear_extrude(height = 4) circle(r = 4, $fn = 24);
+    """, new ScadOpenOptions { SourceName = "see-through.scad" });
+
+// The overlay colors are part of the render options; any alpha is accepted
+var options = new ScadRenderOptions
+{
+    HighlightColor = new Rgba32(255, 64, 128, 110), // the default: a translucent pink
+    GhostColor = new Rgba32(128, 128, 128, 80),     // the default: a translucent gray
+};
+
+using var image = document.Render(800, 300, options);
+PngCodec.Save(image, "see-through.png");
+
+// Nothing here is reported as unsupported: the alpha, the ghost, and the highlight are rendered. A scene that
+// uses them is resolved like a boolean, so its meshes must be closed solids; the ghost is part of the scene bounds
+// that fit the default camera but not of the model (it adds no propagated bounds, so resize ignores it)
+var scene = document.BuildScene(options);
+Console.WriteLine(scene.ComputeBounds().Max.X);                              // Output: 56
+Console.WriteLine(scene.ComputeBounds(includeOverlays: false).Max.X);        // Output: 42
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)

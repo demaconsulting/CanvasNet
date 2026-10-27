@@ -71,7 +71,7 @@ sections:
                   modifier the new root of the design, built without the transforms and colors of their
                   ancestors (translate([10, 0, 0]) { !cube(1); } renders the cube at the origin) and
                   combined in document order, ignore a mark nested in a marked subtree or in a background
-                  subtree, and build nothing for an instance that is both marked and background.
+                  subtree, and build only the ghost for an instance that is both marked and background.
                 justification: |
                   Show-only isolates part of a model for inspection; its exact scope decides what the
                   author sees and must be the same in every build.
@@ -80,22 +80,104 @@ sections:
                   - ScadGeometryBuilder_Build_ShowOnly_IsTheNewRootWithoutAncestorTransformsOrColors
                   - ScadGeometryBuilder_Build_SeveralShowOnly_UnionInOrderAndNestedMarkIgnored
                   - ScadGeometryBuilder_Build_ShowOnlyInsideBackground_IsIgnored
-                  - ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsNothing
+                  - ScadGeometryBuilder_Build_BackgroundBlockAroundSingleShowOnly_BuildsOnlyTheGhost
+                  - ScadGeometryBuilder_Modifiers_ShowOnly_StillIgnoresBackgroundSubtree
                   - ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule
 
-              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierBackground
                 title: >-
-                  The ScadGeometryBuilder unit shall render a subtree marked with the highlight modifier
-                  normally and report scad-modifier-highlight at the instance, and shall omit a subtree
-                  marked with the background modifier without visiting it and report
-                  scad-modifier-background at the instance.
+                  The ScadGeometryBuilder unit shall render a solid subtree marked with the background
+                  modifier as a ghost: an overlay node in the ghost color (a translucent gray by default,
+                  or the color of the settings) that holds the subtree, is not part of the model (it
+                  adds nothing to a union, subtracts nothing from a difference, and leaves a difference
+                  whose first operand it is without ordinary geometry), contributes no propagated bounds (so
+                  resize ignores it) but remains part of the scene bounds that fit the default camera and is
+                  still checked by the coordinate guard, is visited like any other
+                  subtree so that unsupported modules and invalid arguments inside it are still
+                  reported, keeps the transforms around it, wins over the highlight modifier on the
+                  same instance, and reports nothing; the modifier on an extrusion of a 2D shape is a
+                  full ghost.
                 justification: |
-                  The two modifiers are not fully supported; the author must be told exactly where the
-                  rendering differs from what the modifier asks for.
+                  The background modifier shows a part for reference without making it part of the
+                  design; the ghost must therefore be drawn but must never change the model, its size,
+                  or its validation.
                 tests:
-                  - ScadGeometryBuilder_Build_Highlight_RendersAndReports
-                  - ScadGeometryBuilder_Build_Background_OmitsSubtreeAndReports
+                  - ScadGeometryBuilder_Build_Background_DrawsGhostInsteadOfTheSubtreeAndNoReport
+                  - ScadGeometryBuilder_Modifiers_Background3D_BuildsOnlyAnOverlay_NoMainGeometry
+                  - ScadGeometryBuilder_Modifiers_CustomColors_AreUsedForBothOverlays
+                  - ScadGeometryBuilder_Modifiers_Background_ContributesNoBounds_ButIsInReach
+                  - ScadGeometryBuilder_Modifiers_BackgroundInsideDifference_DoesNotSubtract
+                  - ScadGeometryBuilder_Modifiers_BackgroundFirstOperandOfDifference_LeavesMainEmpty
+                  - ScadGeometryBuilder_Modifiers_BothHighlightAndBackground_BackgroundWins
+                  - ScadGeometryBuilder_Modifiers_UnderTransformAndColor_AppliesTransformAndKeepsOverlayColor
+                  - ScadGeometryBuilder_Modifiers_Background3DOfExtrudedShape_Works
+                  - ScadGeometryBuilder_Modifiers_ChildrenOfBackground_AreVisited_UnsupportedInsideIsReported
+                  - ScadGeometryBuilder_Modifiers_OutOfRangeBackground_IsRejectedByCoordinateGuard
                   - ScadUnsupportedModule_Modifiers_BehaveAsForAnyModule
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierHighlight
+                title: >-
+                  The ScadGeometryBuilder unit shall render a solid subtree marked with the highlight
+                  modifier normally and additionally as an overlay node in the highlight color (a
+                  translucent pink by default, or the color of the settings) that holds the same scene
+                  node (no mesh is duplicated), so that the subtree still takes part in the booleans around
+                  it (a highlighted subtrahend still subtracts and its overlay is drawn where it cut), shall
+                  charge the triangles of the copy that the renderer draws to the triangle budget (so that
+                  nested highlights cannot multiply the work beyond the limit and a highlight that does not
+                  fit fails with a located ScadEvaluationException), and shall report nothing.
+                justification: |
+                  A highlight marks a part for the author's eye while the model stays what it was; the
+                  renderer draws every path to a mesh, so the budget must count the copy.
+                tests:
+                  - ScadGeometryBuilder_Build_Highlight_RendersNormallyWithOverlayAndNoReport
+                  - ScadGeometryBuilder_Modifiers_Highlight3D_BuildsNormalGeometryAndOverlayWithoutReport
+                  - ScadGeometryBuilder_Modifiers_Highlight_SharesMeshNodes_ChargesTheOverlayCopyAgainstTheBudget
+                  - ScadGeometryBuilder_Modifiers_HighlightCopyOverTheBudget_ThrowsLocatedEvaluationException
+                  - ScadGeometryBuilder_Modifiers_NestedHighlights_AreBoundedByTheTriangleBudget
+                  - ScadGeometryBuilder_Modifiers_HighlightInsideDifference_StillSubtractsAndHasOverlay
+                  - ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsOverlaid
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierFlatEdge
+                title: >-
+                  The ScadGeometryBuilder unit shall, for a highlight or background modifier on a 2D shape
+                  that is not extruded (which has no overlay form), render a highlighted shape normally
+                  and report scad-modifier-highlight once at the instance, and omit a background shape and
+                  report scad-modifier-background once at the instance, and shall throw for these reports
+                  in strict mode.
+                justification: |
+                  Overlays are bodies of solids; the author must be told exactly where a 2D shape could
+                  not be highlighted or ghosted, and that extruding it is the way to get the effect.
+                tests:
+                  - ScadGeometryBuilder_Modifiers_Highlight2D_IsRenderedNormallyAndReported
+                  - ScadGeometryBuilder_Modifiers_Background2D_IsOmittedAndReported
+                  - ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightOnAFlatShape
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierRobustness
+                title: >-
+                  The ScadGeometryBuilder unit shall apply the highlight and background modifiers without
+                  recursion (a tree of 20,000 nested ghosts builds on a 64 KiB caller stack as on a large
+                  one), poll cancellation while building them, leave a ghost or the overlay of a highlight that is
+                  a child of a hull or a minkowski out of the operation at any depth below it (no overlay is
+                  created and no triangles are charged for it, also for a lone child, and a lone ghost builds
+                  nothing) and build without failing, and not
+                  throw in strict mode for the
+                  modifiers on solids.
+                justification: |
+                  The modifiers add nodes to every level of the tree they mark; they must keep the
+                  guarantees of the engine (any stack, cancellation, strict mode) and must not break the
+                  convex combinations that read the scene.
+                tests:
+                  - ScadGeometryBuilder_Modifiers_DeeplyNested_IsIterative
+                  - ScadGeometryBuilder_Modifiers_Cancellation_IsPolledWhileBuildingOverlays
+                  - ScadGeometryBuilder_Modifiers_InsideHullChild_IsNotPartOfTheHullAndDoesNotThrow
+                  - ScadGeometryBuilder_Modifiers_InsideMinkowskiChild_IsOrdinarySummandOrNothing
+                  - ScadGeometryBuilder_Modifiers_HullOfOnlyAGhost_BuildsNothing
+                  - ScadGeometryBuilder_Modifiers_HighlightInsideHull_IsNotChargedAndHasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_HighlightInsideMinkowski_IsNotChargedAndHasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_SingleChildMinkowski_StripsOverlays
+                  - ScadGeometryBuilder_Modifiers_SingleChildHull_HasNoOverlay
+                  - ScadGeometryBuilder_Modifiers_NestedHighlightsAroundHull_AreBoundedByTheTriangleBudget
+                  - ScadGeometryBuilder_Modifiers_StrictMode_DoesNotThrowFor3DModifiersOrAlpha
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
                 title: >-
@@ -331,14 +413,15 @@ sections:
                 title: >-
                   The ScadGeometryBuilder unit shall, in strict mode, throw a ScadUnsupportedFeatureException
                   carrying the feature identifier and location at the first report of an unsupported
-                  feature, including the degraded modifiers, leaving that report in the sink, and shall
-                  deliver every unsupported module to the caller's handler in document order otherwise.
+                  feature, including a highlight or background modifier on a 2D shape that is not extruded,
+                  leaving that report in the sink, and shall deliver every unsupported module to the caller's
+                  handler in document order otherwise.
                 justification: |
                   Strict mode turns a degraded rendering into an error for callers that cannot accept one;
                   it must stop at the first occurrence and say where.
                 tests:
                   - ScadGeometryBuilder_Build_StrictMode_ThrowsAtFirstUnsupported
-                  - ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightModifier
+                  - ScadGeometryBuilder_Build_StrictMode_ThrowsForHighlightOnAFlatShape
                   - ScadUnsupportedModule_StrictMode_ThrowsAtTheFirst
                   - ScadUnsupportedModule_PublicHandlerAndStrictMode_SeeEveryModule
 

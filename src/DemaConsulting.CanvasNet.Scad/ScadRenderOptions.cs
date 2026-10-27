@@ -1,4 +1,6 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
+using DemaConsulting.CanvasNet.Scad.Geometry;
 
 namespace DemaConsulting.CanvasNet.Scad;
 
@@ -136,6 +138,31 @@ public sealed class ScadRenderOptions
             _flatShapeThickness = value;
         }
     }
+
+    /// <summary>
+    ///     Gets the color of the translucent copy that the <c>#</c> (highlight) modifier draws over the highlighted
+    ///     subtree; translucent pink-red (255, 64, 128, alpha 110) by default. Any alpha is accepted (255 draws an
+    ///     opaque copy, 0 an invisible one).
+    /// </summary>
+    /// <remarks>
+    ///     The highlighted subtree is still rendered normally, with its own colors, and still takes part in the
+    ///     boolean operations around it; the highlight is an additional translucent body in this color, drawn where
+    ///     the subtree is (including where it was subtracted). It replaces every <c>color()</c> inside the subtree.
+    ///     A <c>#</c> on a 2D shape that is not extruded is reported as unsupported instead.
+    /// </remarks>
+    public Rgba32 HighlightColor { get; init; } = ScadGeometryContext.DefaultHighlightColor;
+
+    /// <summary>
+    ///     Gets the color of the translucent ghost that the <c>%</c> (background) modifier draws instead of the
+    ///     subtree; translucent neutral gray (128, 128, 128, alpha 80) by default. Any alpha is accepted.
+    /// </summary>
+    /// <remarks>
+    ///     The ghost does not take part in the boolean operations around it and contributes no propagated bounds
+    ///     (<c>resize</c>, <c>hull</c>, and <c>minkowski</c> ignore it), but it is part of <c>Scene.ComputeBounds()</c>, the
+    ///     bounds that fit the default camera. It replaces every <c>color()</c> inside the subtree.
+    ///     A <c>%</c> on a 2D shape that is not extruded is reported as unsupported and omitted instead.
+    /// </remarks>
+    public Rgba32 GhostColor { get; init; } = ScadGeometryContext.DefaultGhostColor;
 
     /// <summary>
     ///     Validates a view angle.

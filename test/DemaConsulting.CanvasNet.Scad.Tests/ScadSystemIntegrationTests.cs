@@ -97,8 +97,8 @@ public class ScadSystemIntegrationTests
         // Act: open every valid fixture from disk
         var documents = fixtures.Select(path => ScadDocument.Open(path)).ToList();
 
-        // Assert: the ten parse fixtures, the sixteen golden evaluation fixtures and the fourteen render fixtures, each named by its path
-        Assert.Equal(40, documents.Count);
+        // Assert: the ten parse fixtures, the sixteen golden evaluation fixtures and the fifteen render fixtures, each named by its path
+        Assert.Equal(41, documents.Count);
         Assert.Equal(fixtures, documents.Select(d => d.SourceName));
     }
 
@@ -583,12 +583,56 @@ public class ScadSystemIntegrationTests
         using var surface = document.Render(32, 32, lenient, TestContext.Current.CancellationToken);
         var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => document.Render(32, 32, strict, TestContext.Current.CancellationToken));
 
-        // Assert: ten reports, each at a distinct line of the fixture; strict mode throws the first of them
-        Assert.Equal(10, reports.Count);
-        Assert.Equal(10, reports.Select(r => r.Location.Line).Distinct().Count());
+        // Assert: nine reports, each at a distinct line of the fixture; strict mode throws the first of them
+        Assert.Equal(9, reports.Count);
+        Assert.Equal(9, reports.Select(r => r.Location.Line).Distinct().Count());
         Assert.All(reports, r => Assert.Equal(path, r.Location.File));
         Assert.Equal(reports[0].Feature, ex.Feature);
         Assert.Equal(reports[0].Location, ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates through the public API only that transparency, ghosts and highlights are rendered, not reported: the
+    ///     transparency fixture renders in strict mode without any report, the result over the opaque white background
+    ///     stays opaque, and a translucent surface differs from both its own color and the background.
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_Render_TransparencyFixtureRendersWithoutReports()
+    {
+        // Arrange
+        var document = ScadDocument.Open(ScadFixtureHelpers.PathOf("render-transparency.scad"));
+        var reports = new List<ScadUnsupportedFeature>();
+        var warnings = new List<ScadDiagnostic>();
+        var options = new ScadRenderOptions
+        {
+            Evaluation = new ScadEvaluationOptions
+            {
+                UnsupportedFeatureHandler = reports.Add,
+                WarningHandler = warnings.Add,
+                ThrowOnUnsupportedFeature = true,
+            },
+            SceneOptions = ScadRenderTestHelpers.Flat,
+            Camera = new Camera
+            {
+                Eye = new Vector3D(5.5, 5.5, 200),
+                Target = new Vector3D(5.5, 5.5, 0),
+                Up = Vector3D.UnitY,
+                Projection = CameraProjection.Orthographic,
+                OrthographicHeight = 12,
+            },
+        };
+
+        // Act
+        using var surface = document.Render(12, 12, options, TestContext.Current.CancellationToken);
+
+        // Assert: the translucent red cube is neither pure red nor white, and every pixel is opaque
+        Assert.Empty(reports);
+        Assert.Empty(warnings);
+        var pixel = surface[6, 6];
+        Assert.Equal(255, pixel.A);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), pixel);
+        Assert.NotEqual(ScadRenderTestHelpers.White, pixel);
+        Assert.True(pixel.R > pixel.G && pixel.G == pixel.B, pixel.ToString());
     }
 
     /// <summary>
@@ -659,6 +703,8 @@ public class ScadSystemIntegrationTests
         Assert.Equal(Camera.DefaultElevationDegrees, defaults.ViewElevationDegrees);
         Assert.Equal(CameraProjection.Perspective, defaults.Projection);
         Assert.Equal(0.1, defaults.FlatShapeThickness);
+        Assert.Equal(new DemaConsulting.CanvasNet.Canvas.Rgba32(255, 64, 128, 110), defaults.HighlightColor);
+        Assert.Equal(new DemaConsulting.CanvasNet.Canvas.Rgba32(128, 128, 128, 80), defaults.GhostColor);
         Assert.Equal(CameraProjection.Orthographic, custom.Projection);
         Assert.Equal(2, custom.FlatShapeThickness);
         Assert.Throws<ArgumentOutOfRangeException>(() => new ScadRenderOptions { ViewAzimuthDegrees = double.NaN });

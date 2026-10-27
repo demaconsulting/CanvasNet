@@ -7,10 +7,12 @@
 # SceneRenderer class, SceneRenderOptions type and diagnostic types (RenderBudgetExceededException,
 # SceneRenderUnsupportedFeature and its exception), the internal CsgOperandValidator, and the internal
 # TileBinner, SampleResolver, and TileWorkspace types, in the DemaConsulting.CanvasNet.Render3D.SceneRendering
-# namespace. Output is a new core Surface owned (and disposed) by the caller. Node and light color alpha
-# is ignored (surfaces are opaque); background alpha is honored. A scene with a difference or
-# intersection is rendered through the fragment-list CSG path (see csg-resolver.yaml and
-# fragment-buffer.yaml); every other scene uses the z-buffer path.
+# namespace. Output is a new core Surface owned (and disposed) by the caller. The alpha of a node
+# appearance and of an overlay color is honored (translucent surfaces are composited front to back);
+# the alpha of the default, back-face and light colors is ignored; background alpha is honored. A
+# scene with a difference or intersection, an overlay or a translucent appearance is rendered through
+# the fragment-list path (see csg-resolver.yaml and fragment-buffer.yaml); every other scene uses the
+# z-buffer path.
 
 sections:
   - title: CanvasNetRender3D Requirements
@@ -204,7 +206,8 @@ sections:
               - id: CanvasNetRender3D-SceneRendering-SceneRenderer-CsgFastPath
                 title: >-
                   The SceneRenderer shall render a scene without a difference or intersection of two
-                  or more operands (including a union CsgNode) through the z-buffer path without any
+                  or more operands, without an overlay and without a translucent appearance
+                  (including a union CsgNode) through the z-buffer path without any
                   fragment storage, ignoring the fragment budget and never validating operands, with
                   output identical to the equivalent group and, for closed solids, to the
                   fragment-list path forced onto the same scene (up to grazing silhouette
@@ -283,7 +286,7 @@ sections:
                   node; it shall judge inversion independently of a mirroring
                   transform, neither report nor reject an explicit near plane or a camera inside an
                   operand, and neither
-                  analyze nor report anything for union-only scenes or when neither a handler nor
+                  analyze nor report anything for opaque union-only scenes or when neither a handler nor
                   strict mode is set.
                 justification: |
                   A non-solid operand silently produces a wrong image; naming the problem with a
@@ -347,3 +350,112 @@ sections:
                   this is the contract that makes CSG output usable for regression comparison.
                 tests:
                   - SceneRenderer_Render_CsgScene_ParallelAndSequentialAreByteIdentical
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-Transparency
+                title: >-
+                  The SceneRenderer shall honor the alpha of a NodeAppearance color by resolving a
+                  scene with a translucent appearance through the fragment-list path (even without
+                  a boolean node) and compositing the surface layers of each sample front to back
+                  over the background color: a translucent solid shows its far wall through its
+                  front, members of one union merge so that only the union's boundary is visible,
+                  the cut surface of a translucent difference shows the subtrahend's own color and
+                  alpha, an alpha of zero is invisible but still solid, a transparent background
+                  keeps the layer color with the accumulated alpha, edges are antialiased, a camera
+                  inside a translucent solid renders the exit surface with the appearance alpha, and
+                  the alpha of the default and back-face colors is ignored.
+                justification: |
+                  Translucency lets a model show what lies behind or inside a part; resolving it in
+                  the same fragment pipeline as constructive solid geometry gives an exact,
+                  order-independent composite, while keeping the documented limits (merged unions,
+                  ignored default-color alpha) explicit and tested.
+                tests:
+                  - SceneRenderer_Render_TranslucentBox_BlendsAppearanceColorWithBackground
+                  - SceneRenderer_Render_TranslucentBoxOverOpaqueBox_ShowsBlend
+                  - SceneRenderer_Render_TranslucentBox_ShowsBackWallThroughFront
+                  - SceneRenderer_Render_TranslucentUnion_MergesOverlappingSolids_NoInteriorFaces
+                  - SceneRenderer_Render_TranslucentDifference_ShowsCutSurfaceWithSubtrahendColor
+                  - SceneRenderer_Render_AlphaZeroAppearance_IsInvisibleButSolid
+                  - SceneRenderer_Render_TransparentBackground_ResolvesToPartialAlphaWithLayerColor
+                  - SceneRenderer_Render_TranslucentEdges_AreAntialiased
+                  - SceneRenderer_Render_CameraInsideTranslucentSolid_RendersWithoutFailure
+                  - SceneRenderer_Render_DefaultColorAndBackFaceColorAlpha_AreStillIgnored
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-OverlayRendering
+                title: >-
+                  The SceneRenderer shall render each OverlayNode body as an independent solid with
+                  the overlay's color and alpha, depth-composited with the rest of the scene: in
+                  front of an opaque body it tints it, behind one it is hidden, it neither subtracts
+                  from nor intersects an enclosing boolean, a subtrahend that is also drawn as an
+                  overlay shows its overlay through the cut, an opaque overlay is an
+                  independent opaque body, and a camera inside an overlay body sees the exit in
+                  the back-face color at the overlay alpha, like a camera inside a translucent
+                  solid.
+                justification: |
+                  Ghosts and highlights must be visible without changing the solid they annotate;
+                  rendering them as independent bodies in the same composite keeps them correct
+                  at any depth and with any camera.
+                tests:
+                  - SceneRenderer_Render_OverlayInFrontOfOpaque_Tints
+                  - SceneRenderer_Render_OverlayBehindOpaque_Hidden
+                  - SceneRenderer_Render_OverlayDoesNotParticipateInEnclosingDifference
+                  - SceneRenderer_Render_HighlightPattern_SubtractedBodyShowsAsOverlayThroughCut
+                  - SceneRenderer_Render_OverlayOpaqueColor_ActsAsIndependentBody
+                  - SceneRenderer_Render_CameraInsideOverlay_ShowsBackFaceColorAtOverlayAlpha
+                  - SceneRenderer_Render_CameraInsideOverlayInsideTranslucentSolid_CompositesBothExits
+                  - SceneRenderer_Render_CameraOutsideOverlay_KeepsOwnColorFarWall
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-OpaqueUnchanged
+                title: >-
+                  The SceneRenderer shall keep an opaque scene without overlays unchanged: an
+                  opaque union-only scene stays on the z-buffer path (the fragment budget and
+                  operand validation are never consulted, an open mesh is not reported) and agrees
+                  with the fragment-list path, and an opaque constructive-solid-geometry scene renders
+                  exactly its pure appearance colors.
+                justification: |
+                  Transparency support must cost nothing and change nothing for the existing opaque
+                  scenes, which are the overwhelming majority of use.
+                tests:
+                  - SceneRenderer_Render_OpaqueUnionScene_StillUsesZBufferAndIsByteIdenticalToFragmentPath
+                  - SceneRenderer_Render_OpaqueCsgScene_IsUnchangedByTransparencySupport
+                  - SceneRenderer_Render_OpaqueOpenMeshUnion_IsStillNotValidated
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyBudget
+                title: >-
+                  The SceneRenderer shall subject a translucent or overlay scene to the per-tile
+                  fragment budget, counting overlay and translucent triangles like any other
+                  fragment, and throw RenderBudgetExceededException when a tile needs more.
+                justification: |
+                  Translucent and overlay triangles are stored as ordinary fragments, so the same
+                  memory bound must hold for them; an overlay of the same size doubles the fragments
+                  of its tile.
+                tests:
+                  - SceneRenderer_Render_TranslucentScene_ExceedingFragmentBudget_ThrowsRenderBudgetExceeded
+                  - SceneRenderer_Render_OverlayFragments_CountTowardTheBudget
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyValidation
+                title: >-
+                  The SceneRenderer shall validate the meshes of a translucent or overlay scene
+                  (overlay bodies included) like constructive-solid-geometry operands, reporting an
+                  open mesh with the same feature token to the handler or throwing in strict mode.
+                justification: |
+                  Translucent surfaces and overlays are resolved with signed crossing counters, so
+                  an open mesh produces a visibly wrong image exactly as it does in a difference;
+                  the caller must be told.
+                tests:
+                  - SceneRenderer_Render_TranslucentOpenMesh_IsReportedAndStrictThrows
+                  - CsgOperandValidator_Validate_OverlayMeshes_AreChecked
+
+              - id: CanvasNetRender3D-SceneRendering-SceneRenderer-TransparencyDeterminism
+                title: >-
+                  The SceneRenderer shall produce byte-identical output for a translucent scene
+                  with a translucent difference and an overlay across tile parallelism and repeated
+                  runs at each supersampling factor, and shall honor cooperative cancellation with
+                  OperationCanceledException.
+                justification: |
+                  Layer compositing is integer arithmetic over a totally ordered fragment list and
+                  tiles are independent, so parallel output must equal sequential output exactly;
+                  cancellation must work on the fragment path as on the z-buffer path.
+                tests:
+                  - SceneRenderer_Render_TranslucentScene_ParallelAndSequentialAreByteIdentical
+                  - SceneRenderer_Render_TranslucentScene_RepeatedRendersAreByteIdentical
+                  - SceneRenderer_Render_TranslucentScene_CancellationThrowsOperationCanceled

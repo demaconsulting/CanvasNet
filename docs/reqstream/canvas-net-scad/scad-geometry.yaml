@@ -36,7 +36,29 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ShowOnly
             tests:
               - ScadGeometry_Build_PrimitiveSolids_AreClosedOutwardMeshesInDocumentOrder
-              - ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsReported
+              - ScadGeometry_Build_Modifiers_ShowOnlyReplacesTheModelAndHighlightIsOverlaid
+
+          - id: CanvasNetScad-ScadGeometry-Transparency
+            title: >-
+              The ScadGeometry subsystem shall render transparency instead of reporting it: the alpha of
+              a color becomes the alpha of the appearance of the colored geometry, a solid subtree marked
+              with the background modifier becomes a translucent ghost that is not part of the model, and
+              one marked with the highlight modifier is rendered normally and additionally as a
+              translucent copy that shares its meshes and still takes part in the booleans around it,
+              with the colors of both overlays configurable through the render options, none of this being
+              reported as an unsupported feature, and the work of a highlight being charged to the
+              triangle budget.
+            justification: |
+              Transparency and the two modifiers are how authors see inside and around a model; they
+              must be drawn faithfully, without changing what the model is made of, and without a way
+              around the resource limits.
+            children:
+              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierBackground
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierHighlight
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierRobustness
+            tests:
+              - ScadGeometry_Build_ColorAlphaAndModifiersOnSolids_AreRenderedNotReported
 
           - id: CanvasNetScad-ScadGeometry-Primitives
             title: >-
@@ -186,8 +208,8 @@ sections:
               The ScadGeometry subsystem shall report everything it cannot build instead of skipping it
               silently - an invalid argument as a located warning that leaves that instance empty, a
               recognized module or option that is not supported as an unsupported-feature report with a
-              stable identifier and a location (with the marked geometry of a highlight modifier still
-              built, the subtree of a background modifier omitted, and a color alpha drawn opaque), a
+              stable identifier and a location (a highlight or background modifier on a 2D shape that is
+              not extruded, which has no overlay form, being rendered normally respectively omitted), a
               geometry the extruders reject as an unsupported-feature report instead of an exception -
               through one channel shared with the evaluation, de-duplicated per location, and, in strict
               mode, stop at the first unsupported feature with a ScadUnsupportedFeatureException.
@@ -205,7 +227,7 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiNonConvex
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiDimensions
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-MinkowskiLimits
-              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-DegradedModifiers
+              - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ModifierFlatEdge
               - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-CoordinateRange
               - CanvasNetScad-ScadGeometry-ScadPrimitives-ArgumentWarnings
               - CanvasNetScad-ScadGeometry-ScadPrimitives-InvalidSolidArguments
@@ -216,7 +238,6 @@ sections:
               - CanvasNetScad-ScadGeometry-ScadTransforms-Singular
               - CanvasNetScad-ScadGeometry-ScadTransforms-MultmatrixProjective
               - CanvasNetScad-ScadGeometry-ScadTransforms-ColorInvalid
-              - CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha
               - CanvasNetScad-ScadGeometry-ScadExtrusions-InvalidProfile
               - CanvasNetScad-ScadGeometry-ScadExtrusions-RejectedExtrusion
               - CanvasNetScad-ScadGeometry-ScadExtrusions-LinearUnsupportedScale

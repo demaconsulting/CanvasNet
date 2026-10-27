@@ -1236,6 +1236,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/GroupNode.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/CsgNode.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/CsgOperation.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/OverlayNode.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/NodeAppearance.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/Scene.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneModel/SceneInstance.cs"  # unit source
@@ -1458,6 +1459,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgProgram.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgCompiler.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/CsgResolver.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/LayerCompositor.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgProgramTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgResolverTests.cs"  # unit tests
 
@@ -1485,6 +1487,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Render3D/SceneRendering/TileWorkspace.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererCsgTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRendererTransparencyTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/CsgOperandValidatorTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Render3D.Tests/SceneRendering/SceneRenderDiagnosticsTests.cs"  # unit tests

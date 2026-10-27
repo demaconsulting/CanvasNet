@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
 /// <summary>
 ///     Unit tests of <see cref="ScadColors"/> and <see cref="ScadColorTable"/>: the accepted color forms, the
-///     innermost-wins rule, invalid values, and the alpha degradation report.
+///     innermost-wins rule, invalid values, and the alpha channel of the appearance.
 /// </summary>
 public class ScadColorsTests
 {
@@ -195,67 +195,108 @@ public class ScadColorsTests
     }
 
     /// <summary>
-    ///     Validates that every route to an alpha below 1 is reported once at the color's location while the
-    ///     surface is drawn opaque.
+    ///     Validates that every route to an alpha below 1 becomes the alpha channel of the appearance color, with the
+    ///     color channels unchanged and nothing reported.
     /// </summary>
     /// <param name="call">The color call.</param>
     /// <param name="r">The expected red.</param>
     /// <param name="g">The expected green.</param>
     /// <param name="b">The expected blue.</param>
+    /// <param name="a">The expected alpha.</param>
     [Theory]
-    [InlineData("color(\"red\", 0.5)", 255, 0, 0)]
-    [InlineData("color(\"red\", alpha = 0.5)", 255, 0, 0)]
-    [InlineData("color(c = \"red\", alpha = 0)", 255, 0, 0)]
-    [InlineData("color([0, 1, 0, 0.25])", 0, 255, 0)]
-    [InlineData("color(\"#0000ff80\")", 0, 0, 255)]
-    [InlineData("color(\"#0f08\")", 0, 255, 0)]
-    [InlineData("color(\"transparent\")", 0, 0, 0)]
-    [InlineData("color([1, 1, 1, 1], alpha = 0.1)", 255, 255, 255)]
-    public void ScadColors_AlphaBelowOne_ReportsAndDrawsOpaque(string call, int r, int g, int b)
+    [InlineData("color(\"red\", 0.5)", 255, 0, 0, 128)]
+    [InlineData("color(\"red\", alpha = 0.5)", 255, 0, 0, 128)]
+    [InlineData("color(c = \"red\", alpha = 0)", 255, 0, 0, 0)]
+    [InlineData("color([0, 1, 0, 0.25])", 0, 255, 0, 64)]
+    [InlineData("color(\"#0000ff80\")", 0, 0, 255, 128)]
+    [InlineData("color(\"#0f08\")", 0, 255, 0, 136)]
+    [InlineData("color(\"transparent\")", 0, 0, 0, 0)]
+    [InlineData("color([1, 1, 1, 1], alpha = 0.1)", 255, 255, 255, 26)]
+    public void ScadColors_AlphaBelowOne_SetsAppearanceAlphaWithoutReport(string call, int r, int g, int b, int a)
     {
         // Arrange / Act
         var result = Build($"\n  {call} cube(1);");
 
         // Assert
-        Assert.Equal(new Rgba32((byte)r, (byte)g, (byte)b, 255), Assert.Single(result.Leaves).Appearance!.Color);
-        var report = Assert.Single(result.Unsupported);
-        Assert.Equal("scad-color-alpha", report.Feature);
-        Assert.Equal(new ScadSourceLocation(null, 2, 3), report.Location);
+        Assert.Equal(new Rgba32((byte)r, (byte)g, (byte)b, (byte)a), Assert.Single(result.Leaves).Appearance!.Color);
+        Assert.Empty(result.Unsupported);
         Assert.Empty(result.Warnings);
     }
 
     /// <summary>
-    ///     Validates that an alpha argument of 1 or more (also from the vector or hex form) is not reported and that
-    ///     the alpha argument overrides the alpha of the color value.
+    ///     Validates that an alpha argument of 1 or more (also from the vector or hex form) keeps the surface opaque,
+    ///     and that the alpha argument overrides the alpha of the color value in both directions.
     /// </summary>
     [Fact]
-    public void ScadColors_FullAlpha_IsNotReportedAndAlphaArgumentOverrides()
+    public void ScadColors_FullAlpha_AlphaArgumentOverridesColorAlpha()
     {
         // Arrange / Act
         var full = Build("color(\"red\", 1) cube(1);\ncolor(\"#ff0000ff\") cube(1);\ncolor([1, 0, 0, 1]) cube(1);\ncolor(\"red\", 7) cube(1);");
         var overridden = Build("color([1, 0, 0, 0.2], alpha = 1) cube(1);");
+        var lowered = Build("color([1, 0, 0, 1], alpha = 0.2) cube(1);\ncolor(\"transparent\", 1) cube(1);");
 
         // Assert
+        Assert.All(full.Leaves, leaf => Assert.Equal(255, leaf.Appearance!.Color.A));
+        Assert.Equal(255, Assert.Single(overridden.Leaves).Appearance!.Color.A);
+        Assert.Equal(51, lowered.Leaves[0].Appearance!.Color.A);
+        Assert.Equal(255, lowered.Leaves[1].Appearance!.Color.A);
         Assert.Empty(full.Unsupported);
         Assert.Empty(overridden.Unsupported);
         Assert.Empty(full.Warnings);
     }
 
     /// <summary>
-    ///     Validates that an alpha without a color is reported but colors nothing, and that the report is made even
-    ///     when there is nothing to color.
+    ///     Validates that an alpha without a color has nothing to apply to: it warns at the instance, colors nothing,
+    ///     and reports nothing as unsupported (an alpha with a color but no children is silent).
     /// </summary>
     [Fact]
-    public void ScadColors_AlphaOnly_ReportsWithoutColoring()
+    public void ScadColors_AlphaOnly_WarnsAndDoesNotColor()
     {
         // Arrange / Act
-        var withChild = Build("color(alpha = 0.3) cube(1);");
+        var withChild = Build("\n  color(alpha = 0.3) cube(1);");
         var withoutChild = Build("color(\"red\", 0.3) { }");
 
         // Assert
         Assert.Null(Assert.Single(withChild.Leaves).Appearance);
-        Assert.Equal(["scad-color-alpha"], withChild.Features);
-        Assert.Equal(["scad-color-alpha"], withoutChild.Features);
+        var warning = Assert.Single(withChild.Warnings);
+        Assert.Equal(new ScadSourceLocation(null, 2, 3), warning.Location);
+        Assert.Contains("alpha needs a color", warning.Message, StringComparison.Ordinal);
+        Assert.Empty(withChild.Unsupported);
+        Assert.Empty(withoutChild.Warnings);
+        Assert.Empty(withoutChild.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that the innermost color wins including its alpha: a translucent inner color under an opaque
+    ///     outer one stays translucent and an opaque inner color under a translucent outer one is opaque.
+    /// </summary>
+    [Fact]
+    public void ScadColors_NestedColor_InnermostAlphaWins()
+    {
+        // Arrange / Act
+        var result = Build("color(\"red\") color(\"blue\", 0.5) cube(1);\ncolor(\"red\", 0.5) color(\"blue\") cube(1);");
+
+        // Assert
+        Assert.Equal(new Rgba32(0, 0, 255, 128), result.Leaves[0].Appearance!.Color);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), result.Leaves[1].Appearance!.Color);
+    }
+
+    /// <summary>
+    ///     Validates that the alpha of a color on a 2D shape reaches the solid made by an extrusion and the slab of a
+    ///     bare shape.
+    /// </summary>
+    [Fact]
+    public void ScadColors_AlphaOn2DShape_ReachesTheExtrusion()
+    {
+        // Arrange / Act
+        var extruded = Build("linear_extrude(2) color(\"red\", 0.5) square(1);");
+        var slab = Build("color(\"green\", 0.25) square(1);");
+
+        // Assert
+        Assert.Equal(new Rgba32(255, 0, 0, 128), Assert.Single(extruded.Leaves).Appearance!.Color);
+        Assert.Equal(new Rgba32(0, 128, 0, 64), Assert.Single(slab.Leaves).Appearance!.Color);
+        Assert.Empty(extruded.Unsupported);
+        Assert.Empty(slab.Unsupported);
     }
 
     /// <summary>
@@ -274,17 +315,18 @@ public class ScadColorsTests
     }
 
     /// <summary>
-    ///     Validates that strict mode throws at the first color alpha report with its feature and location.
+    ///     Validates that strict mode does not throw for a color alpha: transparency is rendered, not degraded.
     /// </summary>
     [Fact]
-    public void ScadColors_StrictMode_ThrowsForAlpha()
+    public void ScadColors_AlphaBelowOne_DoesNotThrowInStrictMode()
     {
         // Arrange / Act
-        var ex = Assert.Throws<ScadUnsupportedFeatureException>(() => Build("cube(1);\n  color(\"red\", 0.5) cube(1);", Settings(strict: true)));
+        var result = Build("cube(1);\n  color(\"red\", 0.5) cube(1);", Settings(strict: true));
 
         // Assert
-        Assert.Equal("scad-color-alpha", ex.Feature);
-        Assert.Equal(new ScadSourceLocation(null, 2, 3), ex.Location);
+        Assert.Equal(2, result.Leaves.Count);
+        Assert.Equal(128, result.Leaves[1].Appearance!.Color.A);
+        Assert.Empty(result.Unsupported);
     }
 
     /// <summary>

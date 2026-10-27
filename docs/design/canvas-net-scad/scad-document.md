@@ -107,7 +107,10 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   35.26), both finite else `ArgumentOutOfRangeException`, `Projection` (`CameraProjection`, default
   `Perspective`, must be a defined value), `SceneOptions` (`SceneRenderOptions?`, default null: the Render3D
   defaults, a white background and neutral gray surfaces; its unsupported-feature handler and strict flag are
-  ignored), and `FlatShapeThickness` (default 0.1; finite and greater than zero). The options **compose**
+  ignored), `FlatShapeThickness` (default 0.1; finite and greater than zero), and the Phase 8 `HighlightColor`
+  (`Rgba32`, default `(255, 64, 128, 110)`) and `GhostColor` (`Rgba32`, default `(128, 128, 128, 80)`), the colors
+  of the translucent overlays that the `#` and `%` modifiers draw (any alpha is accepted; they are handed to the
+  geometry builder through `ScadGeometrySettings`). The options **compose**
   rather than copy the evaluation options, so there is one definition of strict mode, handlers, and limits.
 - **`ScadDiagnostic`** (sealed record) — `Message` and `Location`; `ToString()` is `{Location}: {Message}` with
   the invariant culture. **`ScadUnsupportedFeature`** (sealed record) — `Feature` (an identifier such as

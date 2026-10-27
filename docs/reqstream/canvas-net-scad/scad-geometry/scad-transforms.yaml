@@ -10,8 +10,9 @@
 # A transform applies to the implicit union of its children and is represented as a wrapper node carrying the
 # matrix (an identity adds none); a 2D shape gets the in-plane part of the matrix. An invalid argument is a
 # warning and the instance yields nothing, except for the documented cases where the children are kept
-# untransformed or uncolored; a capability limit (a projective multmatrix, a color alpha below 1) is reported
-# as an unsupported feature. Each "tests" entry cites an existing test method in the
+# untransformed or uncolored; a capability limit (a projective multmatrix, a resize over a difference) is reported
+# as an unsupported feature. A color alpha is not a limit: it is carried into the appearance of the children
+# and rendered as transparency. Each "tests" entry cites an existing test method in the
 # DemaConsulting.CanvasNet.Scad.Tests project (ScadTransformsTests.cs, ScadResizeTests.cs, and
 # ScadColorsTests.cs in the Geometry folder); see
 # docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md for the test-evidence mapping.
@@ -202,16 +203,19 @@ sections:
                 title: >-
                   The ScadTransforms unit shall size a resize from the exact extent of the whole union of its
                   children, recomputed from the vertices when a rotation that is not a multiple of 90 degrees
-                  made the propagated box loose, shall use only X and Y for 2D shapes, and shall report
+                  made the propagated box loose, shall use only X and Y for 2D shapes, shall not count a
+                  ghost (a subtree marked with the background modifier) in that extent, and shall report
                   nothing for children that are exact.
                 justification: |
                   The result of a resize must have precisely the requested size; using the box of a rotated
-                  box would make rotated children too small.
+                  box would make rotated children too small, and a ghost is not part of the geometry whose
+                  size is requested.
                 tests:
                   - ScadResize_RotatedChild_UsesExactVertexExtent
                   - ScadResize_Union_UsesTheWholeExtent
                   - ScadResize_ExactChildren_ReportNothing
                   - ScadResize_Flat_ResizesInThePlane
+                  - ScadGeometryBuilder_Modifiers_Background_ContributesNoBounds_ButIsInReach
 
               - id: CanvasNetScad-ScadGeometry-ScadTransforms-ResizeDegenerate
                 title: >-
@@ -270,16 +274,21 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorAlpha
                 title: >-
-                  The ScadTransforms unit shall draw a color with an alpha below 1 (from a vector, a
-                  hexadecimal string, the alpha argument, or transparent) opaque and report the unsupported
-                  feature scad-color-alpha once at the location of the instance, shall let the alpha argument
-                  override the alpha of the color value, shall report nothing for an alpha of 1 or more, shall
-                  report an alpha without a color but color nothing, and shall throw in strict mode.
+                  The ScadTransforms unit shall carry the alpha of a color (from a vector, a hexadecimal
+                  string, the alpha argument, or transparent) as the alpha channel (round(alpha * 255)) of
+                  the appearance color of its children without reporting anything, shall let the alpha
+                  argument override the alpha of the color value in both directions, shall let the
+                  innermost color win including its alpha, shall carry the alpha of a 2D shape's color
+                  into the extruded solid and the flat slab, shall warn about an alpha without a color
+                  and color nothing, and shall not throw in strict mode for an alpha.
                 justification: |
-                  Transparency is not rendered yet; the degradation must be visible, and strict mode must be
-                  able to refuse it.
+                  The renderer honors the alpha of an appearance, so the alpha must reach it exactly and
+                  without a degradation report; an alpha that has no color to belong to is an authoring
+                  mistake that must be visible.
                 tests:
-                  - ScadColors_AlphaBelowOne_ReportsAndDrawsOpaque
-                  - ScadColors_FullAlpha_IsNotReportedAndAlphaArgumentOverrides
-                  - ScadColors_AlphaOnly_ReportsWithoutColoring
-                  - ScadColors_StrictMode_ThrowsForAlpha
+                  - ScadColors_AlphaBelowOne_SetsAppearanceAlphaWithoutReport
+                  - ScadColors_FullAlpha_AlphaArgumentOverridesColorAlpha
+                  - ScadColors_AlphaOnly_WarnsAndDoesNotColor
+                  - ScadColors_NestedColor_InnermostAlphaWins
+                  - ScadColors_AlphaOn2DShape_ReachesTheExtrusion
+                  - ScadColors_AlphaBelowOne_DoesNotThrowInStrictMode

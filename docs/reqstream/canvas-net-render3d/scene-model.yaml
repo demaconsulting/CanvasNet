@@ -60,12 +60,16 @@ sections:
 
           - id: CanvasNetRender3D-SceneModel-SceneGraph
             title: >-
-              The SceneModel subsystem shall provide an immutable scene graph of mesh, group, and
-              constructive-solid-geometry (CsgNode) nodes with validated double-precision
+              The SceneModel subsystem shall provide an immutable scene graph of mesh, group,
+              constructive-solid-geometry (CsgNode) and overlay (OverlayNode, an independent
+              translucent body) nodes with validated double-precision
               transforms and optional node colors, whose traversal composes transforms
-              child-then-parent, applies innermost-color-wins inheritance, assigns a stable draw
-              order, descends into the operands of boolean nodes, handles very deep nesting
-              without stack overflow, and yields tight world-space bounds.
+              child-then-parent, applies innermost-color-wins inheritance (an overlay forcing its
+              own color), assigns a stable draw
+              order, descends into the operands of boolean nodes and the bodies of overlays,
+              handles very deep nesting
+              without stack overflow, and yields tight world-space bounds with or without the
+              overlay bodies.
             justification: |
               Callers describe assemblies hierarchically; the renderer needs a flattened,
               deterministic, transform-composed view of that hierarchy.
@@ -78,5 +82,9 @@ sections:
               - CanvasNetRender3D-SceneModel-SceneGraph-DeepNesting
               - CanvasNetRender3D-SceneModel-SceneGraph-CsgNode
               - CanvasNetRender3D-SceneModel-SceneGraph-CsgEnumeration
+              - CanvasNetRender3D-SceneModel-SceneGraph-OverlayNode
+              - CanvasNetRender3D-SceneModel-SceneGraph-OverlayEnumeration
+              - CanvasNetRender3D-SceneModel-SceneGraph-OverlayBounds
             tests:
               - SceneModel_NestedGroups_BoundsMatchAnalytic
+              - SceneModel_OverlayBody_InstancesAndBoundsMatchAnalytic

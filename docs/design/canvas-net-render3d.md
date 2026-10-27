@@ -3,7 +3,7 @@
 <!-- cspell:ignore tessellator tessellators tessellation rasterizer rasterized supersampling supersampled -->
 <!-- cspell:ignore Sutherland Hodgman polyhedra polyhedron unlit Lambertian Phong Blinn -->
 <!-- cspell:ignore extrusions unmirrored Minkowski subtrahend subtrahends minuend speckle -->
-<!-- cspell:ignore tessellated watertight -->
+<!-- cspell:ignore tessellated watertight transmittance -->
 
 This document provides the system-level design for CanvasNetRender3D.
 
@@ -28,6 +28,7 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   immutable, validated, indexed triangle `Mesh`, the vertex-welding `MeshBuilder`, and the internal
   `MeshTopology` helper. `SceneGraph` provides the immutable scene graph — the abstract `SceneNode`,
   `MeshNode`, `GroupNode`, `CsgNode` (with `CsgOperation`: union, difference, intersection),
+  `OverlayNode` (an independent translucent body),
   `NodeAppearance`, and the `Scene` root — and the internal `SceneInstance` flattened view. See
   _SceneModel Subsystem Design_ (`canvas-net-render3d/scene-model.md`).
 - **Tessellation** (namespace `DemaConsulting.CanvasNet.Render3D.Tessellation`, folder
@@ -50,7 +51,8 @@ of `src/DemaConsulting.CanvasNet.Render3D/` (the root namespace itself contains 
   fixed-point setup and top-left-rule rasterizer, the z-buffer `DepthTestVisitor`, and the
   `IFragmentVisitor` contract. `FragmentBuffer` provides the internal per-worker, budgeted store of
   every fragment of a tile. `CsgResolver` provides the internal boolean-tree compiler
-  (`CsgCompiler`, `CsgProgram`) and the per-sample fragment-list `CsgResolver`. `SceneRenderer`
+  (`CsgCompiler`, `CsgProgram`), the integer layer accumulator `LayerCompositor` and the per-sample
+  fragment-list `CsgResolver`. `SceneRenderer`
   provides the public `SceneRenderer`, `SceneRenderOptions`, `RenderBudgetExceededException`,
   `SceneRenderUnsupportedFeature` and `SceneRenderUnsupportedFeatureException`, and the internal
   tile binner, sample resolver, per-worker tile workspace, and `CsgOperandValidator`. See
@@ -70,8 +72,9 @@ The system exposes the following public API:
 - **`SceneModel` namespace**: `Vector2D`, `Vector3D`, `Matrix4x4D`, and `BoundingBox3D` (immutable
   double-precision value types); `Mesh` (an immutable triangle mesh) and `MeshBuilder` (a mutable
   construction helper with vertex welding); the closed `SceneNode` hierarchy `MeshNode`,
-  `GroupNode`, and `CsgNode` (with the `CsgOperation` enumeration); the `NodeAppearance` record; and
-  `Scene`.
+  `GroupNode`, `CsgNode` (with the `CsgOperation` enumeration) and `OverlayNode`; the
+  `NodeAppearance` record; and
+  `Scene` (with `ComputeBounds()` and `ComputeBounds(bool includeOverlays)`).
 - **`Tessellation` namespace**: the static `PrimitiveTessellator` with `Box`, `Sphere`, `Cylinder`,
   `Polyhedron`, and the 2D factories `Rectangle`, `Ellipse`, `Circle`, and `Polygon`; the immutable
   `PolygonRegion`; the static `PolygonTriangulator` (`Triangulate`); the static `Extruder`
@@ -89,6 +92,7 @@ The system exposes the following public API:
 | ------------------------------- | ---------------- | ------------------------------------ | ---------------------------------------------------------------------- |
 | `Mesh` constructor | Inbound | Vertex and triangle-index sequences | Index count a multiple of three; indices in range; vertices finite; inputs copied |
 | `GroupNode` constructor | Inbound | Child node sequence | Sequence and each child non-null; sequence copied |
+| `OverlayNode` constructor | Inbound | `Rgba32` color (alpha honored), child node sequence | Sequence and each child non-null; sequence copied |
 | `SceneNode.Transform` | Inbound | `Matrix4x4D` | Every element finite |
 | `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
 | `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
@@ -97,8 +101,8 @@ The system exposes the following public API:
 | `MinkowskiSum.ConvexSum` | Inbound/Outbound | Two `Mesh` operands, `CancellationToken` / `Mesh` return | Non-null operands with triangles and volume; vertex-count product at most `MaxPairwiseSums` (`ArgumentException`); closed convex solids only (`NotSupportedException` otherwise) |
 | `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
 | `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
-| `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for CSG scenes with an unsuitable operand |
-| `RenderBudgetExceededException` | Outbound | Exception carrying `MaxFragmentsPerTile` | Thrown, never wrapped, when a CSG tile needs more fragments than the budget |
+| `SceneRenderOptions.UnsupportedFeatureHandler` | Outbound | `SceneRenderUnsupportedFeature` report (token, message, node) | Called on the calling thread before tile work, only for fragment-path scenes (CSG, translucent, overlay) with an unsuitable operand |
+| `RenderBudgetExceededException` | Outbound | Exception carrying `MaxFragmentsPerTile` | Thrown, never wrapped, when a fragment-path tile needs more fragments than the budget |
 | `SceneRenderer.Render(...)` | Inbound/Outbound | `Scene`, `Camera`, size / `Surface` | Non-null scene and camera; each dimension 1 to `Surface.MaxDimension` |
 | `SceneRenderer.RenderFitted(...)` | Inbound/Outbound | `Scene`, size / `Surface` | Non-null scene; each dimension 1 to `Surface.MaxDimension` |
 | `CancellationToken` argument | Inbound | Cooperative cancellation token | Cancellation yields `OperationCanceledException` |
@@ -340,12 +344,45 @@ These conventions are part of the public contract and are pinned by tests:
 - **Cancellation**: cooperative; surfaces as a plain `OperationCanceledException` (never wrapped in
   an `AggregateException`).
 
-### Alpha and Transparency (Current Limitation)
+### Alpha and Transparency
 
-Surfaces are opaque in Phases 1 and 2: the alpha of a node color, light color, default color, or
-back-face color is ignored and shaded surfaces are written with alpha 255. The background color's
-alpha **is** honored, so a render over a transparent background composites correctly with other
-content. Transparent surfaces are deferred to a later phase.
+The alpha of a `NodeAppearance` color **is honored** (Phase 8); the alpha of a light color, the
+`DefaultColor` and the `BackFaceColor` remains ignored (shaded surfaces of those colors are opaque).
+The background color's alpha is honored as well, so a render over a transparent background
+composites correctly with other content.
+
+- **Surfaces.** A color with alpha below 255 makes the _visible surfaces of the resolved solid_
+  translucent. A scene with a translucent appearance (or an overlay, or a boolean node) is resolved
+  per sample by the fragment-list resolver (see _Transparency Algorithm_); every other scene keeps
+  the z-buffer path and renders byte-identically to before.
+- **Union members merge.** Members of one union share a signed crossing counter, so a union of
+  overlapping translucent bodies shows only the boundary of the union; geometry fully enclosed by a
+  translucent solid of the same union is not visible. This is the only semantics consistent with
+  `difference` and `intersection`, and it is a documented limit. Independent see-through bodies are
+  expressed with `OverlayNode`.
+- **Cut surfaces and far walls.** The cut surface of a difference uses the subtrahend's own color and
+  alpha; the far wall of a translucent solid (and a cavity wall) uses the triangle's own base color
+  with the normal flipped toward the viewer. The back-face (exit) color is used only for the first
+  event of a body (the main body or an overlay body) when the ray starts inside it; the main body
+  behaves exactly as before.
+- **Alpha 0** is a fully transparent surface that is still solid: it takes part in the boolean
+  structure but adds no color.
+- **Solids required.** Like constructive solid geometry, a scene that uses transparency or overlays is
+  resolved with signed crossing counters, so its meshes must be closed, outward-wound solids; such
+  scenes are validated by the operand validator with the same feature tokens.
+
+### Overlay Nodes
+
+An `OverlayNode(color, children)` is an independent body: its children (a union) are drawn with the
+overlay's `Color` (alpha honored; a forced override of every appearance beneath it) and are **false**
+in the boolean structure of every ancestor, so an overlay neither adds to, subtracts from nor
+intersects the solid. The renderer resolves each overlay as a separate solid (its own program and
+signed counters) and depth-composites its layers with those of the main solid. An overlay nested in
+an overlay is a plain group. `Scene.ComputeBounds()` includes overlay bodies (so a fitted camera keeps
+a ghost in the picture); `Scene.ComputeBounds(false)` excludes them, which geometry operations that
+size the solid itself (such as a resize) use. Typical uses are a ghost (an overlay beside or around
+the solid, outside any boolean) and a highlight (the same node placed both in a boolean as the
+subtrahend and, wrapped in an overlay, beside it, so the cut and the translucent body both show).
 
 ### Closed-Mesh and Winding Contract
 
@@ -400,7 +437,8 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
    **signed crossing counter**: a front-facing fragment adds +1 and a back-facing one -1, and the
    leaf is inside exactly while its counter is positive. A difference is "first operand minus all
    others"; an intersection requires all operands. Scenes with no difference or intersection of two
-   or more operands compile to no program.
+   or more operands and no overlay compile to no program. An `OverlayNode` is **false** in the main
+   program; its body is compiled into a program of its own (see _Transparency Algorithm_).
 2. **Initial state.** The counter of each leaf at the start of the ray is minus the sum of the signed
    crossings of all its fragments (including those beyond the far distance), so a camera inside a
    solid starts with that solid inside.
@@ -409,7 +447,9 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
    depth is within the tolerance of the group's first depth (see _Known Limits_ for the tolerance).
    All fragments of a group are applied to the counters before the program is re-evaluated, which is
    what makes coincident faces of different operands resolve without speckle.
-4. **Visible event.** The first group that changes the program's result is the visible surface. The
+4. **Visible event.** The first group that changes the program's result is the visible surface of an
+   opaque result (with translucent surfaces and overlays it is the first _layer_; see _Transparency
+   Algorithm_). The
    fragment chosen within the group is the one whose leaf alone explains the change, then the lowest
    draw priority, then the lowest triangle index. Its depth and shade are written into the same
    sample buffer the z-buffer fills, so tile resolve, supersampling, and parallelism are shared.
@@ -428,6 +468,44 @@ ray, from the depth-sorted list of the ray's surface crossings (fragments):
    <!-- markdownlint-enable MD013 -->
 
    The cut surface of a difference is therefore never painted with the back-face color.
+
+### Transparency Algorithm
+
+Transparency extends the fragment-list resolver; it adds no new budget machinery and no new storage.
+
+1. **Path selection.** `SceneRenderer` takes the fragment path when the scene compiles to a program,
+   contains a translucent appearance (an instance appearance with alpha below 255) or an overlay. A
+   translucent scene without a boolean node gets the trivial single-leaf program. Scenes of the
+   fragment path are validated like constructive-solid-geometry operands. Opaque union-only scenes
+   keep the z-buffer path.
+2. **Alpha on shades.** After shading, the alpha of the owning appearance is set on all four
+   enter/exit shades of a triangle (lighting itself is opaque); the `DefaultColor` and `BackFaceColor`
+   never contribute alpha.
+3. **Overlay programs.** `CsgCompiler` gives each non-empty overlay body a program of its own over the
+   same global leaf numbering, so each leaf belongs to exactly one program; program 0 is the main
+   program (`FALSE` when only overlays exist).
+4. **Layer sweep.** The resolver keeps the tie-group sweep, but a program's result change is a
+   **layer**, not the end: for every group, each program owning a changed leaf is re-evaluated in
+   ascending program order and, if its result flipped, its fragment is chosen exactly as before
+   (restricted to that program's leaves). A layer's color is the triangle's `EnterColor`, except the
+   `ExitColor` for the first change of each program (the main program or an overlay program) when it
+   is an exit (the ray started inside that body). The layers of one group are applied overlay programs
+   first, then by draw priority and triangle index, so an overlay in front of a coincident main face
+   tints it.
+5. **Compositing.** `LayerCompositor` accumulates the layers front to back in integer arithmetic: with
+   the remaining transmittance `T` (255 at the start) a layer of alpha `a` takes `w = (T * a + 127) /
+   255` of it and adds `w * color`; an alpha of 255 takes all of `T`, which ends the sweep. The
+   remainder is filled with the background color, honoring its alpha, and the straight-alpha color is
+   the weighted sum divided by the total alpha. A single opaque layer returns its color exactly. The
+   sweep also ends at the far distance and at the end of the fragments.
+6. **Output.** The tile workspace receives the composite color with the depth and metadata of the
+   first layer (finite depth, so `SampleResolver` uses the color, and its premultiplied average handles
+   partial alpha); a sample without a layer is background.
+
+Everything is a pure function of the totally ordered fragment list, so the output is byte-identical
+across parallelism and runs. The fragment memory budget, `RenderBudgetExceededException`,
+cancellation polling and the coordinate guard are unchanged; overlay and translucent triangles are
+ordinary fragments, so an overlay of the same size doubles the fragments of its tile.
 
 ### Correctness Prerequisites
 
@@ -455,9 +533,10 @@ The algorithm is exact when all of the following hold:
   explicit, is supported, including a camera inside an operand (for example inside a hollow room,
   which shows the room's walls); it is not reported. Fragments beyond the far plane are retained
   for the inference and are only filtered when chosen as the visible surface.
-- **Scene bounds are conservative.** `Scene.ComputeBounds` includes every operand, even the
-  subtracted or intersected-away parts, so `FitToBounds` frames everything and an image may show
-  more margin than the result alone needs.
+- **Scene bounds are conservative.** `Scene.ComputeBounds()` includes every operand, even the
+  subtracted or intersected-away parts, and every overlay body, so `FitToBounds` frames everything
+  (a ghost stays in the picture) and an image may show
+  more margin than the result alone needs; `ComputeBounds(false)` leaves the overlay bodies out.
 - **Epsilon scaling.** The base tie tolerance is `1e-6 * max(scene diameter, |largest depth|)`,
   the Phase 1 value, so it scales with the scene. Events closer than the tolerance anywhere (thin
   features smaller than it, or a grazing silhouette fold whose front and back surfaces lie within
@@ -500,12 +579,14 @@ disposed on every exception.
 Each worker owns one fragment buffer, grown to exactly the need of a tile (8 bytes per fragment, a
 `float` depth and an `int` triangle index, plus three `int` arrays per sample) and reused, never
 above the budget. The default budget is about 32 MB per worker. Memory is independent of the image
-size because a tile is at most 32 x 32 pixels times the supersampling factor squared samples. A
-scene without a difference or intersection allocates no fragment storage and ignores the budget.
+size because a tile is at most 32 x 32 pixels times the supersampling factor squared samples. An
+opaque scene without a difference, intersection or overlay allocates no fragment storage and ignores
+the budget; a translucent or overlay scene is subject to it like any other fragment-path scene.
 
 ### Operand Validation Contract
 
-For a scene on the natural constructive-solid-geometry path (never a union-only scene, and not the
+For a scene on the natural fragment path (a difference or intersection, an overlay or a translucent
+appearance; never an opaque union-only scene, and not the
 internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is set or
 `ThrowOnUnsupportedFeature` is true (otherwise no analysis is performed), the internal
 `CsgOperandValidator` checks the meshes before `Render` does any transform or tile work:
@@ -513,7 +594,8 @@ internal forced-fragment-path test seam), when `UnsupportedFeatureHandler` is se
 - Instances are walked in scene pre-order and each `MeshNode` reference is analyzed and reported
   once, however many parents or paths share it; meshes with no triangles are skipped; the
   cancellation token is checked per instance.
-- **Every** mesh instance of the scene is validated, not only the direct operands of a difference or
+- **Every** mesh instance of the scene is validated (overlay bodies included), not only the direct
+  operands of a difference or
   intersection: all leaves use the signed counter, and an open mesh in a top-level union branch
   would vanish from the result.
 - For each node the tokens are reported in the fixed order of the table below.
@@ -597,8 +679,12 @@ requirements, design, verification, and tests for its own scope.
    results are closed, outward, valid constructive-solid-geometry operands, so no `SceneRendering` change was
    needed. Minkowski sums of non-convex solids and of 2D shapes are not part of this phase.
 5. **Later — Format front ends**, as separate packages that depend on this one.
-6. **Later — Transparency** (sorted fragment compositing; node
-   alpha is ignored until then), and **performance work** (vectorized edge evaluation and per-tile
+6. **Phase 8 — Transparency (delivered).** The alpha of a `NodeAppearance` color is honored through
+   sorted-layer compositing in the fragment-list resolver (new internal `LayerCompositor`, multi-program
+   `CsgResolver`), the new public `OverlayNode` adds independent translucent bodies, and
+   `Scene.ComputeBounds(bool)` can leave them out of the bounds. Opaque scenes are unchanged; the public
+   API change is additive only.
+7. **Later — Performance work** (vectorized edge evaluation and per-tile
    pruning, with equivalence tests against the scalar path; changing the default degree of
    parallelism is a non-breaking, one-line option change).
 

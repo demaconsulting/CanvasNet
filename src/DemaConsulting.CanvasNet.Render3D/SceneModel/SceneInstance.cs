@@ -13,4 +13,5 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneModel;
 /// <param name="Appearance">The innermost appearance on the path from the root, or <see langword="null"/> when none is set.</param>
 /// <param name="Order">The zero-based pre-order position of this instance among all instances; lower values have higher priority when coincident faces tie.</param>
 /// <param name="Node">The <see cref="MeshNode"/> this instance came from (the same node is reported once per path when shared); used to attribute diagnostics.</param>
-internal readonly record struct SceneInstance(Mesh Mesh, Matrix4x4D World, NodeAppearance? Appearance, int Order, MeshNode Node);
+/// <param name="InOverlay">Whether the instance lies beneath an <see cref="OverlayNode"/>, in which case <paramref name="Appearance"/> is the overlay's forced color.</param>
+internal readonly record struct SceneInstance(Mesh Mesh, Matrix4x4D World, NodeAppearance? Appearance, int Order, MeshNode Node, bool InOverlay = false);

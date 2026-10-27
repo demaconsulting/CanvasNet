@@ -3,12 +3,18 @@ using DemaConsulting.CanvasNet.Render3D.SceneModel;
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 /// <summary>
-///     The result of compiling a scene's node tree: the CSG program (when one is needed) and the leaf of every mesh instance.
+///     The result of compiling a scene's node tree: the CSG program (when one is needed), the programs of the
+///     overlay bodies and the leaf of every mesh instance.
 /// </summary>
-/// <param name="Program">The compiled program, or <see langword="null"/> when the scene is union-only and the z-buffer path renders it.</param>
+/// <param name="Program">The compiled main program, or <see langword="null"/> when the scene is union-only and has no overlay and the z-buffer path renders it.</param>
 /// <param name="LeafOfInstance">The leaf index of every mesh instance, indexed by <see cref="SceneInstance.Order"/> (pre-order position).</param>
-/// <param name="LeafCount">The number of leaves (collapsed union-only subtrees that contain at least one instance).</param>
-internal readonly record struct CsgCompilation(CsgProgram? Program, int[] LeafOfInstance, int LeafCount);
+/// <param name="LeafCount">The number of leaves (collapsed union-only subtrees that contain at least one instance), over all programs.</param>
+/// <param name="OverlayPrograms">The program of every non-empty <see cref="OverlayNode"/> body in pre-order (empty or <see langword="null"/> when the scene has no overlay); each leaf belongs to exactly one program.</param>
+internal readonly record struct CsgCompilation(
+    CsgProgram? Program,
+    int[] LeafOfInstance,
+    int LeafCount,
+    IReadOnlyList<CsgProgram>? OverlayPrograms = null);
 
 /// <summary>
 ///     Compiles a scene's node tree into a <see cref="CsgProgram"/> over union-collapsed leaves.
@@ -17,17 +23,26 @@ internal readonly record struct CsgCompilation(CsgProgram? Program, int[] LeafOf
 ///     <para>
 ///         <b>Union collapse.</b> A subtree is <em>union-only</em> when it contains no
 ///         <see cref="CsgOperation.Difference"/> or <see cref="CsgOperation.Intersection"/> node with
-///         two or more children (a single-child boolean is just that child). Each maximal union-only
+///         two or more children (a single-child boolean is just that child) and no
+///         <see cref="OverlayNode"/>. Each maximal union-only
 ///         subtree becomes one <b>leaf</b>: all its mesh instances share the leaf's signed crossing
-///         counter, whose positivity is the union of its meshes. A union-only root therefore needs no
-///         program at all (<see cref="CsgCompilation.Program"/> is <see langword="null"/>) and is
-///         rendered by the z-buffer fast path.
+///         counter, whose positivity is the union of its meshes. A union-only root without overlays therefore
+///         needs no program at all (<see cref="CsgCompilation.Program"/> is <see langword="null"/>) and is
+///         rendered by the z-buffer fast path when it is opaque.
 ///     </para>
 ///     <para>
 ///         <b>Other nodes.</b> A group or union node is the <c>Or</c> of its children,
 ///         <c>Difference</c> is <c>first AND NOT second AND NOT third ...</c>, <c>Intersection</c> is the
 ///         <c>And</c> chain, and a node with no children (or a subtree without any mesh) is
 ///         <c>FALSE</c>, for every operation.
+///     </para>
+///     <para>
+///         <b>Overlays.</b> An <see cref="OverlayNode"/> is <c>FALSE</c> in the main program (it neither unions,
+///         subtracts nor intersects). Its body is compiled at the moment it is met into a program of its own
+///         (<see cref="CsgCompilation.OverlayPrograms"/>): a union-only body is one collapsed leaf, a body with
+///         booleans gets normal frames. An overlay nested inside an overlay body is a plain group. All programs
+///         share one global leaf numbering and every leaf belongs to exactly one program. The two
+///         classifications of a shared node (main context and overlay-body context) are memoized separately.
 ///     </para>
 ///     <para>
 ///         <b>Instance mapping.</b> The tree is walked in the same pre-order, with children in order,
@@ -37,7 +52,8 @@ internal readonly record struct CsgCompilation(CsgProgram? Program, int[] LeafOf
 ///     </para>
 ///     <para>
 ///         <b>No recursion.</b> Every traversal uses an explicit stack so arbitrarily deep scenes
-///         cannot overflow the call stack. Stateless and thread-safe.
+///         cannot overflow the call stack (an overlay body is compiled by a second, non-nested walk, so the
+///         call depth is bounded). Stateless and thread-safe.
 ///     </para>
 /// </remarks>
 internal static class CsgCompiler
@@ -46,18 +62,60 @@ internal static class CsgCompiler
     ///     Compiles a node tree.
     /// </summary>
     /// <param name="root">The scene root.</param>
-    /// <returns>The program (or <see langword="null"/> for a union-only scene) and the instance-to-leaf mapping.</returns>
+    /// <returns>The main program (or <see langword="null"/> for a union-only scene without overlays), the overlay programs and the instance-to-leaf mapping.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="root"/> is <see langword="null"/>.</exception>
     public static CsgCompilation Compile(SceneNode root)
     {
         ArgumentNullException.ThrowIfNull(root);
 
-        var hasBoolean = ComputeHasBoolean(root);
+        var state = new CompileState(ComputeHasBoolean(root, overlayIsBody: true, new Dictionary<SceneNode, bool>(ReferenceEqualityComparer.Instance)));
         var code = new List<CsgInstruction>();
-        var leafOfInstance = new List<int>();
-        var leafCount = 0;
+        EmitProgram(state, root, state.MainMemo, mainContext: true, code);
 
-        // Walk the tree in pre-order, emitting postfix code; frames resume a node after each child
+        // A union-only scene without overlays needs no program: the z-buffer renders it exactly
+        if (!state.MainMemo[root])
+        {
+            return new CsgCompilation(null, [.. state.LeafOfInstance], state.LeafCount);
+        }
+
+        var program = new CsgProgram(code, state.LeafCount);
+        var overlays = state.OverlayCodes.Select(overlayCode => new CsgProgram(overlayCode, state.LeafCount)).ToArray();
+        return new CsgCompilation(program, [.. state.LeafOfInstance], state.LeafCount, overlays);
+    }
+
+    /// <summary>The mutable state of one compilation.</summary>
+    private sealed class CompileState
+    {
+        /// <summary>Creates the state.</summary>
+        /// <param name="mainMemo">The has-boolean classification of the main context (an overlay counts as a boolean node).</param>
+        public CompileState(Dictionary<SceneNode, bool> mainMemo) => MainMemo = mainMemo;
+
+        /// <summary>Gets the classification of the main context.</summary>
+        public Dictionary<SceneNode, bool> MainMemo { get; }
+
+        /// <summary>Gets the classification of overlay bodies (an overlay counts as a plain group), filled on demand.</summary>
+        public Dictionary<SceneNode, bool> BodyMemo { get; } = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>Gets the leaf of every instance in pre-order.</summary>
+        public List<int> LeafOfInstance { get; } = [];
+
+        /// <summary>Gets the code of every non-empty overlay body in pre-order.</summary>
+        public List<List<CsgInstruction>> OverlayCodes { get; } = [];
+
+        /// <summary>Gets or sets the number of leaves allocated so far.</summary>
+        public int LeafCount { get; set; }
+    }
+
+    /// <summary>
+    ///     Emits the postfix code of one program by walking <paramref name="root"/> in pre-order; frames resume a node after each child.
+    /// </summary>
+    /// <param name="state">The compilation state.</param>
+    /// <param name="root">The root of the program (the scene root, or an overlay whose body is compiled).</param>
+    /// <param name="memo">The has-boolean classification valid for this context.</param>
+    /// <param name="mainContext"><see langword="true"/> for the main program, where an overlay is <c>FALSE</c> and compiled separately; <see langword="false"/> inside an overlay body, where it is a group.</param>
+    /// <param name="code">Receives the instructions.</param>
+    private static void EmitProgram(CompileState state, SceneNode root, Dictionary<SceneNode, bool> memo, bool mainContext, List<CsgInstruction> code)
+    {
         var stack = new Stack<Frame>();
         EnterNode(root);
         while (stack.Count > 0)
@@ -77,18 +135,18 @@ internal static class CsgCompiler
             }
         }
 
-        // A union-only scene needs no program: the z-buffer renders it exactly
-        if (!hasBoolean[root])
-        {
-            return new CsgCompilation(null, [.. leafOfInstance], leafCount);
-        }
-
-        return new CsgCompilation(new CsgProgram(code, leafCount), [.. leafOfInstance], leafCount);
-
         // Emits a collapsed leaf / FALSE for a union-only subtree, or opens a frame for a boolean node
         void EnterNode(SceneNode node)
         {
-            if (!hasBoolean[node])
+            // In the main program an overlay is FALSE; its body becomes a program of its own right now (pre-order leaf numbers)
+            if (mainContext && node is OverlayNode overlay)
+            {
+                code.Add(new CsgInstruction(CsgOpCode.PushFalse, 0));
+                EmitOverlayBody(state, overlay);
+                return;
+            }
+
+            if (!memo[node])
             {
                 var count = CountInstances(node);
                 if (count == 0)
@@ -98,10 +156,10 @@ internal static class CsgCompiler
                 }
 
                 // All instances of the collapsed subtree share one leaf
-                var leaf = leafCount++;
+                var leaf = state.LeafCount++;
                 for (var i = 0; i < count; i++)
                 {
-                    leafOfInstance.Add(leaf);
+                    state.LeafOfInstance.Add(leaf);
                 }
 
                 code.Add(new CsgInstruction(CsgOpCode.PushLeaf, leaf));
@@ -117,6 +175,28 @@ internal static class CsgCompiler
             }
 
             stack.Push(new Frame(children, CombinerOf(operation), 0));
+        }
+    }
+
+    /// <summary>
+    ///     Compiles the body of an overlay into its own program (nothing is added for a body without meshes).
+    /// </summary>
+    /// <param name="state">The compilation state.</param>
+    /// <param name="overlay">The overlay.</param>
+    private static void EmitOverlayBody(CompileState state, OverlayNode overlay)
+    {
+        // Inside a body overlays are groups, so classify the subtree with that rule (shared nodes are memoized)
+        if (!state.BodyMemo.ContainsKey(overlay))
+        {
+            ComputeHasBoolean(overlay, overlayIsBody: false, state.BodyMemo);
+        }
+
+        var leavesBefore = state.LeafCount;
+        var code = new List<CsgInstruction>();
+        EmitProgram(state, overlay, state.BodyMemo, mainContext: false, code);
+        if (state.LeafCount != leavesBefore)
+        {
+            state.OverlayCodes.Add(code);
         }
     }
 
@@ -152,6 +232,10 @@ internal static class CsgCompiler
             case CsgNode csg:
                 operation = csg.Operation;
                 return csg.Children;
+            case OverlayNode overlay:
+                // Only reached where an overlay is a plain group (inside an overlay body)
+                operation = CsgOperation.Union;
+                return overlay.Children;
             default:
                 operation = CsgOperation.Union;
                 return null;
@@ -160,18 +244,29 @@ internal static class CsgCompiler
 
     /// <summary>
     ///     Determines, for every node reachable from the root, whether its subtree contains a
-    ///     difference or intersection with two or more children. Shared nodes are evaluated once.
+    ///     difference or intersection with two or more children (or, in the main context, an overlay).
+    ///     Shared nodes are evaluated once per memo.
     /// </summary>
-    /// <param name="root">The scene root.</param>
-    /// <returns>The flag per node, compared by reference.</returns>
-    private static Dictionary<SceneNode, bool> ComputeHasBoolean(SceneNode root)
+    /// <param name="root">The subtree root.</param>
+    /// <param name="overlayIsBody"><see langword="true"/> to classify an overlay as a boolean node without descending into it (main context); <see langword="false"/> to treat it as a plain group (inside an overlay body).</param>
+    /// <param name="result">The memo, compared by reference; nodes already present are not evaluated again.</param>
+    /// <returns><paramref name="result"/>, now containing every node reachable from <paramref name="root"/>.</returns>
+    private static Dictionary<SceneNode, bool> ComputeHasBoolean(SceneNode root, bool overlayIsBody, Dictionary<SceneNode, bool> result)
     {
-        var result = new Dictionary<SceneNode, bool>(ReferenceEqualityComparer.Instance);
         var stack = new List<(SceneNode Node, int Next)> { (root, 0) };
 
         while (stack.Count > 0)
         {
             var (node, next) = stack[^1];
+
+            // In the main context an overlay is opaque to the walk: its body is classified separately
+            if (overlayIsBody && node is OverlayNode)
+            {
+                result[node] = true;
+                stack.RemoveAt(stack.Count - 1);
+                continue;
+            }
+
             var children = ChildrenOf(node, out var operation);
 
             // A mesh node is a leaf of the tree

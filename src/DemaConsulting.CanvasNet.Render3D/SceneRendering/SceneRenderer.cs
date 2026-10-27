@@ -26,9 +26,10 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     </para>
 ///     <para>
 ///         <b>Constructive solid geometry.</b> The scene tree is first compiled into leaves (maximal
-///         union-only subtrees) and a boolean program. A <b>union-only</b> scene (no difference or
-///         intersection of two or more operands) takes the z-buffer path above, unchanged and with no
-///         fragment storage. Otherwise each tile collects <em>every</em> fragment of every sample
+///         union-only subtrees) and a boolean program. An <b>opaque union-only</b> scene (no difference or
+///         intersection of two or more operands, no <see cref="OverlayNode"/>, every appearance alpha 255) takes
+///         the z-buffer path above, unchanged and with no fragment storage. Otherwise each tile collects
+///         <em>every</em> fragment of every sample
 ///         (an exact-sized count pass and fill pass), and a per-sample resolver evaluates the program
 ///         along the ray in depth order to find the visible surface of the result (see the CSG
 ///         resolver design); the chosen depth and shade go into the same sample buffers, so
@@ -40,6 +41,16 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///         rendering otherwise proceeds. A tile needing more than
 ///         <see cref="SceneRenderOptions.MaxFragmentsPerTile"/> fragments throws
 ///         <see cref="RenderBudgetExceededException"/>.
+///     </para>
+///     <para>
+///         <b>Transparency.</b> The alpha of a <see cref="NodeAppearance"/> color (and of an
+///         <see cref="OverlayNode"/> color) is honored. A scene with a translucent appearance or an overlay takes
+///         the fragment path even when it has no boolean node (the meshes must then be closed solids and are
+///         validated like CSG operands). The resolver composites the surface layers of each sample front to back
+///         until an opaque layer and then over <see cref="SceneRenderOptions.BackgroundColor"/>; the layers of
+///         overlays are independent solids interleaved by depth. The alpha of
+///         <see cref="SceneRenderOptions.DefaultColor"/> and <see cref="SceneRenderOptions.BackFaceColor"/> is ignored.
+///         Opaque scenes render exactly as before.
 ///     </para>
 ///     <para>
 ///         <b>Determinism.</b> Coverage is integer-exact, fragment resolution uses a total order, and
@@ -161,16 +172,18 @@ public static class SceneRenderer
 
         var view = new ViewTransform(camera, width / (double)height);
 
-        // Decide the path: a union-only scene has no program and is rendered by the z-buffer
+        // Decide the path: a union-only opaque scene has no program and is rendered by the z-buffer. A scene with
+        // booleans, overlays or any translucent appearance is resolved from per-sample fragment lists instead
         var compilation = CsgCompiler.Compile(scene.Root);
         var program = compilation.Program;
-        var csgScene = program is not null;
-        if (program is null && forceFragmentPath && compilation.LeafCount > 0)
+        var translucent = HasTranslucentInstance(scene, cancellationToken);
+        var csgScene = program is not null || translucent;
+        if (program is null && (forceFragmentPath || translucent) && compilation.LeafCount > 0)
         {
             program = new CsgProgram([new CsgInstruction(CsgOpCode.PushLeaf, 0)], compilation.LeafCount);
         }
 
-        // Operands of a real CSG scene must be solids; problems are reported before any rendering work
+        // Operands of a CSG, overlay or translucent scene must be solids; problems are reported before any rendering work
         if (csgScene)
         {
             CsgOperandValidator.Validate(scene, options, cancellationToken);
@@ -204,7 +217,8 @@ public static class SceneRenderer
         var surface = new Surface(width, height);
         try
         {
-            var job = new TileJob(triangles, bins, surface, options, epsilon, (float)far, program);
+            var programs = program is null ? null : BuildProgramList(program, compilation.OverlayPrograms);
+            var job = new TileJob(triangles, bins, surface, options, epsilon, (float)far, programs);
             RenderTiles(job, cancellationToken);
         }
         catch
@@ -254,6 +268,44 @@ public static class SceneRenderer
             Camera.DefaultElevationDegrees,
             width / (double)height);
         return Render(scene, camera, width, height, options, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Determines whether any mesh instance has a translucent appearance (alpha below 255); the alpha of the
+    ///     renderer's default and back-face colors is never honored, so only explicit appearances count.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><see langword="true"/> when the scene needs the layer-compositing fragment path.</returns>
+    private static bool HasTranslucentInstance(Scene scene, CancellationToken cancellationToken)
+    {
+        foreach (var instance in scene.EnumerateInstances())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (instance.Appearance is { Color.A: < 255 })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Builds the resolver's program list: the main program followed by the overlay programs.
+    /// </summary>
+    /// <param name="main">The main program.</param>
+    /// <param name="overlays">The overlay programs, or <see langword="null"/> when there are none.</param>
+    /// <returns>The list.</returns>
+    private static CsgProgram[] BuildProgramList(CsgProgram main, IReadOnlyList<CsgProgram>? overlays)
+    {
+        var programs = new List<CsgProgram>(1 + (overlays?.Count ?? 0)) { main };
+        if (overlays is not null)
+        {
+            programs.AddRange(overlays);
+        }
+
+        return [.. programs];
     }
 
     /// <summary>Validates the output size.</summary>
@@ -452,7 +504,10 @@ public static class SceneRenderer
         // CSG shading: an entering event shows the result surface (the leaf's own color, lit from the
         // viewer-facing normal, so a back-facing subtrahend triangle is a cut surface with a flipped
         // normal); a leaving event means the viewer is inside material and shows the back-face color.
-        // The plane of the rasterized (narrowed) vertices lets the resolver tell coincident faces from near ones.
+        // The alpha of the owning appearance rides in every one of these shades (the lighting itself is opaque);
+        // the default and back-face colors never contribute alpha. The plane of the rasterized (narrowed) vertices
+        // lets the resolver tell coincident faces from near ones.
+        var alpha = instance.Source.Appearance is { } appearance ? appearance.Color.A : (byte)255;
         var narrowedA = Narrow(a);
         var narrowedB = Narrow(b);
         var narrowedC = Narrow(c);
@@ -466,14 +521,20 @@ public static class SceneRenderer
             FrontColor = front,
             BackColor = back,
             Leaf = leaf,
-            FrontEnterColor = front,
-            FrontExitColor = LightingModel.Shade(normal, options.BackFaceColor, lights, options.SpecularStrength, options.SpecularPower, worldToView),
-            BackEnterColor = LightingModel.Shade(-normal, baseColor, lights, options.SpecularStrength, options.SpecularPower, worldToView),
-            BackExitColor = back,
+            FrontEnterColor = WithAlpha(front, alpha),
+            FrontExitColor = WithAlpha(LightingModel.Shade(normal, options.BackFaceColor, lights, options.SpecularStrength, options.SpecularPower, worldToView), alpha),
+            BackEnterColor = WithAlpha(LightingModel.Shade(-normal, baseColor, lights, options.SpecularStrength, options.SpecularPower, worldToView), alpha),
+            BackExitColor = WithAlpha(back, alpha),
             PlaneNormal = plane.Normal,
             PlanePoint = plane.Point,
         };
     }
+
+    /// <summary>Replaces the alpha of a shaded color.</summary>
+    /// <param name="color">The shaded color.</param>
+    /// <param name="alpha">The alpha to apply.</param>
+    /// <returns>The color with the new alpha.</returns>
+    private static Rgba32 WithAlpha(Rgba32 color, byte alpha) => new(color.R, color.G, color.B, alpha);
 
     /// <summary>
     ///     Computes the supporting plane of a narrowed view-space triangle: its unit normal and its centroid.
@@ -524,7 +585,7 @@ public static class SceneRenderer
         if (job.Options.MaxDegreeOfParallelism == 1)
         {
             // Sequential: one worker on the calling thread; a budget exception propagates unchanged
-            var worker = new TileWorker(capacity, job.Program, job.Options.MaxFragmentsPerTile);
+            var worker = new TileWorker(capacity, job.Programs, job.Options);
             for (var tile = 0; tile < tileCount; tile++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -547,7 +608,7 @@ public static class SceneRenderer
                 0,
                 tileCount,
                 parallelOptions,
-                () => new TileWorker(capacity, job.Program, job.Options.MaxFragmentsPerTile),
+                () => new TileWorker(capacity, job.Programs, job.Options),
                 (tile, _, worker) =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -670,15 +731,15 @@ public static class SceneRenderer
         ///     Creates a worker.
         /// </summary>
         /// <param name="capacity">The maximum number of samples in a tile.</param>
-        /// <param name="program">The CSG program, or <see langword="null"/> on the z-buffer path.</param>
-        /// <param name="maxFragments">The fragment budget per tile.</param>
-        public TileWorker(int capacity, CsgProgram? program, long maxFragments)
+        /// <param name="programs">The CSG programs (main first, then overlays), or <see langword="null"/> on the z-buffer path.</param>
+        /// <param name="options">The render options (fragment budget and background color).</param>
+        public TileWorker(int capacity, IReadOnlyList<CsgProgram>? programs, SceneRenderOptions options)
         {
             Workspace = new TileWorkspace(capacity);
-            if (program is not null)
+            if (programs is not null)
             {
-                Fragments = new FragmentBuffer(maxFragments);
-                Resolver = new CsgResolver(program);
+                Fragments = new FragmentBuffer(options.MaxFragmentsPerTile);
+                Resolver = new CsgResolver(programs, options.BackgroundColor);
             }
         }
 
@@ -727,7 +788,7 @@ public static class SceneRenderer
     /// <param name="Options">The render options.</param>
     /// <param name="Epsilon">The depth tie tolerance.</param>
     /// <param name="FarDepth">The far distance.</param>
-    /// <param name="Program">The compiled CSG program, or <see langword="null"/> for the z-buffer fast path.</param>
+    /// <param name="Programs">The compiled CSG programs (the main program first, then the overlay programs), or <see langword="null"/> for the z-buffer fast path.</param>
     private sealed record TileJob(
         List<ScreenTriangle> Triangles,
         TileBins Bins,
@@ -735,5 +796,5 @@ public static class SceneRenderer
         SceneRenderOptions Options,
         float Epsilon,
         float FarDepth,
-        CsgProgram? Program);
+        IReadOnlyList<CsgProgram>? Programs);
 }

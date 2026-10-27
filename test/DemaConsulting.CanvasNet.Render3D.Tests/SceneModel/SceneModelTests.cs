@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.Tests.SceneModel;
@@ -70,5 +71,31 @@ public class SceneModelTests
         // Assert
         Assert.Equal(Vector3D.Zero, bounds.Min);
         Assert.Equal(new Vector3D(4, 5, 1), bounds.Max);
+    }
+
+    /// <summary>
+    ///     Validates that an overlay body inside nested groups is flattened with its forced color and marker,
+    ///     and that the bounds with and without overlays match the analytic boxes.
+    /// </summary>
+    [Fact]
+    public void SceneModel_OverlayBody_InstancesAndBoundsMatchAnalytic()
+    {
+        // Arrange: a unit cube and, under a shifted group, an overlay holding a cube shifted by (3, 0, 0)
+        var cube = Render3DTestHelpers.CreateBoxMesh(Vector3D.Zero, Vector3D.One);
+        var overlayColor = new Rgba32(10, 20, 30, 60);
+        var overlay = new OverlayNode(overlayColor, [new MeshNode(cube) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(3, 0, 0)) }]);
+        var scene = new Scene(new GroupNode([new MeshNode(cube), new GroupNode([overlay]) { Transform = Matrix4x4D.CreateTranslation(new Vector3D(0, 4, 0)) }]));
+
+        // Act
+        var instances = scene.EnumerateInstances().ToList();
+
+        // Assert
+        Assert.Equal(2, instances.Count);
+        Assert.False(instances[0].InOverlay);
+        Assert.True(instances[1].InOverlay);
+        Assert.Equal(overlayColor, instances[1].Appearance!.Color);
+        Assert.Equal(new Vector3D(1, 1, 1), scene.ComputeBounds(false).Max);
+        Assert.Equal(new Vector3D(4, 5, 1), scene.ComputeBounds(true).Max);
+        Assert.Equal(scene.ComputeBounds(true), scene.ComputeBounds());
     }
 }

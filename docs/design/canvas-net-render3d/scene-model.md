@@ -19,7 +19,7 @@ It contains three units:
   _DoublePrecisionMath Unit Design_ (`scene-model/double-precision-math.md`)
 - **Mesh** — `Mesh`, `MeshBuilder`, and the internal `MeshTopology` and `MeshTopologyDefects`; see
   _Mesh Unit Design_ (`scene-model/mesh.md`)
-- **SceneGraph** — `SceneNode`, `MeshNode`, `GroupNode`, `CsgNode`, `CsgOperation`,
+- **SceneGraph** — `SceneNode`, `MeshNode`, `GroupNode`, `CsgNode`, `OverlayNode`, `CsgOperation`,
   `NodeAppearance`, `Scene`, and the internal `SceneInstance`; see _SceneGraph Unit Design_
   (`scene-model/scene-graph.md`)
 
@@ -29,7 +29,8 @@ The subsystem's namespace documentation is in `NamespaceDoc.cs`, which declares 
 
 **Exposed** (all public, in the `SceneModel` namespace): the value types `Vector2D`, `Vector3D`,
 `Matrix4x4D`, and `BoundingBox3D`; `Mesh` and `MeshBuilder`; `SceneNode`, `MeshNode`, `GroupNode`,
-`CsgNode`, `CsgOperation`, `NodeAppearance`; and `Scene`. Every type is immutable once constructed except `MeshBuilder`,
+`CsgNode`, `OverlayNode`, `CsgOperation`, `NodeAppearance`; and `Scene`. Every type is immutable once
+constructed except `MeshBuilder`,
 which is a construction helper whose `Build` method returns independent immutable meshes.
 
 **Internal, exposed to the renderer within the assembly**: `Mesh.VertexSpan` and `Mesh.IndexSpan`
@@ -50,7 +51,7 @@ The units form a short stack: `DoublePrecisionMath` is the foundation; `Mesh` st
 `SceneNode.Transform`, or `Scene` that exists is valid, so downstream code never re-validates.
 
 Immutability is enforced by defensive copying: `Mesh` copies its vertex and index sequences into
-private arrays and exposes them as read-only collections; `GroupNode` and `CsgNode` copy their child
+private arrays and exposes them as read-only collections; `GroupNode`, `CsgNode` and `OverlayNode` copy their child
 sequences.
 A `Scene` therefore cannot change after construction, which makes rendering deterministic and lets
 one `Scene` be rendered concurrently from several threads. `Scene` caches its computed bounds, and
