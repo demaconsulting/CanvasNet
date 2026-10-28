@@ -1,0 +1,72 @@
+---
+# Software Unit Requirements for ViewLayout
+#
+# These requirements describe the design-level behavior of the ViewLayout unit of the Layout subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the Vega-Lite view size and padding defaults,
+# the two-phase layout (measure the bounds, the title placement, and the canvas; then build the scene), the
+# autosize modes pad and none, and the view background and border. The default size and the layout follow
+# Vega-Lite and Vega behavior, attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/layout/view-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: ViewLayout Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Layout-ViewLayout-Sizes
+                title: >-
+                  The ViewLayout unit shall resolve the width and height of the data rectangle from the
+                  specification (a number, a step, or container), then the configuration view size, then
+                  the discrete step hints of the scales, and the padding from a number or a side object
+                  (a missing side being zero), with the documented precedence.
+                justification: |
+                  The size of a chart is the first thing a reader sees, and it must follow one documented
+                  rule.
+                tests:
+                  - ViewLayout_Resolve_SizesComeFromSpecificationConfigurationAndHints
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-DataRectangle
+                title: >-
+                  The ViewLayout unit shall place the data rectangle inside the padding and the title and
+                  size the canvas around it for the autosize modes pad (the canvas grows to hold
+                  everything) and none (the canvas is the size given, whatever sticks out), including a
+                  container size that contains the padding.
+                justification: |
+                  The data rectangle is the frame of reference for all geometry of a chart.
+                tests:
+                  - ViewLayout_Compute_PaddingTitleAndAutosizeProduceExpectedDataRectangle
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-GuideExtents
+                title: >-
+                  The ViewLayout unit shall grow the canvas by the extents the axes need on each side and
+                  by a title that is wider than the view, in whole pixels on both sides.
+                justification: |
+                  Axes and titles outside the data rectangle must not be cut off.
+                tests:
+                  - ViewLayout_Compute_GuideExtentsGrowTheCanvas
+                  - ViewLayout_Compute_WideTitleGrowsCanvasByWholePixelsOnBothSides
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-Appearance
+                title: >-
+                  The ViewLayout unit shall resolve the fill, stroke, stroke width, opacity, dash, and
+                  corner radius of the view from the specification, the view and cell style
+                  configuration, and the defaults, and the background of the canvas from the caller, the
+                  specification, the configuration, and white, in that order of precedence.
+                justification: |
+                  The background and border of the view are visible in every chart and are the main way
+                  callers restyle it.
+                tests:
+                  - ViewLayout_Resolve_ViewStyleAndBackgroundFollowPrecedence
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-SceneAssembly
+                title: >-
+                  The ViewLayout unit shall build the scene as a root group with the background holding
+                  the view group (with its clip, border, and rounding following the measure), the
+                  content in drawing order, and the title group last.
+                justification: |
+                  The scene is the assertion surface of the layout, and its structure decides the drawing
+                  order.
+                tests:
+                  - ViewLayout_Build_ContentTitleClipAndRoundingFollowTheMeasure

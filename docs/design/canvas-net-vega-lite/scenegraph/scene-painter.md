@@ -1,0 +1,88 @@
+### ScenePainter
+
+![Scenegraph Structure](VegaLiteScenegraphView.svg)
+
+The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It is one source file,
+`ScenePainter.cs`, in the `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, and defines two `internal` types:
+`ScenePainter` (sealed class) and `ScenePlacement` (readonly record struct). The file carries the provenance header comment
+for the Vega rendering behavior it ports.
+
+#### Purpose
+
+`ScenePainter` draws a `Scene` onto a core `Surface` using only the public CanvasNet drawing API. The core library has
+fills, strokes, dashes, and text but no scale and no clip, so the painter supplies both. It exists so that all pixel output
+of the system comes from one deterministic, tested place, and so that the rest of the system never touches a pixel.
+
+The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-ScenePainter-*` requirements in
+`docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml`.
+
+#### Data Model
+
+**`ScenePlacement`** `(Scale, OffsetX, OffsetY)` says where the scene goes: `Uniform(scale)` places it at the
+origin enlarged by a factor, and `Fit(sceneWidth, sceneHeight, targetWidth, targetHeight)` scales it uniformly by the
+largest factor that fits and centers it (a scene without area is not scaled).
+
+**`ScenePainter`** (stateless, thread-safe) holds the `TextMeasurer` that resolves fonts and produces the lines
+to draw. A private context carries the target surface, the current transform (a `Matrix3x2` holding the uniform scale and
+translations), and the scale.
+
+**Painting rules.**
+
+- The surface is filled with the scene's background (transparent when none or unparseable), then the items are drawn in
+  list order, parents first. Fills and strokes are anti-aliased by the core path filler; opacity is folded into the
+  alpha of the color; a paint that is `none`, invalid, or fully transparent draws nothing; an item of opacity zero or a
+  non-finite coordinate is skipped.
+- Every path is transformed by the placement and the enclosing groups' translations before it is filled. The stroke of an
+  item is built in the item's own units with the core `PathStroker` (width, dash, cap, and join) and then
+  filled, so widths and dashes scale with the chart. Fills are flattened to 0.02 pixel so that symbols a few
+  pixels wide stay round.
+- A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
+  Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row).
+- **Clipping**: a group with a clip draws its children onto a transparent layer the size of the clip's pixel box and
+  composites the layer back with the per-pixel coverage of the clip rectangle (exact on integer edges, anti-aliased on
+  fractional edges, nested clips intersecting); the corner radius of a clip is not applied. Memory is the clip's pixel box,
+  not the whole surface.
+- **Symbols** use Vega's geometry with `size` as the area of the bounding box (circle, square, cross, diamond, arrow, wedge,
+  the triangles, and stroke; an unknown shape is a circle), rotated about the center.
+- **Text** is filled only (a stroke on text is ignored), at the scaled font size, with the font that the measurer resolves,
+  each line drawn at its baseline using Vega's baseline offsets and alignment, rotated about the text position; the lines
+  are those the measurer produced (trimmed and truncated to the limit).
+
+#### Key Methods
+
+- `Paint(Scene, int width, int height, ScenePlacement, CancellationToken)` - creates a surface of the
+  given size, paints the scene, and returns it; the surface is disposed if painting fails; the caller owns the result.
+- `Paint(Scene scene, Surface surface, ScenePlacement placement, CancellationToken token)` - requires non-null arguments
+  and a finite positive scale, clears it with the background, builds the transform, and paints the root group; the
+  token is polled per group and per item.
+- `SymbolPath(string shape, double size)` (internal static) - the path of a symbol shape at the origin; empty for a
+  size that is not positive and finite.
+- `ScenePlacement.Uniform` and `ScenePlacement.Fit` - the two placements `VegaLiteDocument` uses.
+
+**Pre- and postconditions**: the scene is non-null; on return the surface holds the drawing, deterministic for the
+same scene, size, and placement.
+
+#### Error Handling
+
+A null scene or surface is `ArgumentNullException` and a scale that is not finite and positive is
+`ArgumentOutOfRangeException`; these are programming errors and are not converted. A width or height outside the surface
+limits is rejected by the `Surface` constructor (the document validates sizes first). A canceled token is an
+`OperationCanceledException`, and the surface that an overload created is disposed. Bad content never throws: an
+unparseable color draws nothing, a non-finite coordinate or a zero-sized rectangle or clip is skipped, and an unknown shape
+is a circle.
+
+#### Dependencies
+
+- **`Scene`** and the item types - the `SceneModel` unit
+- **`CssColor`** - color parsing, in the `CssColor` unit
+- **`TextMeasurer`** - font resolution and text lines, in the `Guides` subsystem
+- **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CompositeOverSpan` (`Canvas`), `PathFiller` and `PathStroker`
+  (`Drawing`), `Path`, `PathBuilder`, and `Transform` (`Geometry`), and `TextRenderer` (`Rendering`), through their public
+  API
+- **.NET base class library** - `System.Numerics` (`Matrix3x2`, `Vector2`), `System.Threading`
+
+#### Callers
+
+`VegaLiteDocument` paints the scene of every `Render` call (with `ScenePlacement.Uniform` or `Fit`). The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs` call the painter directly through
+`InternalsVisibleTo` and check analytic pixels.

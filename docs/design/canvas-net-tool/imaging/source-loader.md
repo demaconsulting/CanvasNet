@@ -11,23 +11,28 @@ responsibility is to know how to read each source format: it recognizes the form
 size policy and the options that belong to reading (page, resolution, orientation, background, strictness), and
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
-`SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`, and
-`SourceLoader.Scad.cs`),
+`SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
+`SourceLoader.Scad.cs`, and `SourceLoader.VegaLite.cs`),
 `ExifOrientation`, the pixel helpers `SurfaceOperations`, and the supporting types in `SourceModels.cs`.
 
 #### Data Model
 
-**SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`, in the
-order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON.
+**SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`, `VegaLite`, in the
+order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON
+(`vega-lite` for `VegaLite`, the one name that is not the lower-case member name). `IsChart(kind)` is true for
+`VegaLite`.
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
-at 96 dots per inch; for a model 800 by 800, the natural size of a view), `Channels`, `HasAlpha`, `CanDecode`,
+at 96 dots per inch; for a model 800 by 800, the natural size of a view; for a chart the size the library lays it out at), `Channels`, `HasAlpha`, `CanDecode`,
 `FrameCount`, `PageCount` (1 for a single image or a model),
 `ExifOrientation` (JPEG only), and the lists `Pages` (the pages of a document; empty for a single image or a model),
 `Modules`, and `Functions` (the names a model defines at file scope, in source order; empty for every other kind),
-and `Directives` (an `init` property: the `include` and `use` directives of a model as `SourceDirective` records of
-kind, path, and line; empty for every other kind).
+`Directives` (an `init` property: the `include` and `use` directives of a model as `SourceDirective` records of
+kind, path, and line; empty for every other kind), and `Chart` (an `init` property: a `ChartFacts` record - the `Marks`
+as written, the `DataReferences` as `ChartDataReference` records of `Kind` (`inline`, `url`, `name`, or `sequence`),
+`Url`, `Rows`, and `Line`, the `Parameters` names, the `Title`, and the `SchemaMajorVersion` - for a Vega-Lite chart;
+`null` for every other kind).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
@@ -52,8 +57,10 @@ number, a flag, or a list of strings).
 **PageSource** (abstract, `IDisposable`): a source opened for loading its pages; `ReadPage(page)` loads one. It is
 what `OpenPages` returns.
 
-**ExtensionKinds**: the table of file name extensions (lower case, with the dot) and their kinds; the `formats`
-command lists the same extensions and a test keeps the two consistent.
+**ExtensionKinds**: the table of file name extensions (lower case, with the dot) and their kinds (`.vl` is the
+chart extension); the `formats` command lists the same extensions and a test keeps the two consistent. The two-part
+suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an extension (the extension of such a file is `.json`),
+so it is checked on the file name and the `formats` listing adds it to the extensions of the `vega-lite` row.
 
 #### Key Methods
 
@@ -65,7 +72,18 @@ entries of the archive (`ppt/presentation.xml` is a presentation, `visio/documen
 readable archive, such as a Word or Excel file, is `unsupported-format` whatever its extension), while an archive
 that cannot be read falls back to the extension `.pptx` or `.vsdx` so that the load reports it as corrupt; SVG text
 (a header without NUL bytes that contains `<svg`, unless the extension is `.scad`, because a model is text and
-only a model's extension identifies it, whatever its comments mention); and finally the extension.
+only a model's extension identifies it, whatever its comments mention); and finally the extension. A Vega-Lite chart
+is text without a signature as well, so it is recognized before the SVG sniff, by the file name and the header: a
+file name ending in `.vl.json` (checked on the whole name, in any case, because `Path.GetExtension` of it is only
+`.json`) is a chart; a file with the extension `.json` is a chart when its header contains
+`vega.github.io/schema/vega-lite/` (the address every version of the schema is under); and the extension `.vl` is a
+chart by the extension table. A `.json` file, a `.vl` file, and a `.vl.json` file are never taken for an SVG, whatever
+their text mentions (the title of a chart can contain `<svg`). A signature still wins: a PNG named `x.vl.json` is a PNG.
+A `.json` file whose header contains `vega.github.io/schema/vega/` is a plain Vega specification, which the tool does
+not read, and any other `.json` file is not a chart; both are `unsupported-format`, the first with the message "is a
+Vega specification; only Vega-Lite charts are supported" and the hint "Vega is not supported", the second with a hint that
+a chart is recognized by the suffix `.vl.json` (or `.vl`) or by its `$schema` in the first 4 KiB, so that the file can be
+renamed.
 The content wins over the extension, but a file whose content says nothing keeps its extension's kind, so that an
 empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise throws
 `unsupported-format` with a hint to run `canvasnet formats`.
@@ -78,8 +96,12 @@ is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size 
 (rotation-applied) size in points; a slide or a page of a drawing is converted from EMU (12,700 EMU per point). A
 document with no pages is `corrupt-input`. An OpenSCAD model is parsed with `ScadDocument.Open(path)` (the parse
 reads no other file and evaluates nothing): its `ModuleNames` and `FunctionNames` become `Modules` and `Functions`,
-its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. No pixels are decoded
-(a GIF's `GetInfo` does decode the first frame's data, as the library documents).
+its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. A Vega-Lite chart is parsed with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing) and
+measured with `Measure()` (the library lays the chart out, which reads its data, but draws no pixel): the size is
+`Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
+the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
+larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. No pixels
+are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
 `options.Page`. **OpenPages(info, options)** returns a `PageSource` (`IDisposable`) whose `ReadPage(page)` loads
@@ -132,6 +154,21 @@ The operation recorded is `render` with the `view`, the resolved `azimuth` and `
 (`orthographic` or `perspective`), the size, the `background`, and, when they were given, `defines` (a list of
 `name=value` in name order, text in quotes), `time`, `maxTriangles`, and `defaultColor`.
 
+A *Vega-Lite chart* load (`VegaLitePageSource`) opens the chart once and draws it with
+`VegaLiteDocument.Render(width, height, options)`. The target size is `ComputeTargetSize` of the natural size from the probe,
+so a scale multiplies it, one side keeps the aspect ratio, and two sides are exact; when the target has another aspect
+ratio than the chart, the library scales the chart uniformly to fit and centers it over the background, so nothing is
+stretched. The `VegaLiteRenderOptions` are fixed except for what the tool options say, so that the picture does not depend
+on the machine: `TimeZone` is UTC, `Fonts` use only the bundled fonts (`UseSystemFonts` is false), `Background` is the
+background option (`null` when none was given, so the chart keeps its own background, white by default; zero alpha is a
+transparent picture), `ThrowOnUnsupportedFeature` is `Strict`, and the handlers collect the notes. A warning becomes a
+note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an unsupported
+feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-arc` as the code, and
+`file:line:column /pointer: message`). There are no options of the chart in this release: no parameters, datasets,
+configuration, or data folders are passed, and the library reads data files only through its own sandbox. The
+picture is the same for the same chart and options: the library's render is deterministic. The operation recorded
+is `render` with the `width`, the `height`, the `timeZone` (`UTC`), and, when it was given, the `background`.
+
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
 from the folder of the file that names it, nothing outside the folder of the model (the base directory, which is the
 folder of the file that was opened) is ever read, a link below that folder is not followed, and no library path or
@@ -170,10 +207,10 @@ degrees, 4 mirrors top to bottom, 5 transposes, 6 turns clockwise, 7 transverses
 **SurfaceOperations.FlattenOver(surface, background)** composites a surface over a solid color into a new surface;
 **SurfaceOperations.HasTransparency(surface)** says whether any pixel is not opaque (used by `ImageWriter`).
 
-**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, and SCAD, the kinds that are rendered at the
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite, the kinds that are rendered at the
 size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options that load a
 source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and `Scale`
-cleared, so the source is rendered sharply at the box (a document page is fitted inside it and centered over the
+cleared, so the source is rendered sharply at the box (a document page and a chart are fitted inside it and centered over the
 background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
 unchanged, because the caller fits the decoded pixels with `SurfaceOperations.FitInto`. The loader keeps its own
 private fit and center helpers for documents; they use the same rounding rule as `SurfaceOperations.FitInside`.
@@ -202,12 +239,23 @@ before it) to `scad-error` ("SCAD syntax error: file:line:column: ..."); and `Sc
 renderer budget failure with `RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and
 otherwise to `scad-error` (a failed `assert`, an include problem, and so on). The hint of a triangle-limit failure
 names `--max-triangles` and the default; the other limits cannot be changed from the command line and the hint says
-to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. Every
+to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. The Vega-Lite library adds
+three, caught before the generic list (its unsupported-feature exception is an `IOException` and its specification
+exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in strict mode) to `unsupported-feature`
+naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
+nesting that is too deep, an invalid axis or format) to `vega-lite-error` ("Vega-Lite specification error: file:line:column
+/pointer: ..."); and `VegaLiteRenderException` (an `InvalidOperationException`: missing or invalid data, a chart that
+cannot be laid out) to `budget-exceeded` when it reports a limit and otherwise to `vega-lite-error`
+("Vega-Lite render error: ..."). The library names every limit in the message, either as "the limit of N" or with the
+name of the limit ("VegaLiteLimits.MaxSceneItems"), which `MapVegaLiteRender` recognizes; the library gives no other way
+to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.
+A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. Every
 other exception - a null reference, an index out of range, an out-of-memory failure - is a defect and propagates to
 the entry point, which reports it as an unexpected error and re-throws it. The tests feed every supported format
 truncated and garbage files to prove that the allow-list covers the failures the libraries actually raise (for the
 documents also every byte-prefix length of a sample, overwritten and zeroed middles, a valid archive with a broken
-part, malformed PDF content, and an unsupported PDF encryption handler; for models a cut after every seventh
+part, malformed PDF content, and an unsupported PDF encryption handler; for a chart a cut after every kind of damage of the shared sweep (the garbage and truncated files of a chart are
+`vega-lite-error`, and a cut that leaves valid JSON may still load); for models a cut after every seventh
 character of a model with several kinds of statement, garbage of several sizes, and some forty stress models - huge
 numbers, degenerate or empty shapes, unsupported constructs, runaway recursion and loops, bad arguments, a deep nest of
 parentheses, and unusual text); a gap found that way is closed by extending the list, and none was found for any
@@ -224,6 +272,8 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
   pages of a document, and report the features they cannot draw.
 - **CanvasNet SCAD and Render3D systems** - `ScadDocument` parses and draws a model; `Camera`, `CameraProjection`, and
   `SceneRenderOptions` give the camera convention, the projection, and the background and default colors.
+- **CanvasNet Vega-Lite system** - `VegaLiteDocument` parses, measures, and draws a chart, with the render options,
+  the diagnostics, and the exceptions that the loader maps.
 
 #### Callers
 

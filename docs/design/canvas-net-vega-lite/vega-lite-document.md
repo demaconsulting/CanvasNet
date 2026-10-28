@@ -1,0 +1,165 @@
+## VegaLiteDocument Unit Design
+
+![CanvasNetVegaLite Structure](CanvasNetVegaLiteView.svg)
+
+### Purpose
+
+`VegaLiteDocument` is the public entry point of `CanvasNetVegaLite`. It reads Vega-Lite specification text from a
+string, a stream, or a file, drives the internal `SpecModel` subsystem to parse and describe it, and exposes the
+validated result. A document proves that the text is well-formed JSON within the limits of `VegaLiteLimits`, that the
+Vega-Lite properties the renderer depends on have the right shape, and describes the chart without drawing it (schema
+version, title, mark types, data references, parameter names), so that tools can list what a chart needs before they
+render it. **Opening never loads data, never opens another file, and never uses the network.** A document can then be
+**measured** (`Measure`) and **rendered** (`Render`, at its natural size times a scale or at an exact size): both run
+the same internal pipeline, which drives the `SpecModel`, `Data`, `Scales`, `Guides`, `Layout`, `Marks`, and
+`Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers.
+
+The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
+`VegaLiteDocument.Render.cs` (`Measure`, `Render`, and the pipeline), the options `VegaLiteOpenOptions.cs`,
+`VegaLiteRenderOptions.cs`, `VegaLiteFontOptions.cs`, and `VegaLiteLimits.cs`, the value types `VegaLiteLocation.cs`,
+`VegaLiteSize.cs`, `VegaLiteDataReference.cs`, and `VegaLiteDataKind.cs`, the records `VegaLiteDiagnostic.cs` and
+`VegaLiteUnsupportedFeature.cs`, the exceptions `VegaLiteSpecException.cs`, `VegaLiteRenderException.cs`, and
+`VegaLiteUnsupportedFeatureException.cs`, the internal `VegaLiteReportSink.cs`, and the namespace documentation
+`NamespaceDoc.cs`.
+
+The unit's behavior is specified by the `CanvasNetVegaLite-VegaLiteDocument-*` requirements in
+`docs/reqstream/canvas-net-vega-lite/vega-lite-document.yaml` and, at system level, by the `CanvasNetVegaLite-*`
+requirements in `docs/reqstream/canvas-net-vega-lite.yaml` (opening, schema versions, immutable options, measuring and
+rendering, diagnostics, unsupported features, limits and cancellation, determinism, and bundled fonts).
+
+### Data Model
+
+- **`VegaLiteDocument`** (sealed partial class, immutable) - holds the internal `SpecTree` (the parsed
+  specification), the `SpecMetadata` read from it once, the effective `VegaLiteOpenOptions`, the read-only
+  `MarkTypes` list, and the internal `Reports` list (the parse warnings and the catalog reports, merged in document
+  order once at construction). The constructor is private; the only ways to obtain a document are `Parse` and the two
+  `Open` overloads. `Tree`, `Options`, and `Reports` are `internal` so that the pipeline consumes them without widening
+  the public surface. The class is `partial` only so that `Measure`, `Render`, and the pipeline live in
+  `VegaLiteDocument.Render.cs`. A document holds no unmanaged resources, is not disposable, and keeps no state between
+  calls: it is safe for concurrent use, including concurrent `Measure` and `Render` calls. The public properties are
+  `SourceName`, `SchemaUrl` (as written), `SchemaMajorVersion` (the version in the URL, or null), `Title` (plain text,
+  lines joined by a line feed; null for none or an expression), `MarkTypes` (in document order, nested views included),
+  `DataReferences` (a view without a `data` object contributes none), and `ParameterNames` (distinct, in document order).
+- **`VegaLiteOpenOptions`** (sealed class, init-only) - `BaseDirectory` (`string?`), `DataPaths`
+  (`IReadOnlyList<string>`, empty by default, copied), `FileResolver` (`Func<string, Stream?>?`), `SourceName`
+  (`string?`), and `Limits` (`VegaLiteLimits?`; the defaults when null). Every property is validated in its `init`
+  accessor: null is allowed for the nullable properties, but empty or whitespace text throws `ArgumentException`; a
+  null `DataPaths` list or entry throws `ArgumentNullException`, and a whitespace entry throws `ArgumentException`.
+  Opening consumes only `SourceName` and `Limits`; `BaseDirectory`, `DataPaths`, and `FileResolver` define the sandbox
+  of the later data-file phase and are stored. The internal `WithEffective(baseDirectory, sourceName)` creates a copy
+  with those two values filled in, and `EffectiveLimits` is the limits or `VegaLiteLimits.Default`.
+- **`VegaLiteRenderOptions`** (sealed class, init-only) - `Scale` (default 1; finite, greater than zero, at most
+  `Surface.MaxDimension`, else `ArgumentOutOfRangeException`), `Background` (`Rgba32?`), `Config` (`string?`; a JSON
+  object of at most 4,194,304 characters and 64 levels, else `ArgumentException`), `Parameters`
+  (`IReadOnlyDictionary<string, object?>?`; keys non-blank; values null, `bool`, `string`, a finite number of any
+  built-in numeric type, `DateTime`, or `DateTimeOffset`; copied), `Datasets` (named lists of rows of the same value
+  kinds, deep-copied), `TimeZone` (`TimeZoneInfo?`; null is UTC), `ContainerWidth` (default 400) and
+  `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
+  (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
+  (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
+  `ThrowOnUnsupportedFeature` (default false). The internal `EffectiveFonts` is `Fonts` or a default
+  `VegaLiteFontOptions`.
+- **`VegaLiteFontOptions`** (sealed class) - `UseSystemFonts` (default false) and `AdditionalDirectories`
+  (`IReadOnlyList<string>`, empty by default; a null list throws `ArgumentNullException`, a null, empty, or whitespace
+  entry throws `ArgumentException`; copied into a read-only array).
+- **`VegaLiteLimits`** (sealed class, init-only) - the sixteen limits `MaxSourceLength`, `MaxJsonDepth` (1 to 256),
+  `MaxDataFiles`, `MaxDataBytes`, `MaxDataRows`, `MaxFieldCount`, `MaxViews`, `MaxCompositionDepth` (1 to 64),
+  `MaxSceneItems`, `MaxScaleDomainSize`, `MaxTicks`, `MaxExpressionLength`, `MaxExpressionDepth` (1 to 256),
+  `MaxEvaluationSteps`, `MaxStringLength`, and `MaxDiagnostics`, with the `Default` instance; a value outside its range
+  throws `ArgumentOutOfRangeException` when set. The defaults and the stage that enforces each are listed in
+  _CanvasNetVegaLite System Design_.
+- **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
+  in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
+  `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.
+  `ToString()` returns `{File}:{Line}:{Column}` (without the file when null, with `?` for an unknown line), followed by
+  a space and the pointer when it is not empty.
+- **`VegaLiteDiagnostic`** (`sealed record (string Message, VegaLiteLocation Location)`) and
+  **`VegaLiteUnsupportedFeature`** (`sealed record (string Feature, string Message, VegaLiteLocation Location)`) - a
+  warning (the message starts with its stable identifier and a colon) and an unsupported-feature report. `ToString()`
+  prefixes the location when it is known.
+- **`VegaLiteSize`** (`readonly record struct (int Width, int Height)`), **`VegaLiteDataReference`**
+  (`sealed record (VegaLiteDataKind Kind, string? Url, long? RowCount, VegaLiteLocation Location)`), and
+  **`VegaLiteDataKind`** (`Inline`, `Url`, `Name`, `Sequence`) - small immutable value types.
+- **`VegaLiteSpecException`** (sealed, derives from `FormatException`), **`VegaLiteRenderException`** (sealed, derives
+  from `InvalidOperationException`), and **`VegaLiteUnsupportedFeatureException`** (sealed, derives from
+  `IOException`) - each carries a `Location` (the last also the `Feature`); the constructor taking
+  `(description, location)` builds the message `{location}: {description}`, or just the description when the location
+  is unknown; the standard parameterless, message, and message-plus-inner-exception constructors leave the location
+  unknown. `VegaLiteSpecException` derives from `FormatException` because `InvalidDataException` is sealed.
+- **`VegaLiteReportSink`** (internal sealed class) - the buffer of one call: recorded warnings and unsupported
+  features in order, de-duplicated by value, capped at `MaxDiagnostics`, with the strict-mode switch.
+
+### Key Methods
+
+- `Parse(string json, VegaLiteOpenOptions? options)` - requires a non-null string, uses the default options when none are
+  given, and delegates to the internal `Create`.
+- `Open(string path, VegaLiteOpenOptions? options)` - requires a non-blank path, fills in the effective options (the
+  path names the source and its folder is the base directory, unless overridden), opens the file, reads it with
+  `ReadBounded`, and delegates to `Create`; a missing file or directory surfaces the natural .NET exception.
+- `Open(Stream stream, VegaLiteOpenOptions? options)` - requires a non-null readable stream and reads it from its
+  current position with `ReadBounded`; the stream is left open.
+- `ReadBounded(stream, maxLength)` - reads UTF-8 (byte-order mark detected) in 8,192-character chunks and throws an
+  `InvalidDataException` as soon as the running length exceeds the limit, so a stream that never ends cannot consume
+  unbounded memory.
+- `Create(source, options)` - calls `SpecParser.Parse(source, sourceName, limits)` and wraps the tree in a document
+  whose constructor reads the metadata and merges the reports.
+- `Measure(options, token)` - prepares the chart (`PrepareChartOrReport`), validates the scaled size
+  (`ValidateScaledSize`: each side of the natural size times the scale, rounded half away from zero, must be 1 to
+  `Surface.MaxDimension`), validates the parameter names, checks the token, and runs the pipeline with a finish step
+  that returns the size.
+- `Render(options, token)` - the same checks, with a finish step that paints the scene at `ScenePlacement.Uniform(scale)`
+  onto a new surface of the scaled size.
+- `Render(width, height, options, token)` - validates the width and height first (`ArgumentOutOfRangeException`), then
+  the parameter names and the token, prepares the chart, and paints at `ScenePlacement.Fit` onto a surface of exactly
+  that size.
+- `Run(options, token, plan, finish)` - creates the sink, records the reports (`BuildPlan` ->
+  `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
+  runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
+  exceptions ignored; on success a handler exception propagates after the result is disposed.
+- `PrepareChart(options, token)` - the pure layout described in the system design (configuration, measurer, data,
+  scales, view request, title, and either the empty layout or `BuildChart`). `BuildChart` iterates the axes and the
+  layout at most three passes, then builds the marks once and assembles the scene. `PrepareChartOrReport` wraps it so
+  that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
+  rethrown (in strict mode the first unsupported feature wins).
+- `ValidateParameters(options)` - checks every `Parameters` key against `ParameterNames` and reports the first unknown
+  name in ordinal order, so the message does not depend on the caller's dictionary order.
+
+**Preconditions and postconditions**: a document always holds a fully validated tree; `Measure` and `Render` never
+mutate it; every returned surface is new and owned by the caller; `Measure` returns exactly the size of the surface
+`Render(options)` produces for the same options.
+
+### Error Handling
+
+Errors are typed and fail closed. Null arguments and invalid options throw `ArgumentNullException`,
+`ArgumentException`, or `ArgumentOutOfRangeException` at the point of the call or the initialization. Text longer than
+`MaxSourceLength` is an `InvalidDataException`. Malformed JSON, nesting beyond `MaxJsonDepth`, a known property with a
+wrong value, and plain Vega are `VegaLiteSpecException`s with the location of the first problem (detected by
+`SpecParser`; the unit only delegates). Failures while preparing the chart are `VegaLiteSpecException` (an invalid axis
+orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data, scale, axis, or scene limit), each
+with a location and thrown from the stage that detected them; the unit does not catch and convert them, except that it
+delivers the already-found reports first. A scaled size outside 1 to `Surface.MaxDimension` and an unknown parameter
+name are argument exceptions. A cancellation is an `OperationCanceledException`, never wrapped. Strict mode throws a
+`VegaLiteUnsupportedFeatureException` at the first unsupported feature after delivering that report. A handler that
+throws after a successful call propagates its exception (the surface is disposed); on a failure path it is ignored.
+
+### Dependencies
+
+- **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
+  `ConfigResolver`, `ResolvedConfig`
+- **`Data` subsystem** - `DataLoader`, `DataTable`
+- **`Scales` subsystem** - `ScaleResolver`, `ResolvedScales`
+- **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
+- **`Layout` subsystem** - `ViewLayout` and its request and measure records
+- **`Marks` subsystem** - `MarkBuilder`
+- **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`, `CssColor`
+- **Core `CanvasNet`** - `Surface` and `Rgba32` (public API); see _CanvasNetVegaLite System Design_
+- **.NET base class library** - `System.IO`, `System.Text`, `System.Text.Json` (the configuration check),
+  `System.Collections.ObjectModel`, `System.Globalization`
+
+### Callers
+
+The consumers are applications and libraries that render charts. Within this repository the `CanvasNetTool` system
+(the `SourceLoader` unit of its `Imaging` subsystem) calls `Open`, reads the descriptive properties for `info`, and
+calls `Measure` and `Render`, mapping the exceptions to its stable error codes. The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/` call the public API and, through `InternalsVisibleTo`, the internal
+pipeline types.

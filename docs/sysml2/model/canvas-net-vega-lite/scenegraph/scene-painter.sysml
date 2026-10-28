@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def ScenePainter {
+        doc /* The internal ScenePainter (a sealed, stateless class) and the ScenePlacement record struct (Uniform, which enlarges the scene by a factor at the origin, and Fit, which scales it uniformly by the largest factor that fits a target and centers it): Paint draws a Scene onto a new or given core Surface using only the public CanvasNet drawing API. The surface is first filled with the background, then the items are drawn in list order; every path is transformed by the placement and the enclosing group translations before it is filled (the core library has no scale), fills are anti-aliased and flattened at a tolerance of 0.02 pixel, strokes are built in the item's own units with PathStroker (width, dash, cap, join) so they scale with the chart, opacity is folded into the alpha, and a paint that is none, unparseable, or fully transparent draws nothing. A group paints its own background and border (offset by half a pixel for a one-pixel stroke, as Vega does) and, with a clip, draws its children onto a transparent layer the size of the clip's pixel box that is composited back with the per-pixel coverage of the clip rectangle (exact on integer edges, anti-aliased on fractional edges). Symbols use Vega's shape geometry (an unknown shape is a circle) rotated about the center; text is filled only, at the scaled size, with the font and lines of the TextMeasurer, at Vega's baseline offsets, rotated about the position. The result is byte-identical for the same scene, size, and placement; a canceled token throws OperationCanceledException and disposes the surface it created. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePainter.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-vega-lite/scenegraph/scene-painter.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml */
+    }
+}

@@ -73,6 +73,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-InfoJson
           - CanvasNetTool-Commands-DiscoveryCommands-InfoPages
           - CanvasNetTool-Commands-DiscoveryCommands-InfoModel
+          - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
           - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         tests:
           - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
@@ -93,6 +94,7 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Pages
           - CanvasNetTool-Commands-RenderCommand-Strict
           - CanvasNetTool-Commands-RenderCommand-Scad
+          - CanvasNetTool-Commands-RenderCommand-VegaLite
           - CanvasNetTool-Commands-RenderCommand-Pipeline
           - CanvasNetTool-Commands-RenderCommand-PhotoOptions
           - CanvasNetTool-Commands-RenderCommand-Output

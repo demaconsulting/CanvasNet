@@ -93,6 +93,34 @@ includes:
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-extrusions.yaml
   - docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml
+  - docs/reqstream/canvas-net-vega-lite.yaml
+  - docs/reqstream/canvas-net-vega-lite/platform-requirements.yaml
+  - docs/reqstream/canvas-net-vega-lite/vega-lite-document.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model/spec-parser.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model/feature-catalog.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model/config-resolver.yaml
+  - docs/reqstream/canvas-net-vega-lite/data.yaml
+  - docs/reqstream/canvas-net-vega-lite/data/data-table.yaml
+  - docs/reqstream/canvas-net-vega-lite/data/data-loader.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/scale-model.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/ticks.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/number-format.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/color-schemes.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/text-measurer.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/layout.yaml
+  - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
+  - docs/reqstream/canvas-net-vega-lite/marks.yaml
+  - docs/reqstream/canvas-net-vega-lite/marks/mark-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-model.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/css-color.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml

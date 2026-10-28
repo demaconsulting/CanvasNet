@@ -1,0 +1,150 @@
+---
+# Software Subsystem Requirements for SpecModel
+#
+# These requirements decompose the CanvasNetVegaLite system's responsibility for the specification text into the
+# SpecModel subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded JSON parser
+# that builds an immutable tree with positions (SpecParser), the catalog that reports every recognized
+# construct outside the supported subset (FeatureCatalog), and the configuration resolver (ConfigResolver).
+# SpecModel knows everything about the specification text and nothing about data or pixels. Each requirement
+# here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-vega-lite/spec-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        requirements:
+          - id: CanvasNetVegaLite-SpecModel-Parse
+            title: >-
+              The SpecModel subsystem shall parse specification text into an immutable tree of objects,
+              arrays, strings, numbers, booleans, and nulls in a single bounded pass, tolerating a
+              leading byte-order mark and a very large inline data array, and shall list the views of
+              a specification parents first.
+            justification: |
+              Every later stage reads the tree rather than the text, so the tree must be complete,
+              immutable, and cheap to build even for large inline data.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-JsonTree
+            tests:
+              - SpecParser_Parse_ValidInlineSpecRecordsJsonPointerAndLineColumn
+              - SpecParser_Parse_AllValueKindsAndBomAreHandled
+              - SpecParser_Parse_LargeInlineDataIsReadInOnePass
+
+          - id: CanvasNetVegaLite-SpecModel-Locations
+            title: >-
+              The SpecModel subsystem shall record for every node its RFC 6901 JSON pointer and the
+              one-based line and column of its value and key, counted in UTF-16 code units, and shall
+              report the location of the first syntax problem it finds.
+            justification: |
+              Errors, warnings, and unsupported-feature reports are only useful when they point at the
+              exact place in the author's text.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-LocationTracking
+            tests:
+              - SpecParser_Parse_MalformedJsonReportsFirstLocation
+              - SpecParser_Parse_LocationsCountUtf16CodeUnits
+              - FeatureCatalog_Visit_MarkReportCarriesLineAndColumn
+
+          - id: CanvasNetVegaLite-SpecModel-StructuralValidation
+            title: >-
+              The SpecModel subsystem shall validate the shape of the Vega-Lite properties the renderer
+              depends on, failing with a located specification exception at the first wrong value in
+              document order, shall keep the last of a duplicate key and warn once, and shall warn once
+              about properties Vega-Lite does not define without rejecting them.
+            justification: |
+              Failing on a wrong type protects the renderer from misreading the specification, while
+              tolerating unknown properties keeps forward-compatible specifications usable.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-StructuralValidation
+              - CanvasNetVegaLite-SpecModel-SpecParser-DuplicateAndUnknownKeys
+            tests:
+              - SpecParser_Parse_WrongTypeReportsPointer
+              - SpecParser_Parse_DuplicateKeyLastWinsAndWarns
+              - SpecParser_Parse_UnknownPropertiesWarnOnceAndValidKeysNeverWarn
+
+          - id: CanvasNetVegaLite-SpecModel-Limits
+            title: >-
+              The SpecModel subsystem shall fail closed when the source text is longer than the
+              source-length limit (with an InvalidDataException), when nesting exceeds the JSON-depth
+              limit or a string exceeds the string-length limit (with a located specification
+              exception), and shall accept a document exactly at a limit, without recursion on the call
+              stack.
+            justification: |
+              Specifications are untrusted input; every dimension of the text must be bounded so that no
+              input can overflow the stack or exhaust memory.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-Limits
+            tests:
+              - SpecParser_Parse_DepthAndSourceLimitsFailClosed
+              - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+
+          - id: CanvasNetVegaLite-SpecModel-Metadata
+            title: >-
+              The SpecModel subsystem shall describe a specification from its text alone: its schema
+              URL and major version, plain-text title, marks with their locations, data references, and
+              parameter names.
+            justification: |
+              Tools list what a chart needs before they render it, without the cost or risk of rendering.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-Metadata
+            tests:
+              - SpecMetadata_Read_DescribesSchemaTitleMarksDataAndParameters
+              - SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion
+
+          - id: CanvasNetVegaLite-SpecModel-FeatureReporting
+            title: >-
+              The SpecModel subsystem shall report every recognized construct outside the supported
+              subset - data sources, marks, channels, types, encoding properties, scale types and
+              properties, legends, guide properties, expressions, transforms, parameters, projections,
+              compositions, and autosize modes - with a stable lower-case vl-* identifier, a message, and
+              the location of the construct, sorted by position, once per feature and location, and
+              shall report nothing for a construct the renderer supports.
+            justification: |
+              Unsupported features must be visible and distinguishable from mistakes, and a gap that the
+              renderer does not report would be silently skipped.
+            children:
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-SupportedSilent
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
+            tests:
+              - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
+              - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
+              - FeatureCatalog_Visit_ReportsAreInDocumentOrder
+              - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+
+          - id: CanvasNetVegaLite-SpecModel-SchemaCompatibility
+            title: >-
+              The SpecModel subsystem shall read the Vega-Lite major version from the $schema URL and
+              report the stable vl-schema-version warning for a version other than 5 or 6 or a URL
+              that names no Vega-Lite version, while resolving version 5 and version 6 specifications
+              with the same version 6 defaults.
+            justification: |
+              Version 5 specifications remain common; the effect of the version on the output must be
+              defined and visible.
+            children:
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
+            tests:
+              - FeatureCatalog_Visit_SchemaVersionWarnsOutsideFiveAndSix
+              - ConfigResolver_Resolve_SchemaV5UsesV6Defaults
+
+          - id: CanvasNetVegaLite-SpecModel-ConfigDefaults
+            title: >-
+              The SpecModel subsystem shall resolve a merged configuration from the Vega-Lite version 6
+              defaults, the specification's config, and the caller's configuration, in that order of
+              increasing precedence, and shall resolve mark, view, title, and guide style properties
+              through the Vega-Lite style chains.
+            justification: |
+              Every default size, color, and spacing of a chart comes from the configuration, and its
+              precedence is the contract by which callers restyle charts.
+            children:
+              - CanvasNetVegaLite-SpecModel-ConfigResolver-V6Defaults
+              - CanvasNetVegaLite-SpecModel-ConfigResolver-Precedence
+              - CanvasNetVegaLite-SpecModel-ConfigResolver-StyleResolution
+            tests:
+              - ConfigResolver_Resolve_VegaLiteV6DefaultsAndOverrides
+              - ConfigResolver_Resolve_CallerConfigOverridesSpecConfig
+              - ConfigResolver_Resolve_MarkPropertiesFollowTheStylePrecedenceChain

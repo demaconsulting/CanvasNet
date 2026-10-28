@@ -25,16 +25,17 @@ results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasN
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`, and
-`CanvasNetTool_Adjustments`), which
+`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`, `CanvasNetTool_Adjustments`, and
+`CanvasNetTool_RenderVegaLite`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (fourteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
-operation once on a generated sketch), and the detailed coverage of these commands and operations is in the unit,
+kept small (fifteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
+operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, and the detailed coverage of these commands and operations is in the unit,
 subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
-start-up files, the library assemblies, and the third-party libraries bundled for every target framework) and
-smoke-tests the installed tool (`formats --json`, an SVG `render`, and a `crop`); the self-validation covers the PDF
-and SCAD (OpenSCAD) paths of the bundled libraries.
+start-up files, the library assemblies, and the third-party libraries bundled for every target framework, with the Vega-Lite assembly and the licenses folder
+that carries the third-party notices of the Vega-Lite library) and smoke-tests the installed tool (`formats --json`, an
+SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart); the self-validation covers the PDF,
+SCAD (OpenSCAD), and Vega-Lite paths of the bundled libraries.
 
 ## Test Environment
 
@@ -57,14 +58,17 @@ belong to the "Sequential" collection because console redirection is process-wid
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, and the pages of PDF, PPTX, and VSDX documents, and OpenSCAD models) with the documented defaults
+  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, and Vega-Lite charts) with the documented defaults
   (overwrite, flatten
   over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
   a stable error for
   every bad input; a document page, or every page, is chosen with `--page` and `--all-pages`, and a model view with
-  `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`, `--time`, `--default-color`, and `--max-triangles`;
+  `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`, `--time`, `--default-color`, and `--max-triangles`; a
+  chart is recognized by its `.vl.json` or `.vl` file name or its Vega-Lite `$schema`, drawn at its laid-out size over
+  its own background with UTC dates and the bundled fonts, and an invalid chart is a `vega-lite-error`;
   `info` describes a
-  file, the pages of a document, and the declarations of a model, without rendering it.
+  file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, without
+  rendering it.
 - `compare` reports exact metrics (MAE, RMSE, PSNR, SSIM, largest channel difference, differing-pixel ratio) and a
   grid of per-cell errors, writes the difference, side-by-side, and overlay pictures, refuses images of different sizes
   unless `--resize-to` is given (rendering a vector source at that size), and with `--threshold` exits 1 with
@@ -246,7 +250,7 @@ drawing, and a model are rendered twice to every output format at a given width;
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
 and garbage of every supported format (a model is only given garbage, because a truncated model is usually still a
-valid one, and its code is `scad-error`) are rendered in-process; each returns exit code 1 (an unexpected exception
+valid one, and its code is `scad-error`; a truncated or garbage chart has the code `vega-lite-error`) are rendered in-process; each returns exit code 1 (an unexpected exception
 would escape and fail the test) with the stable error code in the message and in the JSON document, and no output
 exists.
 
@@ -285,6 +289,19 @@ garbage, a triangle limit of 1, runaway recursion, an unsupported feature with `
 of 100, a definition without `=`, and a triangle limit of 0 are rendered in-process; each returns exit code 1 with a
 one-line message that starts with its stable error code (`scad-error`, `budget-exceeded`, `unsupported-feature`, or
 `usage-error`), no stack trace, the code in the JSON document, and no output.
+
+**CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage**: the two-bar chart is described with `info --json` and
+rendered to a PNG with `render --json`, each as a real process (so the Vega-Lite assembly bundled next to the tool is
+loaded); exit code 0, `info` names the `vega-lite` format and the `bar` mark, `render` names the format and the `render`
+operation, and the image has the size `info` reported, a white corner, and the default mark color `#4c78a8` at a point of
+the second bar computed from the layout (5 pixels of padding at the right, 50 pixels from the right edge of the data
+rectangle, 15 pixels from the top).
+
+**CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract**: in-process, a chart saved as `.json` is
+described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark renders with exit code 0 and the
+`vl-mark-arc` diagnostic in the JSON result, and with `--strict` returns exit code 1 with an `unsupported-feature` message
+and writes no output; a malformed chart returns exit code 1 with a `vega-lite-error` message and document and writes no
+output; and a plain Vega specification saved as `.json` returns exit code 1 with an `unsupported-format` message.
 
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`

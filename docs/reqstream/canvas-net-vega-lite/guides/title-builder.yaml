@@ -1,0 +1,41 @@
+---
+# Software Unit Requirements for TitleBuilder
+#
+# These requirements describe the design-level behavior of the TitleBuilder unit of the Guides subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): the title and subtitle of a chart as scene
+# items, their extent, and their placement over the data rectangle and the guides following the Vega title
+# layout. See docs/verification/canvas-net-vega-lite/guides/title-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: TitleBuilder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-TitleBuilder-Placement
+                title: >-
+                  The TitleBuilder unit shall build a title and optional subtitle for the orientations top,
+                  bottom, left, and right (rotating the text of left and right titles), the anchors
+                  start, middle, and end, and the frames group and bounds, give the extent that the
+                  layout must reserve, and place the block centered over the frame it follows.
+                justification: |
+                  The extent of the title decides the size of the canvas and the origin of the data
+                  rectangle.
+                tests:
+                  - TitleBuilder_Build_OrientAnchorAndSubtitleProduceExpectedExtent
+                  - TitleBuilder_Build_LeftAndRightTitlesAreRotated
+                  - TitleBuilder_Place_FrameBoundsCentersOverTheGuides
+
+              - id: CanvasNetVegaLite-Guides-TitleBuilder-Properties
+                title: >-
+                  The TitleBuilder unit shall take the text (a string, several lines, or an array), the
+                  fonts, colors, offset, padding, and limit from the title properties and the title
+                  configuration in that order of precedence, shall truncate lines to the limit, and shall
+                  produce no title for empty text and for a composition.
+                justification: |
+                  Authors style titles through properties and configuration, and an empty title must not
+                  reserve space.
+                tests:
+                  - TitleBuilder_Build_PropertiesLinesConfigurationAndLimit
+                  - TitleBuilder_Build_EmptyTitlesAndCompositions

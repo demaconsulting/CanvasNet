@@ -139,6 +139,30 @@ sections:
           - RenderCommand_Run_PageTwoOfAModel_ThrowsPageOutOfRange
           - RenderCommand_Run_ModelWithSyntaxError_ThrowsScadError
 
+      - id: CanvasNetTool-Commands-RenderCommand-VegaLite
+        title: >-
+          The render command shall render a Vega-Lite chart (a .vl.json or .vl file, or a .json file with a
+          Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default) over
+          its own background, white by default, or the background color given, with no option of its own for a
+          chart; shall describe what it drew (the size, the time zone, and the background when given) in the
+          render operation and the natural size in the input of the result; shall report the warnings and
+          unsupported features of the chart in the diagnostics of the result and, with the strict switch, fail
+          with unsupported-feature and write no output; shall report an invalid chart as vega-lite-error; and
+          shall name Vega-Lite charts in its usage text.
+        justification: |
+          A chart is rendered like any other vector source, so no new option is needed; the result must say
+          what picture was drawn so that an agent can reproduce it, the gaps of the renderer must be reported
+          rather than silently skipped, and a bad chart must be a concise, coded error.
+        tests:
+          - RenderCommand_Run_VegaLite_WritesPngAndReportsFormat
+          - RenderCommand_Run_VegaLiteSizeOptions_FollowTheNaturalSize
+          - RenderCommand_Run_VegaLiteToEachOutputFormat_WritesDecodableFile
+          - RenderCommand_Run_VegaLiteTwice_WritesIdenticalBytes
+          - RenderCommand_Run_VegaLiteDiagnosticsAndStrict_AreReportedOrFail
+          - RenderCommand_Run_VegaLiteError_UsesStableErrorCode
+          - RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails
+          - RenderCommand_Usage_NamesVegaLite
+
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-
           The render command shall pass the size options (scale, width, height, or an exact size), the

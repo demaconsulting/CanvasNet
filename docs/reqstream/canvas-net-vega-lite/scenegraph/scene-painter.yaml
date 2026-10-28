@@ -1,0 +1,73 @@
+---
+# Software Unit Requirements for ScenePainter
+#
+# These requirements describe the design-level behavior of the ScenePainter unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the painter that draws a Scene onto a
+# CanvasNet Surface using only the public CanvasNet drawing APIs, at a uniform scale and offset, with the
+# caller owning the surface. See docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ScenePainter Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-FillStroke
+                title: >-
+                  The ScenePainter unit shall fill and stroke rectangles and rules with the fill, stroke,
+                  stroke width, and the item, fill, and stroke opacities, draw nothing for an item
+                  without paint, and fill the surface with the background of the scene first.
+                justification: |
+                  Fill, stroke, and opacity are the basic paint of every mark and guide.
+                tests:
+                  - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
+                  - ScenePainter_Paint_NoPaintDrawsNothingAndBackgroundFillsTheSurface
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-ClipScale
+                title: >-
+                  The ScenePainter unit shall apply the uniform scale and offset of the placement and
+                  clip group content to the clip rectangle with fractional per-pixel coverage, exact on
+                  integer edges, intersecting nested clips and limiting memory to the pixel box of the
+                  clip.
+                justification: |
+                  Scaling and clipping decide where every pixel of a fitted or clipped chart falls.
+                tests:
+                  - ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels
+                  - ScenePainter_Paint_FractionalAndNestedClipsUseCoverage
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
+                title: >-
+                  The ScenePainter unit shall draw symbols whose area and bounds follow the Vega symbol
+                  shapes, polylines and polygons, rounded rectangles, and the filled and stroked
+                  background of a group with crisp half-pixel stroke alignment.
+                justification: |
+                  The point-like marks and the view border are drawn by these items.
+                tests:
+                  - ScenePainter_Paint_SymbolsCoverTheirDocumentedArea
+                  - ScenePainter_SymbolPath_ShapesHaveVegaBounds
+                  - ScenePainter_Paint_PathsRoundedRectanglesAndGroupBackgroundAreCrisp
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Text
+                title: >-
+                  The ScenePainter unit shall draw text with the font resolved by the text measurer, at
+                  the baseline, alignment, rotation, and scale of the item, truncated to the limit with
+                  an ellipsis, and without stroking the text.
+                justification: |
+                  Labels and titles are drawn by these items and must sit exactly where the layout
+                  measured them.
+                tests:
+                  - ScenePainter_Paint_TextUsesBaselineRotationAndScale
+                  - ScenePainter_Paint_TextLimitTruncatesTheDrawnLine
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Arguments
+                title: >-
+                  The ScenePainter unit shall reject invalid arguments (a null scene, a size outside the
+                  surface limits) and stop with an OperationCanceledException when the cancellation token
+                  is canceled, leaving the ownership of the surface with the caller.
+                justification: |
+                  The painter is the last step of Render; its failures must be predictable and must not
+                  leak surfaces.
+                tests:
+                  - ScenePainter_Paint_InvalidArgumentsAndCancellation

@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def AxisBuilder {
+        doc /* The internal AxisBuilder (a sealed class) with the AxisRequest, AxisTick, and AxisResult records: Build creates the axis of a linear, band, or point position scale as an axis scene group (ticks, labels, domain line, and title, with Vega's half-pixel translate, tick and grid position rounding, band offset, extent clamping between minExtent and maxExtent, and title placement) plus a separate grid group that is drawn behind everything, together with the bounds the axis needs; null when the axis is switched off. Properties are looked up in the axis, then the Vega-Lite-only configuration, then the Vega configuration (axisBand, the orient variants, axisX and axisY, axis, the Vega defaults), then the guide styles, with the Vega-Lite rules for the default grid, the label angle of a discrete x axis, label flush, label overlap, and z-index. Continuous ticks use the Ticks and NumberFormat units with Vega-Lite's tick count (one per 40 pixels), explicit values follow Vega's validTicks, and band and point scales label every category; Vega's parity and greedy label overlap removal is applied. The static GetExtents unites the axes' bounds with the data rectangle for the ViewLayout. An invalid axis orient or d3 format is a VegaLiteSpecException with the location, an axis beyond MaxTicks is a VegaLiteRenderException with the location of the channel, and cancellation is polled per tick. Axis legends, encode overrides, custom format types, and label expressions are reported by the FeatureCatalog and not drawn. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.VegaLite/Guides/AxisBuilder.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-vega-lite/guides/axis-builder.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/guides/axis-builder.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml */
+    }
+}

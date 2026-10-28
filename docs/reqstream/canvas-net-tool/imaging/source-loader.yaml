@@ -3,7 +3,8 @@
 # Software Unit Requirements for the SourceLoader Class
 #
 # The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
-# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and OpenSCAD (SCAD) models. It
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, OpenSCAD (SCAD) models, and Vega-Lite
+# charts. It
 # recognizes the format, applies the size policy (including the maximum image size), the page and
 # resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
 # background color, collects the notes about features the libraries cannot draw, and maps the library
@@ -270,6 +271,79 @@ sections:
           - SourceLoader_Read_ScadExceptions_AreMappedToErrorCodes
           - SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrToolException
           - SourceLoader_Load_StressModels_GiveAPictureOrToolException
+
+      - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
+        title: >-
+          The SourceLoader class shall recognize a Vega-Lite chart by the file name suffix .vl.json or .vl
+          (checked before the extension, which is only .json), or, for a .json file, by a $schema under
+          vega.github.io/schema/vega-lite/ in the first 4 KiB, whatever else the text mentions (a JSON file
+          is never taken for an SVG), while a signature still wins over the name; and shall report a plain
+          Vega specification, and a JSON file that is not a Vega-Lite chart, as unsupported-format with a hint
+          that says that Vega is not supported or how to name a chart.
+        justification: |
+          A chart is JSON text without a signature, and JSON is used for everything; the double suffix
+          .vl.json names a chart for people and for the tool, and the schema sniff finds a chart that was
+          saved as .json. Plain Vega is a different language that the tool does not draw, so naming it
+          explicitly is kinder than a generic unsupported-format.
+        tests:
+          - SourceLoader_Detect_VegaLiteSuffixesAndSchema_ReturnsVegaLite
+          - SourceLoader_Detect_VegaSchema_IsUnsupported
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
+        title: >-
+          The SourceLoader class shall report for a Vega-Lite chart, by parsing and measuring it without
+          drawing it, the natural size the library lays the chart out at, four channels with transparency,
+          one page, and what the specification declares: its mark types, its data references (kind, URL, row
+          count, and line), its parameter names, its title, and its schema major version; and shall report a
+          chart that lays out larger than the maximum image size as size-limit.
+        justification: |
+          Knowing what a chart is and how big it will be before committing to render it lets an agent choose
+          sizes and decide whether data must be supplied, and keeps the information commands cheap.
+        tests:
+          - SourceLoader_Probe_VegaLite_ReportsChartFacts
+          - SourceLoader_Probe_VegaLiteLargerThanMaximum_IsSizeLimit
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+
+      - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
+        title: >-
+          The SourceLoader class shall draw a Vega-Lite chart directly at the target size (its natural size
+          when no size is given, which a scale multiplies, and fitted inside and centered when both sides are
+          given) over the background of the chart (white by default, or the background color given), with UTC
+          dates, only the bundled fonts, and no network access, giving the same picture for the same options
+          every time, and shall return the warnings and the unsupported features of the library (the feature
+          identifier as the code and the file, line, column, and pointer in the message) with the loaded
+          image.
+        justification: |
+          A chart is a vector source: drawing it at the target size keeps text and lines sharp. Fixing the
+          time zone and the fonts makes the picture the same on every machine, so results can be cached and
+          compared, and reporting what the library leaves out keeps a partial chart from being mistaken for a
+          complete one.
+        tests:
+          - SourceLoader_Load_VegaLite_RendersInlineChartWithExpectedPixels
+          - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+
+      - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
+        title: >-
+          The SourceLoader class shall report an invalid Vega-Lite specification (malformed JSON, a property
+          of the wrong type, plain Vega named like a chart) and a chart that cannot be rendered as a
+          vega-lite-error error that names the file, line, and column on one line, a chart that exceeds a
+          limit of the library as budget-exceeded, a specification longer than the library reads as
+          corrupt-input, an unsupported feature in strict mode as an unsupported-feature error that names the
+          feature, and shall give a picture or an expected error, never an unexpected exception, for a damaged
+          file.
+        justification: |
+          A chart is hand-written text and fails in many ways; every failure that is the author's mistake must
+          be a concise, located, coded error that a script can branch on, while an unexpected exception stays a
+          defect that is not hidden.
+        tests:
+          - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
+          - SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded
+          - SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+          - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
 
       - id: CanvasNetTool-Imaging-SourceLoader-Sizing
         title: >-

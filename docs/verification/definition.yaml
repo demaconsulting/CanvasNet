@@ -82,6 +82,33 @@ input-files:
   - docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-extrusions.md
   - docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md
+  - docs/verification/canvas-net-vega-lite.md
+  - docs/verification/canvas-net-vega-lite/vega-lite-document.md
+  - docs/verification/canvas-net-vega-lite/spec-model.md
+  - docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md
+  - docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md
+  - docs/verification/canvas-net-vega-lite/spec-model/config-resolver.md
+  - docs/verification/canvas-net-vega-lite/data.md
+  - docs/verification/canvas-net-vega-lite/data/data-table.md
+  - docs/verification/canvas-net-vega-lite/data/data-loader.md
+  - docs/verification/canvas-net-vega-lite/scales.md
+  - docs/verification/canvas-net-vega-lite/scales/scale-model.md
+  - docs/verification/canvas-net-vega-lite/scales/scale-resolver.md
+  - docs/verification/canvas-net-vega-lite/scales/ticks.md
+  - docs/verification/canvas-net-vega-lite/scales/number-format.md
+  - docs/verification/canvas-net-vega-lite/scales/color-schemes.md
+  - docs/verification/canvas-net-vega-lite/guides.md
+  - docs/verification/canvas-net-vega-lite/guides/text-measurer.md
+  - docs/verification/canvas-net-vega-lite/guides/title-builder.md
+  - docs/verification/canvas-net-vega-lite/guides/axis-builder.md
+  - docs/verification/canvas-net-vega-lite/layout.md
+  - docs/verification/canvas-net-vega-lite/layout/view-layout.md
+  - docs/verification/canvas-net-vega-lite/marks.md
+  - docs/verification/canvas-net-vega-lite/marks/mark-builder.md
+  - docs/verification/canvas-net-vega-lite/scenegraph.md
+  - docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md
+  - docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md
+  - docs/verification/canvas-net-vega-lite/scenegraph/css-color.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md

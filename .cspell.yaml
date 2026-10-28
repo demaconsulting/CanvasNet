@@ -14,6 +14,7 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - canvasnet
   - scad
   - openscad
   - Hival
@@ -492,6 +493,7 @@ words:
   - aliceblue
   - antiqua
   - antiquewhite
+  - autosize
   - bandposition
   - bandspace
   - blanchedalmond
@@ -590,6 +592,7 @@ words:
   - palevioletred
   - papayawhip
   - peachpuff
+  - postconditions
   - powderblue
   - rebecca
   - rebeccapurple

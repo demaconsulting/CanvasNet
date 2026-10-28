@@ -1,0 +1,88 @@
+---
+# Software Unit Requirements for ScaleResolver
+#
+# These requirements describe the design-level behavior of the ScaleResolver unit of the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the Vega-Lite inference of the scale of each
+# channel of a single view from its encoding, the field types, the mark, the scale properties, the data, and
+# the configuration. See docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: ScaleResolver Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TypeInference
+                title: >-
+                  The ScaleResolver unit shall infer the scale kind of each channel from its type -
+                  linear for quantitative x and y, band for nominal and ordinal x and y of bar, rect,
+                  rule, and tick marks, point for the other marks, no scale for quantitative colors, an
+                  ordinal scale for discrete color, and continuous scales for size and opacity - and shall
+                  honor an explicit scale type of the supported set.
+                justification: |
+                  Which scale a channel gets decides how values are positioned; it must follow the
+                  Vega-Lite rules so the same specification gives the same chart.
+                tests:
+                  - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Orient
+                title: >-
+                  The ScaleResolver unit shall infer the orientation of a bar, tick, or rule mark from its
+                  encoding by the Vega-Lite rules, honor an orientation given in the specification, and
+                  give none for point-like marks.
+                justification: |
+                  The orientation decides which axis is the measure and which is the thickness of a mark.
+                tests:
+                  - ScaleResolver_InferOrient_FollowsVegaLite
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Domains
+                title: >-
+                  The ScaleResolver unit shall derive a continuous domain from the data extent (including
+                  zero by default for bar-like measure axes), apply an explicit domain, zero, and nice,
+                  and derive a discrete domain from the distinct values in ascending order, in the order
+                  of an explicit domain, or in the order of a sort array, with values missing from the
+                  sort array first.
+                justification: |
+                  The domain decides which values the chart shows and where they fall.
+                tests:
+                  - ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding
+                  - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Ranges
+                title: >-
+                  The ScaleResolver unit shall derive the range, padding, and step of each scale: the data
+                  rectangle for positions, the mark and scale properties for inner and outer padding, the
+                  step of a discrete position (reported as the discrete width or height of the view), and
+                  the Vega-Lite default ranges for size and opacity.
+                justification: |
+                  The ranges connect the scales to the geometry of the view; the discrete size of a chart
+                  comes from its step.
+                tests:
+                  - ScaleResolver_Resolve_PaddingsFollowMarkAndScaleProperties
+                  - ScaleResolver_Resolve_SizeAndOpacityUseTheDefaultRanges
+                  - ScaleResolver_Resolve_DiscreteSizesComeFromTheStep
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Colors
+                title: >-
+                  The ScaleResolver unit shall give discrete color, fill, and stroke fields an ordinal
+                  scale over the tableau10 scheme or an explicit range, and shall fall back to tableau10,
+                  marking the scale as a fallback, for an ordinal field or a scheme it does not supply.
+                justification: |
+                  Color is the most common reason for a second encoding; a fallback must be deterministic
+                  and visible.
+                tests:
+                  - ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Validation
+                title: >-
+                  The ScaleResolver unit shall fail with a VegaLiteSpecException carrying the pointer,
+                  line, and column of the property when a scale property has an invalid value, such as a
+                  linear domain with fewer than two numbers, and shall observe the data limits and the
+                  cancellation token.
+                justification: |
+                  An invalid scale property must stop the renderer with the location of the mistake rather
+                  than produce a plausible chart.
+                tests:
+                  - ScaleResolver_Resolve_InvalidInputsFailWithLocation

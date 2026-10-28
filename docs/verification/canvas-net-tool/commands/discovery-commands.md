@@ -6,7 +6,8 @@
 
 `DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs` and
 `DiscoveryCommandsDocumentTests.cs` (the page options and the documents), and `DiscoveryCommandsModelTests.cs` (the
-description of an OpenSCAD model and the link between the format table and the loader). The `formats` command is run
+description of an OpenSCAD model and the link between the format table and the loader), and `DiscoveryCommandsChartTests.cs`
+(the listing of the chart format and the description of a Vega-Lite chart). The `formats` command is run
 in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
 build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
@@ -28,6 +29,8 @@ console.
 - The JSON document equals the golden document exactly.
 - A stray argument or option is a usage error.
 - The format tables name exactly the source kinds and output formats the code implements, in order.
+- The listing names the `vega-lite` format (kind `chart`, extensions `.vl.json` and `.vl`) in text and JSON, and `info`
+  describes a chart as one text line and as the `image` and `chart` objects.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
 
@@ -47,7 +50,8 @@ document followed by a line ending.
 `Program.Version` and a non-empty library version.
 
 **DiscoveryCommands_FormatTables_AreWellFormed**: format names are unique; extensions are lower case, start with a
-dot, and are unique within a table; every input kind is one of the four documented kinds.
+dot, and are unique within a table; every input kind is one of the five documented kinds (`raster`, `vector`, `document`,
+`model`, and `chart`).
 
 **DiscoveryCommands_Formats_PositionalArgument_ThrowsUsageError** and
 **DiscoveryCommands_Formats_UnknownOption_ThrowsUsageError**: a stray argument or an unknown option is a
@@ -60,10 +64,11 @@ dot, and are unique within a table; every input kind is one of the four document
 **DiscoveryCommands_FormatTables_QualityRangeMatchesWriter**, and
 **DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable**: the input table has one row per `SourceKind`, in
 order,
-with the extensions the loader maps to that kind; the output table has one row per `OutputFormat`, in order, with the
+with the extensions the loader maps to that kind (and, for the chart, the suffix `.vl.json`); the output table has one row per `OutputFormat`, in order, with the
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
 listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
-multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format.
+multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden document
+includes the `vega-lite` row.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
 command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default
@@ -108,3 +113,18 @@ line for each module, function, and directive with its line; a model with nothin
 module is `1 module`; the JSON is exactly the documented document, with the `model` object (modules, functions, and
 directives with kind, path, and line) and no `image` or `document` object; a model with a syntax error is a
 `scad-error` and page 2 of a model is `page-out-of-range`.
+
+**DiscoveryCommands_Formats_IncludesVegaLiteChart**: the table row is the `chart` kind, a vector, single-page format with
+the extensions `.vl.json` and `.vl`; the JSON listing has the same row and the text listing shows it as a single-page,
+scalable chart; a file of the kind is probed by the loader as a chart.
+
+**DiscoveryCommands_Info_VegaLiteWritesChartObject**: for a chart with a title, a layer of a `bar` and a `rule` mark, a
+parameter, and an inline and a named data source, the JSON is exactly the documented document - the `image` object with the
+laid-out size, four channels, and alpha, then the `chart` object with the title, the schema major version, the marks, the data
+references (kind, row count, and line), and the parameters, and no `model` or `document` object - and the text is one line
+with the size, the counts, the title, the schema version, and the byte count.
+
+**DiscoveryCommands_Info_ChartWithoutOptionalFacts_OmitsThemAndReportsErrors** and
+**DiscoveryCommands_InfoUsage_NamesVegaLite**: a chart of one `tick` mark with no data, schema, or title has no `title` and no
+`schemaMajorVersion` key, empty data and parameter lists, and zero counts in the text; a malformed chart is a `vega-lite-error`
+and page 2 of a chart is `page-out-of-range`; the usage text names Vega-Lite charts and has a chart example.

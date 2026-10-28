@@ -1,0 +1,67 @@
+---
+# Software Subsystem Requirements for Scenegraph
+#
+# These requirements decompose the CanvasNetVegaLite system's output responsibility into the Scenegraph
+# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene model that
+# is the assertion surface for analytic tests (SceneModel), the painter that draws a scene onto a CanvasNet
+# Surface with only the public CanvasNet APIs (ScenePainter), and the CSS color parser (CssColor). Each
+# requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-vega-lite/scenegraph.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Scenegraph-Model
+            title: >-
+              The Scenegraph subsystem shall represent a chart as an immutable scene of groups,
+              rectangles, rules, paths, symbols, and text items with roles, CSS-string colors, and Vega
+              defaults, enumerated in deterministic drawing order without recursion, with exact bounds
+              arithmetic, so that tests can assert geometry and paint analytically.
+            justification: |
+              Separating the scene from the pixels makes the chart logic verifiable without comparing
+              images.
+            children:
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Structure
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Defaults
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Bounds
+            tests:
+              - SceneModel_Create_GroupsAndItemsPreservesDeterministicOrder
+              - SceneModel_Create_ListsAreCopiedAndReadOnly
+              - SceneBounds_UnionTranslateAndRotate_AreExact
+
+          - id: CanvasNetVegaLite-Scenegraph-Painting
+            title: >-
+              The Scenegraph subsystem shall paint a scene onto a Surface at a uniform scale and offset
+              with fill, stroke, dash, opacity, rotation, rounded rectangles, symbols, paths, text with
+              baseline and limit, and clipping with fractional coverage, drawing nothing for an item
+              without paint, producing the same pixels on every platform, and observing cancellation.
+            justification: |
+              The painter turns the verified scene into pixels, and its output must be correct and
+              deterministic.
+            children:
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-FillStroke
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-ClipScale
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Text
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Arguments
+            tests:
+              - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
+              - ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels
+              - ScenePainter_Paint_TextUsesBaselineRotationAndScale
+
+          - id: CanvasNetVegaLite-Scenegraph-Colors
+            title: >-
+              The Scenegraph subsystem shall convert the CSS colors of a specification - hexadecimal
+              forms, the 148 named colors, rgb, rgba, hsl, and hsla functions, and transparent - to
+              CanvasNet colors, treat none, unparseable, and fully transparent paints as no paint, and
+              fail cleanly on invalid text.
+            justification: |
+              Colors arrive as text in specifications and configuration and must be converted exactly.
+            children:
+              - CanvasNetVegaLite-Scenegraph-CssColor-Parse
+              - CanvasNetVegaLite-Scenegraph-CssColor-Paint
+            tests:
+              - CssColor_Parse_SupportedFormsMatchRgba32
+              - CssColor_ResolvePaint_NoneOpacityAndRoundTrip

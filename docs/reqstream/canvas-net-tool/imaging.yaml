@@ -20,9 +20,10 @@ sections:
       - id: CanvasNetTool-Imaging-Load
         title: >-
           The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
-          VSDX, or SCAD file (a chosen page of a document, a named view of a model) into pixels at the
-          size and resolution the options ask for, and shall report the facts of a file, including the
-          pages of a document and the declarations of a model, without decoding or rendering it.
+          VSDX, SCAD, or Vega-Lite file (a chosen page of a document, a named view of a model, a chart)
+          into pixels at the size and resolution the options ask for, and shall report the facts of a
+          file, including the pages of a document, the declarations of a model, and the marks, data, and
+          parameters of a chart, without decoding or rendering it.
         justification: |
           Every command needs one place that recognizes a file, reads its header, and produces the
           pixels, so that the formats behave consistently.
@@ -42,6 +43,10 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-ScadLimits
           - CanvasNetTool-Imaging-SourceLoader-ScadIncludes
           - CanvasNetTool-Imaging-SourceLoader-ScadErrors
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetTool-Imaging-SourceLoader-Sizing
           - CanvasNetTool-Imaging-SourceLoader-Background
           - CanvasNetTool-Imaging-SourceLoader-Exif

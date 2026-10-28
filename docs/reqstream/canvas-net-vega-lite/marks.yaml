@@ -1,0 +1,54 @@
+---
+# Software Subsystem Requirements for Marks
+#
+# These requirements decompose the CanvasNetVegaLite system's mark responsibility into the Marks subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the builder that turns the rows of a table, the
+# scales, and the resolved configuration into the scene items of the marks bar, rect, point, circle, square,
+# rule, and tick. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-vega-lite/marks.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Marks Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Marks-SupportedSubset
+            title: >-
+              The Marks subsystem shall build the scene items of the marks bar, rect, point, circle,
+              square, rule, and tick - one item per row, positioned by the x and y scales with the
+              documented thickness, size, and orientation rules - in a marks group, each item having a
+              role that names its mark type.
+            justification: |
+              The marks are the data of the chart; their geometry must match analytic expectations.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-BarRect
+              - CanvasNetVegaLite-Marks-MarkBuilder-SymbolsRuleTick
+            tests:
+              - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
+              - MarkBuilder_Build_PointCircleSquareRuleAndTickMatchExpectedSceneItems
+
+          - id: CanvasNetVegaLite-Marks-Properties
+            title: >-
+              The Marks subsystem shall resolve the color, fill, stroke, size, opacity, and other
+              properties of each mark from the encoding (field, value, and datum forms), the mark
+              definition, the styles, and the configuration, drawing filled marks with a fill and
+              unfilled marks with a stroke, and shall drop the rows whose continuous value is missing.
+            justification: |
+              Color, size, and opacity are the channels that carry additional data and must be resolved
+              as Vega-Lite resolves them.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-Channels
+            tests:
+              - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
+
+          - id: CanvasNetVegaLite-Marks-Limits
+            title: >-
+              The Marks subsystem shall bound the number of scene items, failing closed with a located
+              VegaLiteRenderException before the memory is spent, shall observe the cancellation token
+              at bounded intervals, and shall build nothing for a mark that is not supported.
+            justification: |
+              Marks scale with the data, so they must be bounded and cancelable.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-Limits
+            tests:
+              - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks

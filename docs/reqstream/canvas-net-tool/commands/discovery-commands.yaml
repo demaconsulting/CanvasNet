@@ -121,6 +121,29 @@ sections:
           - DiscoveryCommands_Info_ModelJson_HasModelObject
           - DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors
 
+      - id: CanvasNetTool-Commands-DiscoveryCommands-VegaLite
+        title: >-
+          The formats command shall list the Vega-Lite format (vega-lite, the kind chart, the extensions
+          .vl.json and .vl, vector, not multi-page) in its text and JSON listings, and the info command shall
+          describe a Vega-Lite chart by parsing and measuring it, without drawing it: as one text line with its
+          path, the size it is laid out at, the number of its marks, data references, and parameters, its title,
+          its schema version, and its size in bytes; and as the image object of the JSON document (the laid-out
+          size and four channels) followed by the chart object, with the title and schemaMajorVersion when the
+          specification has them, the marks, the dataReferences (kind, url and rows when known, and line), and
+          the parameters.
+        justification: |
+          An agent decides whether and how to render a chart, and whether data must be supplied, from what the
+          specification declares; parsing and measuring it answers that without the cost of drawing it, and
+          the listing must name the format so that the agent can discover that charts are read at all.
+        tests:
+          - DiscoveryCommands_Formats_IncludesVegaLiteChart
+          - DiscoveryCommands_Info_VegaLiteWritesChartObject
+          - DiscoveryCommands_Info_ChartWithoutOptionalFacts_OmitsThemAndReportsErrors
+          - DiscoveryCommands_InfoUsage_NamesVegaLite
+          - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
+          - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
+
       - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         title: >-
           The info command shall report a missing, corrupt, or unsupported input (including a damaged

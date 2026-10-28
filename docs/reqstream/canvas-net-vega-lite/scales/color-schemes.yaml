@@ -1,0 +1,34 @@
+---
+# Software Unit Requirements for ColorSchemes
+#
+# These requirements describe the design-level behavior of the ColorSchemes unit of the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the tableau10 categorical color scheme that is
+# the Vega-Lite default category range, and the deterministic lookup of a category color. See
+# docs/verification/canvas-net-vega-lite/scales/color-schemes.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: ColorSchemes Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Tableau10
+                title: >-
+                  The ColorSchemes unit shall provide the ten colors of the tableau10 scheme in their
+                  documented order and shall give the color of a category index by cycling through them.
+                justification: |
+                  tableau10 is the default categorical palette of Vega-Lite; the colors and their order
+                  decide the look of every colored chart.
+                tests:
+                  - ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Lookup
+                title: >-
+                  The ColorSchemes unit shall find a scheme by name ignoring case and shall find only the
+                  schemes it supplies.
+                justification: |
+                  A scheme that is not supplied must be recognizable so that the resolver can fall back
+                  and flag it.
+                tests:
+                  - ColorSchemes_TryGetScheme_FindsOnlyTableau10IgnoringCase

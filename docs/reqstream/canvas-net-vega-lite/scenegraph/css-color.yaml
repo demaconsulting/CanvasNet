@@ -1,0 +1,39 @@
+---
+# Software Unit Requirements for CssColor
+#
+# These requirements describe the design-level behavior of the CssColor unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the parser of the CSS color syntax that
+# specifications and configuration use, and the resolution of a paint with its opacity to a CanvasNet Rgba32.
+# See docs/verification/canvas-net-vega-lite/scenegraph/css-color.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: CssColor Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-CssColor-Parse
+                title: >-
+                  The CssColor unit shall parse the hexadecimal forms of three, four, six, and eight
+                  digits, the 148 named colors including transparent, and the rgb, rgba, hsl, and hsla
+                  functions to the equivalent CanvasNet Rgba32, and shall report invalid text as not
+                  parseable without throwing.
+                justification: |
+                  Colors arrive as text; exact conversion decides every pixel color of a chart and invalid
+                  text must not crash the renderer.
+                tests:
+                  - CssColor_Parse_SupportedFormsMatchRgba32
+                  - CssColor_Parse_NamedColorsAreComplete
+                  - CssColor_Parse_InvalidTextFailsCleanly
+
+              - id: CanvasNetVegaLite-Scenegraph-CssColor-Paint
+                title: >-
+                  The CssColor unit shall resolve a paint and an opacity to a color, treating none,
+                  an unparseable paint, and a fully transparent result as no paint, apply the opacity to
+                  the alpha, and convert a color back to CSS text so that parsing it again gives the same
+                  color.
+                justification: |
+                  The painter relies on one rule for when an item has paint and with which alpha.
+                tests:
+                  - CssColor_ResolvePaint_NoneOpacityAndRoundTrip

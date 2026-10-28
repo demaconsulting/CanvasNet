@@ -1,0 +1,65 @@
+---
+# Software Unit Requirements for DataTable
+#
+# These requirements describe the design-level behavior of the DataTable unit of the Data subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Data): the immutable row table, its typed DataValue, the field
+# path syntax, and the JavaScript-compatible number formatting that gives values their text form. See
+# docs/verification/canvas-net-vega-lite/data/data-table.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Data Requirements
+        sections:
+          - title: DataTable Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Data-DataTable-ImmutableRows
+                title: >-
+                  The DataTable unit shall create a table from field names and rows of typed values, or
+                  from records, copying its input so that the table cannot change afterwards, taking the
+                  union of record keys in ordinal order, filling a missing field with null, keeping rows
+                  without fields, and rejecting invalid arguments.
+                justification: |
+                  Scales and marks read the table many times; it must be a stable snapshot that cannot be
+                  changed by the caller's collections.
+                tests:
+                  - DataTable_Create_StoresTypedImmutableRows
+                  - DataTable_FromRecords_UnionsKeysInOrdinalOrderAndFillsMissingWithNull
+                  - DataTable_FromRecords_RowsWithoutFieldsAreKept
+                  - DataTable_Create_InvalidArgumentsAreRejected
+
+              - id: CanvasNetVegaLite-Data-DataTable-FieldPaths
+                title: >-
+                  The DataTable unit shall find a field by a path that supports dotted, bracketed, and
+                  escaped forms, splitting and joining paths by the Vega rules, and shall give -1 for an
+                  absent or malformed path.
+                justification: |
+                  Specifications name nested fields as paths, and a lookup that guessed would read the wrong
+                  column.
+                tests:
+                  - DataTable_FindField_SupportsDottedBracketedAndEscapedPaths
+                  - FieldPath_Parse_SplitsPathsLikeVega
+
+              - id: CanvasNetVegaLite-Data-DataTable-Values
+                title: >-
+                  The DataTable unit shall give each value a JavaScript-compatible text form (including
+                  the shortest round-trip number text and exponent form) that does not depend on the
+                  culture, shall read a value as a quantitative number only when it is a finite number,
+                  a boolean, or a numeric string, and shall order and compare values by a total order
+                  with null before boolean before number before string.
+                justification: |
+                  Category labels and domain order must be identical on every machine and match what
+                  Vega-Lite users expect from the same data.
+                tests:
+                  - JsNumber_ToString_MatchesJavaScriptNumberFormatting
+                  - JsNumber_RoundAndRadix_FollowJavaScript
+                  - DataValue_TextOrderingEqualityAndQuantitativeReading_FollowTheDocumentedRules
+
+              - id: CanvasNetVegaLite-Data-DataTable-Limits
+                title: >-
+                  The DataTable unit shall reject a table whose row count or field count exceeds the
+                  corresponding limit with a VegaLiteRenderException that carries the supplied location.
+                justification: |
+                  A table is the largest allocation of a rendering and must be bounded.
+                tests:
+                  - DataTable_Create_LimitsFailClosedWithLocation

@@ -1,0 +1,123 @@
+---
+# Software Subsystem Requirements for Scales
+#
+# These requirements decompose the CanvasNetVegaLite system's scaling responsibility into the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable scale mappings (ScaleModel), the
+# Vega-Lite inference of scales from the encoding and the data (ScaleResolver), the ports of the d3-array tick
+# algorithms (Ticks) and of the d3-format number formatter (NumberFormat), and the tableau10 category colors
+# (ColorSchemes). Ticks and NumberFormat are own C# ports of ISC-licensed d3 algorithms and are attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-vega-lite/scales.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Scales-Types
+            title: >-
+              The Scales subsystem shall infer the scale of each channel from its field type, mark, and
+              scale properties - linear for quantitative positions, band or point for nominal and
+              ordinal positions by mark, an ordinal scale for color, and the documented continuous
+              ranges for size and opacity - and shall infer the orientation of bar, tick, and rule marks.
+            justification: |
+              The scale type decides how every value is positioned; inferring it as Vega-Lite does is what
+              makes the same specification produce the same chart.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-TypeInference
+              - CanvasNetVegaLite-Scales-ScaleResolver-Orient
+            tests:
+              - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
+              - ScaleResolver_InferOrient_FollowsVegaLite
+
+          - id: CanvasNetVegaLite-Scales-Domains
+            title: >-
+              The Scales subsystem shall compute scale domains from the data or from an explicit domain,
+              applying zero, nice, and sort as documented, ordering discrete values ascending by default
+              with a fixed order across value kinds, and shall fail with a located specification
+              exception for an invalid scale property.
+            justification: |
+              The domain decides which values the chart shows and where they fall; invalid properties must
+              stop the renderer with the location of the mistake.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-Domains
+              - CanvasNetVegaLite-Scales-ScaleResolver-Validation
+            tests:
+              - ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding
+              - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
+              - ScaleResolver_Resolve_InvalidInputsFailWithLocation
+
+          - id: CanvasNetVegaLite-Scales-Positions
+            title: >-
+              The Scales subsystem shall map data values to pixel positions with linear, band, and point
+              scales using the d3-scale arithmetic - domain to range, padding, alignment, band width and
+              step, clamping, rounding, and reversal - and shall derive the ranges, paddings, and steps of
+              the position, size, and opacity channels from the data rectangle and the configuration.
+            justification: |
+              Every mark and every tick is placed by these mappings, so they must match analytic
+              expectations exactly.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleModel-Mappings
+              - CanvasNetVegaLite-Scales-ScaleResolver-Ranges
+            tests:
+              - ScaleModel_Map_LinearBandAndPointMatchAnalyticPositions
+              - ScaleResolver_Resolve_PaddingsFollowMarkAndScaleProperties
+              - ScaleResolver_Resolve_DiscreteSizesComeFromTheStep
+
+          - id: CanvasNetVegaLite-Scales-CategoryColors
+            title: >-
+              The Scales subsystem shall assign categorical colors from the tableau10 scheme (or an
+              explicit range) by cycling through the scheme in domain order, shall fall back to tableau10
+              for other schemes while flagging the fallback, and shall find schemes by name ignoring case.
+            justification: |
+              The default categorical palette is part of the look of every colored chart and must be
+              deterministic.
+            children:
+              - CanvasNetVegaLite-Scales-ColorSchemes-Tableau10
+              - CanvasNetVegaLite-Scales-ColorSchemes-Lookup
+              - CanvasNetVegaLite-Scales-ScaleModel-Ordinal
+              - CanvasNetVegaLite-Scales-ScaleResolver-Colors
+            tests:
+              - ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors
+              - ScaleModel_MapOrdinal_CyclesThroughTheRange
+              - ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes
+
+          - id: CanvasNetVegaLite-Scales-Ticks
+            title: >-
+              The Scales subsystem shall generate axis tick values, tick steps, and nice domains with a
+              port of the d3-array ticks, tickStep, and nice algorithms, shall choose the default tick
+              count from the axis length and the minimum step from the format as Vega-Lite does, and shall
+              fail closed when a count would exceed the tick limit.
+            justification: |
+              The tick values are what an axis shows; matching the d3 algorithm is what makes an axis
+              look like a Vega-Lite axis, and an unbounded count would exhaust memory.
+            children:
+              - CanvasNetVegaLite-Scales-Ticks-Generation
+              - CanvasNetVegaLite-Scales-Ticks-Nice
+              - CanvasNetVegaLite-Scales-Ticks-AxisCounts
+              - CanvasNetVegaLite-Scales-Ticks-Limits
+            tests:
+              - Ticks_Ticks_LinearRangeMatchesHandDerivedExpectedVector
+              - Ticks_TickStep_UsesHandDerivedExpectedStep
+              - Ticks_Nice_ExpandsDomainToExpectedBoundaries
+
+          - id: CanvasNetVegaLite-Scales-Formatting
+            title: >-
+              The Scales subsystem shall format quantitative labels with a port of the d3-format
+              specifier mini-language - fill, align, sign, symbol, zero, width, comma, precision, trim,
+              and type - choosing the precision of tick labels from the tick step, using en-US separators
+              and the minus sign U+2212 whatever the current culture, and limiting the width.
+            justification: |
+              Label text must match what Vega-Lite users expect, be identical on every machine, and not
+              allow a format to demand unbounded memory.
+            children:
+              - CanvasNetVegaLite-Scales-NumberFormat-Specifier
+              - CanvasNetVegaLite-Scales-NumberFormat-Formatting
+              - CanvasNetVegaLite-Scales-NumberFormat-TickFormat
+              - CanvasNetVegaLite-Scales-NumberFormat-Culture
+              - CanvasNetVegaLite-Scales-NumberFormat-Limits
+            tests:
+              - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
+              - NumberFormat_TickFormat_ChoosesThePrecisionFromTheTickStep
+              - NumberFormat_Format_IgnoresTheCurrentCulture

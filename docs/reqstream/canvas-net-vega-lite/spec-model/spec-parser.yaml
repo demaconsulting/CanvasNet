@@ -1,0 +1,107 @@
+---
+# Software Unit Requirements for SpecParser
+#
+# These requirements describe the design-level behavior of the SpecParser unit of the SpecModel subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded UTF-8 JSON reader that builds
+# the immutable SpecNode tree with positions, the structural validation and unknown-property warnings in the
+# partial file SpecParser.Validation.cs, and the SpecMetadata reader. See
+# docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        sections:
+          - title: SpecParser Requirements
+            requirements:
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-JsonTree
+                title: >-
+                  The SpecParser unit shall read JSON text (a string or UTF-8 bytes) into an immutable tree
+                  of nodes of kind object, array, string, number, boolean, or null, with object
+                  properties in document order, array items in order, finite numbers, and a leading
+                  byte-order mark ignored, reading a very large inline data array in one pass, and shall
+                  enumerate the views of the tree with parents before nested views.
+                justification: |
+                  A single immutable tree is the one representation every later stage reads, and its cost
+                  must not grow faster than the size of the text.
+                tests:
+                  - SpecParser_Parse_ValidInlineSpecRecordsJsonPointerAndLineColumn
+                  - SpecParser_Parse_AllValueKindsAndBomAreHandled
+                  - SpecParser_Parse_LargeInlineDataIsReadInOnePass
+                  - SpecTree_EnumerateViews_ListsNestedViewsParentsFirst
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-LocationTracking
+                title: >-
+                  The SpecParser unit shall give every node its RFC 6901 pointer (with ~0 and ~1
+                  escaping), the one-based line and column of its value, and the position of its key,
+                  counting columns in UTF-16 code units, and shall report malformed JSON with the
+                  location of the first offending character.
+                justification: |
+                  Located diagnostics are only trustworthy when the positions are exact and computed by
+                  one agreed rule.
+                tests:
+                  - SpecParser_Parse_MalformedJsonReportsFirstLocation
+                  - SpecParser_Parse_LocationsCountUtf16CodeUnits
+                  - SpecParser_Parse_ValidInlineSpecRecordsJsonPointerAndLineColumn
+                  - SpecNode_ToString_DescribesKindPointerAndPosition
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-StructuralValidation
+                title: >-
+                  The SpecParser unit shall throw a located VegaLiteSpecException for text that is not a
+                  Vega-Lite specification object, for bytes that are not valid UTF-8, and for the first
+                  value in document order whose type does not fit the known property it belongs to, and
+                  shall accept every documented valid form of those properties.
+                justification: |
+                  A wrong type must stop the renderer before it misreads the property, and a valid form
+                  that is rejected would make correct specifications unusable.
+                tests:
+                  - SpecParser_Parse_NotASpecificationThrowsLocatedSpecException
+                  - SpecParser_Parse_InvalidUtf8BytesThrowSpecException
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - SpecParser_Parse_FirstWrongValueInDocumentOrderIsReported
+                  - SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-DuplicateAndUnknownKeys
+                title: >-
+                  The SpecParser unit shall keep the last value of a key written twice while keeping the
+                  position of the first occurrence and raising one vl-duplicate-key warning at the later
+                  key, and shall raise one vl-unknown-property warning for each property that Vega-Lite
+                  does not define at the places it checks, never warning about a defined name.
+                justification: |
+                  Duplicate keys are a common authoring mistake whose resolution must be deterministic,
+                  and unknown properties are usually typos that deserve a warning, not a failure.
+                tests:
+                  - SpecParser_Parse_DuplicateKeyLastWinsAndWarns
+                  - SpecParser_Parse_UnknownPropertiesWarnOnceAndValidKeysNeverWarn
+                  - SpecParser_Parse_ValidTopLevelNamesDoNotWarn
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
+                title: >-
+                  The SpecParser unit shall reject source text longer than the source-length limit with
+                  an InvalidDataException, nesting deeper than the JSON-depth limit and strings longer
+                  than the string-length limit with a located VegaLiteSpecException, and numbers outside
+                  the double range, while using an explicit stack so that no input can overflow the call
+                  stack.
+                justification: |
+                  Recursion over untrusted nesting would let a hostile specification terminate the host
+                  process, and unbounded text would exhaust memory.
+                tests:
+                  - SpecParser_Parse_DepthAndSourceLimitsFailClosed
+                  - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Metadata
+                title: >-
+                  The SpecParser unit shall derive from the tree the schema URL, the schema major version
+                  (for any vega-lite/vN.json URL), the plain-text title (several lines joined with a
+                  line feed), the mark types with their locations, the data references (inline, URL,
+                  named, or sequence, with the sequence length), and the distinct parameter names, with
+                  inline values taking precedence over a name.
+                justification: |
+                  The public properties of the document are computed from this metadata when the
+                  document is opened, so it must be exact and independent of rendering.
+                tests:
+                  - SpecMetadata_Read_DescribesSchemaTitleMarksDataAndParameters
+                  - SpecMetadata_Read_TitleIsPlainText
+                  - SpecMetadata_Read_SequenceComputesLength
+                  - SpecMetadata_Read_InlineValuesTakePrecedenceOverName
+                  - SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion

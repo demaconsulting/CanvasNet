@@ -1,0 +1,54 @@
+---
+# Software Unit Requirements for TextMeasurer
+#
+# These requirements describe the design-level behavior of the TextMeasurer unit of the Guides subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): font-family resolution against the bundled
+# Liberation fonts (and, only when the caller opts in, additional directories and installed fonts), text
+# measurement with the real advance widths, line splitting, truncation with an ellipsis, and the Vega baseline
+# and text-bounds rules. See docs/verification/canvas-net-vega-lite/guides/text-measurer.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: TextMeasurer Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-TextMeasurer-BundledFonts
+                title: >-
+                  The TextMeasurer unit shall resolve generic and Arial-like family names (sans-serif,
+                  Helvetica, Arial, Verdana, and similar) to the bundled Liberation Sans, serif names to
+                  Liberation Serif, and monospace names to Liberation Mono, without consulting installed
+                  fonts, and shall resolve an empty or unresolvable family list to the bundled sans font.
+                justification: |
+                  The default result must not depend on the fonts installed on the machine.
+                tests:
+                  - TextMeasurer_Resolve_DefaultUsesBundledFonts
+                  - TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories
+
+              - id: CanvasNetVegaLite-Guides-TextMeasurer-FontSelection
+                title: >-
+                  The TextMeasurer unit shall select the bold face for a weight of 600 or more or the word
+                  bold and the italic face for italic or oblique, and shall find a named family in the
+                  additional font directories of the caller, which it searches before any installed font.
+                justification: |
+                  Weight and style are part of the font of every title and label, and callers who need a
+                  corporate font must be able to supply it explicitly.
+                tests:
+                  - TextMeasurer_Resolve_WeightAndStyleSelectTheFace
+                  - TextMeasurer_Resolve_AdditionalDirectoryFontIsFoundByFamilyName
+
+              - id: CanvasNetVegaLite-Guides-TextMeasurer-Measurement
+                title: >-
+                  The TextMeasurer unit shall measure the width of text by the advance widths of the
+                  resolved font, split text into lines, truncate a line to a limit with an ellipsis, and
+                  provide the Vega baseline offsets and text bounds including the alignment and rotation
+                  rules.
+                justification: |
+                  The width and height of every label decide the extents of the axes and the size of the
+                  canvas.
+                tests:
+                  - TextMeasurer_Measure_TruncatesAndSplitsLines
+                  - TextMeasurer_BaselineOffset_FollowsVegaConstants
+                  - TextMeasurer_GetBounds_FollowsVegaTextBounds

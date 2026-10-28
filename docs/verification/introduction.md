@@ -73,6 +73,14 @@ constituent software items, specifically:
   `ScadFileResolver`, and an internal `ScadGeometry` subsystem with the units `ScadGeometryBuilder`,
   `ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` —
   see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
+- **CanvasNetVegaLite (System)** — A separate software system providing a Vega-Lite chart renderer that parses a
+  Vega-Lite JSON specification and measures and renders the supported chart subset to a `Surface`, containing a single
+  direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
+  exceptions), and seven internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
+  `Data` (units `DataTable` and `DataLoader`), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
+  and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
+  `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
+  see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
@@ -117,6 +125,17 @@ trees. In-house items have artifacts in these parallel locations:
 - Verification design: `docs/verification/{system}/.../{item}.md` (kebab-case)
 - Source code: `src/{System}/.../{Item}.cs` (PascalCase for C#)
 - Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
+
+For example, the unit `ScaleResolver` of the `Scales` subsystem of the CanvasNetVegaLite system has the requirements
+`docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml`, the design
+`docs/design/canvas-net-vega-lite/scales/scale-resolver.md`, this verification design
+`docs/verification/canvas-net-vega-lite/scales/scale-resolver.md`, the source
+`src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs`, and the tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`. The system-level tests of that system are in
+`VegaLiteSystemIntegrationTests.cs` and `VegaLiteChartIntegrationTests.cs` in the root of its test project, and its
+original-work specification fixtures, with their provenance statement, are in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. Only original fixtures are used: no Vega-Lite example,
+gallery chart, documentation snippet, or `vega-datasets` data set is copied.
 
 OTS items have parallel artifacts in:
 
