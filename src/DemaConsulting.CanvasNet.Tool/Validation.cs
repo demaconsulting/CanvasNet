@@ -50,6 +50,7 @@ internal static class Validation
         RunRenderSvgTest(context, testResults);
         RunPdfMinimalTest(context, testResults);
         RunRenderScadTest(context, testResults);
+        RunRenderVegaLiteTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
         RunCompareTest(context, testResults);
@@ -489,6 +490,75 @@ internal static class Validation
             RunCommand(directory, "render", input, "--view", "front", "--size", "40x40", "-D", "w=40", "-o", wide);
             using var widened = PngCodec.Load(wide);
             return widened[20, 20] != white && widened[20, 6] == white ? null : "The variable did not change the rendered model";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes and renders a Vega-Lite chart written by the test, and checks the picture.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderVegaLiteTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderVegaLite", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "chart.vl.json");
+            var output = PathHelpers.SafePathCombine(directory, "chart.png");
+            File.WriteAllText(
+                input,
+                """
+                {
+                  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                  "width": 200,
+                  "height": 100,
+                  "data": { "values": [ { "k": "a", "v": 3 }, { "k": "b", "v": 5 } ] },
+                  "mark": "bar",
+                  "encoding": {
+                    "x": { "field": "k", "type": "nominal" },
+                    "y": { "field": "v", "type": "quantitative" }
+                  }
+                }
+                """);
+
+            // The chart is parsed and measured, not drawn: one bar mark and one inline data source
+            var json = RunCommand(directory, "info", input, "--json");
+            int width;
+            int height;
+            using (var document = JsonDocument.Parse(json))
+            {
+                var chart = document.RootElement.GetProperty("chart");
+                var image = document.RootElement.GetProperty("image");
+                width = image.GetProperty("width").GetInt32();
+                height = image.GetProperty("height").GetInt32();
+                if (document.RootElement.GetProperty("input").GetProperty("format").GetString() != "vega-lite"
+                    || chart.GetProperty("marks").GetArrayLength() != 1
+                    || chart.GetProperty("marks")[0].GetString() != "bar"
+                    || chart.GetProperty("dataReferences").GetArrayLength() != 1)
+                {
+                    return "The info document does not describe the chart";
+                }
+            }
+
+            // The chart is laid out around its 200x100 data rectangle (axes and padding), so it is larger than that
+            RunCommand(directory, "render", input, "-o", output);
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != width || rendered.Height != height || width <= 200 || height <= 100)
+            {
+                return "The rendered chart has the wrong size";
+            }
+
+            // The corner is the white background. The padding is 5 pixels at the top and the right and the data
+            // rectangle is 200x100, so its two bands are 100 wide with a bar of 90 in each: the second bar (all of the
+            // height) is 50 pixels left of the right edge of the rectangle, the first (3 of the 5 units) 150 pixels
+            // left of it, with white above it
+            var white = new Rgba32(255, 255, 255, 255);
+            var barColor = new Rgba32(0x4c, 0x78, 0xa8, 255);
+            var right = width - 5;
+            var correct = rendered[0, 0] == white
+                          && rendered[right - 50, 15] == barColor
+                          && rendered[right - 150, 80] == barColor
+                          && rendered[right - 150, 15] == white;
+            return correct ? null : "The rendered chart has the wrong pixels";
         });
     }
 
@@ -1106,6 +1176,8 @@ internal static class Validation
     ///     The height of the image the self-tests generate.
     /// </summary>
     private const int TestImageHeight = 6;
+
+
 
     /// <summary>
     ///     Creates the small opaque test image the self-tests convert: a gradient that differs at every pixel.

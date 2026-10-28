@@ -14,7 +14,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, and OpenSCAD models) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, and Vega-Lite charts) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -92,6 +92,7 @@
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -101,6 +102,15 @@
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Third-party license notices of the bundled Vega-Lite library: BSD-3-Clause (Vega, Vega-Lite) and ISC (d3)
+       require the notices to be reproduced in binary distributions, so they ship as plain files in the package's
+       licenses\ folder (the library package does the same). The notice file keeps a distinct name here so it cannot
+       be mistaken for the README of the tool. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\LICENSE-*.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\README.md" Pack="true" PackagePath="licenses\VegaLite-third-party-README.md" />
   </ItemGroup>
 
 </Project>

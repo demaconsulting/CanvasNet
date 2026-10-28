@@ -40,7 +40,8 @@ internal static partial class FixtureFactory
         ("pdf", ".pdf"),
         ("pptx", ".pptx"),
         ("vsdx", ".vsdx"),
-        ("scad", ".scad")
+        ("scad", ".scad"),
+        ("vega-lite", ".vl.json")
     ];
 
     /// <summary>
@@ -188,6 +189,9 @@ internal static partial class FixtureFactory
                 break;
             case "scad":
                 File.Copy(FixturePath("cube.scad"), path);
+                break;
+            case "vega-lite":
+                File.Copy(FixturePath("baskets.vl.json"), path);
                 break;
             default:
                 File.Copy(FixturePath("shapes.svg"), path);

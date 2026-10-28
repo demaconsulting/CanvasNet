@@ -381,6 +381,7 @@ public class RenderCommandScadTests
     [InlineData("png")]
     [InlineData("svg")]
     [InlineData("pdf")]
+    [InlineData("vega-lite")]
     public void RenderCommand_Run_ModelOptionOnAnotherKind_ThrowsUsageError(string key)
     {
         // Arrange: an input that is not a model

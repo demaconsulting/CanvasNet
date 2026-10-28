@@ -932,12 +932,12 @@ public partial class CanvasNetToolTests
                 File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
                 var renamed = directory.Combine($"truncated-{key}{extension}");
                 File.Move(truncated, renamed);
-                cases.Add((renamed, "corrupt-input"));
+                cases.Add((renamed, key == "vega-lite" ? "vega-lite-error" : "corrupt-input"));
             }
 
             var garbage = directory.Combine($"garbage-{key}{extension}");
             File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(200));
-            cases.Add((garbage, key == "scad" ? "scad-error" : "corrupt-input"));
+            cases.Add((garbage, key switch { "scad" => "scad-error", "vega-lite" => "vega-lite-error", _ => "corrupt-input" }));
         }
 
         foreach (var (input, code) in cases)

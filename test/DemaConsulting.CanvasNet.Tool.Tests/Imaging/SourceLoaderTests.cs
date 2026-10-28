@@ -152,6 +152,7 @@ public class SourceLoaderTests
     [InlineData(".svg", "svg")]
     [InlineData(".pdf", "pdf")]
     [InlineData(".scad", "scad")]
+    [InlineData(".vl", "vega-lite")]
     public void SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension(string extension, string expected)
     {
         // Arrange: a file with content no signature matches
@@ -300,6 +301,7 @@ public class SourceLoaderTests
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
+            "vega-lite" => (info.Width, info.Height),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -784,7 +786,7 @@ public class SourceLoaderTests
         if (outcome != null)
         {
             var exception = Assert.IsType<ToolException>(outcome);
-            Assert.Contains(exception.Code, new[] { ErrorCodes.CorruptInput, ErrorCodes.UnsupportedFeature });
+            Assert.Contains(exception.Code, new[] { ErrorCodes.CorruptInput, ErrorCodes.UnsupportedFeature, ErrorCodes.VegaLiteError });
         }
         else
         {
@@ -807,8 +809,14 @@ public class SourceLoaderTests
         // Act: load it
         var exception = Assert.Throws<ToolException>(() => SourceLoader.Load(path, new SourceOptions()));
 
-        // Assert: reported as corrupt input (a model: a SCAD error), naming the file
-        Assert.Equal(key == "scad" ? ErrorCodes.ScadError : ErrorCodes.CorruptInput, exception.Code);
+        // Assert: reported as corrupt input (a model: a SCAD error, a chart: a Vega-Lite error), naming the file
+        var expectedCode = key switch
+        {
+            "scad" => ErrorCodes.ScadError,
+            "vega-lite" => ErrorCodes.VegaLiteError,
+            _ => ErrorCodes.CorruptInput
+        };
+        Assert.Equal(expectedCode, exception.Code);
         Assert.Contains(path, exception.Message);
     }
 

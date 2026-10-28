@@ -389,6 +389,7 @@ jobs:
               'DemaConsulting.CanvasNet.Vsdx.dll',
               'DemaConsulting.CanvasNet.Render3D.dll',
               'DemaConsulting.CanvasNet.Scad.dll',
+              'DemaConsulting.CanvasNet.VegaLite.dll',
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
             )
@@ -398,6 +399,13 @@ jobs:
                 if (-not ($zip.Entries.FullName -contains $entry)) {
                   throw "The tool package does not contain $entry"
                 }
+              }
+            }
+            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) must
+            # accompany the binaries, so they travel in the package's licenses folder.
+            foreach ($notice in 'licenses/LICENSE-vega.txt', 'licenses/LICENSE-d3.txt', 'licenses/VegaLite-third-party-README.md') {
+              if (-not ($zip.Entries.FullName -contains $notice)) {
+                throw "The tool package does not contain $notice"
               }
             }
           }
@@ -458,6 +466,7 @@ jobs:
           canvasnet formats --json > formats.json || { echo "✗ Formats command failed"; exit 1; }
           grep -q '"ok":true' formats.json || { echo "✗ Formats result is not a success document"; exit 1; }
           grep -q '"format":"scad"' formats.json || { echo "✗ Formats result does not list scad"; exit 1; }
+          grep -q '"format":"vega-lite"' formats.json || { echo "✗ Formats result does not list vega-lite"; exit 1; }
           echo "✓ Formats command succeeded"
 
       - name: Test render and crop
@@ -474,6 +483,23 @@ jobs:
           canvasnet crop smoke/t.png 0,0,2,2 -o smoke/c.png || { echo "✗ Crop command failed"; exit 1; }
           test -s smoke/c.png || { echo "✗ Crop wrote no output file"; exit 1; }
           echo "✓ Render and crop succeeded"
+
+      - name: Test Vega-Lite chart render
+        shell: bash
+        run: |
+          echo "Testing canvasnet render of a Vega-Lite chart..."
+          mkdir -p smoke
+          printf '%s' '{"$schema":"https://vega.github.io/schema/vega-lite/v5.json",' > smoke/chart.vl.json
+          printf '%s' '"data":{"values":[{"k":"a","v":3},{"k":"b","v":5}]},"mark":"bar",' >> smoke/chart.vl.json
+          printf '%s' '"encoding":{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative"}}}' >> smoke/chart.vl.json
+          canvasnet info smoke/chart.vl.json --json > smoke/chart-info.json \
+            || { echo "✗ Info command failed"; exit 1; }
+          grep -q '"format":"vega-lite"' smoke/chart-info.json || { echo "✗ Info result does not name vega-lite"; exit 1; }
+          canvasnet render smoke/chart.vl.json -o smoke/chart.png --json > smoke/chart-render.json \
+            || { echo "✗ Chart render command failed"; exit 1; }
+          grep -q '"ok":true' smoke/chart-render.json || { echo "✗ Chart render result is not a success document"; exit 1; }
+          test -s smoke/chart.png || { echo "✗ Chart render wrote no output file"; exit 1; }
+          echo "✓ Vega-Lite chart render succeeded"
 
       - name: Run self-validation
         shell: bash
