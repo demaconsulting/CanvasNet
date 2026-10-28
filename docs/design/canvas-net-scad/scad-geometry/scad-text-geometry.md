@@ -48,8 +48,9 @@ parity with any other implementation's text metrics is claimed. The behavior is 
   and the warning to report, if any.
 - **`ScadFontResolver`** — per build: the resolutions already made, the selected fonts already loaded by file and
   face index (only faces that were selected, so bounded by the distinct fonts the document uses), and the faces of
-  the additional directories (lightweight `ScadFontFace` metadata values, scanned at most once; no parsed font is
-  retained by the scan).
+  the additional directories (lightweight `ScadFontFace` metadata values, scanned at most once, reading each face
+  once for its metadata; no parsed font is retained by the scan, and a selected face is read once more when it is
+  loaded and then cached).
 - **`Placed`** — one glyph placed on the line: its flattened contours in model units, before alignment.
 - The result is an ordinary `ScadGeo`: a single `PolygonRegion` leaf, or a `ScadShape2DKind.Csg` union of leaves
   (one per glyph component) with the tight bounds of all vertices.

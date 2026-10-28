@@ -6,8 +6,48 @@ input-files:
   - docs/verification/title.txt
   - docs/verification/introduction.md
   - docs/verification/canvas-net.md
+  - docs/verification/canvas-net/canvas.md
+  - docs/verification/canvas-net/canvas/surface.md
+  - docs/verification/canvas-net/canvas/rgba32.md
+  - docs/verification/canvas-net/codecs.md
+  - docs/verification/canvas-net/codecs/bmp-codec.md
+  - docs/verification/canvas-net/codecs/png-codec.md
+  - docs/verification/canvas-net/codecs/tiff-codec.md
+  - docs/verification/canvas-net/codecs/jpeg-codec.md
+  - docs/verification/canvas-net/codecs/gif-codec.md
+  - docs/verification/canvas-net/codecs/jpeg2000-codec.md
+  - docs/verification/canvas-net/geometry.md
+  - docs/verification/canvas-net/geometry/rect.md
+  - docs/verification/canvas-net/geometry/path.md
+  - docs/verification/canvas-net/geometry/bezier-flattening.md
+  - docs/verification/canvas-net/geometry/svg-arc-converter.md
+  - docs/verification/canvas-net/geometry/corner-round-effect.md
+  - docs/verification/canvas-net/drawing.md
+  - docs/verification/canvas-net/drawing/path-filler.md
+  - docs/verification/canvas-net/drawing/path-stroker.md
+  - docs/verification/canvas-net/drawing/gradient-paint.md
+  - docs/verification/canvas-net/drawing/tile-paint.md
+  - docs/verification/canvas-net/fonts.md
+  - docs/verification/canvas-net/fonts/true-type-font.md
+  - docs/verification/canvas-net/fonts/system-font-catalog.md
+  - docs/verification/canvas-net/rendering.md
+  - docs/verification/canvas-net/rendering/canvas.md
+  - docs/verification/canvas-net/rendering/text-renderer.md
+  - docs/verification/canvas-net/rendering/shapes.md
   - docs/verification/canvas-net-svg.md
   - docs/verification/canvas-net-svg/svg-codec.md
+  - docs/verification/canvas-net-pdf.md
+  - docs/verification/canvas-net-pdf/pdf-document.md
+  - docs/verification/canvas-net-pptx.md
+  - docs/verification/canvas-net-pptx/pptx-document.md
+  - docs/verification/canvas-net-vsdx.md
+  - docs/verification/canvas-net-vsdx/vsdx-document.md
+  - docs/verification/canvas-net-charts.md
+  - docs/verification/canvas-net-charts/chart-model.md
+  - docs/verification/canvas-net-charts/chart-model/chart-document.md
+  - docs/verification/canvas-net-charts/chart-model/chart-renderer.md
+  - docs/verification/canvas-net-charts/open-xml-chart.md
+  - docs/verification/canvas-net-charts/open-xml-chart/open-xml-chart-parser.md
   - docs/verification/canvas-net-render3d.md
   - docs/verification/canvas-net-render3d/scene-model.md
   - docs/verification/canvas-net-render3d/scene-model/double-precision-math.md
@@ -75,6 +115,7 @@ input-files:
   - docs/verification/ots/sarifmark.md
   - docs/verification/ots/sonarmark.md
   - docs/verification/ots/sysml2tools.md
+  - docs/verification/ots/system-numerics-tensors.md
   - docs/verification/ots/test-results.md
   - docs/verification/ots/versionmark.md
   - docs/verification/ots/weasyprint.md

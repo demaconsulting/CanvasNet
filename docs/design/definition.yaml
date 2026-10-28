@@ -6,8 +6,48 @@ input-files:
   - docs/design/title.txt
   - docs/design/introduction.md
   - docs/design/canvas-net.md
+  - docs/design/canvas-net/canvas.md
+  - docs/design/canvas-net/canvas/surface.md
+  - docs/design/canvas-net/canvas/rgba32.md
+  - docs/design/canvas-net/codecs.md
+  - docs/design/canvas-net/codecs/bmp-codec.md
+  - docs/design/canvas-net/codecs/png-codec.md
+  - docs/design/canvas-net/codecs/tiff-codec.md
+  - docs/design/canvas-net/codecs/jpeg-codec.md
+  - docs/design/canvas-net/codecs/gif-codec.md
+  - docs/design/canvas-net/codecs/jpeg2000-codec.md
+  - docs/design/canvas-net/geometry.md
+  - docs/design/canvas-net/geometry/rect.md
+  - docs/design/canvas-net/geometry/path.md
+  - docs/design/canvas-net/geometry/bezier-flattening.md
+  - docs/design/canvas-net/geometry/svg-arc-converter.md
+  - docs/design/canvas-net/geometry/corner-round-effect.md
+  - docs/design/canvas-net/drawing.md
+  - docs/design/canvas-net/drawing/path-filler.md
+  - docs/design/canvas-net/drawing/path-stroker.md
+  - docs/design/canvas-net/drawing/gradient-paint.md
+  - docs/design/canvas-net/drawing/tile-paint.md
+  - docs/design/canvas-net/fonts.md
+  - docs/design/canvas-net/fonts/true-type-font.md
+  - docs/design/canvas-net/fonts/system-font-catalog.md
+  - docs/design/canvas-net/rendering.md
+  - docs/design/canvas-net/rendering/canvas.md
+  - docs/design/canvas-net/rendering/text-renderer.md
+  - docs/design/canvas-net/rendering/shapes.md
   - docs/design/canvas-net-svg.md
   - docs/design/canvas-net-svg/svg-codec.md
+  - docs/design/canvas-net-pdf.md
+  - docs/design/canvas-net-pdf/pdf-document.md
+  - docs/design/canvas-net-pptx.md
+  - docs/design/canvas-net-pptx/pptx-document.md
+  - docs/design/canvas-net-vsdx.md
+  - docs/design/canvas-net-vsdx/vsdx-document.md
+  - docs/design/canvas-net-charts.md
+  - docs/design/canvas-net-charts/chart-model.md
+  - docs/design/canvas-net-charts/chart-model/chart-document.md
+  - docs/design/canvas-net-charts/chart-model/chart-renderer.md
+  - docs/design/canvas-net-charts/open-xml-chart.md
+  - docs/design/canvas-net-charts/open-xml-chart/open-xml-chart-parser.md
   - docs/design/canvas-net-render3d.md
   - docs/design/canvas-net-render3d/scene-model.md
   - docs/design/canvas-net-render3d/scene-model/double-precision-math.md
@@ -75,6 +115,7 @@ input-files:
   - docs/design/ots/sarifmark.md
   - docs/design/ots/sonarmark.md
   - docs/design/ots/sysml2tools.md
+  - docs/design/ots/system-numerics-tensors.md
   - docs/design/ots/test-results.md
   - docs/design/ots/versionmark.md
   - docs/design/ots/weasyprint.md

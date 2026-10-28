@@ -332,9 +332,18 @@ font-fallback substitution, optionally decrypting an encrypted document first) �
 see the Folder Layout section below and _CanvasNetPdf
 System Design_ (`canvas-net-pdf.md`).
 
-A third sibling top-level system (within this section's narrative; `CanvasNetPptx` and
-`CanvasNetCharts` are additional sibling systems not yet narrated here — a pre-existing gap this
-branch did not introduce), `CanvasNetVsdx`, likewise lives in this same repository
+A third sibling top-level system, `CanvasNetPptx`, likewise lives in this same repository
+alongside `CanvasNet`: its sole unit, `PptxDocument`, namespace `DemaConsulting.CanvasNet.Pptx`,
+is distributed as its own separate NuGet package and depends on the `CanvasNet` system's `Canvas`,
+`Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems, on `CanvasNetSvg` (for SVG pictures), and
+on `CanvasNetCharts` (for chart graphic frames) (`Render` opens a `.pptx` package's OOXML
+structure, resolves the slide/layout/master/theme chain and placeholder property inheritance,
+resolves DrawingML shape geometry, paint, connectors, pictures, tables, and chart graphic frames,
+lays out and paints text including bullets and numbering, and paints a slide's full shape tree in
+document order) — see the Folder Layout section below and _CanvasNetPptx System Design_
+(`canvas-net-pptx.md`).
+
+A fourth sibling top-level system, `CanvasNetVsdx`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `VsdxDocument`, namespace `DemaConsulting.CanvasNet.Vsdx`,
 is distributed as its own separate NuGet package and depends on the `CanvasNet` system's
 `Canvas`, `Geometry`, `Drawing`, and `Fonts` subsystems (`Render` opens a `.vsdx` package's OPC
@@ -344,6 +353,18 @@ paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-B
 composes arbitrarily nested group/child-shape transforms, and paints a page's full shape tree,
 including text, in document order) — see the Folder Layout section below and
 _CanvasNetVsdx System Design_ (`canvas-net-vsdx.md`).
+
+A fifth sibling top-level system, `CanvasNetCharts`, likewise lives in this same repository
+alongside `CanvasNet`, distributed as its own separate NuGet package
+(`DemaConsulting.CanvasNet.Charts`) and depending on the `CanvasNet` system's `Canvas`, `Geometry`,
+`Drawing`, `Fonts`, and `Rendering` subsystems. It has two subsystems of its own — `ChartModel`
+(the `ChartDocument` and `ChartRenderer` units: the immutable, validating chart data model and
+`ChartBuilder`, plus the pixel-rendering engine; namespace `DemaConsulting.CanvasNet.Charts`, flat)
+and `OpenXmlChart` (the `OpenXmlChartParser` unit: a format-agnostic parser from a raw ECMA-376
+DrawingML-Charts element to a `Chart`; namespace `DemaConsulting.CanvasNet.Charts.OpenXml`) — so
+that the untrusted-input XML parser sits behind its own architectural boundary. `CanvasNetPptx`
+consumes both subsystems; `CanvasNetCharts` never references `CanvasNetPptx`. See the Folder
+Layout section below and _CanvasNetCharts System Design_ (`canvas-net-charts.md`).
 
 A further sibling top-level system, `CanvasNetRender3D`, likewise lives in this same repository
 alongside `CanvasNet`, distributed as its own separate NuGet package
@@ -672,11 +693,111 @@ src/DemaConsulting.CanvasNet.Vsdx/
 `VsdxDocument`'s dependencies span the `CanvasNet` system's `Canvas` (`Surface`/`Rgba32`),
 `Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`), and
 `Fonts` (`TrueTypeFont`, `SystemFontCatalog`) subsystems — see _CanvasNetVsdx System Design_
-(`canvas-net-vsdx.md`) for exactly which file introduced each dependency. `CanvasNetPptx` and
-`CanvasNetCharts` also have their own sibling project folders
-(`src/DemaConsulting.CanvasNet.Pptx/`, `src/DemaConsulting.CanvasNet.Charts/`); their folder-layout
-trees are not yet documented in this section — a pre-existing gap predating this branch, tracked
-separately and not addressed here.
+(`canvas-net-vsdx.md`) for exactly which file introduced each dependency.
+
+`PptxDocument` lives in the `src/DemaConsulting.CanvasNet.Pptx/` project folder (namespace
+`DemaConsulting.CanvasNet.Pptx`, distributed as the separate `DemaConsulting.CanvasNet.Pptx`
+NuGet package). Like `SvgCodec`'s, `PdfDocument`'s, and `VsdxDocument`'s own folders, this is the
+source folder of a separate, sibling system's sole unit (see _CanvasNetPptx System Design_,
+`canvas-net-pptx.md`), a flat structure with no further nesting:
+
+```text
+src/DemaConsulting.CanvasNet.Pptx/
+├── PptxDocument.cs                    — Public API entry point: Open/SlideCount/SlideSize/
+│                                         GetSlideSizeInPixels/Render/Dispose; partial-class
+│                                         implementation continues below
+├── PptxDocument.Package.cs            — OOXML package layer: ZIP opening, Content-Types and
+│                                         relationship resolution
+├── PptxDocument.Presentation.cs       — Presentation-root parser (slide size, ordered slide list)
+├── PptxDocument.Slides.cs             — Slide parser
+├── PptxDocument.Layouts.cs            — Slide layout parser
+├── PptxDocument.Masters.cs            — Slide master parser (including text style buckets)
+├── PptxDocument.Theme.cs              — Theme parser (color scheme and font scheme)
+├── PptxDocument.Inheritance.cs        — Placeholder property-inheritance resolver
+├── PptxDocument.Background.cs         — Slide/layout/master background-fill resolver
+├── PptxDocument.Geometry.cs           — Shape transform, group-transform composition, preset and
+│                                         custom geometry resolvers
+├── PptxDocument.Paint.cs              — Fill, color (with color-transform pipeline), and line-style
+│                                         resolvers
+├── PptxDocument.Text.cs               — Text-body/paragraph/run parser
+├── PptxDocument.TextInheritance.cs    — Run/paragraph property-inheritance resolver
+├── PptxDocument.Bullets.cs            — Auto-numbered bullet string formatter
+├── PptxDocument.TextLayout.cs         — Text layout engine (word-wrap, alignment, anchor, autofit)
+├── PptxDocument.TextRender.cs         — Text-painting primitive and font resolution
+├── PptxDocument.ShapeTree.cs          — Recursive shape-tree walker
+├── PptxDocument.Connectors.cs         — Connector-shape and arrowhead resolvers
+├── PptxDocument.Images.cs             — Picture-shape resolvers and painting primitive
+├── PptxDocument.Tables.cs             — Table resolvers and painting primitive
+├── PptxDocument.TableStyles.cs        — Table-style and banding resolver
+├── PptxDocument.Charts.cs             — Chart graphic-frame resolver (integration with
+│                                         `CanvasNetCharts`)
+├── PptxDocument.Render.cs             — Public, slide-level rendering API
+├── PptxArrowheadGeometry.cs           — Local-space `Path` geometry for a resolved arrowhead
+├── PptxArrowheadStyle.cs              — Recognized arrowhead type enumeration
+├── PptxEffectiveTextProperties.cs     — Fully-resolved effective run character properties
+├── PptxLineStyle.cs                   — Resolved line style (width, paint, dash pattern)
+├── PptxPaint.cs                       — Resolved fill or line paint
+├── PptxPatternTileRenderer.cs         — Synthesizes a one-cell tile surface for a preset pattern fill
+├── PptxPicture.cs                     — Resolved picture source-rectangle crop
+├── PptxPlaceholder.cs                 — Single parsed placeholder shape
+├── PptxPlaceholderProperties.cs       — Effective, resolved placeholder property fragments
+├── PptxPresetGeometry.cs              — Core `Path` geometry for supported DrawingML preset shapes
+├── PptxRenderOptions.cs               — Slide-rendering configuration (for example background color)
+├── PptxShapeFrame.cs                  — Resolved placement transform of a single shape
+├── PptxShapeTree.cs                   — Node hierarchy of a slide's parsed shape tree
+├── PptxSlideSize.cs                   — Reports a presentation's slide size (EMU)
+├── PptxTable.cs                       — Parsed table (column widths and rows)
+├── PptxTextBody.cs                    — Parsed text body (body properties and paragraphs)
+├── PptxTextLayout.cs                  — Fully-resolved, laid-out glyph stream for a text body
+├── PptxTheme.cs                       — Parsed theme (color scheme and font scheme)
+├── PptxUnsupportedFeatureException.cs — Thrown when a resolver refuses an unsupported-but-
+│                                         recognized construct
+└── NamespaceDoc.cs                    — Namespace-level XML documentation
+```
+
+`PptxDocument`'s dependencies span the `CanvasNet` system's `Canvas` (`Surface`/`Rgba32`),
+`Geometry` (`PathBuilder`/`Path`), `Drawing` (`PathFiller`/`PathStroker`/`StrokeStyle`/
+`LinearGradient`), `Fonts` (`TrueTypeFont`, `SystemFontCatalog`), and `Codecs` subsystems, plus the
+sibling `CanvasNetSvg` system (SVG pictures) and the sibling `CanvasNetCharts` system
+(`OpenXmlChartParser`, `ChartRenderer`) — see _CanvasNetPptx System Design_ (`canvas-net-pptx.md`)
+for exactly which phase introduced each dependency.
+
+`CanvasNetCharts` lives in the `src/DemaConsulting.CanvasNet.Charts/` project folder (distributed
+as the separate `DemaConsulting.CanvasNet.Charts` NuGet package). Its two subsystems occupy
+different folders: `ChartModel` occupies the project's root folder (flat — no further nesting),
+and `OpenXmlChart` occupies the `OpenXml/` sub-folder, whose name equals its sub-namespace
+`DemaConsulting.CanvasNet.Charts.OpenXml` (see _CanvasNetCharts System Design_,
+`canvas-net-charts.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Charts/
+├── DemaConsulting.CanvasNet.Charts.csproj — Package definition (net8.0/net9.0/net10.0)
+├── Chart.cs                       — ChartModel: immutable, validated chart description
+├── ChartSeries.cs                 — ChartModel: immutable named series of numeric values
+├── ChartAxis.cs                   — ChartModel: immutable category/value axis description
+├── ChartLegend.cs                 — ChartModel: legend description and `ChartLegendPosition` enum
+├── ChartTitle.cs                  — ChartModel: title text and optional font-size hint
+├── ChartType.cs                   — ChartModel: chart-kind enumeration
+├── ChartBuilder.cs                — ChartModel: fluent chart construction API
+├── ChartColorPalette.cs           — ChartModel: built-in default categorical color palette
+├── ChartRenderOptions.cs          — ChartModel: rendering configuration
+├── ChartRenderer.cs               — ChartModel: public rendering entry point; partial-class
+│                                     implementation continues below
+├── ChartRenderer.Layout.cs        — ChartModel: title/legend/plot-area layout
+├── ChartRenderer.Title.cs         — ChartModel: title painting
+├── ChartRenderer.Legend.cs        — ChartModel: legend painting
+├── ChartRenderer.CategoryChart.cs — ChartModel: Bar/Column/Line/Area painting
+├── ChartRenderer.PieChart.cs      — ChartModel: Pie/Doughnut painting
+├── NamespaceDoc.cs                — Namespace-level XML documentation
+└── OpenXml/                       — OpenXmlChart subsystem
+    ├── NamespaceDoc.cs            — Namespace-level XML documentation
+    ├── OpenXmlChartParser.cs      — OpenXmlChartParser: `c:chartSpace`/`c:chart` to `Chart`
+    └── ChartUnsupportedFeatureException.cs — OpenXmlChartParser: recognized-but-unimplemented
+                                              chart kind or data shape
+```
+
+`CanvasNetCharts` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and
+`Rendering` subsystems; `CanvasNetPptx` consumes both of its subsystems and never the reverse.
 
 The `CanvasNetRender3D` system lives in the `src/DemaConsulting.CanvasNet.Render3D/` project folder
 (distributed as the separate `DemaConsulting.CanvasNet.Render3D` NuGet package). Its three
