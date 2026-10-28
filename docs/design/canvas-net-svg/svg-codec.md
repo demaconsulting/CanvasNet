@@ -40,7 +40,11 @@ fetched, cacheable_ external image resource's own `preserveAspectRatio` against 
 `<img>`/CSS reference, a negotiation this codec has no equivalent for even now that `<image>`
 is partially supported, since its own supported `data:` URI case is neither separately fetched
 nor cacheable) - see _ViewBox Fitting Policy_ below
-- Shapes: `rect` (including `rx`/`ry` rounded corners), `circle`, `ellipse`, `line`, `polyline`,
+- Shapes: `rect` (including `rx`/`ry` rounded corners - an unspecified or `auto` radius takes the
+  other axis's value, each radius clamps to half the corresponding side, and the outline runs
+  top edge, top-right arc, right edge, bottom-right arc, bottom edge, bottom-left arc, left
+  edge, top-left arc, with every arc ending where its neighboring straight edge begins),
+  `circle`, `ellipse`, `line`, `polyline`,
   `polygon`, and `path` (the full `d` mini-language: `M`/`m`, `L`/`l`, `H`/`h`, `V`/`v`, `C`/`c`,
   `S`/`s`, `Q`/`q`, `T`/`t`, `A`/`a`, `Z`/`z`, in both absolute and relative forms)
 - Grouping: `g`, with presentation-attribute inheritance (parent cascades to child, a child may

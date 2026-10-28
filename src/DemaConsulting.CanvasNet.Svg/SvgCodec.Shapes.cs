@@ -286,8 +286,8 @@ public static partial class SvgCodec
         }
 
         var (rx, ry) = ResolveRectRadii(
-            GetFloatAttribute(element, "rx", state, PercentageAxis.Horizontal, float.NaN),
-            GetFloatAttribute(element, "ry", state, PercentageAxis.Vertical, float.NaN),
+            GetRectRadiusAttribute(element, "rx", state, PercentageAxis.Horizontal),
+            GetRectRadiusAttribute(element, "ry", state, PercentageAxis.Vertical),
             width,
             height);
 
@@ -309,6 +309,23 @@ public static partial class SvgCodec
         }
 
         return builder.Build();
+    }
+
+    /// <summary>
+    ///     Reads a <c>rect</c> element's <c>rx</c>/<c>ry</c> corner-radius attribute, treating an
+    ///     absent attribute and the SVG 2 keyword <c>auto</c> identically as "unspecified".
+    /// </summary>
+    /// <param name="element">The <c>rect</c> element.</param>
+    /// <param name="name">The attribute name (<c>rx</c> or <c>ry</c>).</param>
+    /// <param name="state">The cascaded render state, supplying the current viewport for percentage resolution.</param>
+    /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
+    /// <returns>The parsed radius, or <see cref="float.NaN"/> if absent or <c>auto</c>.</returns>
+    private static float GetRectRadiusAttribute(XElement element, string name, RenderState state, PercentageAxis axis)
+    {
+        var raw = (string?)element.Attribute(name);
+        return raw == null || raw.Trim().Equals("auto", StringComparison.Ordinal)
+            ? float.NaN
+            : ParseGeometryCoordinate(raw, name, state, axis);
     }
 
     /// <summary>Appends a sharp-cornered rectangle's outline to <paramref name="builder"/>.</summary>
@@ -344,20 +361,28 @@ public static partial class SvgCodec
         float ry)
     {
         var radius = new Vector2(rx, ry);
-        var topRightStart = new Vector2(x + width - rx, y);
-        var rightBottomStart = new Vector2(x + width, y + height - ry);
-        var bottomLeftStart = new Vector2(x + rx, y + height);
-        var leftTopStart = new Vector2(x, y + ry);
 
-        builder.MoveTo(new Vector2(x + rx, y));
-        builder.LineTo(topRightStart);
-        AppendArcTo(builder, topRightStart, radius, new Vector2(x + width, y + ry));
-        builder.LineTo(rightBottomStart);
-        AppendArcTo(builder, rightBottomStart, radius, bottomLeftStart);
-        builder.LineTo(bottomLeftStart);
-        AppendArcTo(builder, bottomLeftStart, radius, leftTopStart);
-        builder.LineTo(leftTopStart);
-        AppendArcTo(builder, leftTopStart, radius, new Vector2(x + rx, y));
+        // Each straight edge runs between the points where its adjacent corner arcs begin/end;
+        // each arc then sweeps clockwise (sweep=true) from the end of one edge to the start of
+        // the next, per the SVG 2 rect geometry rules
+        var topEdgeEnd = new Vector2(x + width - rx, y);
+        var rightEdgeStart = new Vector2(x + width, y + ry);
+        var rightEdgeEnd = new Vector2(x + width, y + height - ry);
+        var bottomEdgeStart = new Vector2(x + width - rx, y + height);
+        var bottomEdgeEnd = new Vector2(x + rx, y + height);
+        var leftEdgeStart = new Vector2(x, y + height - ry);
+        var leftEdgeEnd = new Vector2(x, y + ry);
+        var topEdgeStart = new Vector2(x + rx, y);
+
+        builder.MoveTo(topEdgeStart);
+        builder.LineTo(topEdgeEnd);
+        AppendArcTo(builder, topEdgeEnd, radius, rightEdgeStart);
+        builder.LineTo(rightEdgeEnd);
+        AppendArcTo(builder, rightEdgeEnd, radius, bottomEdgeStart);
+        builder.LineTo(bottomEdgeEnd);
+        AppendArcTo(builder, bottomEdgeEnd, radius, leftEdgeStart);
+        builder.LineTo(leftEdgeEnd);
+        AppendArcTo(builder, leftEdgeEnd, radius, topEdgeStart);
         builder.Close();
     }
 

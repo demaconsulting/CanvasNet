@@ -202,6 +202,225 @@ public class SvgCodecTests
         Assert.Equal(255, surface[50, 50].A);
     }
 
+    /// <summary>Left edge of the rect used by the rounded-rect geometry tests.</summary>
+    private const double RoundedRectX = 20;
+
+    /// <summary>Top edge of the rect used by the rounded-rect geometry tests.</summary>
+    private const double RoundedRectY = 40;
+
+    /// <summary>Width of the rect used by the rounded-rect geometry tests.</summary>
+    private const double RoundedRectWidth = 200;
+
+    /// <summary>Height of the rect used by the rounded-rect geometry tests.</summary>
+    private const double RoundedRectHeight = 80;
+
+    /// <summary>Renders a 240x160 (1:1 viewBox) SVG containing <paramref name="body"/>.</summary>
+    private static Surface RenderRoundedRectSvg(string body)
+    {
+        using var stream = ToStream("<svg viewBox='0 0 240 160'>" + body + "</svg>");
+        return SvgCodec.Load(stream, 240, 160);
+    }
+
+    /// <summary>Sums coverage (alpha / 255) over the surface, i.e. the antialiased painted area.</summary>
+    private static double CoverageArea(Surface surface)
+    {
+        var area = 0.0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                area += surface[x, y].A / 255.0;
+            }
+        }
+
+        return area;
+    }
+
+    /// <summary>Computes the inclusive pixel bounding box of every pixel with any ink.</summary>
+    private static (int MinX, int MinY, int MaxX, int MaxY) InkBounds(Surface surface)
+    {
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    minX = Math.Min(minX, x);
+                    minY = Math.Min(minY, y);
+                    maxX = Math.Max(maxX, x);
+                    maxY = Math.Max(maxY, y);
+                }
+            }
+        }
+
+        return (minX, minY, maxX, maxY);
+    }
+
+    /// <summary>Reads the pixel containing the user-space point (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    private static Rgba32 PixelAt(Surface surface, double x, double y) =>
+        surface[(int)Math.Floor(x), (int)Math.Floor(y)];
+
+    /// <summary>
+    ///     Asserts the shape rendered for the rounded-rect geometry rect matches the analytic
+    ///     rounded rectangle with corner radii (<paramref name="rx"/>, <paramref name="ry"/>):
+    ///     area, bounds, straight edges, corner-arc samples and the cut corners.
+    /// </summary>
+    private static void AssertRoundedRectShape(Surface surface, double rx, double ry)
+    {
+        const double x = RoundedRectX;
+        const double y = RoundedRectY;
+        const double w = RoundedRectWidth;
+        const double h = RoundedRectHeight;
+
+        // Analytic area: rect minus four corner remainders ((4 - pi) * rx * ry in total)
+        var expectedArea = (w * h) - ((4.0 - Math.PI) * rx * ry);
+        Assert.InRange(CoverageArea(surface), expectedArea * 0.9975, expectedArea * 1.0025);
+
+        // Bounds equal the rect's bounds
+        Assert.Equal(((int)x, (int)y, (int)(x + w) - 1, (int)(y + h) - 1), InkBounds(surface));
+
+        // Straight edges sit at the right positions (just inside filled, just outside empty)
+        var midX = x + (w / 2);
+        var midY = y + (h / 2);
+        // (a clamped radius equal to half the side leaves only a single tangent point on that
+        // side, so allow slight antialiasing there)
+        Assert.InRange(PixelAt(surface, midX, y + 0.5).A, 200, 255);
+        Assert.InRange(PixelAt(surface, midX, y + h - 0.5).A, 200, 255);
+        Assert.InRange(PixelAt(surface, x + 0.5, midY).A, 200, 255);
+        Assert.InRange(PixelAt(surface, x + w - 0.5, midY).A, 200, 255);
+        Assert.Equal(0, PixelAt(surface, midX, y - 1.5).A);
+        Assert.Equal(0, PixelAt(surface, midX, y + h + 1.5).A);
+        Assert.Equal(0, PixelAt(surface, x - 1.5, midY).A);
+        Assert.Equal(0, PixelAt(surface, x + w + 1.5, midY).A);
+
+        // Each corner: the arc center is filled; a point inside the quarter-ellipse (70% along
+        // the 45-degree ray) is filled; a point outside it (130%) is not; the extreme corner
+        // pixel is not
+        var diagonal = Math.Sqrt(0.5);
+        foreach (var (sx, sy) in new[] { (-1, -1), (1, -1), (1, 1), (-1, 1) })
+        {
+            var centerX = sx < 0 ? x + rx : x + w - rx;
+            var centerY = sy < 0 ? y + ry : y + h - ry;
+            Assert.Equal(255, PixelAt(surface, centerX, centerY).A);
+
+            Assert.Equal(255, PixelAt(surface, centerX + (sx * 0.7 * rx * diagonal), centerY + (sy * 0.7 * ry * diagonal)).A);
+            Assert.Equal(0, PixelAt(surface, centerX + (sx * 1.3 * rx * diagonal), centerY + (sy * 1.3 * ry * diagonal)).A);
+
+            var cornerX = sx < 0 ? x : x + w;
+            var cornerY = sy < 0 ? y : y + h;
+            Assert.Equal(0, PixelAt(surface, cornerX - (sx * 0.5), cornerY - (sy * 0.5)).A);
+        }
+    }
+
+    /// <summary>
+    ///     Proves a non-square <c>rect</c> (200x80) renders as a true rounded rectangle for every
+    ///     <c>rx</c>/<c>ry</c> specification form: <c>rx</c> only, <c>ry</c> only, both,
+    ///     <c>auto</c>, percentages, and radii larger than half the side (clamped).
+    /// </summary>
+    [Theory]
+    [InlineData("rx='10'", 10, 10)]
+    [InlineData("rx='10' ry='10'", 10, 10)]
+    [InlineData("rx='10' ry='20'", 10, 20)]
+    [InlineData("rx='30' ry='10'", 30, 10)]
+    [InlineData("ry='15'", 15, 15)]
+    [InlineData("rx='10' ry='auto'", 10, 10)]
+    [InlineData("rx='500'", 100, 40)]
+    [InlineData("rx='500' ry='5'", 100, 5)]
+    [InlineData("rx='10' ry='500'", 10, 40)]
+    [InlineData("rx='10%'", 24, 24)]
+    [InlineData("rx='10%' ry='25%'", 24, 40)]
+    public void SvgCodec_Load_RoundedRect_FillMatchesAnalyticRoundedRectangle(string radii, double rx, double ry)
+    {
+        // Arrange / Act
+        var surface = RenderRoundedRectSvg(
+            $"<rect x='20' y='40' width='200' height='80' {radii} fill='black'/>");
+
+        // Assert
+        AssertRoundedRectShape(surface, rx, ry);
+    }
+
+    /// <summary>Proves <c>rx="0"</c> (or a zero radius on either axis) renders a sharp-cornered rect.</summary>
+    [Theory]
+    [InlineData("rx='0'")]
+    [InlineData("rx='0' ry='10'")]
+    [InlineData("rx='10' ry='0'")]
+    public void SvgCodec_Load_RoundedRect_ZeroRadius_RendersSharpRectangle(string radii)
+    {
+        // Arrange / Act
+        var surface = RenderRoundedRectSvg(
+            $"<rect x='20' y='40' width='200' height='80' {radii} fill='black'/>");
+
+        // Assert
+        Assert.Equal(200.0 * 80.0, CoverageArea(surface), 0.5);
+        Assert.Equal(255, PixelAt(surface, 20.5, 40.5).A);
+        Assert.Equal(255, PixelAt(surface, 219.5, 119.5).A);
+    }
+
+    /// <summary>Proves a stroked, unfilled rounded <c>rect</c> traces the rounded outline.</summary>
+    [Fact]
+    public void SvgCodec_Load_RoundedRect_Stroke_TracesRoundedOutline()
+    {
+        // Arrange / Act: 4-wide stroke centered on the rect's outline, no fill
+        var surface = RenderRoundedRectSvg(
+            "<rect x='20' y='40' width='200' height='80' rx='20' ry='10' fill='none' stroke='black' stroke-width='4'/>");
+
+        // Assert: stroke bounds are the rect expanded by half the stroke width
+        Assert.Equal((18, 38, 221, 121), InkBounds(surface));
+
+        // Straight edges carry stroke; interior and exterior do not
+        Assert.Equal(255, PixelAt(surface, 120, 40).A);
+        Assert.Equal(255, PixelAt(surface, 120, 120).A);
+        Assert.Equal(255, PixelAt(surface, 20, 80).A);
+        Assert.Equal(255, PixelAt(surface, 220, 80).A);
+        Assert.Equal(0, PixelAt(surface, 120, 80).A);
+        Assert.Equal(0, PixelAt(surface, 120, 30).A);
+
+        // Corner arcs: the centerline at 45 degrees is stroked; the sharp-corner position is not
+        var diagonal = Math.Sqrt(0.5);
+        foreach (var (sx, sy) in new[] { (-1, -1), (1, -1), (1, 1), (-1, 1) })
+        {
+            var centerX = sx < 0 ? 40.0 : 200.0;
+            var centerY = sy < 0 ? 50.0 : 110.0;
+            Assert.Equal(255, PixelAt(surface, centerX + (sx * 20 * diagonal), centerY + (sy * 10 * diagonal)).A);
+            Assert.Equal(0, PixelAt(surface, sx < 0 ? 20.5 : 219.5, sy < 0 ? 40.5 : 119.5).A);
+        }
+    }
+
+    /// <summary>Proves fill and stroke together keep the rounded outline (stroke over fill).</summary>
+    [Fact]
+    public void SvgCodec_Load_RoundedRect_FillAndStroke_RendersBothFollowingRoundedOutline()
+    {
+        // Arrange / Act
+        var surface = RenderRoundedRectSvg(
+            "<rect x='20' y='40' width='200' height='80' rx='10' fill='#ff0000' stroke='#0000ff' stroke-width='2'/>");
+
+        // Assert: interior is the fill color, edge midpoints are the stroke color, and the
+        // area (fill + stroke bounds) is the rounded outline expanded by 1 on each side
+        Assert.Equal(new Rgba32(255, 0, 0, 255), PixelAt(surface, 120, 80));
+        Assert.Equal(new Rgba32(0, 0, 255, 255), PixelAt(surface, 120, 40.2));
+        Assert.Equal(0, PixelAt(surface, 19.5, 39.5).A);
+        Assert.Equal((19, 39, 220, 120), InkBounds(surface));
+    }
+
+    /// <summary>
+    ///     Proves <c>circle</c> and <c>ellipse</c> (built from the same arc helper as the rounded
+    ///     rect) fill their analytic area and bounds, guarding the shared helper against regression.
+    /// </summary>
+    [Theory]
+    [InlineData("<circle cx='120' cy='80' r='50' fill='black'/>", 50, 50)]
+    [InlineData("<ellipse cx='120' cy='80' rx='100' ry='40' fill='black'/>", 100, 40)]
+    public void SvgCodec_Load_CircleAndEllipse_FillMatchesAnalyticArea(string body, double rx, double ry)
+    {
+        // Arrange / Act
+        var surface = RenderRoundedRectSvg(body);
+
+        // Assert
+        var expected = Math.PI * rx * ry;
+        Assert.InRange(CoverageArea(surface), expected * 0.997, expected * 1.003);
+        Assert.Equal(((int)(120 - rx), (int)(80 - ry), (int)(120 + rx) - 1, (int)(80 + ry) - 1), InkBounds(surface));
+    }
+
     /// <summary>Proves that a filled <c>circle</c> renders its solid color at its center.</summary>
     [Fact]
     public void SvgCodec_Load_Circle_RendersFilledCircle()
