@@ -58,7 +58,13 @@ internal static class Ticks
 
         if (!double.IsNaN(start) && start.CompareTo(stop) == 0)
         {
-            return [start];
+            return double.IsFinite(start) ? [start] : [];
+        }
+
+        // A span that overflows (for example -1e308 to 1e308) has no usable step, so it has no ticks
+        if (!double.IsFinite(stop - start))
+        {
+            return [];
         }
 
         var reverse = stop < start;
@@ -84,7 +90,8 @@ internal static class Ticks
             ticks[i] = spec.Inc < 0 ? index / -spec.Inc : index * spec.Inc;
         }
 
-        return ticks;
+        // A tick that overflowed (a step the interval cannot express) never reaches the layout
+        return Array.TrueForAll(ticks, double.IsFinite) ? ticks : [.. ticks.Where(double.IsFinite)];
     }
 
     /// <summary>

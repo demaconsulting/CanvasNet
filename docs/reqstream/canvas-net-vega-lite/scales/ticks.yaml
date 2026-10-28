@@ -53,8 +53,11 @@ sections:
               - id: CanvasNetVegaLite-Scales-Ticks-Limits
                 title: >-
                   The Ticks unit shall fail with a VegaLiteRenderException instead of allocating when the
-                  number of ticks would exceed the tick limit.
+                  number of ticks would exceed the tick limit, and shall return no ticks, never a
+                  non-finite tick value, for a span that overflows the double range or an infinite end.
                 justification: |
-                  A huge range with a huge count must not be able to exhaust memory.
+                  A huge range with a huge count must not be able to exhaust memory, and an overflowing
+                  range must not put a NaN position into the layout of a chart.
                 tests:
                   - Ticks_Ticks_ResultOverTheLimitFailsClosed
+                  - Ticks_Ticks_OverflowingSpanHasNoNonFiniteTicks

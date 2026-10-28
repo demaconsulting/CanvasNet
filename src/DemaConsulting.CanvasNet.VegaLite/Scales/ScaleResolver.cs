@@ -1154,9 +1154,16 @@ internal static class ScaleResolver
 
         if (sort is { IsArray: true } order)
         {
-            // Values missing from the sort array come first (index -1), then the array order
-            var listed = order.Items.Select(ToDataValue).ToList();
-            return [.. domain.OrderBy(value => listed.IndexOf(value))];
+            // Values missing from the sort array come first (index -1), then the array order; the first index of each
+            // listed value is recorded once so ordering a domain stays linear in the domain size
+            var firstIndex = new Dictionary<DataValue, int>();
+            var position = 0;
+            foreach (var item in order.Items)
+            {
+                firstIndex.TryAdd(ToDataValue(item), position++);
+            }
+
+            return [.. domain.OrderBy(value => firstIndex.TryGetValue(value, out var index) ? index : -1)];
         }
 
         var descending = sort?.AsString() == "descending";

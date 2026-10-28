@@ -693,10 +693,13 @@ sections:
           giving the same picture every time; shall describe a chart with the `info` command (its
           laid-out size and, in a `chart` object, its marks, data references, parameters, title, and schema
           version) and list the `vega-lite` format with the `formats` command; shall refuse a plain Vega
-          specification as an unsupported format; and shall report an invalid chart with the error code
-          vega-lite-error and a chart that exceeds a limit of the library with the error code
-          budget-exceeded, as expected failures. The self-validation includes the Vega-Lite self-test (see
-          the validate requirement).
+          specification as an unsupported format; and shall report an invalid chart (including a specification
+          that nests deeper than, or has a string longer than, the limit of the parser) with the error code
+          vega-lite-error, a chart that exceeds a limit of the library while it is laid out or drawn with the
+          error code budget-exceeded, a specification file longer than the limit of the library with the error
+          code corrupt-input (as for an overlong SCAD model), and a chart that lays out larger than the maximum
+          image size with the error code size-limit, as expected failures. The self-validation includes the
+          Vega-Lite self-test (see the validate requirement).
         tags: [system]
         justification: |
           Agents are asked to show data; a declarative chart specification says what to draw without a

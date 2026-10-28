@@ -36,6 +36,15 @@ translations), and the scale.
   item is built in the item's own units with the core `PathStroker` (width, dash, cap, and join) and then
   filled, so widths and dashes scale with the chart. Fills are flattened to 0.02 pixel so that symbols a few
   pixels wide stay round.
+- The stroke values are validated after their conversion to the `float` of the stroker, because a value that is
+  finite as a `double` can overflow to infinity or underflow to zero: a stroke width that does not stay finite and
+  positive draws nothing, a dash offset that overflows counts as zero, and a dash pattern with an entry that overflows,
+  or whose entries all underflow to zero, is a solid stroke. The work of a dashed stroke is bounded: the length of the
+  path is estimated from its commands (chords, control polygons, and for an arc the chord plus half the circumference of
+  its radius) and a dash pattern is drawn solid when its period is below 0.25 surface pixels (`MinDashPeriod`, finer
+  than the eye can tell from a solid line) or when the path would have more than 50,000 dashes (`MaxDashSegments`). The
+  caps are generous for charts (a 1,000-pixel gridline with a 2-pixel period has 500 dashes), so ordinary dashes
+  are unchanged.
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
   Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row).
 - **Clipping**: a group with a clip draws its children onto a transparent layer the size of the clip's pixel box and

@@ -60,7 +60,9 @@ is ignored for color, size, and opacity.
 **Deviations** (also listed in _CanvasNetVegaLite System Design_): values of different kinds in one discrete domain
 are ordered by kind; a scheme other than `tableau10`, and the ordinal range of an ordinal color field, fall back to
 `tableau10` with `ColorFallback` set; `scale.domain` forms other than an array are ignored; `sort` by a field is
-ignored (the catalog reports it); a `sort` array puts values missing from it first.
+ignored (the catalog reports it); a `sort` array puts values missing from it first. A `sort` array is read once into a
+dictionary from each listed value to its first position (a value listed twice counts at its first position), so
+ordering a domain costs one lookup per value rather than a search of the list per value.
 
 #### Key Methods
 

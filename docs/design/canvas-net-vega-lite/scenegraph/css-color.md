@@ -17,8 +17,10 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-CssColor-*
 
 #### Data Model
 
-The unit has no state beyond a table of the 148 CSS named colors (`name=rrggbb` entries, built once into a dictionary with
-`transparent` added) and the accepted forms:
+The unit has no state beyond a table of the 148 CSS named colors (a static array of a PascalCase name and a
+`0xRRGGBB` number, such as `("AliceBlue", 0xF0F8FF)`, lower-cased and built once into a dictionary with
+`transparent` added; the table is written in this form so that the spell checker needs no suppression and no word
+list for it) and the accepted forms:
 
 - hexadecimal `#rgb`, `#rgba`, `#rrggbb`, and `#rrggbbaa` (a short digit is doubled);
 - the CSS named colors, including `rebeccapurple` and the `grey` spellings, and `transparent`, in any letter case;

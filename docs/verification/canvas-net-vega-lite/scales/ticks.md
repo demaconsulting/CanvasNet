@@ -71,6 +71,14 @@ invalid counts (zero, negative, NaN) and a NaN start, which give no ticks.
 Asserts that 0 to 100 with a count of 50 (51 ticks at step 2) throws `VegaLiteRenderException` for a limit of 5 and
 succeeds for a limit of 51, and that an absurd request (0 to 1e12 with a count of 1e9) throws instead of allocating.
 
+##### Overflowing Span Has No Non-Finite Ticks
+
+**Tests**: `TicksTests.Ticks_Ticks_OverflowingSpanHasNoNonFiniteTicks`
+
+Asserts that `GetTicks` and `AxisTicks` return no ticks, rather than a NaN tick, for the spans -1e308 to 1e308 (the span
+is infinite as a double), 1e308 to -1e308, negative infinity to 10, 0 to positive infinity, and positive infinity to
+itself, and that -1e307 to 1e307 (the span is finite) still gives ticks that are all finite.
+
 ##### Tick Step And Increment
 
 **Tests**: `TicksTests.Ticks_TickStep_UsesHandDerivedExpectedStep`

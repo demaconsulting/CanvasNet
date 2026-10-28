@@ -64,8 +64,10 @@ N/A - standard test environment; the tests need no network and write only to tem
   schema version) and drawn at that size or the size given, over its own background or the one given, with the bundled
   fonts and UTC dates, with the bars where the layout puts them and the warnings and unsupported features as notes (or,
   in strict mode, `unsupported-feature`); plain Vega and other JSON files are `unsupported-format` with a hint; an invalid
-  specification is `vega-lite-error`, an exceeded limit of the library `budget-exceeded`, and a chart larger than 8192
-  pixels `size-limit`.
+  specification (including nesting deeper than, or a string longer than, the limit of the parser, as the nesting limit of
+  the SCAD parser is a `scad-error`) is `vega-lite-error`, an exceeded limit of the library while the chart is laid out
+  or drawn `budget-exceeded`, a specification file longer than the limit of the library `corrupt-input` (as an overlong
+  model is), and a chart larger than 8192 pixels `size-limit` (no other failure to measure is `size-limit`).
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
@@ -157,7 +159,22 @@ its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") 
 library that the mapping recognizes.
 
 **SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput**: a chart one character over the limit of the library is
-`corrupt-input` naming the limit, as for a model.
+`corrupt-input` naming the limit, as for a model (the parity with SCAD that the design keeps on purpose).
+
+**SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors**: a specification nested ten levels deeper than the
+default depth limit and one with a string ten characters over the default string limit are each a `vega-lite-error`
+that starts with "Vega-Lite specification error", names the limit, is on one line, and keeps the library's
+`VegaLiteSpecException` as its cause; neither is `budget-exceeded`, as the SCAD nesting limit is a `scad-error`.
+
+**SourceLoader_RenderAndMeasureChart_MapArgumentFailures**: an `ArgumentException` and an
+`ArgumentOutOfRangeException` thrown by a render are `vega-lite-error` ("Vega-Lite render error: ...") that keeps the
+exception as its cause; the same two thrown by a measure are `vega-lite-error`, except an
+`ArgumentOutOfRangeException` for the parameter `options` (the size check of the library), which is `size-limit` with a
+hint; a `VegaLiteRenderException` that reports a limit is still `budget-exceeded` through the render.
+
+**SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit**: a chart whose quantitative data runs from -1e308 to
+1e308 (a domain whose span overflows a double, so that it has no ticks) is probed and measured at a size within the
+image limits, so that it is neither `size-limit` nor an unexpected exception.
 
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the

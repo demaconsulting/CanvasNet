@@ -42,13 +42,14 @@ sections:
                   The ScaleResolver unit shall derive a continuous domain from the data extent (including
                   zero by default for bar-like measure axes), apply an explicit domain, zero, and nice,
                   and derive a discrete domain from the distinct values in ascending order, in the order
-                  of an explicit domain, or in the order of a sort array, with values missing from the
-                  sort array first.
+                  of an explicit domain, or in the order of a sort array (where a value listed more than
+                  once counts at its first position), with values missing from the sort array first.
                 justification: |
                   The domain decides which values the chart shows and where they fall.
                 tests:
                   - ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding
                   - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
+                  - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Ranges
                 title: >-

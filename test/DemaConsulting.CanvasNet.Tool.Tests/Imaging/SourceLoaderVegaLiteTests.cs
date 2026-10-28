@@ -341,4 +341,102 @@ public class SourceLoaderVegaLiteTests
         Assert.Contains("limit", exception.Message);
         Assert.DoesNotContain('\n', exception.Message);
     }
+
+    /// <summary>
+    ///     Test that the limits of the specification parser (the depth of the nesting and the length of a string) are
+    ///     <c>vega-lite-error</c> of the specification, as the nesting limit of the SCAD parser is a <c>scad-error</c>,
+    ///     while only the limits of the layout and the render are <c>budget-exceeded</c>.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors()
+    {
+        // Arrange: a specification nested deeper than the default depth limit, and one with a string over the length limit
+        using var directory = new TempDirectory();
+        var depth = VegaLiteLimits.Default.MaxJsonDepth + 10;
+        var deep = FixtureFactory.WriteText(
+            directory.Path,
+            "deep.vl.json",
+            "{\"x\":" + new string('[', depth) + new string(']', depth) + "}");
+        var longText = FixtureFactory.WriteText(
+            directory.Path,
+            "string.vl.json",
+            "{\"description\": \"" + new string('x', VegaLiteLimits.Default.MaxStringLength + 10) + "\"}");
+
+        // Act
+        var deepError = Assert.Throws<ToolException>(() => SourceLoader.Probe(deep));
+        var longError = Assert.Throws<ToolException>(() => SourceLoader.Probe(longText));
+
+        // Assert: specification errors that name the limit, on one line, with the library's exception as the cause
+        Assert.All([deepError, longError], e =>
+        {
+            Assert.Equal(ErrorCodes.VegaLiteError, e.Code);
+            Assert.StartsWith("Vega-Lite specification error: ", e.Message);
+            Assert.Contains("limit", e.Message);
+            Assert.DoesNotContain('\n', e.Message);
+            Assert.IsType<VegaLiteSpecException>(e.InnerException);
+        });
+    }
+
+    /// <summary>
+    ///     Test that an argument failure of the library's render is a <c>vega-lite-error</c> and never an unexpected
+    ///     exception (which the entry point reports as a usage error), and that an argument failure of the measure is a
+    ///     <c>size-limit</c> only when it reports the size of the chart.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_RenderAndMeasureChart_MapArgumentFailures()
+    {
+        // Arrange: the argument failures the library can throw: any ArgumentException, and the size check of the options
+        var itemName = "item";
+        var optionsName = "options";
+        var argument = new ArgumentException("The stroke is not valid.", itemName);
+        var range = new ArgumentOutOfRangeException(itemName, 1e300, "The value is out of range.");
+        var size = new ArgumentOutOfRangeException(optionsName, 1.0, "The scale gives a size of 9000 by 50; each side must be between 1 and 8192.");
+
+        // Act
+        var render = Assert.Throws<ToolException>(() => SourceLoader.RenderChart(() => throw argument, "chart.vl.json"));
+        var renderRange = Assert.Throws<ToolException>(() => SourceLoader.RenderChart(() => throw range, "chart.vl.json"));
+        var measure = Assert.Throws<ToolException>(() => SourceLoader.MeasureChart(() => throw argument, "chart.vl.json"));
+        var measureRange = Assert.Throws<ToolException>(() => SourceLoader.MeasureChart(() => throw range, "chart.vl.json"));
+        var measureSize = Assert.Throws<ToolException>(() => SourceLoader.MeasureChart(() => throw size, "chart.vl.json"));
+        var mappedLimit = Assert.Throws<ToolException>(
+            () => SourceLoader.RenderChart(() => throw new VegaLiteRenderException("There are more rows than the limit of 1 (MaxDataRows)."), "chart.vl.json"));
+
+        // Assert: a render argument failure is an error of the chart, with the exception as the cause
+        Assert.Equal(ErrorCodes.VegaLiteError, render.Code);
+        Assert.Equal("Vega-Lite render error: The stroke is not valid. (Parameter 'item')", render.Message);
+        Assert.Same(argument, render.InnerException);
+        Assert.Equal(ErrorCodes.VegaLiteError, renderRange.Code);
+
+        // Assert: only the size check of the options is a size-limit; every other argument failure is an error of the chart
+        Assert.Equal(ErrorCodes.VegaLiteError, measure.Code);
+        Assert.Equal(ErrorCodes.VegaLiteError, measureRange.Code);
+        Assert.Equal(ErrorCodes.SizeLimit, measureSize.Code);
+        Assert.NotNull(measureSize.Hint);
+
+        // Assert: the failures of the library keep their mapping through the render
+        Assert.Equal(ErrorCodes.BudgetExceeded, mappedLimit.Code);
+    }
+
+    /// <summary>
+    ///     Test that a chart whose domain overflows a double (and so has no ticks) is measured like any other chart and is
+    ///     not mistaken for a chart that is too large (<c>size-limit</c>).
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit()
+    {
+        // Arrange: a quantitative field whose extent is wider than the double range
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "overflow.vl.json",
+            "{\"width\": 200, \"height\": 100, \"data\": {\"values\": [{\"v\": -1e308}, {\"v\": 1e308}]}, \"mark\": \"point\", "
+            + "\"encoding\": {\"y\": {\"field\": \"v\", \"type\": \"quantitative\"}}}");
+
+        // Act
+        var info = SourceLoader.Probe(path);
+
+        // Assert: the chart is measured at a size that fits the surface limits (the axis has no ticks to lay out)
+        Assert.InRange(info.Width, 1, Surface.MaxDimension);
+        Assert.InRange(info.Height, 1, Surface.MaxDimension);
+    }
 }

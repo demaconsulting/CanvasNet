@@ -428,6 +428,29 @@ public class ScaleResolverTests
     }
 
     /// <summary>
+    ///     Validates that an explicit sort array uses the first position of a value that is listed more than once, puts
+    ///     the values it does not list first, and stays correct for a long list (the positions are looked up, not searched).
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue()
+    {
+        // Arrange: the sample has categories b, a, c, a in data order
+        string Domain(string sort) =>
+            string.Join(",", Resolve(Spec("bar", "{ \"x\": {\"field\":\"k\",\"type\":\"nominal\",\"sort\":" + sort + "} }"))["x"]!.DiscreteDomain.Select(v => v.ToText()));
+
+        // Act / Assert: a repeated value counts at its first position
+        Assert.Equal("c,b,a", Domain("[\"c\",\"b\",\"c\",\"a\"]"));
+        Assert.Equal("a,b,c", Domain("[\"b\",\"c\",\"b\"]"));
+
+        // Assert: a value of another kind is not the same value, so it does not position the text
+        Assert.Equal("a,b,c", Domain("[1,\"b\",true,\"c\"]"));
+
+        // Assert: a long list gives the same order as a short one, with the unlisted value first
+        var padding = string.Join(",", Enumerable.Range(0, 20_000).Select(i => "\"pad" + i + "\""));
+        Assert.Equal("a,c,b", Domain("[" + padding + ",\"c\",\"b\",\"c\"]"));
+    }
+
+    /// <summary>
     ///     Validates the size and opacity ranges against the Vega-Lite defaults.
     /// </summary>
     [Fact]

@@ -125,3 +125,23 @@ truncates the drawn line so that its ink ends between 40 and 60 pixels while the
 Asserts that a null measurer, scene, or surface throws `ArgumentNullException`, that a placement scale of zero or NaN
 throws `ArgumentOutOfRangeException`, that a canceled token throws `OperationCanceledException`, and that fitting a
 scene of zero width gives the identity placement (scale 1, offsets 0).
+
+##### Pathological Dash Patterns Fall Back To Solid
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_PathologicalDashPatternsFallBackToSolid`
+
+Asserts that a 2-pixel black rule with a dash period of 0.002 (below the quarter-pixel minimum), a rule 10,000,000 long
+with a `[2, 2]` pattern (2.5 million dashes, above the cap of 50,000), a `[1e-50, 1e-50]` pattern (both entries underflow
+to zero as floats), and a `[1e300, 1]` pattern (an entry overflows to infinity as a float) each cover every pixel of their
+two rows of a 20-pixel wide surface, that is, are drawn solid and none throws. No timing is asserted: the fallback is
+decided from the estimated dash count before the stroker runs.
+
+##### Values Outside The Float Range Are Safe
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_ValuesOutsideTheFloatRangeAreSafe`
+
+Asserts that stroke widths of 1e300 (overflows as a float) and 1e-50 (rounds to zero as a float) draw nothing, that a dash
+offset of 1e300 (overflows) counts as zero so the rule is pixel-identical to the unshifted `[4, 4]` rule drawn beside it
+(black from x = 0, white at x = 5), and that no `ArgumentException` escapes. The existing dash assertions of the fill and
+stroke scenario (the 4-on, 4-off pixels of an ordinary dashed rule) remain the evidence that ordinary patterns are not
+affected by the caps.

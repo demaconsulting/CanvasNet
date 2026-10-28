@@ -107,6 +107,16 @@ and an explicit array (values missing from the array come first, as Vega-Lite so
 explicit scale domain is used as given including values the data lacks, that numbers sort numerically, numeric text
 sorts as text, and null sorts first, and that a field the data does not have is one null category.
 
+##### Explicit Sort Array First Index
+
+**Tests**: `ScaleResolverTests.ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue`
+
+Asserts, for the same sample, that a value listed more than once counts at its first position (`["c","b","c","a"]`
+gives c, b, a; `["b","c","b"]` gives a, b, c with the unlisted `a` first), that values of another kind in the array do not
+position the text values, and that an array of 20,000 padding entries followed by `c`, `b`, `c` gives the same
+first-index order (a, c, b). The test asserts the result only; the linear cost of the one-time index is by construction
+(a dictionary of first positions) and no timing is measured.
+
 ##### Size And Opacity Ranges
 
 **Tests**: `ScaleResolverTests.ScaleResolver_Resolve_SizeAndOpacityUseTheDefaultRanges`

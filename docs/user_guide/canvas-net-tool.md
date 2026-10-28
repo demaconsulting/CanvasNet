@@ -461,12 +461,13 @@ identifier of the feature as the `code` and the file, line, column, and JSON poi
 `--strict` makes the first such construct a failure (`unsupported-feature`) instead. Questionable but harmless input (a
 property Vega-Lite does not define, a `$schema` of another version) is a `vega-lite-warning` diagnostic.
 
-A specification that is not valid JSON, has a property of the wrong type, or is plain Vega named like a chart is a
+A specification that is not valid JSON, has a property of the wrong type, is nested deeper than the parser allows, has
+a string longer than the parser allows, or is plain Vega named like a chart is a
 `vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example data
-that does not fit the encoding). A chart that exceeds a limit of the library (too many data rows, scene items, or
-ticks) fails
-with `budget-exceeded`; a specification longer than the library reads is `corrupt-input`; and a chart that lays out larger
-than 8192 pixels on a side is `size-limit`.
+that does not fit the encoding). A chart that exceeds a limit of the library while it is laid out or drawn (too many
+data rows, scene items, or ticks) fails with `budget-exceeded`; a specification file longer than the library reads
+(4,194,304 characters) is `corrupt-input`, as an overlong OpenSCAD model is; and a chart that lays out larger
+than 8192 pixels on a side is `size-limit` (nothing else is).
 
 ```bash
 canvasnet info chart.vl.json --json
@@ -1091,16 +1092,16 @@ and hint may be improved at any time.
 | `input-not-found` | The input file or folder does not exist | Check the path |
 | `input-unreadable` | The input exists but cannot be read (permissions, a folder, a locked file) | Check the permissions |
 | `unsupported-format` | The input is not a format the tool reads (for example a DOCX or an unknown extension) | See `canvasnet formats` |
-| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file) | Repair or replace the file |
+| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file), or a model or chart file is longer than the library reads | Repair or replace the file |
 | `unsupported-feature` | The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG, a PPTX shape the library lacks, or any skipped feature with `--strict`) | Remove the feature, or drop `--strict` if it is only a skipped picture |
 | `page-out-of-range` | `--page` is beyond the last page of the document | Pages are counted from 1; use `info` for the count |
-| `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side | Use a smaller size, dpi, or border |
+| `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side (for a chart, only its laid-out size) | Use a smaller size, dpi, or border |
 | `same-input-output` | The output file is the input file (also reached through a symbolic link) | Name a different output |
 | `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
-| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, plain Vega) or cannot be laid out or drawn | The message has the file, line, column, and JSON pointer |
-| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library | Raise the limit (a model) or simplify the model or chart |
+| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn | The message has the file, line, column, and JSON pointer |
+| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library while it is laid out or drawn (data rows, ticks, scene items) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
 

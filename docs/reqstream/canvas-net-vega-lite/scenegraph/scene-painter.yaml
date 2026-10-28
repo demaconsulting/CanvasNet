@@ -18,12 +18,22 @@ sections:
                 title: >-
                   The ScenePainter unit shall fill and stroke rectangles and rules with the fill, stroke,
                   stroke width, and the item, fill, and stroke opacities, draw nothing for an item
-                  without paint, and fill the surface with the background of the scene first.
+                  without paint, and fill the surface with the background of the scene first; and shall
+                  keep the stroke safe for any specified number: a stroke width, dash offset, or dash
+                  entry that is finite as a double but not as a float is validated after the conversion
+                  (an unusable width draws nothing, an overflowing offset counts as zero), and a dash
+                  pattern that is unusable after the conversion, finer than a quarter of a surface pixel,
+                  or longer than 50000 estimated dashes on a path is drawn solid, so that no such value
+                  escapes as an exception or makes the stroker do unbounded work.
                 justification: |
-                  Fill, stroke, and opacity are the basic paint of every mark and guide.
+                  Fill, stroke, and opacity are the basic paint of every mark and guide, and a chart
+                  specification may carry any number as a stroke width, dash, or offset, which must not be
+                  able to stop or stall the renderer.
                 tests:
                   - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
                   - ScenePainter_Paint_NoPaintDrawsNothingAndBackgroundFillsTheSurface
+                  - ScenePainter_Paint_PathologicalDashPatternsFallBackToSolid
+                  - ScenePainter_Paint_ValuesOutsideTheFloatRangeAreSafe
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-ClipScale
                 title: >-

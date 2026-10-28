@@ -98,6 +98,36 @@ public class TicksTests
     }
 
     /// <summary>
+    ///     Validates that a span that overflows a double, or an infinite end, has no ticks and never yields a
+    ///     non-finite tick value.
+    /// </summary>
+    [Fact]
+    public void Ticks_Ticks_OverflowingSpanHasNoNonFiniteTicks()
+    {
+        // Arrange: the span of -1e308 to 1e308 is infinite as a double
+        var spans = new (double Start, double Stop)[]
+        {
+            (-1e308, 1e308),
+            (1e308, -1e308),
+            (double.NegativeInfinity, 10),
+            (0, double.PositiveInfinity),
+            (double.PositiveInfinity, double.PositiveInfinity),
+        };
+
+        // Act / Assert
+        foreach (var (start, stop) in spans)
+        {
+            Assert.Empty(Ticks.GetTicks(start, stop, 10));
+            Assert.Empty(Ticks.AxisTicks(start, stop, 10));
+        }
+
+        // Assert: the largest finite spans still have finite ticks
+        var wide = Ticks.GetTicks(-1e307, 1e307, 4);
+        Assert.NotEmpty(wide);
+        Assert.All(wide, tick => Assert.True(double.IsFinite(tick)));
+    }
+
+    /// <summary>
     ///     Validates the tick step and the encoded tick increment against hand-derived values.
     /// </summary>
     [Fact]

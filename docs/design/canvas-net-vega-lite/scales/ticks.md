@@ -28,7 +28,10 @@ because the ticks are divided rather than multiplied for fractional steps).
 
 - `GetTicks(start, stop, count, maxTicks)` - about `count` evenly spaced ticks in the closed interval, in the direction
   from `start` to `stop` (descending when `stop` is below `start`); empty for a count that is not positive or is NaN,
-  the single value for equal ends; a result of more than `maxTicks` (the `MaxTicks` limit, 1,000 by default) values is a
+  the single value for equal ends (empty when that value is not finite); a span that overflows the double range
+  (for example -1e308 to 1e308) or has an infinite end has no ticks, and a generated tick that is not finite is
+  dropped, so that no NaN or infinite value reaches the layout; a result of more than `maxTicks` (the `MaxTicks`
+  limit, 1,000 by default) values is a
   `VegaLiteRenderException` thrown before the array is allocated.
 - `TickIncrement(first, second, count)` and `TickStep(start, stop, count)` - the encoded increment and the signed step
   (positive when `stop` is at or above `start`).

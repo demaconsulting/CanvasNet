@@ -69,7 +69,9 @@ belong to the "Sequential" collection because console redirection is process-wid
   every bad input; a document page, or every page, is chosen with `--page` and `--all-pages`, and a model view with
   `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`, `--time`, `--default-color`, and `--max-triangles`; a
   chart is recognized by its `.vl.json` or `.vl` file name or its Vega-Lite `$schema`, drawn at its laid-out size over
-  its own background with UTC dates and the bundled fonts, and an invalid chart is a `vega-lite-error`;
+  its own background with UTC dates and the bundled fonts, and an invalid chart is a `vega-lite-error` (a chart that
+  exceeds a limit while it is laid out or drawn is `budget-exceeded`, an overlong specification file `corrupt-input`
+  as for a model, and only a chart that lays out larger than 8192 pixels is `size-limit`);
   `info` describes a
   file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, without
   rendering it.

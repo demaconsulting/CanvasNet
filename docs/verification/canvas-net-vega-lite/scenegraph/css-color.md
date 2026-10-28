@@ -56,7 +56,9 @@ syntax, and clamping, and `hsl()` and `hsla()` with the hue in degrees, turns, a
 
 Asserts that the table has 148 names and that fifteen names across the alphabet (for example `aliceblue` is `#f0f8ff`,
 `crimson` is `#dc143c`, `lightgoldenrodyellow` is `#fafad2`, and `yellowgreen` is `#9acd32`) parse to the same color as
-their hexadecimal spelling.
+their hexadecimal spelling. The table is written as PascalCase names with `0xRRGGBB` numbers, so the source needs no
+spell-checker suppression; the test is the evidence that the representation gives exactly the CSS values, and the
+repository spell check (`lint.ps1`) is the evidence that no suppression or word-list entry is needed.
 
 ##### Invalid Text Fails Cleanly
 

@@ -182,8 +182,7 @@ Beyond the project reference, `CanvasNetVegaLite` uses only the .NET base class 
 `System.Collections.ObjectModel`. These are platform types available on every target framework, not OTS Software
 Items, and require no runtime NuGet dependency. The d3 and Vega algorithms and default values that the package uses
 are **local ported source with attribution**, not a consumed third-party component (see _Third-Party Provenance And
-Attribution_), so the system introduces no OTS Software Item and no Shared Package - see _OTS Integration Design_
-(`docs/design/ots.md`).
+Attribution_), so the system introduces no OTS Software Item and no Shared Package (OTS: N/A - no OTS items).
 
 This is an ordinary, same-repository, system-to-system dependency: it is neither an OTS Software Item nor a Shared
 Package (that category is scoped to a package produced by a _different_ repository).
@@ -229,6 +228,19 @@ input:
 - **Pixel budget.** The size of the surface is bounded by `Surface.MaxDimension` on each side: the scale and the
   explicit width and height are validated before any pixel memory is allocated, and a clip layer in the painter is only
   as large as the clip's pixel box.
+- **Finite arithmetic and bounded stroking.** A number of the specification is any finite `double`, but the geometry is
+  `float` and the layout is built from sums and spans that can overflow. The tick generator returns no ticks for a span
+  that overflows the double range or has an infinite end and drops any generated tick that is not finite, so a NaN
+  never reaches the layout; the painter validates a stroke width, dash pattern, and dash offset after their conversion
+  to `float` (an unusable width draws nothing, an overflowing offset counts as zero, an unusable pattern is solid) and
+  draws a dash pattern solid when its period is below 0.25 surface pixels or the path would have more than 50,000
+  dashes, so a specification cannot make the stroker do unbounded work or throw an argument exception.
+- **Error classification.** The library reports a limit of the parser as a `VegaLiteSpecException` (depth, string
+  length), a source longer than `MaxSourceLength` as an `InvalidDataException`, a limit of the layout or the render as a
+  `VegaLiteRenderException` whose message names the limit (`the limit of N` or `VegaLiteLimits.<Name>`), and a size of
+  the chart outside the surface limits as an `ArgumentOutOfRangeException` for the parameter `options`. The CanvasNetTool
+  maps them to `vega-lite-error`, `corrupt-input` (as for an overlong SCAD model), `budget-exceeded`, and `size-limit`
+  respectively; no other argument failure is a size or a usage problem.
 - **No file or network access.** Parsing and rendering read only the text they are given. A data `url` is never
   opened or fetched: a URL with a scheme, a drive letter, or a network path reports `vl-data-remote-url`, and any other
   `url` reports `vl-data-file`; both use an empty dataset. No code in the specification is ever executed: expressions,

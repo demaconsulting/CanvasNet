@@ -126,7 +126,12 @@ The stable error codes are `usage-error`, `operation-failed`, `input-not-found`,
 `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`,
 and `threshold-failed`
 (the `ErrorCodes` supporting type documented in _Program Unit Design_). A code is never changed once
-released.
+released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
+nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
+cannot lay out or draw (including any argument failure of the library); `budget-exceeded` is a limit applied while the
+chart is laid out or drawn; `corrupt-input` is a specification file longer than the limit of the library, as for an
+overlong SCAD model; and `size-limit` is only a chart that lays out larger than the maximum image size. See _SourceLoader
+Unit Design_ for the mapping.
 
 ## Dependencies
 

@@ -21,7 +21,12 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         construct the library does not draw (yet) is returned as a diagnostic (<c>vega-lite</c>, <c>unsupported</c>,
 ///         with its stable <c>vl-*</c> identifier as the code); with <see cref="SourceOptions.Strict"/> it is an
 ///         <c>unsupported-feature</c> error instead. A problem with the specification or with the chart is a
-///         <c>vega-lite-error</c>, or <c>budget-exceeded</c> when a limit of the library was exceeded.
+///         <c>vega-lite-error</c>; this includes a specification that nests deeper than the parser limit or has a
+///         string longer than the string limit, as the SCAD parser's nesting limit is a <c>scad-error</c>.
+///         A limit that the library applies while it lays out or draws the chart (rows, ticks, scene items, and so
+///         on) is <c>budget-exceeded</c>; a specification file longer than the source limit is <c>corrupt-input</c>, in
+///         parity with an overlong SCAD model; and a chart that lays out larger than the maximum image size is
+///         <c>size-limit</c>.
 ///     </para>
 /// </remarks>
 internal static partial class SourceLoader
@@ -48,7 +53,7 @@ internal static partial class SourceLoader
     private static SourceInfo ProbeVegaLite(string path, long bytes)
     {
         var document = Read(path, SourceKind.VegaLite, () => VegaLiteDocument.Open(path));
-        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(document, path));
+        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions(), null)), path));
         var chart = new ChartFacts(
             [.. document.MarkTypes],
             [.. document.DataReferences.Select(r => new ChartDataReference(r.Kind.ToString().ToLowerInvariant(), r.Url, r.RowCount, r.Location.Line))],
@@ -64,24 +69,56 @@ internal static partial class SourceLoader
     /// <summary>
     ///     Measures a chart.
     /// </summary>
-    /// <param name="document">The parsed chart.</param>
+    /// <param name="measure">The measure of the chart, which gives its natural size.</param>
     /// <param name="path">The path of the file, for messages.</param>
     /// <returns>The natural size of the chart.</returns>
-    /// <exception cref="ToolException">Thrown with code <c>size-limit</c> when the chart is larger than the maximum image size.</exception>
-    private static VegaLiteSize MeasureChart(VegaLiteDocument document, string path)
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>size-limit</c> when the chart lays out larger than the maximum image size, and
+    ///     <c>vega-lite-error</c> when the library rejects the measure for any other argument failure.
+    /// </exception>
+    internal static VegaLiteSize MeasureChart(Func<VegaLiteSize> measure, string path)
     {
         try
         {
-            return document.Measure(CreateVegaLiteOptions(new SourceOptions(), null));
+            return measure();
         }
-        catch (ArgumentOutOfRangeException ex)
+        catch (ArgumentOutOfRangeException ex) when (ex.ParamName == "options")
         {
-            // The library refuses a natural size outside 1 to Surface.MaxDimension on a side
+            // The library refuses a natural size outside 1 to Surface.MaxDimension on a side and reports it for the
+            // options (their scale); this is the only argument failure that means "too large"
             throw new ToolException(
                 ErrorCodes.SizeLimit,
                 $"'{path}' lays out larger than the maximum of {Surface.MaxDimension} pixels per side: {OneLine(ex.Message)}",
                 "Reduce the width and height of the chart.",
                 ex);
+        }
+        catch (ArgumentException ex)
+        {
+            // Any other argument failure is a chart the library cannot lay out, never a size problem
+            throw new ToolException(ErrorCodes.VegaLiteError, $"Vega-Lite measure error: {OneLine(ex.Message)}", null, ex);
+        }
+    }
+
+    /// <summary>
+    ///     Draws a chart, mapping the failures of the library to a <see cref="ToolException"/>.
+    /// </summary>
+    /// <param name="render">The render of the chart.</param>
+    /// <param name="path">The path of the file, for messages.</param>
+    /// <returns>The surface; the caller owns it.</returns>
+    /// <exception cref="ToolException">
+    ///     Thrown for the allow-listed failures of <see cref="Read{T}"/>, and with code <c>vega-lite-error</c> for an
+    ///     argument failure of the library: the target size was validated before the render, so such a failure is a
+    ///     chart the library cannot draw and never a usage error.
+    /// </exception>
+    internal static Surface RenderChart(Func<Surface> render, string path)
+    {
+        try
+        {
+            return Read(path, SourceKind.VegaLite, render);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ToolException(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {OneLine(ex.Message)}", null, ex);
         }
     }
 
@@ -196,7 +233,7 @@ internal static partial class SourceLoader
             var notes = new List<ImageDiagnostic>();
             var renderOptions = CreateVegaLiteOptions(Options, notes);
 
-            var surface = Read(Info.Path, SourceKind.VegaLite, () => _document.Render(width, height, renderOptions));
+            var surface = RenderChart(() => _document.Render(width, height, renderOptions), Info.Path);
             var fields = new List<(string Name, object Value)>
             {
                 ("width", width),

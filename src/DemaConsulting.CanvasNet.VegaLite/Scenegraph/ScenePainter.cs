@@ -87,6 +87,12 @@ internal sealed class ScenePainter
     /// <summary>The largest distance in surface pixels between a curve and the polyline that approximates it when filling; small enough for symbols of a few pixels to stay round.</summary>
     private const float FlattenTolerance = 0.02f;
 
+    /// <summary>The smallest dash pattern period, in surface pixels, that is stroked as dashes; a finer pattern is drawn solid.</summary>
+    private const double MinDashPeriod = 0.25;
+
+    /// <summary>The largest estimated number of dashes on one stroked path; a pattern that would make more is drawn solid.</summary>
+    private const double MaxDashSegments = 50_000;
+
     /// <summary>The text measurer.</summary>
     private readonly TextMeasurer _measurer;
 
@@ -564,10 +570,16 @@ internal sealed class ScenePainter
     /// <param name="transform">The matrix from the path's units to surface pixels.</param>
     private static void StrokeOnly(Path path, SceneItem item, Context context, Matrix3x2 transform)
     {
-        var width = item.StrokeWidth ?? 1;
-        if (path.Subpaths.Count == 0
-            || !(width > 0)
-            || !double.IsFinite(width)
+        var requestedWidth = item.StrokeWidth ?? 1;
+        if (path.Subpaths.Count == 0 || !(requestedWidth > 0) || !double.IsFinite(requestedWidth))
+        {
+            return;
+        }
+
+        // A width that is finite as a double can still overflow to infinity or underflow to zero as a float; such a
+        // stroke cannot be drawn, so it is skipped rather than handed to the stroker
+        var width = (float)requestedWidth;
+        if (!float.IsFinite(width) || !(width > 0)
             || !CssColor.TryResolvePaint(item.Stroke, item.StrokeOpacity * item.Opacity, out var color))
         {
             return;
@@ -585,13 +597,14 @@ internal sealed class ScenePainter
             "bevel" => LineJoin.Bevel,
             _ => LineJoin.Miter,
         };
+        var dashOffset = (float)item.StrokeDashOffset;
         var style = new StrokeStyle(
-            (float)width,
+            width,
             cap,
             join,
             4f,
-            DashArray(item.StrokeDash),
-            double.IsFinite(item.StrokeDashOffset) ? (float)item.StrokeDashOffset : 0f);
+            DashArray(item.StrokeDash, path, context.Scale),
+            float.IsFinite(dashOffset) ? dashOffset : 0f);
 
         // The outline is made in the item's units and then transformed, so widths and dashes scale with the chart
         var tolerance = FlattenTolerance / Math.Max(context.Scale, 1e-3f);
@@ -601,24 +614,86 @@ internal sealed class ScenePainter
 
     /// <summary>
     ///     Converts a dash pattern into the form the stroker accepts: odd patterns are repeated (as a canvas does) and
-    ///     patterns that cannot draw anything are solid.
+    ///     patterns that cannot draw anything, or that would take unbounded work, are solid.
     /// </summary>
+    /// <remarks>
+    ///     The entries are validated after the conversion to <see cref="float"/>, which is the type the stroker takes:
+    ///     an entry that overflows to infinity, or a pattern whose entries all underflow to zero, is solid. The work of
+    ///     the stroker grows with the number of dashes, which is the path length divided by the pattern period, so a
+    ///     pattern is also solid when its period is below <see cref="MinDashPeriod"/> surface pixels (such a pattern
+    ///     cannot be told from a solid line) or when the estimated dash count exceeds <see cref="MaxDashSegments"/>.
+    /// </remarks>
     /// <param name="dash">The pattern, or null.</param>
+    /// <param name="path">The path in the item's own units, whose length bounds the number of dashes.</param>
+    /// <param name="scale">The uniform scale from the item's units to surface pixels.</param>
     /// <returns>The pattern, or null for a solid stroke.</returns>
-    private static float[]? DashArray(IReadOnlyList<double>? dash)
+    private static float[]? DashArray(IReadOnlyList<double>? dash, Path path, float scale)
     {
-        if (dash is null || dash.Count == 0 || dash.Any(d => !double.IsFinite(d) || d < 0) || dash.All(d => d == 0))
+        if (dash is null || dash.Count == 0 || dash.Any(d => !double.IsFinite(d) || d < 0))
         {
             return null;
         }
 
         var values = dash.Select(d => (float)d).ToList();
+        if (values.Any(v => !float.IsFinite(v)) || values.All(v => v == 0))
+        {
+            return null;
+        }
+
         if (values.Count % 2 == 1)
         {
             values.AddRange(values.ToArray());
         }
 
+        var period = values.Sum(v => (double)v);
+        if (!(period * scale >= MinDashPeriod) || EstimateLength(path) / period * (values.Count / 2) > MaxDashSegments)
+        {
+            return null;
+        }
+
         return values.ToArray();
+    }
+
+    /// <summary>
+    ///     Estimates the length of a path from its commands: the chords and control polygons, and for an arc its chord
+    ///     plus half the circumference of its radius.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <returns>The estimated length, which is at least the length of the chords.</returns>
+    private static double EstimateLength(Path path)
+    {
+        double length = 0;
+        foreach (var subpath in path.Subpaths)
+        {
+            var current = subpath.Start;
+            foreach (var command in subpath.Commands)
+            {
+                var end = command.Type == PathCommandType.Close ? subpath.Start : command.EndPoint;
+                length += command.Type switch
+                {
+                    PathCommandType.QuadraticBezierTo => Distance(current, command.Control1) + Distance(command.Control1, end),
+                    PathCommandType.CubicBezierTo => Distance(current, command.Control1) + Distance(command.Control1, command.Control2) + Distance(command.Control2, end),
+                    PathCommandType.ArcTo => Distance(current, end) + (Math.PI * Math.Max(Math.Abs(command.Radius.X), Math.Abs(command.Radius.Y))),
+                    _ => Distance(current, end),
+                };
+                current = end;
+            }
+        }
+
+        return length;
+    }
+
+    /// <summary>
+    ///     Measures the distance between two points in double precision.
+    /// </summary>
+    /// <param name="a">The first point.</param>
+    /// <param name="b">The second point.</param>
+    /// <returns>The distance.</returns>
+    private static double Distance(Vector2 a, Vector2 b)
+    {
+        double dx = (double)a.X - b.X;
+        double dy = (double)a.Y - b.Y;
+        return Math.Sqrt((dx * dx) + (dy * dy));
     }
 
     /// <summary>

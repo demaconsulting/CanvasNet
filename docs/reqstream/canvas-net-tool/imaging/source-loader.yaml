@@ -297,7 +297,8 @@ sections:
           drawing it, the natural size the library lays the chart out at, four channels with transparency,
           one page, and what the specification declares: its mark types, its data references (kind, URL, row
           count, and line), its parameter names, its title, and its schema major version; and shall report a
-          chart that lays out larger than the maximum image size as size-limit.
+          chart that lays out larger than the maximum image size as size-limit, and any other failure to measure
+          it as a vega-lite-error.
         justification: |
           Knowing what a chart is and how big it will be before committing to render it lets an agent choose
           sizes and decide whether data must be supplied, and keeps the information commands cheap.
@@ -329,19 +330,27 @@ sections:
         title: >-
           The SourceLoader class shall report an invalid Vega-Lite specification (malformed JSON, a property
           of the wrong type, plain Vega named like a chart) and a chart that cannot be rendered as a
-          vega-lite-error error that names the file, line, and column on one line, a chart that exceeds a
-          limit of the library as budget-exceeded, a specification longer than the library reads as
-          corrupt-input, an unsupported feature in strict mode as an unsupported-feature error that names the
-          feature, and shall give a picture or an expected error, never an unexpected exception, for a damaged
-          file.
+          vega-lite-error error that names the file, line, and column on one line (this includes a
+          specification nested deeper than, or with a string longer than, the limit of the parser, as a SCAD
+          nesting limit is a scad-error, and any argument failure of the library while the chart is measured or
+          drawn), a chart that exceeds a limit of the library while it is laid out or drawn (data rows, ticks,
+          scene items, and so on) as budget-exceeded, a specification file longer than the limit of the library
+          as corrupt-input (as an overlong SCAD model is), a chart that lays out larger than the maximum image
+          size as size-limit and nothing else as size-limit, an unsupported feature in strict mode as an
+          unsupported-feature error that names the feature, and shall give a picture or an expected error, never
+          an unexpected exception, for a damaged file.
         justification: |
           A chart is hand-written text and fails in many ways; every failure that is the author's mistake must
           be a concise, located, coded error that a script can branch on, while an unexpected exception stays a
-          defect that is not hidden.
+          defect that is not hidden. The code of a failure must say what it is: an argument failure of the
+          library is not a usage error, and an overflow in the layout is not a request for a larger image.
         tests:
           - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
           - SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded
           - SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput
+          - SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors
+          - SourceLoader_RenderAndMeasureChart_MapArgumentFailures
+          - SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit
           - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
           - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
 

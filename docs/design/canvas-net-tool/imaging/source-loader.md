@@ -249,13 +249,23 @@ Vega-Lite library adds
 three, caught before the generic list (its unsupported-feature exception is an `IOException` and its specification
 exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in strict mode) to `unsupported-feature`
 naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
-nesting that is too deep, an invalid axis or format) to `vega-lite-error` ("Vega-Lite specification error: file:line:column
-/pointer: ..."); and `VegaLiteRenderException` (an `InvalidOperationException`: missing or invalid data, a chart that
-cannot be laid out) to `budget-exceeded` when it reports a limit and otherwise to `vega-lite-error`
-("Vega-Lite render error: ..."). The library names every limit in the message, either as "the limit of N" or with the
+nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to `vega-lite-error`
+("Vega-Lite specification error: file:line:column /pointer: ..."); and `VegaLiteRenderException` (an
+`InvalidOperationException`: missing or invalid data, a chart that cannot be laid out) to `budget-exceeded` when it
+reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."). The limits of the specification
+parser are deliberately `vega-lite-error`, as the nesting limit of the SCAD parser is a `scad-error`: only the limits
+applied while the chart is laid out or drawn (data rows, ticks, scene items, and so on) are `budget-exceeded`. The
+library names every limit in the message, either as "the limit of N" or with the
 name of the limit ("VegaLiteLimits.MaxSceneItems"), which `MapVegaLiteRender` recognizes; the library gives no other way
 to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.
-A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. Every
+A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. An
+`ArgumentException` of the library is not on the allow-list of `Read`, because the library throws it for arguments
+that the caller chose; the two places that call the library with arguments the tool chose handle it themselves:
+`RenderChart` maps any `ArgumentException` of a render (the target size was validated by `ComputeTargetSize` before)
+to `vega-lite-error` ("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException` for
+the parameter `options` (the library's check that the laid-out size is between 1 and 8192 pixels on a side) to
+`size-limit` with a hint and every other `ArgumentException` to `vega-lite-error` ("Vega-Lite measure error: ...").
+Neither is ever reported as a usage error or as an unexpected exception. Every
 other exception - a null reference, an index out of range, an out-of-memory failure - is a defect and propagates to
 the entry point, which reports it as an unexpected error and re-throws it. The tests feed every supported format
 truncated and garbage files to prove that the allow-list covers the failures the libraries actually raise (for the

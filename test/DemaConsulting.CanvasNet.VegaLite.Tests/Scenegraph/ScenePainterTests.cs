@@ -468,6 +468,69 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that dash patterns whose work would be unbounded are drawn solid, without any timing assumption.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_PathologicalDashPatternsFallBackToSolid()
+    {
+        // Arrange: a period far below a quarter pixel, a pattern that would make millions of dashes on a long rule, and
+        // a pattern whose entries underflow to zero as floats; each is a black 2 pixel rule on rows 4 and 5
+        var scene = MakeScene(
+            20,
+            40,
+            new SceneRule("tiny", 0, 5, 20, 5) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [0.001, 0.001] },
+            new SceneRule("long", 0, 15, 10_000_000, 15) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [2, 2] },
+            new SceneRule("underflow", 0, 25, 20, 25) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [1e-50, 1e-50] },
+            new SceneRule("overflow", 0, 35, 20, 35) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [1e300, 1] });
+
+        // Act
+        using var surface = PaintAtOne(scene, 20, 40);
+
+        // Assert: every pixel of each rule is covered, so none of the patterns left gaps
+        foreach (var row in new[] { 4, 5, 14, 15, 24, 25, 34, 35 })
+        {
+            for (var x = 0; x < 20; x++)
+            {
+                Assert.Equal(Black, surface[x, row]);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a stroke width, dash entry or dash offset that is finite as a double but not as a float never
+    ///     escapes as an exception: an unusable width draws nothing and an unusable dash pattern or offset is solid or zero.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_ValuesOutsideTheFloatRangeAreSafe()
+    {
+        // Arrange: widths that overflow and underflow as floats, a dash offset that overflows, and a normal dash pattern
+        // for comparison
+        var scene = MakeScene(
+            20,
+            40,
+            new SceneRule("wide", 0, 5, 20, 5) { Stroke = "#000000", StrokeWidth = 1e300 },
+            new SceneRule("thin", 0, 15, 20, 15) { Stroke = "#000000", StrokeWidth = 1e-50 },
+            new SceneRule("offset", 0, 25, 20, 25) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [4, 4], StrokeDashOffset = 1e300 },
+            new SceneRule("dashed", 0, 35, 20, 35) { Stroke = "#000000", StrokeWidth = 2, StrokeDash = [4, 4] });
+
+        // Act
+        using var surface = PaintAtOne(scene, 20, 40);
+
+        // Assert: the unusable widths draw nothing
+        Assert.Equal(White, surface[10, 5]);
+        Assert.Equal(White, surface[10, 15]);
+
+        // Assert: the overflowing offset counts as zero, so the dashes are the ones of an unshifted pattern
+        for (var x = 0; x < 20; x++)
+        {
+            Assert.Equal(surface[x, 34], surface[x, 24]);
+        }
+
+        Assert.Equal(Black, surface[0, 25]);
+        Assert.Equal(White, surface[5, 25]);
+    }
+
+    /// <summary>
     ///     Validates the argument checks and cancellation of the painter.
     /// </summary>
     [Fact]
