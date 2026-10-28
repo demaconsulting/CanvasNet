@@ -64,7 +64,8 @@ dot, and are unique within a table; every input kind is one of the five document
 **DiscoveryCommands_FormatTables_QualityRangeMatchesWriter**, and
 **DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable**: the input table has one row per `SourceKind`, in
 order,
-with the extensions the loader maps to that kind (and, for the chart, the suffix `.vl.json`); the output table has one row per `OutputFormat`, in order, with the
+with the extensions the loader maps to that kind (and, for the chart, the suffix `.vl.json`); the output table has
+one row per `OutputFormat`, in order, with the
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
 listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
 multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden document
@@ -119,12 +120,16 @@ the extensions `.vl.json` and `.vl`; the JSON listing has the same row and the t
 scalable chart; a file of the kind is probed by the loader as a chart.
 
 **DiscoveryCommands_Info_VegaLiteWritesChartObject**: for a chart with a title, a layer of a `bar` and a `rule` mark, a
-parameter, and an inline and a named data source, the JSON is exactly the documented document - the `image` object with the
-laid-out size, four channels, and alpha, then the `chart` object with the title, the schema major version, the marks, the data
+parameter, and an inline and a named data source, the JSON is exactly the documented document - the `image` object
+with the
+laid-out size, four channels, and alpha, then the `chart` object with the title, the schema major version, the
+marks, the data
 references (kind, row count, and line), and the parameters, and no `model` or `document` object - and the text is one line
 with the size, the counts, the title, the schema version, and the byte count.
 
 **DiscoveryCommands_Info_ChartWithoutOptionalFacts_OmitsThemAndReportsErrors** and
-**DiscoveryCommands_InfoUsage_NamesVegaLite**: a chart of one `tick` mark with no data, schema, or title has no `title` and no
-`schemaMajorVersion` key, empty data and parameter lists, and zero counts in the text; a malformed chart is a `vega-lite-error`
+**DiscoveryCommands_InfoUsage_NamesVegaLite**: a chart of one `tick` mark with no data, schema, or title has no
+`title` and no
+`schemaMajorVersion` key, empty data and parameter lists, and zero counts in the text; a malformed chart is a
+`vega-lite-error`
 and page 2 of a chart is `page-out-of-range`; the usage text names Vega-Lite charts and has a chart example.

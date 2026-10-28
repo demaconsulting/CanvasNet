@@ -54,8 +54,8 @@ consists of six direct units and two subsystems:
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
   turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
   holds `SourceLoader` (format detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000,
-  and SVG, of the pages of PDF, PPTX, and VSDX documents, of a view of an OpenSCAD model, and of a Vega-Lite chart, with the size
-  policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
+  and SVG, of the pages of PDF, PPTX, and VSDX documents, of a view of an OpenSCAD model, and of a Vega-Lite
+  chart, with the size policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
   flattening, and the mapping of library exceptions to expected errors),
   `ImagePipeline` (the ordered crop, resize, fit, rotate by any angle, flip, pad, tone-adjustment, deskew, trim, and
   grid operations, which the `render` command, the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`, and
@@ -123,8 +123,8 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`,
-`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`, and
-`threshold-failed`
+`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`,
+and `threshold-failed`
 (the `ErrorCodes` supporting type documented in _Program Unit Design_). A code is never changed once
 released.
 
@@ -135,13 +135,14 @@ released.
   Integration Design_ (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and
-  `CanvasNetVegaLite` systems. The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG, BMP, TIFF, GIF, and
-  JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
+  `CanvasNetVegaLite` systems. The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG,
+  BMP, TIFF, GIF, and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
-  `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite` system, which
-  parses, measures, and draws a chart (the tool uses only its public API and sets the options that make a render
-  static and deterministic: UTC dates, only the bundled fonts, and no network). The core `Fonts` and `Rendering` subsystems also supply the
+  `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite`
+  system, which parses, measures, and draws a chart (the tool uses only its public API and sets the options that
+  make a render static and deterministic: UTC dates, only the bundled fonts, and no network). The core `Fonts` and
+  `Rendering` subsystems also supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
   never depend on the fonts installed on a machine. Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool
@@ -199,7 +200,8 @@ loaded.
 - Platform: multi-targets `net8.0`, `net9.0`, and `net10.0` on Windows, Linux, and macOS; the platform
   requirements are proven by the self-validation results that the installed tool writes in each job of the
   integration-test matrix. The same job also smoke-tests the installed tool (`formats --json`, an SVG `render`, a
-  `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to load on every platform.
+  `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to
+  load on every platform.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
   bundled (see _Dependencies_). The package readme is the repository README, so README links must be
   absolute URLs.

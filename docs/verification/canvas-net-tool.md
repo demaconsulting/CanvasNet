@@ -25,14 +25,17 @@ results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasN
 evidence for the platform requirements, selected by the source filters in the platform requirements file. The same
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
-`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`, `CanvasNetTool_Adjustments`, and
+`CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`,
+`CanvasNetTool_Adjustments`, and
 `CanvasNetTool_RenderVegaLite`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
 kept small (fifteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
-operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, and the detailed coverage of these commands and operations is in the unit,
+operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, and the detailed
+coverage of these commands and operations is in the unit,
 subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
-start-up files, the library assemblies, and the third-party libraries bundled for every target framework, with the Vega-Lite assembly and the licenses folder
+start-up files, the library assemblies, and the third-party libraries bundled for every target framework, with the
+Vega-Lite assembly and the licenses folder
 that carries the third-party notices of the Vega-Lite library) and smoke-tests the installed tool (`formats --json`, an
 SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart); the self-validation covers the PDF,
 SCAD (OpenSCAD), and Vega-Lite paths of the bundled libraries.
@@ -58,7 +61,8 @@ belong to the "Sequential" collection because console redirection is process-wid
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, and Vega-Lite charts) with the documented defaults
+  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, and Vega-Lite charts) with the
+  documented defaults
   (overwrite, flatten
   over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
   a stable error for
@@ -250,7 +254,8 @@ drawing, and a model are rendered twice to every output format at a given width;
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
 and garbage of every supported format (a model is only given garbage, because a truncated model is usually still a
-valid one, and its code is `scad-error`; a truncated or garbage chart has the code `vega-lite-error`) are rendered in-process; each returns exit code 1 (an unexpected exception
+valid one, and its code is `scad-error`; a truncated or garbage chart has the code `vega-lite-error`) are rendered
+in-process; each returns exit code 1 (an unexpected exception
 would escape and fail the test) with the stable error code in the message and in the JSON document, and no output
 exists.
 

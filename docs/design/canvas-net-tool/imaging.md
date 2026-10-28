@@ -37,7 +37,8 @@ documented in the design of the unit that owns them; the operation records of th
 **SourceLoader.Detect(path)**, **SourceLoader.Probe(path)**, **SourceLoader.Load(path, options)**,
 **SourceLoader.Load(info, options)**, and **SourceLoader.OpenPages(info, options)** (provided to the commands):
 recognize a file, read its header facts (for a document including every page, for a model its modules, functions,
-and directives, for a chart its laid-out size, marks, data references, parameters, title, and schema version), load one page into a
+and directives, for a chart its laid-out size, marks, data references, parameters, title, and schema version),
+load one page into a
 `LoadedSource` that owns its `Surface` and says what was done to produce it, and open a document once to load
 several of its pages.
 
@@ -84,11 +85,13 @@ measures, and draws a chart.
 
 ### Design
 
-A load is: detect the format (signature bytes, then ZIP entries, then SVG text, then file name and extension); read the header
+A load is: detect the format (signature bytes, then ZIP entries, then SVG text, then file name and extension); read
+the header
 (`Probe`); refuse an image that is too large; compute the target size from the options; decode or render; apply
 what the options ask for (EXIF orientation, resize, flatten over a background); and return the pixels with the list
 of operations that were applied, which commands report as the `operations` of a JSON result. A vector source (SVG,
-a page of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, or a Vega-Lite chart) is rendered directly at the target size,
+a page of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, or a Vega-Lite chart) is rendered directly at
+the target size,
 which is sharper than
 rendering at the natural size and resampling; a raster source is decoded at its own size and resized afterwards.
 A page of a document is chosen by its number counted from 1 and sized at a resolution in dots per inch (96 by
@@ -113,10 +116,13 @@ first operation of the pipeline runs, so a vector source is never scaled twice. 
 
 The subsystem owns the policy for the things that must be decided in one place so that every command agrees:
 the size policy (including the maximum of `Surface.MaxDimension` pixels per side, enforced before decoding
-wherever a header gives the size), the page numbering and resolution, the views of a model, the fixed deterministic render options of a chart, and the mapping of
+wherever a header gives the size), the page numbering and resolution, the views of a model, the fixed deterministic
+render options of a chart, and the mapping of
 library exceptions to expected errors. The mapping is an
 explicit list of exception types in `SourceLoader.Read`; any other exception is a defect and propagates to the
 entry point, which reports and re-throws it. `Imaging` adds no dependency on a system other than the CanvasNet
-core library (its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text renderer and
-the bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, and Vega-Lite systems. Every source kind is read; a
+core library (its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text
+renderer and
+the bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, and Vega-Lite systems. Every source kind
+is read; a
 further kind is added by a new partial file of `SourceLoader` and one new case in `Probe` and in `OpenPages`.

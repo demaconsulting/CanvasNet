@@ -13,11 +13,13 @@ Design_, and _ImageAnalysis Unit Verification Design_
 under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
-SCAD, and Vega-Lite) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output matrix of
+SCAD, and Vega-Lite) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output
+matrix of
 48 cases -
 and the output is decoded with the codec of its format and compared with the pixels the codec or the document library
 decodes or renders from the source (or, for the SVG, with the drawing flattened over white, and for the model, the
-library's orthographic isometric render at 800x800, and for the chart, the library's render at its laid-out size): exactly for a lossless
+library's orthographic isometric render at 800x800, and for the chart, the library's render at its laid-out size):
+exactly for a lossless
 output, on average for JPEG. Every named view of a model is also written as every output format and compared with the
 library's render for that view (28 cases). The tests generate their inputs in a temporary directory (see
 `Fixtures/README.md`

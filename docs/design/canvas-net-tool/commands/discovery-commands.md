@@ -21,7 +21,8 @@ any requested size), `Extensions` (lower case, with the
 dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
 rather than decoded at its own size). The rows are the `SourceKind` members in order, and their extensions are those
 that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
-the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an extension); a test keeps the table consistent with the enumeration and the
+the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
+extension); a test keeps the table consistent with the enumeration and the
 loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
 the loader reads it.
 
@@ -81,8 +82,9 @@ presentation is called a slide; sizes in points are rounded to two decimals). Fo
 `{path}: scad, {n} module[s], {n} function[s], {n} include/use directive[s], {bytes} bytes`, then a line
 `module {name}` for each module, `function {name}` for each function, and `include <{path}> (line {n})` or
 `use <{path}> (line {n})` for each directive, all in source order. For a Vega-Lite chart, one line:
-`{path}: vega-lite, {w}x{h} px (laid out), {n} mark[s], {n} data reference[s], {n} parameter[s][, title "{title}"][, schema v{n}],
-{bytes} bytes` (the size is the one the library lays the chart out at; a title of several lines is joined with spaces).
+`{path}: vega-lite, {w}x{h} px (laid out), {n} mark[s], {n} data reference[s], {n} parameter[s][, title "{title}"]
+[, schema v{n}], {bytes} bytes` (the size is the one the library lays the chart out at; a title of several lines is
+joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -110,8 +112,9 @@ An argument or option on the `formats` command line throws a `ToolException` wit
 `ArgumentReader`); so does a missing input, an extra input, an unknown option, or both page options on the `info`
 command line. The `info` command's failures to read the file come from `SourceLoader.Probe` (`input-not-found`,
 `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `scad-error` for a model with a
-syntax error, and `vega-lite-error` for a chart with an invalid specification, `budget-exceeded` for a chart that exceeds
-a limit of the library, and `size-limit` for a chart that lays out larger than the maximum image size), and a page the file does not have
+syntax error, and `vega-lite-error` for a chart with an invalid specification, `budget-exceeded` for a chart that
+exceeds a limit of the library, and `size-limit` for a chart that lays out larger than the maximum image size), and
+a page the file does not have
 is `page-out-of-range`. Null arguments throw `ArgumentNullException`. The `formats` command does not touch the file
 system and has no other failure mode.
 

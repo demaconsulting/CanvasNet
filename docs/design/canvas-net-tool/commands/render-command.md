@@ -7,7 +7,8 @@
 #### Purpose
 
 `RenderCommand` is the `render` command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`,
-`flip`, and `pad`: it loads an image, drawing, document page, 3D model view, or Vega-Lite chart, transforms it with the image
+`flip`, and `pad`: it loads an image, drawing, document page, 3D model view, or Vega-Lite chart, transforms it with
+the image
 pipeline (including the photo tools: tone adjustments, deskew, trim, and grid), and writes it as PNG, JPEG, BMP, or
 TIFF. Its single responsibility is to turn a command line into one
 pass of load, transform, and write for one page or every page, and to report the result. The unit is the partial
@@ -47,8 +48,9 @@ it.
 
 The command's name is `render`, its alias is `convert`, and its usage text has examples, says how the pipeline options
 combine, and says how an OpenSCAD model is drawn (the views, the 800 by 800 default size, `-D`) and where its
-`include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own background,
-with UTC dates and the bundled fonts, no network; no options of its own). A verb has no alias, and its usage text is `canvasnet {verb} <input>
+`include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
+background, with UTC dates and the bundled fonts, no network; no options of its own). A verb has no alias, and its
+usage text is `canvasnet {verb} <input>
 {operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of
 `render`, and its examples.
 

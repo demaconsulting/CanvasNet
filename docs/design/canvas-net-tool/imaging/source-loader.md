@@ -17,14 +17,16 @@ reports a bad file as an expected error. The unit consists of the static class `
 
 #### Data Model
 
-**SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`, `VegaLite`, in the
+**SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`,
+`VegaLite`, in the
 order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON
 (`vega-lite` for `VegaLite`, the one name that is not the lower-case member name). `IsChart(kind)` is true for
 `VegaLite`.
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
-at 96 dots per inch; for a model 800 by 800, the natural size of a view; for a chart the size the library lays it out at), `Channels`, `HasAlpha`, `CanDecode`,
+at 96 dots per inch; for a model 800 by 800, the natural size of a view; for a chart the size the library lays it
+out at), `Channels`, `HasAlpha`, `CanDecode`,
 `FrameCount`, `PageCount` (1 for a single image or a model),
 `ExifOrientation` (JPEG only), and the lists `Pages` (the pages of a document; empty for a single image or a model),
 `Modules`, and `Functions` (the names a model defines at file scope, in source order; empty for every other kind),
@@ -96,7 +98,8 @@ is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size 
 (rotation-applied) size in points; a slide or a page of a drawing is converted from EMU (12,700 EMU per point). A
 document with no pages is `corrupt-input`. An OpenSCAD model is parsed with `ScadDocument.Open(path)` (the parse
 reads no other file and evaluates nothing): its `ModuleNames` and `FunctionNames` become `Modules` and `Functions`,
-its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. A Vega-Lite chart is parsed with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing) and
+its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. A Vega-Lite chart is parsed
+with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing) and
 measured with `Measure()` (the library lays the chart out, which reads its data, but draws no pixel): the size is
 `Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
 the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
@@ -207,10 +210,12 @@ degrees, 4 mirrors top to bottom, 5 transposes, 6 turns clockwise, 7 transverses
 **SurfaceOperations.FlattenOver(surface, background)** composites a surface over a solid color into a new surface;
 **SurfaceOperations.HasTransparency(surface)** says whether any pixel is not opaque (used by `ImageWriter`).
 
-**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite, the kinds that are rendered at the
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite, the kinds that are
+rendered at the
 size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options that load a
 source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and `Scale`
-cleared, so the source is rendered sharply at the box (a document page and a chart are fitted inside it and centered over the
+cleared, so the source is rendered sharply at the box (a document page and a chart are fitted inside it and centered
+over the
 background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
 unchanged, because the caller fits the decoded pixels with `SurfaceOperations.FitInto`. The loader keeps its own
 private fit and center helpers for documents; they use the same rounding rule as `SurfaceOperations.FitInside`.
@@ -239,7 +244,8 @@ before it) to `scad-error` ("SCAD syntax error: file:line:column: ..."); and `Sc
 renderer budget failure with `RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and
 otherwise to `scad-error` (a failed `assert`, an include problem, and so on). The hint of a triangle-limit failure
 names `--max-triangles` and the default; the other limits cannot be changed from the command line and the hint says
-to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. The Vega-Lite library adds
+to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. The
+Vega-Lite library adds
 three, caught before the generic list (its unsupported-feature exception is an `IOException` and its specification
 exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in strict mode) to `unsupported-feature`
 naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
@@ -254,7 +260,8 @@ other exception - a null reference, an index out of range, an out-of-memory fail
 the entry point, which reports it as an unexpected error and re-throws it. The tests feed every supported format
 truncated and garbage files to prove that the allow-list covers the failures the libraries actually raise (for the
 documents also every byte-prefix length of a sample, overwritten and zeroed middles, a valid archive with a broken
-part, malformed PDF content, and an unsupported PDF encryption handler; for a chart a cut after every kind of damage of the shared sweep (the garbage and truncated files of a chart are
+part, malformed PDF content, and an unsupported PDF encryption handler; for a chart a cut after every kind of damage
+of the shared sweep (the garbage and truncated files of a chart are
 `vega-lite-error`, and a cut that leaves valid JSON may still load); for models a cut after every seventh
 character of a model with several kinds of statement, garbage of several sizes, and some forty stress models - huge
 numbers, degenerate or empty shapes, unsupported constructs, runaway recursion and loops, bad arguments, a deep nest of

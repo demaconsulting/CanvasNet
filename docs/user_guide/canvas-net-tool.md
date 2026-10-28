@@ -5,8 +5,10 @@
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
-document pages, OpenSCAD models, and Vega-Lite charts, cleans up photographs of sketches (contrast, tilt, borders, and a coordinate
-grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's standard
+document pages, OpenSCAD models, and Vega-Lite charts, cleans up photographs of sketches (contrast, tilt, borders,
+and a coordinate
+grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's
+standard
 output holds only
 its own result, every result can be written as one JSON document, a failure is reported with a stable error code, and
 the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
@@ -123,7 +125,8 @@ parse standard output alone in both cases; the text report on standard error is 
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
-Vega-Lite chart, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`, and so on; see _Photos
+Vega-Lite chart, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`,
+and so on; see _Photos
 and Sketches_) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
 as well.
 
@@ -142,7 +145,7 @@ as well.
 | PowerPoint | `.pptx` | Multi-page (slides) |
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
-| Vega-Lite | `.vl.json`, `.vl` | A chart specification, drawn at its laid-out size (a `.json` file is read as a chart when its `$schema` is a Vega-Lite schema) |
+| Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -156,7 +159,8 @@ package), and the extension is used only when the content is not conclusive. A m
 signature: a model is recognized by `.scad`, and a chart by the file name suffix `.vl.json` or `.vl`, or, for a `.json`
 file, by a Vega-Lite `$schema` (an address under `vega.github.io/schema/vega-lite/`) in the first 4 KiB of the file. A
 `.json` file with the schema of plain Vega is refused as `unsupported-format` (Vega is not supported), and so is any
-other `.json` file; name a chart `chart.vl.json` to have it recognized without a schema. The output format is selected by the
+other `.json` file; name a chart `chart.vl.json` to have it recognized without a schema. The output format is
+selected by the
 output extension, or by `--format png|jpeg|jpg|bmp|tiff|tif`, which overrides the extension. An output with neither a
 known extension nor `--format` is a `usage-error`. The largest image side the tool reads or writes is **8192
 pixels**; a larger size is refused with `size-limit` before any pixels are allocated.
@@ -201,7 +205,8 @@ Versions:
 canvasnet info <input> [--page N | --all-pages] [--json]
 ```
 
-Reads only the header of a file (a model is parsed but not evaluated, and a chart is parsed and laid out but not drawn) and reports its properties without rendering
+Reads only the header of a file (a model is parsed but not evaluated, and a chart is parsed and laid out but not
+drawn) and reports its properties without rendering
 it, which is cheap even for a large file.
 
 - A **raster image or SVG** reports its format, size in pixels (the intrinsic size for an SVG), number of channels,
@@ -216,6 +221,7 @@ it, which is cheap even for a large file.
   named data set, or a generated sequence, with the row count when the text gives it), the names of its parameters, its
   title, and its schema version. Describing a chart opens no data file and uses no network.
 
+<!-- markdownlint-disable MD013 -->
 ```text
 $ canvasnet info shapes.svg
 shapes.svg: svg, 100x80 px (intrinsic size), 4 channels with alpha, 303 bytes
@@ -230,6 +236,7 @@ part.scad: scad, 1 module, 1 function, 0 include/use directives, 376 bytes
 $ canvasnet info chart.vl.json
 chart.vl.json: vega-lite, 289x264 px (laid out), 1 mark, 1 data reference, 0 parameters, title "Crates sold per stall", schema v5, 562 bytes
 ```
+<!-- markdownlint-enable MD013 -->
 
 ### render and convert
 
@@ -438,7 +445,8 @@ size the specification lays out (its `width` and `height` plus its axes, title, 
 size the size options ask for: `--scale` multiplies the layout, `--width` or `--height` fits the chart (keeping its aspect
 ratio), and `--size WxH` fits it inside that box and centers it. The chart is always drawn sharply at the final size, not
 enlarged afterwards, so text and lines stay crisp. A chart has no options of its own: there is no option to set
-parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a `usage-error`. A
+parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a
+`usage-error`. A
 chart has one page, so `--page` beyond 1 is `page-out-of-range`.
 
 The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
@@ -455,7 +463,8 @@ property Vega-Lite does not define, a `$schema` of another version) is a `vega-l
 
 A specification that is not valid JSON, has a property of the wrong type, or is plain Vega named like a chart is a
 `vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example data
-that does not fit the encoding). A chart that exceeds a limit of the library (too many data rows, scene items, or ticks) fails
+that does not fit the encoding). A chart that exceeds a limit of the library (too many data rows, scene items, or
+ticks) fails
 with `budget-exceeded`; a specification longer than the library reads is `corrupt-input`; and a chart that lays out larger
 than 8192 pixels on a side is `size-limit`.
 
@@ -468,7 +477,8 @@ canvasnet render chart.vl.json --strict -o chart.png
 
 #### Diagnostics and --strict
 
-PPTX and VSDX documents, OpenSCAD models, and Vega-Lite charts report every picture, shape, or feature the library recognizes but cannot
+PPTX and VSDX documents, OpenSCAD models, and Vega-Lite charts report every picture, shape, or feature the library
+recognizes but cannot
 draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result.
 `--strict` turns the report into a failure (`unsupported-feature`) and writes no output. SVG and PDF have no such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them.
@@ -1140,7 +1150,8 @@ crops the 800-pixel drawing, not the natural-size one.
 ## Using the Tool from an AI Agent
 
 The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a
-PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart) into a PNG the agent can inspect, and writes
+PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart) into a PNG the agent can
+inspect, and writes
 the agent's own drawings (an SVG or a SCAD model) as pictures it can compare with a reference. A few conventions make
 this reliable:
 
@@ -1337,7 +1348,8 @@ pictures side by side.
 - **Determinism.** For the same input, command line, tool version, and machine, the output file is identical byte for
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
-  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts use only the
+  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts use
+  only the
   bundled fonts and UTC dates, so they are the same on every machine. SVG text is always drawn: a
   family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
   is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
@@ -1350,7 +1362,8 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`). PDF and SVG have no such report, and a
+  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`). PDF and SVG have no such
+  report, and a
   construct they cannot draw is simply absent from the picture.
 - **One frame.** A GIF is read as its first frame.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
@@ -1423,7 +1436,7 @@ Failed: 0
 | `CanvasNetTool_RenderSvg` | An SVG drawing is rasterized |
 | `CanvasNetTool_PdfMinimal` | A one-page PDF is read and a page is rendered |
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
-| `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars in the right places |
+| `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |
