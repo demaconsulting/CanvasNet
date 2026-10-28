@@ -1,5 +1,4 @@
 // Portions derived from Vega (BSD-3-Clause); see third-party/README.md
-// cspell:ignore neue ordinally scenegraph steelblue
 using System.Collections.ObjectModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -510,7 +509,7 @@ internal sealed record Scene
     /// <summary>
     ///     Enumerates the items that have a role, in drawing order.
     /// </summary>
-    /// <param name="role">The role, compared ordinally.</param>
+    /// <param name="role">The role, compared using ordinal comparison.</param>
     /// <returns>The matching entries.</returns>
     public IEnumerable<SceneEntry> FindAll(string role) => Enumerate().Where(e => string.Equals(e.Item.Role, role, StringComparison.Ordinal));
 
@@ -525,7 +524,7 @@ internal sealed record Scene
     /// <summary>
     ///     Finds the first item that has a role.
     /// </summary>
-    /// <param name="role">The role, compared ordinally.</param>
+    /// <param name="role">The role, compared using ordinal comparison.</param>
     /// <returns>The first entry in drawing order, or <see langword="null"/> when no item has the role.</returns>
     public SceneEntry? Find(string role) => FindAll(role).Select(e => (SceneEntry?)e).FirstOrDefault();
 

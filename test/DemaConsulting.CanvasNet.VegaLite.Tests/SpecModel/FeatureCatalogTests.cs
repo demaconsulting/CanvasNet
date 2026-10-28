@@ -1,5 +1,3 @@
-// cspell:ignore albers colour errorband errorbar geoshape hconcat vconcat joinaggregate maxbins steelblue timeunit topojson xoffset
-// cspell:ignore strokewidth bandposition paddinginner tickminstep labeloverlap groupby Topo
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
@@ -308,7 +306,7 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_UnknownChannelIsNotReported()
     {
         // Arrange
-        var tree = SpecParser.Parse("{\"mark\":\"bar\",\"encoding\":{\"colour\":{\"field\":\"a\"}}}");
+        var tree = SpecParser.Parse("{\"mark\":\"bar\",\"encoding\":{\"hue\":{\"field\":\"a\"}}}");
 
         // Act
         var reports = FeatureCatalog.Visit(tree);

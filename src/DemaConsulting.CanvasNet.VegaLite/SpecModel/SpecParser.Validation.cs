@@ -1,5 +1,4 @@
-// cspell:ignore hconcat vconcat joinaggregate timeunit fillopacity strokeopacity strokedash strokewidth geoshape errorband errorbar usermeta
-// cspell:ignore groupby topojson zindex symlog SNZE BOSZ SAOZ STZE BNSO
+// cspell:ignore SNZE BOSZ SAOZ STZE BNSO
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;

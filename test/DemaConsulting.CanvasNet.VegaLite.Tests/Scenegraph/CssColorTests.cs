@@ -1,4 +1,3 @@
-// cspell:ignore aliceblue darkslategrey dodgerblue lightgoldenrodyellow mediumvioletred notacolor peachpuff rebecca rebeccapurple scenegraph steelblue whitesmoke yellowgreen
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 
@@ -98,7 +97,7 @@ public class CssColorTests
         // Arrange
         string?[] invalid =
         [
-            null, string.Empty, "   ", "none", "None", "#", "#12", "#12345", "#1234567", "#ggg", "#12 456", "notacolor", "rgb", "rgb()",
+            null, string.Empty, "   ", "none", "None", "#", "#12", "#12345", "#1234567", "#ggg", "#12 456", "bogus", "rgb", "rgb()",
             "rgb(1,2)", "rgb(1,2,3,4,5)", "rgb(1 2 3 4 5 6)", "rgb(1 2 3 / )", "rgb(1, 2, 3", "rgb(NaN, 0, 0)", "rgb(1e999, 0, 0)",
             "rgb(a, b, c)", "rgba(1,2,3,x)", "hsl(a, 100%, 50%)", "hsl(0, 100%)", "xyz(1,2,3)", "rgb(1,2,3) extra", "(1,2,3)",
         ];
@@ -110,7 +109,7 @@ public class CssColorTests
             Assert.Equal(default, color);
         }
 
-        Assert.Throws<FormatException>(() => CssColor.Parse("notacolor"));
+        Assert.Throws<FormatException>(() => CssColor.Parse("bogus"));
         Assert.Throws<FormatException>(() => CssColor.Parse(null));
     }
 

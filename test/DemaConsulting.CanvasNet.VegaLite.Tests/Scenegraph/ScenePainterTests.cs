@@ -1,4 +1,3 @@
-// cspell:ignore nofill scenegraph
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -136,7 +135,7 @@ public class ScenePainterTests
             new SceneRect("nan", double.NaN, 2, 8, 8) { Fill = "red" },
             new SceneRule("point", 5, 5, 5, 5) { Stroke = "red" },
             new SceneText("blank", 2, 12, ["   "]) { Fill = "black", FontSize = 10 },
-            new SceneText("nofill", 2, 12, ["Hi"]) { FontSize = 10 });
+            new SceneText("plain", 2, 12, ["Hi"]) { FontSize = 10 });
 
         // Act
         using var surface = PaintAtOne(invisible, 20, 20);

@@ -1,6 +1,4 @@
 // Portions derived from Vega-Lite and Vega (BSD-3-Clause); see third-party/README.md
-// cspell:ignore tableau yellowgreenblue blueorange mercator symlog hcl dsv
-// cspell:ignore geoshape scenegraph
 using System.Globalization;
 using System.Text.Json;
 

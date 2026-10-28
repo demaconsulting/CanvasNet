@@ -1,4 +1,3 @@
-// cspell:ignore antiqua consolas lucida menlo neue palatino scenegraph tahoma vegalite verdana
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;

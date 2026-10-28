@@ -1,4 +1,3 @@
-// cspell:ignore consolas menlo neue vegalite verdana
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;

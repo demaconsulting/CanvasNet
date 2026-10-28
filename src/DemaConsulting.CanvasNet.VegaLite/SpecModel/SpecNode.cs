@@ -1,4 +1,3 @@
-// cspell:ignore hconcat vconcat ordinally
 using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
@@ -192,7 +191,7 @@ internal sealed class SpecNode
     /// <summary>
     ///     Gets the property of an object node by name.
     /// </summary>
-    /// <param name="name">The property name (compared ordinally).</param>
+    /// <param name="name">The property name (compared using ordinal comparison).</param>
     /// <returns>The property value, or <see langword="null"/> when this is not an object or has no such property.</returns>
     public SpecNode? this[string name]
     {

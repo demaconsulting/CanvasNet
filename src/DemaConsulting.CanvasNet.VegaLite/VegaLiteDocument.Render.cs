@@ -1,5 +1,4 @@
 // Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding come from the configuration; see third-party/README.md
-// cspell:ignore hconcat scenegraph vconcat
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Layout;

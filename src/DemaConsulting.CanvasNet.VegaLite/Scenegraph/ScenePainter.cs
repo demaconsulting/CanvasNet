@@ -1,5 +1,4 @@
 // Portions derived from Vega (BSD-3-Clause); see third-party/README.md
-// cspell:ignore scenegraph
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;

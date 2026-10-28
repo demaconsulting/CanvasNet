@@ -1,4 +1,3 @@
-// cspell:ignore scenegraph
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.VegaLite.Guides;

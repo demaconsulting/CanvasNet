@@ -1,5 +1,3 @@
-// cspell:ignore hconcat vconcat timeunit bandposition joinaggregate strokewidth fillopacity strokeopacity strokedash labeloverlap
-// cspell:ignore paddinginner tickminstep xoffset geoshape errorband errorbar groupby topojson
 using System.Globalization;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;

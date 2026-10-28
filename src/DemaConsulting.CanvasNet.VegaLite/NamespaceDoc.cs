@@ -1,6 +1,5 @@
 namespace DemaConsulting.CanvasNet.VegaLite;
 
-// cspell:ignore hconcat vconcat
 
 /// <summary>
 ///     The <c>VegaLite</c> namespace renders charts written in the Vega-Lite specification language onto a CanvasNet

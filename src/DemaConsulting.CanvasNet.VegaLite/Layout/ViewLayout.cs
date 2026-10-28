@@ -1,5 +1,4 @@
 // Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause); see third-party/README.md
-// cspell:ignore scenegraph
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;

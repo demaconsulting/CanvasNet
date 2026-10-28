@@ -1,4 +1,3 @@
-// cspell:ignore FEFF hconcat vconcat usermeta maxbins colour
 using System.Text;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -429,7 +428,7 @@ public class SpecParserTests
               "config": { "whatever": 1 },
               "encoding": {
                 "x": { "field": "a", "type": "nominal", "bogusChannelDef": 1, "band": 0.5, "bandPosition": 0.5, "rescale": true },
-                "colour": { "field": "b" },
+                "hue": { "field": "b" },
                 "row": { "field": "c" }
               },
               "layer": [ { "bogusNested": 1 } ]
@@ -442,7 +441,7 @@ public class SpecParserTests
         // Assert: one warning per unknown property, at the key (not the value)
         var unknown = tree.Warnings.Where(w => w.Id == "vl-unknown-property").ToList();
         Assert.Equal(
-            ["/mark/bogusMark", "/bogusView", "/encoding/x/bogusChannelDef", "/encoding/colour", "/layer/0/bogusNested"],
+            ["/mark/bogusMark", "/bogusView", "/encoding/x/bogusChannelDef", "/encoding/hue", "/layer/0/bogusNested"],
             unknown.OrderBy(w => w.Location.Line).Select(w => w.Location.Pointer));
         Assert.All(unknown, w => Assert.Equal(FeatureReportKind.Warning, w.Kind));
         Assert.Equal(5, unknown.Count);

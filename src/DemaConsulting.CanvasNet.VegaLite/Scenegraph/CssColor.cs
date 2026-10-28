@@ -1,4 +1,3 @@
-// cspell:disable
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 
@@ -33,6 +32,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 /// </remarks>
 internal static class CssColor
 {
+    // cspell:disable -- hexadecimal color values below are not words
     /// <summary>The names and values of the CSS named colors, as <c>name=rrggbb</c> entries separated by spaces.</summary>
     private const string NamedColors =
         "aliceblue=f0f8ff antiquewhite=faebd7 aqua=00ffff aquamarine=7fffd4 azure=f0ffff beige=f5f5dc bisque=ffe4c4 " +
@@ -62,6 +62,7 @@ internal static class CssColor
         "springgreen=00ff7f steelblue=4682b4 tan=d2b48c teal=008080 thistle=d8bfd8 tomato=ff6347 " +
         "turquoise=40e0d0 violet=ee82ee wheat=f5deb3 white=ffffff whitesmoke=f5f5f5 yellow=ffff00 " +
         "yellowgreen=9acd32";
+    // cspell:enable
 
     /// <summary>The named colors by lower-case name; built once and never changed.</summary>
     private static readonly Dictionary<string, Rgba32> Named = BuildNamedColors();

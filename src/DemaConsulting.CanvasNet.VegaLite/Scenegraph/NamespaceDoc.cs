@@ -1,4 +1,3 @@
-// cspell:ignore scenegraph
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 
 /// <summary>

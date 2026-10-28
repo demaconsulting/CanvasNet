@@ -1,5 +1,4 @@
 // Portions derived from Vega (BSD-3-Clause); see third-party/README.md
-// cspell:ignore antiqua blinkmacsystemfont consolas dejavu lucida menlo neue palatino scenegraph tahoma verdana
 using System.Collections.Concurrent;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;

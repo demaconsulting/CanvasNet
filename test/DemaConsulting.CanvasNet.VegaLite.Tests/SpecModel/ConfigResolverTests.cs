@@ -1,4 +1,3 @@
-// cspell:ignore nosuchproperty
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
@@ -157,7 +156,7 @@ public class ConfigResolverTests
         Assert.Equal("square", defaults.ResolveMarkProperty("square", null, "shape")!.StringValue);
         Assert.Equal("#4c78a8", defaults.ResolveMarkProperty("bar", null, "color")!.StringValue);
         Assert.Equal("black", defaults.ResolveMarkProperty("rule", null, "color")!.StringValue);
-        Assert.Equal(64, defaults.ResolveMarkProperty("point", null, "nosuchproperty")?.NumberValue ?? 64);
+        Assert.Equal(64, defaults.ResolveMarkProperty("point", null, "bogusProperty")?.NumberValue ?? 64);
 
         // Assert: the scale configuration. Source: Vega-Lite 6.5.0 src/scale.ts defaultScaleConfig
         Assert.Equal(0.5, defaults.GetNumber("scale.pointPadding"));
