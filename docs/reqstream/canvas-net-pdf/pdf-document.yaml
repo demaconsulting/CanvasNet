@@ -1907,6 +1907,8 @@ sections:
               - PdfDocument_Text_QuoteOperator_MovesToNextLineThenShows
               - PdfDocument_Text_DoubleQuoteOperator_SetsSpacingThenMovesAndShows
               - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
+              - PdfDocument_Load_CombinedVectorTextImageFixture_RendersHoTextInItsOwnRegion
+              - CanvasNetPdf_SystemIntegration_RenderTextAfterScalingCm_OnlyPaintsWhenScaleIsScopedByQ
 
           - id: CanvasNetPdf-PdfDocument-TextErrorHandling
             title: >-

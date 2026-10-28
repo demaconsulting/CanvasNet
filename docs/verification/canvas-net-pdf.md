@@ -178,6 +178,28 @@ font-dictionary resolution, `/Encoding` mapping, glyph-outline transformation, a
 all integrate correctly through the system's own public entry point with a real font file (not a
 hand-rolled synthetic one).
 
+### Integration: Combined Vector Text Image Fixture Renders Ho Text In Its Own Region
+
+**Test**: `PdfDocument_Load_CombinedVectorTextImageFixture_RendersHoTextInItsOwnRegion`
+
+Renders `combined-vector-text-image.pdf` (filled rect, stroked line, image XObject and `"HO"`
+text) through the public `Render` API and asserts that the text band, above every other
+construct, holds black glyph ink (with fully opaque stem pixels), that `'H'`'s left stem is
+painted and `'O'`'s counter is empty (positions re-derived from the real font's outlines), and
+that the rect and image are still painted. The fixture's image-placement `cm` is scoped by
+`q`/`Q`; the earlier revision left it unscoped, so the 60x scale persisted and pushed the text
+off the page, which the previous "any pixel painted" assertion could not detect.
+
+### Integration: Render Text After Scaling Cm Only Paints When Scale Is Scoped By Q
+
+**Test**: `CanvasNetPdf_SystemIntegration_RenderTextAfterScalingCm_OnlyPaintsWhenScaleIsScopedByQ`
+
+A `[Theory]` over a synthetic, in-memory document that draws a scaled rectangle via `cm` and
+then shows text, with the `cm` either wrapped in `q`/`Q` or left unbalanced. Asserts the text
+paints ink when scoped and paints none when unscoped (the scale persists, PDF 32000-1 §8.4.2,
+carrying the text off the page), confirming the renderer applies the persisted CTM to later
+text exactly as the specification requires.
+
 ### Integration: Render Type0 Composite Font Paints Expected Glyph Ink
 
 **Test**: `CanvasNetPdf_SystemIntegration_RenderType0CompositeFont_PaintsExpectedGlyphInk`

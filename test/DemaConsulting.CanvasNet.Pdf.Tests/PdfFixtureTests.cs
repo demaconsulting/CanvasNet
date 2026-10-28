@@ -250,6 +250,83 @@ public class PdfFixtureTests
     }
 
     /// <summary>
+    ///     Proves the <c>"HO"</c> text in <c>combined-vector-text-image.pdf</c> is genuinely
+    ///     rendered where the content stream places it - black glyph ink inside the text region,
+    ///     with 'H's left stem painted and 'O's counter left empty - and does not overlap the
+    ///     rectangle, line or image regions. This is the regression guard for the fixture whose
+    ///     image placement <c>cm</c> was not wrapped in <c>q</c>/<c>Q</c>, so its 60x scale leaked
+    ///     into the following text and pushed it far off the page (the old "some pixel was
+    ///     painted" assertion never noticed, because the rect/line/image alone satisfied it).
+    /// </summary>
+    [Fact]
+    public void PdfDocument_Load_CombinedVectorTextImageFixture_RendersHoTextInItsOwnRegion()
+    {
+        // Arrange: MediaBox [0 0 200 200] rendered 1:1; "HO" at font size 30, text origin (100,150)
+        // in user space, i.e. device y = 200 - textY. The text spans device y ~[28,50], well above
+        // the image (device y [130,190]) and the rect/line (device y >= 110).
+        const double fontSize = 30;
+        const double originX = 100;
+        const double originY = 150;
+        const double mediaBoxHeight = 200;
+        using var document = PdfDocument.Open(Fixture("combined-vector-text-image.pdf"));
+        var font = TrueTypeFont.Load(FontPath);
+
+        // Act
+        using var surface = document.Render(0, 200, 200, Transparent);
+
+        // Assert: the text band (above every other construct) holds ink, all of it black, and
+        // nothing is painted in the band's left margin (x < 95) that the text cannot reach.
+        var inkPixels = 0;
+        var opaquePixels = 0;
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 200; x++)
+            {
+                var pixel = surface[x, y];
+                if (pixel.A == 0)
+                {
+                    continue;
+                }
+
+                Assert.True(x >= 95, $"Unexpected ink left of the text origin at ({x},{y}).");
+                Assert.True(pixel is { R: 0, G: 0, B: 0 }, $"Expected black text ink at ({x},{y}) but found {pixel}.");
+                inkPixels++;
+                if (pixel.A == 255)
+                {
+                    opaquePixels++;
+                }
+            }
+        }
+
+        Assert.True(inkPixels >= 100, $"Expected substantial 'HO' glyph ink but found {inkPixels} pixels.");
+        Assert.True(opaquePixels >= 20, $"Expected fully opaque glyph-stem pixels but found {opaquePixels}.");
+
+        // Assert: re-derive, from the font's own outlines, one point inside 'H's left stem (painted)
+        // and the center of 'O's counter (unpainted), as the single-glyph TrueType fixture test does.
+        (int X, int Y) ToDevicePixel(double glyphOriginX, double fx, double fy) =>
+            ((int)Math.Floor(fx / font.UnitsPerEm * fontSize + glyphOriginX),
+             (int)Math.Floor(mediaBoxHeight - (fy / font.UnitsPerEm * fontSize + originY)));
+
+        var hGlyph = font.GetGlyphIndex('H');
+        var oGlyph = font.GetGlyphIndex('O');
+        var hBounds = font.GetGlyphOutline(hGlyph).GetBounds(0.25f);
+        var oBounds = font.GetGlyphOutline(oGlyph).GetBounds(0.25f);
+        var originXForO = originX + (double)font.GetAdvanceWidth(hGlyph) / font.UnitsPerEm * fontSize;
+
+        var (stemX, stemY) = ToDevicePixel(originX, hBounds.X + hBounds.Width * 0.1, hBounds.Y + hBounds.Height * 0.5);
+        Assert.True(surface[stemX, stemY].A > 0, $"Expected ink inside 'H's left stem at ({stemX},{stemY}).");
+
+        var (counterX, counterY) = ToDevicePixel(
+            originXForO, oBounds.X + oBounds.Width * 0.5, oBounds.Y + oBounds.Height * 0.5);
+        Assert.Equal(0, surface[counterX, counterY].A);
+
+        // Assert: the other constructs are untouched by the text (the image still composites and
+        // the rect is still opaque black).
+        Assert.Equal(new Canvas.Rgba32(0, 0, 0, 255), surface[30, 170]);
+        Assert.True(surface[130, 160].A > 0, "Expected the placed image to composite visible pixels.");
+    }
+
+    /// <summary>
     ///     Proves the new <c>standard14-font-fallback.pdf</c> fixture - the first on-disk fixture
     ///     exercising the Phase 6 font-fallback path (<c>/BaseFont /Helvetica</c>, no embedded
     ///     <c>/FontFile2</c>) - renders visible substitute glyph ink. As with the equivalent

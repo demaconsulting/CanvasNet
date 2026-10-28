@@ -69,7 +69,7 @@ own entry below for details).
 | `content-stream-ascii85.pdf` | `/Contents` armored with `ASCII85Decode` (Phase 7) - the same filled rectangle |
 | `content-stream-asciihex.pdf` | `/Contents` armored with `ASCIIHexDecode` (Phase 7) - the same filled rectangle |
 | `content-stream-runlength.pdf` | `/Contents` compressed with `RunLengthDecode` (Phase 7) - the same filled rectangle |
-| `combined-vector-text-image.pdf` | Filled rect + stroked line + image XObject + font text (Phase 8) |
+| `combined-vector-text-image.pdf` | Filled rect + stroked line + `q`/`Q`-scoped image XObject + font text (Phase 8) |
 | `standard14-font-fallback.pdf` | `/BaseFont /Helvetica`, no `/FontFile2` - on-disk fallback (Phase 6) fixture |
 | `malformed-content-stream.pdf` | `re` operator given only 2 of its 4 required operands (malformed) |
 | `text-embedded-type1-font.pdf` | `/Subtype /Type1`, embedded PostScript `/FontFile` (Phase B) - `Tf`/`Td`/`Tj` |
@@ -105,6 +105,14 @@ CID 1 via `bfchar` and CID 2 via a single-entry `bfrange` to the Unicode codepoi
 `U+004F` respectively - the same two CIDs the existing content stream's `Tj` operator shows -
 wrapped in the standard Adobe CMap/PostScript resource-management boilerplate; this map is
 resolved by `ResolveToUnicodeMap` but not yet consumed anywhere at rendering time.
+
+`combined-vector-text-image.pdf` also embeds the same real, unmodified Open Sans `/FontFile2`
+bytes. Its content stream wraps the image placement in `q 60 0 0 60 100 10 cm /Im0 Do Q`: the
+original revision omitted the `q`/`Q`, so the 60x scale persisted in the graphics state (PDF
+32000-1 §8.4.2) and moved the following `"HO"` text (font size 30 at `(100, 150)`) to roughly
+`(6100, 9010)`, far off the 200x200 page - the fixture was defective, not the renderer. It was
+repaired by editing only that content stream (and its `/Length`/xref offsets by hand); the
+`"HO"` text now renders at device y of about 28-50, clear of the other constructs.
 
 `text-composite-cff-cidfonttype0-identity-h.pdf` (Phase 12) exercises the `/CIDFontType0`
 (CFF-outline) descendant-font path: unlike every other fixture with an embedded font, it is
