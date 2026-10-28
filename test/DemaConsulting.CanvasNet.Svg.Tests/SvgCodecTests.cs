@@ -25,6 +25,28 @@ public class SvgCodecTests
     private static MemoryStream ToStream(string svg) => new(Encoding.UTF8.GetBytes(svg));
 
     /// <summary>
+    ///     Counts the pixels of <paramref name="surface"/> that received any ink.
+    /// </summary>
+    /// <param name="surface">The surface to scan.</param>
+    /// <returns>The number of pixels with a non-zero alpha.</returns>
+    private static int CountInk(Surface surface)
+    {
+        var count = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
     ///     Asserts that two same-size <see cref="Surface"/> instances contain identical pixels.
     /// </summary>
     /// <param name="expected">The expected surface.</param>
@@ -6030,41 +6052,50 @@ public class SvgCodecTests
     }
 
     /// <summary>
-    ///     Proves that <c>&lt;text&gt;</c> is silently skipped (no exception, no ink) when
-    ///     <see cref="SvgCodec.Load(Stream,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/>
+    ///     Proves that <c>&lt;text&gt;</c> is still rendered (with the default font, no exception)
+    ///     when <see cref="SvgCodec.Load(Stream,int,int,IReadOnlyDictionary{string,TrueTypeFont}?)"/>
     ///     is called with no fonts dictionary at all.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing()
+    public void SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont()
     {
-        // Arrange
-        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
+        // Arrange: the default font is used for the unknown "TestFont" family
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='80' font-family='TestFont' font-size='100' fill='black'>I</text></svg>";
 
         // Act
         using var stream1932 = ToStream(svg);
         var surface = SvgCodec.Load(stream1932, 100, 100);
 
-        // Assert: no exception was thrown (implicit), and no ink was painted anywhere
-        Assert.Equal(0, surface[35, 35].A);
+        // Assert: no exception was thrown (implicit), and ink was painted
+        Assert.True(CountInk(surface) > 0);
     }
 
     /// <summary>
-    ///     Proves that <c>&lt;text&gt;</c> is silently skipped when the fonts dictionary is
-    ///     supplied but contains no entry matching the requested <c>font-family</c>.
+    ///     Proves that <c>&lt;text&gt;</c> falls back to the default font - not the unrelated
+    ///     registered font - when the fonts dictionary is supplied but contains no entry matching the
+    ///     requested <c>font-family</c>.
     /// </summary>
     [Fact]
-    public void SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing()
+    public void SvgCodec_Load_TextFontFamilyNoMatch_RendersDefaultFontNotUnrelatedRegisteredFont()
     {
-        // Arrange
+        // Arrange: the registered "OtherFont" paints a 50x50 square over x equals 10 to 60,
+        // y equals 10 to 60; the request names "TestFont" instead
         const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text></svg>";
         var fonts = new Dictionary<string, TrueTypeFont> { ["OtherFont"] = BuildTestFont() };
+        using var registeredStream = ToStream(svg.Replace("TestFont", "OtherFont", StringComparison.Ordinal));
+        var registered = SvgCodec.Load(registeredStream, 100, 100, fonts);
+        using var defaultStream = ToStream(svg);
+        var defaultFont = SvgCodec.Load(defaultStream, 100, 100, null, new SvgLoadOptions { UseSystemFonts = false });
 
-        // Act
+        // Act: installed-font lookup disabled so only the bundled fallback can apply
         using var stream1950 = ToStream(svg);
-        var surface = SvgCodec.Load(stream1950, 100, 100, fonts);
+        var surface = SvgCodec.Load(stream1950, 100, 100, fonts, new SvgLoadOptions { UseSystemFonts = false });
 
-        // Assert: no exception, and no ink was painted
-        Assert.Equal(0, surface[35, 35].A);
+        // Assert: no exception, ink was painted, the result is exactly the default font's, and it
+        // is not the unrelated registered font's square
+        Assert.True(CountInk(surface) > 0);
+        AssertSurfacesEqual(defaultFont, surface);
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => AssertSurfacesEqual(registered, surface));
     }
 
     /// <summary>
@@ -6473,8 +6504,8 @@ public class SvgCodecTests
     ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
     ///     name, only the single-font <c>Load</c> overload remains a candidate, so this call is
     ///     unambiguous - the mere fact that this test file compiles (and this call resolves to the
-    ///     legacy overload's own documented "no font registered" behavior) is itself the
-    ///     regression check.
+    ///     legacy overload's own documented "no font registered" behavior, which now renders the
+    ///     text with the built-in default font) is itself the regression check.
     /// </summary>
     [Fact]
     public void SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont()
@@ -6482,7 +6513,7 @@ public class SvgCodecTests
         // Arrange
         const string svg = """
             <svg viewBox='0 0 100 100'>
-              <text x='10' y='60' font-family='TestFont' font-size='100' fill='black'>A</text>
+              <text x='10' y='80' font-family='TestFont' font-size='100' fill='black'>I</text>
             </svg>
             """;
 
@@ -6491,8 +6522,8 @@ public class SvgCodecTests
         using var stream = ToStream(svg);
         var surface = SvgCodec.Load(stream, 100, 100, null);
 
-        // Assert: no font was registered for "TestFont", so nothing was rasterized for the glyph
-        Assert.Equal(0, surface[35, 35].A);
+        // Assert: no font was registered for "TestFont", so the built-in default font drew the text
+        Assert.True(CountInk(surface) > 0);
     }
 
     // ================================================================================================

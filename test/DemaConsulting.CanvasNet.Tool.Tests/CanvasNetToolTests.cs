@@ -584,6 +584,42 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the render command draws SVG text even though the tool registers no fonts.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Render_SvgWithText_DrawsTextWithDefaultFont()
+    {
+        // Arrange: an SVG whose only content is black text in a generic family, and an output path
+        using var directory = new TempDirectory();
+        var svg = directory.Combine("text.svg");
+        File.WriteAllText(
+            svg,
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60'>" +
+            "<text x='5' y='45' font-size='40' fill='black' font-family='Arial, sans-serif'>Hamburg</text></svg>");
+        var output = directory.Combine("text.png");
+
+        // Act: run the render command as a real process
+        var exitCode = Runner.Run(out _, "dotnet", _dllPath, "render", svg, "-o", output);
+
+        // Assert: success, and the text left dark pixels on the white background
+        Assert.Equal(0, exitCode);
+        using var image = PngCodec.Load(output);
+        var dark = 0;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                if (image[x, y].R < 128)
+                {
+                    dark++;
+                }
+            }
+        }
+
+        Assert.True(dark > 0, "The rendered image has no dark pixels, so the SVG text was not drawn.");
+    }
+
+    /// <summary>
     ///     Test that the render command writes exactly one JSON document with the documented keys when --json is given.
     /// </summary>
     [Fact]

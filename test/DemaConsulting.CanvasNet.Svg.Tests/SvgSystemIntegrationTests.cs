@@ -402,6 +402,54 @@ public class SvgSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that the system renders an SVG <c>text</c> element with a default font - never
+    ///     silently dropping it - when the caller registers no font, and that
+    ///     <see cref="SvgLoadOptions.UseSystemFonts"/> set to <see langword="false"/> renders the
+    ///     bundled Liberation Sans, through the public API. See <c>SvgDefaultFontTests</c> for the full
+    ///     unit test coverage of the resolution order.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_SvgTextDefaultFonts_RendersTextWithoutRegisteredFonts()
+    {
+        // Arrange: generic and unknown families, and no caller-registered font at all
+        const string svg = "<svg viewBox='0 0 200 60'><text x='5' y='45' font-size='40' fill='black' " +
+                            "font-family='No Such Family 7f3a, sans-serif'>Hamburg</text></svg>";
+
+        // Act: rasterize with the defaults and with installed-font lookup disabled
+        using var defaultStream = ToStream(svg);
+        var defaulted = SvgCodec.Load(defaultStream, 200, 60);
+        using var deterministicStream = ToStream(svg);
+        var deterministic = SvgCodec.Load(deterministicStream, 200, 60, null, new SvgLoadOptions { UseSystemFonts = false });
+
+        // Assert: both rendered ink, and the deterministic rendering equals the one that registers
+        // bundled Liberation Sans explicitly
+        var fonts = new Dictionary<string, TrueTypeFont> { ["No Such Family 7f3a"] = SystemFontCatalog.LoadBundledFallback(false, false, false, false) };
+        using var expectedStream = ToStream(svg);
+        var expected = SvgCodec.Load(expectedStream, 200, 60, fonts);
+        var inked = false;
+        for (var y = 0; y < defaulted.Height && !inked; y++)
+        {
+            for (var x = 0; x < defaulted.Width; x++)
+            {
+                if (defaulted[x, y].A > 0)
+                {
+                    inked = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(inked);
+        for (var y = 0; y < expected.Height; y++)
+        {
+            for (var x = 0; x < expected.Width; x++)
+            {
+                Assert.Equal(expected[x, y], deterministic[x, y]);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that the system selects a registered bold face over a registered normal face for
     ///     a text element with <c>font-weight="bold"</c>, through the public
     ///     <see cref="SvgCodec.LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>

@@ -89,8 +89,11 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>-10% -10% 120% 120%</c> (each independently overridable via <c>x</c>/<c>y</c>/
 ///     <c>width</c>/<c>height</c>) - see this class's <c>RenderFilteredShape</c>/
 ///     <c>EvaluateFilterChain</c> remarks for the documented simplifications; and
-///     <c>text</c> (with <c>font-family</c> best-effort
-///     matching against a caller-supplied font dictionary, <c>font-size</c>, <c>fill</c>,
+///     <c>text</c> (with <c>font-family</c> resolved first against a caller-supplied font
+///     dictionary and otherwise against installed fonts, the generic families
+///     (<c>sans-serif</c>, <c>serif</c>, <c>monospace</c>, ...) mapped to the bundled Liberation
+///     fonts, and a bundled Liberation Sans last resort - see <see cref="SvgLoadOptions"/> to disable
+///     the installed-font lookup for reproducible output - plus <c>font-size</c>, <c>fill</c>,
 ///     <c>text-anchor</c>, and, for a caller that registers more than one <see cref="SvgFontFace"/>
 ///     per family via the <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
 ///     overload, <c>font-weight</c>/<c>font-style</c>-aware closest-face matching - see this
@@ -245,9 +248,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     single pathological element's own content) - is caught
 ///     and re-thrown as <see cref="InvalidDataException"/> with a descriptive message. A dangling <c>url(#id)</c>
 ///     paint reference or an unrecognized color keyword is instead treated as tolerant "no paint"
-///     (nothing is drawn for that fill/stroke), and a <c>text</c> element with no caller-supplied
-///     font dictionary, or no entry matching its <c>font-family</c>, is silently skipped rather
-///     than throwing - both documented simplifications of an otherwise strict parser. An invalid
+///     (nothing is drawn for that fill/stroke), and a <c>text</c> element whose <c>font-family</c>
+///     no caller-registered font satisfies is not skipped but resolved to a default font (installed
+///     family, generic family, or bundled Liberation Sans) rather than throwing - both documented
+///     simplifications of an otherwise strict parser. An invalid
 ///     <c>stroke-miterlimit</c> value (non-finite, or less than <c>1</c> - see
 ///     <see cref="Drawing.StrokeStyle"/>'s documented contract) is a further, separate tolerant
 ///     case: rather than throwing, it falls back to the inherited value, matching this class's
@@ -312,8 +316,10 @@ public static partial class SvgCodec
     ///     An optional dictionary mapping font-family names to the list of <see cref="SvgFontFace"/>
     ///     instances registered for that family, used to render <c>text</c> elements. A
     ///     <see langword="null"/> value, a dictionary with no entry matching a given <c>text</c>
-    ///     element's <c>font-family</c>, or a matching entry whose face list is empty, causes that
-    ///     element to be silently skipped rather than throwing - see this class's remarks. When a
+    ///     element's <c>font-family</c>, or a matching entry whose face list is empty, makes that
+    ///     element fall back to the default font resolution (installed fonts, generic families
+    ///     mapped to the bundled Liberation fonts, then bundled Liberation Sans - see
+    ///     <see cref="SvgLoadOptions.UseSystemFonts"/>) rather than being skipped. When a
     ///     family has more than one registered face, the face whose <see cref="SvgFontFace.Weight"/>/
     ///     <see cref="SvgFontFace.Style"/> most closely matches the element's own cascaded
     ///     <c>font-weight</c>/<c>font-style</c> is selected - see <c>SelectClosestFace</c>'s remarks
@@ -349,7 +355,66 @@ public static partial class SvgCodec
         int width,
         int height,
         IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts)
-        => LoadCore(stream, width, height, fonts, diagnostics: null);
+        => LoadCore(stream, width, height, fonts, options: null, diagnostics: null);
+
+    /// <summary>
+    ///     Rasterizes an SVG document read from an open, readable stream, exactly as
+    ///     <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     does, but with explicit <see cref="SvgLoadOptions"/> - for example to disable installed-font
+    ///     lookup (<see cref="SvgLoadOptions.UseSystemFonts"/>) for reproducible output.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">The optional caller-registered font faces; see the overload without options.</param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid <see cref="Surface"/> dimension.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the stream does not contain a well-formed, supported SVG document.</exception>
+    public static Surface LoadWithFontFaces(
+        Stream stream,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts,
+        SvgLoadOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return LoadCore(stream, width, height, fonts, options, diagnostics: null);
+    }
+
+    /// <summary>
+    ///     Rasterizes an SVG document loaded from a file path, exactly as
+    ///     <see cref="LoadWithFontFaces(string, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
+    ///     does, but with explicit <see cref="SvgLoadOptions"/>.
+    /// </summary>
+    /// <param name="path">The path of the SVG file to load. Must not be null, empty, or whitespace.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">The optional caller-registered font faces.</param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or consists only of whitespace.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid <see cref="Surface"/> dimension.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the file does not contain a well-formed, supported SVG document.</exception>
+    public static Surface LoadWithFontFaces(
+        string path,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts,
+        SvgLoadOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must not be empty or whitespace.", nameof(path));
+        }
+
+        ArgumentNullException.ThrowIfNull(options);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        return LoadWithFontFaces(stream, width, height, fonts, options);
+    }
 
     /// <summary>
     ///     Rasterizes an SVG document loaded from a file path onto a new <see cref="Surface"/> of
@@ -404,7 +469,7 @@ public static partial class SvgCodec
     internal static Surface LoadWithDiagnostics(Stream stream, int width, int height, RenderDiagnostics diagnostics)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
-        return LoadCore(stream, width, height, fonts: null, diagnostics);
+        return LoadCore(stream, width, height, fonts: null, options: null, diagnostics);
     }
 
     /// <summary>
@@ -414,6 +479,7 @@ public static partial class SvgCodec
     /// <param name="width">The width, in pixels, of the returned surface.</param>
     /// <param name="height">The height, in pixels, of the returned surface.</param>
     /// <param name="fonts">The optional font-face registry.</param>
+    /// <param name="options">The optional load options; <see langword="null"/> means the defaults.</param>
     /// <param name="diagnostics">The optional work-counter sink.</param>
     /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
     private static Surface LoadCore(
@@ -421,6 +487,7 @@ public static partial class SvgCodec
         int width,
         int height,
         IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts,
+        SvgLoadOptions? options,
         RenderDiagnostics? diagnostics)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -449,7 +516,10 @@ public static partial class SvgCodec
 
             var idIndex = BuildIdIndex(root);
             var stylesheet = BuildStylesheet(root);
-            var context = new RenderContext(surface, idIndex, fonts, stylesheet);
+            var context = new RenderContext(surface, idIndex, fonts, stylesheet)
+            {
+                UseSystemFonts = options?.UseSystemFonts ?? true
+            };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }
         catch (FormatException ex)
@@ -475,8 +545,9 @@ public static partial class SvgCodec
     ///     An optional dictionary mapping font-family names to loaded <see cref="TrueTypeFont"/>
     ///     instances, used to render <c>text</c> elements. A <see langword="null"/> value (the
     ///     default) or a dictionary with no entry matching a given <c>text</c> element's
-    ///     <c>font-family</c> causes that element to be silently skipped rather than throwing -
-    ///     see this class's remarks.
+    ///     <c>font-family</c> makes that element fall back to the default font resolution
+    ///     (installed fonts, generic families mapped to the bundled Liberation fonts, then bundled
+    ///     Liberation Sans) rather than being skipped - see this class's remarks.
     /// </param>
     /// <returns>
     ///     A new <see cref="Surface"/> of the requested size containing the rasterized document,
@@ -556,6 +627,55 @@ public static partial class SvgCodec
         int height,
         IReadOnlyDictionary<string, TrueTypeFont>? fonts = null)
         => LoadWithFontFaces(path, width, height, ToFontFaces(fonts));
+
+    /// <summary>
+    ///     Rasterizes an SVG document read from an open, readable stream, exactly as
+    ///     <see cref="Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/> does, but
+    ///     with explicit <see cref="SvgLoadOptions"/> - for example to disable installed-font lookup
+    ///     (<see cref="SvgLoadOptions.UseSystemFonts"/>) for reproducible output.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">
+    ///     The optional caller-registered font per family (may be <see langword="null"/>); see the
+    ///     overload without options.
+    /// </param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid <see cref="Surface"/> dimension.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the stream does not contain a well-formed, supported SVG document.</exception>
+    public static Surface Load(
+        Stream stream,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, TrueTypeFont>? fonts,
+        SvgLoadOptions options)
+        => LoadWithFontFaces(stream, width, height, ToFontFaces(fonts), options);
+
+    /// <summary>
+    ///     Rasterizes an SVG document loaded from a file path, exactly as
+    ///     <see cref="Load(string, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/> does, but
+    ///     with explicit <see cref="SvgLoadOptions"/>.
+    /// </summary>
+    /// <param name="path">The path of the SVG file to load. Must not be null, empty, or whitespace.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="fonts">The optional caller-registered font per family (may be <see langword="null"/>).</param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="path"/> is empty or consists only of whitespace.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> or <paramref name="height"/> is not a valid <see cref="Surface"/> dimension.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the file does not contain a well-formed, supported SVG document.</exception>
+    public static Surface Load(
+        string path,
+        int width,
+        int height,
+        IReadOnlyDictionary<string, TrueTypeFont>? fonts,
+        SvgLoadOptions options)
+        => LoadWithFontFaces(path, width, height, ToFontFaces(fonts), options);
 
     /// <summary>
     ///     Wraps a legacy single-font-per-family dictionary as the richer per-family

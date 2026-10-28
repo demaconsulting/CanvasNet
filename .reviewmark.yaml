@@ -714,6 +714,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs"    # unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageResamplingTests.cs"  # image resampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPatternTileSmoothingTests.cs"  # pattern tile sampling unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgDefaultFontTests.cs"  # default font resolution unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
 
   # CanvasNetPdf-Architecture Review (one per system)
