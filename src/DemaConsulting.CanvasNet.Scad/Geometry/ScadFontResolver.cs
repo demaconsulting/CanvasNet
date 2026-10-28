@@ -93,8 +93,9 @@ internal readonly record struct ScadFontScanLimits(int Directories, int Entries,
 ///         <see cref="OperationCanceledException"/>. The scan keeps only lightweight metadata per face (a
 ///         <see cref="ScadFontFace"/>: family, style flags, path and face index; at most
 ///         <see cref="ScadFontScanLimits.Faces"/> of them) and never retains a parsed font: each face is parsed to
-///         read its names and released at once. The full font is loaded (the file is read again) only when a face
-///         is selected, and only selected faces are cached, so the fonts held by a build are bounded by the number
+///         read its names and released at once, so the scan reads each face once for its metadata. A selected face
+///         is read once more when it is loaded (an intentional I/O-for-memory trade-off) and then cached, and only
+///         selected faces are cached, so the fonts held by a build are bounded by the number
 ///         of distinct <c>font</c> arguments its document uses, not by the size of the font directory. A face
 ///         whose file is removed after the scan therefore resolves to the bundled sans font with a warning.
 ///     </para>

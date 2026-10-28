@@ -531,7 +531,7 @@ public class ScadTextGeometryTests
         Assert.Empty(resolved.Font.GetGlyphOutline(0).Subpaths);
 
         // Act
-        var onlyMissing = Run($"text(\"X\", font = \"{family}\");", options);
+        var onlyMissing = Run($"\n  text(\"X\", font = \"{family}\");", options);
         var repeated = Run($"text(\"XX\", font = \"{family}\");", options);
         var mixed = Run($"text(\"HXH\", font = \"{family}\");", options);
         var mapped = Run($"text(\"HH\", font = \"{family}\");", options);
@@ -540,6 +540,7 @@ public class ScadTextGeometryTests
         var warning = Assert.Single(onlyMissing.Warnings);
         Assert.Contains("U+0058", warning.Message, StringComparison.Ordinal);
         Assert.Contains(".notdef", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(new ScadSourceLocation(null, 2, 3), warning.Location);
         Assert.Equal(ScadGeoKind.Empty, onlyMissing.Geo.Kind);
         Assert.Empty(onlyMissing.Regions);
         Assert.Single(repeated.Warnings);

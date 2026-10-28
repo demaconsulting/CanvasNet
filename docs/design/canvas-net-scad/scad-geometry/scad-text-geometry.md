@@ -200,8 +200,10 @@ fails:
    order of the full path within a directory, so the result never depends on the order the file system lists
    files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
    faceIndex)`, but only its metadata (family, style flags, path, face index) is kept: the parsed font is released
-   at once, so the scan retains no font and its memory is bounded by the face bound. A face is loaded (its file
-   read again) only when it is selected, and only selected faces are cached for the rest of the build, so the
+   at once, so the scan reads each face once for its metadata, retains no font, and its memory is bounded by the
+   face bound. A selected face is read one more time when it is loaded (an intentional trade of one extra read per
+   distinct font used for bounded memory) and then cached; only selected faces are cached for the rest of the
+   build, so the
    fonts held are bounded by the distinct fonts the document uses; a file removed after the scan therefore falls
    back to the bundled sans font with the warning. The family is taken from `GetNameInfo().FamilyName` (the file
    name without extension when the font

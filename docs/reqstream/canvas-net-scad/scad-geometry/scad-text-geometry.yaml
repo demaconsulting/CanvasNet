@@ -223,7 +223,6 @@ sections:
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped
-                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism
                 title: >-
