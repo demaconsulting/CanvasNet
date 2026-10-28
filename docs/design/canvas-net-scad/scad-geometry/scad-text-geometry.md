@@ -46,8 +46,10 @@ parity with any other implementation's text metrics is claimed. The behavior is 
 - **`ScadFontSpec`** — a family name (empty for the default font) and the requested bold and italic flags.
 - **`ScadResolvedFont`** — the `TrueTypeFont`, its `ScadFontSource` (`Bundled`, `AdditionalDirectory`, `System`),
   and the warning to report, if any.
-- **`ScadFontResolver`** — per build: the resolutions already made, the fonts already loaded by file and face
-  index, and the faces of the additional directories (`ScadFontFace` values, scanned at most once).
+- **`ScadFontResolver`** — per build: the resolutions already made, the selected fonts already loaded by file and
+  face index (only faces that were selected, so bounded by the distinct fonts the document uses), and the faces of
+  the additional directories (lightweight `ScadFontFace` metadata values, scanned at most once; no parsed font is
+  retained by the scan).
 - **`Placed`** — one glyph placed on the line: its flattened contours in model units, before alignment.
 - The result is an ordinary `ScadGeo`: a single `PolygonRegion` leaf, or a `ScadShape2DKind.Csg` union of leaves
   (one per glyph component) with the tight bounds of all vertices.
@@ -177,9 +179,10 @@ Latin-1 shows that only the overlapping-solid composites (`Å`, `Ç`, `ç`) need
 
 A single region is a `ScadGeo.FromRegion`; several are the union of leaves (`ScadShape2D.CreateCsg(Union, ...)`,
 every leaf with the location of the instance) with the tight bounds of all region vertices. Using one leaf per
-glyph component means that glyphs that touch or overlap one another (kerned pairs, italics, `spacing = 0`) are
-never a validity problem, and a consumer that distributes over the tree (an extrusion) builds one closed mesh per
-glyph component.
+glyph component means that each glyph component is a valid region by itself; glyphs that touch or overlap one
+another (kerned pairs, italics, `spacing = 0`) are not checked per region: contact between solids is left to
+the union, which can report `scad-csg-*`. A consumer that distributes over the tree (an extrusion) builds one
+closed mesh per glyph component.
 
 ##### Font resolution (`ScadFontResolver`)
 
@@ -196,7 +199,14 @@ fails:
    given is searched recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
    order of the full path within a directory, so the result never depends on the order the file system lists
    files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
-   faceIndex)`, taking the family from `GetNameInfo().FamilyName` (the file name without extension when the font
+   faceIndex)`, but only its metadata (family, style flags, path, face index) is kept: the parsed font is released
+   at once, so the scan reads each face once for its metadata, retains no font, and its memory is bounded by the
+   face bound. A selected face is read one more time when it is loaded (an intentional trade of one extra read per
+   distinct font used for bounded memory) and then cached; only selected faces are cached for the rest of the
+   build, so the
+   fonts held are bounded by the distinct fonts the document uses; a file removed after the scan therefore falls
+   back to the bundled sans font with the warning. The family is taken from `GetNameInfo().FamilyName` (the file
+   name without extension when the font
    has none) and the style from `IsBold` and `IsItalic`. A missing, malformed, or unreadable directory, a file that
    does not parse, and a face that does not parse are skipped without a diagnostic. The scan is **safe and
    bounded**: a reparse point is never followed, whether it is a root, a subdirectory, or a font file (a root that
@@ -212,7 +222,9 @@ fails:
    with `OperationCanceledException` instead of completing the scan.
 3. **The installed fonts** when `UseSystemFonts` is `true` (the default): `SystemFontCatalog.FindBestMatch`, which
    scans the host's font directories at most once per process and only when a model asks for a font that step 2 did
-   not find.
+   not find. This lookup is **not cancellable** (`SystemFontCatalog` takes no cancellation token), and the first
+   lookup in the process builds the process-wide catalog, so that first call can take noticeable time even for a
+   build that is canceled meanwhile; later lookups, in any build, reuse the catalog.
 4. **The bundled families**: `Liberation Sans`, `Liberation Serif`, `Liberation Mono`, and the generic names
    `sans-serif`/`sans`, `serif`, and `monospace`/`mono`, in the requested style.
 5. **Fallback**: the bundled sans font in the requested style, with the warning that the font is not available.

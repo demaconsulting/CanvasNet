@@ -139,7 +139,7 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | ---------- | ------- | ------ |
 | `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
 | `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
-| `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
+| `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
 | `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D) or no area (2D) | The hull is omitted |
 | `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |

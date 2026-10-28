@@ -3645,8 +3645,9 @@ installed on the machine, then among the bundled `Liberation Sans`, `Liberation 
 families (and the generic names `sans-serif`, `serif`, and `monospace`). Only an exact family name (case aside)
 matches, and the closest bold and italic style of that family is used. A family that is found nowhere, or whose
 font file cannot be loaded, gives one warning and the bundled sans font. **The result for a font that comes from
-the installed fonts depends on the machine**; set `UseSystemFonts = false`, or name only the bundled families, to
-make every named font reproducible.
+the installed fonts depends on the machine**, and the installed fonts are searched before the bundled families, so
+even a request for a bundled family name (such as `Liberation Sans`) can be answered by a different font installed on
+the machine. Only `UseSystemFonts = false` makes every named font reproducible.
 
 ```csharp
 var options = new ScadRenderOptions
@@ -3691,7 +3692,7 @@ module in a loop is reported once. The identifiers are part of the documented be
 | ---------- | ------- | ------ |
 | `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
 | `scad-text-invalid-outline` | A glyph outline of a `text()` is damaged, or a contour of a glyph crosses itself or has no area | The whole text is omitted |
-| `scad-text-overlapping-contours` | The contours of one glyph of a `text()` overlap or touch each other other than as a hole, an island, or the overlapping solids of a composite glyph | The whole text is omitted |
+| `scad-text-overlapping-contours` | The contours of one glyph of a `text()` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole text is omitted |
 | `scad-hull-csg-operand` | A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any depth) | The hull is omitted |
 | `scad-hull-degenerate` | The points of a `hull` span no volume (3D: fewer than four, collinear, or coplanar points) or no area (2D) | The hull is omitted |
 | `scad-hull-mixed-dimensions` | A `hull` has both 2D and 3D children | The hull is omitted |

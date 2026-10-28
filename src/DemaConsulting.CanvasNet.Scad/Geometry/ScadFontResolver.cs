@@ -90,7 +90,14 @@ internal readonly record struct ScadFontScanLimits(int Directories, int Entries,
 ///         <see cref="ScadFontScanLimits"/>): it stops at the first bound it reaches, visiting subdirectories depth
 ///         first in ordinal order, and keeps the faces found so far. It polls the cancellation token of the build
 ///         before each directory, file and face, so a canceled build stops the scan with
-///         <see cref="OperationCanceledException"/>.
+///         <see cref="OperationCanceledException"/>. The scan keeps only lightweight metadata per face (a
+///         <see cref="ScadFontFace"/>: family, style flags, path and face index; at most
+///         <see cref="ScadFontScanLimits.Faces"/> of them) and never retains a parsed font: each face is parsed to
+///         read its names and released at once, so the scan reads each face once for its metadata. A selected face
+///         is read once more when it is loaded (an intentional I/O-for-memory trade-off) and then cached, and only
+///         selected faces are cached, so the fonts held by a build are bounded by the number
+///         of distinct <c>font</c> arguments its document uses, not by the size of the font directory. A face
+///         whose file is removed after the scan therefore resolves to the bundled sans font with a warning.
 ///     </para>
 ///     <para>
 ///         The resolver is used by one build on one thread and holds no state that outlives it.
@@ -119,7 +126,7 @@ internal sealed class ScadFontResolver
     /// <summary>The resolutions already made, by request.</summary>
     private readonly Dictionary<ScadFontSpec, ScadResolvedFont> _resolved = [];
 
-    /// <summary>The fonts loaded from files, by path and face index.</summary>
+    /// <summary>The selected fonts loaded from files, by path and face index; filled only by <see cref="Load"/> (never by the scan), so it is bounded by the distinct fonts the document selects.</summary>
     private readonly Dictionary<(string Path, int Face), TrueTypeFont?> _loaded = [];
 
     /// <summary>The faces of the additional directories; <see langword="null"/> until the first lookup.</summary>
@@ -147,6 +154,12 @@ internal sealed class ScadFontResolver
         _cancellation = cancellation;
         _limits = limits;
     }
+
+    /// <summary>
+    ///     Gets the number of parsed fonts the resolver currently retains from files (a test seam): zero after a scan,
+    ///     and one per distinct selected face that loaded once it is selected.
+    /// </summary>
+    internal int RetainedParsedFaceCount => _loaded.Values.Count(font => font is not null);
 
     /// <summary>
     ///     Counts the work of one scan against the bounds.
@@ -590,6 +603,9 @@ internal sealed class ScadFontResolver
                     font.IsItalic,
                     file,
                     index));
+
+                // Only the metadata above is kept: the parsed font goes out of scope here, so a large font
+                // directory cannot make the scan retain its fonts; the face that is chosen is loaded again by Load
             }
             catch (Exception ex) when (IsSkippable(ex))
             {

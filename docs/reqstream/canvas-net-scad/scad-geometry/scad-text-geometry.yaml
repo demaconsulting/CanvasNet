@@ -36,7 +36,7 @@ sections:
                 tests:
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
                   - ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored
-                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
                 title: >-
@@ -61,6 +61,8 @@ sections:
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
                   - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning
                   - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
                   - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
 
@@ -112,14 +114,16 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs
                 title: >-
                   The ScadTextGeometry unit shall draw a character that the font does not map with the
-                  font's .notdef glyph, shall skip such a character with one located warning when .notdef has
-                  no outline, shall skip control characters silently, and shall let a glyph without an outline
+                  font's .notdef glyph, shall skip such a character with exactly one located warning per
+                  text instance and draw no region for it when .notdef has no outline, shall skip control
+                  characters silently, and shall let a glyph without an outline
                   (a space) advance the pen without drawing.
                 justification: |
                   A missing character must neither crash the model nor vanish unexplained; the rule must be
                   the same for every font.
                 tests:
-                  - ScadTextGeometry_Build_MissingGlyph_UsesNotdefOrWarnsWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
+                  - ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours
@@ -204,13 +208,16 @@ sections:
                   missing, or
                   unreadable path without failing, stop at fixed bounds on directories, entries, font files,
                   and faces (visiting subdirectories depth first in ordinal order and keeping what was found
-                  before the bound), and poll the cancellation token of the build before every directory,
-                  file, and face so that a canceled build stops the scan with an operation canceled exception.
+                  before the bound), retain only lightweight metadata per scanned face (never a parsed font,
+                  loading a face only when it is selected and caching only selected faces), and poll the
+                  cancellation token of the build before every directory, file, and face so that a canceled
+                  build stops the scan with an operation canceled exception.
                 justification: |
                   The additional directories are caller-supplied paths; scanning them must not loop through a
                   link, crash on a bad path, take unbounded time or memory on a hostile tree, or ignore a
                   cancellation.
                 tests:
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled
