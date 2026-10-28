@@ -493,10 +493,12 @@ words:
   - antiqua
   - antiquewhite
   - bandposition
+  - bandspace
   - blanchedalmond
   - blinkmacsystemfont
   - blueorange
   - blueviolet
+  - Bostock
   - burlywood
   - cadetblue
   - consolas
@@ -559,6 +561,7 @@ words:
   - lightyellow
   - limegreen
   - lucida
+  - matplotlib
   - maxbins
   - mediumaquamarine
   - mediumblue
@@ -609,6 +612,7 @@ words:
   - timeunit
   - topo
   - topojson
+  - unbinned
   - usermeta
   - vconcat
   - vegalite
@@ -617,6 +621,8 @@ words:
   - xoffset
   - yellowgreen
   - yellowgreenblue
+  - yocto
+  - yotta
   - zindex
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
