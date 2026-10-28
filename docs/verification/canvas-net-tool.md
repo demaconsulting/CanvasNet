@@ -167,6 +167,10 @@ exit code 1 and a concise `usage-error` naming the option and the command, with 
 its natural size; exit code 0, the one-line result names the output, `200x160 png`, its byte count, and the input;
 the image has the red square where the drawing puts it and white where the drawing is empty.
 
+**CanvasNetTool_Render_SvgWithText_DrawsTextWithDefaultFont**: an SVG whose only content is black text in the
+family list `Arial, sans-serif` is rendered as a real process (the tool registers no font); exit code 0 and the
+image has dark pixels on the white background, proving the text is drawn rather than silently dropped.
+
 **CanvasNetTool_Render_JsonRequested_WritesJsonDocument**: a PNG is rendered to a JPEG with `--quality 80 --json` as
 a real process; the whole output is one line that parses as a success document for `render` describing the PNG input
 and the JPEG output with its byte count.

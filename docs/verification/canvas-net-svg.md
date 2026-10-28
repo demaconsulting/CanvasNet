@@ -138,6 +138,18 @@ caller-supplied font, through the public API. Asserts the glyph outline renders 
 position, confirming `SvgCodec`'s text layout integrates correctly with the `CanvasNet` system's
 `Fonts`/`Drawing` units.
 
+### Integration: Svg Text Default Fonts Renders Text Without Registered Fonts
+
+**Test**: `CanvasNetSvg_SystemIntegration_SvgTextDefaultFonts_RendersTextWithoutRegisteredFonts`
+
+Exercises end-to-end system behavior for default font resolution: rasterizes a `text` element whose
+`font-family` list names an unknown family followed by `sans-serif`, with no caller-registered
+font, through the public `Load` API - once with the defaults and once with
+`SvgLoadOptions.UseSystemFonts` set to `false`. Asserts the text renders ink (it is not dropped),
+and that the deterministic rendering is pixel-identical to the same text rendered with the bundled
+Liberation Sans registered explicitly by the caller, confirming the system resolves fonts through
+`Fonts.SystemFontCatalog`'s bundled fallback.
+
 ### Integration: Svg Font Weight Style Matching Selects Bold Face Over Normal Face
 
 **Test**: `CanvasNetSvg_SystemIntegration_SvgFontWeightStyleMatching_SelectsBoldFaceOverNormalFace`

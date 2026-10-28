@@ -310,8 +310,10 @@ sections:
           - id: CanvasNetSvg-SvgCodec-TextRendering
             title: >-
               The SvgCodec class shall render a text element's characters as glyph outlines
-              from a caller-supplied font matching its font-family, positioned using the
-              font's advance widths and kerning pairs and scaled by font-size.
+              from a font - a caller-supplied font matching its font-family when one is
+              registered, otherwise a default font (see
+              CanvasNetSvg-SvgCodec-TextFontDefaultFallback) - positioned using the font's
+              advance widths and kerning pairs and scaled by font-size.
             justification: |
               Callers need text content in an SVG document rendered as recognizable glyph
               shapes at the correct position, using real font metrics rather than an
@@ -321,19 +323,74 @@ sections:
               - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
               - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
 
-          - id: CanvasNetSvg-SvgCodec-TextFontFallbackSkipsSilently
+          - id: CanvasNetSvg-SvgCodec-TextFontDefaultFallback
             title: >-
-              The SvgCodec class shall silently skip rendering a text element, without
-              throwing, when no fonts dictionary is supplied or no supplied font matches its
-              font-family (including walking a comma-separated font-family fallback list).
+              The SvgCodec class shall, when no caller-registered font satisfies a text
+              element's font-family, render the text with a default font instead of skipping
+              it or throwing, resolving each family of the font-family list in order - a
+              generic family (sans-serif, system-ui, ui-sans-serif, cursive, fantasy to the
+              bundled Liberation Sans; serif and ui-serif to Liberation Serif; monospace and
+              ui-monospace to Liberation Mono) to the matching bundled font, and any other
+              name to an installed font with that exact family name - and finally falling back
+              to the bundled Liberation Sans, in each case in the requested font-weight (bold
+              at 600 or more) and font-style.
             justification: |
-              Font matching depends entirely on what the caller supplies; a document
-              referencing an unavailable font family is not malformed input and must not
-              prevent the rest of the document from rendering.
+              Real-world SVG documents name families such as Arial or sans-serif without the
+              caller having any font to register; dropping that text silently loses content
+              from the rendering. Resolving fonts through the core font catalog and bundled
+              fonts, exactly as every other CanvasNet document system does, keeps text visible
+              and consistent across systems.
             tests:
-              - SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing
-              - SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing
+              - SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont
+              - SvgCodec_Load_TextFontFamilyNoMatch_RendersDefaultFontNotUnrelatedRegisteredFont
+              - SvgCodec_Load_TextGenericFamilyWithoutRegisteredFonts_RendersBundledLiberationFont
+              - SvgCodec_Load_TextGenericFamilies_SansSerifAndMonospaceRenderDifferently
+              - SvgCodec_Load_TextGenericFamilyWithWeightAndStyle_RendersBundledStyleVariant
+              - SvgCodec_Load_TextGenericSerifAndMonospaceBoldItalic_RendersBundledStyleVariants
+              - SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans
+              - SvgCodec_Load_TextWithoutFontFamilyAttribute_RendersBundledLiberationSans
+              - SvgCodec_Load_TextFamilyList_UsesFirstResolvableFamilyInOrder
+              - SvgCodec_Load_TextMixedWeightsInOneDocument_ResolvesEachToItsOwnBundledVariant
+              - SvgCodec_Load_TextInstalledFamily_UsesInstalledFontOnlyWhenSystemFontsEnabled
+              - SvgCodec_Load_ClipPathTextWithoutRegisteredFonts_ClipsToDefaultFontGlyphs
+              - SvgCodec_Load_ClipPathTextExceedingGeometryWorkBudget_ThrowsInvalidDataException
+              - SvgCodec_Load_FilteredGroupTextWithoutRegisteredFonts_RendersDefaultFontGlyphs
+              - SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont
+
+          - id: CanvasNetSvg-SvgCodec-TextFontRegisteredPrecedence
+            title: >-
+              The SvgCodec class shall give a caller-registered font precedence over every
+              default font: a registered family anywhere in a text element's font-family list
+              (including a family named like a generic keyword) shall be used instead of any
+              installed or bundled font, walking a comma-separated font-family fallback list.
+            justification: |
+              A caller that registers a font expects it to be used; adding default fonts must
+              not change what an existing caller's registered fonts render.
+            tests:
               - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
+              - SvgCodec_Load_TextRegisteredFontLaterInList_TakesPrecedenceOverEarlierGenericKeyword
+              - SvgCodec_Load_TextRegisteredFontNamedLikeGenericKeyword_TakesPrecedenceOverBundledFont
+              - SvgCodec_Load_TextLegacyFontsOverload_RegisteredFontWinsAndUnmatchedFamilyFallsThrough
+              - SvgCodec_Load_TextRegisteredFamilyWithEmptyFaceList_FallsThroughToLaterRegisteredFamily
+
+          - id: CanvasNetSvg-SvgCodec-TextSystemFontsOption
+            title: >-
+              The SvgCodec class shall provide an SvgLoadOptions setting, UseSystemFonts
+              (default true), whose value false makes text rendering never consult fonts
+              installed on the host - so that every text not satisfied by a caller-registered
+              font renders with the bundled Liberation fonts, reproducibly on every host - and
+              shall reject a null SvgLoadOptions with ArgumentNullException.
+            justification: |
+              Installed fonts differ between machines, so text drawn from them is not
+              reproducible; callers needing identical output (tests, golden images, build
+              pipelines) must be able to turn the host lookup off without changing any
+              other behavior.
+            tests:
+              - SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans
+              - SvgCodec_Load_TextInstalledFamily_UsesInstalledFontOnlyWhenSystemFontsEnabled
+              - SvgCodec_Load_DefaultOptionsOverloads_MatchOptionsFreeOverloads
+              - SvgCodec_Load_NullOptions_ThrowsArgumentNullException
+              - SvgLoadOptions_Default_UsesSystemFonts
 
           - id: CanvasNetSvg-SvgCodec-TextAnchor
             title: >-

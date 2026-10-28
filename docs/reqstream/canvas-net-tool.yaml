@@ -357,6 +357,7 @@ sections:
           - CanvasNetTool-Commands-Render
         tests:
           - CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine
+          - CanvasNetTool_Render_SvgWithText_DrawsTextWithDefaultFont
           - CanvasNetTool_Render_JsonRequested_WritesJsonDocument
           - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
 

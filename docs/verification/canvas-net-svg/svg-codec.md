@@ -26,8 +26,8 @@ synthetic or real `TrueTypeFont`) and assert on rasterized pixel colors/alpha at
 hand-computed positions, on `ImageInfo` field values, and on thrown exception types — never on
 "no exception thrown" alone, so every test can actually fail if the implementation is wrong.
 
-Unit tests reside in `SvgCodecTests.cs` and `SvgFixtureTests.cs` within the
-`DemaConsulting.CanvasNet.Svg.Tests` project.
+Unit tests reside in `SvgCodecTests.cs`, `SvgFixtureTests.cs`, and `SvgDefaultFontTests.cs` (the
+default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` project.
 
 ### Test Environment
 
@@ -389,18 +389,75 @@ correctly-kerned layout, and would remain unfilled if kerning were ignored). Sep
 expected text region while far corners of the canvas remain transparent, mirroring
 `TrueTypeFontRealFontIntegrationTests`'s real-font integration pattern.
 
-#### CanvasNetSvg-SvgCodec-TextFontFallbackSkipsSilently: Missing/Unmatched Font Silently Skips Text
+#### CanvasNetSvg-SvgCodec-TextFontDefaultFallback: Unregistered Font Families Render With a Default Font
 
-**Tests**: `SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing`,
-`SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing`,
-`SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont`
+**Tests**: `SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont`,
+`SvgCodec_Load_TextFontFamilyNoMatch_RendersDefaultFontNotUnrelatedRegisteredFont`,
+`SvgCodec_Load_TextGenericFamilyWithoutRegisteredFonts_RendersBundledLiberationFont`,
+`SvgCodec_Load_TextGenericFamilies_SansSerifAndMonospaceRenderDifferently`,
+`SvgCodec_Load_TextGenericFamilyWithWeightAndStyle_RendersBundledStyleVariant`,
+`SvgCodec_Load_TextGenericSerifAndMonospaceBoldItalic_RendersBundledStyleVariants`,
+`SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans`,
+`SvgCodec_Load_TextWithoutFontFamilyAttribute_RendersBundledLiberationSans`,
+`SvgCodec_Load_TextFamilyList_UsesFirstResolvableFamilyInOrder`,
+`SvgCodec_Load_TextMixedWeightsInOneDocument_ResolvesEachToItsOwnBundledVariant`,
+`SvgCodec_Load_TextInstalledFamily_UsesInstalledFontOnlyWhenSystemFontsEnabled`,
+`SvgCodec_Load_ClipPathTextWithoutRegisteredFonts_ClipsToDefaultFontGlyphs`,
+`SvgCodec_Load_ClipPathTextExceedingGeometryWorkBudget_ThrowsInvalidDataException`,
+`SvgCodec_Load_FilteredGroupTextWithoutRegisteredFonts_RendersDefaultFontGlyphs`,
+`SvgCodec_Load_ExplicitNullFontsLiteral_CompilesUnambiguouslyAndFallsBackToBuiltInFont`
 
-Asserts `Load` with no `fonts` dictionary at all renders no ink for a `text` element and does not
-throw; a `fonts` dictionary supplied but containing no entry matching the requested
-`font-family` likewise renders no ink and does not throw; and a comma-separated `font-family`
-fallback list (`"Nonexistent, TestFont"`) matches the first family actually present in the
-dictionary, proving the fallback list is walked rather than only the first entry being
-considered.
+The new `SvgDefaultFontTests.cs` class compares each rendering pixel-for-pixel against an oracle:
+the same text rendered with the expected bundled Liberation font (obtained from
+`SystemFontCatalog.LoadBundledFallback`) registered by the caller as an ordinary family, so no
+expectation depends on glyph geometry being hand-computed or on the host's installed fonts. It
+asserts: each generic keyword (case-insensitive, quoted or not) renders the matching Sans/Serif/Mono
+font with no registered font; the three families render differently from one another (so the
+equality checks cannot pass vacuously); a `font-weight` of 600 or more selects the bold variant, 500
+and `normal` do not, and `italic`/`oblique` select the italic variant; an unknown family, and a
+`text` with no `font-family`, render bundled Liberation Sans in the requested weight/style when
+installed fonts are disabled; a family list is walked in order, an unknown name being skipped and
+the first generic keyword deciding the font; two elements of one family in different weights each
+get their own variant in a single render; a family installed on the host (chosen from
+`SystemFontCatalog.Fonts`) renders with that installed font, degrading to the unknown-family
+expectation on a host where nothing installed differs from the bundled font; and `clipPath` text
+children and filtered-group text bounds, which share the same resolution, render with the default
+font, and an oversized `clipPath` text run is rejected by the shared geometry work budget. The three
+previously "silently skipped" unit tests now assert ink: the no-dictionary case
+renders non-empty output, and an unrelated registered family (`OtherFont`) is not used for an
+unmatched request - the result equals the default font's rendering and differs from the registered
+font's.
+
+#### CanvasNetSvg-SvgCodec-TextFontRegisteredPrecedence: Caller-Registered Fonts Win
+
+**Tests**: `SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont`,
+`SvgCodec_Load_TextRegisteredFontLaterInList_TakesPrecedenceOverEarlierGenericKeyword`,
+`SvgCodec_Load_TextRegisteredFontNamedLikeGenericKeyword_TakesPrecedenceOverBundledFont`,
+`SvgCodec_Load_TextLegacyFontsOverload_RegisteredFontWinsAndUnmatchedFamilyFallsThrough`,
+`SvgCodec_Load_TextRegisteredFamilyWithEmptyFaceList_FallsThroughToLaterRegisteredFamily`
+
+Asserts a comma-separated `font-family` fallback list (`"Nonexistent, TestFont"`) matches the
+first family actually present in the caller's dictionary; that a registered family later in a list
+still beats an earlier generic keyword (`"serif, Mine"` renders `Mine`); that a font registered
+under a generic keyword's own name (`sans-serif`) is used instead of the bundled substitute; and
+that the legacy single-font `Load` overload (with options) uses its registered font for a matching
+family while an unmatched family falls through to the default font; and that a registered family
+whose face list is empty counts as unavailable (`"Empty, Mine"` renders `Mine`).
+
+#### CanvasNetSvg-SvgCodec-TextSystemFontsOption: Reproducible Text With UseSystemFonts Disabled
+
+**Tests**: `SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans`,
+`SvgCodec_Load_TextInstalledFamily_UsesInstalledFontOnlyWhenSystemFontsEnabled`,
+`SvgCodec_Load_DefaultOptionsOverloads_MatchOptionsFreeOverloads`,
+`SvgCodec_Load_NullOptions_ThrowsArgumentNullException`,
+`SvgLoadOptions_Default_UsesSystemFonts`
+
+Asserts that, with `UseSystemFonts = false`, a family that is installed on the host still renders
+bundled Liberation Sans (identical to the oracle), while with the option enabled or defaulted the
+installed font is used; that the options overloads with a default `SvgLoadOptions` produce exactly
+the options-free output (stream and file-path forms of both `Load` and `LoadWithFontFaces`); that a
+null `options` throws `ArgumentNullException` from all four options overloads; and that
+`SvgLoadOptions.UseSystemFonts` defaults to `true`.
 
 #### CanvasNetSvg-SvgCodec-TextAnchor: Text-Anchor Alignment
 
@@ -472,7 +529,8 @@ explicit `null` literal (rather than omitting the argument) to `SvgCodec.Load(st
 height, null)` failed to compile with "the call is ambiguous", because `null` matched both the
 legacy `IReadOnlyDictionary<string, TrueTypeFont>?` overload and the richer overload equally
 well; now that the richer overload has its own distinct name, this call is unambiguous and falls
-back to this legacy overload's own documented "no font registered" behavior.
+back to this legacy overload's own documented "no font registered" behavior (the text is drawn with
+the default font, asserted as non-empty output).
 
 #### CanvasNetSvg-SvgCodec-ViewBoxFitting: ViewBox `preserveAspectRatio` Fitting
 

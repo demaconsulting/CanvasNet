@@ -54,6 +54,16 @@ class:
   loading entry point, accepting more than one registered `SvgFontFace` (weight/style variant)
   per font-family, matching each text element's own cascaded font-weight/font-style to the
   closest registered face. Same exception contract as `Load` above.
+- **SvgCodec.Load(..., fonts, SvgLoadOptions options)** /
+  **SvgCodec.LoadWithFontFaces(..., fontFaces, SvgLoadOptions options)**: Additive overloads
+  (stream and path forms) taking a required `SvgLoadOptions`, whose `UseSystemFonts` property
+  (default `true`) controls whether text not satisfied by a caller-registered font may use fonts
+  installed on the host. Setting it to `false` makes text output reproducible across hosts. Same
+  exception contract as above, plus `ArgumentNullException` for a null `options`.
+- **Text font resolution**: A `text` element is rendered even when the caller registers no font:
+  caller-registered fonts first, then (per family in the `font-family` list) generic keywords
+  mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
+  bundled Liberation Sans - see _SvgCodec Unit Design_.
 - **SvgCodec.GetInfo(Stream stream)** / **SvgCodec.GetInfo(string path)**: Reports an SVG
   document's resolved intrinsic width, height, channel count (always 4), and alpha presence
   (always true) via the shared `Codecs.ImageInfo` record struct, given a stream or a file path,
@@ -88,7 +98,9 @@ image, text, and CSS styling) and every method's full parameter and exception de
   pixel-space paths `SvgCodec` builds) and `Gradient`/`LinearGradient`/`RadialGradient`/
   `GradientStop`/`GradientSpread` (representing resolved gradient paint)
 - The `Fonts` subsystem's `TrueTypeFont` (glyph outline/metrics/kerning lookup for text
-  rendering)
+  rendering) and `SystemFontCatalog` (installed-font lookup by exact family name via
+  `FindBestMatch`, and the bundled Liberation Sans/Serif/Mono fonts via `LoadBundledFallback`,
+  used to resolve a `text` element's font when the caller registers none)
 - The `Codecs` subsystem's shared `ImageInfo` record struct (the return type of `GetInfo`) — see
   _Codecs Subsystem Design_ (`docs/design/canvas-net/codecs.md`)
 
@@ -158,7 +170,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
    resolving presentation attributes/CSS cascade, gradients, patterns, clip-path/mask, and
    filters, and rasterizing each renderable element via `Drawing.PathFiller`/`Drawing.PathStroker`
    onto a new `Canvas.Surface`, with text elements shaped through `Fonts.TrueTypeFont` glyph
-   outlines
+   outlines (the font being a caller-registered one, else an installed or bundled one resolved via
+   `Fonts.SystemFontCatalog`)
 4. **Output**: A new `Canvas.Surface` containing the rasterized pixels
 
 **SVG GetInfo path:**
