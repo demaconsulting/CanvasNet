@@ -63,9 +63,11 @@ internal readonly record struct ScadFontScanLimits(int Directories, int Entries,
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Why a resolver.</b> Font discovery scans directories and loading a font parses a file, so both are
-///         done at most once per build: the resolver is owned by the build context, remembers the faces found in the
-///         additional directories and every font it has loaded, and answers repeated requests from memory. It uses
+///         <b>Why a resolver.</b> Font discovery scans directories and loading a font parses a file, so the
+///         resolver is owned by the build context and does each piece of that work at most once per build: it scans
+///         the additional directories once (reading each face once, for its metadata only), remembers the faces
+///         found, loads each selected face once more (and caches it, so a selected face is never loaded twice), and
+///         answers repeated requests from memory. It uses
 ///         only the public font API of the core package: <see cref="TrueTypeFont"/> to read the files of the
 ///         additional directories (so that a file that does not parse is skipped), and
 ///         <see cref="SystemFontCatalog"/> for the installed fonts and the bundled fonts.

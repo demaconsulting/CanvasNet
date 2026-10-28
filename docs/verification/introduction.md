@@ -60,7 +60,8 @@ constituent software items, specifically:
 - **CanvasNetRender3D (System)** — A separate, independently-distributed, format-agnostic software
   system providing a pure-managed 3D mesh/scene rasterizer, containing three subsystems:
   `SceneModel` (units `DoublePrecisionMath`, `Mesh`, and `SceneGraph`), `Tessellation` (units
-  `PrimitiveTessellator`, `PolygonTriangulator`, and `Extruder`), and `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
+  `PrimitiveTessellator`, `PolygonTriangulator`, `Extruder`, `ConvexHull`, and `MinkowskiSum`), and
+  `SceneRendering` (units `Camera`, `Lighting`, `TriangleRasterizer`,
   `FragmentBuffer`, `CsgResolver`, and `SceneRenderer`), including constructive solid geometry
   (union, difference, intersection) through per-pixel fragment lists and polygon extrusion — see _CanvasNetRender3D
   System Verification_ (`canvas-net-render3d.md`)
@@ -70,13 +71,14 @@ constituent software items, specifically:
   exceptions), an internal `ScadLanguage` subsystem with the units `ScadLexer` and `ScadParser`, an internal
   `ScadEvaluation` subsystem with the units `ScadValue`, `ScadEvaluator`, `ScadBuiltinFunctions`, and
   `ScadFileResolver`, and an internal `ScadGeometry` subsystem with the units `ScadGeometryBuilder`,
-  `ScadPrimitives`, `ScadTransforms`, and `ScadExtrusions` —
+  `ScadPrimitives`, `ScadTransforms`, `ScadExtrusions`, and `ScadTextGeometry` —
   see _CanvasNetScad System Verification_ (`canvas-net-scad.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
-  `DiscoveryCommands`, and `RenderCommand` units, and an `Imaging` subsystem with the `SourceLoader`,
-  `ImagePipeline`, and `ImageWriter` units — see _CanvasNetTool System
+  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units, and an
+  `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
+  `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
