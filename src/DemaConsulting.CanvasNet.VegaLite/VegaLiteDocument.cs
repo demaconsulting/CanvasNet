@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
 
@@ -9,7 +10,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// <remarks>
 ///     <para>
 ///         A document proves that the text is well-formed JSON within the limits of <see cref="VegaLiteLimits"/> and
-///         describes the chart without drawing it (<see cref="SchemaUrl"/>, <see cref="Title"/>,
+///         that the Vega-Lite properties the renderer depends on have the right shape, and describes the chart without
+///         drawing it (<see cref="SchemaUrl"/>, <see cref="Title"/>,
 ///         <see cref="MarkTypes"/>, <see cref="DataReferences"/>, <see cref="ParameterNames"/>), so tools can list
 ///         what a chart needs before they render it. Opening never evaluates anything, never touches another file and
 ///         never uses the network. <see cref="Measure(VegaLiteRenderOptions?, CancellationToken)"/> and the
@@ -17,10 +19,13 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     </para>
 ///     <para>
 ///         Opening is fail-fast and fail-closed: the first problem throws a <see cref="VegaLiteSpecException"/> with
-///         its file, line, column and JSON pointer; nesting deeper than <see cref="VegaLiteLimits.MaxJsonDepth"/> is
+///         its file, line, column and JSON pointer (malformed JSON, a known property with a value of the wrong type,
+///         plain Vega instead of Vega-Lite); nesting deeper than <see cref="VegaLiteLimits.MaxJsonDepth"/> is
 ///         a <see cref="VegaLiteSpecException"/> too, and source longer than
 ///         <see cref="VegaLiteLimits.MaxSourceLength"/> characters is an <see cref="InvalidDataException"/>; neither
-///         can overflow the stack or exhaust memory. A <c>$schema</c> of Vega-Lite version 5 or 6 is interpreted with
+///         can overflow the stack or exhaust memory. Properties that Vega-Lite does not define are not errors: they are
+///         reported as the warning <c>vl-unknown-property</c> (and a key written twice as <c>vl-duplicate-key</c>)
+///         when the document is measured or rendered. A <c>$schema</c> of Vega-Lite version 5 or 6 is interpreted with
 ///         the version 6 defaults; other versions are rendered with those defaults too and reported with the warning
 ///         <c>vl-schema-version</c> when the document is measured or rendered.
 ///     </para>
@@ -30,9 +35,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         a stream passed to <see cref="Open(Stream, VegaLiteOpenOptions?)"/> is left open.
 ///     </para>
 ///     <para>
-///         Rendering supports a limited subset of the language: marks and encodings that the renderer does not
-///         support are reported with stable <c>vl-*</c> identifiers (see <see cref="VegaLiteUnsupportedFeature"/>),
-///         never skipped silently.
+///         Rendering supports a limited subset of the language: constructs that the renderer does not
+///         support (the documented supported subset) are reported with stable <c>vl-*</c> identifiers (see
+///         <see cref="VegaLiteUnsupportedFeature"/>), never skipped silently; supported constructs are not reported.
 ///     </para>
 /// </remarks>
 public sealed partial class VegaLiteDocument
@@ -40,20 +45,34 @@ public sealed partial class VegaLiteDocument
     /// <summary>The number of characters read from a stream per call.</summary>
     private const int ReadChunkSize = 8192;
 
-    /// <summary>The metadata read from the text.</summary>
-    private readonly VegaLiteSpecInfo _info;
+    /// <summary>The parsed specification.</summary>
+    private readonly SpecTree _tree;
+
+    /// <summary>The descriptive metadata read from the specification.</summary>
+    private readonly SpecMetadata _metadata;
 
     /// <summary>
-    ///     Initializes a document from the metadata of its text and the effective options.
+    ///     Initializes a document from its parsed specification and the effective options.
     /// </summary>
-    /// <param name="info">The metadata read from the text.</param>
+    /// <param name="tree">The parsed specification.</param>
     /// <param name="options">The effective options (base directory and source name resolved).</param>
-    private VegaLiteDocument(VegaLiteSpecInfo info, VegaLiteOpenOptions options)
+    private VegaLiteDocument(SpecTree tree, VegaLiteOpenOptions options)
     {
-        _info = info;
+        _tree = tree;
+        _metadata = SpecMetadata.Read(tree);
         Options = options;
         SourceName = options.SourceName;
-        MarkTypes = info.Marks.Select(m => m.Type).ToList().AsReadOnly();
+        MarkTypes = _metadata.Marks.Select(m => m.Type).ToList().AsReadOnly();
+
+        // Everything that can be said about the text alone is decided once: the parse warnings and the catalog of
+        // recognized-but-unsupported constructs, merged into document order (the sort is stable, so reports at one
+        // position keep their order)
+        Reports = tree.Warnings
+            .Concat(FeatureCatalog.Visit(tree))
+            .OrderBy(r => r.Location.Line)
+            .ThenBy(r => r.Location.Column)
+            .ToList()
+            .AsReadOnly();
     }
 
     /// <summary>
@@ -64,14 +83,14 @@ public sealed partial class VegaLiteDocument
     /// <summary>
     ///     Gets the <c>$schema</c> of the specification exactly as written, or <see langword="null"/> when there is none.
     /// </summary>
-    public string? SchemaUrl => _info.SchemaUrl;
+    public string? SchemaUrl => _metadata.SchemaUrl;
 
     /// <summary>
     ///     Gets the Vega-Lite major version named by <see cref="SchemaUrl"/> (for example 5 for
     ///     <c>https://vega.github.io/schema/vega-lite/v5.json</c>), or <see langword="null"/> when there is no schema
     ///     or it does not follow the Vega-Lite naming.
     /// </summary>
-    public int? SchemaMajorVersion => _info.SchemaMajorVersion;
+    public int? SchemaMajorVersion => _metadata.SchemaMajorVersion;
 
     /// <summary>
     ///     Gets the plain text of the title (several lines are joined with a line feed), or <see langword="null"/>
@@ -81,7 +100,7 @@ public sealed partial class VegaLiteDocument
     ///     Only the title of the top-level specification is reported. A title given as an expression reference is
     ///     not evaluated here, so it is reported as <see langword="null"/>.
     /// </remarks>
-    public string? Title => _info.Title;
+    public string? Title => _metadata.Title;
 
     /// <summary>
     ///     Gets the mark types in document order, as written (for example <c>bar</c>, or the <c>type</c> of a mark
@@ -97,7 +116,7 @@ public sealed partial class VegaLiteDocument
     ///     A view without a <c>data</c> object contributes no entry (it inherits its parent's data). The references
     ///     describe the text only: no file is opened and no URL is contacted to produce them.
     /// </remarks>
-    public IReadOnlyList<VegaLiteDataReference> DataReferences => _info.DataReferences;
+    public IReadOnlyList<VegaLiteDataReference> DataReferences => _metadata.DataReferences;
 
     /// <summary>
     ///     Gets the distinct names of the parameters (<c>params</c>) the specification declares, in document order.
@@ -105,7 +124,7 @@ public sealed partial class VegaLiteDocument
     /// <remarks>
     ///     These are the names that <see cref="VegaLiteRenderOptions.Parameters"/> may override.
     /// </remarks>
-    public IReadOnlyList<string> ParameterNames => _info.ParameterNames;
+    public IReadOnlyList<string> ParameterNames => _metadata.ParameterNames;
 
     /// <summary>
     ///     Gets the effective options, with the base directory and source name resolved (internal; consumed by the
@@ -114,9 +133,15 @@ public sealed partial class VegaLiteDocument
     internal VegaLiteOpenOptions Options { get; }
 
     /// <summary>
-    ///     Gets the metadata read from the text (internal; consumed by the render pipeline).
+    ///     Gets the parsed specification (internal; consumed by the render pipeline).
     /// </summary>
-    internal VegaLiteSpecInfo Info => _info;
+    internal SpecTree Tree => _tree;
+
+    /// <summary>
+    ///     Gets the findings about the text in document order: the parse warnings and the catalog of constructs that are
+    ///     recognized but not supported (internal; delivered on every measure and render).
+    /// </summary>
+    internal IReadOnlyList<FeatureReport> Reports { get; }
 
     /// <summary>
     ///     Parses Vega-Lite specification text.
@@ -208,16 +233,10 @@ public sealed partial class VegaLiteDocument
     /// <exception cref="InvalidDataException">Thrown when the text is longer than the source limit.</exception>
     private static VegaLiteDocument Create(string source, VegaLiteOpenOptions effective)
     {
-        var limits = effective.EffectiveLimits;
-        if (source.Length > limits.MaxSourceLength)
-        {
-            throw CreateSourceTooLongException(limits.MaxSourceLength);
-        }
-
-        // A leading byte-order mark is not part of the JSON text
-        var text = source.Length > 0 && source[0] == '\uFEFF' ? source[1..] : source;
-        var info = new VegaLiteSpecScanner(VegaLiteSpecScanner.Encode(text), effective.SourceName, limits.MaxJsonDepth).Scan();
-        return new VegaLiteDocument(info, effective);
+        // The parser enforces the source limit, strips a leading byte-order mark and fails closed with a located
+        // VegaLiteSpecException for anything that is not a valid specification
+        var tree = SpecParser.Parse(source, effective.SourceName, effective.EffectiveLimits);
+        return new VegaLiteDocument(tree, effective);
     }
 
     /// <summary>

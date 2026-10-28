@@ -449,7 +449,8 @@ public class VegaLiteSystemIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer()
     {
-        // Arrange: schema version 4 gives a warning first; two marks follow
+        // Arrange: schema version 4 gives a warning first; a layer of two views follows, the second with an unsupported mark
+        // (bar is drawn, so only the arc mark and the composition itself are reported)
         var document = VegaLiteDocument.Parse(
             "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"layer\":[{\"mark\":\"bar\"},{\"mark\":{\"type\":\"arc\"}}]}");
         var log = new List<string>();
@@ -472,7 +473,7 @@ public class VegaLiteSystemIntegrationTests
         using var surface = document.Render(options, Ct);
 
         // Assert
-        Assert.Equal(["W vl-schema-version", "U vl-mark-bar /layer/0/mark", "U vl-mark-arc /layer/1/mark"], log);
+        Assert.Equal(["W vl-schema-version", "U vl-composition-layer /layer", "U vl-mark-arc /layer/1/mark"], log);
         Assert.Equal([Environment.CurrentManagedThreadId], threads);
     }
 
@@ -482,8 +483,8 @@ public class VegaLiteSystemIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature()
     {
-        // Arrange
-        var document = VegaLiteDocument.Parse("{\"layer\":[{\"mark\":\"bar\"},{\"mark\":\"arc\"}]}");
+        // Arrange: an unsupported mark first and an unsupported channel second, in a view that is not a composition
+        var document = VegaLiteDocument.Parse("{\"mark\":\"arc\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
         var reported = new List<string>();
         var options = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
 
@@ -491,9 +492,9 @@ public class VegaLiteSystemIntegrationTests
         var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(options, Ct));
 
         // Assert: the first feature only, with its location, and the handler saw exactly that report
-        Assert.Equal("vl-mark-bar", ex.Feature);
-        Assert.Equal("/layer/0/mark", ex.Location.Pointer);
-        Assert.Equal(["vl-mark-bar"], reported);
+        Assert.Equal("vl-mark-arc", ex.Feature);
+        Assert.Equal("/mark", ex.Location.Pointer);
+        Assert.Equal(["vl-mark-arc"], reported);
 
         // Assert: a handler that fails while the failure is being reported does not hide it
         var hostile = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
@@ -522,9 +523,10 @@ public class VegaLiteSystemIntegrationTests
         // Act
         using var surface = document.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = features.Add, WarningHandler = warnings.Add }, Ct);
 
-        // Assert
-        Assert.Equal(["vl-data-remote-url", "vl-data-remote-url"], features.Select(f => f.Feature));
-        Assert.Equal(["/layer/0/data", "/layer/1/data"], features.Select(f => f.Location.Pointer));
+        // Assert: every scheme-bearing url is reported (and none reaches the resolver); the composition itself is reported too
+        var remote = features.Where(f => f.Feature == "vl-data-remote-url").ToList();
+        Assert.Equal(["vl-composition-layer", "vl-data-remote-url", "vl-data-remote-url"], features.Select(f => f.Feature));
+        Assert.Equal(["/layer/0/data", "/layer/1/data"], remote.Select(f => f.Location.Pointer));
         var warning = Assert.Single(warnings);
         Assert.StartsWith("vl-data-empty:", warning.Message, StringComparison.Ordinal);
         Assert.Equal("/layer/2/data", warning.Location.Pointer);

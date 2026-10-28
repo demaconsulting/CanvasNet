@@ -1,5 +1,6 @@
 // Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding below; see third-party/README.md
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
 
@@ -8,8 +9,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </content>
 /// <remarks>
 ///     Foundation shell: the pipeline renders the empty view of a chart (its background at the natural size of a
-///     default view plus padding) and reports the marks and remote data it cannot draw yet. The private pipeline
-///     methods at the end of this file are the seam that the specification, data, scale, layout, mark and painting
+///     default view plus padding) and reports the constructs of the specification that it recognizes but cannot draw
+///     yet, as found by the specification model. The private pipeline
+///     methods at the end of this file are the seam that the data, scale, layout, mark and painting
 ///     stages replace; the public methods, their validation order and their event delivery are the stable contract.
 /// </remarks>
 public sealed partial class VegaLiteDocument
@@ -250,51 +252,39 @@ public sealed partial class VegaLiteDocument
     ///     Builds the plan of the chart: everything the painter needs, and the reports about what cannot be drawn.
     /// </summary>
     /// <remarks>
-    ///     Foundation shell: the plan is the natural size and the background; the reports are the parse-time warnings,
-    ///     empty inline data, remote data (never fetched; the dataset is treated as empty) and every mark, because
-    ///     marks are not drawn yet. Reports are recorded in that order, which is the document order within each kind.
+    ///     Foundation shell: the plan is the natural size, the background and the effective configuration; the reports
+    ///     are the findings of the specification model (parse warnings, then the feature catalog) in document order.
+    ///     Constructs that the renderer will draw are not reported; those that it recognizes but cannot draw yet are,
+    ///     with their stable identifiers. The configuration is resolved here, before any report is delivered, so that a
+    ///     configuration the options cannot hold (not a JSON object) fails the call like any other option error.
     /// </remarks>
     /// <param name="options">The effective options.</param>
     /// <param name="sink">The sink that records the reports.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
+    /// <exception cref="ArgumentException">Thrown when <see cref="VegaLiteRenderOptions.Config"/> is not a JSON object (it is checked when the options are created, so this only guards against a text that did not pass that check).</exception>
     private ChartPlan BuildPlan(VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Versions other than 5 and 6 are rendered with the version 6 defaults but must be reported
-        var version = _info.SchemaMajorVersion;
-        if (_info.SchemaUrl is not null && version is not (5 or 6))
-        {
-            var found = version is null ? "does not name a Vega-Lite version" : $"names Vega-Lite version {version}";
-            sink.Warn($"vl-schema-version: The $schema {found}; the specification is interpreted with the Vega-Lite 6 defaults.", _info.SchemaLocation);
-        }
+        // Defaults < specification config < caller config
+        var config = ConfigResolver.Resolve(_tree, options.Config);
 
-        // Data: inline data without rows draws an empty chart, and remote data is never fetched
-        foreach (var reference in _info.DataReferences)
+        // Deliver the findings of the text in document order; strict mode throws at the first unsupported feature
+        foreach (var report in Reports)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (reference.Kind == VegaLiteDataKind.Inline && reference.RowCount == 0)
+            if (report.Kind == FeatureReportKind.Warning)
             {
-                sink.Warn("vl-data-empty: The inline data has no rows; the chart is empty.", reference.Location);
+                sink.Warn($"{report.Id}: {report.Message}", report.Location);
             }
-            else if (reference.Kind == VegaLiteDataKind.Url && reference.Url is not null && VegaLiteSpecScanner.IsSchemeBearingUrl(reference.Url))
+            else
             {
-                sink.Unsupported(
-                    "vl-data-remote-url",
-                    "Remote data is never fetched; download the file next to the specification and refer to it by a relative path. The dataset is treated as empty.",
-                    reference.Location);
+                sink.Unsupported(report.Id, report.Message, report.Location);
             }
         }
 
-        // Marks are recognized but not drawn by the foundation shell, so each one is reported with its pointer
-        foreach (var mark in _info.Marks)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            sink.Unsupported($"vl-mark-{mark.Type}", $"The mark type '{mark.Type}' is not rendered yet.", mark.Location);
-        }
-
-        return new ChartPlan(NaturalSize(), options.Background ?? DefaultBackground);
+        return new ChartPlan(NaturalSize(), options.Background ?? DefaultBackground, config);
     }
 
     /// <summary>
@@ -331,5 +321,6 @@ public sealed partial class VegaLiteDocument
     /// </summary>
     /// <param name="Size">The natural size of the chart in pixels at a scale of one.</param>
     /// <param name="Background">The background color.</param>
-    private readonly record struct ChartPlan(VegaLiteSize Size, Rgba32 Background);
+    /// <param name="Config">The effective configuration (defaults, specification, caller).</param>
+    private readonly record struct ChartPlan(VegaLiteSize Size, Rgba32 Background, ResolvedConfig Config);
 }
