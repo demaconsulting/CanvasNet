@@ -1,3 +1,4 @@
+// cspell:ignore consolas menlo neue vegalite verdana
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -128,7 +129,7 @@ public class VegaLiteSystemIntegrationTests
         Assert.Equal(6, v6.SchemaMajorVersion);
         Assert.Equal(0, warningsForV5AndV6);
         Assert.Equal(VegaLiteTestHelpers.Snapshot(fromV5), VegaLiteTestHelpers.Snapshot(fromV6));
-        Assert.Equal(new VegaLiteSize(210, 210), v5.Measure(cancellationToken: Ct));
+        Assert.Equal(new VegaLiteSize(310, 310), v5.Measure(cancellationToken: Ct));
 
         // Assert: another major version is interpreted the same way but reported with a stable identifier
         var warning = Assert.Single(warnings);
@@ -200,31 +201,42 @@ public class VegaLiteSystemIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors()
     {
-        // Arrange: a view without axes has the default 200 by 200 data rectangle plus 5 pixels of padding per side
+        // Arrange: a view without axes has the default 300 by 300 data rectangle (Vega-Lite 6) plus 5 pixels of padding per side
         var empty = VegaLiteDocument.Parse("{}");
         var red = new Rgba32(200, 10, 20, 255);
+        var border = new Rgba32(221, 221, 221, 255);
 
         // Act
         using var surface = empty.Render(cancellationToken: Ct);
         using var custom = empty.Render(new VegaLiteRenderOptions { Background = red }, Ct);
         var measured = empty.Measure(cancellationToken: Ct);
 
-        // Assert: 210 by 210 on an opaque white background, and Measure reports what Render produces
-        Assert.Equal(210, surface.Width);
-        Assert.Equal(210, surface.Height);
-        Assert.Equal(new VegaLiteSize(210, 210), measured);
-        Assert.True(VegaLiteTestHelpers.AllPixelsAre(surface, VegaLiteTestHelpers.White));
+        // Assert: 310 by 310 on an opaque white background, and Measure reports what Render produces
+        Assert.Equal(310, surface.Width);
+        Assert.Equal(310, surface.Height);
+        Assert.Equal(new VegaLiteSize(310, 310), measured);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[0, 0]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[150, 150]);
 
-        // Assert: the caller's background replaces white everywhere
-        Assert.Equal(210, custom.Width);
-        Assert.True(VegaLiteTestHelpers.AllPixelsAre(custom, red));
+        // Assert: the one-pixel #ddd border of the plot area covers exactly the pixel column and row at its edge
+        Assert.Equal(border, surface[5, 150]);
+        Assert.Equal(border, surface[305, 150]);
+        Assert.Equal(border, surface[150, 5]);
+        Assert.Equal(border, surface[150, 305]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[4, 150]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[6, 150]);
 
-        // Assert: a title is reported by the document and does not stop the view from rendering
+        // Assert: the caller's background replaces white everywhere outside the border (the plot area has no fill)
+        Assert.Equal(310, custom.Width);
+        Assert.Equal(red, custom[0, 0]);
+        Assert.Equal(red, custom[150, 150]);
+        Assert.Equal(border, custom[5, 150]);
+
+        // Assert: a title grows the canvas above the plot area (13 pixel title + 4 pixel offset) and does not stop rendering
         var titled = VegaLiteDocument.Parse("{\"title\":\"Quarterly report\"}");
         using var withTitle = titled.Render(cancellationToken: Ct);
         Assert.Equal("Quarterly report", titled.Title);
-        Assert.True(withTitle.Width >= 210);
-        Assert.True(withTitle.Height >= 210);
+        Assert.Equal((310, 327), (withTitle.Width, withTitle.Height));
     }
 
     /// <summary>
@@ -249,17 +261,25 @@ public class VegaLiteSystemIntegrationTests
         var measuredDoubled = document.Measure(new VegaLiteRenderOptions { Scale = 2 }, Ct);
 
         // Assert: the scale multiplies the natural size (rounded to whole pixels) and Measure agrees
-        Assert.Equal((420, 420), (doubled.Width, doubled.Height));
-        Assert.Equal((315, 315), (fractional.Width, fractional.Height));
-        Assert.Equal(new VegaLiteSize(420, 420), measuredDoubled);
-        Assert.True(VegaLiteTestHelpers.AllPixelsAre(doubled, VegaLiteTestHelpers.White));
+        Assert.Equal((620, 620), (doubled.Width, doubled.Height));
+        Assert.Equal((465, 465), (fractional.Width, fractional.Height));
+        Assert.Equal(new VegaLiteSize(620, 620), measuredDoubled);
+        Assert.Equal(VegaLiteTestHelpers.White, doubled[0, 0]);
+        Assert.Equal(new Rgba32(221, 221, 221, 255), doubled[10, 300]);
+        Assert.Equal(new Rgba32(221, 221, 221, 255), doubled[11, 300]);
+        Assert.Equal(VegaLiteTestHelpers.White, doubled[9, 300]);
+        Assert.Equal(VegaLiteTestHelpers.White, doubled[12, 300]);
 
-        // Assert: an explicit size is honored exactly, the margins around the fitted chart use the background, and
-        // the scale does not influence an explicit size
+        // Assert: an explicit size is honored exactly, the chart is fitted and centered (here 100 by 100 pixels in the
+        // middle of the wide surface), the margins use the background, and the scale does not influence an explicit size
         Assert.Equal((300, 100), (wide.Width, wide.Height));
-        Assert.True(VegaLiteTestHelpers.AllPixelsAre(wide, VegaLiteTestHelpers.White));
+        Assert.True(VegaLiteTestHelpers.RegionIs(wide, 0, 0, 100, 100, VegaLiteTestHelpers.White));
+        Assert.True(VegaLiteTestHelpers.RegionIs(wide, 200, 0, 300, 100, VegaLiteTestHelpers.White));
+        Assert.False(VegaLiteTestHelpers.RegionIs(wide, 100, 0, 200, 100, VegaLiteTestHelpers.White));
         Assert.Equal((100, 400), (tall.Width, tall.Height));
-        Assert.True(VegaLiteTestHelpers.AllPixelsAre(tall, red));
+        Assert.True(VegaLiteTestHelpers.RegionIs(tall, 0, 0, 100, 150, red));
+        Assert.True(VegaLiteTestHelpers.RegionIs(tall, 0, 250, 100, 400, red));
+        Assert.False(VegaLiteTestHelpers.RegionIs(tall, 0, 150, 100, 250, red));
 
         // Assert: invalid sizes are rejected before any other work (no events, cancellation not consulted)
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 10, invalid, canceled.Token));
@@ -347,7 +367,7 @@ public class VegaLiteSystemIntegrationTests
         using var live = new CancellationTokenSource();
         using var surface = document.Render(options, live.Token);
         Assert.False(live.IsCancellationRequested);
-        Assert.Equal(210, surface.Width);
+        Assert.Equal(310, surface.Width);
         Assert.True(events > 0);
     }
 
@@ -408,7 +428,7 @@ public class VegaLiteSystemIntegrationTests
         var effective = options.EffectiveFonts;
 
         // Assert: by default no system font is consulted and no extra directory is scanned, so text can only use
-        // the Liberation families bundled with the core package (the text stage is verified once it exists)
+        // the Liberation families bundled with the core package (proved below by rendering)
         Assert.Null(options.Fonts);
         Assert.False(effective.UseSystemFonts);
         Assert.Empty(effective.AdditionalDirectories);
@@ -420,6 +440,73 @@ public class VegaLiteSystemIntegrationTests
         using var bundled = document.Render(options, Ct);
         using var opted = document.Render(new VegaLiteRenderOptions { Fonts = new VegaLiteFontOptions { UseSystemFonts = true, AdditionalDirectories = ["no-such-directory"] } }, Ct);
         Assert.Equal(VegaLiteTestHelpers.Snapshot(bundled), VegaLiteTestHelpers.Snapshot(opted));
+
+        // Arrange: titles that name fonts. Generic and Arial-like families map to the bundled fonts, so every spelling of
+        // sans-serif renders identical bytes, whether or not system fonts are allowed; the same holds for serif and monospace
+        var folder = Path.Combine(Path.GetTempPath(), "vegalite-fonts-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var system = new VegaLiteRenderOptions { Fonts = new VegaLiteFontOptions { UseSystemFonts = true } };
+            var familyOf = new Func<string, VegaLiteDocument>(font => VegaLiteDocument.Parse("{\"title\":{\"text\":\"Fonts and Sizes\",\"font\":\"" + font + "\"}}"));
+            byte[] RenderWith(string font, VegaLiteRenderOptions? o = null)
+            {
+                using var surface = familyOf(font).Render(o, Ct);
+                return VegaLiteTestHelpers.Snapshot(surface);
+            }
+
+            var sans = RenderWith("sans-serif");
+            var serif = RenderWith("serif");
+            var mono = RenderWith("monospace");
+
+            // Assert: the three bundled families look different from each other
+            Assert.NotEqual(sans, serif);
+            Assert.NotEqual(sans, mono);
+            Assert.NotEqual(serif, mono);
+
+            // Assert: generic and Arial-like names are the bundled font, with and without system fonts
+            foreach (var name in new[] { "Arial", "Helvetica", "Helvetica Neue", "Verdana", "system-ui", "Arial, Helvetica, sans-serif" })
+            {
+                Assert.Equal(sans, RenderWith(name));
+                Assert.Equal(sans, RenderWith(name, system));
+            }
+
+            foreach (var name in new[] { "Times", "Times New Roman", "Georgia" })
+            {
+                Assert.Equal(serif, RenderWith(name));
+                Assert.Equal(serif, RenderWith(name, system));
+            }
+
+            foreach (var name in new[] { "Courier", "Courier New", "Menlo", "Consolas" })
+            {
+                Assert.Equal(mono, RenderWith(name));
+                Assert.Equal(mono, RenderWith(name, system));
+            }
+
+            // Assert: a named family that is not generic is ignored unless allowed: the bundled sans-serif is drawn, even
+            // when that family is available (here: copied into a directory that is not searched)
+            using (var resource = typeof(Surface).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoSans-Regular.ttf"))
+            {
+                Assert.NotNull(resource);
+                using var file = File.Create(Path.Combine(folder, "NotoSans-Regular.ttf"));
+                resource.CopyTo(file);
+            }
+
+            Assert.Equal(sans, RenderWith("Noto Sans"));
+            Assert.Equal(sans, RenderWith("Noto Sans", new VegaLiteRenderOptions { Fonts = new VegaLiteFontOptions { UseSystemFonts = false } }));
+
+            // Assert: the same family is used once its directory is allowed, and then the text differs from the bundled one
+            var allowed = new VegaLiteRenderOptions { Fonts = new VegaLiteFontOptions { AdditionalDirectories = [folder] } };
+            Assert.NotEqual(sans, RenderWith("Noto Sans", allowed));
+            Assert.Equal(RenderWith("Noto Sans", allowed), RenderWith("Noto Sans", allowed));
+
+            // Assert: a family list falls through unknown names to the next family
+            Assert.Equal(serif, RenderWith("No Such Family, serif"));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     /// <summary>

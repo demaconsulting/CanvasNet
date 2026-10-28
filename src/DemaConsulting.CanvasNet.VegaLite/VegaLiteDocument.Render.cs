@@ -1,5 +1,9 @@
-// Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding below; see third-party/README.md
+// Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding come from the configuration; see third-party/README.md
+// cspell:ignore hconcat scenegraph vconcat
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.VegaLite.Guides;
+using DemaConsulting.CanvasNet.VegaLite.Layout;
+using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
@@ -8,23 +12,14 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     The measuring and rendering entry points of the document and the (foundation-shell) pipeline behind them.
 /// </content>
 /// <remarks>
-///     Foundation shell: the pipeline renders the empty view of a chart (its background at the natural size of a
-///     default view plus padding) and reports the constructs of the specification that it recognizes but cannot draw
-///     yet, as found by the specification model. The private pipeline
-///     methods at the end of this file are the seam that the data, scale, layout, mark and painting
-///     stages replace; the public methods, their validation order and their event delivery are the stable contract.
+///     Foundation pipeline: the specification model reports the constructs that it recognizes but cannot draw yet, and
+///     the view layout turns the title, the padding, the size and the background of the view into a scene that the
+///     painter draws (a view without marks or axes: its plot area, border and title). The private pipeline
+///     methods at the end of this file are the seam that the data, scale, mark and guide stages extend; the public
+///     methods, their validation order and their event delivery are the stable contract.
 /// </remarks>
 public sealed partial class VegaLiteDocument
 {
-    /// <summary>The default width and height of the data rectangle of a view in pixels (Vega-Lite's default view size).</summary>
-    private const int DefaultViewSize = 200;
-
-    /// <summary>The default padding around the chart in pixels (Vega-Lite's default padding).</summary>
-    private const int DefaultPadding = 5;
-
-    /// <summary>The default background: opaque white.</summary>
-    private static readonly Rgba32 DefaultBackground = new(255, 255, 255, 255);
-
     /// <summary>
     ///     Computes the size the chart renders at without drawing it.
     /// </summary>
@@ -53,10 +48,11 @@ public sealed partial class VegaLiteDocument
     public VegaLiteSize Measure(VegaLiteRenderOptions? options = null, CancellationToken cancellationToken = default)
     {
         var effective = options ?? new VegaLiteRenderOptions();
-        var size = ValidateScaledSize(effective);
+        var plan = PrepareChart(effective);
+        var size = ValidateScaledSize(plan.Size, effective);
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
-        return Run(effective, cancellationToken, _ => size);
+        return Run(effective, cancellationToken, plan, _ => size);
     }
 
     /// <summary>
@@ -92,10 +88,11 @@ public sealed partial class VegaLiteDocument
     public Surface Render(VegaLiteRenderOptions? options = null, CancellationToken cancellationToken = default)
     {
         var effective = options ?? new VegaLiteRenderOptions();
-        var size = ValidateScaledSize(effective);
+        var plan = PrepareChart(effective);
+        var size = ValidateScaledSize(plan.Size, effective);
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
-        return Run(effective, cancellationToken, plan => Paint(plan, size.Width, size.Height, cancellationToken));
+        return Run(effective, cancellationToken, plan, p => Paint(p, size.Width, size.Height, ScenePlacement.Uniform(effective.Scale), cancellationToken));
     }
 
     /// <summary>
@@ -142,7 +139,9 @@ public sealed partial class VegaLiteDocument
         var effective = options ?? new VegaLiteRenderOptions();
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
-        return Run(effective, cancellationToken, plan => Paint(plan, width, height, cancellationToken));
+        var plan = PrepareChart(effective);
+        var placement = ScenePlacement.Fit(plan.Size.Width, plan.Size.Height, width, height);
+        return Run(effective, cancellationToken, plan, p => Paint(p, width, height, placement, cancellationToken));
     }
 
     /// <summary>
@@ -156,15 +155,16 @@ public sealed partial class VegaLiteDocument
     /// <typeparam name="T">The kind of result.</typeparam>
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <param name="plan">The plan of the chart.</param>
     /// <param name="finish">Produces the result from the plan of the chart.</param>
     /// <returns>The result.</returns>
-    private T Run<T>(VegaLiteRenderOptions options, CancellationToken cancellationToken, Func<ChartPlan, T> finish)
+    private T Run<T>(VegaLiteRenderOptions options, CancellationToken cancellationToken, ChartPlan plan, Func<ChartPlan, T> finish)
     {
         var sink = new VegaLiteReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
         T result;
         try
         {
-            result = finish(BuildPlan(options, sink, cancellationToken));
+            result = finish(BuildPlan(plan, sink, cancellationToken));
         }
         catch
         {
@@ -188,12 +188,12 @@ public sealed partial class VegaLiteDocument
     /// <summary>
     ///     Validates that the natural size times the scale is a size a surface can have.
     /// </summary>
+    /// <param name="natural">The natural size of the chart.</param>
     /// <param name="options">The effective options.</param>
     /// <returns>The scaled size in whole pixels.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a side is outside 1 to <see cref="Surface.MaxDimension"/>.</exception>
-    private static VegaLiteSize ValidateScaledSize(VegaLiteRenderOptions options)
+    private static VegaLiteSize ValidateScaledSize(VegaLiteSize natural, VegaLiteRenderOptions options)
     {
-        var natural = NaturalSize();
         var width = ScaleDimension(natural.Width, options.Scale);
         var height = ScaleDimension(natural.Height, options.Scale);
         if (width < 1 || width > Surface.MaxDimension || height < 1 || height > Surface.MaxDimension)
@@ -238,37 +238,51 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Gets the natural size of the chart: the size of the surface at a scale of one.
+    ///     Lays out the chart: resolves the configuration, builds the title and the view, and gives the scene and the
+    ///     natural size of the chart (the size of the surface at a scale of one).
     /// </summary>
     /// <remarks>
-    ///     Foundation shell: an empty view is a default data rectangle plus padding on every side (210 by 210
-    ///     pixels). The layout stage replaces this with the measured size of the axes, legends and title.
-    /// </remarks>
-    /// <returns>The natural size.</returns>
-    private static VegaLiteSize NaturalSize() =>
-        new(DefaultViewSize + (2 * DefaultPadding), DefaultViewSize + (2 * DefaultPadding));
-
-    /// <summary>
-    ///     Builds the plan of the chart: everything the painter needs, and the reports about what cannot be drawn.
-    /// </summary>
-    /// <remarks>
-    ///     Foundation shell: the plan is the natural size, the background and the effective configuration; the reports
-    ///     are the findings of the specification model (parse warnings, then the feature catalog) in document order.
-    ///     Constructs that the renderer will draw are not reported; those that it recognizes but cannot draw yet are,
-    ///     with their stable identifiers. The configuration is resolved here, before any report is delivered, so that a
+    ///     This is pure: it records nothing and delivers no event, so the size can be validated before any other work.
+    ///     The data rectangle comes from <c>width</c>, <c>height</c> and the view configuration (300 by 300 in Vega-Lite 6),
+    ///     the canvas from the padding and <c>autosize</c>, and the title and background from the specification and the
+    ///     configuration; the caller's background replaces the other two. The configuration is resolved here, so a
     ///     configuration the options cannot hold (not a JSON object) fails the call like any other option error.
     /// </remarks>
     /// <param name="options">The effective options.</param>
+    /// <returns>The plan.</returns>
+    /// <exception cref="ArgumentException">Thrown when <see cref="VegaLiteRenderOptions.Config"/> is not a JSON object (it is checked when the options are created, so this only guards against a text that did not pass that check).</exception>
+    private ChartPlan PrepareChart(VegaLiteRenderOptions options)
+    {
+        // Defaults < specification config < caller config
+        var config = ConfigResolver.Resolve(_tree, options.Config);
+        var measurer = new TextMeasurer(options.EffectiveFonts);
+        var root = _tree.Root;
+        var hints = new ViewSizeHints(ContainerWidth: options.ContainerWidth, ContainerHeight: options.ContainerHeight);
+        var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
+        var request = ViewLayout.Resolve(root, config, hints, background);
+
+        // A composition has no single title position; only single and layered views are drawn so far
+        var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
+        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition);
+        var layout = ViewLayout.Compute(request, default, title);
+        return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
+    }
+
+    /// <summary>
+    ///     Builds the plan of the chart for delivery: the reports about what cannot be drawn go to the sink.
+    /// </summary>
+    /// <remarks>
+    ///     The reports are the findings of the specification model (parse warnings, then the feature catalog) in
+    ///     document order. Constructs that the renderer will draw are not reported; those that it recognizes but cannot
+    ///     draw yet are, with their stable identifiers.
+    /// </remarks>
+    /// <param name="plan">The prepared plan.</param>
     /// <param name="sink">The sink that records the reports.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
-    /// <exception cref="ArgumentException">Thrown when <see cref="VegaLiteRenderOptions.Config"/> is not a JSON object (it is checked when the options are created, so this only guards against a text that did not pass that check).</exception>
-    private ChartPlan BuildPlan(VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private ChartPlan BuildPlan(ChartPlan plan, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        // Defaults < specification config < caller config
-        var config = ConfigResolver.Resolve(_tree, options.Config);
 
         // Deliver the findings of the text in document order; strict mode throws at the first unsupported feature
         foreach (var report in Reports)
@@ -284,43 +298,30 @@ public sealed partial class VegaLiteDocument
             }
         }
 
-        return new ChartPlan(NaturalSize(), options.Background ?? DefaultBackground, config);
+        return plan;
     }
 
     /// <summary>
     ///     Paints the plan onto a new surface of the given size.
     /// </summary>
     /// <remarks>
-    ///     Foundation shell: the whole surface is the background. For an explicit size the natural chart is fitted
-    ///     and centered, which for an empty view is visually the same as filling the surface; the painting stage
-    ///     replaces this with the real fit (uniform scale, centered content, background margins).
+    ///     The scene is drawn at the placement: a uniform scale and an offset, so that an explicit size fits the natural
+    ///     chart and centers it over the background, which also fills the margins.
     /// </remarks>
     /// <param name="plan">The plan.</param>
     /// <param name="width">The width of the surface in pixels.</param>
     /// <param name="height">The height of the surface in pixels.</param>
+    /// <param name="placement">Where the scene goes on the surface.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The surface; the caller owns it.</returns>
-    private static Surface Paint(ChartPlan plan, int width, int height, CancellationToken cancellationToken)
-    {
-        var surface = new Surface(width, height);
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            surface.Clear(plan.Background);
-            return surface;
-        }
-        catch
-        {
-            surface.Dispose();
-            throw;
-        }
-    }
+    private static Surface Paint(ChartPlan plan, int width, int height, ScenePlacement placement, CancellationToken cancellationToken) =>
+        new ScenePainter(plan.Measurer).Paint(plan.Scene, width, height, placement, cancellationToken);
 
     /// <summary>
     ///     What the painter needs to draw the chart.
     /// </summary>
     /// <param name="Size">The natural size of the chart in pixels at a scale of one.</param>
-    /// <param name="Background">The background color.</param>
-    /// <param name="Config">The effective configuration (defaults, specification, caller).</param>
-    private readonly record struct ChartPlan(VegaLiteSize Size, Rgba32 Background, ResolvedConfig Config);
+    /// <param name="Scene">The scene: the canvas, its background and everything drawn on it.</param>
+    /// <param name="Measurer">The text measurer with the fonts of this render.</param>
+    private readonly record struct ChartPlan(VegaLiteSize Size, Scene Scene, TextMeasurer Measurer);
 }

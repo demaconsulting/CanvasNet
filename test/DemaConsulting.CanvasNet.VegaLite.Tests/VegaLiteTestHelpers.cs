@@ -49,6 +49,63 @@ internal static class VegaLiteTestHelpers
     }
 
     /// <summary>
+    ///     Determines whether every pixel of a rectangular region of a surface has the given color.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="left">The first column of the region.</param>
+    /// <param name="top">The first row of the region.</param>
+    /// <param name="right">The column after the region.</param>
+    /// <param name="bottom">The row after the region.</param>
+    /// <param name="color">The expected color.</param>
+    /// <returns><see langword="true"/> when every pixel of the region equals <paramref name="color"/>.</returns>
+    public static bool RegionIs(Surface surface, int left, int top, int right, int bottom, Rgba32 color)
+    {
+        for (var y = top; y < bottom; y++)
+        {
+            for (var x = left; x < right; x++)
+            {
+                if (surface[x, y] != color)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Finds the smallest rectangle that contains every pixel of a surface that differs from a background color.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="background">The color that does not count as ink.</param>
+    /// <returns>The inclusive bounds of the ink, or <see langword="null"/> when every pixel has the background color.</returns>
+    public static (int Left, int Top, int Right, int Bottom)? InkBounds(Surface surface, Rgba32 background)
+    {
+        var left = int.MaxValue;
+        var top = int.MaxValue;
+        var right = -1;
+        var bottom = -1;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y] == background)
+                {
+                    continue;
+                }
+
+                left = Math.Min(left, x);
+                top = Math.Min(top, y);
+                right = Math.Max(right, x);
+                bottom = Math.Max(bottom, y);
+            }
+        }
+
+        return right < 0 ? null : (left, top, right, bottom);
+    }
+
+    /// <summary>
     ///     Reduces a data reference to the parts that do not depend on the source name, so documents opened from
     ///     different sources can be compared.
     /// </summary>

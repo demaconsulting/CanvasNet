@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
@@ -63,7 +64,7 @@ public class VegaLiteDocumentSpecModelTests
 
         // Assert: a specification with only warnings renders in strict mode
         using var surface = VegaLiteDocument.Parse("{\"bogus\":1}").Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
-        Assert.Equal(210, surface.Width);
+        Assert.Equal(310, surface.Width);
     }
 
     /// <summary>
@@ -128,8 +129,10 @@ public class VegaLiteDocumentSpecModelTests
         using var surface = document.Render(options, Ct);
         var resolved = ConfigResolver.Resolve(document.Tree, options.Config);
 
-        // Assert: the render succeeds and the same resolution gives caller over specification over defaults
-        Assert.Equal(210, surface.Width);
+        // Assert: the render honors the configuration (width from the specification, height and background from the
+        // caller) and the same resolution gives caller over specification over defaults
+        Assert.Equal((133, 87), (surface.Width, surface.Height));
+        Assert.Equal(new Rgba32(0x12, 0x34, 0x56, 255), surface[0, 0]);
         Assert.Equal(123, resolved.GetNumber("view.continuousWidth"));
         Assert.Equal(77, resolved.GetNumber("view.continuousHeight"));
         Assert.Equal("#123456", resolved.GetString("background"));
