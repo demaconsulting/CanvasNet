@@ -56,10 +56,10 @@ public static partial class SvgCodec
     /// </param>
     /// <param name="totalElements">The running total-rendered-elements count, forwarded to <see cref="RenderShapeWithEffects"/>.</param>
     /// <remarks>
-    ///     Silently renders nothing - never throws - when <see cref="RenderContext.Fonts"/> is
-    ///     <see langword="null"/>, no entry matches <paramref name="state"/>'s <c>font-family</c>,
-    ///     or the element has no text content, per this class's documented tolerant font-lookup
-    ///     policy. Nested markup (for example <c>tspan</c>) is not given its own positioning: every
+    ///     Silently renders nothing - never throws - when the element has no text content. The font
+    ///     is always resolved (see <see cref="ResolveFont"/>): a caller-registered font first, then
+    ///     installed/generic/bundled defaults, so text is never dropped for want of a registered
+    ///     font. Nested markup (for example <c>tspan</c>) is not given its own positioning: every
     ///     descendant text node's content is concatenated and laid out as one flat run, a
     ///     documented simplification.
     /// </remarks>
@@ -67,22 +67,13 @@ public static partial class SvgCodec
         XElement element, RenderState state, Matrix3x2 transform, RenderContext context,
         RenderScope scope, ref int totalElements)
     {
-        if (context.Fonts == null)
-        {
-            return;
-        }
-
-        var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
-        if (font == null)
-        {
-            return;
-        }
-
         var text = element.Value;
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
+
+        var font = ResolveFont(context, state.FontFamily, state.FontWeight, state.FontStyle);
 
         // Charge the text's character count before the expensive per-rune glyph-outline/kerning
         // loop begins, so a pathologically long run throws before that work is spent
@@ -97,8 +88,10 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Finds the first font-family name in <paramref name="fontFamily"/>'s comma-separated
-    ///     list with a case-insensitive match in <paramref name="fonts"/>, then selects the
+    ///     list with a case-insensitive match in the caller-registered <paramref name="fonts"/>, then selects the
     ///     closest-matching registered face for that family via <see cref="SelectClosestFace"/>.
+    ///     This is step 1 of <see cref="ResolveFont"/>; a <see langword="null"/> result there means
+    ///     the default (installed/generic/bundled) resolution applies.
     /// </summary>
     /// <param name="fontFamily">The raw, possibly comma-separated, possibly quoted <c>font-family</c> value.</param>
     /// <param name="requestedWeight">The cascaded <c>font-weight</c> to match against.</param>
@@ -125,9 +118,17 @@ public static partial class SvgCodec
             var name = candidate.Trim('\'', '"');
             foreach (var (familyName, faces) in fonts)
             {
-                if (string.Equals(familyName, name, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(familyName, name, StringComparison.OrdinalIgnoreCase))
                 {
-                    return SelectClosestFace(faces, requestedWeight, requestedStyle)?.Font;
+                    continue;
+                }
+
+                // A matching family with an empty face list is unavailable: keep looking, so a
+                // later registered family in the list can still be used
+                var selected = SelectClosestFace(faces, requestedWeight, requestedStyle);
+                if (selected != null)
+                {
+                    return selected.Value.Font;
                 }
             }
         }

@@ -74,8 +74,9 @@ software items, specifically:
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec`, which
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
-  `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`,
-  and `Codecs` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
+  `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`
+  (including `SystemFontCatalog`, which resolves the font of SVG text when the caller registers
+  none), and `Codecs` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument`, which parses a PDF
   document's structure (cross-references, trailer, page tree), optionally decrypting a document
@@ -547,9 +548,11 @@ src/DemaConsulting.CanvasNet.Svg/
 ├── SvgCodec.*.cs               — `SvgCodec` partial-class implementation files (attributes,
 │                                 clipping/masking, CSS cascade/parser/selectors, elements,
 │                                 filters, gradients, image, markers, paint, parsing, path
-│                                 data/render, patterns, preserve-aspect-ratio, shapes, text)
+│                                 data/render, patterns, preserve-aspect-ratio, shapes, text,
+│                                 default font resolution)
 ├── SvgFontFace.cs              — Registered font-face (family/weight/style) data carrier
 ├── SvgFontStyle.cs             — Font-style enumeration used by `SvgFontFace`
+├── SvgLoadOptions.cs           — Optional load settings (installed-font lookup on/off)
 └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 

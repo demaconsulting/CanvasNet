@@ -711,22 +711,13 @@ public static partial class SvgCodec
         RenderContext context,
         RenderScope scope)
     {
-        if (context.Fonts == null)
-        {
-            return null;
-        }
-
-        var font = MatchFont(state.FontFamily, state.FontWeight, state.FontStyle, context.Fonts);
-        if (font == null)
-        {
-            return null;
-        }
-
         var text = element.Value;
         if (string.IsNullOrEmpty(text))
         {
             return null;
         }
+
+        var font = ResolveFont(context, state.FontFamily, state.FontWeight, state.FontStyle);
 
         // Charge the text's character count here too, mirroring RenderText's own
         // charge site - subject to the same caller-supplied counter/budget scoping as

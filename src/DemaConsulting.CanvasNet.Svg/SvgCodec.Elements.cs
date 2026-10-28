@@ -194,7 +194,7 @@ public static partial class SvgCodec
     /// <param name="IdIndex">The whole-document id-to-element index built once up front.</param>
     /// <param name="Fonts">
     ///     The caller-supplied font-family-to-face-list dictionary, or <see langword="null"/> if
-    ///     none was supplied. Populated either directly by the
+    ///     none was supplied (text then resolves entirely through the default font resolution). Populated either directly by the
     ///     <see cref="LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary{string, IReadOnlyList{SvgFontFace}}?)"/>
     ///     overload, or via <see cref="ToFontFaces"/> when the legacy single-font-per-family
     ///     overload is used.
@@ -217,6 +217,27 @@ public static partial class SvgCodec
         ///     element that has any stylesheet rule to match against.
         /// </summary>
         public CssMatchWorkBudget CssBudget { get; } = new();
+
+        /// <summary>
+        ///     Whether <c>text</c> rendering may consult fonts installed on the host (see
+        ///     <see cref="SvgLoadOptions.UseSystemFonts"/>). Set once by <c>LoadCore</c>.
+        /// </summary>
+        public bool UseSystemFonts { get; init; } = true;
+
+        /// <summary>
+        ///     Caches each default-resolved font (see <see cref="ResolveFont"/>), keyed by the
+        ///     <c>font-family</c> text and the bold/italic axes, for the lifetime of one <c>Load</c>
+        ///     call - the same "populated once, read many times" lifetime as <see cref="GradientStopCache"/>.
+        /// </summary>
+        public Dictionary<(string Family, bool Bold, bool Italic), TrueTypeFont> ResolvedFontCache { get; } = [];
+
+        /// <summary>
+        ///     Caches each installed font file loaded during this <c>Load</c> call (or
+        ///     <see langword="null"/> for one that failed to load), keyed by file path and face index,
+        ///     so a file is read at most once per render however many font-family/style keys resolve
+        ///     to it.
+        /// </summary>
+        public Dictionary<(string Path, int FaceIndex), TrueTypeFont?> InstalledFontCache { get; } = [];
 
         /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the

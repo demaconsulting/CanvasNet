@@ -292,7 +292,7 @@ public static partial class SvgCodec
             "polyline" => BuildPolyPath(child, closed: false, workBudget),
             "polygon" => BuildPolyPath(child, closed: true, workBudget),
             "path" => BuildPathDataPath(child, workBudget),
-            "text" => BuildClipChildTextPath(child, childState, context),
+            "text" => BuildClipChildTextPath(child, childState, context, workBudget),
             _ => null
         };
 
@@ -300,29 +300,26 @@ public static partial class SvgCodec
     /// <param name="child">The <c>text</c> element.</param>
     /// <param name="childState">The child's own cascaded render state.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="workBudget">The shared geometry-parsing work budget, charged with the text's character count.</param>
     /// <returns>
     ///     The laid-out glyph-run outline, or <see langword="null"/> under the same tolerant
-    ///     conditions as <see cref="RenderText"/> itself (no <see cref="RenderContext.Fonts"/>, no
-    ///     matching font, or no text content).
+    ///     condition as <see cref="RenderText"/> itself (no text content); the font is always
+    ///     resolved via <see cref="ResolveFont"/>.
     /// </returns>
-    private static Path? BuildClipChildTextPath(XElement child, RenderState childState, RenderContext context)
+    private static Path? BuildClipChildTextPath(XElement child, RenderState childState, RenderContext context, GeometryWorkBudget workBudget)
     {
-        if (context.Fonts == null)
-        {
-            return null;
-        }
-
-        var font = MatchFont(childState.FontFamily, childState.FontWeight, childState.FontStyle, context.Fonts);
-        if (font == null)
-        {
-            return null;
-        }
-
         var text = child.Value;
         if (string.IsNullOrEmpty(text))
         {
             return null;
         }
+
+        // Charge the text's character count before glyph layout, mirroring RenderText's own charge
+        // site: with default fonts every clipPath text run is now laid out, not only those of a
+        // caller that registered a font
+        workBudget.Charge(text.Length);
+
+        var font = ResolveFont(context, childState.FontFamily, childState.FontWeight, childState.FontStyle);
 
         var origin = new Vector2(
             GetFloatAttribute(child, "x", childState, PercentageAxis.Horizontal),

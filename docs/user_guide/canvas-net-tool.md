@@ -1284,7 +1284,9 @@ pictures side by side.
 - **Determinism.** For the same input, command line, tool version, and machine, the output file is identical byte for
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
-  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts.
+  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts. SVG text is always drawn: a
+  family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
+  is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
 - **Determinism of `compare` and `montage`.** The measures of `compare` are computed from exact integer sums with a
   single division, square root, or logarithm at the end, so two runs on the same pixels give the same numbers, and
   its pictures and the contact sheets of `montage` are the same bytes on the same machine. The labels of `montage` use

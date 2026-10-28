@@ -1091,7 +1091,9 @@ rect) - `image-rendering` on an `image` (attribute, `style` declaration or style
 from ancestors) selects the resampling filter: `pixelated`, `crisp-edges` and `optimizeSpeed` draw with
 hard nearest-pixel edges, any other recognized value (for example `auto` or `optimizeQuality`) smooths,
 and an unrecognized value is ignored so the inherited value applies - and best-effort,
-weight/style-aware `text` rendering against a caller-supplied dictionary of per-family font faces:
+weight/style-aware `text` rendering - against a caller-supplied dictionary of per-family font faces
+(and, for a family you do not register, installed fonts and the bundled Liberation fonts - see
+*SvgCodec Default Fonts* below):
 either a single `TrueTypeFont` per family (the legacy shape), or a list of `SvgFontFace` values -
 each pairing a `TrueTypeFont` with the `font-weight`/`font-style` it represents - letting a caller
 register distinct bold/italic variants of a family and have `SvgCodec` pick the closest-matching
@@ -1148,8 +1150,9 @@ whose `Weight`/`Style` most closely matches the element's own cascaded `font-wei
 is selected: an exact style match always beats a style mismatch; among faces tied on style, the
 smallest weight distance wins; among faces tied on both, the face on the same "boldness side"
 (`>= 400` or `< 400`) as the request wins. A `null` value, a dictionary with no entry matching a
-given `text` element's `font-family`, or a matching entry whose face list is empty, causes that
-element to be silently skipped rather than throwing.
+given `text` element's `font-family`, or a matching entry whose face list is empty, makes that
+element use the default font instead (see *SvgCodec Default Fonts* below) - text is never silently
+dropped.
 
 **Exceptions:**
 
@@ -1178,6 +1181,51 @@ Decodes and rasterizes an SVG file at the specified path, as
 - `ArgumentOutOfRangeException`: Thrown for the same reason as the stream overload above.
 - `InvalidDataException`: Thrown for the same conditions as the stream overload above.
 
+##### SvgCodec.Load(..., fonts, SvgLoadOptions) and SvgCodec.LoadWithFontFaces(..., fonts, SvgLoadOptions)
+
+```csharp
+public static Surface Load(Stream stream, int width, int height,
+    IReadOnlyDictionary<string, TrueTypeFont>? fonts, SvgLoadOptions options)
+public static Surface Load(string path, int width, int height,
+    IReadOnlyDictionary<string, TrueTypeFont>? fonts, SvgLoadOptions options)
+public static Surface LoadWithFontFaces(Stream stream, int width, int height,
+    IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts, SvgLoadOptions options)
+public static Surface LoadWithFontFaces(string path, int width, int height,
+    IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts, SvgLoadOptions options)
+```
+
+The same as the overloads without `options`, with explicit load options. `SvgLoadOptions` has one
+property, `UseSystemFonts` (default `true`); `new SvgLoadOptions()` behaves exactly like omitting the
+argument. `options` must not be null (`ArgumentNullException`); the other exceptions are as for the
+overloads above.
+
+##### SvgCodec Default Fonts
+
+A `text` element is drawn even when you register no font. For each `text` element the font is
+chosen in this order:
+
+1. **A font you registered** for a family in the element's `font-family` list (case-insensitive;
+   the whole list is checked against your dictionary first, so a registered family anywhere in the
+   list wins over a generic keyword).
+2. **Otherwise, each family of the `font-family` list, in order:** a generic keyword is drawn with
+   a bundled Liberation font - `sans-serif`, `system-ui`, `ui-sans-serif`, `cursive`, and
+   `fantasy` with Liberation Sans; `serif` and `ui-serif` with Liberation Serif; `monospace` and
+   `ui-monospace` with Liberation Mono - and any other name is looked up among the fonts installed
+   on the machine, matching the family name exactly (ignoring case).
+3. **Otherwise,** Liberation Sans.
+
+Bold is chosen when the cascaded `font-weight` is 600 or more, and italic when `font-style` is
+`italic` or `oblique`; the installed or bundled variant that matches is used. Installed fonts differ
+between machines, so the same SVG can look different on different hosts. For output that is
+identical everywhere, pass `new SvgLoadOptions { UseSystemFonts = false }`: installed fonts are then
+never consulted and every text you did not register a font for uses the bundled Liberation fonts.
+
+```csharp
+// Reproducible: text is drawn with the bundled Liberation fonts on every machine
+var surface = SvgCodec.Load("diagram.svg", 800, 600, fonts: null,
+    new SvgLoadOptions { UseSystemFonts = false });
+```
+
 ##### SvgCodec.Load(Stream stream, int width, int height, IReadOnlyDictionary&lt;string, TrueTypeFont&gt;? fonts = null)
 
 ```csharp
@@ -1194,8 +1242,9 @@ richer `SvgFontFace`-list overload above: each registered font is wrapped as a s
 normal-weight (`400`)/normal-style face, so every `text` element always resolves to that single
 registered font, regardless of its own `font-weight`/`font-style` - exactly as before the richer
 overload existed. If `fonts` is supplied, `text` elements are rendered using the matching
-`TrueTypeFont` keyed by family name; unmatched or missing fonts cause that `text` element to be
-silently skipped rather than throwing. Callers registering more than one face per family (bold/
+`TrueTypeFont` keyed by family name; unmatched or missing fonts make that `text` element use the
+default font (see *SvgCodec Default Fonts* above) rather than being skipped or throwing. Callers
+registering more than one face per family (bold/
 italic variants) should call the richer overload directly instead. Because the richer overload is
 named `LoadWithFontFaces` rather than sharing the `Load` name, there is no ambiguity between the
 two: `Load(stream, width, height, null)` always resolves to this legacy single-font-per-family

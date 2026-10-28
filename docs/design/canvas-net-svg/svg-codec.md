@@ -11,7 +11,9 @@
 The `SvgCodec` class is the sole software unit of the `CanvasNetSvg` system - unlike the five
 units of the `CanvasNet` system's `Codecs` subsystem, whose dependencies are limited to
 `Canvas.Surface`, `SvgCodec`'s dependencies extend to `CanvasNet`'s `Geometry`, `Drawing`, and
-`Fonts` subsystems as well (see the Dependencies section of _CanvasNetSvg System Design_,
+`Fonts` subsystems as well (the `Fonts` dependency includes `Fonts.SystemFontCatalog`, used to
+resolve a `text` element's font when the caller registers none - see the Dependencies section of
+_CanvasNetSvg System Design_,
 `../canvas-net-svg.md`). It provides hand-rolled, decode/
 rasterize-only support for a common real-world subset of SVG (Scalable Vector Graphics)
 documents, rendering them directly into a `Surface` pixel buffer. Unlike `BmpCodec`, `PngCodec`,
@@ -99,7 +101,9 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
 - `text`, with `x`/`y`, `font-family`, `font-size`, `fill`, `text-anchor`
   (`start`/`middle`/`end`), and `font-weight`/`font-style`, rendered through a caller-supplied
   dictionary of per-family `SvgFontFace` lists (or, via the legacy single-font-per-family
-  overload, a plain `TrueTypeFont` dictionary)
+  overload, a plain `TrueTypeFont` dictionary) and, for any family the caller did not register,
+  through installed fonts, the bundled Liberation fonts for the generic families, and a bundled
+  Liberation Sans last resort (see _Text_ below)
 
 #### Out-of-scope subset (tolerated, silently skipped)
 
@@ -222,23 +226,27 @@ percentage capability described above.
 
 ### Data Model
 
-`SvgCodec` now has two small public data types of its own, alongside the shared
+`SvgCodec` now has three small public data types of its own, alongside the shared
 `Codecs.ImageInfo` record struct (see _Codecs Subsystem Design_,
 `docs/design/canvas-net/codecs.md`): `SvgFontFace`
 (a `readonly record struct` pairing a `Fonts.TrueTypeFont` with the `Weight`/`Style` face it
-represents, modeled directly on `ImageInfo`'s "plain immutable data carrier" style) and
+represents, modeled directly on `ImageInfo`'s "plain immutable data carrier" style),
 `SvgFontStyle` (a public two-value enum, `Normal`/`Italic`, deliberately narrowed from CSS's
 three-way `normal`/`italic`/`oblique` keyword set — the reported use case, "bold titles and
 italic keywords", never needs to distinguish a true italic face from a mechanically-slanted
-`oblique` one, so `SvgCodec`'s `font-style` parser maps both keywords onto `Italic`). Internally,
+`oblique` one, so `SvgCodec`'s `font-style` parser maps both keywords onto `Italic`), and
+`SvgLoadOptions` (a sealed record of optional, additive load settings; today only
+`UseSystemFonts`, default `true`, which can be set to `false` for reproducible text output - see
+_Text_ below). Internally,
 it defines a private `RenderState` record capturing the cascading presentation state (fill,
 stroke, fill-opacity, stroke-opacity, opacity, fill-rule, stroke-width, stroke-linecap,
 stroke-linejoin, stroke-miterlimit, stroke-dasharray, stroke-dashoffset, font-family, font-size,
 font-weight, font-style, text-anchor, and the three marker-start/marker-mid/marker-end
 specifications) that is threaded down through the element tree alongside an accumulated
 `System.Numerics.Matrix3x2` transform, plus a private `RenderContext` capturing fixed per-document
-state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, and
-the resolved fit transform).
+state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, the
+`UseSystemFonts` setting, the per-render resolved-font and installed-font-file caches, and the
+resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
 
@@ -278,7 +286,9 @@ neither of which has a transform parameter; they treat `Geometry.Path` coordinat
 pixel-space. `fonts` is optional; when supplied, `text` elements are matched against it by family
 name, then, when a family has more than one registered `SvgFontFace`, by closest
 `font-weight`/`font-style` match (see _Text_ under _Gradient, Use, and Text Support and Limits_
-below). This is the richer of the two `fonts`-accepting overloads — the legacy single-font-per-
+below); a family the caller did not register is resolved to an installed, generic, or bundled
+default font instead (see the same section). This is the richer of the two `fonts`-accepting
+overloads — the legacy single-font-per-
 family overload below delegates to this one.
 
 **Throws:**
@@ -291,8 +301,16 @@ family overload below delegates to this one.
 
 `fonts` is optional; a `null` dictionary, a dictionary with no entry matching a requested
 `font-family`, or a matching entry whose face list is empty, all cause the affected `text`
-element(s) to be silently skipped rather than throwing — see _Gradient, Use, and Text Support and
-Limits_ below.
+element(s) to fall back to the default font resolution rather than being skipped or throwing —
+see _Gradient, Use, and Text Support and Limits_ below.
+
+#### LoadWithFontFaces(Stream, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?, SvgLoadOptions)
+
+The same as the overload above, with explicit `SvgLoadOptions` - the additive way to disable
+installed-font lookup (`UseSystemFonts = false`) for reproducible output. `options` must not be
+null (`ArgumentNullException`); `new SvgLoadOptions()` reproduces the options-free overloads'
+behavior exactly. A non-optional parameter (rather than a defaulted one) keeps every existing call
+site binary- and source-compatible and avoids ambiguity with the options-free overload.
 
 #### LoadWithFontFaces(string, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?)
 
@@ -305,6 +323,11 @@ Opens `path` as a read-only `FileStream` and delegates to
 - `ArgumentException` — `path` is empty or consists only of whitespace
 - `InvalidDataException` / `ArgumentOutOfRangeException` — see the stream overload above
 - Underlying file-system exceptions propagate uncaught
+
+#### LoadWithFontFaces(string, int, int, IReadOnlyDictionary\<string, IReadOnlyList\<SvgFontFace\>\>?, SvgLoadOptions)
+
+The path counterpart of the options overload above; it additionally throws `ArgumentNullException`
+for a null `options`.
 
 #### Load(Stream stream, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
 
@@ -327,8 +350,13 @@ against it by family name (see _Text_ below).
 
 `fonts` is optional (defaulting to `null`); a `null` dictionary, or a dictionary containing a
 `null`-valued entry that happens to match a requested `font-family`, both cause the affected
-`text` element(s) to be silently skipped rather than throwing — see _Gradient, Use, and Text
-Support and Limits_ below.
+`text` element(s) to fall back to the default font resolution rather than being skipped or
+throwing — see _Gradient, Use, and Text Support and Limits_ below.
+
+#### Load(..., fonts, SvgLoadOptions) (Stream and string overloads, single-font dictionary)
+
+The legacy single-font-per-family overloads with explicit `SvgLoadOptions`, delegating to the
+`LoadWithFontFaces` options overloads via `ToFontFaces`. `options` is required and must not be null.
 
 #### Load(string path, int width, int height, IReadOnlyDictionary\<string, TrueTypeFont\>? fonts = null)
 
@@ -1413,12 +1441,45 @@ Each mapped character's glyph outline, advance
 width, and kerning (against the previous glyph) are looked up via
 `Fonts.TrueTypeFont.GetGlyphIndex`/`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`, and the
 resulting glyph run is offset horizontally according to `text-anchor` before each glyph's outline
-is transformed into pixel space and filled. If no `fonts` dictionary is supplied at all, none of
-its entries match the requested family (including every entry in a fallback list), or a matching
-family's face list is empty, that `text`
-element is **silently skipped** — not rendered, and not reported as an error. This is a
-deliberate tolerant-parsing policy: font availability is entirely up to the caller, and a
-document referencing a family the caller did not supply is not malformed input.
+is transformed into pixel space and filled.
+
+**Default font resolution.** A `text` element is never dropped for want of a registered font. A
+private `ResolveFont` helper (`SvgCodec.Fonts.cs`), shared by text rendering, a `clipPath`'s `text`
+child, and the filter bounds pre-pass, always returns a font, in this order:
+
+1. **Caller-registered fonts** - the matching described above, with unchanged precedence and
+   semantics (the whole `font-family` list is checked against the caller's dictionary first, so a
+   registered family later in the list still beats an earlier generic keyword). A family whose
+   registered face list is empty no longer matches.
+2. **Each family of the `font-family` list, in order** - a generic keyword maps to the bundled
+   Liberation fonts via `SystemFontCatalog.LoadBundledFallback` (`sans-serif`, `system-ui`,
+   `ui-sans-serif`, `cursive`, and `fantasy` to Liberation Sans; `serif` and `ui-serif` to
+   Liberation Serif; `monospace` and `ui-monospace` to Liberation Mono; `cursive`/`fantasy` have
+   no better bundled match, so they use Sans); any other name is looked up among the host's
+   installed fonts with `SystemFontCatalog.FindBestMatch`, accepted only when the returned family
+   name equals the requested one (case-insensitively) - `FindBestMatch`'s own generic-bucket
+   substitution is rejected so a missing family falls to the next list entry rather than to an
+   arbitrary installed font - and the matched file is loaded with `TrueTypeFont.Load`. A file
+   that cannot be read or parsed is tolerated (the next family is tried). This step is skipped
+   when `SvgLoadOptions.UseSystemFonts` is `false`; generic keywords never consult installed fonts.
+3. **Last resort** - the bundled Liberation Sans.
+
+The requested weight/style reduce to two flags for steps 2 and 3: bold when the cascaded
+`font-weight` is `>= 600`, italic when `font-style` is `italic`/`oblique`. A `text` with no
+`font-family` at all resolves directly to step 3. The result is cached per render in the
+`RenderContext` (keyed by the raw `font-family` text and the two flags, and by file path/face index
+for loaded installed fonts, so a font file is read at most once per `Load` call); the only state
+shared beyond one render is what `SystemFontCatalog` already holds (its lazily scanned catalog and
+bundled-font cache), so the thread-safety contract is unchanged - `Load` remains safe to call
+concurrently.
+
+**Determinism.** Installed fonts differ from host to host, so the same document with the same
+inputs can rasterize differently on different machines. `SvgLoadOptions.UseSystemFonts = false`
+removes that variable: every text not satisfied by a caller-registered font then renders with the
+bundled Liberation fonts only, giving byte-identical output on every host. Generic keywords and
+the last resort are host-independent regardless of the option. The options are carried by
+additive `Load`/`LoadWithFontFaces` overloads taking a required `SvgLoadOptions`; the existing
+overloads are unchanged and behave as `new SvgLoadOptions()`.
 
 ### Error Handling
 

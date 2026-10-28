@@ -321,27 +321,33 @@ sections:
 
       - id: CanvasNetSvg-Lib-SvgTextRendering
         title: >-
-          The library shall render an SVG text element's characters as glyph outlines from a
-          caller-supplied font, positioned and anchored according to its text-anchor, and shall
-          silently skip text rendering when no matching font is available.
+          The library shall render an SVG text element's characters as glyph outlines, positioned
+          and anchored according to its text-anchor, from a caller-supplied font matching its
+          font-family when one is registered and otherwise from a default font (installed fonts,
+          the bundled Liberation fonts for the generic families, and a bundled Liberation Sans last
+          resort), never silently dropping the text, and shall let a caller disable installed-font
+          lookup for reproducible output.
         tags: [system]
         justification: |
           Callers need text content in an SVG document rendered as recognizable glyph shapes
-          using real font metrics, without a missing font turning an otherwise-renderable
-          document into a failure.
+          using real font metrics, without a missing registered font turning text into nothing,
+          and need a way to make that rendering identical on every host.
         children:
           - CanvasNetSvg-SvgCodec-TextRendering
-          - CanvasNetSvg-SvgCodec-TextFontFallbackSkipsSilently
+          - CanvasNetSvg-SvgCodec-TextFontDefaultFallback
+          - CanvasNetSvg-SvgCodec-TextFontRegisteredPrecedence
+          - CanvasNetSvg-SvgCodec-TextSystemFontsOption
           - CanvasNetSvg-SvgCodec-TextAnchor
         tests:
           - CanvasNetSvg_SystemIntegration_SvgTextRendering_RendersGlyphAtExpectedPosition
+          - CanvasNetSvg_SystemIntegration_SvgTextDefaultFonts_RendersTextWithoutRegisteredFonts
           - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
           - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
           - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
           - SvgCodec_Load_TextAnchorMiddle_CentersTextHorizontally
           - SvgCodec_Load_TextAnchorEnd_RightAlignsText
-          - SvgCodec_Load_TextWithoutFontsDictionary_SkipsSilentlyWithoutThrowing
-          - SvgCodec_Load_TextFontFamilyNoMatch_SkipsSilentlyWithoutThrowing
+          - SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont
+          - SvgCodec_Load_TextFontFamilyNoMatch_RendersDefaultFontNotUnrelatedRegisteredFont
           - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
 
       - id: CanvasNetSvg-Lib-SvgFontWeightStyleMatching
