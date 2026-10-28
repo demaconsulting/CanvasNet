@@ -999,11 +999,53 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
-    ///     Validates that the faces read while the additional directories are scanned are kept, so a chosen face is
-    ///     not parsed from its file again: a font file that is removed after the scan still resolves.
+    ///     Validates that scanning the additional directories retains no parsed font (only lightweight face
+    ///     metadata), that a face is loaded only when it is selected, and that only selected faces are cached.
     /// </summary>
     [Fact]
-    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ScannedFacesAreNotParsedAgain()
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces()
+    {
+        // Arrange: many synthetic fonts of different families in one directory
+        using var directory = new ScadTempDirectory();
+        const int count = 25;
+        for (var i = 0; i < count; i++)
+        {
+            WriteSyntheticFont(directory.Combine($"font{i:D2}.ttf"), $"Synthetic Scan {i:D2}");
+        }
+
+        var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
+        var resolver = new ScadFontResolver(options);
+
+        // Act: an absent family scans every face and selects none
+        var absent = resolver.Resolve(new ScadFontSpec("Synthetic Absent", false, false));
+        var afterScan = resolver.RetainedParsedFaceCount;
+
+        // Selecting faces loads and caches exactly those; repeating a request adds nothing
+        var third = resolver.Resolve(new ScadFontSpec("Synthetic Scan 03", false, false));
+        var again = resolver.Resolve(new ScadFontSpec("Synthetic Scan 03", false, false));
+        var afterOne = resolver.RetainedParsedFaceCount;
+        var last = resolver.Resolve(new ScadFontSpec("Synthetic Scan 24", false, false));
+        var afterTwo = resolver.RetainedParsedFaceCount;
+
+        // Assert: nothing is retained by the scan; the selected faces render correctly
+        Assert.NotNull(absent.Warning);
+        Assert.Equal(0, afterScan);
+        Assert.Equal(ScadFontSource.AdditionalDirectory, third.Source);
+        Assert.Null(third.Warning);
+        Assert.Same(third, again);
+        Assert.Equal(1, afterOne);
+        Assert.Equal(2, afterTwo);
+        Assert.NotEqual(0, third.Font.GetGlyphIndex('H'));
+        Assert.Equal(ScadFontSource.AdditionalDirectory, last.Source);
+        Assert.NotEqual(0, last.Font.GetGlyphIndex('H'));
+    }
+
+    /// <summary>
+    ///     Validates that a face is loaded from its file when it is selected, so a font file that is removed after
+    ///     the scan resolves to the bundled sans font with a warning rather than being kept in memory.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning()
     {
         // Arrange: two synthetic fonts of different families in one directory
         using var directory = new ScadTempDirectory();
@@ -1019,12 +1061,12 @@ public class ScadTextGeometryTests
         File.Delete(second);
         var resolvedSecond = resolver.Resolve(new ScadFontSpec("Synthetic Scan Second", false, false));
 
-        // Assert: the second font comes from the faces kept by the scan, with no warning
+        // Assert: the second face was not retained by the scan, so it cannot be loaded and the bundled font answers
         Assert.Equal(ScadFontSource.AdditionalDirectory, resolvedFirst.Source);
         Assert.Null(resolvedFirst.Warning);
-        Assert.Equal(ScadFontSource.AdditionalDirectory, resolvedSecond.Source);
-        Assert.Null(resolvedSecond.Warning);
-        Assert.NotEqual(0, resolvedSecond.Font.GetGlyphIndex('H'));
+        Assert.Equal(ScadFontSource.Bundled, resolvedSecond.Source);
+        Assert.Contains("could not be loaded", resolvedSecond.Warning);
+        Assert.Equal(1, resolver.RetainedParsedFaceCount);
     }
 
     /// <summary>

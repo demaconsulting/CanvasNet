@@ -61,7 +61,8 @@ sections:
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
                   - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
-                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScannedFacesAreNotParsedAgain
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning
                   - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
                   - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
 
@@ -207,18 +208,22 @@ sections:
                   missing, or
                   unreadable path without failing, stop at fixed bounds on directories, entries, font files,
                   and faces (visiting subdirectories depth first in ordinal order and keeping what was found
-                  before the bound), and poll the cancellation token of the build before every directory,
-                  file, and face so that a canceled build stops the scan with an operation canceled exception.
+                  before the bound), retain only lightweight metadata per scanned face (never a parsed font,
+                  loading a face only when it is selected and caching only selected faces), and poll the
+                  cancellation token of the build before every directory, file, and face so that a canceled
+                  build stops the scan with an operation canceled exception.
                 justification: |
                   The additional directories are caller-supplied paths; scanning them must not loop through a
                   link, crash on a bad path, take unbounded time or memory on a hostile tree, or ignore a
                   cancellation.
                 tests:
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism
                 title: >-

@@ -46,8 +46,10 @@ parity with any other implementation's text metrics is claimed. The behavior is 
 - **`ScadFontSpec`** — a family name (empty for the default font) and the requested bold and italic flags.
 - **`ScadResolvedFont`** — the `TrueTypeFont`, its `ScadFontSource` (`Bundled`, `AdditionalDirectory`, `System`),
   and the warning to report, if any.
-- **`ScadFontResolver`** — per build: the resolutions already made, the fonts already loaded by file and face
-  index, and the faces of the additional directories (`ScadFontFace` values, scanned at most once).
+- **`ScadFontResolver`** — per build: the resolutions already made, the selected fonts already loaded by file and
+  face index (only faces that were selected, so bounded by the distinct fonts the document uses), and the faces of
+  the additional directories (lightweight `ScadFontFace` metadata values, scanned at most once; no parsed font is
+  retained by the scan).
 - **`Placed`** — one glyph placed on the line: its flattened contours in model units, before alignment.
 - The result is an ordinary `ScadGeo`: a single `PolygonRegion` leaf, or a `ScadShape2DKind.Csg` union of leaves
   (one per glyph component) with the tight bounds of all vertices.
@@ -197,8 +199,12 @@ fails:
    given is searched recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
    order of the full path within a directory, so the result never depends on the order the file system lists
    files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
-   faceIndex)`; each face that loads is kept for the rest of the build, so choosing it later does not parse the
-   file again. The family is taken from `GetNameInfo().FamilyName` (the file name without extension when the font
+   faceIndex)`, but only its metadata (family, style flags, path, face index) is kept: the parsed font is released
+   at once, so the scan retains no font and its memory is bounded by the face bound. A face is loaded (its file
+   read again) only when it is selected, and only selected faces are cached for the rest of the build, so the
+   fonts held are bounded by the distinct fonts the document uses; a file removed after the scan therefore falls
+   back to the bundled sans font with the warning. The family is taken from `GetNameInfo().FamilyName` (the file
+   name without extension when the font
    has none) and the style from `IsBold` and `IsItalic`. A missing, malformed, or unreadable directory, a file that
    does not parse, and a face that does not parse are skipped without a diagnostic. The scan is **safe and
    bounded**: a reparse point is never followed, whether it is a root, a subdirectory, or a font file (a root that
