@@ -45,11 +45,16 @@ current transform.
 #### CanvasNet-Rendering-Shapes-RoundRect: FillRoundRect/StrokeRoundRect Draw a Rounded Rectangle With a Clamped Radius
 
 **Tests**: `Shapes_FillRoundRect_RadiusClampedAndPaintsPixels`,
+`Shapes_FillRoundRect_NonSquare_MatchesAnalyticRoundedRectangle`,
+`Shapes_CornerRoundEffect_NonSquareRectangle_MatchesAnalyticRoundedRectangle`,
 `Shapes_StrokeRoundRect_WithSolidStyle_PaintsPixels`,
 `Shapes_StrokeRoundRect_RadiusLargerThanHalfShorterSide_ClampsAndPaintsPixels`
 
 Verifies `FillRoundRect` and `StrokeRoundRect` paint non-empty output and clamp the requested
 corner radius to half of the shorter side whenever the requested radius exceeds that bound.
+The non-square tests additionally compare the filled area, straight edges, and corner arcs
+against the analytic rounded rectangle, for both `Path.RoundRectangle` and
+`CornerRoundEffect` applied to a plain rectangle.
 
 #### CanvasNet-Rendering-Shapes-Circle: FillCircle/StrokeCircle Draw a Circle at a Given Center and Radius
 

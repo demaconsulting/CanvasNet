@@ -26,8 +26,13 @@ sections:
             tests:
               - SvgCodec_Load_Rect_RendersFilledRectangle
               - SvgCodec_Load_RectWithRoundedCorners_CutsCornerButFillsCenter
+              - SvgCodec_Load_RoundedRect_FillMatchesAnalyticRoundedRectangle
+              - SvgCodec_Load_RoundedRect_ZeroRadius_RendersSharpRectangle
+              - SvgCodec_Load_RoundedRect_Stroke_TracesRoundedOutline
+              - SvgCodec_Load_RoundedRect_FillAndStroke_RendersBothFollowingRoundedOutline
               - SvgCodec_Load_Circle_RendersFilledCircle
               - SvgCodec_Load_Ellipse_RendersElongatedFill
+              - SvgCodec_Load_CircleAndEllipse_FillMatchesAnalyticArea
               - SvgCodec_Load_Line_RendersStrokedLine
               - SvgCodec_Load_Polyline_DoesNotCloseBetweenLastAndFirstPoint
               - SvgCodec_Load_Polygon_RendersClosedFilledShape

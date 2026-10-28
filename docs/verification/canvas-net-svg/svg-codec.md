@@ -45,7 +45,12 @@ default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` p
 
 **Tests**: `SvgCodec_Load_Rect_RendersFilledRectangle`,
 `SvgCodec_Load_RectWithRoundedCorners_CutsCornerButFillsCenter`,
+`SvgCodec_Load_RoundedRect_FillMatchesAnalyticRoundedRectangle`,
+`SvgCodec_Load_RoundedRect_ZeroRadius_RendersSharpRectangle`,
+`SvgCodec_Load_RoundedRect_Stroke_TracesRoundedOutline`,
+`SvgCodec_Load_RoundedRect_FillAndStroke_RendersBothFollowingRoundedOutline`,
 `SvgCodec_Load_Circle_RendersFilledCircle`, `SvgCodec_Load_Ellipse_RendersElongatedFill`,
+`SvgCodec_Load_CircleAndEllipse_FillMatchesAnalyticArea`,
 `SvgCodec_Load_Line_RendersStrokedLine`,
 `SvgCodec_Load_Polyline_DoesNotCloseBetweenLastAndFirstPoint`,
 `SvgCodec_Load_Polygon_RendersClosedFilledShape`,
@@ -55,6 +60,12 @@ default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` p
 Renders each basic shape and asserts real pixel colors/alpha at hand-computed positions inside
 and outside the shape (for example, a rounded rect's cut corner remains unfilled while its
 center is filled; a polyline's implicit-closing edge is absent while a polygon's is present).
+The rounded-rect tests use a non-square 200x80 rect (a square rect hides corner-arc endpoint
+errors by symmetry) and compare against the analytic rounded rectangle: total antialiased area
+(`w*h - (4 - pi)*rx*ry`), ink bounds equal to the rect's bounds, straight-edge positions, and
+points just inside and just outside each quarter-ellipse corner, across `rx` only, `ry` only,
+both, `auto`, percentage, clamped, and zero radii, plus stroked and fill-plus-stroke forms. The
+circle/ellipse area test guards the shared arc helper.
 `SvgCodec_Load_ShapesFixture_RendersExpectedShapeColors` exercises the same shapes from a real
 file under `SvgFixtures/`; `SvgCodec_Load_FromFilePath_ReturnsExpectedPixels` exercises the
 `Load(string, int, int, ...)` file-path overload.

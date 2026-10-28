@@ -1,6 +1,8 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Rendering;
+using GeoPath = DemaConsulting.CanvasNet.Geometry.Path;
 using RenderCanvas = DemaConsulting.CanvasNet.Rendering.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Rendering;
@@ -73,6 +75,76 @@ public class ShapesTests
         var canvas = new RenderCanvas(NewSurface());
         canvas.StrokeRoundRect(4, 4, 8, 8, 100, new StrokeStyle(1f), new Rgba32(0, 255, 255, 255));
         Assert.True(CountAlphaPixels(canvas.Surface) > 15);
+    }
+
+    /// <summary>
+    ///     Proves FillRoundRect on a non-square rectangle fills exactly the analytic rounded
+    ///     rectangle: area within tolerance, cut corners unfilled, straight edges in place.
+    /// </summary>
+    [Fact]
+    public void Shapes_FillRoundRect_NonSquare_MatchesAnalyticRoundedRectangle()
+    {
+        // Arrange: 100x40 rect at (10, 10), radius 8 (area = 4000 - (4 - pi) * 64)
+        var canvas = new RenderCanvas(NewSurface(120, 60));
+
+        // Act
+        canvas.FillRoundRect(10, 10, 100, 40, 8, new Rgba32(0, 0, 0, 255));
+
+        // Assert
+        AssertAnalyticRoundedRect(canvas.Surface, 10, 10, 100, 40, 8);
+    }
+
+    /// <summary>
+    ///     Proves <see cref="CornerRoundEffect"/> applied to a non-square rectangle fills the
+    ///     analytic rounded rectangle (same shape as FillRoundRect).
+    /// </summary>
+    [Fact]
+    public void Shapes_CornerRoundEffect_NonSquareRectangle_MatchesAnalyticRoundedRectangle()
+    {
+        // Arrange
+        var canvas = new RenderCanvas(NewSurface(120, 60));
+        var rounded = CornerRoundEffect.Apply(GeoPath.Rectangle(10, 10, 100, 40), 8f);
+
+        // Act
+        canvas.FillPath(rounded, new Rgba32(0, 0, 0, 255));
+
+        // Assert
+        AssertAnalyticRoundedRect(canvas.Surface, 10, 10, 100, 40, 8);
+    }
+
+    private static void AssertAnalyticRoundedRect(Surface surface, int x, int y, int w, int h, int r)
+    {
+        var area = 0.0;
+        for (var py = 0; py < surface.Height; py++)
+        {
+            for (var px = 0; px < surface.Width; px++)
+            {
+                area += surface[px, py].A / 255.0;
+            }
+        }
+
+        var expected = (w * h) - ((4.0 - Math.PI) * r * r);
+        Assert.InRange(area, expected * 0.997, expected * 1.003);
+
+        // Straight edges in place
+        Assert.Equal(255, surface[x + (w / 2), y].A);
+        Assert.Equal(255, surface[x + (w / 2), y + h - 1].A);
+        Assert.Equal(255, surface[x, y + (h / 2)].A);
+        Assert.Equal(255, surface[x + w - 1, y + (h / 2)].A);
+        Assert.Equal(0, surface[x + (w / 2), y - 1].A);
+        Assert.Equal(0, surface[x + w, y + (h / 2)].A);
+
+        // Corners cut: extreme corner pixels empty, point inside the arc (70%) filled,
+        // point outside the arc (130%) empty
+        var d = Math.Sqrt(0.5) * r;
+        foreach (var (sx, sy) in new[] { (-1, -1), (1, -1), (1, 1), (-1, 1) })
+        {
+            var cx = sx < 0 ? x + r : x + w - r;
+            var cy = sy < 0 ? y + r : y + h - r;
+            Assert.Equal(0, surface[sx < 0 ? x : x + w - 1, sy < 0 ? y : y + h - 1].A);
+            Assert.Equal(255, surface[(int)Math.Floor(cx + (sx * 0.7 * d)), (int)Math.Floor(cy + (sy * 0.7 * d))].A);
+            Assert.Equal(0, surface[(int)Math.Floor(cx + (sx * 1.3 * d)), (int)Math.Floor(cy + (sy * 1.3 * d))].A);
+        }
     }
 
     /// <summary>Shapes_FillCircle_ProducesRoundRegion.</summary>
