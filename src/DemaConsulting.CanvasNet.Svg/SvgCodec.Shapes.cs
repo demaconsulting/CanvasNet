@@ -323,7 +323,7 @@ public static partial class SvgCodec
     private static float GetRectRadiusAttribute(XElement element, string name, RenderState state, PercentageAxis axis)
     {
         var raw = (string?)element.Attribute(name);
-        return raw == null || raw.Trim().Equals("auto", StringComparison.Ordinal)
+        return raw == null || string.Equals(raw.Trim(), "auto", StringComparison.OrdinalIgnoreCase)
             ? float.NaN
             : ParseGeometryCoordinate(raw, name, state, axis);
     }

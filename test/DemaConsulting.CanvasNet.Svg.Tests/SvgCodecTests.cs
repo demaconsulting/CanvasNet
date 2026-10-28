@@ -325,6 +325,8 @@ public class SvgCodecTests
     [InlineData("rx='30' ry='10'", 30, 10)]
     [InlineData("ry='15'", 15, 15)]
     [InlineData("rx='10' ry='auto'", 10, 10)]
+    [InlineData("rx='10' ry='AUTO'", 10, 10)]
+    [InlineData("rx=' Auto ' ry='20'", 20, 20)]
     [InlineData("rx='500'", 100, 40)]
     [InlineData("rx='500' ry='5'", 100, 5)]
     [InlineData("rx='10' ry='500'", 10, 40)]
