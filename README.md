@@ -48,6 +48,9 @@ load/crop/resize/save workflows.
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
   booleans, extrusions, `hull`, `minkowski`, `text` with a deterministic bundled font, `color` with alpha, the `%` ghost
   and `#` highlight modifiers, `-D` variables) straight to a surface; unsupported constructs are reported
+- 📉 **Vega-Lite Chart Rendering** - Parse and render a defined subset of Vega-Lite specifications (single view,
+  inline data; bar, rect, point, circle, square, rule, and tick marks) as static pictures: no network access, bundled
+  fonts, byte-identical output; everything outside the subset is reported with a stable `vl-*` identifier
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
   including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
@@ -89,6 +92,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Vsdx`     | Visio (`.vsdx`) diagram rendering                |
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
+| `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
 ## Command-Line Tool
@@ -125,7 +129,8 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `montage`                  | Compose images and document pages into one labeled contact sheet                 |
 | `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
 
-`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and SCAD, and applies `--crop`, `--resize`,
+`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite charts
+(`.vl.json`, `.vl`), and applies `--crop`, `--resize`,
 `--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo operations
 `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`,
 and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are
@@ -145,6 +150,16 @@ A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|
 example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
 directives name are read from the folder of the model and below it only, and a model whose include cannot be found
 is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+
+A Vega-Lite chart is read from a file named `.vl.json` or `.vl`, or from a `.json` file whose `$schema` is a Vega-Lite
+schema, and is drawn at the size its specification lays out (`--scale`, `--width`, `--height`, and `--size` change it),
+for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart` in the `kind` column of
+`canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
+title, and schema version without drawing it. The library implements a defined subset of the language (one view with
+inline data; bar, rect, point, circle, square, rule, and tick marks; x, y, color, size, and opacity encodings), draws
+only the bundled fonts, and never reads the network; everything else (other marks, transforms, layers, remote data, and
+so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first such report into
+a failure). A malformed or invalid specification is the error `vega-lite-error`.
 
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
@@ -189,11 +204,15 @@ canvasnet inspect colors sketch.png --count 5 --json
 # 4c. Draw named views of the OpenSCAD model written from the sketch
 canvasnet render bracket.scad --view front -o front.png --json
 canvasnet render bracket.scad --view top -D width=55 -o top.png --json
+
+# 4d. Draw a Vega-Lite chart; anything the library cannot draw yet is listed in the diagnostics
+canvasnet info sales.vl.json --json
+canvasnet render sales.vl.json --scale 2 -o sales.png --json
 ```
 
 Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
-`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `size-mismatch`, `threshold-failed`, and so
-on); read `diagnostics` even on
+`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `vega-lite-error`, `size-mismatch`,
+`threshold-failed`, and so on); read `diagnostics` even on
 success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
 defaults, and recipes see the [User Guide][link-releases].
 
@@ -371,10 +390,44 @@ var named = ScadDocument.Parse("text(\"Hello\", font = \"Liberation Serif:style=
 using var serif = named.Render(640, 480, fonts);
 ```
 
+Render a Vega-Lite chart (the `DemaConsulting.CanvasNet.VegaLite` package implements a defined subset of the
+language for static pictures: it never touches the network, uses only the bundled fonts unless told otherwise, and
+reports everything it recognizes but cannot draw; it is not affiliated with the Vega project):
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// Parse a specification (or VegaLiteDocument.Open("chart.vl.json") to read a file); the data is inline
+var chart = VegaLiteDocument.Parse("""
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "title": "Crates sold per stall",
+      "data": { "values": [
+        { "stall": "North", "crates": 28 }, { "stall": "South", "crates": 55 },
+        { "stall": "East", "crates": 43 }, { "stall": "West", "crates": 91 } ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "stall", "type": "nominal", "axis": { "labelAngle": 0 } },
+        "y": { "field": "crates", "type": "quantitative" }
+      }
+    }
+    """);
+
+// Render at the natural size of the chart (VegaLiteRenderOptions.Scale multiplies it), and be told about every
+// construct that was recognized but could not be drawn
+var options = new VegaLiteRenderOptions
+{
+    UnsupportedFeatureHandler = feature => Console.WriteLine(feature), // location, vl-* identifier, and message
+};
+using var picture = chart.Render(options);
+PngCodec.Save(picture, "crates.png");
+```
+
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
-and SVG and JPEG 2000 decoding.
+Vega-Lite chart rendering, and SVG and JPEG 2000 decoding.
 
 ## Building
 
@@ -420,6 +473,15 @@ are part of the Noto Project, licensed under the SIL Open Font License, Version 
 Fonts" section of `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license
 text and sourcing/provenance details.
 
+The `DemaConsulting.CanvasNet.VegaLite` package (and the `canvasnet` tool, which bundles it) implements the public
+Vega-Lite specification language and contains a small number of values and algorithms that were ported, with
+attribution, from the Vega and Vega-Lite projects (BSD-3-Clause, Copyright (c) University of Washington Interactive
+Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, and d3-scale-chromatic (ISC, Copyright Mike
+Bostock). The license texts ship in the packages under `licenses/`; see
+[the third-party notice][link-vegalite-third-party] (`src/DemaConsulting.CanvasNet.VegaLite/third-party`) for the
+license texts and the record of what was ported from where. The package is not affiliated with or endorsed by the
+Vega project, the Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab.
+
 ## Support
 
 - [Report a bug or request a feature][link-issues]
@@ -446,5 +508,6 @@ text and sourcing/provenance details.
 [link-nuget]: https://www.nuget.org/packages/DemaConsulting.CanvasNet
 [link-contributing]: https://github.com/demaconsulting/CanvasNet/blob/main/CONTRIBUTING.md
 [link-releases]: https://github.com/demaconsulting/CanvasNet/releases
+[link-vegalite-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.VegaLite/third-party
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues
 [link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

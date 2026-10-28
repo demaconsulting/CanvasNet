@@ -51,8 +51,9 @@ Install the library using the .NET CLI:
 dotnet add package DemaConsulting.CanvasNet
 ```
 
-To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents, and
-OpenSCAD models, from scripts or AI agents), install the `canvasnet` .NET tool, which bundles the libraries. The
+To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents,
+OpenSCAD models, and Vega-Lite charts, from scripts or AI agents), install the `canvasnet` .NET tool, which bundles the
+libraries. The
 chapter on the command-line tool describes it in full:
 
 ```bash
@@ -3791,6 +3792,258 @@ the process cannot provide it, such as a 32-bit process, `Evaluate` throws a `Sc
 `Parse` a `ScadSyntaxException` for the corresponding 16 MiB parser thread) instead of a runtime
 out-of-memory error.
 
+### VegaLiteDocument
+
+`VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`) is distributed via the separate
+`DemaConsulting.CanvasNet.VegaLite` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet`
+package - see the Installation section of the project README. It is the single entry point for Vega-Lite
+specifications and draws them as **static pictures**: a chart is a still image, so interaction (tooltips, links,
+selections, bindings) has no meaning. The package implements a **defined subset** of the public Vega-Lite language
+(see *Supported Vega-Lite Subset*); it does not imply general Vega-Lite support, and everything outside the subset is
+reported, never skipped silently. It is derived with attribution from the Vega-Lite, Vega, and d3 projects and is not
+affiliated with or endorsed by them (see *Vega-Lite Third-Party Attribution*). A document is **immutable and
+thread-safe**: it is created from specification text (JSON), validated once, and can then be measured and rendered any
+number of times, from several threads at once, each call giving the same result for the same options.
+
+```csharp
+public sealed partial class VegaLiteDocument
+{
+    public static VegaLiteDocument Parse(string json, VegaLiteOpenOptions? options = null);
+    public static VegaLiteDocument Open(string path, VegaLiteOpenOptions? options = null);
+    public static VegaLiteDocument Open(Stream stream, VegaLiteOpenOptions? options = null);
+
+    public string? SourceName { get; }
+    public string? SchemaUrl { get; }
+    public int? SchemaMajorVersion { get; }
+    public string? Title { get; }
+    public IReadOnlyList<string> MarkTypes { get; }
+    public IReadOnlyList<VegaLiteDataReference> DataReferences { get; }
+    public IReadOnlyList<string> ParameterNames { get; }
+
+    public VegaLiteSize Measure(
+        VegaLiteRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public Surface Render(
+        VegaLiteRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    public Surface Render(
+        int width,
+        int height,
+        VegaLiteRenderOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+- `Parse` and the two `Open` overloads read UTF-8 text (at most 4,194,304 UTF-16 characters by default; a leading byte
+  order mark is ignored) and throw a `VegaLiteSpecException` with the location of the first problem when the text is
+  not valid JSON, is nested too deeply, or has a known property of the wrong type or value. Plain **Vega**
+  specifications (a `$schema` under `vega.github.io/schema/vega/`) are rejected. `Open(string)` names the source by the
+  path; `Open(Stream)` reads from the current position and leaves the stream open. Opening never loads data, never
+  opens another file, and never uses the network.
+- The descriptive properties (`SchemaUrl`, `SchemaMajorVersion`, `Title`, `MarkTypes`, `DataReferences`,
+  `ParameterNames`) describe the text only: nothing is loaded or evaluated, so they are cheap and safe to read for a
+  file you do not trust. A `VegaLiteDataReference` records the `Kind` of a data source as written (`Inline`, `Url`,
+  `Name`, or `Sequence`), its `Url`, the `RowCount` when the text gives it, and its `Location`.
+- `Measure` computes the size in pixels that `Render` produces for the same options, without drawing anything. It
+  runs the same checks and delivers the same reports, so it is the cheap way to learn the size of a chart.
+- `Render()` draws the chart onto a new `Surface` at its **natural size** (its `width` and `height` plus its axes,
+  title, and padding) multiplied by `VegaLiteRenderOptions.Scale`. The chart is drawn sharply at the final size, not
+  enlarged afterwards. The caller owns, and must dispose, the returned surface.
+- `Render(width, height)` draws the chart onto a new surface of exactly `width` by `height` pixels: the natural chart
+  is scaled uniformly to fit and centered, and the margins that remain take the background. `Scale` is not used,
+  because the size decides the scale.
+
+**Exceptions** (`Measure` and both `Render` overloads):
+
+- `ArgumentOutOfRangeException`: Thrown, before any work, when the explicit size or the scaled natural size is outside
+  1 to `Surface.MaxDimension` on a side.
+- `ArgumentException`: Thrown when `VegaLiteRenderOptions.Parameters` names a parameter that the document does not
+  declare.
+- `VegaLiteSpecException`: Thrown, with the location of the construct, when an axis, scale, or format property has an
+  invalid value that can only be found while laying out (for example an unknown axis orientation or a malformed d3
+  format).
+- `VegaLiteRenderException`: Thrown, with the location of the construct, when the data, scale, axis, or scene cannot
+  be built or a limit of `VegaLiteLimits` is exceeded.
+- `VegaLiteUnsupportedFeatureException`: Thrown at the first unsupported feature when
+  `ThrowOnUnsupportedFeature` is set (see *Vega-Lite Unsupported Features and Strict Mode*).
+- `OperationCanceledException`: Thrown, never wrapped, when the token is canceled before or during the work.
+- `InvalidDataException`: Thrown by `Parse` and `Open`, without a location, when the text is longer than
+  `MaxSourceLength`.
+
+The locations carried by the exceptions and reports are `VegaLiteLocation` values: the `File` (the source name), the
+RFC 6901 JSON `Pointer` of the construct, and its one-based `Line` and `Column` (counted in UTF-16 code units, with
+`\n` as the only line terminator, so they are the same on every platform). `ToString()` gives
+`file:line:column /pointer`, the form editors and build tools recognize.
+
+### VegaLiteOpenOptions and VegaLiteRenderOptions
+
+Both classes are immutable; every property is init-only and validated when set (fail-closed), collections are copied
+and exposed read-only, so one instance can be shared between threads and calls.
+
+<!-- markdownlint-disable MD013 -->
+| `VegaLiteOpenOptions` property | Default | Meaning |
+| ------------------------------ | ------- | ------- |
+| `SourceName` | `null` (the path for `Open(string)`) | The name shown in locations and messages |
+| `Limits` | `null` (`VegaLiteLimits.Default`) | The resource limits of parsing (the source length and the JSON depth) |
+| `BaseDirectory`, `DataPaths`, `FileResolver` | none | The file sandbox of the data-file support that is planned for a later release; they are accepted and stored today but **not yet used** (a local data file is reported as `vl-data-file`) |
+<!-- markdownlint-enable MD013 -->
+
+<!-- markdownlint-disable MD013 -->
+| `VegaLiteRenderOptions` property | Default | Meaning |
+| -------------------------------- | ------- | ------- |
+| `Scale` | 1 | The factor by which the natural size is multiplied (text included, so a larger scale gives a larger, equally sharp image); finite, greater than zero. The scaled size must lie within 1 and `Surface.MaxDimension` |
+| `Background` | `null` | An `Rgba32` that replaces the background of the specification and of the configuration; `null` uses them (white when neither defines one). `new Rgba32(0, 0, 0, 0)` gives a transparent picture |
+| `Config` | `null` | A Vega-Lite configuration as JSON object text, merged over the built-in defaults and the `config` of the specification (the caller wins). This is how a host applies a theme without editing the specification |
+| `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"` |
+| `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
+| `TimeZone` | `null` (UTC) | Accepted and reserved for the time support that is planned for a later release; there is no time scale yet |
+| `Parameters`, `Datasets` | `null` | Caller-supplied parameter values and named data sets, validated and copied when set; accepted and reserved for the parameter and data support that is planned for a later release (they have no effect today). Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
+| `Limits` | `VegaLiteLimits.Default` | The resource limits of the call (see below) |
+| `WarningHandler` | `null` | Receives each `VegaLiteDiagnostic` (a warning); `null` drops them |
+| `UnsupportedFeatureHandler` | `null` | Receives each `VegaLiteUnsupportedFeature`; `null` drops them |
+| `ThrowOnUnsupportedFeature` | `false` | Turns the first unsupported feature into a `VegaLiteUnsupportedFeatureException` (strict mode) |
+<!-- markdownlint-enable MD013 -->
+
+`VegaLiteLimits` bounds every resource of a call. Its sixteen properties are init-only, each at least 1 (the depth
+limits have an upper ceiling too), and the defaults are `MaxSourceLength` 4,194,304 characters, `MaxJsonDepth` 64,
+`MaxDataFiles` 64, `MaxDataBytes` 64 MiB, `MaxDataRows` 1,000,000, `MaxFieldCount` 1,024, `MaxViews` 1,000,
+`MaxCompositionDepth` 16, `MaxSceneItems` 2,000,000, `MaxScaleDomainSize` 100,000, `MaxTicks` 1,000,
+`MaxExpressionLength` 4,096, `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000, `MaxStringLength` 1,048,576, and
+`MaxDiagnostics` 1,000 (the first report beyond it becomes a single `vl-diagnostics-suppressed` warning). The data,
+scale, tick, and scene limits are checked **before** the memory is allocated, so a hostile specification fails with a
+located `VegaLiteRenderException` instead of exhausting memory. The expression and data-file limits belong to features
+that are planned for later releases and are not reached today.
+
+### Supported Vega-Lite Subset
+
+The following is exactly what the package draws today. Anything else that Vega-Lite defines is **recognized and
+reported** with a stable identifier (see *Vega-Lite Unsupported Features and Strict Mode*); the chart is still drawn
+without it. A key that Vega-Lite does not define for a view, mark, encoding, or channel is a warning
+(`vl-unknown-property`); unknown keys of the configuration are ignored.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Schema | A `$schema` of Vega-Lite version 5 or 6, interpreted with the **version 6 defaults** (not the version 5 defaults, for example a view is 300 by 300 pixels by default); no `$schema` at all |
+| Views | One single view. `layer`, `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are reported, and only the title, the background, and the empty view are drawn |
+| Data | Inline `data.values`: an array of objects (one row per object, nested values flattened to path fields such as `a.b`) or of primitives (one row `{"data": value}`) |
+| Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
+| Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
+| Field types | `quantitative`, `nominal`, and `ordinal` |
+| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `sort` (ascending, descending, `null`, or an array of values), and `bin` and `stack` (as `false` or `null` only) |
+| Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette) |
+| Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
+| Legends | **None**: a color, fill, stroke, size, or opacity channel driven by a field is drawn without a legend and reported (`vl-guide-legend`), unless `legend` or `scale` is `null` |
+| Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
+| Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad` or `none`; `background`; the `view` configuration (size, fill, and stroke) |
+| Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism |
+| Transforms, expressions, parameters, time | **None** (see the identifiers below) |
+<!-- markdownlint-enable MD013 -->
+
+The default colors, sizes, orientations, and layout constants follow Vega-Lite 6 and Vega; positions are derived from
+the same rules, so a chart is laid out as Vega-Lite would lay it out up to the width of the text. Marks with a
+missing, `null`, NaN, or non-numeric value on a continuous `x`, `y`, `size`, or `opacity` channel are dropped (the
+Vega-Lite 6 behavior for marks that are not lines), and so are values outside an explicit discrete `domain`.
+Discrete domains are ascending by default, with mixed kinds ordered null, boolean, number, and string. Marks are clipped
+only with `"clip": true`. A line feed inside title text splits the title into lines, which Vega itself does not do.
+
+### Time Zone, Fonts, and Determinism
+
+Rendering is **deterministic**: two renders of one document with the same options are byte-identical, for every
+degree of parallelism, on every machine and in every culture. This holds because the package consults no wall clock,
+environment variable, or locale (numbers are formatted with the d3 `en-US` locale and the minus sign U+2212,
+culture-invariant), the time zone defaults to UTC, and only the **bundled fonts** are used unless you say otherwise.
+
+- **Fonts.** Text is measured and drawn with the bundled Liberation Sans, Liberation Serif, and Liberation Mono, which
+  are metric-compatible with Arial, Times, and Courier and are used for the generic and Arial-like families a chart
+  names. A browser draws with other fonts, so the widths of labels can differ from a
+  browser's by the difference of the advance widths. `VegaLiteFontOptions.UseSystemFonts` is **`false` by default**
+  (unlike `ScadFontResolutionOptions` and the core catalog) so that the output does not depend on the host; set it to
+  `true`, and/or give `AdditionalDirectories`, to let a **named** family (`"font": "Verdana"`) be found in your
+  directories first and then among the installed fonts. A family that cannot be found falls back to the bundled sans
+  font.
+- **Time.** There are no time scales yet: `temporal` fields, `timeUnit`, and `datetime` are reported
+  (`vl-type-temporal`, `vl-encoding-timeunit`). The `TimeZone` option is accepted and reserved; it is UTC when `null`,
+  so the output will not depend on the local zone of the machine when time support arrives.
+- **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, or a network path is
+  reported as `vl-data-remote-url` and is **never fetched**; the chart is drawn with an empty dataset.
+
+### Vega-Lite Unsupported Features and Strict Mode
+
+A construct that Vega-Lite defines but the package cannot draw is reported as a `VegaLiteUnsupportedFeature` with a
+stable, lower-case `Feature` identifier of the form `vl-<area>-<detail>`, a message, and the `VegaLiteLocation` of the
+construct, and the rest of the chart is still drawn. A name taken from the specification is lower-cased without
+separators (`timeUnit` gives `timeunit`). The identifiers are part of the documented behavior of the package and are
+never renamed once released. A **warning** (`VegaLiteDiagnostic`) is a questionable construct that still renders: its
+message starts with its `vl-*` identifier and a colon. Reports are delivered once, in document order, on the calling
+thread, after the work finished and before the method returns or throws.
+
+<!-- markdownlint-disable MD013 -->
+| Identifier | Kind | Reported at, and when |
+| ---------- | ---- | --------------------- |
+| `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version (the chart is rendered with the version 6 defaults) |
+| `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme, a drive letter, or is a network or UNC path (never fetched; empty dataset) |
+| `vl-data-file` | Unsupported | The `data` object, when `url` is a relative local path |
+| `vl-data-named` | Unsupported | The `data` object that has only a `name` |
+| `vl-data-sequence` | Unsupported | `data/sequence` |
+| `vl-data-parse` | Unsupported | `data/format/parse`, when not null |
+| `vl-data-format-csv`, `vl-data-format-tsv`, `vl-data-format-dsv` | Unsupported | `data/format/type` naming a delimited text format |
+| `vl-data-property` | Unsupported | `data/format/property` |
+| `vl-data-values-text` | Unsupported | `data/values` given as a string |
+| `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` given as an object |
+| `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick; the chart is drawn without marks and without axes |
+| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored) |
+| `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
+| `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
+| `vl-scale-color-ramp` | Unsupported | A quantitative `color`, `fill`, or `stroke` field (the default mark color is used) |
+| `vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`bin` and `stack` unless false or null; `sort` only for a shorthand or an object) |
+| `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
+| `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
+| `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
+| `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
+| `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
+| `vl-format-type-custom` | Unsupported | `axis.formatType` |
+| `vl-expr-ref`, `vl-expr-calculate`, `vl-expr-filter`, `vl-expr-label` | Unsupported | An `{"expr": ...}` value in a title, size, padding, background, view, mark, or encoding; a calculate expression; a string filter; `axis.labelExpr` |
+| `vl-transform-<name>` | Unsupported | Every entry of `transform` |
+| `vl-composition-layer`, `-concat`, `-hconcat`, `-vconcat`, `-facet`, `-repeat` | Unsupported | That property; the nested views are examined too |
+| `vl-param-variable`, `vl-param-selection` | Unsupported | Every entry of `params`; the legacy top-level `selection` |
+| `vl-projection` | Unsupported | `projection` |
+| `vl-layout-autosize-<type>` | Unsupported | `autosize` types other than pad and none (laid out as `pad`) |
+| `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
+| `vl-unknown-property` | Warning | A key that Vega-Lite does not define for a view, mark definition, encoding, or channel definition |
+| `vl-diagnostics-suppressed` | Warning | The first report beyond `MaxDiagnostics` |
+<!-- markdownlint-enable MD013 -->
+
+Pass handlers to receive the reports as they are delivered, or set `ThrowOnUnsupportedFeature` to refuse an
+approximate chart: the first unsupported feature, after the earlier reports were delivered to the handlers, is thrown
+as a `VegaLiteUnsupportedFeatureException` that carries the `Feature` and the `Location`. See Examples 30 and 31.
+Planned later releases add, among other things, data files, expressions and row transforms, aggregation and binning,
+legends and further color schemes and scale types, time scales, line-like marks, layers, composition, and parameters;
+until then the constructs are reported with the identifiers above. Geographic constructs (`projection`, `geoshape`,
+`longitude` and `latitude`, topojson) are not planned and remain reported.
+
+### Vega-Lite Third-Party Attribution
+
+`DemaConsulting.CanvasNet.VegaLite` is **derived with attribution**; it is not a clean-room implementation. The
+specification model, normalization, layout structure, and marks are original code written from the public
+documentation, but a small number of values and algorithms were ported from the following projects, and no source
+file, test, example, data set, or documentation text of the upstream projects was copied:
+
+- **Vega-Lite** and **Vega** (BSD-3-Clause, Copyright (c) University of Washington Interactive Data Lab): default
+  configuration values, scale inference rules, the title, axis, and view layout constants, and the axis geometry.
+- **d3-array**, **d3-format**, **d3-scale**, and **d3-scale-chromatic** (ISC, Copyright Mike Bostock): the tick
+  algorithms, the number format grammar, the arithmetic of the linear, band, and point scales, and the ten `tableau10`
+  colors.
+
+The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
+assembly), and `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` records what was ported, from which
+version, and by which unit. The package is **not affiliated with, endorsed by, or promoted by** the Vega project, the
+Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab; the names are used only to
+describe the language that is implemented.
+
 # Examples
 
 ## Example 1: Surface Pixel Access
@@ -4767,6 +5020,135 @@ PngCodec.Save(image, "nameplates.png");
 var scene = ScadDocument.Parse("linear_extrude(height = 1) text(\"HI\", size = 14.09);").BuildScene();
 var bounds = scene.ComputeBounds();
 Console.WriteLine($"{bounds.Max.X:F2} x {bounds.Max.Y:F2}"); // Output: 16.91 x 14.09
+```
+
+## Example 29: Rendering a Vega-Lite Chart
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// A bar chart with inline data. VegaLiteDocument.Open("chart.vl.json") would read the same text from a file.
+var chart = VegaLiteDocument.Parse("""
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "title": "Crates sold per stall",
+      "width": 240,
+      "height": 200,
+      "data": { "values": [
+        { "stall": "North", "crates": 28 },
+        { "stall": "South", "crates": 55 },
+        { "stall": "East", "crates": 43 },
+        { "stall": "West", "crates": 91 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "stall", "type": "nominal", "axis": { "labelAngle": 0 } },
+        "y": { "field": "crates", "type": "quantitative", "axis": { "title": "Crates" } }
+      }
+    }
+    """);
+
+// The document describes the text without loading anything
+Console.WriteLine(chart.Title);                     // Output: Crates sold per stall
+Console.WriteLine(string.Join(", ", chart.MarkTypes)); // Output: bar
+Console.WriteLine(chart.DataReferences[0].Kind);    // Output: Inline
+
+// Measure gives the size Render produces (the data rectangle plus the axes, title, and padding) without drawing
+VegaLiteSize natural = chart.Measure();
+
+// Render at the natural size, then at twice the size (everything, text included, is drawn sharply at the final size)
+using var normal = chart.Render();
+using var doubled = chart.Render(new VegaLiteRenderOptions { Scale = 2 });
+Console.WriteLine($"{normal.Width}x{normal.Height} = {natural.Width}x{natural.Height}");
+PngCodec.Save(doubled, "crates.png");
+
+// Fit the chart into a fixed box: it is scaled uniformly and centered, and the margins take the background
+var gray = new VegaLiteRenderOptions { Background = new Rgba32(244, 244, 244, 255) };
+using var thumbnail = chart.Render(320, 240, gray);
+PngCodec.Save(thumbnail, "crates-thumbnail.png");
+```
+
+## Example 30: Vega-Lite Unsupported Features and Strict Mode
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// A line mark is recognized but not drawn yet
+var chart = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "week": 1, "visits": 120 }, { "week": 2, "visits": 150 } ] },
+      "mark": "line",
+      "encoding": { "x": { "field": "week", "type": "ordinal" } }
+    }
+    """, new VegaLiteOpenOptions { SourceName = "visits.vl.json" });
+
+// Lenient: the chart is drawn without what is not supported, and every report is delivered once, in order, on
+// this thread, before Render returns
+var warnings = new List<VegaLiteDiagnostic>();
+var unsupported = new List<VegaLiteUnsupportedFeature>();
+var lenient = new VegaLiteRenderOptions
+{
+    WarningHandler = warnings.Add,
+    UnsupportedFeatureHandler = unsupported.Add,
+};
+using var picture = chart.Render(lenient);
+
+foreach (var feature in unsupported)
+{
+    // The location is file:line:column and the RFC 6901 pointer of the construct
+    Console.WriteLine($"{feature.Location}: {feature.Feature}"); // Output: visits.vl.json:3:11 /mark: vl-mark-line
+}
+
+// Strict: refuse an approximate chart. The first unsupported feature throws, after it was delivered to the handler
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+try
+{
+    using var never = chart.Render(strict);
+}
+catch (VegaLiteUnsupportedFeatureException ex)
+{
+    Console.WriteLine($"{ex.Location}: {ex.Feature}"); // Output: visits.vl.json:3:11 /mark: vl-mark-line
+}
+```
+
+## Example 31: Themes, Fonts, and Limits for a Vega-Lite Chart
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var chart = VegaLiteDocument.Open("chart.vl.json");
+
+var options = new VegaLiteRenderOptions
+{
+    // 1. A host theme: a configuration that is merged over the specification's own (the caller wins)
+    Config = """{ "bar": { "fill": "steelblue" }, "title": { "fontSize": 16 } }""",
+
+    // 2. Reproducible text: only the bundled Liberation fonts and ./fonts are consulted for a named family
+    Fonts = new VegaLiteFontOptions { UseSystemFonts = false, AdditionalDirectories = ["./fonts"] },
+
+    // 3. Bound the work for specifications you do not control: at most 10,000 data rows and 5,000 scene items
+    Limits = new VegaLiteLimits { MaxDataRows = 10_000, MaxSceneItems = 5_000 },
+};
+
+// 4. Give up after 10 seconds
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+try
+{
+    using var picture = chart.Render(options, timeout.Token);
+    PngCodec.Save(picture, "themed.png");
+}
+catch (VegaLiteRenderException ex)
+{
+    // A limit was exceeded or the data cannot be drawn; the location names the construct
+    Console.WriteLine($"{ex.Location}: {ex.Message}");
+}
 ```
 
 ## Rendering (transform-aware Canvas, text, and shapes)
