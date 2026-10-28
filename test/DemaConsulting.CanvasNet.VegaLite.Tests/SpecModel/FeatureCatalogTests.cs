@@ -455,7 +455,7 @@ public class FeatureCatalogTests
         const string json = """
             { "mark": "point", "encoding": {
               "x": { "field": "a", "type": "quantitative", "scale": { "type": "linear", "zero": false, "nice": true, "padding": 1, "domain": [0, 1], "range": [0, 1] } },
-              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true } },
+              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true, "exponent": 2 } },
               "size": { "field": "a", "type": "ordinal", "scale": { "type": "ordinal" }, "legend": null },
               "opacity": { "value": 1, "scale": { "type": "bin-ordinal", "reverse": true } },
               "stroke": { "value": "x", "scale": { "type": "sqrt" } },
@@ -469,11 +469,39 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-scale-property-paddinginner", "/encoding/y/scale/paddingInner"),
-                ("vl-scale-property-clamp", "/encoding/y/scale/clamp"),
+                ("vl-scale-property-exponent", "/encoding/y/scale/exponent"),
                 ("vl-scale-bin-ordinal", "/encoding/opacity/scale/type"),
-                ("vl-scale-property-reverse", "/encoding/opacity/scale/reverse"),
                 ("vl-scale-sqrt", "/encoding/stroke/scale/type"),
+            ],
+            ids);
+    }
+
+    /// <summary>
+    ///     Validates that a color scheme other than the default palette and a continuous color scale are reported, and the default
+    ///     palette and an ordinal color scale are not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "quantitative", "legend": null },
+              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "tableau10" }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": { "name": "category20" } }, "legend": null },
+              "opacity": { "field": "d", "type": "ordinal", "scale": { "scheme": "blues" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert: the quantitative color has no ramp; tableau10 (also as an object) is available, other schemes are not
+        Assert.Equal(
+            [
+                ("vl-scale-color-ramp", "/encoding/color/type"),
+                ("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"),
+                ("vl-scale-property-scheme", "/encoding/opacity/scale/scheme"),
             ],
             ids);
     }
@@ -487,7 +515,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 3, "format": ".2f", "title": "T", "orient": "top", "labelOverlap": "parity", "tickMinStep": 2 } },
+              "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 3, "format": ".2f", "title": "T", "orient": "top", "labelOverlap": "parity", "tickMinStep": 2, "labelFlush": true, "labelBound": true, "tickBand": "extent" } },
               "y": { "field": "a", "type": "quantitative", "axis": { "encode": { "labels": {} }, "labelExpr": "datum.label", "formatType": "custom", "position": 5 } }
             } }
             """;
@@ -498,8 +526,8 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-guide-axis-labeloverlap", "/encoding/x/axis/labelOverlap"),
-                ("vl-guide-axis-tickminstep", "/encoding/x/axis/tickMinStep"),
+                ("vl-guide-axis-labelbound", "/encoding/x/axis/labelBound"),
+                ("vl-guide-axis-tickband", "/encoding/x/axis/tickBand"),
                 ("vl-guide-encode", "/encoding/y/axis/encode"),
                 ("vl-expr-label", "/encoding/y/axis/labelExpr"),
                 ("vl-format-type-custom", "/encoding/y/axis/formatType"),

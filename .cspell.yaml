@@ -542,6 +542,7 @@ words:
   - hotpink
   - indianred
   - joinaggregate
+  - labelbound
   - labeloverlap
   - lavenderblush
   - lawngreen
@@ -608,6 +609,7 @@ words:
   - strokewidth
   - symlog
   - tahoma
+  - tickband
   - tickminstep
   - timeunit
   - topo

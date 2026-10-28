@@ -1,0 +1,27 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": { "text": "Greenhouse humidity", "subtitle": "Weekly average, made-up readings", "anchor": "start" },
+  "width": 200,
+  "height": 150,
+  "background": "#fffdf5",
+  "data": {
+    "values": [
+      { "week": "W1", "humidity": 61.5 },
+      { "week": "W2", "humidity": 64.25 },
+      { "week": "W3", "humidity": 58 },
+      { "week": "W4", "humidity": 70.75 },
+      { "week": "W5", "humidity": 66 }
+    ]
+  },
+  "config": {
+    "axis": { "gridColor": "#c8d8c0", "labelColor": "#335533", "titleColor": "#224422", "tickColor": "#335533", "domainColor": "#335533" },
+    "axisY": { "grid": true, "gridDash": [3, 2], "format": ".1f" },
+    "bar": { "fill": "#2e7d32", "cornerRadius": 2 },
+    "title": { "color": "#224422", "subtitleColor": "#557755" }
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "week", "type": "ordinal", "axis": { "labelAngle": 0, "title": "Week" } },
+    "y": { "field": "humidity", "type": "quantitative", "scale": { "domain": [50, 75] }, "axis": { "title": "Relative humidity (%)", "tickCount": 5 } }
+  }
+}

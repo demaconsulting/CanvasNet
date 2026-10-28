@@ -59,12 +59,13 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
+///         <item><term><c>vl-scale-color-ramp</c></term><description>the <c>type</c> of a <c>color</c>, <c>fill</c> or <c>stroke</c> channel that has a <c>field</c> and is quantitative (a continuous color scale is not drawn; the default mark color is used).</description></item>
 ///         <item><term><c>vl-encoding-aggregate</c>, <c>-bin</c>, <c>-timeunit</c>, <c>-stack</c>, <c>-sort</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel. <c>bin</c> is reported unless it is false or null; <c>stack</c> unless it is false or null (an implicit stack of bars is reported at the measure channel); <c>sort</c> only for a channel shorthand (such as <c>"-y"</c>) or an object (sort by another field), not for ascending, descending, null or an array of values.</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
-///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice and padding.</description></item>
+///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it is <c>tableau10</c>.</description></item>
 ///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
-///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelOverlap</c>, <c>labelBound</c>, <c>labelFlush</c>, <c>labelFlushOffset</c>, <c>labelSeparation</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>tickMinStep</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
+///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>.</description></item>
 ///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-calculate</c>, <c>vl-expr-filter</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value (anywhere in a view's title, size, padding, background, view, mark or encoding), the expression of a calculate transform, a filter given as a string, and <c>axis.labelExpr</c>.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c>; the name is the transform's property (<c>calculate</c>, <c>filter</c>, <c>timeunit</c>, ...).</description></item>
@@ -104,14 +105,16 @@ internal static class FeatureCatalog
     /// <summary>The scale types that the renderer implements.</summary>
     private static readonly HashSet<string> SupportedScaleTypes = ["linear", "band", "point", "ordinal"];
 
-    /// <summary>The scale properties that the renderer implements.</summary>
-    private static readonly HashSet<string> SupportedScaleProperties = ["type", "domain", "range", "zero", "nice", "padding"];
+    /// <summary>The scale properties that the renderer implements; <c>scheme</c> only for <c>tableau10</c> (see the scale visit).</summary>
+    private static readonly HashSet<string> SupportedScaleProperties =
+    [
+        "type", "domain", "range", "zero", "nice", "padding", "reverse", "paddingInner", "paddingOuter", "align", "round", "clamp", "scheme",
+    ];
 
     /// <summary>The axis properties that the renderer does not implement; each reports <c>vl-guide-axis-&lt;name&gt;</c>.</summary>
     private static readonly HashSet<string> UnsupportedAxisProperties =
     [
-        "labelOverlap", "labelBound", "labelFlush", "labelFlushOffset", "labelSeparation", "tickBand", "tickExtra",
-        "tickMinStep", "position", "translate", "bandPosition", "titleX", "titleY",
+        "labelBound", "tickBand", "tickExtra", "position", "translate", "bandPosition", "titleX", "titleY",
     ];
 
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
@@ -485,6 +488,9 @@ internal static class FeatureCatalog
                     case "geojson":
                         Unsupported("vl-type-geojson", "GeoJSON fields are not supported.", type);
                         break;
+                    case "quantitative" when name is "color" or "fill" or "stroke" && definition["field"] is not null:
+                        Unsupported("vl-scale-color-ramp", "Continuous color scales are not supported yet; the default mark color is used.", type);
+                        break;
                     default:
                         break;
                 }
@@ -562,6 +568,15 @@ internal static class FeatureCatalog
                     if (property.IsString && !SupportedScaleTypes.Contains(property.StringValue!))
                     {
                         Unsupported(Id("scale", property.StringValue!), $"The '{property.StringValue}' scale type is not supported yet.", property);
+                    }
+                }
+                else if (name == "scheme")
+                {
+                    // Only the default categorical palette is available; any other scheme falls back to it
+                    var scheme = property.IsString ? property.StringValue : property["name"]?.AsString();
+                    if (!string.Equals(scheme, "tableau10", StringComparison.Ordinal))
+                    {
+                        Unsupported(Id("scale-property", name), $"The color scheme '{scheme}' is not available; tableau10 is used instead.", property);
                     }
                 }
                 else if (!SupportedScaleProperties.Contains(name))
