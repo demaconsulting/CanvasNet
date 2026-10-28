@@ -320,6 +320,8 @@ sections:
           - CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters
+          - PdfDocument_Load_CombinedVectorTextImageFixture_RendersHoTextInItsOwnRegion
+          - CanvasNetPdf_SystemIntegration_RenderTextAfterScalingCm_OnlyPaintsWhenScaleIsScopedByQ
           - CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk
           - CanvasNetPdf_SystemIntegration_RenderSymbolFontWithoutEmbeddedFont_PaintsVisibleGlyphInk
           - CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException

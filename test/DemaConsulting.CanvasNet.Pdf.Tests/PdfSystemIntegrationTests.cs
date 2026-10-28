@@ -715,6 +715,51 @@ public class PdfSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Regression test for the <c>combined-vector-text-image.pdf</c> "missing HO text" defect:
+    ///     a <c>cm</c> scale that is not wrapped in <c>q</c>/<c>Q</c> legitimately persists in the
+    ///     graphics state (PDF 32000-1 §8.4.2), so text drawn after it is scaled with it and lands
+    ///     off the page. Proves the renderer honors that - the same text paints visible ink when
+    ///     the scale is scoped with <c>q</c>/<c>Q</c> and none at all when it is left unbalanced.
+    /// </summary>
+    /// <param name="scoped">Whether the <c>cm</c> is wrapped in <c>q</c>/<c>Q</c>.</param>
+    /// <param name="expectInk">Whether glyph ink is expected in the text band.</param>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void CanvasNetPdf_SystemIntegration_RenderTextAfterScalingCm_OnlyPaintsWhenScaleIsScopedByQ(bool scoped, bool expectInk)
+    {
+        // Arrange: a 60x20 scale (like the image placement in the combined fixture) applied to a
+        // small filled rect at the bottom of the page, then 30pt text at (10,50) - device y ~[28,50].
+        var scaledRect = "60 0 0 20 0 0 cm 0 0 1 1 re f";
+        var content = (scoped ? $"q {scaledRect} Q" : scaledRect) + " BT /F1 30 Tf 10 50 Td (H) Tj ET";
+        var bytes = BuildSyntheticFontFallbackPdf(
+            "/Type /FontDescriptor",
+            "/Type /Font /Subtype /TrueType /BaseFont /Helvetica /FirstChar 72 /LastChar 72 /Widths [722]",
+            content);
+
+        // Act
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfDocument.Open(stream);
+        using var surface = document.Render(0, 100, 100, Transparent);
+
+        // Assert: the bottom rect (device y >= 80) always paints; ink above it is text only.
+        Assert.True(surface[30, 90].A > 0, "Expected the scaled rectangle to paint.");
+        var textBandInk = 0;
+        for (var y = 0; y < 70; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                if (surface[x, y].A > 0)
+                {
+                    textBandInk++;
+                }
+            }
+        }
+
+        Assert.Equal(expectInk, textBandInk > 0);
+    }
+
+    /// <summary>
     ///     Proves <see cref="PdfDocument.Render(int, int, int, PdfRenderOptions?)"/> resolves a <c>/BaseFont /Symbol</c> font with
     ///     no embedded <c>/FontFile2</c> and no <c>/FontDescriptor</c> entries at all (PDF
     ///     32000-1 §9.6.2.2 permits an entirely absent/empty descriptor) end to end (Phase 6):

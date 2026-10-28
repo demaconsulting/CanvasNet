@@ -2219,7 +2219,9 @@ glyph, asserting its position matches exactly `0 -TL Td`'s own effect.
 `PdfDocument_Text_TJ_ArrayEntryNotStringOrNumber_ThrowsInvalidDataException`,
 `PdfDocument_Text_QuoteOperator_MovesToNextLineThenShows`,
 `PdfDocument_Text_DoubleQuoteOperator_SetsSpacingThenMovesAndShows`,
-`CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters`
+`CanvasNetPdf_SystemIntegration_PdfRender_EmbeddedTrueTypeFontText_PaintsGlyphStrokesNotCounters`,
+`PdfDocument_Load_CombinedVectorTextImageFixture_RendersHoTextInItsOwnRegion`,
+`CanvasNetPdf_SystemIntegration_RenderTextAfterScalingCm_OnlyPaintsWhenScaleIsScopedByQ`
 
 Shows a string via `Tj`, asserting the painted glyph's device-pixel position/size matches the
 composed text-rendering matrix. Shows a `TJ` array containing a numeric position adjustment
@@ -2233,6 +2235,17 @@ setting `Tw`/`Tc` then issuing `'` would. The end-to-end system-integration test
 proves the same glyph-painting pipeline against a real, hand-authored fixture embedding the real
 `OpenSans-Regular.ttf` production font, re-deriving expected ink/counter/background pixel
 positions from the font's own outline metrics rather than hardcoded numbers.
+
+The combined-fixture test renders `combined-vector-text-image.pdf` (rect, line, image and `"HO"`
+text) and asserts the text band above every other construct holds only black ink (at least 100
+painted and 20 fully opaque pixels, none left of the text origin), re-derives from the font's
+own outline that `'H'`'s left stem is painted and `'O'`'s counter is not, and that the rect and
+image remain painted. It guards against a text draw silently landing off the page: the fixture's
+image-placement `cm` is scoped by `q`/`Q`, because an unscoped `cm` legitimately persists in the
+graphics state (PDF 32000-1 §8.4.2) and scales/translates all later text out of the page. A
+`[Theory]` regression test shows the same text after a scaling `cm` both scoped by `q`/`Q`
+(ink painted in the text band) and unscoped (no ink in the text band), proving the renderer
+honors that graphics-state rule exactly.
 
 #### CanvasNetPdf-PdfDocument-TextErrorHandling: No-Font-Selected and Malformed-Operand Text Operators Fail Closed
 
