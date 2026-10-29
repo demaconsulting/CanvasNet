@@ -9,11 +9,16 @@ string, a stream, or a file, drives the internal `SpecModel` subsystem to parse 
 validated result. A document proves that the text is well-formed JSON within the limits of `VegaLiteLimits`, that the
 Vega-Lite properties the renderer depends on have the right shape, and describes the chart without drawing it (schema
 version, title, mark types, data references, parameter names), so that tools can list what a chart needs before they
-render it. **Opening never loads data, never opens another file, and never uses the network.** A document can then be
+render it. **Opening never loads data, never opens another file, never evaluates a parameter or a
+transform, and never uses the
+network**; it does compile the expressions of the specification (so a broken expression fails when the document is
+opened). A document can then be
 **measured** (`Measure`) and **rendered** (`Render`, at its natural size times a scale or at an exact size): both run
-the same internal pipeline, which drives the `SpecModel`, `Data`, `Scales`, `Guides`, `Layout`, `Marks`, and
+the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`, `Layout`,
+`Marks`, and
 `Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
-`Measure` and `Render` read data:** inline rows, named datasets, and sequences need no I/O, and a relative local
+`Measure` and `Render` read data and run the parameters and the row transforms over it:** inline rows, named datasets,
+and sequences need no I/O, and a relative local
 `data.url` is read from the sandbox that the open options define (see _Data Subsystem Design_); a file that cannot be
 used is a `VegaLiteRenderException`, and a remote URL is reported and never fetched.
 
@@ -58,7 +63,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `Surface.MaxDimension`, else `ArgumentOutOfRangeException`), `Background` (`Rgba32?`), `Config` (`string?`; a JSON
   object of at most 4,194,304 characters and 64 levels, else `ArgumentException`), `Parameters`
   (`IReadOnlyDictionary<string, object?>?`; keys non-blank; values null, `bool`, `string`, a finite number of any
-  built-in numeric type, `DateTime`, or `DateTimeOffset`; copied), `Datasets` (named lists of rows of the same value
+  built-in numeric type, `DateTime`, or `DateTimeOffset`; copied; the value of a **variable parameter** of the root
+  view, which replaces the definition of that parameter, `value` or `expr`, and is read by the expressions of the
+  transforms and the row-bound mark values; a selection parameter name is accepted and ignored), `Datasets` (named
+  lists of rows of the same value
   kinds, deep-copied; a caller dataset replaces a top-level dataset of the same name, and a `DateTime` or
   `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; null is UTC), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
@@ -74,7 +82,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `MaxSceneItems`, `MaxScaleDomainSize`, `MaxTicks`, `MaxExpressionLength`, `MaxExpressionDepth` (1 to 256),
   `MaxEvaluationSteps`, `MaxStringLength`, and `MaxDiagnostics`, with the `Default` instance; a value outside its range
   throws `ArgumentOutOfRangeException` when set. The defaults and the stage that enforces each are listed in
-  _CanvasNetVegaLite System Design_.
+  _CanvasNetVegaLite System Design_. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
+  `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the row
+  transforms derive.
 - **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
   in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
   `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.
@@ -131,8 +141,18 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   scales, view request, title, and either the empty layout or `BuildChart`). For a single view with a supported mark it
   creates one `DataLoader` for the call (passing the effective open options, the top-level `datasets` node, the
   caller's `Datasets`, the limits, and the token), loads the data **before** the scene budget is created and before the
-  scales are resolved, and keeps the loader's warnings (`vl-data-parse-failed`) in the plan; the `BuildPlan` step records
-  them after the reports of the specification. The only I/O of the pipeline happens here, on the calling thread.
+  scales are resolved, and then, on the same loader: creates one `ExpressionEvaluator` for the call (the limits, the
+  token, and the dictionary of parameter values), calls `ParameterEnvironment.Populate` (the static parameters, with the
+  caller's `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext`; the transformed
+  table is what the scales and the marks read, and the `RowExpressions` (the compiled
+  expressions and the evaluator) go to
+  `MarkBuilder`. The findings of the data stage are kept in the plan in this order: the loader's warnings
+  (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the transforms ran),
+  and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded
+  in the report sink as soon as
+  they exist (a `finally` block around the parameters and transforms), so a later failure still delivers them, and the
+  `BuildPlan` step records them after the reports of the specification. The only I/O of the pipeline
+  happens here, on the calling thread.
   `BuildChart` iterates the axes and the
   layout at most three passes, then builds the marks once and assembles the scene. `PrepareChartOrReport` wraps it so
   that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
@@ -150,8 +170,13 @@ Errors are typed and fail closed. Null arguments and invalid options throw `Argu
 `ArgumentException`, or `ArgumentOutOfRangeException` at the point of the call or the initialization. Text longer than
 `MaxSourceLength` is an `InvalidDataException`. Malformed JSON, nesting beyond `MaxJsonDepth`, a known property with a
 wrong value, and plain Vega are `VegaLiteSpecException`s with the location of the first problem (detected by
-`SpecParser`; the unit only delegates). Failures while preparing the chart are `VegaLiteSpecException` (an invalid axis
-orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data, scale, axis, or scene limit, and a
+`SpecParser`; the unit only delegates). That includes an expression that cannot be compiled
+and a transform, predicate, or
+parameter of the wrong shape: they fail **when the document is opened**, not when it is rendered. Failures while preparing
+the chart are `VegaLiteSpecException` (an invalid axis
+orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data,
+transform, expression, scale, axis, or
+scene limit, an exhausted evaluation step budget, an invalid or too slow regular expression, and a
 local data file or named dataset that cannot be used: no file source, a path the sandbox refuses, a link, a missing or
 unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined name; in lenient and strict mode alike),
 each with a location and thrown from the stage that detected them; the unit does not catch and convert them,
@@ -166,7 +191,10 @@ throws after a successful call propagates its exception (the surface is disposed
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
   `ConfigResolver`, `ResolvedConfig`
 - **`Data` subsystem** - `DataLoader` (one instance per call; reads local files through `DataFileResolver` and
-  delimited text through `DelimitedTextParser`), `DataTable`, `DataFileResolver`, `DelimitedTextParser`
+  delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`, `DataFileResolver`,
+  `DelimitedTextParser`
+- **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary)
+- **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms`, `TransformContext`, and `RowExpressions`
 - **`Scales` subsystem** - `ScaleResolver`, `ResolvedScales`
 - **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records

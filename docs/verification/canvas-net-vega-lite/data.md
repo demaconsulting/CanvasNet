@@ -14,10 +14,13 @@ verify the units working together on specifications parsed by the real `SpecPars
 (over a real temporary folder or an in-memory callback) for decoded text and hands delimited text to the real parser;
 flattens nested containers into leaf fields named by canonical paths; applies the `parse` conversions; builds the
 immutable table through `DataTable.Create`; enforces the row, field, file, and byte limits with the location of the data
-node; and the resulting table is queried by Vega-Lite field paths. The subsystem's unit tests already use this
-combination (the loader tests build their input with `SpecParser.Parse`, read files through the real resolver, and
-read the result through the table's accessors), so the subsystem-level scenarios name the unit tests that cross the
-boundary and the system-level scenarios that exercise the subsystem through the public API.
+node; and the resulting table is queried by Vega-Lite field paths. The same loader instance also loads the sources of
+the lookup transforms through its file cache, sandbox, and row budget and reserves the rows of the tables that the
+transforms derive (see the _Transforms Subsystem Verification Design_), and the table's cells can hold the composite
+values of the expression engine (see the _Expressions Subsystem Verification Design_). The subsystem's unit tests
+already use this combination (the loader tests build their input with `SpecParser.Parse`, read files through the real
+resolver, and read the result through the table's accessors), so the subsystem-level scenarios name the unit tests that
+cross the boundary and the system-level scenarios that exercise the subsystem through the public API.
 
 No mocking or stubbing is used: the subsystem depends only on the parser's tree types, `VegaLiteLimits`,
 `VegaLiteOpenOptions`, `VegaLiteLocation`, and `VegaLiteRenderException`, and its file sources are real implementations
@@ -127,3 +130,25 @@ the four unit verification documents passes without error or unexpected exceptio
   `DataTableTests.JsNumber_ToString_MatchesJavaScriptNumberFormatting` — numbers are converted to the JavaScript
   `String(number)` text under a culture with a decimal comma and a different minus sign, which is the text that
   category labels and field comparisons depend on.
+- **Composite Values Are Immutable Cells With Identity Equality**:
+  `DataCompositeValueTests.DataValue_FromArray_CopiesElementsAndFormatsLikeJavaScript`,
+  `DataCompositeValueTests.DataValue_Composites_AreEqualOnlyToThemselves`,
+  `DataCompositeValueTests.DataObject_Create_KeepsInsertionOrderAndLastValueOfARepeatedKey`,
+  `DataCompositeValueTests.DataValue_FromRegExp_CarriesOpaquePayload`,
+  `DataCompositeValueTests.DataValue_Compare_ScalarOrderIsUnchangedAndCompositesSortLast`,
+  `DataTableTests.DataTable_FromSortedCells_BuildsATableAndChecksTheShape` — the array, object, and regular-expression
+  values that expressions and transforms produce copy their input, keep their order (a repeated key keeps its first
+  position and takes its last value), print as JavaScript does, are equal only to themselves (also when empty), and sort
+  after every scalar while the scalar order is unchanged; a table built from sorted cells holds a composite cell, a
+  null cell, and a table with rows but no fields, and refuses unordered, repeated, or miscounted fields.
+- **Derived Tables Share The Row Budget And The Sandbox Of The Call**:
+  `DataLoaderTests.DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall`,
+  `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall`,
+  `RowTransformsTests.RowTransforms_Apply_LookupSourceSharesTheRowBudget`,
+  `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`
+  — the rows of a table that a transform derives are reserved against the same `MaxDataRows` total as the loaded rows
+  before they are allocated (five derived rows fit beside three loaded ones under a limit of ten, three more are
+  refused with the count of the rows read before and nothing is counted for the failure, and released rows are free
+  again), a second data source of the same call (the source of a lookup) reads a file once through the same cache and
+  counts it once for `MaxDataFiles`, is refused outside the sandbox at its own `url`, shares the row budget, and stays an
+  empty table that is never asked for when it is remote, and a fold over the limit fails at its transform.

@@ -2,9 +2,12 @@
 
 This document describes the unit-level verification strategy for the `DataTable` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: the internal sealed `DataTable` class (`Create`, `FromRecords`,
-`Empty`, field lookup, and the typed cell accessors), and the supporting types of its file — `DataValue` and
-`DataValueKind` (the scalar value model: null, boolean, number, date, string), `JsNumber` (JavaScript number-to-string,
-rounding, and radix conversion), and `FieldPath` (Vega-Lite field path parsing and canonical names).
+`FromSortedCells`, `Empty`, field lookup, and the typed cell accessors), and the supporting types of its file —
+`DataValue` and `DataValueKind` (the value model: the scalars null, boolean, number, date, and string, and the composite
+kinds array, object, and regular expression that the expression engine produces), `JsNumber` (JavaScript
+number-to-string, rounding, and radix conversion), and `FieldPath` (Vega-Lite field path parsing and canonical names) —
+and `DataObject` and `DataArray` of the sibling file (the immutable, insertion-ordered object payload and the identity
+wrapper of an array payload).
 
 #### Verification Approach
 
@@ -29,7 +32,9 @@ is `3` and
 `-2.5` is `-2`, and `0.49999999999999994` is `0`) are likewise stated from the language rules.
 
 Unit tests reside in `DataTableTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data`
-folder.
+folder; the tests of the composite values are in `DataCompositeValueTests.cs` in the same folder, a separate file
+because the composite kinds were added to the value model beside the existing scalar scenarios and the scalar
+behavior is unchanged (the scalar order, equality, and text scenarios of `DataTableTests.cs` still pass as they were).
 
 #### Test Environment
 
@@ -116,3 +121,59 @@ Asserts the text of each kind (`null`, `true`, `false`, the string itself); that
 `NaN` equal to `NaN`, equal values having equal hash codes, and the number `1` different from the string `"1"` and
 from `true`; and that the quantitative reading accepts numbers, booleans (1 and 0), and numeric strings (including
 `" 12.5 "` and `"1e3"`) and rejects `NaN`, infinity, non-numeric and blank strings, and null.
+
+##### Table From Sorted Cells
+
+**Tests**: `DataTableTests.DataTable_FromSortedCells_BuildsATableAndChecksTheShape`
+
+Asserts that a table built from fields that are already in ordinal order and a flat row-major cell array (two rows of
+the fields `a` and `b`, the cell `b` of the first row an array of `x` and 2) has two rows and two fields, reads each
+cell back (a number, an array whose text is `x,2`, and a null), that a table of no fields with three rows keeps its three
+rows, and that unordered fields, a repeated field, and a cell count that does not match the rows and fields are
+`ArgumentException` errors, a null field list or cell array is an `ArgumentNullException`, and a negative row count is
+an `ArgumentOutOfRangeException`.
+
+##### Arrays Are Immutable Values With JavaScript Text
+
+**Tests**: `DataCompositeValueTests.DataValue_FromArray_CopiesElementsAndFormatsLikeJavaScript`
+
+Asserts that an array value copies its input (a later change of the caller's list is not visible), has the kind `Array`
+and its elements in order, has the JavaScript text of `Array.prototype.toString` (`1,,a` for 1, null, and `a`; the empty
+text for an empty array; nested arrays flattened by their text), can hold composites, rejects a null input with an
+`ArgumentNullException`, and that a scalar has no elements, no object payload, and no regular-expression payload.
+
+##### Composites Are Equal Only To Themselves
+
+**Tests**: `DataCompositeValueTests.DataValue_Composites_AreEqualOnlyToThemselves`
+
+Asserts that two arrays with the same elements are different, two empty arrays are different, two empty objects are
+different, one value and a copy of it are equal and have equal hash codes, an array is never equal to an object or to
+the text it prints as, and two regular-expression values are equal exactly when they carry the same payload, so equality
+is JavaScript identity and never structure.
+
+##### Objects Keep Insertion Order And The Last Value Of A Repeated Key
+
+**Tests**: `DataCompositeValueTests.DataObject_Create_KeepsInsertionOrderAndLastValueOfARepeatedKey`
+
+Asserts that an object built from the members `b`, `a`, and `b` again has the two keys `b` and `a` in that order with the
+last value (3) at the position of the first, that the object copied its input, that lookup by name is exact (case
+sensitive, a missing name gives null and false), that an object of twenty members, which uses an index, finds `k17` and
+not `k20`, that out-of-range positions and null arguments are refused, and that the value wrapper has the kind `Object`,
+shares the payload, and prints as `[object Object]`.
+
+##### Regular Expression Values Carry An Opaque Payload
+
+**Tests**: `DataCompositeValueTests.DataValue_FromRegExp_CarriesOpaquePayload`
+
+Asserts that a regular-expression value has its kind, returns the very payload it was given, prints as the text of the
+payload (`/a+/g`), and rejects a null payload. The payload is opaque to the `Data` subsystem; the expression engine owns
+its meaning.
+
+##### Composite Ordering Leaves The Scalar Order Unchanged
+
+**Tests**: `DataCompositeValueTests.DataValue_Compare_ScalarOrderIsUnchangedAndCompositesSortLast`
+
+Asserts that one value of each scalar kind (null, `false`, 5, a date, and `a`) is ordered as before, that an array sorts
+after every scalar, that an object sorts after an array, that two arrays compare as equal in order, and that the kinds
+null, boolean, number, date, and string keep their positions in the enumeration with the array kind appended after them
+(the value 5), so no stored kind changes.

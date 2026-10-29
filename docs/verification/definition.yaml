@@ -93,6 +93,12 @@ input-files:
   - docs/verification/canvas-net-vega-lite/data/data-loader.md
   - docs/verification/canvas-net-vega-lite/data/data-file-resolver.md
   - docs/verification/canvas-net-vega-lite/data/delimited-text-parser.md
+  - docs/verification/canvas-net-vega-lite/expressions.md
+  - docs/verification/canvas-net-vega-lite/expressions/expression-parser.md
+  - docs/verification/canvas-net-vega-lite/expressions/expression-evaluator.md
+  - docs/verification/canvas-net-vega-lite/expressions/expression-functions.md
+  - docs/verification/canvas-net-vega-lite/transforms.md
+  - docs/verification/canvas-net-vega-lite/transforms/row-transforms.md
   - docs/verification/canvas-net-vega-lite/scales.md
   - docs/verification/canvas-net-vega-lite/scales/scale-model.md
   - docs/verification/canvas-net-vega-lite/scales/scale-resolver.md

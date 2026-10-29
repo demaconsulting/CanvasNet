@@ -1,0 +1,133 @@
+---
+# Software Subsystem Requirements for Expressions
+#
+# These requirements decompose the CanvasNetVegaLite system's responsibility for the Vega expression language
+# into the Expressions subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the bounded
+# compiler of expression text (ExpressionParser), the culture-invariant interpreter with JavaScript coercion
+# (ExpressionEvaluator), and the closed table of the pure functions an expression may call (ExpressionFunctions).
+# The engine is a closed world - no reflection, eval, assignment, new, function expression, file or network
+# access, clock, or random source - and a construct outside it is parsed, collected, and reported by the
+# FeatureCatalog, never executed. Each requirement here links down to the unit requirements that implement it.
+# See docs/verification/canvas-net-vega-lite/expressions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Expressions Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Expressions-Language
+            title: >-
+              The Expressions subsystem shall compile the documented subset of the Vega expression language
+              - literals, the datum and parameter access forms, the unary, arithmetic, comparison, logical,
+              and conditional operators, array, object, and regular expression literals, and calls of a
+              function by name - into an immutable program, shall collect the constructs that it parses
+              but does not execute (a function outside the whitelist, view state, and the deferred
+              operators) with their offsets for the feature catalog, and shall reject the syntax that Vega
+              expressions do not have.
+            justification: |
+              The renderer must understand an expression the way its author and Vega do, and a construct
+              it cannot run must be named rather than guessed at.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionParser-Grammar
+              - CanvasNetVegaLite-Expressions-ExpressionParser-Access
+              - CanvasNetVegaLite-Expressions-ExpressionParser-Constructs
+              - CanvasNetVegaLite-Expressions-ExpressionParser-CompiledProgram
+            tests:
+              - ExpressionParser_Parse_PrecedenceAndAssociativity_MatchJavaScript
+              - ExpressionParser_Parse_DatumAccess_IsRecordedAndReadsFields
+              - ExpressionParser_Parse_UnsupportedConstructs_AreCollectedInOrder
+              - ExpressionParser_Parse_CompiledExpression_ExposesSourceAndLocation
+
+          - id: CanvasNetVegaLite-Expressions-Evaluation
+            title: >-
+              The Expressions subsystem shall evaluate a compiled expression against a datum and a set of
+              parameter values with the JavaScript and Vega semantics - coercion, equality, ordering,
+              operand-returning logical operators, short-circuit evaluation, member and index access, and
+              composite array and object values - producing null for a missing value and for a construct
+              that is deferred, and never touching the host.
+            justification: |
+              The result of an expression decides which rows are drawn and what a calculated field holds, so
+              its semantics must be those of the language it is borrowed from.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Semantics
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Datum
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Parameters
+            tests:
+              - ExpressionEvaluator_Evaluate_Equality_FollowsEcmaScriptTables
+              - ExpressionEvaluator_Evaluate_ShortCircuit_SkipsTheOtherOperand
+              - ExpressionEvaluator_Evaluate_TableRow_ReadsFlattenedFields
+              - ExpressionEvaluator_Evaluate_Parameters_AreLookedUpByName
+
+          - id: CanvasNetVegaLite-Expressions-Functions
+            title: >-
+              The Expressions subsystem shall provide exactly the whitelisted pure functions - the math,
+              text and array, type and conversion, and regular expression functions - with the JavaScript
+              and Vega results, invariant of the culture, and no function that reads a clock, a random
+              source, the file system, or the network.
+            justification: |
+              Calculated fields and filters need the Vega functions, and a closed list of them is what
+              keeps an untrusted expression from reaching anything else.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Whitelist
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-TextAndArrays
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-TypesAndConversions
+            tests:
+              - ExpressionFunctions_Names_AreExactlyTheWhitelist
+              - ExpressionFunctions_Math_ExactValuesAndSpecialCases
+              - ExpressionFunctions_Text_FollowJavaScriptAndVega
+              - ExpressionFunctions_Types_PredicatesFollowVega
+
+          - id: CanvasNetVegaLite-Expressions-Bounds
+            title: >-
+              The Expressions subsystem shall bound every resource an expression can consume - its length
+              and nesting depth when it is compiled, and its evaluation steps, string sizes, regular
+              expression time, and cancellation latency when it is evaluated - accepting exactly a limit,
+              compiling and evaluating without recursion proportional to the text, and failing closed.
+            justification: |
+              Expressions are untrusted input; no text may exhaust the stack, memory, or time of the host.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionParser-Limits
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-StepBudget
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Cancellation
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-RegexSafety
+            tests:
+              - ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit
+              - ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit
+              - ExpressionEvaluator_Evaluate_StepBudget_IsExact
+              - ExpressionEvaluator_Evaluate_CanceledDuringEvaluation_ThrowsOperationCanceled
+              - ExpressionFunctions_Regex_CatastrophicPatternsAreSafe
+
+          - id: CanvasNetVegaLite-Expressions-Locations
+            title: >-
+              The Expressions subsystem shall report a problem in the text of an expression as a
+              VegaLiteSpecException located at the string value that holds it and naming the offset of the
+              problem inside the text, and a problem that depends on the data (step budget, string size, or
+              regular expression failure) as a VegaLiteRenderException located at the expression.
+            justification: |
+              An author needs to find the mistake both in the specification and inside the expression, and
+              the stage that detects a problem decides which kind of exception reports it.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionParser-Locations
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-RuntimeFailures
+            tests:
+              - ExpressionParser_Parse_SyntaxError_CarriesLocationAndOffset
+              - ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation
+              - ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError
+
+          - id: CanvasNetVegaLite-Expressions-Determinism
+            title: >-
+              The Expressions subsystem shall give the same result for the same expression, datum, and
+              parameters on every platform, in every culture and time zone, on repeated calls, and from
+              several threads using one compiled expression, with no clock and no random source.
+            justification: |
+              Reproducibility is required for golden tests and caching, and a compiled expression is shared
+              by every render of a document.
+            children:
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Determinism
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Determinism
+            tests:
+              - ExpressionEvaluator_Evaluate_UnderAnyCulture_IsInvariant
+              - ExpressionEvaluator_Evaluate_Concurrent_IsDeterministic
+              - ExpressionParser_Parse_RepeatedAndConcurrent_GivesIdenticalResults
+              - ExpressionFunctions_Repeated_ResultsAreIdentical

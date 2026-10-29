@@ -18,7 +18,7 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
                 title: >-
                   The FeatureCatalog unit shall report each unsupported construct with a stable
-                  lower-case identifier built from its category and name (for example vl-transform-calculate
+                  lower-case identifier built from its category and name (for example vl-transform-window
                   or vl-composition-layer, with spec names lower-cased and stripped of separators), a
                   message, and the pointer, line, and column of the construct, and shall return the
                   reports in document order.
@@ -83,7 +83,8 @@ sections:
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
                   square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
                   stroke, size, and opacity as vl-channel-name, the temporal and geographic types, and the
-                  encoding properties aggregate, bin, timeUnit, stack, sort, condition, impute, and
+                  encoding properties aggregate, bin, timeUnit, stack, sort (for the forms that are not
+                  supported), condition, impute, and
                   bandPosition when they change the chart, including an implicit bar stack at the
                   measure channel.
                 justification: |
@@ -112,17 +113,59 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
-                  The FeatureCatalog unit shall report each transform, expression reference, calculate
-                  and filter expression, parameter, selection, projection, composition (layer, concat,
-                  hconcat, vconcat, facet, repeat), and autosize fit mode, shall examine the nested views
-                  of a composition, and shall report each construct once at its own location.
+                  The FeatureCatalog unit shall report each transform of a later phase (aggregate,
+                  joinaggregate, window, bin, stack, impute, timeUnit, regression, loess, density, quantile,
+                  and extent) as vl-transform-name, every transform and every variable parameter of a nested
+                  view that is not drawn, each selection parameter (vl-param-selection), the conditional
+                  encodings (vl-encoding-condition), each projection, composition (layer, concat, hconcat,
+                  vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
+                  composition, shall report each construct once at its own location, and shall not report
+                  the transforms calculate, filter, fold, flatten, sample, pivot, and lookup or the variable
+                  parameters of the drawn view.
                 justification: |
-                  These features change what a chart means; none of them is implemented in the first
-                  delivery and each must be reported rather than skipped.
+                  A construct that changes what a chart means and that the renderer does not implement must be
+                  reported rather than skipped, and one that it implements must not make every chart noisy.
                 tests:
                   - FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported
+                  - FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported
+                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+                  - FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported
                   - FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined
                   - FeatureCatalog_Visit_AutosizeFitModesAreReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
+                title: >-
+                  The FeatureCatalog unit shall report, at the string value of the expression and with the
+                  offset inside the text in the message, each call of a function outside the whitelist as
+                  vl-expr-function-name (the name as written), each use of view state (signal, event, item,
+                  and an undeclared width, height, padding, autosize, background, or cursor) as
+                  vl-expr-view-state, and each deferred operator as vl-expr-construct-name, and shall report
+                  an expression reference at a site that the renderer does not evaluate (the title, the
+                  size, the padding, the background, the view, a mark property or channel value outside the
+                  row-bound set) as vl-expr-ref and an axis labelExpr as vl-expr-label, but not an expression
+                  reference at a site that is evaluated.
+                justification: |
+                  An expression construct that evaluates to null or is not evaluated would silently change the
+                  chart; each must be reported by an identifier that names exactly what was not run.
+                tests:
+                  - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
+                  - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
+                title: >-
+                  The FeatureCatalog unit shall report the parts of a supported transform that the renderer
+                  does not execute - a filter on a selection parameter or a selection (vl-transform-filter-param),
+                  a time unit or a date object in a filter predicate (vl-transform-filter-timeunit and
+                  vl-transform-filter-datetime), a pivot operation other than sum and count
+                  (vl-transform-pivot-op), and a lookup from a parameter (vl-transform-lookup-param) - and a
+                  channel sort that is not ascending, descending, null, a value list, or an aggregate sort
+                  object (vl-encoding-sort), and shall not report the supported forms.
+                justification: |
+                  A supported transform that silently ignored part of its definition would draw a plausible
+                  but different chart; the ignored part must be named.
+                tests:
+                  - FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported
+                  - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
                 title: >-

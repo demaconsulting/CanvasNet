@@ -237,6 +237,36 @@ given to the callback. The pure option contracts (the validation and copying of 
 `FileResolver`, and `Datasets`, and the default and ceilings of `MaxDataFiles` and `MaxDataBytes`) are the scenarios
 _Open Options_, _Render Options: Parameters And Datasets Are Copied And Validated_, and _Limits_ above.
 
+#### Parameters, Expressions, And Transforms: Open-Time Errors, Stages, And Warning Order
+
+**Tests**: `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`
+
+The unit creates one data loader, one expression evaluator with one step budget, and one parameter environment per call,
+and runs the stages in the order data, parameters, transforms, scales, marks, so the scenarios are asserted through the
+public API (the units behind the stages are verified under their own designs). Asserts that the values of the static
+parameters are the defaults of the specification overridden by `VegaLiteRenderOptions.Parameters` (a value replaces a
+whole definition, so an overridden expression is not evaluated, and the name of a selection parameter is accepted and
+ignored), that the transforms see them, that a name the document does not declare is an `ArgumentException` when it is
+used, and that `ParameterNames` lists the declared names in declaration order; that the expression and transform errors
+of the specification (a syntax error, a length or nesting over `MaxExpressionLength` or `MaxExpressionDepth`, an
+unknown parameter, a parameter cycle, a repeated name, a wrong transform shape) are located `VegaLiteSpecException`
+errors that fail when the document is opened, before any render or event, while the failures that depend on data
+(`MaxEvaluationSteps`, `MaxStringLength`, `MaxDataRows` and `MaxFieldCount` of a derived table, a lookup outside the
+sandbox, and a regular expression that exceeds its time limit) are `VegaLiteRenderException` errors located at the
+transform or expression at render time; that the one budget of the call is shared by the parameters, the transforms,
+and the mark values; that the reports of the specification are delivered first and the warnings of the stages after
+them, in the order loader warnings, lookup-source loader warnings, and transform warnings (`vl-expr-runtime` and
+`vl-transform-runtime`), and also when a later stage fails, as the data warnings are; that strict mode throws at the
+first report and delivers nothing after it; that a canceled token delivers nothing; and that `Measure` runs the same
+stages as `Render` and equals the rendered size, with byte-identical renders from concurrent tasks.
+
 #### Time Zone: Default And Stored Value
 
 **Tests**: `VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Defaults_AreDocumented`,

@@ -70,6 +70,35 @@ sections:
                 tests:
                   - DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms
 
+              - id: CanvasNetVegaLite-Data-DataTable-CompositeValues
+                title: >-
+                  The DataTable unit shall let a value be an immutable array (copying its elements, with the
+                  JavaScript text form), an immutable object (DataObject, with its keys in insertion order,
+                  a repeated key keeping its first position and its last value), or an opaque regular
+                  expression, shall compare these composite values only by identity (an empty array or object
+                  is not equal to another empty one), shall order them after every scalar without changing the
+                  order of the scalars, and shall keep the behavior of the scalar values unchanged.
+                justification: |
+                  Expression results can be arrays and objects, and a JavaScript-like identity is what the
+                  evaluator's equality and the flatten transform rely on.
+                tests:
+                  - DataValue_FromArray_CopiesElementsAndFormatsLikeJavaScript
+                  - DataValue_Composites_AreEqualOnlyToThemselves
+                  - DataObject_Create_KeepsInsertionOrderAndLastValueOfARepeatedKey
+                  - DataValue_FromRegExp_CarriesOpaquePayload
+                  - DataValue_Compare_ScalarOrderIsUnchangedAndCompositesSortLast
+
+              - id: CanvasNetVegaLite-Data-DataTable-SortedCells
+                title: >-
+                  The DataTable unit shall build a table from a field list that is already in ordinal order
+                  and cells that are already laid out row by row, checking the shape and the limits, so that a
+                  transform can create a derived table without sorting its fields again.
+                justification: |
+                  Derived tables are created for every transform; building them directly from a known layout
+                  keeps the cost proportional to the cells.
+                tests:
+                  - DataTable_FromSortedCells_BuildsATableAndChecksTheShape
+
               - id: CanvasNetVegaLite-Data-DataTable-Limits
                 title: >-
                   The DataTable unit shall reject a table whose row count or field count exceeds the

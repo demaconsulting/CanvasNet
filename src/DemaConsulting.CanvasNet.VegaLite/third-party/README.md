@@ -137,6 +137,31 @@ is the plan of record for what will be ported and is extended in the same change
 The view size that the layout uses is the configured Vega-Lite 6 value of 300 by 300 pixels (Vega-Lite 5 used 200 by
 200).
 
+## Expression language and row transforms (nothing ported)
+
+The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` and `ExpressionRegex` (`Expressions/`) and
+`RowTransforms`, `RowSampler`, `TableLayout` and `ParameterEnvironment` (`Transforms/`) are original C# code. Nothing
+from Vega (including `vega-expression` and `vega-functions`), Vega-Lite or d3 was ported, copied or translated: no
+source file, test, example, data set, constant table or documentation text was taken, which is why these units have no
+row in the provenance table and carry no `Portions derived from` header.
+
+They were written from public descriptions only:
+
+- the documentation of the Vega expression language (the supported syntax, the function names and signatures, and what
+  each function returns), and the ECMAScript semantics of the operators, the type conversions, equality, relational
+  comparison, `Math` and the regular expression flags, which the evaluator follows because the language is a subset of
+  JavaScript;
+- the documentation of the Vega-Lite `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot` and `lookup`
+  transforms and of the `params` property (the property names and the behavior that the documentation states).
+
+Where this package deliberately differs from the upstream behavior (a `lookup` takes the first row of a repeated key,
+`sample` is deterministic, `pivot` supports `sum` and `count` only), the difference is stated in the user guide. The
+`sample` transform does not reproduce the random number generator of Vega: it uses the published 64-bit FNV-1a hash
+(offset basis and prime), the published SplitMix64 generator (its increment, multipliers and shifts) and the classic
+reservoir sampling algorithm, all implemented from their public descriptions. The translation of a JavaScript regular
+expression to a .NET one (`ExpressionRegex`) and the math functions (the host's `System.Math`) are not derived from any
+upstream project.
+
 ## Package-distribution obligation
 
 The BSD-3-Clause license requires that the copyright notice, the list of conditions and the disclaimer be

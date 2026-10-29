@@ -131,6 +131,23 @@ position the text values, and that an array of 20,000 padding entries followed b
 first-index order (a, c, b). The test asserts the result only; the linear cost of the one-time index is by construction
 (a dictionary of first positions) and no timing is measured.
 
+##### Sort By An Aggregate Of A Field Of The Transformed Rows
+
+**Tests**: `RowTransformsTests.ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows`,
+`RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`
+
+These two tests are in `RowTransformsTests.cs` (folder `Transforms`) because the sorted table is the result of a
+calculate transform; they use the real `SpecParser`, `DataLoader`, `RowTransforms`, `ConfigResolver`, and
+`ScaleResolver`. Asserts, for the categories `a` (the weights 2 and 3 after the calculate), `b` (10), and `c` (1) in
+the order of first appearance `a, b, c`, that a `sort` object whose `op` is `sum` of `w` gives `c, a, b` (the sums 1, 5,
+and 10) and `b, a, c` with the order `descending`; that `count` gives `b, c, a` (the counts 1, 1, and 2, the tie kept in
+the order of first appearance); that `max` and `median` give `c, a, b`, `min` with the order descending and `average`
+with the order descending give `b, a, c`, and `mean` gives `c, a, b`; that an operation the resolver does not compute
+(`valid`) and the `encoding` form keep the ascending default order `a, b, c`; that categories with equal aggregates
+keep their order of first appearance whichever the order (`z, m, a` for three equal sums, ascending and descending);
+and that `IsSupportedFieldSort` accepts `{"op":"sum"}` and refuses an unknown order and the text form `"x"`, which is
+the predicate the feature catalog uses to report only the forms that are not computed.
+
 ##### Size And Opacity Ranges
 
 **Tests**: `ScaleResolverTests.ScaleResolver_Resolve_SizeAndOpacityUseTheDefaultRanges`

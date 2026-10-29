@@ -2,13 +2,17 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises four source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises six source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
   frame stack, the limits, the duplicate-key policy, and the translation of reader errors
 - `SpecParser.Validation.cs` - the second half of `SpecParser`: the structural validation rules and the sets of known
   property names, and the detection of unknown properties
+- `SpecParser.Transforms.cs` - the third part of `SpecParser`: the compilation of expressions, the semantic validation of
+  variable parameters, transforms, and predicates, the helpers that the catalog and the transforms share, and
+  `ParameterGraph` (the dependency order of parameters)
+- `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
 
@@ -17,7 +21,9 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 `SpecParser` converts the UTF-8 JSON text of a Vega-Lite specification into an immutable `SpecNode` tree with precise
 locations, under the resource limits of `VegaLiteLimits`, and checks the shape of the properties that the renderer
 depends on, or throws a `VegaLiteSpecException` at the first problem. It exists so that every later stage reads one
-trustworthy model of the specification and points its diagnostics at the exact construct. `SpecMetadata` reads from the
+trustworthy model of the specification and points its diagnostics at the exact construct. It also **compiles the
+expressions** of the supported sites (once, when the document is opened) and validates the semantics of the variable
+parameters and the supported transforms. `SpecMetadata` reads from the
 tree the facts that the public `VegaLiteDocument` properties expose. The unit is original code; the names of the known
 properties were taken from the public Vega-Lite 6 JSON schema.
 
@@ -37,7 +43,9 @@ null; `AsString`, `AsNumber`, and `AsBool` return typed values or null; `GetLoca
 `~0`, `/` becomes `~1`).
 
 **`SpecTree`** holds the `Root`, the `SourceName`, the `Warnings` (the parser's `vl-duplicate-key` and
-`vl-unknown-property` reports), `Locate` and `LocateKey`, and `EnumerateViews()`, which lists the root and the nested
+`vl-unknown-property` reports), the `Expressions` (a `SpecExpressions`: the `CompiledExpression` of every supported site,
+found by the string node that holds the text, or by the `{"expr": ...}` object that wraps it), `Locate` and `LocateKey`,
+and `EnumerateViews()`, which lists the root and the nested
 `layer`, `concat`, `hconcat`, `vconcat`, and `spec` views, parents first, using an explicit work stack.
 
 **`SpecMetadata`** (record) holds `SchemaUrl`, `SchemaMajorVersion`, `Title`, `Marks` (a `SpecMarkEntry` of type and
@@ -60,6 +68,38 @@ here, because the metadata reports an unknown length for it and the data stage f
 instead), and a non-empty `as`. A top-level `datasets` object may hold arrays, text, and objects (the catalog reports
 the last two when a `data.name` refers to them). Both rules use the static helpers `DelimitedTextParser.IsValidDelimiter`
 and `ParseDirectives.TryClassify` of the `Data` subsystem, so that validation, the catalog, and the loader agree.
+
+**Expression, parameter, and transform rules (phase 5).** The same fail-fast rule applies to a construct whose shape cannot
+be what its author meant, and well-formed constructs that the renderer does not execute are left to the catalog:
+
+- **Compiled sites.** The `expr` of every variable parameter of a view, the `calculate` and the string `filter` of every
+  transform entry (also inside a predicate composition, and in every view, nested ones included), and the
+  `{"expr": ...}` values of the paint properties `color`, `fill`, `stroke`, `opacity`, and
+  `strokeWidth` (and `size` for the
+  `point`, `circle`, and `square` marks) of the mark definition and the constant `value` of the `color`, `fill`, `stroke`,
+  `opacity`, and symbol `size` channels, **of the drawn view only**, are compiled with
+  `ExpressionParser.Parse` (limits from
+  `VegaLiteLimits`, location of the string value) and kept in `SpecTree.Expressions`. Any other expression is not compiled.
+- **References.** An identifier of a compiled expression that is not a function or a constant
+  is a parameter reference, and
+  it must name a parameter declared in the view that contains the expression or an ancestor view (a selection parameter
+  counts); the view signals `width`, `height`, `padding`, `autosize`, `background`, and `cursor` are also accepted (and
+  reported as view state when no parameter declares them). Any other name is a located error that names the offset.
+- **Parameters.** A parameter needs a non-empty `name`; names are unique within one view and may not be `datum`, `event`,
+  `item`, or `parent`; the references between the expressions of the variable parameters of one view must not form a cycle
+  (the error is located at the `expr` of the lowest-numbered parameter that is on or depends on the cycle, found by
+  `ParameterGraph.Sort`, a deterministic topological order that takes the earliest-declared ready parameter first).
+- **Transforms.** Every supported transform is checked for its shape: `calculate` needs a text `as`; `filter` is an
+  expression text or a predicate (an `and` or `or` array, a `not`, a `param` that names a declared parameter, a `selection`
+  text, or a `field` with exactly one of `equal`, `lt`, `lte`, `gt`, `gte`, `range` (two values), `oneOf` (an array), and
+  `valid` (a boolean)); `fold` and `flatten` are arrays of field paths with an `as` of the right length (one or two names
+  for a fold, at most as many as the fields for a flatten); `sample` is a non-negative
+  number; `pivot` has a field path, a
+  `value` field, an optional `groupby` array, a non-negative `limit`, and a text `op`; `lookup` has a field path and a `from`
+  with either a `param` text or a `data` object (validated like any `data`), a `key` field
+  path, optional `fields`, and an
+  `as` and `default` that fit them (a `default` is a scalar). Predicate nesting is bounded by `MaxJsonDepth`, so the
+  recursive check cannot exhaust the stack. A transform of a later phase is accepted without a shape check.
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -85,6 +125,19 @@ an error; a duplicate key keeps the last value at the position of the first occu
   encoding, or channel definition. It rejects a `$schema` naming plain Vega with a clear message.
 - `ParseSchemaMajorVersion(string url)` - extracts the digits (at most four) after `/vega-lite/v`, or null.
 - `IsChannelName(string)` and `FindTransformOperation(SpecNode)` - small helpers shared with the catalog.
+- `CompileExpression(SpecNode text)` (in `SpecParser.Transforms.cs`) - parses the string with `ExpressionParser.Parse`,
+  checks the parameter references against `FindParameter` (the nearest view that declares the name), and stores the result
+  in the tree's expression map. `ValidateParameterSemantics`, `ValidateTransformEntry`, `ValidateFilter`, `ValidatePredicate`,
+  `ValidatePivot`, `ValidateLookup`, `CompileMarkExpressions`, and `CompileChannelExpression`
+  apply the rules above from the
+  validation pass. The static helpers `IsSupportedTransform(name)`, `IsDrawnView(root, view)`, `IsViewSignal(name)`,
+  `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
+  validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
+  array, so a reference costs one lookup.
+- `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
+  earliest-declared ready parameter first), and reports the lowest index that could not be
+  ordered (a cycle), or -1; the same
+  function gives the evaluation order of `ParameterEnvironment`.
 - `SpecMetadata.Read(SpecTree)` - reads the schema, title (a string, a title object's text, or an array of lines joined
   by a line feed; null for an expression), marks, data references, and parameter names. For a data object the source is
   chosen by precedence (inline `values`, then `url`, then `sequence`, then `name`), and a `sequence` with numeric
@@ -101,7 +154,12 @@ longer than `MaxSourceLength` is an `InvalidDataException` (no location is meani
 first problem), invalid UTF-8, nesting deeper than `MaxJsonDepth` (at the crossing), a string longer than
 `MaxStringLength`, a number outside the double range, a root that is not an object, any content after the root object other
 than whitespace (a second value is rejected at its own position), a `$schema` naming plain Vega, and a
-known property of the wrong type or value (the first in document order). A null argument is a programming error and
+known property of the wrong type or value (the first in document order). An expression that cannot be compiled is a
+`VegaLiteSpecException` located at the string value of the expression (its pointer, line, and column) whose message ends
+with the zero-based offset inside the expression text (a syntax error, a text longer than `MaxExpressionLength`, nesting
+beyond `MaxExpressionDepth`, an invalid regular expression literal, or a reference to an undeclared parameter); a parameter
+cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
+of the wrong shape are located at the offending value. A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
 
 #### Dependencies
@@ -111,14 +169,19 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
 - **`FeatureReport`** - the report record of the `FeatureCatalog` unit, used for the parser's own warnings
 - **`DelimitedTextParser.IsValidDelimiter`** and **`ParseDirectives.TryClassify`** - the delimiter and `parse` entry
   rules of the `DelimitedTextParser` unit of the `Data` subsystem, used by the data format validation
+- **`ExpressionParser`**, **`CompiledExpression`**, and **`ExpressionConstruct`** - the compilation of the text of an
+  expression and the constructs it collects (the `Expressions` subsystem), and **`FieldPath`** of the `Data` subsystem
+  (the validation of field names)
 - **.NET base class library** - `System.Text.Json` (`Utf8JsonReader`), `System.Text` (`UTF8Encoding`), and
   `System.Globalization` (invariant-culture parsing of the schema version)
 
 The unit does not depend on the other two units for behavior; `FeatureCatalog` and `ConfigResolver` depend on the tree.
+The dependency on the `Expressions` subsystem is one-directional: `Expressions` never reads the tree.
 
 #### Callers
 
 `VegaLiteDocument` is the production caller of `Parse` and `SpecMetadata.Read`. The `Data`, `Scales`, `Guides`,
-`Layout`, and `Marks` subsystems and the other two `SpecModel` units consume the resulting `SpecTree` and `SpecNode`
-types. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs` call the entry points
+`Layout`, `Marks`, and `Transforms` subsystems and the other two `SpecModel` units consume the resulting `SpecTree` and
+`SpecNode` types (the `Transforms` and `Marks` subsystems also read the compiled expressions and the parameter helpers).
+The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs` call the entry points
 directly through `InternalsVisibleTo`.

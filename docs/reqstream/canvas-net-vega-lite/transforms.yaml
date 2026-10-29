@@ -1,0 +1,143 @@
+---
+# Software Subsystem Requirements for Transforms
+#
+# These requirements decompose the CanvasNetVegaLite system's responsibility for row transformation into the
+# Transforms subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the RowTransforms unit
+# that runs the transforms calculate, filter, fold, flatten, sample, pivot, and lookup eagerly after the data
+# loader and before the scales, and the static parameter environment that its expressions read. Aggregation,
+# window, bin, stack, impute, time-unit, and statistical transforms are deferred to later phases and are
+# reported by the FeatureCatalog; selection parameters and conditional encodings stay deferred. Each requirement
+# here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
+# for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Transforms-Pipeline
+            title: >-
+              The Transforms subsystem shall run the supported transforms of the drawn view in their written
+              order on the table that the Data subsystem loaded, before any scale is resolved, each reading an
+              immutable table and producing a new one, shall skip a transform of a later phase without
+              approximating it, and shall expose the recoverable problems of a transform as located warnings.
+            justification: |
+              Where transforms sit in the pipeline decides what the scales and marks see, and a transform that
+              is not implemented must be reported rather than half done.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Pipeline
+              - CanvasNetVegaLite-Transforms-RowTransforms-Warnings
+            tests:
+              - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
+              - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+              - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
+
+          - id: CanvasNetVegaLite-Transforms-RowOperations
+            title: >-
+              The Transforms subsystem shall evaluate a calculate transform once per row to add or replace a
+              field, and keep the rows that satisfy a filter expression or predicate (equal, lt, lte, gt, gte,
+              range, oneOf, valid, composed with and, or, and not).
+            justification: |
+              Calculating and filtering are the transforms that nearly every chart with an expression needs.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Calculate
+              - CanvasNetVegaLite-Transforms-RowTransforms-Filter
+            tests:
+              - RowTransforms_Apply_CalculateAddsAndReplacesFields
+              - RowTransforms_Apply_FilterPredicatesAndCompositions
+              - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
+
+          - id: CanvasNetVegaLite-Transforms-Reshaping
+            title: >-
+              The Transforms subsystem shall reshape a table with fold (one row per folded field), flatten
+              (one row per array element), and pivot (one column per distinct pivot value, summed or
+              counted per group), each with a defined output order and field naming.
+            justification: |
+              Wide, nested, and long data have to be reshaped into the form that the encodings read.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Fold
+              - CanvasNetVegaLite-Transforms-RowTransforms-Flatten
+              - CanvasNetVegaLite-Transforms-RowTransforms-Pivot
+            tests:
+              - RowTransforms_Apply_FoldProducesKeyAndValueRows
+              - RowTransforms_Apply_FlattenExpandsArraysAndScalars
+              - RowTransforms_Apply_PivotSumsValuesPerGroup
+              - CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows
+              - CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields
+
+          - id: CanvasNetVegaLite-Transforms-Lookup
+            title: >-
+              The Transforms subsystem shall join the fields of the first matching row of a secondary source
+              into each row, loading that source through the loader of the call so that it keeps the data
+              sandbox, the file cache, and the shared row budget, and shall skip a lookup whose source is a
+              parameter.
+            justification: |
+              Lookup is how a second table joins a chart; it must not become a second, unbounded way to read
+              files.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Lookup
+            tests:
+              - RowTransforms_Apply_LookupCopiesFieldsOfTheFirstMatch
+              - RowTransforms_Apply_LookupInFilesUsesTheSandboxAndTheFileCache
+              - CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields
+
+          - id: CanvasNetVegaLite-Transforms-Sampling
+            title: >-
+              The Transforms subsystem shall sample rows deterministically, seeding the generator from the
+              position of the transform in the specification and from nothing else, so that the same
+              specification samples the same rows on every call, thread, and platform.
+            justification: |
+              Reproducible rendering is a system contract, so a sample cannot depend on a clock or a process
+              random source.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Sample
+            tests:
+              - RowSampler_Select_MatchesTheHandComputedReservoir
+              - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+
+          - id: CanvasNetVegaLite-Transforms-Parameters
+            title: >-
+              The Transforms subsystem shall build the environment of static variable parameters of the call
+              from their values and expressions, evaluating them once in dependency order, letting the caller's
+              render parameters replace a definition, and reading a parameter in an expression or in a filter
+              predicate.
+            justification: |
+              Static parameters let a host change a chart without editing its text, and they must have one
+              defined value per call.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Parameters
+            tests:
+              - RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden
+              - RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness
+              - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
+
+          - id: CanvasNetVegaLite-Transforms-Limits
+            title: >-
+              The Transforms subsystem shall bound the rows, fields, cells, string lengths, and evaluation
+              steps that transforms create, reserving the output of a fold or flatten against the shared row
+              budget before it allocates it, failing closed with a located VegaLiteRenderException when a
+              limit is exceeded, and stopping with an OperationCanceledException when the cancellation token
+              is canceled.
+            justification: |
+              Transforms can multiply the data of a chart, so their cost must be bounded before it is spent
+              and cancelable by the caller.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Limits
+              - CanvasNetVegaLite-Transforms-RowTransforms-Cancellation
+            tests:
+              - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
+              - RowTransforms_Apply_CanceledTokenStopsTheTransforms
+              - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
+
+          - id: CanvasNetVegaLite-Transforms-Determinism
+            title: >-
+              The Transforms subsystem shall give the same table for the same input, specification, and
+              parameters on repeated and concurrent calls, with no clock and no random source, and a measure
+              shall match the render that follows.
+            justification: |
+              Reproducibility is required for golden tests, and a measured size must be the size rendered.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-Determinism
+            tests:
+              - RowTransforms_Apply_SampleIsIdenticalWhenRepeatedAndConcurrent
+              - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical

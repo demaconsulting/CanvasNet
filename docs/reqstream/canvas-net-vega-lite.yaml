@@ -3,15 +3,17 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.VegaLite
 # package (root namespace DemaConsulting.CanvasNet.VegaLite; internal subsystem namespaces SpecModel, Data,
-# Scales, Guides, Layout, Marks, and Scenegraph) from the perspective of its consumers, without specifying
-# implementation details.
+# Expressions, Transforms, Scales, Guides, Layout, Marks, and Scenegraph) from the perspective of its
+# consumers, without specifying implementation details.
 #
 # CanvasNetVegaLite is an independent software system distributed as its own NuGet package. It reads a
 # Vega-Lite specification and renders a static, deterministic chart onto a CanvasNet Surface using only
 # managed code and the public CanvasNet APIs: there is no JavaScript runtime, no network access, and no
 # dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view
 # whose data is inline, a local CSV, TSV, DSV, or JSON file read from a sandbox, a named dataset, or a generated
-# sequence, the marks bar, rect, point, circle, square, rule, and tick, linear, band, and point scales, axes, and
+# sequence, the row transforms calculate, filter, fold, flatten, sample, pivot, and lookup with a closed subset
+# of the Vega expression language and static variable parameters, the marks bar, rect, point, circle, square,
+# rule, and tick, linear, band, and point scales, axes, and
 # titles - and reports every recognized construct outside that subset with a stable vl-* identifier instead of
 # skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
 # never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
@@ -476,3 +478,143 @@ sections:
           - Ticks_Ticks_LinearRangeMatchesHandDerivedExpectedVector
           - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
           - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
+
+      - id: CanvasNetVegaLite-ExpressionLanguage
+        title: >-
+          The library shall evaluate a documented subset of the Vega expression language - literals, datum
+          and parameter access, the unary, arithmetic, comparison, logical, and conditional operators with
+          JavaScript coercion, array and object values, and a closed list of pure functions - once per row
+          for the calculate and filter transforms and for the row-bound color, opacity, width, and size
+          values of marks and encodings, so that an expression selects and computes exactly what the same
+          expression does in Vega, with no access to the host.
+        tags: [system]
+        justification: |
+          Calculated fields and filters are how most real charts derive what they draw; the semantics must
+          be those of the language the author wrote the expression in, and the engine must be a closed world.
+        children:
+          - CanvasNetVegaLite-Expressions-Language
+          - CanvasNetVegaLite-Expressions-Evaluation
+          - CanvasNetVegaLite-Expressions-Functions
+          - CanvasNetVegaLite-Data-CompositeValues
+          - CanvasNetVegaLite-Marks-ExpressionValues
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
+          - CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow
+
+      - id: CanvasNetVegaLite-ExpressionSafety
+        title: >-
+          The library shall bound every resource that an expression can consume - its length, its nesting
+          depth, the steps of its evaluation, the size of its strings, and the time of its regular
+          expressions - accepting exactly a limit, never recursing in proportion to the text, never
+          reaching a clock, a random source, the file system, the network, or reflection, and failing closed
+          with a located exception when a limit is exceeded.
+        tags: [system, security]
+        justification: |
+          A specification may come from an untrusted source; an expression must not be a way to exhaust the
+          stack, memory, or time of the host or to reach anything beyond the chart.
+        children:
+          - CanvasNetVegaLite-Expressions-Bounds
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
+          - CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed
+
+      - id: CanvasNetVegaLite-StaticParameters
+        title: >-
+          The library shall support the static variable parameters of a specification - a value or an
+          expression per parameter, evaluated once per call in dependency order, replaced by the caller's
+          Parameters render option, and read by an expression or by a filter predicate - and shall report
+          selection parameters, event bindings, and scale bindings as unsupported features.
+        tags: [system]
+        justification: |
+          Hosts must be able to change a chart without editing its text, and an interactive parameter that
+          cannot act on a static chart must be named, not ignored.
+        children:
+          - CanvasNetVegaLite-Transforms-Parameters
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
+          - CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms
+          - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+
+      - id: CanvasNetVegaLite-RowTransforms
+        title: >-
+          The library shall apply the row transforms calculate, filter (an expression, or the predicates
+          equal, lt, lte, gt, gte, range, oneOf, and valid composed with and, or, and not), fold, flatten,
+          sample, pivot (sum and count), and lookup of the drawn view in their written order to the loaded
+          data before any scale is resolved, shall order a category by an aggregate of the transformed
+          rows, and shall load the secondary source of a lookup through the same sandbox and budget as the
+          main data, so that the chart draws the transformed rows.
+        tags: [system]
+        justification: |
+          Charts rarely draw their data as it is stored; the supported transforms reshape and select it,
+          and the later stages must see only the result.
+        children:
+          - CanvasNetVegaLite-Transforms-Pipeline
+          - CanvasNetVegaLite-Transforms-RowOperations
+          - CanvasNetVegaLite-Transforms-Reshaping
+          - CanvasNetVegaLite-Transforms-Lookup
+          - CanvasNetVegaLite-Transforms-Sampling
+          - CanvasNetVegaLite-Data-LookupSources
+          - CanvasNetVegaLite-Scales-Domains
+          - CanvasNetVegaLite-VegaLiteDocument-TransformPipeline
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
+          - CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows
+          - CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields
+          - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+
+      - id: CanvasNetVegaLite-TransformLimits
+        title: >-
+          The library shall bound the rows, fields, cells, string lengths, and evaluation steps that
+          transforms and expressions create, counting the rows of a derived table and of a lookup source in
+          the same budget as the loaded rows and reserving them before they are allocated, shall keep the
+          data sandbox in force for a lookup source, shall fail closed with a located
+          VegaLiteRenderException when a limit is exceeded, and shall observe the cancellation token between
+          transforms and at least every 1,024 rows.
+        tags: [system, security]
+        justification: |
+          Transforms can multiply the data of a chart; untrusted specifications must not be able to exhaust
+          memory or time, and callers must be able to abandon the work.
+        children:
+          - CanvasNetVegaLite-Transforms-Limits
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
+
+      - id: CanvasNetVegaLite-TransformDeterminism
+        title: >-
+          The library shall give the same transformed rows, the same sampled rows, the same stable category
+          order, and the same image for the same specification and options on every platform, in every
+          culture and time zone, and for repeated and concurrent measure and render calls, with a measure
+          that matches the render that follows and no dependence on a clock or a random source.
+        tags: [system]
+        justification: |
+          Reproducibility is required for golden tests, caching, and trustworthy results; a sample or a sort
+          that varied between runs would make that impossible.
+        children:
+          - CanvasNetVegaLite-Transforms-Determinism
+          - CanvasNetVegaLite-Expressions-Determinism
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
+          - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+
+      - id: CanvasNetVegaLite-ExpressionDiagnostics
+        title: >-
+          The library shall fail closed when a specification is opened with a VegaLiteSpecException located
+          at the offending value and naming the offset inside the expression for an expression syntax error,
+          an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
+          report as unsupported features, with the stable identifiers vl-expr-function-name,
+          vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
+          shall keep reporting the transforms, parameters, conditional encodings, and functions of later
+          phases; and shall let strict mode abort at the first such report.
+        tags: [system]
+        justification: |
+          A mistake must be found with its location, and a construct that is not executed must be named so
+          that a chart is never approximated silently.
+        children:
+          - CanvasNetVegaLite-Expressions-Locations
+          - CanvasNetVegaLite-SpecModel-ExpressionValidation
+          - CanvasNetVegaLite-VegaLiteDocument-ExpressionErrors
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
+          - CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened
+          - CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode
+          - CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported

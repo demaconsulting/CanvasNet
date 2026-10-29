@@ -2,10 +2,12 @@
 
 This document describes the unit-level verification strategy for the `SpecParser` unit in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `SpecParser` class (the `Parse` entry
-points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs`, and
+points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs`, the compilation of
+expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, and
 `ParseSchemaMajorVersion`), and the types of the sibling files that carry its result — `SpecNode`, `SpecNodeKind`,
-`NodePosition`, `SpecTree` (with `EnumerateViews`), and `SpecMetadata` (the description of the document read from the
-tree).
+`NodePosition`, `SpecTree` (with `EnumerateViews`), `SpecMetadata` (the description of the document read from the
+tree), `SpecExpressions` (the compiled expressions of the tree, found by their string node), and `ParameterGraph` (the
+dependency order of the parameters).
 
 #### Verification Approach
 
@@ -14,7 +16,8 @@ tree: node kinds and values, properties and elements in document order, the RFC 
 the one-based line and column of the first character of each value (and of each property key). Every error path is
 asserted as a `VegaLiteSpecException` (or, for oversized source, a plain `InvalidDataException`) with an exact
 location, pointer, or message fragment. The unit depends only on the BCL `Utf8JsonReader`, `VegaLiteLimits`,
-`VegaLiteLocation`, and `VegaLiteSpecException`, so no mocking or stubbing is required; the internal types are
+`VegaLiteLocation`, `VegaLiteSpecException`, and the real `ExpressionParser` unit (which compiles the expression
+texts), so no mocking or stubbing is required; the internal types are
 reached through the test assembly's `InternalsVisibleTo` access. The unit's interaction with the feature catalog and
 the configuration resolver is verified at the subsystem tier (see _SpecModel Subsystem Verification Design_).
 
@@ -91,15 +94,25 @@ astral character that counts as two columns), while a valid surrogate pair is ac
 `SpecParserTests.SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted`,
 `SpecParserTests.SpecParser_Parse_Phase4DataFormsAreAccepted`
 
-Asserts that a known property with the wrong type or value (a theory of about seventy rows over `$schema`, `title`,
-`description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`, `mark`, `layer`,
-`vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
+Asserts that a known property with the wrong type or value (a theory of about one hundred and twenty rows over `$schema`,
+`title`, `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`, `mark`,
+`layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
 `/encoding/y/axis/orient`, `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`, `/data/format/delimiter`
 (empty, longer than one character, a quote, a line break, or not text), `/data/format/parse` (an unknown word or a
 number), `/data/format/parse/a` (an unknown type, a number, or null), and `/data/format/property`) throws a
 `VegaLiteSpecException` whose pointer names the offending value and whose location has a text position and the file;
-that when a nested view comes before a bad top-level mark in the text, the first problem in document order is the one
-reported; and that an original specification that touches every checked property with a valid but unusual form
+that the same holds for the shape of every transform of the supported subset and of its predicates: a `calculate` that
+is not text or has no `as` or an empty one, a filter with no field or no test, a `range` of one value, a `oneOf` that
+is not an array, an `equal` that is an array, an unparsable field path, an `and`, `or`, or `not` of the wrong kind,
+a `param` that names no parameter, a `fold` or `flatten` with a bad field list or too many `as` names, a negative or
+non-numeric `sample`, a `pivot` without `value` or with a bad `limit`, `groupby`, `op`, or field, and a `lookup` without
+`from`, with a `from` that has no `key` or `data`, with more `fields` than `as` names, with an object `default`, or with
+a bad data `url`; that an expression with a syntax error, a reference to a name that is not a parameter, a cycle of
+parameter expressions, a self reference, a repeated parameter name, and a reserved parameter name (`event`) fail at the
+expression or name, and that the expression of a row-bound mark property or channel value with a syntax error or an
+unknown name fails at its `expr`; that when a nested view comes before a bad top-level mark in the text, the first
+problem in document order is
+the one reported; and that an original specification that touches every checked property with a valid but unusual form
 (including expression references) is accepted with no warnings, and that the data forms of the data stage - DSV
 delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`, `boolean`, `date`, `string`, and custom
 date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a negative or a zero step and a field name,
@@ -135,6 +148,34 @@ bytes, and the default 4,194,304 limit) throws `InvalidDataException`, while a s
 byte-order mark) is accepted; that an overlong string value, key, or array element is a located error naming
 `MaxStringLength` at its pointer; that a number outside the double range (`1e999`) is rejected at its pointer; and
 that 50,000 inline rows are read in one pass with their pointers and row count intact.
+
+##### Expressions Are Compiled At The Supported Sites And Fail At Their Text
+
+**Tests**: `SpecParserTests.SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset`,
+`SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`
+
+Asserts that, in a document of several lines, a calculate expression with a syntax error on line 4 throws a
+`VegaLiteSpecException` located at `e.vl.json:4:20 /transform/0/calculate` (the position of the string value) whose
+message starts with that location and names "expression offset 10", and that a parameter expression that reads an
+undeclared name on line 8 is located at `/params/1/expr`, names `'missing'`, and gives the offset 4; and that the tree
+holds the compiled expression of exactly the supported sites — a parameter `expr`, a `calculate`, a string `filter`, a
+string inside a predicate composition, a row-bound mark `fill`, and a color channel `value` (six in all, found by their
+string node, with the source `datum.a + p` of the calculate) — and none for a title, a `width`, a bar's `size`, or a
+position `value`, and null for a null node.
+
+##### Phase 5 Transforms And Parameters Are Accepted Without A Warning
+
+**Tests**: `SpecParserTests.SpecParser_Parse_Phase5TransformsAndParametersAreAccepted`,
+`SpecParserTests.ParameterGraph_Sort_OrdersDependenciesFirstThenDeclarationOrder`
+
+Asserts that a specification with a bound value parameter, an expression parameter that reads it, a selection parameter,
+a parameter without a value, and sixteen transforms (calculate with the viewing signal `width`, string, field, `range`,
+`oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten with
+`as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate that a
+later phase owns) has no warning, lists the four parameter names in order, and compiles four expressions; and that the
+parameter order puts dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies
+`0 -> 2`, `2 -> 1`, and `3 -> 0` listed twice, with none unresolved), leaves a cycle and a self reference unresolved
+with the index of the first unresolved parameter, and is empty for no parameters, with a null list refused.
 
 ##### Schema Version Parsing
 

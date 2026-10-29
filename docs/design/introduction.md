@@ -231,15 +231,21 @@ software items, specifically:
   `Parse`/`Open`/`Measure`/`Render` API with `VegaLiteOpenOptions`, `VegaLiteRenderOptions`, `VegaLiteLimits`,
   `VegaLiteFontOptions`, `VegaLiteLocation`, `VegaLiteDiagnostic`, `VegaLiteUnsupportedFeature`, `VegaLiteSize`,
   `VegaLiteDataReference`, `VegaLiteSpecException`, `VegaLiteRenderException`, and
-  `VegaLiteUnsupportedFeatureException`), and seven internal subsystems. The `SpecModel` subsystem has three units:
+  `VegaLiteUnsupportedFeatureException`), and nine internal subsystems. The `SpecModel` subsystem has three units:
   `SpecParser` (UTF-8 JSON into an immutable tree with JSON pointers and line and column under size and depth
-  limits, structural validation, and duplicate and unknown key warnings), `FeatureCatalog` (the stable `vl-*` reports
+  limits, structural validation, the compilation of expressions, and duplicate and unknown key warnings),
+  `FeatureCatalog` (the stable `vl-*` reports
   of every recognized-but-unsupported construct), and `ConfigResolver` (the Vega and Vega-Lite default configuration
   merged with the configuration of the specification and of the caller). The `Data` subsystem has four units:
   `DataTable` (typed values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named
   dataset, or a sequence - under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local
   data files, or through the caller's callback), and `DelimitedTextParser` (CSV, TSV, and DSV, the `parse`
-  conversions, and the per-column type inference). The `Scales` subsystem has
+  conversions, and the per-column type inference). The `Expressions` subsystem has three units: `ExpressionParser` (a
+  bounded compiler of the Vega expression language into an immutable postfix program), `ExpressionEvaluator` (a
+  culture-invariant interpreter with JavaScript coercion under a step budget), and `ExpressionFunctions` (the closed
+  table of 57 pure functions with the safe regular expression translation). The `Transforms` subsystem has one unit,
+  `RowTransforms` (the static parameter environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`,
+  and `lookup` transforms between the loader and the scales). The `Scales` subsystem has
   five units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
   number formatter), and `ColorSchemes` (the `tableau10` palette). The `Guides` subsystem has three units:
@@ -248,9 +254,12 @@ software items, specifically:
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
-  and `CssColor` (CSS color parsing). Compositions, transforms, expressions, parameters, legends, and time
+  and `CssColor` (CSS color parsing). Compositions, the aggregating transforms, selection parameters, conditional
+  encodings, legends, and time
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
-  sequences are supported; remote data is never fetched) — see _CanvasNetVegaLite System Design_
+  sequences, a bounded subset of the Vega expression language, static variable parameters, and the row transforms
+  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup` are supported; remote data is never fetched)
+  — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
   `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
   subsystems through their public API, and must never reference `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`,
@@ -433,13 +442,16 @@ that parses, describes, measures, and renders charts, derived with attribution f
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
 `SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable`,
-`DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Scales` subsystem holds the
+`DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Expressions` subsystem holds the
+`ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
+`RowTransforms` unit, its internal `Scales` subsystem holds the
 `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
 and `ColorSchemes` units, its internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
 units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
-subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteScenegraph`, and so on) and the
+subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
+`VegaLiteScenegraph`, and so on) and the
 scene unit is `VegaLiteSceneModel`, because the model package is shared by every system and `SceneModel` already
 names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's `Canvas` (`Surface`, `Rgba32`),
 `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See the Folder Layout section
@@ -1055,7 +1067,8 @@ _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
 The `CanvasNetVegaLite` system lives in the `src/DemaConsulting.CanvasNet.VegaLite/` project folder (the separate
 `DemaConsulting.CanvasNet.VegaLite` package). The `VegaLiteDocument` unit occupies the project root; the internal
-`SpecModel`, `Data`, `Scales`, `Guides`, `Layout`, `Marks`, and `Scenegraph` subsystems occupy the sub-folders of the same
+`SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`, `Layout`, `Marks`, and `Scenegraph` subsystems
+occupy the sub-folders of the same
 names, whose names equal their sub-namespaces; no unit has a nested sub-folder of its own (see _CanvasNetVegaLite System
 Design_, `canvas-net-vega-lite.md`):
 
@@ -1084,6 +1097,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── NamespaceDoc.cs            — SpecModel: namespace-level XML documentation
 │   ├── SpecParser.cs              — SpecParser: entry points, single-pass reader, limits, duplicate keys
 │   ├── SpecParser.Validation.cs   — SpecParser: structural validation and unknown properties
+│   ├── SpecParser.Transforms.cs   — SpecParser: expression compilation, parameter, transform, and predicate validation
+│   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
 │   ├── FeatureCatalog.cs          — FeatureCatalog: stable vl- reports of unsupported constructs
@@ -1091,10 +1106,37 @@ src/DemaConsulting.CanvasNet.VegaLite/
 ├── Data/                          — Data subsystem (internal)
 │   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
-│   ├── DataLoader.cs              — DataLoader: inline rows, files, named datasets, and sequences
+│   ├── DataObject.cs              — DataTable: DataObject and DataArray, the payloads of composite values
+│   ├── DataLoader.cs              — DataLoader: inline rows, files, named datasets, sequences, and the row budget
 │   ├── DataFileResolver.cs        — DataFileResolver: sandboxed bounded reads, cache, strict UTF-8, and data-file limits
 │   ├── DataFileResolver.Paths.cs  — DataFileResolver: path rules, candidates, root confinement, and the link walk
 │   └── DelimitedTextParser.cs     — DelimitedTextParser: CSV, TSV, and DSV, parse directives, and type inference
+├── Expressions/                   — Expressions subsystem (internal)
+│   ├── NamespaceDoc.cs            — ExpressionParser: namespace-level XML documentation
+│   ├── ExpressionParser.cs        — ExpressionParser: entry point, length and depth limits, precedence climbing
+│   ├── ExpressionParser.Primary.cs — ExpressionParser: literals, access, calls, and collected constructs
+│   ├── ExpressionParser.Tokenizer.cs — ExpressionParser: tokens and the tokenizer
+│   ├── CompiledExpression.cs      — ExpressionParser: the immutable postfix program and its tables
+│   ├── ExpressionConstruct.cs     — ExpressionParser: unsupported constructs, parameter references, runtime exception
+│   ├── ExpressionEvaluator.cs     — ExpressionEvaluator: the interpreter loop and IExpressionDatum
+│   ├── ExpressionEvaluator.Coercion.cs — ExpressionEvaluator: JavaScript coercion, equality, and relational helpers
+│   ├── ExpressionEvaluator.Datum.cs — ExpressionEvaluator: reading the datum from a row, a value, or a caller object
+│   ├── ExpressionFunctions.cs     — ExpressionFunctions: the function table and the math functions
+│   ├── ExpressionFunctions.Text.cs — ExpressionFunctions: string and array functions
+│   ├── ExpressionFunctions.Types.cs — ExpressionFunctions: type and conversion functions
+│   ├── ExpressionFunctions.Regex.cs — ExpressionFunctions: regexp, test, and the regular expression forms
+│   ├── ExpressionFunctionContext.cs — ExpressionFunctions: step budget, string limit, and regex cache
+│   └── ExpressionRegex.cs         — ExpressionFunctions: JavaScript regular expressions as safe .NET ones
+├── Transforms/                    — Transforms subsystem (internal)
+│   ├── NamespaceDoc.cs            — RowTransforms: namespace-level XML documentation
+│   ├── RowTransforms.cs           — RowTransforms: Apply, calculate, and the row selection of filter
+│   ├── RowTransforms.Predicates.cs — RowTransforms: the predicates of filter
+│   ├── RowTransforms.Shape.cs     — RowTransforms: fold, flatten, sample, and pivot
+│   ├── RowTransforms.Lookup.cs    — RowTransforms: lookup
+│   ├── RowSampler.cs              — RowTransforms: deterministic reservoir sampling
+│   ├── TableLayout.cs             — RowTransforms: derived table layout, bounds, and field reader
+│   ├── ParameterEnvironment.cs    — RowTransforms: static parameter values
+│   └── TransformContext.cs        — RowTransforms: the shared context and the row expressions
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
 │   ├── ScaleModel.cs              — ScaleModel: linear, band, point, and ordinal mappings
@@ -1223,7 +1265,20 @@ files follow the same pattern: for `DataFileResolver`, requirements
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with the
 helpers in `DataTestSupport.cs`), and SysML2 model
 `docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml`; for `DelimitedTextParser`, the same paths with
-`delimited-text-parser`, `DelimitedTextParser.cs`, and `DelimitedTextParserTests.cs`. The attribution
+`delimited-text-parser`, `DelimitedTextParser.cs`, and `DelimitedTextParserTests.cs`. The two subsystems added for
+expressions and row transforms follow the same pattern with their own subsystem files: for the `Expressions` subsystem,
+requirements `docs/reqstream/canvas-net-vega-lite/expressions.yaml`, design
+`docs/design/canvas-net-vega-lite/expressions.md`, verification `docs/verification/canvas-net-vega-lite/expressions.md`,
+and SysML2 model `docs/sysml2/model/canvas-net-vega-lite/expressions.sysml`, and for its `ExpressionParser` unit
+`expressions/expression-parser.yaml`, `expressions/expression-parser.md` (design and verification), source
+`src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser.cs` (with its partial files and
+`CompiledExpression.cs`), tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs`, and
+`expressions/expression-parser.sysml`; the `ExpressionEvaluator` and `ExpressionFunctions` units have the same paths with
+`expression-evaluator` and `expression-functions`. For the `Transforms` subsystem the files are `transforms.yaml`,
+`transforms.md`, and `transforms.sysml` and, for its `RowTransforms` unit, `transforms/row-transforms.*`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs` (with its partial files, `RowSampler.cs`,
+`TableLayout.cs`, `ParameterEnvironment.cs`, and `TransformContext.cs`), and tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`. The attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

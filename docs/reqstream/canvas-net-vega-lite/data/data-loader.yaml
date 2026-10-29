@@ -179,6 +179,31 @@ sections:
                   - DataLoader_Load_RowLimitIsATotalAcrossTables
                   - DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl
 
+              - id: CanvasNetVegaLite-Data-DataLoader-DerivedRowBudget
+                title: >-
+                  The DataLoader unit shall let a transform reserve the rows of a table it is about to create
+                  (ReserveDerivedRows) against the same row budget that counts the loaded rows, failing with
+                  a VegaLiteRenderException located at the transform before the rows are allocated
+                  when the total would exceed the row limit, and release the rows of a table that is no longer
+                  needed (ReleaseRows), so that the peak of input and output rows of a transform is what the
+                  limit bounds.
+                justification: |
+                  A fold or a flatten can create many times the rows it reads; the budget of the call must
+                  cover the derived tables too, and a dropped input must stop counting.
+                tests:
+                  - DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall
+
+              - id: CanvasNetVegaLite-Data-DataLoader-LookupSources
+                title: >-
+                  The DataLoader unit shall load the secondary source of a lookup transform with the same Load
+                  method, sandbox, per-call file cache, file and byte limits, and row budget as the main data of
+                  the view, locating a failure at the lookup source.
+                justification: |
+                  A lookup source is untrusted data like any other; it must not escape the limits and the
+                  sandbox that bound the main data.
+                tests:
+                  - DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall
+
               - id: CanvasNetVegaLite-Data-DataLoader-Cancellation
                 title: >-
                   The DataLoader unit shall observe the cancellation token at bounded intervals while it

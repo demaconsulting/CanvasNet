@@ -1,0 +1,12 @@
+package CanvasNet {
+    part def VegaLiteTransforms {
+        doc /* The internal subsystem in the DemaConsulting.CanvasNet.VegaLite.Transforms namespace that turns the rows a chart loads into the rows it draws, after the DataLoader and before the scales: its RowTransforms unit runs the row transforms of the drawn view eagerly and in their written order, each reading an immutable DataTable and producing a new one - calculate (an expression per row, adding or replacing a field), filter (an expression or the predicates equal, lt, lte, gt, gte, range, oneOf, and valid composed with and, or, and not, and param for a static variable parameter), fold, flatten, sample (deterministic reservoir seeded from the transform's JSON pointer), pivot (sum and count), and lookup (a secondary source loaded through the same per-call DataLoader, first match wins) - and builds the static parameter environment (the value or expression of each variable parameter of the drawn view, evaluated once in dependency order and replaced by the caller's Parameters render option). The row budget of the call is the DataLoader's: fold and flatten reserve their output before allocating it, a dropped input is released, lookup sources are counted as any source, MaxFieldCount, MaxStringLength, a 2^25 cell bound, and the evaluation steps are enforced with located VegaLiteRenderExceptions, and cancellation is checked between transforms and at least every 1,024 rows. Recoverable problems are the warnings vl-expr-runtime and vl-transform-runtime. Aggregate, joinaggregate, window, bin, stack, impute, timeUnit, regression, loess, density, and quantile transforms, selection parameters, and conditional encodings are deferred and reported by the FeatureCatalog; there is no clock or random source. The subsystem is internal and uses the Expressions and Data subsystems and the compiled expressions of the SpecModel subsystem. As of this release, its only unit is RowTransforms. */
+
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/ (the unit test class RowTransformsTests) */
+        comment designRef /* Design: docs/design/canvas-net-vega-lite/transforms.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/transforms.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/transforms.yaml */
+
+        part rowTransforms : RowTransforms;
+    }
+}

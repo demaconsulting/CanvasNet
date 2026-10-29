@@ -1902,6 +1902,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared chart test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/README.md"  # fixture provenance (original works)
       - "src/DemaConsulting.CanvasNet.VegaLite/DemaConsulting.CanvasNet.VegaLite.csproj"  # project file
@@ -2005,6 +2006,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecParser*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNode.cs"  # unit source (immutable tree)
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecMetadata.cs"  # unit source (descriptive facts)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecExpressions.cs"  # unit source (compiled expressions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs"  # unit tests
 
   # CanvasNetVegaLite-SpecModel-FeatureCatalog Review (one per unit)
@@ -2066,7 +2068,9 @@ reviews:
       - "docs/verification/canvas-net-vega-lite/data/data-table.md"   # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/data/data-table.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataTable.cs"     # unit source (includes DataValue)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataObject.cs"    # unit source (composite array and object values)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs"  # unit tests (composite values)
 
   # CanvasNetVegaLite-Data-DataLoader Review (one per unit)
   - id: CanvasNetVegaLite-Data-DataLoader
@@ -2118,6 +2122,105 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DelimitedTextParser.cs"  # unit source (includes ParseDirectives)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DelimitedTextParserTests.cs"  # unit tests
 
+  # CanvasNetVegaLite-Expressions Review (one per subsystem)
+  - id: CanvasNetVegaLite-Expressions
+    title: Review that CanvasNetVegaLite Expressions Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/expressions.yaml"        # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/expressions.md"             # subsystem design
+      - "docs/verification/canvas-net-vega-lite/expressions.md"       # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/expressions.sysml"    # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Expressions-ExpressionParser Review (one per unit; the shared expression test helpers live here)
+  - id: CanvasNetVegaLite-Expressions-ExpressionParser
+    title: Review that CanvasNetVegaLite Expressions ExpressionParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/expressions.md"
+      - "docs/reqstream/canvas-net-vega-lite/expressions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/expressions/expression-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/expressions/expression-parser.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/expressions/expression-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/expressions/expression-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser*.cs"  # unit source (tokenizer and parser)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/CompiledExpression.cs"  # unit source (compiled program)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionConstruct.cs"  # unit source (findings, references)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared test support
+
+  # CanvasNetVegaLite-Expressions-ExpressionEvaluator Review (one per unit)
+  - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator
+    title: Review that CanvasNetVegaLite Expressions ExpressionEvaluator Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/expressions.md"
+      - "docs/reqstream/canvas-net-vega-lite/expressions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/expressions/expression-evaluator.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/expressions/expression-evaluator.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/expressions/expression-evaluator.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/expressions/expression-evaluator.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionEvaluator*.cs"  # unit source (interpreter)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionEvaluatorTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Expressions-ExpressionFunctions Review (one per unit)
+  - id: CanvasNetVegaLite-Expressions-ExpressionFunctions
+    title: Review that CanvasNetVegaLite Expressions ExpressionFunctions Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/expressions.md"
+      - "docs/reqstream/canvas-net-vega-lite/expressions.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/expressions/expression-functions.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/expressions/expression-functions.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/expressions/expression-functions.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/expressions/expression-functions.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionFunctions*.cs"  # unit source (function table)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionFunctionContext.cs"  # unit source (context)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionRegex.cs"  # unit source (regex translation)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Transforms Review (one per subsystem)
+  - id: CanvasNetVegaLite-Transforms
+    title: Review that CanvasNetVegaLite Transforms Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/transforms.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/transforms.md"              # subsystem design
+      - "docs/verification/canvas-net-vega-lite/transforms.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/transforms.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Transforms-RowTransforms Review (one per unit)
+  - id: CanvasNetVegaLite-Transforms-RowTransforms
+    title: Review that CanvasNetVegaLite Transforms RowTransforms Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/transforms.md"
+      - "docs/reqstream/canvas-net-vega-lite/transforms.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/transforms/row-transforms.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/transforms/row-transforms.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/transforms/row-transforms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/transforms/row-transforms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms*.cs"  # unit source (executor, partial files)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowSampler.cs"  # unit source (deterministic sampler)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TableLayout.cs"  # unit source (derived table layout)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/ParameterEnvironment.cs"  # unit source (static parameters)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TransformContext.cs"  # unit source (call context)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests
+
   # CanvasNetVegaLite-Scales Review (one per subsystem)
   - id: CanvasNetVegaLite-Scales
     title: Review that CanvasNetVegaLite Scales Subsystem Implementation is Correct
@@ -2162,6 +2265,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-resolver.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
   - id: CanvasNetVegaLite-Scales-Ticks

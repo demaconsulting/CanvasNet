@@ -38,7 +38,13 @@ an area and a name taken from the specification, lower-cased with the invariant 
 
 **Identifiers.** The areas are `schema`, `data`, `mark`, `channel`, `type`, `scale`, `encoding`, `guide`, `format`,
 `expr`, `transform`, `composition`, `param`, `projection`, and `layout`; the table in the system design lists every
-identifier with its trigger. The warnings `vl-duplicate-key` and `vl-unknown-property` are produced by `SpecParser`.
+identifier with its trigger. The name of an expression function keeps its case in `vl-expr-function-<name>`, unlike the
+other names taken from the specification. The identifiers `vl-expr-calculate`,
+`vl-expr-filter`, and (for the drawn view) the
+`vl-transform-` identifiers of the supported transforms are retired: those constructs are supported and absent from the
+result. The warnings `vl-duplicate-key` and `vl-unknown-property` are produced by `SpecParser`, and the render-time
+warnings `vl-expr-runtime` and `vl-transform-runtime` by `RowTransforms` (they need the data; the
+catalog never produces them).
 
 #### Key Methods
 
@@ -67,9 +73,26 @@ identifier with its trigger. The warnings `vl-duplicate-key` and `vl-unknown-pro
   and the conservative implicit bar-stack heuristic at the measure channel), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-color-ramp`), the legend (`vl-guide-legend`), and the axis
   properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`).
-- `VisitTransforms` reports every entry as `vl-transform-<name>` (and `vl-expr-calculate` or `vl-expr-filter` for an
-  expression); `VisitParams` reports `vl-param-variable` or `vl-param-selection`; `VisitAutosize` reports
-  `vl-layout-autosize-<type>` for fit modes.
+- `VisitTransforms(transforms, drawn)` reports the entries as `vl-transform-<name>` only for what is **not computed**: the
+  transforms of later phases (`aggregate`, `bin`, `density`, `extent`, `impute`, `joinaggregate`, `loess`, `quantile`,
+  `regression`, `stack`, `timeunit`, `window`) and every transform of a view that is not drawn (a nested view of a
+  composition). For the computed transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`,
+  `pivot`, `lookup`) it reports only their unsupported parts: `ReportConstructs` turns the constructs that the compiled
+  expression collected into `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>` reports (and
+  an undeclared view signal into `vl-expr-view-state`), sorted by their offset and located at the expression string, with
+  `(at expression offset N)` in the message; `VisitPredicate` walks a filter with an explicit stack (so composition depth
+  cannot overflow the call stack) and reports `vl-transform-filter-param` (a `selection`, or a `param` that names a
+  selection parameter), `vl-transform-filter-timeunit` (a `timeUnit` in a field predicate), and `vl-transform-filter-datetime`
+  (a date object in a comparison); a pivot `op` other than `sum` and `count` is `vl-transform-pivot-op`, and a lookup `from.param`
+  is `vl-transform-lookup-param` while its `from.data` is visited like any `data` object (`vl-data-*`).
+- `VisitParams(parameters, isRoot)` reports every selection parameter as `vl-param-selection` and, for a variable parameter,
+  `vl-param-variable` when the view is not the root; a variable parameter of the root view is computed, so only the
+  constructs of its `expr` are reported. `VisitAutosize` reports `vl-layout-autosize-<type>` for fit modes.
+- The `{"expr": ...}` scan (`VisitExpressions`, with an explicit stack) reports as `vl-expr-ref` every expression reference
+  that the parser did **not** compile (a title, size, padding, background, view, any other mark property, any other encoding
+  value); a reference that was compiled (the paint properties of the mark and the `value` of the paint channels of the drawn
+  view) is reported only for its unsupported constructs. `sort` is reported as `vl-encoding-sort`
+  only when it is a shorthand or an object that `ScaleResolver.IsSupportedFieldSort` rejects.
 - `IsSchemeBearingUrl(string url)` - true for a URL that starts with `/` or a backslash (a Unix absolute path, a
   Windows rooted path, a network or UNC path), is rooted according to `Path.IsPathRooted`, or has a scheme (a letter
   followed by letters, digits, `+`, `-`, or `.`, then a colon, which includes a drive letter and `file:` URIs); the
@@ -91,7 +114,13 @@ here: the document records the reports in a sink, which throws at the first unsu
 #### Dependencies
 
 - **`SpecTree`**, **`SpecNode`**, and **`SpecParser`** - the tree and the parser's helpers (`ParseSchemaMajorVersion`,
-  `IsChannelName`, `FindTransformOperation`), in the `SpecParser` unit
+  `IsChannelName`, `FindTransformOperation`, `IsSupportedTransform`, `IsDrawnView`, `IsViewSignal`, `FindParameter`), in
+  the `SpecParser` unit, and the compiled expressions of the tree (`SpecExpressions`)
+- **`CompiledExpression`** and **`ExpressionConstruct`** - the constructs that the parser collected, from the
+  `ExpressionParser` unit of the `Expressions` subsystem
+- **`ScaleResolver.IsSupportedFieldSort`** - the rule for a supported sort by field, in the
+  `Scales` subsystem, so that the
+  report and the sort agree
 - **`ParseDirectives`** - the classification of a `format.parse` entry, in the `DelimitedTextParser` unit of the `Data`
   subsystem, so that the report and the loading agree on what a custom date format is
 - **`VegaLiteLocation`** - the public location type of the `VegaLiteDocument` unit

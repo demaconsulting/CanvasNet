@@ -50,9 +50,11 @@ load/crop/resize/save workflows.
   and `#` highlight modifiers, `-D` variables) straight to a surface; unsupported constructs are reported
 - 📉 **Vega-Lite Chart Rendering** - Parse and render a defined subset of Vega-Lite specifications (single view;
   inline data, local CSV, TSV, DSV (`format.delimiter`), and JSON files read from a sandbox, named datasets, and
-  sequences; as in Vega, delimited text is not type-inferred unless `format.parse` is `"auto"`; bar, rect, point,
-  circle, square, rule, and tick marks) as static pictures: no network access, bundled fonts, byte-identical output;
-  everything outside the subset is reported with a stable `vl-*` identifier
+  sequences; as in Vega, delimited text is not type-inferred unless `format.parse` is `"auto"`; the
+  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup` row transforms; a bounded subset of the Vega
+  expression language with static variable parameters; bar, rect, point, circle, square, rule, and tick marks) as
+  static pictures: no network access, bundled fonts, byte-identical output; everything outside the subset is reported
+  with a stable `vl-*` identifier
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
   including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
@@ -158,11 +160,13 @@ schema, and is drawn at the size its specification lays out (`--scale`, `--width
 for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart` in the `kind` column of
 `canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
 title, and schema version without drawing it. The library implements a defined subset of the language (one view with
-inline, local-file, named, or generated data; bar, rect, point, circle, square, rule, and tick marks; x, y, color, size,
-and opacity encodings), draws only the bundled fonts, and never reads the network; a chart's CSV, TSV, DSV, or JSON data
+inline, local-file, named, or generated data; the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
+`lookup` transforms with a subset of the expression language and static parameters; bar, rect, point, circle, square,
+rule, and tick marks; x, y, color, size, and opacity encodings), draws only the bundled fonts, and never reads the
+network; a chart's CSV, TSV, DSV, or JSON data
 file
 is read from the folder of its specification and below it only (there is no data-folder option, and a missing file is a
-`vega-lite-error`); everything else (other marks, transforms, layers, remote data, and
+`vega-lite-error`); everything else (other marks, the transforms that aggregate or bin, layers, remote data, and
 so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first such report into
 a failure). A malformed or invalid specification is the error `vega-lite-error`.
 

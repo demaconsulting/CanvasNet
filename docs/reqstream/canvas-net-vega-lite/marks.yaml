@@ -41,6 +41,22 @@ sections:
             tests:
               - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
 
+          - id: CanvasNetVegaLite-Marks-ExpressionValues
+            title: >-
+              The Marks subsystem shall evaluate the expression references of the mark definition and of the
+              value channels of the drawn view once per row against the transformed row - the mark color,
+              fill, stroke, opacity, strokeWidth, and (for point, circle, and square) size, and the value of
+              the color, fill, stroke, opacity, and (for point, circle, and square) size channels - and keep
+              the default for a result of the wrong kind, while a conditional encoding stays deferred.
+            justification: |
+              Expression-driven values are how a chart colors or sizes marks from calculated fields; their
+              boundary must be explicit so that nothing else is implied to be evaluated.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-ExpressionValues
+            tests:
+              - MarkBuilder_Build_RowBoundExpressionReferencesAreEvaluatedPerRow
+              - CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow
+
           - id: CanvasNetVegaLite-Marks-Limits
             title: >-
               The Marks subsystem shall bound the number of scene items, failing closed with a located

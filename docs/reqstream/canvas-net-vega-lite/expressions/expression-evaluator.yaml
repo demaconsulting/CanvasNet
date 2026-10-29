@@ -1,0 +1,130 @@
+---
+# Software Unit Requirements for ExpressionEvaluator
+#
+# These requirements describe the design-level behavior of the ExpressionEvaluator unit of the Expressions
+# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the non-recursive,
+# culture-invariant interpreter of a CompiledExpression with JavaScript coercion semantics, its datum and
+# parameter context, and its step budget and cancellation checks. The unit comprises ExpressionEvaluator.cs,
+# ExpressionEvaluator.Coercion.cs, and ExpressionEvaluator.Datum.cs. One evaluator belongs to one call on one
+# thread; the compiled expressions it runs are shared. See
+# docs/verification/canvas-net-vega-lite/expressions/expression-evaluator.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Expressions Requirements
+        sections:
+          - title: ExpressionEvaluator Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Semantics
+                title: >-
+                  The ExpressionEvaluator unit shall evaluate the arithmetic, unary, equality, relational,
+                  logical, and conditional operators with the JavaScript and Vega semantics - string
+                  concatenation, numeric coercion with null as 0, NaN, signed infinities and negative zero,
+                  strict and loose equality by the ECMAScript tables, relational ordering of numbers and of
+                  strings, logical operators that return an operand, and short-circuit evaluation that does
+                  not run, or charge, the skipped operand - and shall evaluate a deferred construct to null.
+                justification: |
+                  The meaning of an expression must be that of the Vega expression it came from; a different
+                  coercion would change which rows a filter keeps and what a calculate writes.
+                tests:
+                  - ExpressionEvaluator_Evaluate_ArithmeticAndConcatenation_FollowJavaScript
+                  - ExpressionEvaluator_Evaluate_UnaryOperators_FollowJavaScript
+                  - ExpressionEvaluator_Evaluate_NegativeZero_IsPreserved
+                  - ExpressionEvaluator_Evaluate_Equality_FollowsEcmaScriptTables
+                  - ExpressionEvaluator_Evaluate_RelationalComparison_FollowsEcmaScript
+                  - ExpressionEvaluator_Evaluate_LogicalOperators_ReturnOperands
+                  - ExpressionEvaluator_Evaluate_ShortCircuit_SkipsTheOtherOperand
+                  - ExpressionEvaluator_Evaluate_UnsupportedConstruct_IsNull
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Datum
+                title: >-
+                  The ExpressionEvaluator unit shall read the fields of the datum (a row of a table, with its
+                  flattened nested fields rebuilt on demand, a calculated object value, or a caller-defined
+                  datum) by name and path, give member and index access on objects, arrays, and strings the
+                  JavaScript results with a missing member and a null base reading as null, build array and
+                  object values (an object keeping the first position and the last value of a repeated key),
+                  compare composite values by identity, give a date its millisecond and ISO text readings,
+                  read null for every datum when there is none, and reject a row index outside the table.
+                justification: |
+                  Row-bound expressions are the point of the evaluator, and calculate results can be arrays and
+                  objects that later expressions index into.
+                tests:
+                  - ExpressionEvaluator_Evaluate_MemberAccess_FollowsJavaScriptAndIsNullSafe
+                  - ExpressionEvaluator_Evaluate_ObjectLiteral_KeepsFirstPositionAndLastValue
+                  - ExpressionEvaluator_Evaluate_Composites_CompareByIdentity
+                  - ExpressionEvaluator_Evaluate_TableRow_ReadsFlattenedFields
+                  - ExpressionEvaluator_Evaluate_TableRowOutOfRange_ThrowsArgumentOutOfRange
+                  - ExpressionEvaluator_Evaluate_WithoutDatum_ReadsNull
+                  - ExpressionEvaluator_Evaluate_Dates_UseMillisecondsAndIsoText
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Parameters
+                title: >-
+                  The ExpressionEvaluator unit shall read a parameter from the dictionary of values that the
+                  caller built for the call, by ordinal name, with an unknown name reading as null, so that
+                  the caller decides the defaults, the overrides, and the order of evaluation.
+                justification: |
+                  Parameter values are the one input of an expression besides the row; the evaluator must not
+                  have a second, hidden source of them.
+                tests:
+                  - ExpressionEvaluator_Evaluate_Parameters_AreLookedUpByName
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-StepBudget
+                title: >-
+                  The ExpressionEvaluator unit shall run each program as an iterative loop that charges one
+                  step per executed instruction (jumps included) and one more step per 64 characters or
+                  elements of the work of a size-proportional function, shall share one step budget (the
+                  evaluation-step limit) between every evaluation of the evaluator so that the budget of a
+                  call is exact (a program of N instructions passes with a limit of N and fails with N - 1),
+                  shall enforce the string-length limit on concatenation, and shall evaluate a very large
+                  program and a reused value stack correctly.
+                justification: |
+                  A bounded step count is the only way to bound the time that an untrusted expression can take
+                  without relying on a clock, so it must be exact, deterministic, and cover the work of
+                  functions as well as of operators.
+                tests:
+                  - ExpressionEvaluator_Evaluate_StepBudget_AccumulatesAcrossEvaluations
+                  - ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged
+                  - ExpressionEvaluator_Evaluate_LargeProgramsAndReusedStack_AreCorrect
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-RuntimeFailures
+                title: >-
+                  The ExpressionEvaluator unit shall fail with a VegaLiteRenderException located at the
+                  expression - carrying the pointer, the line and column of the expression string, and the
+                  offset inside it - when the step budget is exhausted, when a string would exceed the
+                  string-length limit, or when a regular expression is invalid, too long, or takes too long,
+                  and shall fail closed rather than return a partial result.
+                justification: |
+                  A failure that depends on the data cannot be found when the specification is opened, so it
+                  must be reported at the place that caused it.
+                tests:
+                  - ExpressionEvaluator_Evaluate_StepBudget_IsExact
+                  - ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation
+                  - ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Cancellation
+                title: >-
+                  The ExpressionEvaluator unit shall observe the cancellation token at the start of every
+                  evaluation and whenever the step counter crosses a multiple of 1,024, and shall stop with an
+                  OperationCanceledException, so that a token canceled between check points stops the next
+                  evaluation.
+                justification: |
+                  Evaluating an expression for every row of a large table can take noticeable time, and
+                  callers must be able to abandon it promptly.
+                tests:
+                  - ExpressionEvaluator_Evaluate_CanceledBeforeStart_ThrowsOperationCanceled
+                  - ExpressionEvaluator_Evaluate_CanceledDuringEvaluation_ThrowsOperationCanceled
+                  - ExpressionEvaluator_Evaluate_CancellationBetweenCheckPoints_StopsNextEvaluation
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Determinism
+                title: >-
+                  The ExpressionEvaluator unit shall give the same result for the same program, datum, and
+                  parameters in every current culture and time zone, on repeated evaluations, and from several
+                  threads that each use their own evaluator over the same compiled expression.
+                justification: |
+                  Reproducibility is required for golden tests and caching, and a compiled expression is shared
+                  by every render of a document.
+                tests:
+                  - ExpressionEvaluator_Evaluate_UnderAnyCulture_IsInvariant
+                  - ExpressionEvaluator_Evaluate_Repeated_IsDeterministic
+                  - ExpressionEvaluator_Evaluate_Concurrent_IsDeterministic
