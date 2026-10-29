@@ -168,7 +168,7 @@ sections:
                   the row limit, counted as a total across every table that one loader creates and checked
                   before any row is converted, and located at the offending leaf when a row or the union
                   of fields exceeds the field limit, and shall enforce the string-length limit on JSON
-                  values.
+                  values and on the texts of the datasets that the caller supplies.
                 justification: |
                   Bounded loading keeps hostile data from exhausting memory, a total keeps several tables
                   from each fitting while together exceeding the budget, and a located failure tells the
@@ -177,6 +177,7 @@ sections:
                   - DataLoader_Load_RowLimitFailsWithLocation
                   - DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf
                   - DataLoader_Load_RowLimitIsATotalAcrossTables
+                  - DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError
                   - DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl
 
               - id: CanvasNetVegaLite-Data-DataLoader-DerivedRowBudget

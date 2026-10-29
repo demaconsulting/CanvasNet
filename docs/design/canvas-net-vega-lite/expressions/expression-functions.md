@@ -45,7 +45,11 @@ an optional argument that is null counts as not supplied. The 57 functions are:
   zero is preserved.
 - **Text and array (15)**: `lower`, `upper`, `trim`, `substring`, `slice`, `indexof`, `lastindexof`, `startswith`,
   `endswith`, `includes`, `replace`, `split`, `join`, `pad`, and `length`. Strings are UTF-16 code unit sequences as in
-  JavaScript (indices, lengths, and slices count code units); case conversion and comparison are ordinal and invariant;
+  JavaScript (indices, lengths, and slices count code units); comparison is ordinal and invariant; `lower` and `upper`
+  apply JavaScript's full case mappings on top of the invariant culture of .NET (the sharp s becomes `SS`, the Latin and
+  Armenian ligatures, the letters with a combining mark and the Greek letters with an iota subscript become several
+  characters, the capital I with a dot above lowers to `i` and a combining dot, the dotless i maps to upper case `I`,
+  and a capital sigma lowers to the final sigma at the end of a word) and their result is checked against `MaxStringLength`;
   `slice`, `indexof`, `lastindexof`, `includes`, and `length` accept a string or an array; `pad` follows Vega (the align
   `left` pads the start, `center` both sides, the default the end); `join` gives null for a non-array.
 - **Type and conversion (13)**: `isArray`, `isBoolean`, `isDate`, `isFinite`, `isNaN`, `isNumber`, `isObject`, `isRegExp`,
@@ -64,13 +68,15 @@ cache of at most 64 compiled expressions that is cleared when full. The cancella
 counter crosses a multiple of 1,024.
 
 **`ExpressionRegex`** is an immutable, thread-safe pair of the JavaScript source and flags and the .NET `Regex` that
-implements them. The accepted flags are `g`, `i`, `m`, `s`, and `u` (a repeated or unknown flag is an error; `g` makes `replace`
-replace every match). The pattern is at most 1,024 characters. The translation makes the common cases match JavaScript:
-`\d`, `\D`, `\w`, and `\W` are the ASCII classes, `$` without the `m` flag matches only at the end of the text, and `[^]`
-and `[]` have their JavaScript meaning. The `Regex` is built with `RegexOptions.NonBacktracking | CultureInvariant`, which
-matches in time linear in the input, with a 5 second timeout as a backstop; a pattern that engine rejects (look-around,
-back-references, atomic groups) falls back to the backtracking engine with a **100 millisecond timeout that fails closed**.
-Known deviations: the numbering of mixed named and unnamed groups follows .NET, and `.` and `\s` follow the .NET classes.
+implements them. The accepted flags are `g`, `i`, `m`, and `s` (a repeated or unknown flag is an error, and so are `u`,
+`v`, `y`, and `d`, which the UTF-16 engine cannot honor, so no pattern silently matches differently from JavaScript; `g`
+makes `replace` replace every match). The pattern is at most 1,024 characters. The translation makes the common cases
+match JavaScript: `\d`, `\D`, `\w`, and `\W` are the ASCII classes, `$` without the `m` flag matches only at the end of
+the text, and `[^]` and `[]` have their JavaScript meaning. The `Regex` is built with `RegexOptions.NonBacktracking |
+CultureInvariant`, which matches in time linear in the input, with a 5 second timeout as a backstop; a pattern that
+engine rejects (look-around, back-references, atomic groups) falls back to the backtracking engine with a **100
+millisecond timeout that fails closed**. Known deviations: the numbering of mixed named and unnamed groups follows .NET,
+and `.` and `\s` follow the .NET classes.
 
 #### Key Methods
 

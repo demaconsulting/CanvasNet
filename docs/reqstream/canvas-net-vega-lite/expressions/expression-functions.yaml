@@ -52,7 +52,8 @@ sections:
                   The ExpressionFunctions unit shall give the text and array functions (lower, upper, trim,
                   substring, slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join,
                   pad, and length) the JavaScript and Vega results on strings and arrays with the invariant
-                  culture, including the empty and null inputs, and shall bound every produced string by the
+                  culture, including the empty and null inputs and the full case mappings of lower and upper
+                  (the sharp s, the ligatures, and the final sigma), and shall bound every produced string by the
                   string-length limit.
                 justification: |
                   Text is the most common thing a calculate transform builds; its results must not depend on
@@ -63,6 +64,10 @@ sections:
                   - ExpressionFunctions_Replace_FollowsJavaScript
                   - ExpressionFunctions_Split_FollowsJavaScript
                   - ExpressionFunctions_Split_EmptyInputs
+                  - ExpressionFunctions_Split_EmptyRegexAndTextSplitBetweenCodeUnits
+                  - ExpressionFunctions_Upper_AppliesFullCaseMappings
+                  - ExpressionFunctions_Lower_AppliesFullCaseMappingsAndFinalSigma
+                  - ExpressionFunctions_CaseConversion_IsCultureInvariantAndBounded
                   - ExpressionFunctions_StringResults_AreBoundedByMaxStringLength
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TypesAndConversions
@@ -82,7 +87,8 @@ sections:
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-RegexSafety
                 title: >-
                   The ExpressionFunctions unit shall translate a JavaScript regular expression (the flags g,
-                  i, m, s, and u; the pattern length at most 1,024 characters) into a .NET one that uses the
+                  i, m, and s, rejecting u, v, y, and d, which the engine cannot honor; the pattern length at most
+                  1,024 characters) into a .NET one that uses the
                   linear-time non-backtracking engine with the invariant culture, falling back for the
                   patterns that engine rejects (look-around and back-references) to the backtracking engine
                   with a 100 millisecond limit that fails closed with a located error, shall fail an invalid

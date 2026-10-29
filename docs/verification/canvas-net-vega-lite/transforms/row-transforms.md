@@ -119,7 +119,10 @@ on a selection parameter, by `param` or by the legacy `selection`, keeps every r
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden`,
 `RowTransformsTests.RowTransforms_Apply_LongParameterChainsAreOrderedByDependency`,
-`RowTransformsTests.RowTransforms_Apply_ParameterErrorsAreLocatedSpecificationErrors`
+`RowTransformsTests.RowTransforms_Apply_ParameterErrorsAreLocatedSpecificationErrors`,
+`RowTransformsTests.RowTransforms_Apply_ParameterTextLongerThanMaxStringLength_IsLocatedRenderError`,
+`RowTransformsTests.RowTransforms_Apply_StaticParameterTextLongerThanRenderLimit_IsLocatedRenderError`,
+`RowTransformsTests.RowTransforms_Apply_CalculateOfLongTextFieldIsLocatedRenderError`
 
 Asserts the derived values above (`6y`, `2`, and `3`, the overridden `22y` and `11`, and an override of an expression
 parameter that replaces the expression: `b = 100` gives `c = 200` and `"q"[1]` is null, which adds as zero); that the
@@ -127,7 +130,11 @@ chain of 2,000 parameters gives 1999; and that a cycle (located at `/params/0/ex
 the cycle, and naming "cycle"), a self reference (`/params/1/expr`), a reference to an unknown name (located at the
 expression with the name `'zzz'` and "expression offset 4"), a repeated name (`/params/1/name`), a reserved name
 (`/params/0/name`), and an unknown name in a transform expression (`/transform/0/calculate`) are located
-`VegaLiteSpecException` errors whose message starts with the file name.
+`VegaLiteSpecException` errors whose message starts with the file name. It also asserts that, with a `MaxStringLength`
+of 20, a caller override of 20 characters is kept by `calculate` while one of 21 is a `VegaLiteRenderException` located
+at `/params/0` that names the parameter and `the limit of 20 characters (VegaLiteLimits.MaxStringLength)`; that a
+`value` text or a text inside a composite `value` that is over a lower render limit is refused the same way; and that a
+long text of the data that an expression copies with `calculate` is a failure located at `/transform/0/calculate`.
 
 ##### Fold And Flatten Reshape The Rows
 
@@ -158,13 +165,16 @@ them in source order.
 **Tests**: `RowTransformsTests.RowTransforms_Apply_PivotSumsValuesPerGroup`,
 `RowTransformsTests.RowTransforms_Apply_PivotCountsAndFallsBackToSum`,
 `RowTransformsTests.RowTransforms_Apply_PivotLimitAndNullValuesAreWarnings`,
-`RowTransformsTests.RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit`
+`RowTransformsTests.RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit`,
+`RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`
 
 Asserts the derived rows above and the fields `g, x, y`; that `count` without a group gives one row `3|1` and an
 unsupported `mean` falls back to the sum; that a `limit` of 1 keeps the first pivot value in ordinal order and gives a
 warning `vl-transform-runtime` at `/transform/0` ("only the first 1 in ordinal order") and that a row whose pivot value
 is null is skipped with a second warning naming the count (1 row) and the first row index (4); and that three pivot
-columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0` naming the limit.
+columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0` naming the limit; and
+that an array pivot value is the column named by its JavaScript text (`aaaaaa,bbbbbb`, 13 characters) within the default
+limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit.
 
 ##### Lookup Copies Fields Of The First Match
 

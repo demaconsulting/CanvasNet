@@ -21,8 +21,8 @@ internal static partial class ExpressionFunctions
     /// <param name="table">The table being built.</param>
     private static void AddText(Dictionary<string, ExpressionFunction> table)
     {
-        table["lower"] = (a, c) => DataValue.FromString(Text(a, 0, c).ToLowerInvariant());
-        table["upper"] = (a, c) => DataValue.FromString(Text(a, 0, c).ToUpperInvariant());
+        table["lower"] = (a, c) => CaseConverted(Text(a, 0, c), ToJsLower, c);
+        table["upper"] = (a, c) => CaseConverted(Text(a, 0, c), ToJsUpper, c);
         table["trim"] = (a, c) => DataValue.FromString(Trim(Text(a, 0, c)));
         table["substring"] = Substring;
         table["slice"] = Slice;
@@ -39,6 +39,21 @@ internal static partial class ExpressionFunctions
             { IsArray: true } array => DataValue.FromNumber(array.Elements.Length),
             _ => default,
         };
+    }
+
+    /// <summary>
+    ///     Applies a case conversion, whose result can be longer than its input, within the string limit.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="convert">The conversion.</param>
+    /// <param name="context">The context.</param>
+    /// <returns>The converted text.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the result is longer than the string limit.</exception>
+    private static DataValue CaseConverted(string text, Func<string, string> convert, ExpressionFunctionContext context)
+    {
+        var converted = convert(text);
+        context.CheckStringLength(converted.Length);
+        return DataValue.FromString(converted);
     }
 
     /// <summary>

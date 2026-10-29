@@ -4136,9 +4136,9 @@ and a parsed document can be rendered any number of times and from several threa
 <!-- markdownlint-disable MD013 -->
 | Element | Supported |
 | ------- | --------- |
-| Literals | `null`, `true`, `false`; numbers (decimal with fraction and exponent, and hexadecimal `0x1F`); strings in `'...'` or `"..."` with the JavaScript escapes (`\n`, `\t`, `\xHH`, `\uHHHH`, `\u{...}`; no octal escapes, no template strings); array literals `[1, 2]`; object literals `{a: 1, 'b c': 2}`; regular expression literals `/ab+c/gi` (flags `g`, `i`, `m`, `s`, `u`) |
+| Literals | `null`, `true`, `false`; numbers (decimal with fraction and exponent, and hexadecimal `0x1F`); strings in `'...'` or `"..."` with the JavaScript escapes (`\n`, `\t`, `\xHH`, `\uHHHH`, `\u{...}`; no octal escapes, no template strings); array literals `[1, 2]`; object literals `{a: 1, 'b c': 2}`; regular expression literals `/ab+c/gi` (flags `g`, `i`, `m`, `s`; `u`, `v`, `y`, and `d` are not supported and are an error) |
 | Constants | `NaN`, `Infinity`, `PI`, `E`. The other Vega constants (`SQRT2`, `LN2`, ...) are not available |
-| `datum` | The row: `datum.name`, `datum['a b']`, `datum.a.b`, and `datum[expression]`. A missing field is `null`; a nested field is read from the data as a path (`a.b`) or rebuilt as an object or array when the row has `a.b` or `a.0` fields |
+| `datum` | The row: `datum.name`, `datum['a b']`, `datum.a.b`, and `datum[expression]`. A missing field is `null`; a nested field is read from the data as a path (`a.b`) or rebuilt as an object or array when the row has `a.b` or `a.0` fields (names `0` to n-1 make an array; reading the same path twice gives the same value, so `datum.a === datum.a`) |
 | Member access | `value.name`, `value[key]`, `array.length`, `string.length`, `array[0]`, `string[0]`, and the `source`, `flags`, and `global` of a regular expression. The member of `null` or of a scalar is `null`; there are no method calls (`a.b()` is a syntax error) |
 | Operators, from the lowest to the highest precedence | `? :` (right to left); `\|\|`; `&&`; `==` `!=` `===` `!==`; `<` `<=` `>` `>=`; `+` `-`; `*` `/` `%`; the unary `+` `-` `!` `~`; member access, indexing, and calls. Parentheses group |
 | Short circuit | `&&`, `\|\|`, and `? :` run only the operand they need, and `&&` and `\|\|` **return an operand**, not a boolean, as in JavaScript |
@@ -4184,7 +4184,7 @@ the string value of the expression and its message names the offset of the const
 
 | String (9) | Meaning |
 | ---------- | ------- |
-| `lower(s)`, `upper(s)` | The text in lower or upper case (invariant culture) |
+| `lower(s)`, `upper(s)` | The text in lower or upper case with the full JavaScript mappings, independent of the culture (`upper('ß')` is `SS`, `lower('İ')` is `i` and a combining dot, and a capital sigma at the end of a word becomes `ς`); the result is at most `MaxStringLength` characters |
 | `trim(s)` | The text without JavaScript white space at both ends |
 | `substring(s, start[, end])` | The part from `start` to `end` (the end of the text when omitted); positions are clamped to the text and swapped when `start` is larger; counted in UTF-16 code units |
 | `startswith(s, search[, position])`, `endswith(s, search[, endPosition])` | Whether the text has `search` at `position` (0 by default), or ends with it when cut at `endPosition` |
@@ -4210,7 +4210,7 @@ the string value of the expression and its message names the offset of the const
 
 | Regular expression (2) | Meaning |
 | ---------------------- | ------- |
-| `regexp(pattern[, flags])` | A regular expression value; an invalid pattern or an unknown or repeated flag fails the render |
+| `regexp(pattern[, flags])` | A regular expression value; an invalid pattern or an unknown, unsupported (`u`, `v`, `y`, `d`) or repeated flag fails the render |
 | `test(regexp, s)` | Whether the text matches; a text instead of a regular expression is used as the pattern |
 <!-- markdownlint-enable MD013 -->
 
@@ -4225,7 +4225,9 @@ character, `[]` matches nothing, and `.`, `\s`, and the numbering of mixed named
 linear-time matching engine is used (so a pattern cannot cause catastrophic backtracking); look-around and
 back-references need the backtracking engine and are stopped after 100 ms, which fails the render with a located error.
 A pattern is at most 1,024 characters; an invalid pattern in a literal is an error when the document is opened, and one
-built by `regexp()` fails when it runs.
+built by `regexp()` fails when it runs. Matching works on UTF-16 code units, so the flags `u` and `v` (Unicode matching),
+`y` (sticky), and `d` (match indices) are rejected, in a literal when the document is opened and in `regexp()` when it
+runs, instead of being accepted and ignored.
 
 **Limits and errors.**
 
@@ -4288,8 +4290,9 @@ parameter has the value that its definition gives, because a still picture has n
 - `VegaLiteRenderOptions.Parameters` **replaces the definition** of a parameter by a value of the host: the `value` and
   the `expr` of the specification are not used and the expression is **not evaluated**, and the expressions that read
   the parameter see the override. A date (`DateTime`, `DateTimeOffset`) becomes a date value. The names that may be
-  overridden are `VegaLiteDocument.ParameterNames`; any other name is an `ArgumentException` when the chart is
-  measured or rendered. The override of a selection parameter is accepted and has no effect.
+  overridden are `VegaLiteDocument.ParameterNames`; any other name is an `ArgumentException` when the chart is measured
+  or rendered. The override of a selection parameter is accepted and has no effect. A text of an override (or of a
+  `value`) longer than `MaxStringLength` fails the render with a located `VegaLiteRenderException`.
 - A **selection** parameter (an entry with `select`, and the legacy `selection`) is reported (`vl-param-selection`);
   an expression that reads it sees `null`, and a filter on it (`{"param": "brush"}`, `{"selection": "brush"}`) keeps
   every row and is reported (`vl-transform-filter-param`). The variable parameters of a view inside a composition are

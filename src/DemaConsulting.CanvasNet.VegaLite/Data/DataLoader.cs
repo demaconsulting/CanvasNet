@@ -468,7 +468,14 @@ internal sealed class DataLoader
             var record = new Dictionary<string, DataValue>(row.Count, StringComparer.Ordinal);
             foreach (var (field, value) in row)
             {
-                record[FieldPath.Escape(field)] = FromObject(value, location);
+                var cell = FromObject(value, location);
+                if (cell.IsString && cell.Text!.Length > _limits.MaxStringLength)
+                {
+                    throw new VegaLiteRenderException(
+                        $"A text in the data is longer than the limit of {_limits.MaxStringLength} characters (MaxStringLength).", location);
+                }
+
+                record[FieldPath.Escape(field)] = cell;
                 CheckFieldCount(record, location);
             }
 

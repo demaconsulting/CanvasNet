@@ -7,9 +7,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 /// </summary>
 /// <remarks>
 ///     A table stores a nested row flattened: every leaf is a field named by the canonical text of its path. Reading
-///     <c>datum.a</c> therefore first looks for the field <c>a</c> and, when there is none, rebuilds the nested object
-///     from the fields below it (<c>a.b</c>, <c>a.c</c>); reading the whole <c>datum</c> rebuilds the whole row. The work
-///     is charged to the step budget in proportion to the number of fields.
+///     <c>datum.a</c> therefore first looks for a field <c>a</c> that holds a value and, when there is none, rebuilds the
+///     nested array or object from the fields below it (<c>a.b</c>, <c>a.c</c>; the indexes <c>a.0</c>, <c>a.1</c> make an array);
+///     reading the whole <c>datum</c> rebuilds the whole row. A rebuilt composite is cached for the evaluation, so reading it
+///     again gives the same value (JavaScript identity). The work is charged to the step budget in proportion to the number
+///     of fields.
 /// </remarks>
 internal sealed partial class ExpressionEvaluator
 {
@@ -46,7 +48,7 @@ internal sealed partial class ExpressionEvaluator
     };
 
     /// <summary>
-    ///     Reads a field of the current table row, rebuilding a flattened nested object when needed.
+    ///     Reads a field of the current table row, rebuilding a flattened nested array or object when needed.
     /// </summary>
     /// <param name="name">The property name.</param>
     /// <returns>The value.</returns>
@@ -54,21 +56,50 @@ internal sealed partial class ExpressionEvaluator
     {
         var escaped = FieldPath.Escape(name);
         var index = _table!.IndexOfField(escaped);
-        return index >= 0 ? _table.GetValue(_row, index) : BuildNested(escaped + ".");
+        if (index >= 0)
+        {
+            var cell = _table.GetValue(_row, index);
+            if (!cell.IsNull)
+            {
+                return cell;
+            }
+        }
+
+        // A null cell with fields below it is the composite of those fields (a column that is null in one row and nested in
+        // another); the composite is the same array or object on every read of the row
+        var built = BuildNested(escaped + ".");
+        return built.IsNull && index >= 0 ? _table.GetValue(_row, index) : built;
     }
 
     /// <summary>
-    ///     Rebuilds a nested object from the flattened fields that start with a prefix.
+    ///     Rebuilds a nested array or object from the flattened fields that start with a prefix.
     /// </summary>
+    /// <remarks>
+    ///     The composites of the row are cached by canonical path for the duration of one evaluation, so that reading the same
+    ///     path twice (<c>datum.a === datum.a</c>) or a path inside an earlier read (<c>datum.a</c> after <c>datum</c>) returns
+    ///     the same value. Names that are the indexes 0 to n-1 make an array, as the data loader flattens one.
+    /// </remarks>
     /// <param name="prefix">The canonical prefix including the trailing dot, or the empty text for the whole row.</param>
-    /// <returns>The object; null when no field starts with the prefix.</returns>
+    /// <returns>The array or object; null when no field starts with the prefix.</returns>
     private DataValue BuildNested(string prefix)
     {
         var table = _table!;
+        var path = prefix.Length == 0 ? string.Empty : prefix[..^1];
+        _nested ??= new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        if (_nested.TryGetValue(path, out var cached))
+        {
+            return cached;
+        }
+
         // One extra step for every 16 fields scanned (the size unit is 64 per step)
         _context.ChargeSize(table.FieldCount * 4L);
-        var root = new NestedNode();
+        var root = new FlatRowNode();
         var found = false;
+        if (prefix.Length > 0 && table.IndexOfField(prefix[..^1]) is var direct and >= 0)
+        {
+            // The cell of the path itself, which is null here: all-null elements below it leave it null
+            root.Add([], 0, table.GetValue(_row, direct));
+        }
         for (var i = 0; i < table.FieldCount; i++)
         {
             var field = table.Fields[i];
@@ -87,69 +118,6 @@ internal sealed partial class ExpressionEvaluator
             root.Add(segments, 0, table.GetValue(_row, i));
         }
 
-        return found ? root.ToValue() : default;
-    }
-
-    /// <summary>
-    ///     A node of the tree that is rebuilt from flattened field names.
-    /// </summary>
-    private sealed class NestedNode
-    {
-        /// <summary>The child nodes by name.</summary>
-        private readonly Dictionary<string, NestedNode> _children = new(StringComparer.Ordinal);
-
-        /// <summary>The names of the children in insertion order.</summary>
-        private readonly List<string> _order = [];
-
-        /// <summary>The value of a leaf.</summary>
-        private DataValue _leaf;
-
-        /// <summary>Whether this node is a leaf.</summary>
-        private bool _isLeaf;
-
-        /// <summary>
-        ///     Adds a leaf below this node.
-        /// </summary>
-        /// <param name="segments">The path of the leaf.</param>
-        /// <param name="position">The segment to add next.</param>
-        /// <param name="value">The value of the leaf.</param>
-        public void Add(IReadOnlyList<string> segments, int position, DataValue value)
-        {
-            if (position == segments.Count)
-            {
-                _isLeaf = true;
-                _leaf = value;
-                return;
-            }
-
-            if (!_children.TryGetValue(segments[position], out var child))
-            {
-                child = new NestedNode();
-                _children[segments[position]] = child;
-                _order.Add(segments[position]);
-            }
-
-            child.Add(segments, position + 1, value);
-        }
-
-        /// <summary>
-        ///     Converts the node to a value.
-        /// </summary>
-        /// <returns>The leaf value, or an object of the children in insertion order.</returns>
-        public DataValue ToValue()
-        {
-            if (_isLeaf)
-            {
-                return _leaf;
-            }
-
-            var members = new List<KeyValuePair<string, DataValue>>(_order.Count);
-            foreach (var name in _order)
-            {
-                members.Add(new KeyValuePair<string, DataValue>(name, _children[name].ToValue()));
-            }
-
-            return DataValue.FromObject(DataObject.Create(members));
-        }
+        return found ? root.ToValue(path, _nested, prefix.Length == 0) : default;
     }
 }

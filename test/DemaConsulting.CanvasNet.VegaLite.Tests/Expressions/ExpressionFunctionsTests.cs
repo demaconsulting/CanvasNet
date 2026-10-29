@@ -413,7 +413,7 @@ public class ExpressionFunctionsTests
     [InlineData("test(regexp('a'), 'b')", false)]
     [InlineData("test(regexp(/a/i), 'A')", true)]
     [InlineData("test(regexp(/a/i, 'g'), 'A')", false)]
-    [InlineData("test(/a/u, 'a')", true)]
+    [InlineData("test(/a/s, 'a')", true)]
     [InlineData("test(/^(?=a)a+$/, 'aaa')", true)]
     [InlineData("test(/(a)\\1/, 'aa')", true)]
     [InlineData("test(/(a)\\1/, 'ab')", false)]
@@ -490,6 +490,16 @@ public class ExpressionFunctionsTests
     [InlineData("split('abc', regexp(''))", "a|b|c")]
     [InlineData("split('abc', /x/)", "abc")]
     [InlineData("split('1a', /\\d/)", "|a")]
+    [InlineData("split('abc', /(?:)/)", "a|b|c")]
+    [InlineData("split('abc', /x*/)", "a|b|c")]
+    [InlineData("split('abc', /()/)", "a||b||c")]
+    [InlineData("split('abc', /b*/)", "a|c")]
+    [InlineData("split('abc', /(?:)/, 2)", "a|b")]
+    [InlineData("split('ab', /(?=b)/)", "a|b")]
+    [InlineData("split('a,b', /,*/)", "a|b")]
+    [InlineData("split('a  b', / */)", "a|b")]
+    [InlineData("split('aXbXc', /(x)|(b)/i)", "a|X|null||null|b||X|null|c")]
+    [InlineData("split('abc', /(?:)/, 0)", "")]
     public void ExpressionFunctions_Split_FollowsJavaScript(string text, string expected)
     {
         // Arrange / Act
@@ -512,6 +522,127 @@ public class ExpressionFunctionsTests
         Assert.Equal(0, Eval("split('a,b', ',', 0)").Elements.Length);
         Assert.Equal(1, Eval("split('', /x/)").Elements.Length);
         Assert.Equal(0, Eval("split('', /x*/)").Elements.Length);
+    }
+
+    /// <summary>
+    ///     Validates that an empty regular expression splits between every two UTF-16 code units, as JavaScript does, and that
+    ///     the limit of the parts and a text separator behave the same way.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_Split_EmptyRegexAndTextSplitBetweenCodeUnits()
+    {
+        // Arrange: a surrogate pair is two code units to split, regular expression or text
+        var parameters = new Dictionary<string, DataValue> { ["s"] = DataValue.FromString("a\uD83D\uDE00") };
+
+        // Act
+        var byRegex = Eval("split(s, regexp(''))", parameters: parameters).Elements.ToArray().Select(e => e.Text).ToArray();
+        var byText = Eval("split(s, '')", parameters: parameters).Elements.ToArray().Select(e => e.Text).ToArray();
+
+        // Assert
+        Assert.Equal(["a", "\uD83D", "\uDE00"], byRegex);
+        Assert.Equal(byText, byRegex);
+        Assert.Equal(3, Eval("split('abc', regexp(''))").Elements.Length);
+        Assert.Equal("a,b,c", Eval("join(split('abc', regexp('')), ',')").Text);
+    }
+
+    /// <summary>
+    ///     Validates the full case mappings that JavaScript applies and the invariant culture of .NET does not: the sharp s,
+    ///     the ligatures, the letters with a combining mark and the Greek letters with an iota subscript make longer text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="expected">The upper case text.</param>
+    [Theory]
+    [InlineData("\u00DF", "SS")]
+    [InlineData("gro\u00DF", "GROSS")]
+    [InlineData("\uFB00", "FF")]
+    [InlineData("\uFB01", "FI")]
+    [InlineData("\uFB02", "FL")]
+    [InlineData("\uFB03", "FFI")]
+    [InlineData("\uFB04", "FFL")]
+    [InlineData("\uFB05", "ST")]
+    [InlineData("\uFB06", "ST")]
+    [InlineData("\u0149", "\u02BCN")]
+    [InlineData("\u01F0", "J\u030C")]
+    [InlineData("\u0587", "\u0535\u0552")]
+    [InlineData("\u1E96\u1E97\u1E98\u1E99\u1E9A", "H\u0331T\u0308W\u030AY\u030AA\u02BE")]
+    [InlineData("\u0390", "\u0399\u0308\u0301")]
+    [InlineData("\u03B0", "\u03A5\u0308\u0301")]
+    [InlineData("\u1F80", "\u1F08\u0399")]
+    [InlineData("\u1F88", "\u1F08\u0399")]
+    [InlineData("\u1F97", "\u1F2F\u0399")]
+    [InlineData("\u1FA7", "\u1F6F\u0399")]
+    [InlineData("\u1FB3", "\u0391\u0399")]
+    [InlineData("\u1FB7", "\u0391\u0342\u0399")]
+    [InlineData("\u1FF4", "\u038F\u0399")]
+    [InlineData("\uFB13", "\u0544\u0546")]
+    [InlineData("a\u00DF b\u00E9\u0131", "ASS B\u00C9I")]
+    [InlineData("abc \u00E9\u00FC", "ABC \u00C9\u00DC")]
+    [InlineData("", "")]
+    public void ExpressionFunctions_Upper_AppliesFullCaseMappings(string text, string expected)
+    {
+        // Arrange / Act
+        var value = Eval("upper(s)", parameters: new Dictionary<string, DataValue> { ["s"] = DataValue.FromString(text) });
+
+        // Assert
+        Assert.True(value.IsString);
+        Assert.Equal(expected, value.Text);
+    }
+
+    /// <summary>
+    ///     Validates that the capital I with a dot above lowers to two code points and that the capital sigma lowers to the
+    ///     final form at the end of a word and to the ordinary form elsewhere, as JavaScript does.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="expected">The lower case text.</param>
+    [Theory]
+    [InlineData("\u0130", "i\u0307")]
+    [InlineData("A\u0130B", "ai\u0307b")]
+    [InlineData("\u0391\u03A3", "\u03B1\u03C2")]
+    [InlineData("\u0391\u03A3\u0391", "\u03B1\u03C3\u03B1")]
+    [InlineData("\u03A3", "\u03C3")]
+    [InlineData("\u0391\u03A3 \u03A3", "\u03B1\u03C2 \u03C3")]
+    [InlineData("\u0391\u03A3.", "\u03B1\u03C2.")]
+    [InlineData("\u0391\u03A3.\u0391", "\u03B1\u03C3.\u03B1")]
+    [InlineData("a\u00AD\u03A3", "a\u00AD\u03C2")]
+    [InlineData("\u0391\u03A3\u03A3", "\u03B1\u03C3\u03C2")]
+    [InlineData("\u03A3\u0391", "\u03C3\u03B1")]
+    [InlineData("1\u03A3", "1\u03C3")]
+    [InlineData("ABC \u00C9\u00DC", "abc \u00E9\u00FC")]
+    [InlineData("", "")]
+    public void ExpressionFunctions_Lower_AppliesFullCaseMappingsAndFinalSigma(string text, string expected)
+    {
+        // Arrange / Act
+        var value = Eval("lower(s)", parameters: new Dictionary<string, DataValue> { ["s"] = DataValue.FromString(text) });
+
+        // Assert
+        Assert.True(value.IsString);
+        Assert.Equal(expected, value.Text);
+    }
+
+    /// <summary>
+    ///     Validates that case conversion does not depend on the current culture (the Turkish dotted and dotless i do not
+    ///     change the result) and that a result that grows is bounded by the string limit.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_CaseConversion_IsCultureInvariantAndBounded()
+    {
+        // Arrange
+        var parameters = new Dictionary<string, DataValue> { ["s"] = DataValue.FromString("i I \u00DF") };
+        var limits = new VegaLiteLimits { MaxStringLength = 4 };
+        var grows = new Dictionary<string, DataValue> { ["s"] = DataValue.FromString("\u00DF\u00DF\u00DF") };
+
+        // Act
+        var turkish = UnderCulture("tr-TR", () => Eval("upper(s)", parameters: parameters).Text + "|" + Eval("lower(s)", parameters: parameters).Text);
+        var invariant = UnderCulture(string.Empty, () => Eval("upper(s)", parameters: parameters).Text + "|" + Eval("lower(s)", parameters: parameters).Text);
+        var atLimit = Eval("upper(s)", limits, new Dictionary<string, DataValue> { ["s"] = DataValue.FromString("\u00DF\u00DF") });
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Eval("upper(s)", limits, grows));
+
+        // Assert: the results are the same in both cultures; three sharp s (one more character each) pass the input but not the result
+        Assert.Equal("I I SS|i i \u00DF", turkish);
+        Assert.Equal(turkish, invariant);
+        Assert.Equal("SSSS", atLimit.Text);
+        Assert.Contains("the limit of 4 characters", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(Location, exception.Location);
     }
 
     /// <summary>
@@ -568,6 +699,12 @@ public class ExpressionFunctionsTests
     [InlineData("regexp('[')", "is not valid", 0)]
     [InlineData("regexp('a', 'x')", "not supported or repeat", 0)]
     [InlineData("regexp('a', 'gg')", "not supported or repeat", 0)]
+    [InlineData("regexp('a', 'u')", "the flags u, v, y and d are not", 0)]
+    [InlineData("regexp('a', 'gu')", "not supported or repeat", 0)]
+    [InlineData("regexp('a', 'v')", "not supported or repeat", 0)]
+    [InlineData("regexp('a', 'y')", "not supported or repeat", 0)]
+    [InlineData("regexp('a', 'd')", "not supported or repeat", 0)]
+    [InlineData("replace('x', regexp('.', 'iu'), 'x')", "not supported or repeat", 13)]
     [InlineData("test('(', 'a')", "is not valid", 0)]
     [InlineData("replace('a', regexp('*'), 'b')", "is not valid", 13)]
     public void ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError(string text, string fragment, int offset)

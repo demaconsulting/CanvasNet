@@ -68,8 +68,8 @@ sections:
                   value or the expression of each variable parameter of the drawn view, evaluated once in an
                   order that puts every dependency first and otherwise follows the declaration, with the
                   caller's render parameter replacing the whole definition of a parameter (its expression
-                  is then not evaluated) - and shall read a variable parameter in a filter predicate as its
-                  truthiness.
+                  is then not evaluated), refusing a text of a parameter value that is longer than the string limit
+                  - and shall read a variable parameter in a filter predicate as its truthiness.
                 justification: |
                   Static parameters let a host change a chart without editing its text; their evaluation
                   order and the precedence of an override must be defined.
@@ -78,6 +78,9 @@ sections:
                   - RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden
                   - RowTransforms_Apply_LongParameterChainsAreOrderedByDependency
                   - RowTransforms_Apply_ParameterErrorsAreLocatedSpecificationErrors
+                  - RowTransforms_Apply_ParameterTextLongerThanMaxStringLength_IsLocatedRenderError
+                  - RowTransforms_Apply_StaticParameterTextLongerThanRenderLimit_IsLocatedRenderError
+                  - RowTransforms_Apply_CalculateOfLongTextFieldIsLocatedRenderError
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Fold
                 title: >-
@@ -111,7 +114,7 @@ sections:
                   turn the distinct texts of the pivot field into columns in ordinal order (keeping the first
                   limit of them), fill each cell with the sum (the default) or the count of the group, with 0
                   for a missing combination, output only the group fields and the pivot columns, and bound
-                  the number of columns by the field limit.
+                  the number of columns by the field limit and the text of a pivot value by the string limit.
                 justification: |
                   Pivot reshapes long data into the columns that scales read; its grouping, ordering, and
                   default must be defined and its output bounded.
@@ -119,6 +122,7 @@ sections:
                   - RowTransforms_Apply_PivotSumsValuesPerGroup
                   - RowTransforms_Apply_PivotCountsAndFallsBackToSum
                   - RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit
+                  - RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Lookup
                 title: >-

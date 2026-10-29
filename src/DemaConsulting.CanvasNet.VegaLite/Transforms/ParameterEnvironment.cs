@@ -19,7 +19,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         static chart; it is reported by the feature catalog and an expression that reads it sees null.
 ///     </para>
 ///     <para>
-///         The environment is built once per measure or render call, on the calling thread. An expression that fails (the
+///         The environment is built once per measure or render call, on the calling thread. A text of a value of the caller or
+///         of the specification that is longer than <see cref="VegaLiteLimits.MaxStringLength"/> is a located
+///         <see cref="VegaLiteRenderException"/>, because no function has measured it. An expression that fails (the
 ///         step budget, the string limit) is a located <see cref="VegaLiteRenderException"/>.
 ///     </para>
 /// </remarks>
@@ -101,7 +103,7 @@ internal static class ParameterEnvironment
     {
         if (overrides is not null && overrides.TryGetValue(name, out var supplied))
         {
-            return DataLoader.FromObject(supplied, tree.Locate(parameter));
+            return Checked(DataLoader.FromObject(supplied, tree.Locate(parameter)), name, tree.Locate(parameter), evaluator.MaxStringLength);
         }
 
         if (tree.Expressions.Get(parameter["expr"]) is { } expression)
@@ -109,7 +111,50 @@ internal static class ParameterEnvironment
             return evaluator.Evaluate(expression);
         }
 
-        return parameter["value"] is { } value ? SpecValues.ToDataValue(value) : DataValue.Null;
+        return parameter["value"] is { } value
+            ? Checked(SpecValues.ToDataValue(value), name, tree.Locate(parameter), evaluator.MaxStringLength)
+            : DataValue.Null;
+    }
+
+    /// <summary>
+    ///     Checks that no text of a parameter value is longer than the limit the evaluation enforces for its own texts.
+    /// </summary>
+    /// <remarks>
+    ///     The value of the caller and the value of the specification come from outside the evaluation, so no function has
+    ///     measured them; without this check a long text could be stored by <c>calculate</c> or returned by a function. The
+    ///     nesting of a composite value is bounded by the specification parser (at most 256 levels).
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="location">The location of the parameter.</param>
+    /// <param name="maxLength">The longest text allowed.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when a text is longer than <paramref name="maxLength"/>.</exception>
+    private static DataValue Checked(DataValue value, string name, VegaLiteLocation location, int maxLength)
+    {
+        if (value.IsString && value.Text!.Length > maxLength)
+        {
+            throw new VegaLiteRenderException(
+                $"The value of the parameter '{name}' has a text longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).",
+                location);
+        }
+
+        if (value.IsArray)
+        {
+            foreach (var element in value.Elements)
+            {
+                Checked(element, name, location, maxLength);
+            }
+        }
+        else if (value.IsObject)
+        {
+            for (var i = 0; i < value.ObjectValue!.Count; i++)
+            {
+                Checked(value.ObjectValue.ValueAt(i), name, location, maxLength);
+            }
+        }
+
+        return value;
     }
 }
 

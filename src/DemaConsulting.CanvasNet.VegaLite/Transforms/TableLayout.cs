@@ -235,123 +235,12 @@ internal sealed class FieldReader
             return default;
         }
 
-        var root = new Node();
+        var root = new FlatRowNode();
         foreach (var (field, segments) in _below)
         {
             root.Add(segments, 0, _table.GetValue(row, field));
         }
 
         return root.ToValue();
-    }
-
-    /// <summary>
-    ///     A node of the tree rebuilt from flattened names.
-    /// </summary>
-    private sealed class Node
-    {
-        /// <summary>The children by name.</summary>
-        private readonly Dictionary<string, Node> _children = new(StringComparer.Ordinal);
-
-        /// <summary>The names of the children in insertion order.</summary>
-        private readonly List<string> _order = [];
-
-        /// <summary>The value of a leaf.</summary>
-        private DataValue _leaf;
-
-        /// <summary>Whether this node is a leaf.</summary>
-        private bool _isLeaf;
-
-        /// <summary>Gets a value indicating whether this node is a leaf that holds null (a missing or null cell).</summary>
-        public bool IsNullLeaf => _isLeaf && _leaf.IsNull;
-
-        /// <summary>
-        ///     Adds a leaf below this node.
-        /// </summary>
-        /// <param name="segments">The names that lead to the leaf.</param>
-        /// <param name="position">The name to add next.</param>
-        /// <param name="value">The value of the leaf.</param>
-        public void Add(IReadOnlyList<string> segments, int position, DataValue value)
-        {
-            if (position == segments.Count)
-            {
-                _isLeaf = true;
-                _leaf = value;
-                return;
-            }
-
-            if (!_children.TryGetValue(segments[position], out var child))
-            {
-                child = new Node();
-                _children[segments[position]] = child;
-                _order.Add(segments[position]);
-            }
-
-            child.Add(segments, position + 1, value);
-        }
-
-        /// <summary>
-        ///     Converts the node to a value: its leaf, an array when the names are the indexes 0 to n-1, or an object.
-        /// </summary>
-        /// <returns>The value.</returns>
-        public DataValue ToValue()
-        {
-            if (_isLeaf)
-            {
-                return _leaf;
-            }
-
-            if (IsIndexed())
-            {
-                // A missing element and a null one are the same cell, so trailing nulls are not part of a rebuilt array: a row
-                // whose array is shorter than that of another row (or empty) must not gain elements
-                var length = _order.Count;
-                while (length > 0 && _children[(length - 1).ToString(System.Globalization.CultureInfo.InvariantCulture)].IsNullLeaf)
-                {
-                    length--;
-                }
-
-                var elements = new DataValue[length];
-                for (var i = 0; i < length; i++)
-                {
-                    elements[i] = _children[i.ToString(System.Globalization.CultureInfo.InvariantCulture)].ToValue();
-                }
-
-                return DataValue.FromOwnedArray(elements);
-            }
-
-            return DataValue.FromObject(DataObject.Create(
-                _order.Select(name => new KeyValuePair<string, DataValue>(name, _children[name].ToValue()))));
-        }
-
-        /// <summary>
-        ///     Determines whether the child names are exactly the canonical indexes 0 to n-1.
-        /// </summary>
-        /// <returns><see langword="true"/> when the node is an array.</returns>
-        private bool IsIndexed()
-        {
-            if (_order.Count == 0)
-            {
-                return false;
-            }
-
-            var seen = new bool[_order.Count];
-            foreach (var name in _order)
-            {
-                if (name.Length == 0 || name.Length > 9 || !name.All(char.IsAsciiDigit) || (name.Length > 1 && name[0] == '0'))
-                {
-                    return false;
-                }
-
-                var index = int.Parse(name, System.Globalization.CultureInfo.InvariantCulture);
-                if (index >= seen.Length || seen[index])
-                {
-                    return false;
-                }
-
-                seen[index] = true;
-            }
-
-            return true;
-        }
     }
 }

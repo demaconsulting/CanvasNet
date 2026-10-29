@@ -1,5 +1,6 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
@@ -203,11 +204,21 @@ internal sealed partial class RowTransforms
             }
 
             groupOf[row] = group;
-            textOf[row] = pivotValue.ToText();
+
+            // The text of an array value is bounded like every text of an expression, and the failure is located at the pivot
+            try
+            {
+                textOf[row] = ExpressionEvaluator.ToJsString(pivotValue, _context.Limits.MaxStringLength);
+            }
+            catch (ExpressionRuntimeException ex)
+            {
+                throw new VegaLiteRenderException($"The pivot field '{pivotPath}' has a value whose text is too long: {ex.Message}", location);
+            }
+
             if (texts.Add(textOf[row]!) && texts.Count + groupNames.Length > _context.Limits.MaxFieldCount)
             {
                 throw new VegaLiteRenderException(
-                    $"The pivot produces more than {_context.Limits.MaxFieldCount} fields, the limit (MaxFieldCount).", location);
+                    $"The pivot produces more than {_context.Limits.MaxFieldCount} fields, more than the limit of {_context.Limits.MaxFieldCount} (VegaLiteLimits.MaxFieldCount).", location);
             }
         }
 

@@ -20,11 +20,11 @@ sections:
                 title: >-
                   The ExpressionParser unit shall compile the documented subset of the Vega expression
                   language - the literals null, true, false, finite numbers (decimal, hexadecimal, and exponent
-                  forms), strings with escapes, regular expression literals with the flags g, i, m, s, and u,
-                  array and object literals, and the constants PI, E, NaN, and Infinity; the unary operators +,
-                  -, !, and ~; the arithmetic, relational, equality, logical, and conditional operators with the
-                  JavaScript precedence and associativity; grouping; and calls of a function by name - and
-                  shall reject a null expression text.
+                  forms), strings with escapes, regular expression literals with the flags g, i, m, and s
+                  (u, v, y, and d are rejected), array and object literals, and the constants PI, E, NaN, and
+                  Infinity; the unary operators +, -, !, and ~; the arithmetic, relational, equality, logical, and
+                  conditional operators with the JavaScript precedence and associativity; grouping; and calls of a
+                  function by name - and shall reject a null expression text.
                 justification: |
                   The renderer must read an expression exactly as its author and Vega do; a different
                   precedence or literal reading would silently change which rows are drawn.
@@ -35,6 +35,7 @@ sections:
                   - ExpressionParser_Parse_ArrayAndObjectLiterals_BuildCompositeValues
                   - ExpressionParser_Parse_PrecedenceAndAssociativity_MatchJavaScript
                   - ExpressionParser_Parse_RegExpLiteralsAndDivision_AreDistinguished
+                  - ExpressionParser_Parse_UnhonoredRegExpFlag_IsLocatedSpecError
                   - ExpressionParser_Parse_NullText_ThrowsArgumentNullException
 
               - id: CanvasNetVegaLite-Expressions-ExpressionParser-Access

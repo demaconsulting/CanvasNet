@@ -510,6 +510,103 @@ public class RowTransformsTests
         Assert.Contains("MaxFieldCount", ex.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    ///     Validates that a text of a parameter that comes from outside the evaluation (the value of the caller or a value of
+    ///     the specification under a lower limit) is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, so it cannot be
+    ///     stored by <c>calculate</c> or returned by <c>toString</c>.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_ParameterTextLongerThanMaxStringLength_IsLocatedRenderError()
+    {
+        // Arrange: a parameter that calculate stores and toString converts, with a limit of 20 characters
+        var limits = new VegaLiteLimits { MaxStringLength = 20 };
+        var json = Spec(
+            "[{\"i\":1}]",
+            "[{\"calculate\":\"p\",\"as\":\"stored\"},{\"calculate\":\"toString(p)\",\"as\":\"converted\"}]",
+            "\"params\":[{\"name\":\"p\",\"value\":\"short\"}],");
+
+        // Act
+        var fits = Run(json, out _, limits, new Dictionary<string, object?> { ["p"] = new string('x', 20) });
+        var tooLong = Assert.Throws<VegaLiteRenderException>(
+            () => Run(json, out _, limits, new Dictionary<string, object?> { ["p"] = new string('x', 21) }));
+
+        // Assert: at the limit the text is kept; over it the failure is located at the parameter and names the limit
+        Assert.Equal(20, fits.GetValue(0, "stored").Text!.Length);
+        Assert.Equal("/params/0", tooLong.Location.Pointer);
+        Assert.Contains("the limit of 20 characters (VegaLiteLimits.MaxStringLength)", tooLong.Message, StringComparison.Ordinal);
+        Assert.Contains("'p'", tooLong.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the texts of the values that the specification gives a parameter are checked against the limit of
+    ///     the render call, which can be lower than the limit the specification was parsed with, also inside a composite.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_StaticParameterTextLongerThanRenderLimit_IsLocatedRenderError()
+    {
+        // Arrange: parsed under the default limit, evaluated under a limit of 10
+        var tree = SpecParser.Parse(Spec("[]", "[]", "\"params\":[{\"name\":\"s\",\"value\":\"0123456789a\"},{\"name\":\"l\",\"value\":[\"ok\",{\"k\":\"0123456789a\"}]}],"), "t.vl.json");
+        var limits = new VegaLiteLimits { MaxStringLength = 10 };
+        var values = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        var evaluator = new ExpressionEvaluator(limits, Ct, values);
+
+        // Act
+        var scalar = Assert.Throws<VegaLiteRenderException>(() => ParameterEnvironment.Populate(tree, null, values, evaluator));
+        var composite = SpecParser.Parse(Spec("[]", "[]", "\"params\":[{\"name\":\"l\",\"value\":[\"ok\",{\"k\":\"0123456789a\"}]}],"), "t.vl.json");
+        var nested = Assert.Throws<VegaLiteRenderException>(() => ParameterEnvironment.Populate(composite, null, values, evaluator));
+
+        // Assert
+        Assert.Equal("/params/0", scalar.Location.Pointer);
+        Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", scalar.Message, StringComparison.Ordinal);
+        Assert.Equal("/params/0", nested.Location.Pointer);
+    }
+
+    /// <summary>
+    ///     Validates that a calculated field that is the text of a long parameter is not stored when the text is over the
+    ///     limit of the call, whichever way the text got to the expression.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_CalculateOfLongTextFieldIsLocatedRenderError()
+    {
+        // Arrange: a row whose text is over a limit of 10 only when the render limit is lower than the one used to parse it
+        var tree = SpecParser.Parse(Spec("[{\"s\":\"0123456789a\"}]", "[{\"calculate\":\"datum.s\",\"as\":\"copy\"}]"), "t.vl.json");
+        var limits = new VegaLiteLimits { MaxStringLength = 10 };
+        var loader = new DataLoader(tree.SourceName, VegaLiteLimits.Default, null, tree.Root["datasets"], null, Ct);
+        var table = loader.Load(tree.Root["data"]);
+        var values = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        var evaluator = new ExpressionEvaluator(limits, Ct, values);
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(
+            () => RowTransforms.Apply(table, tree.Root["transform"], new TransformContext(tree, loader, evaluator, values, limits, Ct, [])));
+
+        // Assert
+        Assert.Equal("/transform/0/calculate", exception.Location.Pointer);
+        Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the array value of a pivot field is converted to the text of its column name within the string
+    ///     limit and that a text that is too long is a located failure before the column is created.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength()
+    {
+        // Arrange: the key is the array ["aaaaaa", "bbbbbb"], whose text has 13 characters
+        var json = Spec("[{\"k\":[\"aaaaaa\",\"bbbbbb\"],\"v\":1},{\"k\":[\"aaaaaa\",\"bbbbbb\"],\"v\":2}]", "[{\"pivot\":\"k\",\"value\":\"v\"}]");
+
+        // Act
+        var table = Run(json);
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, out _, new VegaLiteLimits { MaxStringLength = 12 }));
+
+        // Assert: within the limit the column is named by the JavaScript text of the array
+        Assert.Equal(["aaaaaa,bbbbbb"], table.Fields);
+        Assert.Equal("3", table.GetValue(0, "aaaaaa,bbbbbb").ToText());
+        Assert.Equal("/transform/0", exception.Location.Pointer);
+        Assert.Contains("the limit of 12 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("'k'", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>The secondary rows used by the lookup tests.</summary>
     private const string Secondary = "[{\"k\":1,\"n\":\"one\",\"m\":10},{\"k\":2,\"n\":\"two\",\"m\":20},{\"k\":1,\"n\":\"uno\",\"m\":99}]";
 

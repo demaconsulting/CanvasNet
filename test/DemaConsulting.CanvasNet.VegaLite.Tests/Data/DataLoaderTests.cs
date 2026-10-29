@@ -552,6 +552,33 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates that a text of a dataset that the caller supplied is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>
+    ///     like a text read from a file, so a long caller text never reaches an expression.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError()
+    {
+        // Arrange: one text at the limit and one over it
+        var tree = Spec("{\"name\":\"d\"}");
+        var limits = new VegaLiteLimits { MaxStringLength = 8 };
+        IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>> Dataset(string text) =>
+            new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+            {
+                ["d"] = new List<IReadOnlyDictionary<string, object?>> { new Dictionary<string, object?> { ["s"] = text } },
+            };
+
+        // Act
+        var atLimit = CreateLoader(tree, limits: limits, caller: Dataset(new string('x', 8))).Load(tree.Root["data"]);
+        var exception = Assert.Throws<VegaLiteRenderException>(
+            () => CreateLoader(tree, limits: limits, caller: Dataset(new string('x', 9))).Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Equal(8, atLimit.GetValue(0, "s").Text!.Length);
+        Assert.Contains("the limit of 8 characters (MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SpecName, exception.Location.File);
+    }
+
+    /// <summary>
     ///     Validates that the largest values of the .NET date types (the usual "no end" sentinels) are clamped to the
     ///     largest supported date and never fail, whatever their kind.
     /// </summary>

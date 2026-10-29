@@ -174,17 +174,19 @@ says that `'d.json'` contains text that is not valid Unicode, located at `/data/
 **Tests**: `DataLoaderTests.DataLoader_Load_RowLimitFailsWithLocation`,
 `DataLoaderTests.DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf`,
 `DataLoaderTests.DataLoader_Load_RowLimitIsATotalAcrossTables`,
+`DataLoaderTests.DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError`,
 `DataLoaderTests.DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl`,
 `DataLoaderTests.DataLoader_Load_CanceledTokenStopsLoading`
 
 Asserts that more rows than `MaxDataRows` fail before any row is converted with a `VegaLiteRenderException` whose
-pointer is `/data/values`, whose file and line are those of the values (`rows.vl.json`, line 2), and whose message
-names the limit and starts with the location, while exactly the limit is accepted; that more fields than
-`MaxFieldCount` fail at the pointer of the leaf that exceeded the limit, and that the limit also applies to the union
-of the fields of different rows; that the row limit is a total across the tables of one loader (a second table that
-would pass the total is refused with the rows read before named, and `RowsLoaded` reports what was read); that a CSV
-over the row limit, and one with a repeated column, fail at the `url` (`/data/url`, line 1); and that a canceled token
-throws `OperationCanceledException`.
+pointer is `/data/values`, whose file and line are those of the values (`rows.vl.json`, line 2), and whose message names
+the limit and starts with the location, while exactly the limit is accepted; that more fields than `MaxFieldCount` fail
+at the pointer of the leaf that exceeded the limit, and that the limit also applies to the union of the fields of
+different rows; that the row limit is a total across the tables of one loader (a second table that would pass the total
+is refused with the rows read before named, and `RowsLoaded` reports what was read); that a CSV over the row limit, and
+one with a repeated column, fail at the `url` (`/data/url`, line 1); that a text of a dataset that the caller supplied
+is bounded by `MaxStringLength` like a text of a file (8 characters pass a limit of 8 and 9 fail with a located failure
+that names the limit); and that a canceled token throws `OperationCanceledException`.
 
 ##### Large Tables Load Completely
 

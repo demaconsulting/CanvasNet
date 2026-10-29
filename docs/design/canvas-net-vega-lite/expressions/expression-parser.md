@@ -37,8 +37,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 
 - **Literals**: `null`, `true`, `false`, decimal numbers with a fraction and an exponent, hexadecimal numbers, strings in
   single or double quotes with the JavaScript escapes, regular expression literals (`/pattern/flags` with the flags `g`,
-  `i`, `m`, `s`, and `u`; a `/` begins one exactly when the previous token cannot end an
-  operand, and an invalid literal is
+  `i`, `m`, and `s`; a `/` begins one exactly when the previous token cannot end an
+  operand, and an invalid literal, or one with a flag the engine does not honor such as `u`, is
   a located error), array literals, and object literals. The constants `PI`, `E`, `NaN`, and `Infinity` are literals too.
 - **Access**: `datum` (the whole row), `datum.name` and `datum['a b']` (a field), and member and index access on any value
   (`a.b`, `a[0]`, `a['k']`). `datum` access compiles to a direct field read.

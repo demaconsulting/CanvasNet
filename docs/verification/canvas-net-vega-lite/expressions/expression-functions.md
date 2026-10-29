@@ -40,7 +40,7 @@ compared exactly.
 
 The regular-expression scenarios prove three properties. The translation is correct for the supported subset (the
 classes `\d \D \w \W` are ASCII only, `$` without the `m` flag matches only at the end of the text, `[^]` matches any
-character and `[]` nothing, the flags `g i m s u` are honored, and look-ahead and back-references work through the
+character and `[]` nothing, the flags `g i m s` are honored, and look-ahead and back-references work through the
 backtracking fallback). The engine is safe: the linear-time `NonBacktracking` engine runs every pattern it can, so
 catastrophic patterns finish on 50,000 characters, and a pattern it rejects (look-around or a back-reference) runs on
 the backtracking engine with a 100 ms limit that fails closed with a located error; a pattern is at most 1,024
@@ -107,6 +107,20 @@ separator `,`, nested arrays, and a non-array giving null), `pad` (left, right, 
 cut, an empty fill giving spaces, and a text that is already long enough), and `length` (text and arrays; a number and
 an object give null).
 
+##### Case Conversion Follows JavaScript
+
+**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Upper_AppliesFullCaseMappings`,
+`ExpressionFunctionsTests.ExpressionFunctions_Lower_AppliesFullCaseMappingsAndFinalSigma`,
+`ExpressionFunctionsTests.ExpressionFunctions_CaseConversion_IsCultureInvariantAndBounded`
+
+Asserts, as theories, that `upper` applies the full mappings of JavaScript that make longer text (the sharp s gives
+`SS`, a word with it gains a letter, the ligatures `ﬀ` to `ﬆ` and the Armenian `ﬓ`, the letters with a combining mark, the
+Greek letters with an iota subscript, and the dotless i giving `I`) and the plain letters and the empty text unchanged;
+that `lower` gives `i` and a combining dot for the capital I with a dot above and the final sigma exactly where
+JavaScript does (after a letter and not before one, ignoring a soft hyphen and the punctuation inside a word); that the
+results are the same under the Turkish and the invariant culture; and that a result that is longer than its input is
+refused when it passes `MaxStringLength` (two sharp s give four characters under a limit of 4, three give six).
+
 ##### Arrays: Slice, Search, And Membership
 
 **Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Array_SliceSearchAndMembership`
@@ -136,22 +150,27 @@ empty text to null and otherwise convert as JavaScript does (`toBoolean('false')
 Asserts, as a theory of twenty-six texts each also negated, that `test` and `regexp` honor the ASCII classes (`\d` does
 not match an Arabic-Indic digit, `\w` does not match `é`), the end-of-text meaning of `$` and the effect of `m`, the
 dot without and with `s`, case-insensitive matching, `[^]` and `[]`, a text pattern, `regexp` from a text and from a
-literal with replaced flags, the `u` flag, and the patterns that need the backtracking fallback (a look-ahead and a
+literal with replaced flags, and the patterns that need the backtracking fallback (a look-ahead and a
 back-reference).
 
 ##### Regular Expressions: Replace And Split
 
 **Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Replace_FollowsJavaScript`,
 `ExpressionFunctionsTests.ExpressionFunctions_Split_FollowsJavaScript`,
-`ExpressionFunctionsTests.ExpressionFunctions_Split_EmptyInputs`
+`ExpressionFunctionsTests.ExpressionFunctions_Split_EmptyInputs`,
+`ExpressionFunctionsTests.ExpressionFunctions_Split_EmptyRegexAndTextSplitBetweenCodeUnits`
 
-Asserts, as theories of twenty-two and sixteen texts, `replace` with a text pattern (first occurrence only) and with
+Asserts, as theories of twenty-two and twenty-six texts, `replace` with a text pattern (first occurrence only) and with
 regular expressions (first or all matches), the replacement patterns `$&`, `` $` ``, `$'`, `$$`, `$1` to `$9`, a
 group that does not exist (kept as text), `$0` (kept as text), and named groups `$<name>`, an empty match replaced at
 every position (`replace('abc', /x*/g, '-')` is `-a-b-c-`), and null as the text; `split` with a text separator, an
 empty separator, a limit (zero, below, and above the number of parts), a missing or null separator, leading and
-trailing empty parts, and regular-expression separators with and without capture groups; and the degenerate splits that
-have no printable form (`split('', ',')` has one empty part, `split('', '')` has none).
+trailing empty parts, and regular-expression separators with and without capture groups, including the empty regular
+expression and the patterns that match the empty text (`split('abc', /(?:)/)` and `split('abc', /x*/)` are `a`, `b`, `c`,
+`split('abc', /()/)` keeps the empty captures, `split('aXbXc', /(x)|(b)/i)` keeps the groups that did not take part as null);
+and the degenerate splits that have no printable form (`split('', ',')` has one empty part, `split('', '')` has none);
+and that the empty regular expression and the empty text separator both split a surrogate pair into its two UTF-16 code
+units.
 
 ##### Regular Expression Safety
 
@@ -160,15 +179,15 @@ have no printable form (`split('', ',')` has one empty part, `split('', '')` has
 `ExpressionFunctionsTests.ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError`,
 `ExpressionFunctionsTests.ExpressionFunctions_Regex_PatternLengthIsBounded`
 
-Asserts that five classic catastrophic patterns (`(a+)+$`, `^(a+)+$`, `^(a|aa)+$`, `^(a|a)*$`, and `^(.*a){20}$`)
-tested against 50,000 letters followed by a character that makes every one fail finish with the answer false; that
-`/^(?=a)(a+)+$/`
-against forty letters and a bang, which forces the backtracking engine and is exponential there, fails with a located
-`VegaLiteRenderException` that says the match "exceeded its match time limit" and names the offset; that an unbalanced
-group and an unterminated class in a text pattern (through `regexp` and `test`), an unknown flag, a repeated flag, and
-a regular expression built from `'*'` inside `replace` are located render errors with the offset of the failing call
-(0 or 13); and that a pattern of 1,024 characters is accepted while one of 1,025 fails with "1025 characters, more than
-the limit of 1024".
+Asserts that five classic catastrophic patterns (`(a+)+$`, `^(a+)+$`, `^(a|aa)+$`, `^(a|a)*$`, and `^(.*a){20}$`) tested
+against 50,000 letters followed by a character that makes every one fail finish with the answer false; that
+`/^(?=a)(a+)+$/` against forty letters and a bang, which forces the backtracking engine and is exponential there, fails
+with a located `VegaLiteRenderException` that says the match "exceeded its match time limit" and names the offset; that
+an unbalanced group and an unterminated class in a text pattern (through `regexp` and `test`), an unknown flag, a
+repeated flag, the flags `u`, `v`, `y`, and `d` that the UTF-16 engine cannot honor (also in combination with a
+supported one), and a regular expression built from `'*'` inside `replace` are located render errors with the offset of
+the failing call (0 or 13); and that a pattern of 1,024 characters is accepted while one of 1,025 fails with "1025
+characters, more than the limit of 1024".
 
 ##### String Results Are Bounded
 

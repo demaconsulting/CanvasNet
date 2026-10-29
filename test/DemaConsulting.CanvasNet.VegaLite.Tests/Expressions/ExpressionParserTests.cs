@@ -293,6 +293,31 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates that the regular expression flags that the engine does not honor (u, v, y and d) are located
+    ///     specification errors rather than being accepted and ignored, so no literal silently matches differently from
+    ///     JavaScript.
+    /// </summary>
+    /// <param name="literal">The regular expression literal.</param>
+    [Theory]
+    [InlineData("/./u")]
+    [InlineData("/./gu")]
+    [InlineData("/./v")]
+    [InlineData("/./y")]
+    [InlineData("/./d")]
+    [InlineData("replace('\\ud83d\\ude00', /./gu, 'x')")]
+    public void ExpressionParser_Parse_UnhonoredRegExpFlag_IsLocatedSpecError(string literal)
+    {
+        // Arrange / Act
+        var error = Assert.Throws<VegaLiteSpecException>(() => Compile(literal));
+
+        // Assert: located, with the supported flags in the message
+        Assert.Equal(Location, error.Location);
+        Assert.Contains("the flags g, i, m and s are supported", error.Message, StringComparison.Ordinal);
+        Assert.Contains("at expression offset", error.Message, StringComparison.Ordinal);
+        Assert.Equal("/a/gis", EvalText("/a/sig"));
+    }
+
+    /// <summary>
     ///     Validates that a syntax error carries the owning pointer, the line and column of the string value, and the
     ///     expression offset, with a fixed message text.
     /// </summary>

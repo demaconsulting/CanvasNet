@@ -150,7 +150,11 @@ internal sealed partial class ExpressionEvaluator
     {
         if (value.IsString)
         {
-            return value.Text!;
+            // A text from outside the evaluation (a parameter, a field of the data) has not been measured yet
+            return value.Text!.Length <= maxLength
+                ? value.Text
+                : throw new ExpressionRuntimeException(
+                    $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
         }
 
         if (!value.IsArray)
@@ -349,7 +353,7 @@ internal sealed partial class ExpressionEvaluator
             if (text.Length > maxLength)
             {
                 throw new ExpressionRuntimeException(
-                    $"The expression produced a string longer than the limit of {maxLength} characters (MaxStringLength).");
+                    $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
             }
         }
     }

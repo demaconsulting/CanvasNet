@@ -386,6 +386,156 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the fields <c>tags.0</c> and <c>tags.1</c> that the data loader makes of an array are an array
+    ///     again (<c>isArray</c>, <c>length</c>, indexing), also below an object, and that the whole datum holds them as arrays.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_TableRow_RebuildsIndexedFieldsAsArrays()
+    {
+        // Arrange: tags: ["a", "b"], o: {list: [1, 2, 3], k: "v"} and an object whose keys only look like a partial index set
+        var fields = new List<string> { "gap.0", "gap.2", "o.k", "o.list.0", "o.list.1", "o.list.2", "tags.0", "tags.1" };
+        var row = new List<DataValue>
+        {
+            DataValue.FromNumber(7), DataValue.FromNumber(9), DataValue.FromString("v"), DataValue.FromNumber(1), DataValue.FromNumber(2),
+            DataValue.FromNumber(3), DataValue.FromString("a"), DataValue.FromString("b"),
+        };
+        var table = DataTable.Create(fields, [row]);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act / Assert: an array has the array kind, its length and its elements
+        Assert.True(evaluator.Evaluate(Compile("isArray(datum.tags)"), table, 0).Boolean);
+        Assert.Equal(2, evaluator.Evaluate(Compile("datum.tags.length"), table, 0).Number);
+        Assert.Equal("b", evaluator.Evaluate(Compile("datum.tags[1]"), table, 0).Text);
+        Assert.Equal("a,b", evaluator.Evaluate(Compile("toString(datum.tags)"), table, 0).Text);
+        Assert.Equal(3, evaluator.Evaluate(Compile("length(datum.o.list)"), table, 0).Number);
+        Assert.True(evaluator.Evaluate(Compile("isArray(datum['o'].list) && !isArray(datum.o)"), table, 0).Boolean);
+
+        // Assert: names that are not exactly the indexes 0 to n-1 stay an object
+        Assert.False(evaluator.Evaluate(Compile("isArray(datum.gap)"), table, 0).Boolean);
+        Assert.Equal(9, evaluator.Evaluate(Compile("datum.gap['2']"), table, 0).Number);
+
+        // Assert: the whole datum is an object whose members are the rebuilt arrays
+        var whole = evaluator.Evaluate(Compile("datum"), table, 0);
+        Assert.True(whole.IsObject);
+        Assert.True(whole.ObjectValue!.TryGetValue("tags", out var tags));
+        Assert.True(tags.IsArray);
+        Assert.Equal(["a", "b"], tags.Elements.ToArray().Select(e => e.Text));
+    }
+
+    /// <summary>
+    ///     Validates that a composite that is rebuilt from flattened fields is the same value every time it is read in one
+    ///     evaluation (JavaScript identity), whatever the way it is reached, and a different one in another row.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_TableRow_RebuiltCompositesHaveStableIdentity()
+    {
+        // Arrange: a: {b: {c: 1}}, tags: ["a", "b"] in two rows
+        var fields = new List<string> { "a.b.c", "tags.0", "tags.1" };
+        var rows = new List<IReadOnlyList<DataValue>>
+        {
+            new List<DataValue> { DataValue.FromNumber(1), DataValue.FromString("a"), DataValue.FromString("b") },
+            new List<DataValue> { DataValue.FromNumber(2), DataValue.FromString("c"), DataValue.FromString("d") },
+        };
+        var table = DataTable.Create(fields, rows);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act / Assert: the same path read twice, by member, by index and nested
+        Assert.True(evaluator.Evaluate(Compile("datum.a === datum.a"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.a === datum['a']"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.a.b === datum.a.b"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.a.b === datum['a'].b"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.tags === datum.tags"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum === datum"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.tags !== [datum.tags[0], datum.tags[1]]"), table, 0).Boolean);
+
+        // Assert: a path read inside the whole datum and on its own, in both orders, is one value
+        var wholeFirst = evaluator.Evaluate(Compile("[datum, datum.tags, datum.a.b]"), table, 0).Elements;
+        var wholeObject = wholeFirst[0].ObjectValue!;
+        Assert.True(wholeObject.TryGetValue("tags", out var tagsInWhole));
+        Assert.True(ExpressionEvaluator.StrictEquals(tagsInWhole, wholeFirst[1]));
+        Assert.True(wholeObject.TryGetValue("a", out var aInWhole));
+        Assert.True(aInWhole.ObjectValue!.TryGetValue("b", out var bInWhole));
+        Assert.True(ExpressionEvaluator.StrictEquals(bInWhole, wholeFirst[2]));
+        var tagsFirst = evaluator.Evaluate(Compile("[datum.tags, datum]"), table, 0).Elements;
+        Assert.True(tagsFirst[1].ObjectValue!.TryGetValue("tags", out var tagsLater));
+        Assert.True(ExpressionEvaluator.StrictEquals(tagsFirst[0], tagsLater));
+
+        // Assert: another row gives its own values, and the first row is unaffected by what the cache held
+        Assert.Equal("c,d", evaluator.Evaluate(Compile("toString(datum.tags)"), table, 1).Text);
+        Assert.Equal("a,b", evaluator.Evaluate(Compile("toString(datum.tags)"), table, 0).Text);
+        Assert.Equal(2, evaluator.Evaluate(Compile("datum.a.b.c"), table, 1).Number);
+    }
+
+    /// <summary>
+    ///     Validates a field that is null in a row and has fields below it (a column that holds a scalar in some rows and an
+    ///     array in others): the row that is nested reads as the array, the others as their scalar or null.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_TableRow_NullFieldWithDescendantsReadsAsComposite()
+    {
+        // Arrange: row 0 has the array ["x"] (tags is null, tags.0 is "x"), row 1 the scalar "s", row 2 nothing
+        var fields = new List<string> { "tags", "tags.0" };
+        var rows = new List<IReadOnlyList<DataValue>>
+        {
+            new List<DataValue> { DataValue.Null, DataValue.FromString("x") },
+            new List<DataValue> { DataValue.FromString("s"), DataValue.Null },
+            new List<DataValue> { DataValue.Null, DataValue.Null },
+        };
+        var table = DataTable.Create(fields, rows);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act / Assert
+        Assert.True(evaluator.Evaluate(Compile("isArray(datum.tags) && datum.tags.length === 1 && datum.tags === datum.tags"), table, 0).Boolean);
+        Assert.Equal("s", evaluator.Evaluate(Compile("datum.tags"), table, 1).Text);
+        Assert.True(evaluator.Evaluate(Compile("datum.tags"), table, 2).IsNull);
+    }
+
+    /// <summary>
+    ///     Validates that a row whose field names are the indexes 0 to n-1 is still an object as a whole datum.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_TableRow_WholeDatumWithIndexNamesIsObject()
+    {
+        // Arrange
+        var table = DataTable.Create(["0", "1"], [new List<DataValue> { DataValue.FromNumber(5), DataValue.FromNumber(6) }]);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        var whole = evaluator.Evaluate(Compile("datum"), table, 0);
+
+        // Assert
+        Assert.True(whole.IsObject);
+        Assert.Equal(["0", "1"], whole.ObjectValue!.Keys);
+    }
+
+    /// <summary>
+    ///     Validates that a text that comes from outside the evaluation (a parameter, a field of the data) is bounded by
+    ///     <see cref="VegaLiteLimits.MaxStringLength"/> when it is the result or is converted to text.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_ExternalStringLongerThanLimit_IsLocatedRenderError()
+    {
+        // Arrange: a parameter and a field of 12 characters under a limit of 10
+        var limits = new VegaLiteLimits { MaxStringLength = 10 };
+        var parameters = new Dictionary<string, DataValue> { ["p"] = DataValue.FromString(new string('x', 12)) };
+        var table = DataTable.Create(["s"], [new List<DataValue> { DataValue.FromString(new string('y', 12)) }]);
+        var evaluator = new ExpressionEvaluator(limits, CancellationToken.None, parameters);
+
+        // Act
+        var result = Assert.Throws<VegaLiteRenderException>(() => Eval("p", limits, parameters));
+        var converted = Assert.Throws<VegaLiteRenderException>(() => Eval("toString(p)", limits, parameters));
+        var field = Assert.Throws<VegaLiteRenderException>(() => evaluator.Evaluate(Compile("datum.s", limits), table, 0));
+        var kept = Eval("length(p)", limits, parameters);
+
+        // Assert: located at the expression, naming the limit; reading the text without keeping it is not a failure
+        Assert.Equal(Location, result.Location);
+        Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", result.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", converted.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", field.Message, StringComparison.Ordinal);
+        Assert.Equal(12, kept.Number);
+    }
+
+    /// <summary>
     ///     Validates that a table row and an out-of-range row are checked.
     /// </summary>
     [Fact]
@@ -504,7 +654,7 @@ public class ExpressionEvaluatorTests
         Assert.Equal(3, exactly.StepsUsed);
         Assert.Equal(Location, exception.Location);
         Assert.Equal(
-            $"{Location}: The evaluation exceeded the budget of 2 steps (MaxEvaluationSteps) at expression offset 2.",
+            $"{Location}: The evaluation exceeded the limit of 2 steps (VegaLiteLimits.MaxEvaluationSteps) at expression offset 2.",
             exception.Message);
     }
 

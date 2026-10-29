@@ -20,8 +20,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         The JavaScript pattern is translated in a small number of places where .NET and JavaScript differ for the
 ///         common cases: <c>\d</c>, <c>\D</c>, <c>\w</c> and <c>\W</c> are the ASCII classes, <c>$</c> without the
 ///         <c>m</c> flag matches only at the very end of the text, and <c>[^]</c> and <c>[]</c> have their JavaScript
-///         meaning. The flags <c>g</c>, <c>i</c>, <c>m</c>, <c>s</c> and <c>u</c> are accepted; <c>g</c> is only
-///         observable through <see cref="IsGlobal"/> (<c>replace</c> replaces every match). The object is immutable and
+///         meaning. The flags <c>g</c>, <c>i</c>, <c>m</c> and <c>s</c> are accepted; <c>g</c> is only
+///         observable through <see cref="IsGlobal"/> (<c>replace</c> replaces every match). The flags <c>u</c>, <c>v</c>, <c>y</c>`n///         and <c>d</c> are rejected: the engine matches UTF-16 code units and has no sticky matching or match indices, so`n///         accepting them would silently change a result (<c>/./u</c> matches a surrogate pair as one character in JavaScript).`n///         The object is immutable and
 ///         safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -29,6 +29,9 @@ internal sealed class ExpressionRegex
 {
     /// <summary>The longest pattern accepted, in UTF-16 code units.</summary>
     internal const int MaxPatternLength = 1_024;
+
+    /// <summary>The flags that are honored, in canonical order.</summary>
+    private static readonly char[] SupportedFlags = ['g', 'i', 'm', 's'];
 
     /// <summary>The match timeout of the non-backtracking engine, a backstop that linear matching never reaches.</summary>
     private static readonly TimeSpan LinearTimeout = TimeSpan.FromSeconds(5);
@@ -54,7 +57,7 @@ internal sealed class ExpressionRegex
     /// <summary>Gets the JavaScript pattern text.</summary>
     public string Source { get; }
 
-    /// <summary>Gets the flags in canonical order (<c>gimsu</c>).</summary>
+    /// <summary>Gets the flags in canonical order (<c>g</c>, <c>i</c>, <c>m</c>, <c>s</c>).</summary>
     public string Flags { get; }
 
     /// <summary>Gets a value indicating whether the <c>g</c> flag is set.</summary>
@@ -83,17 +86,17 @@ internal sealed class ExpressionRegex
         // Validate the flags and map them to the options of the .NET engine
         var options = RegexOptions.CultureInvariant;
         var seen = new HashSet<char>(flags);
-        var invalid = flags.FirstOrDefault(f => "gimsu".IndexOf(f, StringComparison.Ordinal) < 0);
+        var invalid = flags.FirstOrDefault(f => !SupportedFlags.Contains(f));
         if (invalid != '\0' || seen.Count != flags.Length)
         {
             throw new ExpressionRuntimeException(
-                $"The regular expression flags '{flags}' are not supported or repeat a flag; the flags g, i, m, s and u are supported.");
+                $"The regular expression flags '{flags}' are not supported or repeat a flag; the flags g, i, m and s are supported (the flags u, v, y and d are not).");
         }
 
         options |= seen.Contains('i') ? RegexOptions.IgnoreCase : RegexOptions.None;
         options |= seen.Contains('m') ? RegexOptions.Multiline : RegexOptions.None;
         options |= seen.Contains('s') ? RegexOptions.Singleline : RegexOptions.None;
-        var canonical = new string("gimsu".Where(seen.Contains).ToArray());
+        var canonical = new string(SupportedFlags.Where(seen.Contains).ToArray());
 
         // Prefer the linear-time engine; patterns it cannot run use the backtracking engine under a short timeout
         var pattern = Translate(source, seen.Contains('m'));

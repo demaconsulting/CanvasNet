@@ -136,7 +136,7 @@ internal sealed class ExpressionFunctionContext
         if (length > MaxStringLength)
         {
             throw new ExpressionRuntimeException(
-                $"The expression produced a string longer than the limit of {MaxStringLength} characters (MaxStringLength).");
+                $"The expression produced a string longer than the limit of {MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
         }
     }
 
@@ -170,5 +170,5 @@ internal sealed class ExpressionFunctionContext
     /// </summary>
     /// <returns>The exception.</returns>
     private ExpressionRuntimeException BudgetExhausted() =>
-        new($"The evaluation exceeded the budget of {MaxSteps} steps (MaxEvaluationSteps).");
+        new($"The evaluation exceeded the limit of {MaxSteps} steps (VegaLiteLimits.MaxEvaluationSteps).");
 }

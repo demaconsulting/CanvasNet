@@ -58,12 +58,19 @@ object, and regular expression. The value model has **one null for both `null` a
   regular expression by `source`, `flags`, and `global`; the member of null, a missing member, and an out-of-range index
   are null (access is null-safe, never an error). An object literal
   keeps the position of the first occurrence of a repeated key and the value of the last.
-- **Datum**: `datum.name` reads the field of the row whose canonical name is the name
-  (escaped like a field path); when the
-  table has no such field but has fields below it (a nested object stored as `name.child`), the object is rebuilt from them
-  on demand, and an array from `name.0`, `name.1`, ... (trailing nulls are not part of the rebuilt array). Reading
-  `datum` as a whole value builds an object of all the fields of the row, charged to the step
-  budget in proportion to its size.
+- **Datum**: `datum.name` reads the field of the row whose canonical name is the name (escaped like a field path); when
+  the table has no such cell that holds a value but has fields below it (a nested object stored as `name.child`), the
+  object is rebuilt from them on demand, and an array from `name.0`, `name.1`, ... exactly when the names below it are
+  the indexes 0 to n-1 (trailing nulls are not part of the rebuilt array; a cell that is null with only null elements
+  below it stays null), as the data loader flattens them. The rebuilding is the shared flat-row tree of the data unit.
+  Every rebuilt array or object is cached for the evaluation of the row by its canonical path, so reading it again, or
+  reading it inside the whole datum, gives the same value (JavaScript identity: `datum.a === datum.a`); the cache is
+  cleared at the start and at the end of every evaluation. Reading `datum` as a whole value builds an object of all the
+  fields of the row (an object even when the field names are indexes), charged to the step budget in proportion to its
+  size.
+- **Strings from outside**: a text that is the result of an evaluation as it is (a parameter, a field of the data, a literal)
+  or that is converted to text is checked against `MaxStringLength` like the results of the functions; `MaxStringLength`
+  reports the limit so that the parameter environment can check the values it takes from the caller.
 - **Unsupported constructs** (functions outside the table, `signal`, `event`, `item`, the
   deferred operators) evaluate to null.
 

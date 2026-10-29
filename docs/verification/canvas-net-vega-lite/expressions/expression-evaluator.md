@@ -30,10 +30,10 @@ returns the operand `x`, not a boolean. The sign of zero is shown through the in
 `-Infinity`).
 
 The step budget is counted by eye: `1 + 2` is the three instructions push, push, and add, so a budget of 3 passes and a
-budget of 2 fails at the add, at expression offset 2, with the message
-"The evaluation exceeded the budget of 2 steps (MaxEvaluationSteps) at expression offset 2."; a text of 640 characters
-searched by `indexof` costs the 3 instructions plus one extra step for each 64 characters (10 steps); and the
-short-circuit scenarios use a budget of 5 steps, which the skipped operand of 17 instructions would exceed.
+budget of 2 fails at the add, at expression offset 2, with the message "The evaluation exceeded the limit of 2 steps
+(VegaLiteLimits.MaxEvaluationSteps) at expression offset 2."; a text of 640 characters searched by `indexof` costs the 3
+instructions plus one extra step for each 64 characters (10 steps); and the short-circuit scenarios use a budget of 5
+steps, which the skipped operand of 17 instructions would exceed.
 
 Unit tests reside in `ExpressionEvaluatorTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Expressions` folder, with the shared helpers in `ExpressionTestSupport.cs` (the fixed location, `Compile`, `Eval`,
@@ -108,18 +108,31 @@ and `b` with `a` equal to 3.
 ##### Datum Access: Tables, Values, And Absent Data
 
 **Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRow_ReadsFlattenedFields`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRow_RebuildsIndexedFieldsAsArrays`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRow_RebuiltCompositesHaveStableIdentity`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRow_NullFieldWithDescendantsReadsAsComposite`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRow_WholeDatumWithIndexNamesIsObject`,
 `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_TableRowOutOfRange_ThrowsArgumentOutOfRange`,
 `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_WithoutDatum_ReadsNull`,
 `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_Dates_UseMillisecondsAndIsoText`
 
 Asserts, on a two-row table whose fields are `a.b`, `a.c`, `a\.d` (a literal dot), `x`, and `name with space`, that
-`datum.x`, `datum['x']`, `datum.a.b`, `datum['a.d']`, and the spaced name read the cells of the chosen row, that
-missing fields and members of missing fields are null, that `datum.a` is rebuilt on demand as an object whose members
-`b` and `c` are in field order and `datum` as a whole has the keys `a`, `a.d`, `name with space`, and `x`; that a row
-position outside the table is an `ArgumentOutOfRangeException` and null arguments are `ArgumentNullException`; that
-without a datum `datum` and `datum.x` are null and a non-object datum has no fields; and, with the date
-2024-03-05T00:00:00Z (1,709,596,800,000 milliseconds), that arithmetic and comparison use the milliseconds while
-concatenation uses the ISO text `2024-03-05T00:00:00.000Z`, and that `isDate` and `isObject` hold.
+`datum.x`, `datum['x']`, `datum.a.b`, `datum['a.d']`, and the spaced name read the cells of the chosen row, that missing
+fields and members of missing fields are null, that `datum.a` is rebuilt on demand as an object whose members `b` and
+`c` are in field order and `datum` as a whole has the keys `a`, `a.d`, `name with space`, and `x`; that a row position
+outside the table is an `ArgumentOutOfRangeException` and null arguments are `ArgumentNullException`; that without a
+datum `datum` and `datum.x` are null and a non-object datum has no fields; and, with the date 2024-03-05T00:00:00Z
+(1,709,596,800,000 milliseconds), that arithmetic and comparison use the milliseconds while concatenation uses the ISO
+text `2024-03-05T00:00:00.000Z`, and that `isDate` and `isObject` hold. On a row whose fields are `tags.0` and `tags.1`
+(and `o.list.0` to `o.list.2` below an object) it asserts that `datum.tags` is an array (`isArray`, `length` 2,
+`datum.tags[1]`, the text `a,b`), that the names `0` and `2` without `1` stay an object, and that the whole datum holds
+the rebuilt array. It asserts the identity of the rebuilt composites on a row with `a.b.c` and the tags: `datum.a ===
+datum.a`, `datum.a === datum['a']`, `datum.a.b === datum.a.b`, `datum.tags === datum.tags`, and `datum === datum` hold,
+a rebuilt array is not identical to a literal array with the same elements, a path read inside the whole datum and on
+its own is one value in either order, and another row (or a later evaluation of the first) gets its own values, so the
+cache never leaks between evaluations. A column that is null in a row and has fields below it reads as the array in the
+row where it is nested (identical on every read), as the scalar in the row that has one, and as null when the elements
+are null too. A row whose field names are `0` and `1` is still an object as a whole datum.
 
 ##### Parameters And Unsupported Constructs
 
@@ -146,10 +159,14 @@ so a hostile expression cannot do unbounded work with few instructions.
 
 ##### String Limit
 
-**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation`
+**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_ExternalStringLongerThanLimit_IsLocatedRenderError`
 
 Asserts, with a `MaxStringLength` of 10, that `'abcde' + '12345'` (exactly the limit) is `abcde12345` and
-`'abcde' + '123456'` is a `VegaLiteRenderException` at the location of the expression that names `MaxStringLength`.
+`'abcde' + '123456'` is a `VegaLiteRenderException` at the location of the expression that names `MaxStringLength`; and
+that a text of 12 characters that comes from outside the evaluation (a parameter or a field of a table row) is refused with
+the same located failure (naming `VegaLiteLimits.MaxStringLength`) when it is the result as it is or is converted by
+`toString`, while `length` of it, which does not keep the text, is 12.
 
 ##### Cancellation
 

@@ -78,6 +78,9 @@ internal sealed partial class ExpressionEvaluator
     /// <summary>The row of the current datum in table mode.</summary>
     private int _row;
 
+    /// <summary>The arrays and objects rebuilt from the current row in table mode by canonical path, or null before the first.</summary>
+    private Dictionary<string, DataValue>? _nested;
+
     /// <summary>The current datum in value mode.</summary>
     private DataValue _datumValue;
 
@@ -118,6 +121,9 @@ internal sealed partial class ExpressionEvaluator
     /// <summary>Gets the number of steps this evaluator has used in the call.</summary>
     public long StepsUsed => _context.Steps;
 
+    /// <summary>Gets the longest text, in characters, that an evaluation may produce or read as a value.</summary>
+    public int MaxStringLength => _context.MaxStringLength;
+
     /// <summary>
     ///     Evaluates an expression that does not read a datum.
     /// </summary>
@@ -157,6 +163,7 @@ internal sealed partial class ExpressionEvaluator
         _mode = DatumMode.Table;
         _table = table;
         _row = row;
+        _nested?.Clear();
         return Run(expression);
     }
 
@@ -223,7 +230,15 @@ internal sealed partial class ExpressionEvaluator
                 sp = Execute(expression, instruction, stack, sp, ref pc);
             }
 
-            return stack[0];
+            // A text that is the result as it is (a parameter, a field, a literal) never went through a function that checks it
+            var result = stack[0];
+            if (result.IsString && result.Text!.Length > _context.MaxStringLength)
+            {
+                throw new ExpressionRuntimeException(
+                    $"The expression produced a string longer than the limit of {_context.MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
+            }
+
+            return result;
         }
         catch (ExpressionRuntimeException ex)
         {
@@ -234,6 +249,7 @@ internal sealed partial class ExpressionEvaluator
         {
             Array.Clear(stack, 0, expression.MaxStack);
             _table = null;
+            _nested?.Clear();
             _custom = null;
             _datumValue = default;
         }

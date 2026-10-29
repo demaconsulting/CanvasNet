@@ -6,7 +6,10 @@ The `DataTable` unit is the first software unit in the `Data` subsystem. It comp
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: `DataTable.cs` defines five `internal` types, `DataValueKind`
 (enumeration), `DataValue` (readonly struct), `JsNumber` (static class), `FieldPath` (static class), and `DataTable`
 (sealed class); `DataObject.cs` defines `DataObject` (sealed class) and `DataArray` (sealed class), the immutable payloads
-of the composite values.
+of the composite values, and `FlatRowNode` (sealed class), the tree that rebuilds an array or an object from the flattened
+fields of a table row (an array when the names below a path are exactly the indexes 0 to n-1, with trailing nulls dropped;
+an object otherwise; shared by the field reader of the transforms and the datum of the expression evaluator, with an optional
+cache of the composites it built so that reading the same path again gives the same value).
 
 #### Purpose
 

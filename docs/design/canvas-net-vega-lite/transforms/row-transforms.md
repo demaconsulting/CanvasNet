@@ -45,7 +45,8 @@ removes `tags.0` and `tags.1`, as a property of a row object is replaced as a wh
 path of the field. The field count is checked against `MaxFieldCount` and the cell count against 2^25 before anything is
 allocated. `FieldReader` reads a field of a row: the cell of that exact name when it holds a value, otherwise an array
 rebuilt from `name.0`, `name.1`, ... (trailing nulls are dropped because a missing element and a null one are the same
-cell) or an object rebuilt from the fields below, otherwise null.
+cell; a null cell whose elements are all null stays null) or an object rebuilt from the fields below, otherwise null. The
+rebuilding is the `FlatRowNode` tree of the data unit, which the expression evaluator shares for `datum`.
 
 **The transforms** (in the order of the `transform` array; an entry that names a transform of a later phase is skipped):
 
@@ -70,16 +71,15 @@ cell) or an object rebuilt from the fields below, otherwise null.
   as an array of one value, null, a missing field, and an empty array as none, and a row whose fields are all empty
   produces no row. The element goes to `as[i]` (default the field itself).
 - **`sample`** - a number of rows to keep (a non-negative number). See _RowSampler_ below.
-- **`pivot`** - the pivot field, `value`, optional `groupby`, `limit`, and `op`. Rows are
-  grouped by the `groupby` values in
-  first-seen order; the columns are the distinct pivot values as text (`DataValue.ToText`) in ordinal order, at most
-  `limit` of them (the first ones) when given; a cell is the sum of the valid quantitative
-  `value`s of the group (booleans and
-  numeric text count as numbers) for `op` `sum` (the default) or the number of rows for `count`; a combination without rows
-  is 0. The result has only the group fields and the pivot columns. Rows whose pivot value is
-  null are skipped, a `limit` that
-  cuts columns off, and a pivot value that equals a group field name each give one `vl-transform-runtime` warning. An `op`
-  other than `sum` and `count` is reported (`vl-transform-pivot-op`) and sum is used.
+- **`pivot`** - the pivot field, `value`, optional `groupby`, `limit`, and `op`. Rows are grouped by the `groupby`
+  values in first-seen order; the columns are the distinct pivot values as text (the JavaScript text of
+  `ExpressionEvaluator.ToJsString`, bounded by `MaxStringLength`: a longer text, such as that of an array value, is a
+  located failure before the column is created) in ordinal order, at most `limit` of them (the first ones) when given; a
+  cell is the sum of the valid quantitative `value`s of the group (booleans and numeric text count as numbers) for `op`
+  `sum` (the default) or the number of rows for `count`; a combination without rows is 0. The result has only the group
+  fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a pivot
+  value that equals a group field name each give one `vl-transform-runtime` warning. An `op` other than `sum` and
+  `count` is reported (`vl-transform-pivot-op`) and sum is used.
 - **`lookup`** - the field to look up, and `from` with `data` (a data object loaded by the **loader of the call**: inline
   values, a named dataset, a local file, or a sequence), `key`, and optional `fields`; plus `as` and `default`. The secondary
   rows are indexed by the **text** of the key (so `1` matches `"1"`); null and composite keys never match; for a repeated
@@ -102,13 +102,15 @@ unchanged transform. A hand-computed vector (ten rows, size four, pointer `/tran
 2, 3, 6, and 9) is pinned by a
 test.
 
-**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the root view into the dictionary the evaluator
-reads: the order is the topological order of `ParameterGraph.Sort` (dependencies first, otherwise
-the declaration order, so the
-result does not depend on hashing); for each parameter the caller's override wins and is used as given (converted by
-`DataLoader.FromObject`; the expression is not evaluated), then the expression, then the `value` (converted by `SpecValues`,
-so an array or an object becomes an immutable composite value), else null. A selection parameter is skipped and an override
-of its name is accepted and ignored. `bind` and `empty` are ignored.
+**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the root view into the dictionary the
+evaluator reads: the order is the topological order of `ParameterGraph.Sort` (dependencies first, otherwise the
+declaration order, so the result does not depend on hashing); for each parameter the caller's override wins and is used
+as given (converted by `DataLoader.FromObject`; the expression is not evaluated), then the expression, then the `value`
+(converted by `SpecValues`, so an array or an object becomes an immutable composite value), else null. A text of an
+override or of a `value` (also inside a composite) that is longer than the `MaxStringLength` of the call is a located
+`VegaLiteRenderException` at the parameter, because no function has measured it; the result of an expression is checked
+by the evaluator. A selection parameter is skipped and an override of its name is accepted and ignored. `bind` and
+`empty` are ignored.
 
 **`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for the
 row-bound paint values; `TransformContext` is the bundle of everything one run shares.

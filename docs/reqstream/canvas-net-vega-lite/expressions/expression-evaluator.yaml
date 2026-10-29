@@ -40,7 +40,8 @@ sections:
               - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Datum
                 title: >-
                   The ExpressionEvaluator unit shall read the fields of the datum (a row of a table, with its
-                  flattened nested fields rebuilt on demand, a calculated object value, or a caller-defined
+                  flattened nested fields rebuilt on demand as arrays and objects of a stable identity, a
+                  calculated object value, or a caller-defined
                   datum) by name and path, give member and index access on objects, arrays, and strings the
                   JavaScript results with a missing member and a null base reading as null, build array and
                   object values (an object keeping the first position and the last value of a repeated key),
@@ -54,6 +55,10 @@ sections:
                   - ExpressionEvaluator_Evaluate_ObjectLiteral_KeepsFirstPositionAndLastValue
                   - ExpressionEvaluator_Evaluate_Composites_CompareByIdentity
                   - ExpressionEvaluator_Evaluate_TableRow_ReadsFlattenedFields
+                  - ExpressionEvaluator_Evaluate_TableRow_RebuildsIndexedFieldsAsArrays
+                  - ExpressionEvaluator_Evaluate_TableRow_RebuiltCompositesHaveStableIdentity
+                  - ExpressionEvaluator_Evaluate_TableRow_NullFieldWithDescendantsReadsAsComposite
+                  - ExpressionEvaluator_Evaluate_TableRow_WholeDatumWithIndexNamesIsObject
                   - ExpressionEvaluator_Evaluate_TableRowOutOfRange_ThrowsArgumentOutOfRange
                   - ExpressionEvaluator_Evaluate_WithoutDatum_ReadsNull
                   - ExpressionEvaluator_Evaluate_Dates_UseMillisecondsAndIsoText
@@ -92,7 +97,8 @@ sections:
                   The ExpressionEvaluator unit shall fail with a VegaLiteRenderException located at the
                   expression - carrying the pointer, the line and column of the expression string, and the
                   offset inside it - when the step budget is exhausted, when a string would exceed the
-                  string-length limit, or when a regular expression is invalid, too long, or takes too long,
+                  string-length limit (also a text that comes from outside the evaluation and is returned or
+                  converted as it is), or when a regular expression is invalid, too long, or takes too long,
                   and shall fail closed rather than return a partial result.
                 justification: |
                   A failure that depends on the data cannot be found when the specification is opened, so it
@@ -100,6 +106,7 @@ sections:
                 tests:
                   - ExpressionEvaluator_Evaluate_StepBudget_IsExact
                   - ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation
+                  - ExpressionEvaluator_Evaluate_ExternalStringLongerThanLimit_IsLocatedRenderError
                   - ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError
 
               - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Cancellation
