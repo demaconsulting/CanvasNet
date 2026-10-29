@@ -691,6 +691,50 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates that the count of a sequence is exact when the rounded quotient overshoots: the value the stop
+    ///     would be generated as (here 0.30000000000000004) is not part of the sequence, for both signs of the step, and
+    ///     that exact multiples keep their count.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceCountNeverIncludesTheStop()
+    {
+        // Arrange / Act: the quotient is 3.0000000000000004, whose ceiling is 4, but the fourth value equals the stop
+        var up = LoadSequenceNode(0, 0.30000000000000004, 0.1);
+        var down = LoadSequenceNode(0, -0.30000000000000004, -0.1);
+        var multiples = new[] { (0.0, 3.0, 1.0, 3), (0.0, 3.0, 0.5, 6), (3.0, 0.0, -1.0, 3), (0.0, 1.0, 0.25, 4), (0.0, 1.0, 0.1, 10) };
+
+        // Assert: three rows each, all strictly before the stop
+        Assert.Equal(3, up.RowCount);
+        Assert.All(up.Column(0), v => Assert.True(v.Number < 0.30000000000000004));
+        Assert.Equal(3, down.RowCount);
+        Assert.All(down.Column(0), v => Assert.True(v.Number > -0.30000000000000004));
+
+        // Assert: exact multiples exclude the stop and keep every value before it
+        foreach (var (start, stop, step, count) in multiples)
+        {
+            var table = LoadSequenceNode(start, stop, step);
+            Assert.Equal(count, table.RowCount);
+            Assert.All(table.Column(0), v => Assert.True(step > 0 ? v.Number < stop : v.Number > stop));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the row limit is charged with the corrected count of a sequence.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceLimitIsChargedWithTheCorrectedCount()
+    {
+        // Arrange: three values fit a limit of three; the overshooting count of four would not
+        var limits = new VegaLiteLimits { MaxDataRows = 3 };
+
+        // Act
+        var table = DataLoader.Load(Spec("{\"sequence\":{\"start\":0,\"stop\":0.30000000000000004,\"step\":0.1}}").Root["data"], null, limits, Ct);
+
+        // Assert
+        Assert.Equal(3, table.RowCount);
+    }
+
+    /// <summary>
     ///     Validates that a sequence is checked against the row limit arithmetically, before any row is allocated.
     /// </summary>
     [Fact]

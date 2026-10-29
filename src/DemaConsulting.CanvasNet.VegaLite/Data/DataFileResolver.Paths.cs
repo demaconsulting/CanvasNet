@@ -16,8 +16,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         paths. A candidate is the full path of the text combined with a root and must lie under that root (ordinal
 ///         comparison; case-insensitive on Windows and macOS). Every component below the root, including the file
 ///         itself, must not be a symbolic link or junction, whatever its target: the candidate is walked top-down from
-///         the root, only existing components are probed (a missing component above the file means the file is missing,
-///         and nothing below it is examined; the file itself is probed for a link when it exists, and is otherwise
+///         the root, only existing components above the file are probed (a missing component above the file means the
+///         file is missing, and nothing below it is examined; the file itself is always probed for a link, even when
+///         an existence check says it is missing, so a dangling link is refused; a file that is not a link is
 ///         classified by the open attempt, which tells a missing file from an existing one that cannot be opened), each component is probed once per resolver, and a probe that fails rejects the file.
 ///         The root itself and everything above it are trusted, because the caller chose them. The check precedes
 ///         opening the file, so nothing is read through a link and a file behind a link is not reported as existing. A
@@ -108,7 +109,7 @@ internal sealed partial class DataFileResolver
             return "the path is empty";
         }
 
-        if (raw.Any(c => c < ' ' || c == '\u007F'))
+        if (raw.Any(char.IsControl))
         {
             return "the path contains a control character";
         }
@@ -126,7 +127,7 @@ internal sealed partial class DataFileResolver
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The text with each control character replaced by a question mark.</returns>
-    private static string Printable(string text) => new(text.Select(c => c < ' ' || c == '\u007F' ? '?' : c).ToArray());
+    private static string Printable(string text) => new(text.Select(c => char.IsControl(c) ? '?' : c).ToArray());
 
     /// <summary>
     ///     Generates the candidates for a path text in search order.
@@ -260,12 +261,14 @@ internal sealed partial class DataFileResolver
             current = Path.Join(current, segments[index]);
             if (!_linkStates.TryGetValue(current, out var isLink))
             {
-                // The first missing component ends the walk: nothing below it can exist, so it is never probed. The
-                // final component is the exception: an existence probe also says "missing" for an existing file it
-                // cannot access, so the open attempt (not the probe) decides whether the file is missing or unreadable
-                if (!File.Exists(current) && !Directory.Exists(current))
+                // The first missing component above the file ends the walk: nothing below it can exist, so it is never
+                // probed. The final component is always probed, whatever an existence check says: the check reports
+                // "missing" for a dangling link and for an existing file it cannot access, and a dangling link must be
+                // refused rather than opened. A file that is truly missing is not a link; the open attempt (not the
+                // probe) then decides whether it is missing or unreadable
+                if (index < segments.Length - 1 && !File.Exists(current) && !Directory.Exists(current))
                 {
-                    return index == segments.Length - 1;
+                    return false;
                 }
 
                 isLink = ProbeLink(current, display, location);
@@ -304,9 +307,14 @@ internal sealed partial class DataFileResolver
     }
 
     /// <summary>
-    ///     The default link probe: a symbolic link or junction has a link target, whether it names a file or a directory.
+    ///     The default link probe: a symbolic link or junction has a link target, whether it names a file or a directory
+    ///     and whether or not the target exists.
     /// </summary>
-    /// <param name="path">The full path of an existing file or directory.</param>
+    /// <remarks>
+    ///     The probe reads the link itself and never follows it, so it also recognizes a dangling link, for which an
+    ///     existence check says "missing"; a path that does not exist at all has no link target and is not a link.
+    /// </remarks>
+    /// <param name="path">The full path of a file or directory, or of a path that may not exist.</param>
     /// <returns><see langword="true"/> when the path is a symbolic link or junction.</returns>
     private static bool DefaultIsLink(string path) =>
         (Directory.Exists(path) ? new DirectoryInfo(path).LinkTarget : new FileInfo(path).LinkTarget) is not null;

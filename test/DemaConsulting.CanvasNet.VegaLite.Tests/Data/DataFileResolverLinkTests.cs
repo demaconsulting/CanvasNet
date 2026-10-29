@@ -190,6 +190,63 @@ public class DataFileResolverLinkTests
     }
 
     /// <summary>
+    ///     Validates that a final component that an existence check calls missing is still probed for a link (a dangling
+    ///     link is refused, not opened), and that a file that is truly missing remains a located not-found error.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_MissingFinalComponentIsProbedAndDanglingLinkIsRejected()
+    {
+        // Arrange: nothing exists at either path; the probe says the first one is a (dangling) link
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root/dir"));
+        var probe = new FakeLinks().With(directory.Combine("root/dir/dangling.csv"));
+        var resolver = Create(directory.Combine("root"), probe);
+
+        // Act
+        var dangling = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("dir/dangling.csv", Where));
+        var missing = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("dir/gone.csv", Where));
+
+        // Assert: the link is refused as a link; the plain missing file is not found, located; both were probed
+        Assert.Contains("passes through a link", dangling.Message, StringComparison.Ordinal);
+        Assert.Contains("('dir/dangling.csv')", dangling.Message, StringComparison.Ordinal);
+        Assert.Contains("was not found", missing.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, missing.Location);
+        Assert.Equal(
+            [
+                Path.GetFullPath(directory.Combine("root/dir")),
+                Path.GetFullPath(directory.Combine("root/dir/dangling.csv")),
+                Path.GetFullPath(directory.Combine("root/dir/gone.csv")),
+            ],
+            probe.Calls);
+    }
+
+    /// <summary>
+    ///     Validates with a real dangling symbolic link that it is rejected as a link while a truly missing file is not
+    ///     found. The test skips only when the host cannot create file links.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_RealDanglingLinkIsRejectedOrCapabilitySkipped()
+    {
+        // Arrange: a link whose target does not exist
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        if (!DataLinkSupport.TryCreateFileLink(directory.Combine("root/dangling.csv"), directory.Combine("outside/nowhere.csv"), out var reason))
+        {
+            Assert.Skip("File links cannot be created in this environment: " + reason);
+        }
+
+        var resolver = new DataFileResolver(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") }, VegaLiteLimits.Default, Ct);
+
+        // Act
+        var dangling = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("dangling.csv", Where));
+        var missing = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("gone.csv", Where));
+
+        // Assert
+        Assert.Contains("passes through a link", dangling.Message, StringComparison.Ordinal);
+        Assert.Contains("was not found", missing.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a route through dot-dot is judged on the normalized path: the directory that is stepped over is
     ///     not examined, the one that is entered is.
     /// </summary>

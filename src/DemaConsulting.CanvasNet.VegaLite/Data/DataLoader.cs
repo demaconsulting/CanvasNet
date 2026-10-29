@@ -486,11 +486,48 @@ internal sealed class DataLoader
         // step that points away from the stop (a quotient that is not positive) gives an empty sequence.
         var length = (stop - start) / step;
         length = double.IsNaN(length) || length <= 0 ? 0 : Math.Ceiling(length);
+        length = TrimSequenceCount(start, stop, step, length);
         Charge(length, "generated sequence", location);
         var field = FieldPath.Escape(sequence["as"]?.AsString() ?? PrimitiveField);
         var table = DataTable.Create([field], Generate(start, step, (long)length, location), _limits, location);
         _rowsLoaded += table.RowCount;
         return table;
+    }
+
+    /// <summary>
+    ///     Corrects the rounded count of a sequence so that exactly the generated values before the stop are counted.
+    /// </summary>
+    /// <param name="start">The first value.</param>
+    /// <param name="stop">The exclusive end.</param>
+    /// <param name="step">The step.</param>
+    /// <param name="count">The count from the rounded quotient.</param>
+    /// <returns>The count whose last value <c>start + (i * step)</c> is strictly before <paramref name="stop"/> and whose next value is not.</returns>
+    /// <remarks>
+    ///     The quotient and the indexed values round differently, so the count may be one too high (the last value
+    ///     equals or passes the stop) or one too low. A count too large to index exactly is left to the limit.
+    /// </remarks>
+    private static double TrimSequenceCount(double start, double stop, double step, double count)
+    {
+        const double ExactLimit = 9007199254740992.0;
+        if (!double.IsFinite(count) || count >= ExactLimit)
+        {
+            return count;
+        }
+
+        bool Before(double index) => step > 0 ? start + (index * step) < stop : start + (index * step) > stop;
+
+        while (count > 0 && !Before(count - 1))
+        {
+            count--;
+        }
+
+        // Rounding is off by at most a step or two; the bound keeps a degenerate step from looping
+        for (var extra = 0; extra < 2 && count < ExactLimit && Before(count); extra++)
+        {
+            count++;
+        }
+
+        return count;
     }
 
     /// <summary>

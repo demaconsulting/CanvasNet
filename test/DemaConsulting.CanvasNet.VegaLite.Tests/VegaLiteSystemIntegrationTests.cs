@@ -900,6 +900,41 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the warnings of the data stage are delivered, once and in order after the reports of the
+    ///     specification, even when a later stage (here the scene-item limit) fails the call, and before the exception.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_ParseWarningsAreDeliveredWhenALaterStageFails()
+    {
+        // Arrange: a schema version warning, a parse failure in the data, and a scene limit the marks cannot fit in
+        const string spec = """
+            { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+              "data": { "url": "d.csv", "format": { "parse": { "n": "number" } } }, "mark": "point",
+              "encoding": { "x": { "field": "n", "type": "quantitative" } } }
+            """;
+        var files = new VirtualDataFiles().With("d.csv", "n\n1\nbad\nworse\n4\n");
+        var document = VegaLiteDocument.Parse(spec, new VegaLiteOpenOptions { FileResolver = files.Resolve });
+        var log = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            Limits = new VegaLiteLimits { MaxSceneItems = 20 },
+            WarningHandler = w => log.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + "|" + w.Location.Pointer),
+        };
+
+        // Act / Assert: every entry point fails on the limit after delivering both warnings, exactly once each
+        var ex = Assert.Throws<VegaLiteRenderException>(() => document.Render(options, Ct));
+        Assert.Contains("MaxSceneItems", ex.Message, StringComparison.Ordinal);
+        string[] expected = ["vl-schema-version|/$schema", "vl-data-parse-failed|/data"];
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteRenderException>(() => document.Render(64, 64, options, Ct));
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteRenderException>(() => document.Measure(options, Ct));
+        Assert.Equal(expected, log);
+    }
+
+    /// <summary>
     ///     Validates that every measure and render call reads its data again (nothing is cached between calls) and that
     ///     changing a file between calls changes the result.
     /// </summary>

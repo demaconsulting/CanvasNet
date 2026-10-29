@@ -272,12 +272,13 @@ public sealed partial class VegaLiteDocument
     /// </remarks>
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <param name="dataWarningSink">Receives the warnings of the data stage as soon as the data is loaded, so that a later failure can still report them; null to not collect them.</param>
     /// <returns>The plan.</returns>
     /// <exception cref="ArgumentException">Thrown when <see cref="VegaLiteRenderOptions.Config"/> is not a JSON object (it is checked when the options are created, so this only guards against a text that did not pass that check).</exception>
     /// <exception cref="VegaLiteSpecException">Thrown, with the location, when a scale, axis or format property has an invalid value.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown, with the location, when the data or the chart exceeds a limit.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled during the work.</exception>
-    private ChartPlan PrepareChart(VegaLiteRenderOptions options, CancellationToken cancellationToken)
+    private ChartPlan PrepareChart(VegaLiteRenderOptions options, CancellationToken cancellationToken, List<FeatureReport>? dataWarningSink = null)
     {
         // Defaults < specification config < caller config
         var config = ConfigResolver.Resolve(_tree, options.Config);
@@ -299,6 +300,9 @@ public sealed partial class VegaLiteDocument
             var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken);
             table = loader.Load(root["data"]);
             dataWarnings = loader.Warnings;
+
+            // Recorded as soon as the data is loaded, so a later failure of the build can still deliver them
+            dataWarningSink?.AddRange(dataWarnings);
         }
 
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
@@ -413,9 +417,10 @@ public sealed partial class VegaLiteDocument
     /// <returns>The plan.</returns>
     private ChartPlan PrepareChartOrReport(VegaLiteRenderOptions options, CancellationToken cancellationToken)
     {
+        var dataWarnings = new List<FeatureReport>();
         try
         {
-            return PrepareChart(options, cancellationToken);
+            return PrepareChart(options, cancellationToken, dataWarnings);
         }
         catch (Exception ex) when (ex is VegaLiteSpecException or VegaLiteRenderException)
         {
@@ -423,6 +428,12 @@ public sealed partial class VegaLiteDocument
             try
             {
                 RecordReports(sink, cancellationToken);
+
+                // The findings of the data stage come after those of the specification, as when the chart renders
+                foreach (var warning in dataWarnings)
+                {
+                    sink.Warn($"{warning.Id}: {warning.Message}", warning.Location);
+                }
             }
             catch (VegaLiteUnsupportedFeatureException)
             {

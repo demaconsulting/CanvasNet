@@ -104,6 +104,8 @@ public class DataFileResolverTests
     [InlineData("a\u0000b.csv")]
     [InlineData("a\nb.csv")]
     [InlineData("a\u007Fb.csv")]
+    [InlineData("a\u0085b.csv")]
+    [InlineData("a\u009Fb.csv")]
     public void DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess(string path)
     {
         // Arrange: a resolver callback that records requests (resolver mode never touches the file system either)
