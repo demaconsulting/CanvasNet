@@ -82,7 +82,8 @@ internal sealed partial class SpecParser
     ///     Parses specification text.
     /// </summary>
     /// <remarks>
-    ///     A leading U+FEFF is ignored. Unpaired surrogates in the text become U+FFFD, deterministically. The call is
+    ///     A leading U+FEFF is ignored. Text that holds an unpaired UTF-16 surrogate is rejected (it is not valid
+    ///     Unicode text and has no UTF-8 form), never silently replaced. The call is
     ///     deterministic and independent of the culture and the current directory.
     /// </remarks>
     /// <param name="text">The specification text. Must not be null.</param>
@@ -104,7 +105,17 @@ internal sealed partial class SpecParser
             throw CreateSourceTooLongException(effective.MaxSourceLength);
         }
 
-        var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(start == 0 ? text : text[start..]);
+        var body = start == 0 ? text : text[start..];
+        byte[] bytes;
+        try
+        {
+            bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true).GetBytes(body);
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw CreateUnpairedSurrogateException(body, ex.Index, sourceName);
+        }
+
         return new SpecParser(bytes, sourceName, effective).Run();
     }
 
@@ -112,7 +123,8 @@ internal sealed partial class SpecParser
     ///     Parses specification text given as UTF-8 bytes.
     /// </summary>
     /// <remarks>
-    ///     A leading UTF-8 byte-order mark is ignored. Invalid UTF-8 is a malformed-JSON error at its position. Apart
+    ///     A leading UTF-8 byte-order mark is ignored. Invalid UTF-8 (a stray or truncated byte, an overlong encoding or an
+    ///     encoded surrogate) is a malformed-JSON error at its position, never U+FFFD. Apart
     ///     from the input type this is the same as <see cref="Parse(string, string?, VegaLiteLimits?)"/>.
     /// </remarks>
     /// <param name="utf8">The specification text as UTF-8. Must not be null.</param>
@@ -173,6 +185,32 @@ internal sealed partial class SpecParser
         }
 
         return int.Parse(url.AsSpan(start, digits), NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    ///     Creates the exception for text that holds an unpaired UTF-16 surrogate, located by line and column.
+    /// </summary>
+    /// <param name="text">The text without its leading U+FEFF.</param>
+    /// <param name="index">The index of the unpaired surrogate.</param>
+    /// <param name="sourceName">The source name, or null.</param>
+    /// <returns>The exception, ready to throw.</returns>
+    private static VegaLiteSpecException CreateUnpairedSurrogateException(string text, int index, string? sourceName)
+    {
+        // Lines end at a line feed; the column counts UTF-16 units, like every other location
+        var line = 1;
+        var lineStart = 0;
+        for (var i = 0; i < index && i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                line++;
+                lineStart = i + 1;
+            }
+        }
+
+        return new VegaLiteSpecException(
+            "Malformed text: the specification contains an unpaired UTF-16 surrogate, which is not valid Unicode text.",
+            new VegaLiteLocation(sourceName, string.Empty, line, index - lineStart + 1));
     }
 
     /// <summary>

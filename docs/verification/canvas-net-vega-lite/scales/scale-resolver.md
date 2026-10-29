@@ -89,6 +89,20 @@ padding example, that a horizontal bar has the measure on x with zero and no pad
 extent, that a datum has a one-value domain extended by zero to 0 to 5, that no data gives the default domain 0 to 1,
 and that invalid values (null, non-numeric text) are ignored, numeric text is read, and booleans are 1 and 0.
 
+##### Piecewise Domains And Ranges
+
+**Tests**: `ScaleResolverTests.ScaleResolver_Resolve_PiecewiseDomainAndRangeFollowD3`
+
+Asserts that an explicit domain 0, 50, 100 over the range 0, 200, 300 maps 25 to 100, 50 to 200, and 75 to 250 with no
+nice; that the keyword `width` is an entry of the range (`[0, "width", 600]` over a width of 300 maps 50 to 300 and 75
+to 450); that the same domain over the default two-entry range uses its first two entries (25 gives 150 and 100 gives
+600 over 300 pixels); that `clamp` stops at the first and last entry (-10 gives 0, 500 gives 300); that `reverse` flips
+the whole range (300, 200, 0: 0 gives 300, 25 gives 250); that `zero: true` changes only the first entry (5, 10, 15
+becomes 0, 10, 15 and 5 gives 25 over 0, 50, 100); that `nice: 5` extends 0, 3, 97 to 0, 3, 100 (3 gives 100, 100 gives
+200); that 10 pixels of padding over a range of 300 widen the end entries around their middle by 300 / 280 (to -25 / 7
+and 725 / 7) and leave the middle entry at pixel 200; and that a band scale takes the first two entries of the range 0,
+100, 500, giving a step of 100 / 3.
+
 ##### Band And Point Paddings
 
 **Tests**: `ScaleResolverTests.ScaleResolver_Resolve_PaddingsFollowMarkAndScaleProperties`

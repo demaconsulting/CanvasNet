@@ -18,7 +18,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 /// <param name="DataWidth">The width of the data rectangle in pixels.</param>
 /// <param name="DataHeight">The height of the data rectangle in pixels.</param>
 /// <param name="MarkType">The mark type of the view, or null; a <c>rect</c> mark with a discrete channel draws its axis in front of the mark.</param>
-internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null);
+/// <param name="Budget">The scene budget the axis charges before it creates each item, or null for a budget of its own from <see cref="VegaLiteLimits.MaxSceneItems"/>.</param>
+internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null);
 
 /// <summary>
 ///     One tick of an axis: the domain value, where it is on the axis and the label that names it.
@@ -96,6 +97,9 @@ internal sealed class AxisBuilder
     /// <summary>The limit on ticks per axis.</summary>
     private readonly int _maxTicks;
 
+    /// <summary>The limit on scene items, for an axis built without a shared budget.</summary>
+    private readonly long _maxSceneItems;
+
     /// <summary>The source name used in the locations of errors.</summary>
     private readonly string? _sourceName;
 
@@ -114,6 +118,7 @@ internal sealed class AxisBuilder
         _measurer = measurer;
         _config = config;
         _maxTicks = (limits ?? VegaLiteLimits.Default).MaxTicks;
+        _maxSceneItems = (limits ?? VegaLiteLimits.Default).MaxSceneItems;
         _sourceName = sourceName;
     }
 
@@ -166,14 +171,26 @@ internal sealed class AxisBuilder
         var ticks = BuildTicks(request, axis, settings, extent, location, cancellationToken);
 
         var layout = new Layout(settings, request, orient, isX, extent, ticks);
-        var gridRules = layout.ShowGrid ? GridRules(layout).ToList() : [];
+
+        // Every scene item is charged before it is created: the axis group, then the grid group and rules, the tick
+        // rules, the labels, the domain line and the title (the grid group exists only when there is a tick)
+        var budget = request.Budget ?? new SceneBudget(_maxSceneItems);
+        budget.Add(1, location);
+        var gridRules = new List<SceneItem>();
+        if (layout.ShowGrid && ticks.Count > 0)
+        {
+            budget.Add(1, location);
+            gridRules = GridRules(layout, budget, location).ToList();
+        }
+
         var children = new List<SceneItem>();
-        var tickRules = layout.ShowTicks ? TickRules(layout) : [];
+        var tickRules = layout.ShowTicks ? TickRules(layout, budget, location) : [];
         children.AddRange(tickRules);
-        var labels = layout.ShowLabels ? Labels(layout, cancellationToken) : [];
+        var labels = layout.ShowLabels ? Labels(layout, budget, location, cancellationToken) : [];
         children.AddRange(labels);
         if (layout.ShowDomain)
         {
+            budget.Add(1, location);
             children.Add(DomainRule(layout));
         }
 
@@ -190,7 +207,7 @@ internal sealed class AxisBuilder
         }
 
         var title = ResolveTitle(request, axis, settings);
-        return Finish(layout, new AxisParts(gridRules, children), bounds, title, ticks);
+        return Finish(layout, new AxisParts(gridRules, children), bounds, title, ticks, budget, location);
     }
 
     /// <summary>
@@ -208,8 +225,10 @@ internal sealed class AxisBuilder
     /// <param name="tickAndLabelBounds">The bounds of the ticks and labels.</param>
     /// <param name="title">The title lines, or null for no title.</param>
     /// <param name="ticks">The ticks.</param>
+    /// <param name="budget">The scene budget; the title text is charged before it is created.</param>
+    /// <param name="location">The location of the channel for a budget failure.</param>
     /// <returns>The axis.</returns>
-    private AxisResult Finish(Layout layout, AxisParts parts, SceneBounds tickAndLabelBounds, IReadOnlyList<string>? title, IReadOnlyList<AxisTick> ticks)
+    private AxisResult Finish(Layout layout, AxisParts parts, SceneBounds tickAndLabelBounds, IReadOnlyList<string>? title, IReadOnlyList<AxisTick> ticks, SceneBudget budget, VegaLiteLocation location)
     {
         var children = parts.Main;
         var settings = layout.Settings;
@@ -238,6 +257,7 @@ internal sealed class AxisBuilder
         var itemCount = children.Count + parts.Grid.Count;
         if (title is { Count: > 0 })
         {
+            budget.Add(1, location);
             var text = TitleText(layout, title, extent);
             children.Add(text);
             bounds = bounds.Union(_measurer.GetBounds(text));
@@ -511,13 +531,17 @@ internal sealed class AxisBuilder
     ///     Builds the grid lines: one rule per tick across the data rectangle.
     /// </summary>
     /// <param name="layout">The axis layout facts.</param>
+    /// <param name="budget">The scene budget; each rule is charged before it is created.</param>
+    /// <param name="location">The location for a budget failure.</param>
     /// <returns>The rules.</returns>
-    private static IEnumerable<SceneItem> GridRules(Layout layout)
+    private static IEnumerable<SceneItem> GridRules(Layout layout, SceneBudget budget, VegaLiteLocation location)
     {
         var s = layout.Settings;
         var offset = s.Number("offset") ?? 0;
         foreach (var position in layout.TickList.Select(t => t.Position))
         {
+            budget.Add(1, location);
+
             // The rule starts on the axis side of the data rectangle and ends on the far side, in the coordinates of the axis group
             yield return layout.Orient switch
             {
@@ -555,8 +579,10 @@ internal sealed class AxisBuilder
     ///     Builds the tick marks: a short rule at every tick, pointing away from the data rectangle.
     /// </summary>
     /// <param name="layout">The axis layout facts.</param>
+    /// <param name="budget">The scene budget; each rule is charged before it is created.</param>
+    /// <param name="location">The location for a budget failure.</param>
     /// <returns>The rules.</returns>
-    private static List<SceneItem> TickRules(Layout layout)
+    private static List<SceneItem> TickRules(Layout layout, SceneBudget budget, VegaLiteLocation location)
     {
         var s = layout.Settings;
         var size = layout.TickSize;
@@ -564,6 +590,7 @@ internal sealed class AxisBuilder
         var rules = new List<SceneItem>(layout.TickList.Count);
         foreach (var position in layout.TickList.Select(t => t.Position))
         {
+            budget.Add(1, location);
             rules.Add(layout.IsX
                 ? Line(s, "tick", position, 0, position, sign * size, "axis-tick")
                 : Line(s, "tick", 0, position, sign * size, position, "axis-tick"));
@@ -588,10 +615,17 @@ internal sealed class AxisBuilder
     /// <summary>
     ///     Builds the tick labels and removes the overlapping ones.
     /// </summary>
+    /// <remarks>
+    ///     A label that overlaps a neighbor is not part of the scene and costs no budget; the candidates are bounded by
+    ///     <see cref="VegaLiteLimits.MaxTicks"/>, which is enforced before any label is created, and the labels that
+    ///     remain are charged before they are added to the axis.
+    /// </remarks>
     /// <param name="layout">The axis layout facts.</param>
+    /// <param name="budget">The scene budget.</param>
+    /// <param name="location">The location for a budget failure.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The labels that are drawn, in axis order.</returns>
-    private List<SceneItem> Labels(Layout layout, CancellationToken cancellationToken)
+    private List<SceneItem> Labels(Layout layout, SceneBudget budget, VegaLiteLocation location, CancellationToken cancellationToken)
     {
         var s = layout.Settings;
         var model = layout.Model;
@@ -641,7 +675,9 @@ internal sealed class AxisBuilder
         }
 
         var hidden = HiddenByOverlap(layout, visible);
-        return [.. items.Where(i => !hidden.Contains(i))];
+        List<SceneItem> shown = [.. items.Where(i => !hidden.Contains(i))];
+        budget.Add(shown.Count, location);
+        return shown;
     }
 
     /// <summary>

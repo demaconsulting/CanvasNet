@@ -44,7 +44,12 @@ is ignored for color, size, and opacity.
   NaN are ignored; an empty extent is 0 to 1), then the `zero` rule pulls an end to zero (true for the measure axis of a
   bar and for quantitative sizes, the configured default otherwise, and only when a custom domain already spans zero). A
   discrete domain is the distinct values in order of first appearance, sorted ascending by default (`sort` may be
-  ascending, descending, null for data order, or an array); an explicit `scale.domain` is used as given.
+  ascending, descending, null for data order, or an array); an explicit `scale.domain` is used as given. An explicit
+  quantitative domain keeps **all** its numbers (`ResolvedScale.Domain` when there are more than two): with an explicit
+  range of more than two entries the scale is piecewise as in d3 (see _ScaleModel_), `zero`, pixel padding and `nice`
+  change only the first and the last entry as Vega's `configureDomain` does (so `nice` changes the last entry of the
+  complete domain, as d3's `nice` does), and a domain of three entries over the default two-entry range uses its first
+  two entries only.
 - **Padding and nice.** A band scale has inner padding by mark from the configuration (bar 0.1, tick 0.25, others 0) and
   outer padding half of it; a point scale 0.5; `scale.padding` sets both. A continuous position scale gets nice with a
   count of 10 unless it has a custom domain; a bar on its continuous axis gets 5 pixels of padding.
@@ -52,7 +57,8 @@ is ignored for color, size, and opacity.
   the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); opacity is 0.3
   to 0.8; colors are the configured category scheme (`tableau10`). A discrete position scale without an explicit range
   or a fixed size takes its size from `step` (20 pixels by default), which is what `DiscreteWidth` and `DiscreteHeight`
-  report so that the layout can size the view.
+  report so that the layout can size the view. An explicit numeric range keeps all its entries for a linear scale (`reverse`
+  flips the whole array, as Vega does); a band or point scale uses the first two entries, as d3's `scaleBand` does.
 - **Orientation.** `InferOrient` follows Vega-Lite: no orientation for point, circle, square, and rect marks; a bar is
   horizontal when only x is a measure and vertical when only y is, a tick the other way round, and a rule is vertical
   with only x and horizontal with only y; an explicit `orient` of the mark wins where Vega-Lite lets it.
@@ -72,9 +78,10 @@ ordering a domain costs one lookup per value rather than a search of the list pe
   channel in the fixed order. The data is scanned with the token polled every 4,096 rows.
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field.
 - `ResolvedScale.CreateModel(extent)` - applies what depends on the extent: the range of a position scale (including an
-  explicit range with `width` and `height` keywords), the pixel padding of a continuous scale (the domain is widened so
-  that the extreme values keep that distance from the edge), then `nice` (after the padding, as Vega does), and builds a
-  linear, band, point, or ordinal `ScaleModel`; a non-finite domain after nice keeps the padded domain.
+  explicit range with `width` and `height` keywords, all of whose entries are kept for a linear scale), the pixel
+  padding of a continuous scale (the domain is widened so that the extreme values keep that distance from the edge),
+  then `nice` (after the padding, as Vega does), and builds a linear, band, point, or ordinal `ScaleModel`; a non-finite
+  domain after nice keeps the padded domain.
 - `ResolvedScale.NaturalExtent` - `step * BandSpace(count, inner, outer)`, the size a step-driven discrete scale needs.
 
 **Preconditions and postconditions**: the view was validated by `SpecParser`; on return every present, supported channel

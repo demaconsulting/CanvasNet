@@ -260,6 +260,27 @@ exactly the limit is accepted; that nesting up to `MaxJsonDepth` is accepted and
 `VegaLiteSpecException` with a location; and that hostile nesting under the default limits fails closed without
 overflowing the stack.
 
+### Limits: Scene Item Limit Is Exact And Charged Before Creation
+
+**Tests**: `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitCountsEveryItemOfTheScene`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_LabelsRemovedByOverlapCostNoBudget`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept`
+
+Asserts, for a title only, a title with a subtitle, an unencoded point, points without an axis, and a tick chart with a
+grid (4, 5, 4, 5, and 18 scene items by hand), that the scene the pipeline builds has exactly that many items (every
+item, groups included) and that for every limit from 1 up to the count the chart is accepted at the count and rejected
+below it with a `VegaLiteRenderException` that names `MaxSceneItems` and the limit, so a limit of N allows N items and
+fails on the (N+1)th. For a bar chart with a title and two axes it counts the items of every part against the scene and
+asserts that the limit that equals the count renders, one fewer fails at the last mark (`/mark`), and limits spent
+inside the title, the x axis, and the y axis fail at `/title`, `/encoding/x`, and `/encoding/y`. It also asserts that
+tick labels removed for overlapping cost nothing, that the axis builder charges the axis group, the grid group, the grid
+lines, the ticks, the labels, the domain line, and the title (13 for the three-tick axis) and fails at its channel with
+one fewer, that the title builder charges the group, the title, and the subtitle (3) and fails at `/title` with fewer,
+and that a forked budget counts on its own and is taken over only when adopted.
+
 ### Limits: Chart Failures Carry Locations
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations`

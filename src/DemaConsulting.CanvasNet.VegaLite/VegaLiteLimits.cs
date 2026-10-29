@@ -93,8 +93,9 @@ public sealed class VegaLiteLimits
     ///     Gets the maximum length of the specification text in UTF-16 characters; 4,194,304 by default.
     /// </summary>
     /// <remarks>
-    ///     Streams and files are read in chunks and reading stops one chunk past the limit, so a stream that never
-    ///     ends cannot consume unbounded memory.
+    ///     Streams and files are read in chunks as bytes and reading stops one chunk past the longest input that could
+    ///     still fit (three bytes per permitted character), so a stream that never ends cannot consume unbounded memory.
+    ///     The bytes must be valid UTF-8: malformed input is rejected, never decoded with replacement characters.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxSourceLength

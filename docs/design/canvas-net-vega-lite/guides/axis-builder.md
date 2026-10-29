@@ -32,7 +32,10 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
   data rectangle's coordinates (the grid is not part of them), the side, the ticks (including those whose labels were
   dropped because they overlap), the number of scene items for the budget, and whether the axis is drawn in front of the
   marks (`zindex` above 0).
-- **`AxisBuilder`** holds the `TextMeasurer`, the `ResolvedConfig`, the `MaxTicks` limit, and the source name.
+- **`AxisBuilder`** holds the `TextMeasurer`, the `ResolvedConfig`, the `MaxTicks` and `MaxSceneItems` limits, and the
+  source name. `AxisRequest` may carry the `SceneBudget` of the chart; the builder then charges the axis group, the grid
+  group, each grid line, tick rule, the remaining labels, the domain line and the title text before it creates them (an
+  axis without a shared budget uses a budget of its own from `MaxSceneItems`).
 
 **Properties and precedence.** A property is looked up in the axis of the channel, then the Vega-Lite-only configuration
 (`axisX`, `axisY`, and the `Band`, `Point`, `Discrete`, and `Quantitative` variants), then the Vega configuration (`axisBand`

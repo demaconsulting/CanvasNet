@@ -48,7 +48,8 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-SpecParser-StructuralValidation
                 title: >-
                   The SpecParser unit shall throw a located VegaLiteSpecException for text that is not a
-                  Vega-Lite specification object, for bytes that are not valid UTF-8, and for the first
+                  Vega-Lite specification object, for bytes that are not valid UTF-8 (a stray or truncated byte, an
+                  overlong encoding, an encoded surrogate) and for text with an unpaired surrogate, and for the first
                   value in document order whose type does not fit the known property it belongs to, and
                   shall accept every documented valid form of those properties.
                 justification: |
@@ -57,6 +58,10 @@ sections:
                 tests:
                   - SpecParser_Parse_NotASpecificationThrowsLocatedSpecException
                   - SpecParser_Parse_InvalidUtf8BytesThrowSpecException
+                  - SpecParser_Parse_MalformedUtf8InStringIsRejectedNotReplaced
+                  - SpecParser_Parse_MalformedUtf8InNameOrStructureIsRejected
+                  - SpecParser_Parse_ValidMultiByteUtf8IsAccepted
+                  - SpecParser_Parse_UnpairedSurrogateInStringIsRejected
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - SpecParser_Parse_FirstWrongValueInDocumentOrderIsReported
                   - SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted

@@ -99,10 +99,13 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `ReadBounded`, and delegates to `Create`; a missing file or directory surfaces the natural .NET exception.
 - `Open(Stream stream, VegaLiteOpenOptions? options)` - requires a non-null readable stream and reads it from its
   current position with `ReadBounded`; the stream is left open.
-- `ReadBounded(stream, maxLength)` - reads UTF-8 (byte-order mark detected) in 8,192-character chunks and throws an
-  `InvalidDataException` as soon as the running length exceeds the limit, so a stream that never ends cannot consume
-  unbounded memory.
-- `Create(source, options)` - calls `SpecParser.Parse(source, sourceName, limits)` and wraps the tree in a document
+- `ReadBounded(stream, maxLength)` - reads the raw bytes in 8,192-byte chunks (it does not decode them) and throws an
+  `InvalidDataException` as soon as the running byte count exceeds three bytes per permitted character plus a
+  byte-order mark (no input that long can fit the limit), so a stream that never ends cannot consume unbounded memory.
+  The exact character count and the strict UTF-8 decoding are done by `SpecParser.Parse(byte[], ...)`, so a malformed
+  byte sequence is a located `VegaLiteSpecException` and is never replaced by U+FFFD.
+- `Create(source, options)` - calls `SpecParser.Parse(source, sourceName, limits)` (for a string or for the bytes of a file
+  or stream) and wraps the tree in a document
   whose constructor reads the metadata and merges the reports.
 - `Measure(options, token)` - prepares the chart (`PrepareChartOrReport`), validates the scaled size
   (`ValidateScaledSize`: each side of the natural size times the scale, rounded half away from zero, must be 1 to

@@ -58,11 +58,12 @@ an error; a duplicate key keeps the last value at the position of the first occu
 
 - `SpecParser.Parse(string text, string? sourceName, VegaLiteLimits? limits)` - requires non-null text, uses the default
   limits when none are given, ignores a leading U+FEFF, rejects text longer than `MaxSourceLength` before it is encoded
-  (`InvalidDataException`), encodes it as UTF-8 (unpaired surrogates become U+FFFD, deterministically), and runs a
-  single-use parser.
+  (`InvalidDataException`), encodes it as strict UTF-8 (text with an unpaired surrogate is a located
+  `VegaLiteSpecException`, never U+FFFD), and runs a single-use parser.
 - `SpecParser.Parse(byte[] utf8, ...)` - the same for bytes: a UTF-8 byte-order mark is skipped, and the character count
   is checked only when the byte count already exceeds the limit (every character takes at least one byte). Invalid UTF-8
-  is a malformed-JSON error at its position.
+  (a stray or truncated byte, an overlong encoding, an encoded surrogate, a code point above U+10FFFF) is a malformed-JSON
+  error at its position, never U+FFFD; `Open(Stream)` and `Open(path)` pass their raw bytes here.
 - `Run()` / `Read()` - read with `Utf8JsonReader` (depth option set from the limits) one token at a time, push and pop
   frames on an explicit array indexed by depth (frames are reused), create nodes with their positions through an
   incremental line and column locator (a forward scan that only advances), and apply the duplicate-key policy.

@@ -45,6 +45,9 @@ public sealed partial class VegaLiteDocument
     /// <summary>The number of characters read from a stream per call.</summary>
     private const int ReadChunkSize = 8192;
 
+    /// <summary>The length of the UTF-8 byte-order mark, which does not count against the source limit.</summary>
+    private const int MaxPreambleLength = 3;
+
     /// <summary>The parsed specification.</summary>
     private readonly SpecTree _tree;
 
@@ -166,8 +169,8 @@ public sealed partial class VegaLiteDocument
     ///     Opens and parses a specification file.
     /// </summary>
     /// <remarks>
-    ///     The file is read as UTF-8 (a byte-order mark is detected and removed). Unless overridden in
-    ///     <paramref name="options"/>, the source name is <paramref name="path"/> exactly as supplied and the base
+    ///     The file is read as strict UTF-8 (a UTF-8 byte-order mark is removed; invalid UTF-8 is
+    ///     rejected, never replaced). Unless overridden in <paramref name="options"/>, the source name is <paramref name="path"/> exactly as supplied and the base
     ///     directory for data files is the folder of the full path. Reading stops as soon as the size limit is
     ///     exceeded.
     /// </remarks>
@@ -198,9 +201,9 @@ public sealed partial class VegaLiteDocument
     ///     Parses Vega-Lite specification text read from a stream.
     /// </summary>
     /// <remarks>
-    ///     The stream is read from its current position to its end as UTF-8 (a byte-order mark is detected and
-    ///     removed) and is left open; the caller keeps ownership. Reading stops as soon as the size limit is
-    ///     exceeded, so a stream that never ends cannot consume unbounded memory. Data files of the chart can only be
+    ///     The stream is read from its current position to its end as strict UTF-8 (a UTF-8 byte-order mark is removed;
+    ///     invalid UTF-8 is rejected, never replaced) and is left open; the caller keeps ownership. Reading stops as
+    ///     soon as the size limit is exceeded, so a stream that never ends cannot consume unbounded memory. Data files of the chart can only be
     ///     found through <see cref="VegaLiteOpenOptions.BaseDirectory"/>, <see cref="VegaLiteOpenOptions.DataPaths"/>
     ///     or <see cref="VegaLiteOpenOptions.FileResolver"/>, because a stream has no folder.
     /// </remarks>
@@ -240,29 +243,50 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Reads a whole stream as text, stopping with an error once the size limit is exceeded.
+    ///     Scans UTF-8 source bytes and wraps the result in a document.
     /// </summary>
+    /// <param name="source">The UTF-8 bytes of the source text.</param>
+    /// <param name="effective">The effective options.</param>
+    /// <returns>The document.</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown when the bytes are not valid UTF-8 or not a valid specification.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the text is longer than the source limit.</exception>
+    private static VegaLiteDocument Create(byte[] source, VegaLiteOpenOptions effective)
+    {
+        // Strict decoding happens in the parser, so invalid UTF-8 is a located specification error, never U+FFFD
+        var tree = SpecParser.Parse(source, effective.SourceName, effective.EffectiveLimits);
+        return new VegaLiteDocument(tree, effective);
+    }
+
+    /// <summary>
+    ///     Reads a whole stream as bytes, stopping with an error once the size limit is certainly exceeded.
+    /// </summary>
+    /// <remarks>
+    ///     The bytes are not decoded here: the parser decodes them strictly, so malformed UTF-8 is rejected and is never
+    ///     replaced by U+FFFD. A character takes at most three bytes per UTF-16 unit, so more than three bytes per
+    ///     permitted character (plus a byte-order mark) is over the limit whatever the content; the parser makes the
+    ///     exact character count.
+    /// </remarks>
     /// <param name="stream">The stream to read; it is left open.</param>
     /// <param name="maxLength">The maximum number of characters.</param>
-    /// <returns>The text.</returns>
-    /// <exception cref="InvalidDataException">Thrown when the text is longer than <paramref name="maxLength"/>.</exception>
-    private static string ReadBounded(Stream stream, int maxLength)
+    /// <returns>The raw bytes.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the stream is longer than <paramref name="maxLength"/> characters can be.</exception>
+    private static byte[] ReadBounded(Stream stream, int maxLength)
     {
         // Read in chunks and check the running length so an endless stream stops one chunk past the limit
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: ReadChunkSize, leaveOpen: true);
-        var text = new StringBuilder();
-        var buffer = new char[ReadChunkSize];
+        var maxBytes = (3L * maxLength) + MaxPreambleLength;
+        using var bytes = new MemoryStream();
+        var buffer = new byte[ReadChunkSize];
         int count;
-        while ((count = reader.Read(buffer, 0, buffer.Length)) > 0)
+        while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
-            text.Append(buffer, 0, count);
-            if (text.Length > maxLength)
+            bytes.Write(buffer, 0, count);
+            if (bytes.Length > maxBytes)
             {
                 throw CreateSourceTooLongException(maxLength);
             }
         }
 
-        return text.ToString();
+        return bytes.ToArray();
     }
 
     /// <summary>

@@ -172,9 +172,12 @@ internal sealed class TitleBuilder
     /// <param name="title">The <c>title</c> property of the specification (string, array or object), or null when there is none.</param>
     /// <param name="config">The effective configuration.</param>
     /// <param name="unitOrLayer"><see langword="true"/> for a single or layered view (the default); other views anchor their title at the start.</param>
+    /// <param name="budget">The scene budget that is charged before the title group and each text are created, or null for no limit.</param>
+    /// <param name="sourceName">The source name for the location of a budget failure, or null.</param>
     /// <returns>The title block, or null when there is no title text.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
-    public TitleBlock? Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer = true)
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the title, when the title would pass the scene item limit.</exception>
+    public TitleBlock? Build(SpecNode? title, ResolvedConfig config, bool unitOrLayer = true, SceneBudget? budget = null, string? sourceName = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         if (title is null || title.IsNull)
@@ -218,6 +221,9 @@ internal sealed class TitleBuilder
         var angle = ReadNumber(properties, config, "angle") ?? DefaultAngle(orient);
         var baseline = ReadString(properties, config, "baseline") ?? "top";
 
+        // The title group and its title text are charged before they are created, the subtitle text before its own
+        var budgetLocation = title.GetLocation(sourceName);
+        budget?.Add(2, budgetLocation);
         var titleText = CreateText("title-text", 0, 0, titleLines, properties, config, subtitle: false, align, baseline, angle, limit);
         var children = new List<SceneItem> { titleText };
         var extent = _measurer.GetBounds(titleText);
@@ -232,6 +238,7 @@ internal sealed class TitleBuilder
                 "right" => (-titleBounds.Width - padding, 0.0),
                 _ => (0.0, titleBounds.Height + padding),
             };
+            budget?.Add(1, budgetLocation);
             var subtitleText = CreateText("title-subtitle", sx, sy, subtitleLines, properties, config, subtitle: true, align, baseline, angle, limit);
             children.Add(subtitleText);
             extent = _measurer.GetBounds(subtitleText).Union(extent);

@@ -20,6 +20,132 @@ public class ScaleModelTests
     private static DataValue[] Categories(params string[] names) => [.. names.Select(DataValue.FromString)];
 
     /// <summary>
+    ///     Validates the piecewise (polylinear) linear scale against values derived by hand from d3-scale's
+    ///     <c>continuous.js</c> (<c>polymap</c>, <c>bimap</c>, <c>bisectRight</c>, <c>normalize</c>, <c>clamper</c>): the segment
+    ///     that a value picks, extrapolation, clamping, inversion, descending domains, truncation to the shorter of domain and
+    ///     range, zero-width segments, rounding and invalid arguments.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Map_PiecewiseLinearFollowsD3Polymap()
+    {
+        // Arrange: domain 0..10..100 onto range 0..50..100: the first segment is 5 per unit, the second 0.5666... per unit
+        var scale = ScaleModel.CreateLinear([0, 10, 100], [0, 50, 100]);
+
+        // Assert: 5 is halfway through the first segment (25); 10 is the start of the second (bisectRight sends an equal
+        // value up), 55 is halfway through the second (75); the ends are the ends of the range
+        Assert.Equal(25, scale.Map(5), Precision);
+        Assert.Equal(50, scale.Map(10), Precision);
+        Assert.Equal(75, scale.Map(55), Precision);
+        Assert.Equal(0, scale.Map(0), Precision);
+        Assert.Equal(100, scale.Map(100), Precision);
+
+        // Assert: outside the domain the end segments continue: -10 is one whole first segment below (-50), 200 is
+        // t = 190/90 through the second segment: 50 * (1 - 19/9) + 100 * 19/9 = 1400 / 9
+        Assert.Equal(-50, scale.Map(-10), Precision);
+        Assert.Equal(1400.0 / 9, scale.Map(200), Precision);
+        Assert.True(double.IsNaN(scale.Map(double.NaN)));
+
+        // Assert: the complete arrays give the ends that axes and ticks use
+        Assert.Equal((0.0, 100.0, 0.0, 100.0), (scale.DomainStart, scale.DomainEnd, scale.RangeStart, scale.RangeEnd));
+
+        // Assert: the inverse is the polymap of the range onto the domain: 25 is halfway through the first segment (5), 75
+        // halfway through the second (55); 50 belongs to the second segment, where it is the start (10)
+        Assert.Equal(5, scale.Invert(25), Precision);
+        Assert.Equal(55, scale.Invert(75), Precision);
+        Assert.Equal(10, scale.Invert(50), Precision);
+
+        // Assert: clamp limits to the first and last domain entry before mapping, and the inverse result to the same
+        var clamped = ScaleModel.CreateLinear([0, 10, 100], [0, 50, 100], clamp: true);
+        Assert.Equal(0, clamped.Map(-10), Precision);
+        Assert.Equal(100, clamped.Map(200), Precision);
+        Assert.Equal(75, clamped.Map(55), Precision);
+        Assert.Equal(100, clamped.Invert(5000), Precision);
+
+        // Assert: a descending domain reverses both arrays: domain 100 -> range 0, 10 -> 50, 0 -> 100. Value 5 is halfway
+        // from 100 down to 50 (75); 55 halfway from 50 down to 0 (25)
+        var descending = ScaleModel.CreateLinear([100, 10, 0], [0, 50, 100]);
+        Assert.Equal(75, descending.Map(5), Precision);
+        Assert.Equal(25, descending.Map(55), Precision);
+        Assert.Equal(0, descending.Map(100), Precision);
+        Assert.Equal(100, descending.Map(0), Precision);
+        Assert.Equal(55, descending.Invert(25), Precision);
+
+        // Assert: a range that descends gives a descending scale with the same segments
+        var descendingRange = ScaleModel.CreateLinear([0, 10, 100], [100, 50, 0]);
+        Assert.Equal(75, descendingRange.Map(5), Precision);
+        Assert.Equal(25, descendingRange.Map(55), Precision);
+        Assert.Equal(5, descendingRange.Invert(75), Precision);
+    }
+
+    /// <summary>
+    ///     Validates that a domain and a range of different lengths use the first <c>min(length)</c> entries, as d3 does, and
+    ///     that the descending case reverses the complete arrays first.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Map_PiecewiseTruncatesToTheShorterOfDomainAndRange()
+    {
+        // Arrange: three domain entries but two range entries: d3 uses bimap over domain[0..1] and range[0..1] only
+        var longDomain = ScaleModel.CreateLinear([0, 10, 100], [0, 200]);
+
+        // Assert: 5 is halfway through 0..10 (100) and 100 continues the line (t = 10 gives 2000); the complete arrays
+        // still give the ends d3 reports, but clamp uses domain[0] and domain[1]
+        Assert.Equal(100, longDomain.Map(5), Precision);
+        Assert.Equal(2000, longDomain.Map(100), Precision);
+        Assert.Equal((0.0, 100.0, 0.0, 200.0), (longDomain.DomainStart, longDomain.DomainEnd, longDomain.RangeStart, longDomain.RangeEnd));
+        Assert.Equal(200, ScaleModel.CreateLinear([0, 10, 100], [0, 200], clamp: true).Map(100), Precision);
+        Assert.Equal(5, longDomain.Invert(100), Precision);
+
+        // Arrange: two domain entries and three range entries: only range[0..1] is used, 0..10 onto 0..50
+        var longRange = ScaleModel.CreateLinear([0, 10], [0, 50, 100]);
+        Assert.Equal(25, longRange.Map(5), Precision);
+        Assert.Equal(50, longRange.Map(10), Precision);
+        Assert.Equal(100, longRange.RangeEnd);
+
+        // Arrange: four domain entries and three range entries: polymap over the first three entries of each
+        var fourByThree = ScaleModel.CreateLinear([0, 10, 100, 1000], [0, 1, 2]);
+        Assert.Equal(2, fourByThree.Map(100), Precision);
+        Assert.Equal(0.5, fourByThree.Map(5), Precision);
+
+        // Assert: beyond the last used entry the last segment continues: t = 990/90 = 11, 1 * (1 - 11) + 2 * 11 = 12
+        Assert.Equal(12, fourByThree.Map(1000), Precision);
+        Assert.Equal(2, ScaleModel.CreateLinear([0, 10, 100, 1000], [0, 1, 2], clamp: true).Map(1000), Precision);
+
+        // Assert: d3 reverses the complete arrays when the last used domain entry is below the first, then uses the first
+        // three of the reversed arrays: domain [10, 5, 0, -1] becomes [-1, 0, 5, 10] and range [0, 1, 2] becomes [2, 1, 0], so
+        // the used pairs are -1 -> 2, 0 -> 1, 5 -> 0. (This is d3's behavior, kept as it is.)
+        var quirk = ScaleModel.CreateLinear([10, 5, 0, -1], [0, 1, 2]);
+        Assert.Equal(2, quirk.Map(-1), Precision);
+        Assert.Equal(1, quirk.Map(0), Precision);
+        Assert.Equal(0, quirk.Map(5), Precision);
+        Assert.Equal(-1, quirk.Map(10), Precision);
+    }
+
+    /// <summary>
+    ///     Validates zero-width segments, rounding and argument checks of the piecewise scale.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_CreateLinear_PiecewiseEdgeCases()
+    {
+        // Assert: a segment of zero width maps to the middle of its output segment (d3's normalize returns 0.5); the equal
+        // value 0 belongs to the next segment, so it is the start of 50..100
+        var flat = ScaleModel.CreateLinear([0, 0, 10], [0, 50, 100]);
+        Assert.Equal(25, flat.Map(-1), Precision);
+        Assert.Equal(50, flat.Map(0), Precision);
+        Assert.Equal(75, flat.Map(5), Precision);
+
+        // Assert: round applies to the result of the segment: 1 is a third of the way to 10 in the first segment (3.33 -> 3)
+        var rounded = ScaleModel.CreateLinear([0, 3, 9], [0, 10, 40], round: true);
+        Assert.Equal(3, rounded.Map(1));
+        Assert.Equal(25, rounded.Map(6));
+
+        // Assert: both arrays need two entries, and neither may be null
+        Assert.Throws<ArgumentException>(() => ScaleModel.CreateLinear([1], [0, 1]));
+        Assert.Throws<ArgumentException>(() => ScaleModel.CreateLinear([0, 1], [1]));
+        Assert.Throws<ArgumentNullException>(() => ScaleModel.CreateLinear(null!, [0, 1]));
+        Assert.Throws<ArgumentNullException>(() => ScaleModel.CreateLinear([0, 1], null!));
+    }
+
+    /// <summary>
     ///     Validates the positions of linear, band and point scales against hand-derived values: linear interpolation,
     ///     reversed ranges and domains, clamping, rounding, bands with padding, alignment and rounding, and points.
     /// </summary>

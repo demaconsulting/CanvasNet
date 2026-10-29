@@ -247,6 +247,16 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
+    ///     Lays the chart out and returns its scene, without painting or delivering reports (internal; for tests that
+    ///     count the scene items against <see cref="VegaLiteLimits.MaxSceneItems"/>).
+    /// </summary>
+    /// <param name="options">The render options.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The scene.</returns>
+    internal Scene BuildScene(VegaLiteRenderOptions options, CancellationToken cancellationToken = default) =>
+        PrepareChart(options, cancellationToken).Scene;
+
+    /// <summary>
     ///     Lays out the chart: resolves the configuration, loads the data and builds the scales, axes, marks and title of a
     ///     single view, and gives the scene and the natural size of the chart (the size of the surface at a scale of one).
     /// </summary>
@@ -273,6 +283,11 @@ public sealed partial class VegaLiteDocument
         var measurer = new TextMeasurer(options.EffectiveFonts);
         var root = _tree.Root;
 
+        // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
+        // has, then the title, the axes (per pass), the marks group and the marks
+        var budget = new SceneBudget(options.Limits.MaxSceneItems);
+        budget.Add(2, root.GetLocation(_tree.SourceName));
+
         // A composition has no single title position; layers share one. Only single views have a data rectangle drawn so far
         var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
         DataTable? table = null;
@@ -288,14 +303,14 @@ public sealed partial class VegaLiteDocument
         var hints = new ViewSizeHints(scales?.DiscreteWidth, scales?.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
         var request = ViewLayout.Resolve(root, config, hints, background);
-        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition);
+        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition, budget, _tree.SourceName);
         if (table is null || scales is null)
         {
             var layout = ViewLayout.Compute(request, default, title);
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits), cancellationToken);
+        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget), cancellationToken);
     }
 
     /// <summary>
@@ -313,13 +328,16 @@ public sealed partial class VegaLiteDocument
     private ChartPlan BuildChart(ChartInputs inputs, CancellationToken cancellationToken)
     {
         var sourceName = _tree.SourceName;
-        var budget = new SceneBudget(inputs.Limits.MaxSceneItems);
+        var budget = inputs.Budget;
         var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
         var axes = new List<AxisResult>();
+        var passBudget = budget;
         for (var pass = 0; pass < 3; pass++)
         {
-            axes = BuildAxes(inputs, axisBuilder, measure.DataWidth, measure.DataHeight, cancellationToken);
+            // Each pass builds the axes afresh, so each is charged to a fork; only the pass that is kept is adopted
+            passBudget = budget.Fork();
+            axes = BuildAxes(inputs, axisBuilder, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
             var extents = AxisBuilder.GetExtents(axes, measure.DataWidth, measure.DataHeight);
             var next = ViewLayout.Measure(inputs.Request, extents, inputs.Title);
             var stable = Math.Abs(next.DataWidth - measure.DataWidth) < 1e-9 && Math.Abs(next.DataHeight - measure.DataHeight) < 1e-9;
@@ -330,20 +348,14 @@ public sealed partial class VegaLiteDocument
             }
         }
 
-        var location = _tree.Root["encoding"]?.GetLocation(sourceName) ?? default;
+        budget.Adopt(passBudget);
         var content = new List<SceneItem>(axes.Count * 2 + 1);
-        // Count what the axes created: their items plus their groups (the grid group exists only when there are grid lines)
-        foreach (var axis in axes)
-        {
-            budget.Add(axis.ItemCount + (axis.Grid is null ? 1 : 2), location);
-        }
-
-        // The marks group, then one item per mark that is drawn
-        budget.Add(1, location);
 
         // Vega-Lite draws the grids first, then the axes that are behind the marks, the marks, and last the axes in front of them
         content.AddRange(axes.Where(a => a.Grid is not null).Select(a => (SceneItem)a.Grid!));
         content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
+
+        // The marks group and each mark are charged by the mark builder before they are created
         var marks = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName)
             .Build(_tree.Root, inputs.Table, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
         content.Add(marks);
@@ -358,9 +370,10 @@ public sealed partial class VegaLiteDocument
     /// <param name="builder">The axis builder.</param>
     /// <param name="width">The width of the data rectangle.</param>
     /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="budget">The budget of scene items the axes of the pass are charged to.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The axes; empty when no position channel has a scale or all axes are switched off.</returns>
-    private List<AxisResult> BuildAxes(ChartInputs inputs, AxisBuilder builder, double width, double height, CancellationToken cancellationToken)
+    private List<AxisResult> BuildAxes(ChartInputs inputs, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
     {
         var axes = new List<AxisResult>(2);
         foreach (var channel in new[] { "x", "y" })
@@ -371,7 +384,7 @@ public sealed partial class VegaLiteDocument
             }
 
             var model = scale.CreateModel(channel == "x" ? width : height);
-            if (builder.Build(new AxisRequest(channel, definition, scale, model, width, height, inputs.Scales.MarkType), cancellationToken) is { } axis)
+            if (builder.Build(new AxisRequest(channel, definition, scale, model, width, height, inputs.Scales.MarkType, budget), cancellationToken) is { } axis)
             {
                 axes.Add(axis);
             }
@@ -490,6 +503,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="Config">The effective configuration.</param>
     /// <param name="Measurer">The text measurer.</param>
     /// <param name="Limits">The limits.</param>
+    /// <param name="Budget">The budget of scene items the chart is charged to, which already holds the root, view and title items.</param>
     private sealed record ChartInputs(
         ViewLayoutRequest Request,
         TitleBlock? Title,
@@ -497,5 +511,6 @@ public sealed partial class VegaLiteDocument
         DataTable Table,
         ResolvedConfig Config,
         TextMeasurer Measurer,
-        VegaLiteLimits Limits);
+        VegaLiteLimits Limits,
+        SceneBudget Budget);
 }

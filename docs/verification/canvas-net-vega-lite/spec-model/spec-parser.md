@@ -66,13 +66,23 @@ position.
 
 **Tests**: `SpecParserTests.SpecParser_Parse_MalformedJsonReportsFirstLocation`,
 `SpecParserTests.SpecParser_Parse_NotASpecificationThrowsLocatedSpecException`,
-`SpecParserTests.SpecParser_Parse_InvalidUtf8BytesThrowSpecException`
+`SpecParserTests.SpecParser_Parse_InvalidUtf8BytesThrowSpecException`,
+`SpecParserTests.SpecParser_Parse_MalformedUtf8InStringIsRejectedNotReplaced`,
+`SpecParserTests.SpecParser_Parse_MalformedUtf8InNameOrStructureIsRejected`,
+`SpecParserTests.SpecParser_Parse_ValidMultiByteUtf8IsAccepted`,
+`SpecParserTests.SpecParser_Parse_UnpairedSurrogateInStringIsRejected`
 
-Asserts that malformed JSON (a bare word at line 2, column 11 followed by a second problem on line 3) is reported
-at the first problem as `bad.json:2:11: Malformed JSON: ...` with the reader's exception as inner exception and no
-internal property names in the message; that empty text, whitespace, a non-object root, trailing content, a trailing
-comma, a comment, and an unterminated string each throw a located `VegaLiteSpecException` with a line and column of
-at least 1; and that bytes that are not valid UTF-8 throw a `VegaLiteSpecException` rather than another type.
+Asserts that malformed JSON (a bare word at line 2, column 11 followed by a second problem on line 3) is reported at the
+first problem as `bad.json:2:11: Malformed JSON: ...` with the reader's exception as inner exception and no internal
+property names in the message; that empty text, whitespace, a non-object root, trailing content, a trailing comma, a
+comment, and an unterminated string each throw a located `VegaLiteSpecException` with a line and column of at least 1;
+and that bytes that are not valid UTF-8 throw a `VegaLiteSpecException` rather than another type. Every kind of
+malformed UTF-8 is rejected, never replaced by U+FFFD: an overlong NUL (`C0 80`), overlong three- and four-byte forms
+and `C1 BF`, an encoded high and low surrogate (`ED A0 80`, `ED BF BF`), a code point above U+10FFFF (`F4 90 80 80`), a
+stray continuation byte, truncated two-, three-, and four-byte sequences and `FE`, in a string value, in a property
+name, and outside a string; well-formed two-, three-, and four-byte text is read unchanged with and without a byte-order
+mark; and a string with an unpaired high or low surrogate is rejected at its line and column (line 2, column 10 after an
+astral character that counts as two columns), while a valid surrogate pair is accepted.
 
 ##### Wrong Types And Values Are Reported At The First Offending Pointer
 

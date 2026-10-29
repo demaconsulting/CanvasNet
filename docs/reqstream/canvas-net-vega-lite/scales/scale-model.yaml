@@ -15,16 +15,20 @@ sections:
             requirements:
               - id: CanvasNetVegaLite-Scales-ScaleModel-Mappings
                 title: >-
-                  The ScaleModel unit shall map a value through an immutable linear scale (domain to
-                  range with optional clamping and rounding), a band scale (the start of the band of a
-                  category, with inner and outer padding, alignment, step, and bandwidth), and a point
-                  scale, give the center of a band, invert a position, compute the Vega band space of a
-                  category count, and refuse to be read as a kind it is not.
+                  The ScaleModel unit shall map a value through an immutable linear scale (domain to range with optional
+                  clamping and rounding, and d3's piecewise mapping for a domain and a range of more than two entries,
+                  including descending domains and domains and ranges of different lengths), a band scale (the start of
+                  the band of a category, with inner and outer padding, alignment, step, and bandwidth), and a point
+                  scale, give the center of a band, invert a position, compute the Vega band space of a category count,
+                  and refuse to be read as a kind it is not.
                 justification: |
                   Every mark and tick is placed by these mappings, so their arithmetic must match
                   hand-derived expectations exactly.
                 tests:
                   - ScaleModel_Map_LinearBandAndPointMatchAnalyticPositions
+                  - ScaleModel_Map_PiecewiseLinearFollowsD3Polymap
+                  - ScaleModel_Map_PiecewiseTruncatesToTheShorterOfDomainAndRange
+                  - ScaleModel_CreateLinear_PiecewiseEdgeCases
                   - ScaleModel_BandSpace_MatchesVega
                   - ScaleModel_WrongKind_Throws
 

@@ -21,12 +21,14 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleModel-*` 
 **`ScaleKind`** is `Linear`, `Band`, `Point`, or `Ordinal`.
 
 **`ScaleModel`** (sealed class, immutable) exposes its `Kind` and the parameters that define it: `DomainStart` and
-`DomainEnd` (linear), `RangeStart` and `RangeEnd`, `Clamp`, `Round`, `PaddingInner`, `PaddingOuter`, `Align`, `Step` and
+`DomainEnd` (linear: the first and last entry of the complete domain), `RangeStart` and `RangeEnd` (the first and last
+entry of the complete range for a linear scale), `Clamp`, `Round`, `PaddingInner`, `PaddingOuter`, `Align`, `Step` and
 `Bandwidth` (band and point), `Domain` (the categories of a discrete scale as a read-only `DataValue` list), and
 `OrdinalRange` (the colors of an ordinal scale). The factories are `CreateLinear(domainStart, domainEnd, rangeStart,
-rangeEnd, clamp, round)`, `CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`,
-`CreatePoint(domain, rangeStart, rangeEnd, padding, align, round)`, and `CreateOrdinal(domain, range)`. The static
-`BandSpace(count, paddingInner, paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
+rangeEnd, clamp, round)`, `CreateLinear(double[] domain, double[] range, clamp, round)` (the piecewise form),
+`CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`, `CreatePoint(domain, rangeStart,
+rangeEnd, padding, align, round)`, and `CreateOrdinal(domain, range)`. The static `BandSpace(count, paddingInner,
+paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
 
 **Invariants**: a model never changes after it is built; a discrete model's domain is deduplicated, keeps its order, and
 has an index per value; a linear model with a domain of zero width maps every value to the middle of its range, and NaN
@@ -34,8 +36,14 @@ maps to NaN.
 
 #### Key Methods
 
-- `Map(double)` - the linear mapping: the value is normalized against the domain, clamped when `Clamp` is set,
-  interpolated into the range, and rounded when `Round` is set; a reversed domain or range works the same way.
+- `Map(double)` - the linear mapping: the value is clamped when `Clamp` is set (to the first and the last used domain
+  entry), normalized against the segment that holds it, interpolated into the range, and rounded when `Round` is set.
+  The mapping is d3-scale's `continuous.js` piecewise map: `min(domain length, range length)` entries are used; two
+  entries are one segment (`bimap`: a descending pair is swapped, entries beyond the first two are ignored); more are
+  one segment between each pair of neighbors (`polymap`) chosen by `bisectRight(domain, x, 1, n - 1)`, so a value
+  outside the domain continues the first or last segment, and a descending domain reverses both complete arrays before
+  the first `n` entries are used (d3's own behavior when the lengths differ is kept); a segment of zero width maps to the
+  middle of its output segment. `Invert` is the same map from range to domain, clamped to the domain when `Clamp` is set.
 - `Map(DataValue)` - for a linear scale the quantitative reading of the value (null when it has none); for a band or
   point scale the **start** of the value's band (or the point), null for a value outside the domain.
 - `MapCenter(DataValue)` - the center of a band (start plus half the bandwidth); for a point or linear scale the same

@@ -17,18 +17,20 @@ sections:
         requirements:
           - id: CanvasNetVegaLite-VegaLiteDocument-ParseOpen
             title: >-
-              The VegaLiteDocument unit shall provide Parse (string), Open (file path), and Open (stream)
-              entry points that yield an equivalent document, shall read files and streams as UTF-8
-              with an optional byte-order mark, shall leave a caller's stream open, shall stop reading
-              a source as soon as it exceeds the source-length limit, shall default the source name and
-              base directory of a path from the path, and shall reject null, empty, and unreadable
-              arguments with the documented exception types.
+              The VegaLiteDocument unit shall provide Parse (string), Open (file path), and Open (stream) entry points
+              that yield an equivalent document, shall read files and streams as strict UTF-8 with an optional
+              byte-order mark (malformed UTF-8 is a located VegaLiteSpecException, never replaced by U+FFFD), shall
+              leave a caller's stream open, shall stop reading a source as soon as it exceeds the source-length limit,
+              shall default the source name and base directory of a path from the path, and shall reject null, empty,
+              and unreadable arguments with the documented exception types.
             justification: |
               Callers hold specifications in different forms and must get the same document from each;
               an endless stream must not exhaust memory and invalid arguments must fail closed.
             tests:
               - CanvasNetVegaLite_SystemIntegration_Open_ParseStringOpenStreamAndOpenPathAgree
               - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+              - VegaLiteDocument_Open_MalformedUtf8StreamAndFileAreRejected
+              - VegaLiteDocument_Parse_UnpairedSurrogateIsRejectedAndStreamSizeLimitIsInCharacters
 
           - id: CanvasNetVegaLite-VegaLiteDocument-PublicMetadata
             title: >-
@@ -175,11 +177,12 @@ sections:
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Limits
             title: >-
-              The VegaLiteDocument unit shall provide VegaLiteLimits with documented defaults, a shared
-              default instance, validation that every limit is positive and not above its ceiling, and
-              shall enforce the limits and observe the cancellation token so that an exceeded limit
-              fails closed with a located exception and a canceled token stops Measure and both Render
-              overloads with an unwrapped OperationCanceledException.
+              The VegaLiteDocument unit shall provide VegaLiteLimits with documented defaults, a shared default
+              instance, validation that every limit is positive and not above its ceiling, and shall enforce the limits
+              (the scene-item limit counts every item of the scene, groups included, before the item is created, so a
+              limit of N allows exactly N items) and observe the cancellation token so that an exceeded limit fails
+              closed with a located exception and a canceled token stops Measure and both Render overloads with an
+              unwrapped OperationCanceledException.
             justification: |
               Rendering untrusted specifications must not exhaust memory or time, and callers need to
               abandon long work.
@@ -191,6 +194,12 @@ sections:
               - VegaLiteLimits_AboveCeiling_Throws
               - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
               - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
+              - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary
+              - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitCountsEveryItemOfTheScene
+              - CanvasNetVegaLite_SystemIntegration_Limits_LabelsRemovedByOverlapCostNoBudget
+              - CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt
+              - CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem
+              - CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept
               - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Determinism

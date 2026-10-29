@@ -48,7 +48,7 @@ with a `with` expression, and list-valued members are copied when set.
   translation of its enclosing groups, and its depth.
 - **`SceneBounds`** `(X1, Y1, X2, Y2)` - a bounding box, with `Empty` (the identity of `Union`), `IsEmpty`, `Width`, `Height`,
   `Union`, `Translate`, and `Rotate(degrees)` (the enclosing box of the rotated corners, with exact quarter turns).
-- **`SceneBudget`** `(max)` - `Count` and `Add(items, location)`.
+- **`SceneBudget`** `(max)` - `Count`, `Add(items, location)`, `Fork()` and `Adopt(fork)`.
 
 **Invariants**: items and scenes never change once built; every item has a non-blank role; the enumeration order is
 the drawing order; the empty bounds contain nothing.
@@ -63,7 +63,14 @@ the drawing order; the empty bounds contain nothing.
   box stays empty; sine and cosine are snapped near 0 and 1 so that quarter turns are exact.
 - `SceneBudget.Add(items, location)` - adds a non-negative count (the total saturates at the largest `long` instead of
   overflowing) and throws a `VegaLiteRenderException` carrying the location when the total passes the maximum
-  (`MaxSceneItems`). The chart counts the axis groups and their items, the marks group, and each mark item as it is created.
+  (`MaxSceneItems`). Every `SceneItem` of the finished scene counts once, groups included (the root and view groups, the
+  title group and its texts, each axis group with its grid group, grid lines, ticks, labels, domain and title, the marks
+  group and each mark; a clip is a property of its group, not an item), and a builder calls `Add` *before* it creates
+  the item, so a limit of N allows a chart of exactly N items and fails on the (N+1)th without allocating it. The axes
+  are rebuilt until the data rectangle is stable, so each pass is charged to a `Fork()` of the budget and only the pass
+  that is kept is taken over with `Adopt`. A tick label that is removed because it overlaps another is not in the scene
+  and costs nothing: the label candidates are bounded by `MaxTicks`, which is checked before any label is made, and the
+  labels that remain are charged before they are added to the axis.
 
 **Preconditions and postconditions**: scene sizes are finite and not negative; the budget maximum is at least 1.
 

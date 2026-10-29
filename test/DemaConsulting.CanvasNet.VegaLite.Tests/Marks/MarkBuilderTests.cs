@@ -272,14 +272,21 @@ public class MarkBuilderTests
             "\"point\"",
             "{ \"x\": { \"field\": \"q\", \"type\": \"quantitative\" } }",
             "[ { \"q\": 1 }, { \"q\": null }, { \"q\": 2 }, { \"q\": \"n/a\" }, { \"q\": \"none\" } ]"));
-        var budget = new SceneBudget(2);
+        var budget = new SceneBudget(3);
 
         // Act
         var group = new MarkBuilder(parts.Config, budget: budget).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken);
 
-        // Assert: two items fit a budget of two, and exactly two were counted
+        // Assert: the marks group and two items fit a budget of three, and exactly three were counted
         Assert.Equal(2, group.Children.Count);
-        Assert.Equal(2, budget.Count);
+        Assert.Equal(3, budget.Count);
+
+        // Assert: a budget of two fails on the second symbol, with the location of the mark; the marks group counted first
+        var tight = new SceneBudget(2);
+        var ex = Assert.Throws<VegaLiteRenderException>(() =>
+            new MarkBuilder(parts.Config, budget: tight, sourceName: "t.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken));
+        Assert.Equal("/mark", ex.Location.Pointer);
+        Assert.Equal(3, tight.Count);
     }
 
     /// <summary>

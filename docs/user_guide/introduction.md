@@ -3837,11 +3837,12 @@ public sealed partial class VegaLiteDocument
 ```
 
 - `Parse` and the two `Open` overloads read UTF-8 text (at most 4,194,304 UTF-16 characters by default; a leading byte
-  order mark is ignored) and throw a `VegaLiteSpecException` with the location of the first problem when the text is
-  not valid JSON, is nested too deeply, or has a known property of the wrong type or value. Plain **Vega**
-  specifications (a `$schema` under `vega.github.io/schema/vega/`) are rejected. `Open(string)` names the source by the
-  path; `Open(Stream)` reads from the current position and leaves the stream open. Opening never loads data, never
-  opens another file, and never uses the network.
+  order mark is ignored; invalid UTF-8, or a string with an unpaired surrogate, is rejected rather than replaced) and
+  throw a `VegaLiteSpecException` with the location of the first problem when the text is not valid JSON, is nested too
+  deeply, or has a known property of the wrong type or value. Plain **Vega** specifications (a `$schema` under
+  `vega.github.io/schema/vega/`) are rejected. `Open(string)` names the source by the path; `Open(Stream)` reads from
+  the current position and leaves the stream open. Opening never loads data, never opens another file, and never uses
+  the network.
 - The descriptive properties (`SchemaUrl`, `SchemaMajorVersion`, `Title`, `MarkTypes`, `DataReferences`,
   `ParameterNames`) describe the text only: nothing is loaded or evaluated, so they are cheap and safe to read for a
   file you do not trust. A `VegaLiteDataReference` records the `Kind` of a data source as written (`Inline`, `Url`,
@@ -3913,8 +3914,11 @@ limits have an upper ceiling too), and the defaults are `MaxSourceLength` 4,194,
 `MaxExpressionLength` 4,096, `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000, `MaxStringLength` 1,048,576, and
 `MaxDiagnostics` 1,000 (the first report beyond it becomes a single `vl-diagnostics-suppressed` warning). The data,
 scale, tick, and scene limits are checked **before** the memory is allocated, so a hostile specification fails with a
-located `VegaLiteRenderException` instead of exhausting memory. The expression and data-file limits belong to features
-that are planned for later releases and are not reached today.
+located `VegaLiteRenderException` instead of exhausting memory. `MaxSceneItems` counts every item of the scene, groups
+included (the root and view groups, the title and its texts, each axis with its grid, ticks, labels, domain and title,
+the marks group, and each mark), and an item is counted before it is created, so a limit of N allows a chart of exactly
+N items and fails on the next one; tick labels that are dropped because they overlap are not items and cost nothing. The
+expression and data-file limits belong to features that are planned for later releases and are not reached today.
 
 ### Supported Vega-Lite Subset
 
@@ -3933,7 +3937,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
 | Field types | `quantitative`, `nominal`, and `ordinal` |
 | Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `sort` (ascending, descending, `null`, or an array of values), and `bin` and `stack` (as `false` or `null` only) |
-| Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette) |
+| Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette); a quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
 | Legends | **None**: a color, fill, stroke, size, or opacity channel driven by a field is drawn without a legend and reported (`vl-guide-legend`), unless `legend` or `scale` is `null` |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |

@@ -116,4 +116,6 @@ canceled token throws `OperationCanceledException`; that a `line` mark gives an 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated`
 
 Asserts that a point mark over five rows, three of which have no valid x, creates two items and charges a shared budget
-of two exactly twice, without failing.
+of three exactly three times (the marks group and the two symbols), without failing, and that a budget of two fails at the
+second symbol, at `/mark`, after the marks group was charged first. Every mark item is charged before it is created; the
+exact boundary of a whole chart is asserted by the system tests of the scene item limit.

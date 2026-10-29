@@ -139,6 +139,74 @@ public class VegaLiteDocumentSpecModelTests
     }
 
     /// <summary>
+    ///     Validates that a stream or file holding malformed UTF-8 is rejected with a specification exception rather
+    ///     than decoded with replacement characters, and that a stream with a byte-order mark still opens.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Open_MalformedUtf8StreamAndFileAreRejected()
+    {
+        // Arrange: a stray byte, an overlong NUL and an encoded surrogate inside the title
+        byte[][] malformed =
+        [
+            [.. "{\"title\":\"a"u8, 0xFF, .. "\"}"u8],
+            [.. "{\"title\":\"a"u8, 0xC0, 0x80, .. "\"}"u8],
+            [.. "{\"title\":\"a"u8, 0xED, 0xA0, 0x80, .. "\"}"u8],
+            [0xEF, 0xBB, 0xBF, .. "{\"title\":\"a"u8, 0xE2, 0x82, .. "\"}"u8],
+        ];
+        var path = Path.Combine(Path.GetTempPath(), "vl-utf8-" + Guid.NewGuid().ToString("N") + ".vl.json");
+
+        try
+        {
+            foreach (var bytes in malformed)
+            {
+                // Act / Assert: the stream overload
+                using var stream = new MemoryStream(bytes);
+                var streamEx = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Open(stream));
+                Assert.Contains("UTF-8", streamEx.Message, StringComparison.Ordinal);
+
+                // Act / Assert: the file overload names the file
+                File.WriteAllBytes(path, bytes);
+                var fileEx = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Open(path));
+                Assert.Equal(path, fileEx.Location.File);
+            }
+
+            // Assert: well-formed multi-byte text with a byte-order mark opens through both overloads
+            byte[] good = [0xEF, 0xBB, 0xBF, .. "{\"title\":\"\u00e9\u20ac\U0001F600\"}"u8];
+            File.WriteAllBytes(path, good);
+            using var goodStream = new MemoryStream(good);
+            Assert.Equal("\u00e9\u20ac\U0001F600", VegaLiteDocument.Open(goodStream).Title);
+            Assert.Equal("\u00e9\u20ac\U0001F600", VegaLiteDocument.Open(path).Title);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a string with an unpaired surrogate is rejected by <see cref="VegaLiteDocument.Parse"/>, and
+    ///     that the source limit still applies to a stream of multi-byte characters.
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Parse_UnpairedSurrogateIsRejectedAndStreamSizeLimitIsInCharacters()
+    {
+        // Act / Assert: a lone surrogate is not text
+        Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse("{\"title\":\"\uD800\"}"));
+
+        // Arrange: a title of 10 three-byte characters in a document of exactly 22 characters (30 bytes of title)
+        var limits = new VegaLiteLimits { MaxSourceLength = 22 };
+        var options = new VegaLiteOpenOptions { Limits = limits };
+        var fits = "{\"title\":\"" + new string('\u20ac', 10) + "\"}";
+        var tooLong = "{\"title\":\"" + new string('\u20ac', 11) + "\"}";
+
+        // Act / Assert: the limit counts characters, not bytes, for a stream just as for a string
+        using var okStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(fits));
+        Assert.Equal(new string('\u20ac', 10), VegaLiteDocument.Open(okStream, options).Title);
+        using var longStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(tooLong));
+        Assert.Throws<InvalidDataException>(() => VegaLiteDocument.Open(longStream, options));
+    }
+
+    /// <summary>
     ///     Validates that a large inline data set is read in one pass without a per-row cost beyond its size.
     /// </summary>
     [Fact]

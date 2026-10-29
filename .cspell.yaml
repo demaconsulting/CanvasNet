@@ -21,6 +21,9 @@ words:
   - Cmaps
   - unthemed
   - Unthemed
+  - polymap
+  - bimap
+  - polylinear
   - subtables
   - bilinearly
   - stackalloc

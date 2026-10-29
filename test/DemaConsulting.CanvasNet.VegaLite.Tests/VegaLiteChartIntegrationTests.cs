@@ -1,5 +1,7 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
+using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
+using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
@@ -321,6 +323,207 @@ public class VegaLiteChartIntegrationTests
 
         // Assert
         Assert.True(surface.Width > 0);
+    }
+
+    /// <summary>
+    ///     Validates the exact boundary of the scene item limit for every kind of item (root and view groups, title, axes with
+    ///     grid, ticks, labels, domain and title, the marks group and the marks): a limit of N allows a chart of N items and
+    ///     every smaller limit fails with a located render error naming the limit, so no item is created past the limit.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="expectedItems">The number of scene items of the chart, counted by hand.</param>
+    [Theory]
+    [InlineData("""{ "title": "T" }""", 4)] // root, view, title group, title text
+    [InlineData("""{ "title": { "text": "T", "subtitle": "S" } }""", 5)] // plus the subtitle text
+    [InlineData("""{ "mark": "point", "data": { "values": [ { "a": 1 } ] } }""", 4)] // root, view, marks group and the one point that an unencoded row draws at the center
+    [InlineData("""{ "mark": "point", "data": { "values": [ { "a": 1 }, { "a": 2 } ] }, "encoding": { "x": { "field": "a", "type": "quantitative", "axis": null } } }""", 5)] // root, view, marks group, two points
+    [InlineData(
+        """{ "mark": "tick", "data": { "values": [ { "a": 0 }, { "a": 5 }, { "a": 10 } ] }, "width": 200, "encoding": { "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 2, "title": null } } } }""",
+        18)] // root, view, axis group, grid group, 3 grid lines, 3 ticks, 3 labels, domain, marks group, 3 ticks marks (no title, no y channel)
+    public void CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary(string json, int expectedItems)
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(json);
+
+        // Act: the scene that the pipeline builds, counted with no limit in the way
+        var count = document.BuildScene(new VegaLiteRenderOptions(), Ct).CountItems();
+
+        // Assert: the hand count is right; a limit of N accepts it and N - 1 and every smaller limit reject it
+        Assert.Equal(expectedItems, count);
+        for (var limit = 1; limit <= count; limit++)
+        {
+            var options = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = limit } };
+            if (limit == count)
+            {
+                Assert.Equal(count, document.BuildScene(options, Ct).CountItems());
+                _ = document.Measure(options, Ct);
+            }
+            else
+            {
+                var ex = Assert.Throws<VegaLiteRenderException>(() => document.Measure(options, Ct));
+                Assert.Contains("MaxSceneItems", ex.Message, StringComparison.Ordinal);
+                Assert.Contains($"more than {limit} scene items", ex.Message, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the boundary on a chart with two axes, a grid, a title and many marks: the count equals the items of the scene, a
+    ///     limit equal to it renders, one below it fails, and the failure of a limit inside each part is located at that part.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitCountsEveryItemOfTheScene()
+    {
+        // Arrange: a bar chart with a title, a band x axis (with a title), a continuous y axis (grid, title) and four bars
+        var document = VegaLiteDocument.Parse("""
+            { "title": "Counts", "mark": "bar",
+              "data": { "values": [ { "k": "a", "v": 1 }, { "k": "b", "v": 3 }, { "k": "c", "v": 2 }, { "k": "d", "v": 4 } ] },
+              "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } }
+            """);
+
+        // Act
+        var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+        var count = scene.CountItems();
+
+        // Assert: by hand: root and view (2), title group and text (2), x axis = group + 4 ticks + 4 labels + domain + title
+        // (11), y axis = group + grid group + the grid lines, ticks and labels of every tick + domain + title, marks group + 4 bars (5)
+        var yTicks = scene.FindAll("axis-tick").Count(e => e.Item is SceneRule) - 4;
+        Assert.Equal(2 + 2 + 11 + (2 + (3 * yTicks) + 2) + 5, count);
+        Assert.Equal(yTicks, scene.FindAll("axis-grid").Count());
+        Assert.Equal(4, scene.FindAll("mark-bar").Count());
+
+        // Assert: the limit that equals the count renders and one fewer does not, naming the last item that was charged
+        var exact = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = count } };
+        using var surface = document.Render(exact, Ct);
+        Assert.True(surface.Width > 0);
+        var below = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = count - 1 } };
+        var last = Assert.Throws<VegaLiteRenderException>(() => document.Render(below, Ct));
+        Assert.Equal("/mark", last.Location.Pointer);
+
+        // Assert: a limit that is spent by the title is located at the title; one spent by an axis, at its channel
+        var inTitle = Assert.Throws<VegaLiteRenderException>(() =>
+            document.Measure(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 3 } }, Ct));
+        Assert.Equal("/title", inTitle.Location.Pointer);
+        var inXAxis = Assert.Throws<VegaLiteRenderException>(() =>
+            document.Measure(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 6 } }, Ct));
+        Assert.Equal("/encoding/x", inXAxis.Location.Pointer);
+        var inYAxis = Assert.Throws<VegaLiteRenderException>(() =>
+            document.Measure(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 4 + 11 + 3 } }, Ct));
+        Assert.Equal("/encoding/y", inYAxis.Location.Pointer);
+    }
+
+    /// <summary>
+    ///     Validates that labels removed for overlapping cost no budget: a chart whose labels overlap needs only as many items as
+    ///     the scene holds.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_LabelsRemovedByOverlapCostNoBudget()
+    {
+        // Arrange: a narrow axis with 11 ticks whose labels cannot all fit
+        var document = VegaLiteDocument.Parse("""
+            { "mark": "tick", "width": 60, "data": { "values": [ { "a": 0 }, { "a": 1000000 } ] },
+              "encoding": { "x": { "field": "a", "type": "quantitative", "axis": { "tickCount": 11, "title": null } } } }
+            """);
+        var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+        var count = scene.CountItems();
+
+        // Assert: some label was removed, yet the limit that equals the scene renders
+        Assert.True(scene.FindAll("axis-label").Count() < scene.FindAll("axis-tick").Count());
+        var options = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = count } };
+        Assert.Equal(count, document.BuildScene(options, Ct).CountItems());
+    }
+
+    /// <summary>
+    ///     Validates the axis builder's own budget: it charges the axis group, the grid group, every rule, label and the
+    ///     title before it creates them, fails at the channel with the item that passes the limit, and counts exactly what the
+    ///     axis holds.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt()
+    {
+        // Arrange: a y axis with grid, ticks, labels, domain and title
+        const string json = """
+            { "mark": "point", "data": { "values": [ { "v": 0 }, { "v": 10 } ] },
+              "encoding": { "y": { "field": "v", "type": "quantitative", "axis": { "grid": true, "tickCount": 2 } } } }
+            """;
+        var parts = ChartTestHelpers.Parts(json);
+        var scale = parts.Scales["y"]!;
+        var model = scale.CreateModel(100);
+        var channelDef = parts.Tree.Root["encoding"]!["y"];
+
+        // Act: build with a large budget to count what the axis creates
+        var big = new SceneBudget(1000);
+        var axis = new AxisBuilder(new TextMeasurer(), parts.Config, null, "t.vl.json")
+            .Build(new AxisRequest("y", channelDef, scale, model, 100, 100, parts.Scales.MarkType, big), Ct)!;
+
+        // Assert: the group, the grid group and the items are what was charged, no more
+        Assert.Equal(axis.ItemCount + 2, big.Count);
+
+        // Assert: exactly that many fits, one fewer fails at the channel
+        var exact = new SceneBudget(axis.ItemCount + 2);
+        _ = new AxisBuilder(new TextMeasurer(), parts.Config, null, "t.vl.json")
+            .Build(new AxisRequest("y", channelDef, scale, model, 100, 100, parts.Scales.MarkType, exact), Ct);
+        Assert.Equal(axis.ItemCount + 2, exact.Count);
+        var below = new SceneBudget(axis.ItemCount + 1);
+        var ex = Assert.Throws<VegaLiteRenderException>(() => new AxisBuilder(new TextMeasurer(), parts.Config, null, "t.vl.json")
+            .Build(new AxisRequest("y", channelDef, scale, model, 100, 100, parts.Scales.MarkType, below), Ct));
+        Assert.Equal("/encoding/y", ex.Location.Pointer);
+
+        // Assert: an axis without its own budget uses MaxSceneItems of the limits it was built with
+        var limited = new AxisBuilder(new TextMeasurer(), parts.Config, new VegaLiteLimits { MaxSceneItems = 2 }, "t.vl.json");
+        Assert.Throws<VegaLiteRenderException>(() => limited.Build(new AxisRequest("y", channelDef, scale, model, 100, 100, parts.Scales.MarkType), Ct));
+    }
+
+    /// <summary>
+    ///     Validates that a title charges its group and text before they are created.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem()
+    {
+        // Arrange
+        var tree = SpecParser.Parse("""{ "title": { "text": "T", "subtitle": "S" } }""", "t.vl.json");
+        var config = ConfigResolver.Resolve(tree, null);
+        var builder = new TitleBuilder(new TextMeasurer());
+
+        // Act / Assert: the group, the title and the subtitle make three
+        var exact = new SceneBudget(3);
+        Assert.NotNull(builder.Build(tree.Root["title"], config, true, exact, tree.SourceName));
+        Assert.Equal(3, exact.Count);
+
+        // Assert: two fail at the subtitle, one at the group; both are located at the title
+        var two = Assert.Throws<VegaLiteRenderException>(() => builder.Build(tree.Root["title"], config, true, new SceneBudget(2), tree.SourceName));
+        Assert.Equal("/title", two.Location.Pointer);
+        Assert.Equal("t.vl.json", two.Location.File);
+        Assert.Throws<VegaLiteRenderException>(() => builder.Build(tree.Root["title"], config, true, new SceneBudget(1), tree.SourceName));
+
+        // Assert: no title costs nothing
+        var untouched = new SceneBudget(1);
+        Assert.Null(builder.Build(null, config, true, untouched, tree.SourceName));
+        Assert.Equal(0, untouched.Count);
+    }
+
+    /// <summary>
+    ///     Validates that a fork counts on its own and that only an adopted fork changes the count of its origin.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept()
+    {
+        // Arrange
+        var budget = new SceneBudget(10);
+        budget.Add(4, default);
+
+        // Act
+        var discarded = budget.Fork();
+        discarded.Add(5, default);
+        var kept = budget.Fork();
+        kept.Add(2, default);
+
+        // Assert: the origin did not see the discarded pass and takes the kept one; a fork keeps the limit
+        Assert.Equal(4, budget.Count);
+        budget.Adopt(kept);
+        Assert.Equal(6, budget.Count);
+        Assert.Throws<VegaLiteRenderException>(() => kept.Add(5, default));
+        Assert.Throws<ArgumentNullException>(() => budget.Adopt(null!));
     }
 
     /// <summary>

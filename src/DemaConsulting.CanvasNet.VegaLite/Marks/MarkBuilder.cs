@@ -121,9 +121,12 @@ internal sealed class MarkBuilder
         };
         if (!SupportedMarks.Contains(type))
         {
+            _budget.Add(1, (view["mark"] ?? view).GetLocation(_sourceName));
             return new SceneGroup("marks", 0, 0);
         }
 
+        // The marks group is charged before it is created; the mark items are charged one by one as they are made
+        _budget.Add(1, (view["mark"] ?? view).GetLocation(_sourceName));
         var run = new Run(this, type, markNode is { IsObject: true } ? markNode : null, view, table, scales, width, height, cancellationToken);
         var items = run.Build();
         var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true };
@@ -719,16 +722,11 @@ internal sealed class MarkBuilder
         }
 
         /// <summary>
-        ///     Counts one item against the scene budget and adds it, so the budget counts exactly the items that exist (a
-        ///     row that draws nothing costs nothing) and fails before the item that passes the limit is kept.
+        ///     Counts one item against the scene budget before it is created, so the budget counts exactly the items
+        ///     that exist (a row that draws nothing costs nothing) and the item that would pass the limit is never
+        ///     allocated.
         /// </summary>
-        /// <param name="items">The items of the mark.</param>
-        /// <param name="item">The new item.</param>
-        private void Emit(List<SceneItem> items, SceneItem item)
-        {
-            _owner._budget.Add(1, _location);
-            items.Add(item);
-        }
+        private void Reserve() => _owner._budget.Add(1, _location);
 
         /// <summary>
         ///     Builds the rectangles of a bar or rect mark.
@@ -754,7 +752,8 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
-                Emit(items, Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius }, paint));
+                Reserve();
+                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius }, paint));
             }
 
             return items;
@@ -782,22 +781,23 @@ internal sealed class MarkBuilder
                 }
 
                 // The tick runs along its size axis and has the thickness across it, centered on the value
-                SceneRect? rect = null;
+                (double X, double Y, double Width, double Height)? box = null;
                 if (horizontal)
                 {
                     if (Span(isX: true, x, barOrTick: true, sizing, row) is { } xs && PointPosition(y, _height, row) is { } py)
                     {
-                        rect = new SceneRect("mark-tick", xs.Start, py - (thickness / 2), xs.Length, thickness);
+                        box = (xs.Start, py - (thickness / 2), xs.Length, thickness);
                     }
                 }
                 else if (Span(isX: false, y, barOrTick: true, sizing, row) is { } ys && PointPosition(x, _width, row) is { } px)
                 {
-                    rect = new SceneRect("mark-tick", px - (thickness / 2), ys.Start, thickness, ys.Length);
+                    box = (px - (thickness / 2), ys.Start, thickness, ys.Length);
                 }
 
-                if (rect is not null)
+                if (box is { } b)
                 {
-                    Emit(items, Style(rect, paint));
+                    Reserve();
+                    items.Add(Style(new SceneRect("mark-tick", b.X, b.Y, b.Width, b.Height), paint));
                 }
             }
 
@@ -838,22 +838,23 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
-                SceneRule? rule = null;
+                (double X, double Y, double X2, double Y2)? line = null;
                 if (vertical)
                 {
                     if (PointPosition(x, _width, row) is { } px && RangePair(isX: false, y, row) is { } ys)
                     {
-                        rule = new SceneRule("mark-rule", px, ys.Main, px, ys.Other);
+                        line = (px, ys.Main, px, ys.Other);
                     }
                 }
                 else if (PointPosition(y, _height, row) is { } py && RangePair(isX: true, x, row) is { } xs)
                 {
-                    rule = new SceneRule("mark-rule", xs.Main, py, xs.Other, py);
+                    line = (xs.Main, py, xs.Other, py);
                 }
 
-                if (rule is not null)
+                if (line is { } l)
                 {
-                    Emit(items, Style(rule, paint));
+                    Reserve();
+                    items.Add(Style(new SceneRule("mark-rule", l.X, l.Y, l.X2, l.Y2), paint));
                 }
             }
 
@@ -888,7 +889,8 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
-                Emit(items, Style(new SceneSymbol("mark-" + _type, px, py) { Shape = shape, Size = area, Angle = angle }, paint));
+                Reserve();
+                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = shape, Size = area, Angle = angle }, paint));
             }
 
             return items;

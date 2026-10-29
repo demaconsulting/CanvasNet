@@ -215,6 +215,98 @@ public class SpecParserTests
     }
 
     /// <summary>
+    ///     Validates that every kind of malformed UTF-8 in a string value is rejected at the byte that starts the text.
+    /// </summary>
+    /// <param name="hex">The bytes placed between the quotes of a string value, as hex.</param>
+    [Theory]
+    [InlineData("C0 80")] // overlong NUL
+    [InlineData("E0 80 80")] // overlong three-byte encoding of U+0000
+    [InlineData("F0 80 80 80")] // overlong four-byte encoding
+    [InlineData("C1 BF")] // overlong two-byte encoding of U+007F
+    [InlineData("ED A0 80")] // an encoded high surrogate (U+D800)
+    [InlineData("ED BF BF")] // an encoded low surrogate (U+DFFF)
+    [InlineData("F4 90 80 80")] // above U+10FFFF
+    [InlineData("80")] // a stray continuation byte
+    [InlineData("C3")] // a truncated two-byte sequence
+    [InlineData("E2 82")] // a truncated three-byte sequence
+    [InlineData("F0 9F 98")] // a truncated four-byte sequence
+    [InlineData("FE")] // never valid
+    public void SpecParser_Parse_MalformedUtf8InStringIsRejectedNotReplaced(string hex)
+    {
+        // Arrange
+        byte[] bad = Convert.FromHexString(hex.Replace(" ", string.Empty, StringComparison.Ordinal));
+        byte[] bytes = [.. "{\"title\":\"a"u8, .. bad, .. "\"}"u8];
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(bytes, "bad.json"));
+
+        // Assert
+        Assert.Contains("UTF-8", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("bad.json", ex.Location.File);
+        Assert.Equal(1, ex.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that malformed UTF-8 in a property name or outside a string is rejected too.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_MalformedUtf8InNameOrStructureIsRejected()
+    {
+        // Arrange
+        byte[] inName = [.. "{\"ti"u8, 0xC0, 0x80, .. "tle\":\"a\"}"u8];
+        byte[] inStructure = [.. "{\"title\":"u8, 0xFF, .. "\"a\"}"u8];
+
+        // Act / Assert
+        Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(inName));
+        Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(inStructure));
+    }
+
+    /// <summary>
+    ///     Validates that well-formed multi-byte UTF-8 (two, three and four bytes) is accepted unchanged, with and
+    ///     without a byte-order mark.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_ValidMultiByteUtf8IsAccepted()
+    {
+        // Arrange: é (2 bytes), € (3 bytes) and an emoji (4 bytes)
+        byte[] body = [.. "{\"title\":\"\u00e9\u20ac\U0001F600\"}"u8];
+        byte[] withMark = [0xEF, 0xBB, 0xBF, .. body];
+
+        // Act
+        var plain = SpecParser.Parse(body);
+        var marked = SpecParser.Parse(withMark);
+
+        // Assert
+        Assert.Equal("\u00e9\u20ac\U0001F600", plain.Root["title"]!.StringValue);
+        Assert.Equal("\u00e9\u20ac\U0001F600", marked.Root["title"]!.StringValue);
+    }
+
+    /// <summary>
+    ///     Validates that text with an unpaired UTF-16 surrogate is rejected at its line and column, while a valid
+    ///     surrogate pair is accepted.
+    /// </summary>
+    /// <param name="surrogate">The unpaired surrogate.</param>
+    [Theory]
+    [InlineData('\uD800')]
+    [InlineData((char)0xDBFF)]
+    [InlineData('\uDC00')]
+    [InlineData((char)0xDFFF)]
+    public void SpecParser_Parse_UnpairedSurrogateInStringIsRejected(char surrogate)
+    {
+        // Arrange: the surrogate is the 10th UTF-16 unit of line 2 (a pair before it counts as two units)
+        var text = "{\n  \"a\":\"\U0001F600" + surrogate + "\"}";
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(text, "s.json"));
+
+        // Assert
+        Assert.Contains("surrogate", ex.Message, StringComparison.Ordinal);
+        Assert.Equal((2, 10), (ex.Location.Line, ex.Location.Column));
+        Assert.Equal("s.json", ex.Location.File);
+        Assert.NotNull(SpecParser.Parse("{\"a\":\"\U0001F600\"}"));
+    }
+
+    /// <summary>
     ///     Validates that a known property with the wrong type or value is a specification error whose pointer names
     ///     the offending value.
     /// </summary>

@@ -46,8 +46,15 @@ internal sealed class ResolvedScale
     /// <summary>Gets the start of the domain of a linear scale after the zero rule, before pixel padding and <c>nice</c>.</summary>
     public double DomainStart { get; init; }
 
-    /// <summary>Gets the end of the domain of a linear scale after the zero rule, before pixel padding and <c>nice</c>.</summary>
+    /// <summary>Gets the end of the domain of a linear scale after the zero rule, before pixel padding and <c>nice</c> (the last entry of <see cref="Domain"/>).</summary>
     public double DomainEnd { get; init; }
+
+    /// <summary>
+    ///     Gets the complete explicit domain of a linear scale after the zero rule (at least two numbers), or null when the
+    ///     domain is the two ends <see cref="DomainStart"/> and <see cref="DomainEnd"/>; a domain of more than two numbers
+    ///     is piecewise (see <see cref="ScaleModel.CreateLinear(double[], double[], bool, bool)"/>).
+    /// </summary>
+    public IReadOnlyList<double>? Domain { get; init; }
 
     /// <summary>Gets the tick count <c>nice</c> uses (10 for <c>nice: true</c>), or null when the domain is not extended to round values.</summary>
     public double? NiceCount { get; init; }
@@ -133,15 +140,17 @@ internal sealed class ResolvedScale
     /// <returns>The scale model.</returns>
     public ScaleModel CreateModel(double extent)
     {
-        var (rangeStart, rangeEnd) = ResolveRange(extent);
+        var range = ResolveRange(extent);
         switch (Kind)
         {
             case ScaleKind.Linear:
-                var start = DomainStart;
-                var end = DomainEnd;
+                // Vega applies padding, zero and nice to the first and the last entry of a piecewise domain and leaves the others as they are
+                double[] domain = Domain is { Count: > 2 } complete ? [.. complete] : [DomainStart, DomainEnd];
+                var start = domain[0];
+                var end = domain[^1];
 
                 // Pixel padding widens the domain around its middle
-                var span = Math.Abs(rangeEnd - rangeStart);
+                var span = Math.Abs(range[^1] - range[0]);
                 if (PaddingPixels > 0 && start.CompareTo(end) != 0 && span - (2 * PaddingPixels) > 0)
                 {
                     var factor = span / (span - (2 * PaddingPixels));
@@ -161,47 +170,52 @@ internal sealed class ResolvedScale
                     }
                 }
 
-                return ScaleModel.CreateLinear(start, end, rangeStart, rangeEnd, Clamp, Round);
+                domain[0] = start;
+                domain[^1] = end;
+                return ScaleModel.CreateLinear(domain, range, Clamp, Round);
+
+            // A band or point scale takes the first two entries of its range, as d3's scaleBand does
             case ScaleKind.Band:
-                return ScaleModel.CreateBand(DiscreteDomain, rangeStart, rangeEnd, PaddingInner, PaddingOuter, Align, Round);
+                return ScaleModel.CreateBand(DiscreteDomain, range[0], range[1], PaddingInner, PaddingOuter, Align, Round);
             case ScaleKind.Point:
-                return ScaleModel.CreatePoint(DiscreteDomain, rangeStart, rangeEnd, PaddingOuter, Align, Round);
+                return ScaleModel.CreatePoint(DiscreteDomain, range[0], range[1], PaddingOuter, Align, Round);
             default:
                 return ScaleModel.CreateOrdinal(DiscreteDomain, ColorRange);
         }
     }
 
     /// <summary>
-    ///     Works out the two ends of the range.
+    ///     Works out the range: the entries of an explicit range, or the two ends of the default one.
     /// </summary>
     /// <param name="extent">The size of the data rectangle along the axis.</param>
-    /// <returns>The start and end of the range.</returns>
-    private (double Start, double End) ResolveRange(double extent)
+    /// <returns>The range entries (at least two); a reversed scale gets them in reverse order, as Vega reverses the whole array.</returns>
+    private double[] ResolveRange(double extent)
     {
-        double start;
-        double end;
+        double[] range;
         if (ExplicitRange is { Count: >= 2 } explicitRange)
         {
-            var first = explicitRange[0];
-            var last = explicitRange[^1];
-            start = first.IsExtent ? extent : first.Value;
-            end = last.IsExtent ? extent : last.Value;
+            range = [.. explicitRange.Select(entry => entry.IsExtent ? extent : entry.Value)];
         }
         else if (IsPosition)
         {
             // The origin of a view is its top left corner, so a continuous y scale runs upward
-            (start, end) = Channel == "y" && Kind == ScaleKind.Linear ? (extent, 0.0) : (0.0, extent);
+            range = Channel == "y" && Kind == ScaleKind.Linear ? [extent, 0.0] : [0.0, extent];
         }
         else if (ValueRange is { } values)
         {
-            (start, end) = values;
+            range = [values.Start, values.End];
         }
         else
         {
-            (start, end) = (0.0, 1.0);
+            range = [0.0, 1.0];
         }
 
-        return Reverse ? (end, start) : (start, end);
+        if (Reverse)
+        {
+            Array.Reverse(range);
+        }
+
+        return range;
     }
 }
 
@@ -292,7 +306,10 @@ internal sealed class ResolvedScales
 ///             [minimum, maximum] by mark (point-like marks: [4, (0.95 step)^2]; bar and tick: [2, step - 1]; rule: [1,
 ///             4]); opacity [0.3, 0.8]; colors the configured category scheme (<c>tableau10</c>). A discrete position
 ///             scale without an explicit range or a fixed size takes its size from the <c>step</c> (20 pixels by
-///             default): see <see cref="ResolvedScale.NaturalExtent"/>.
+///             default): see <see cref="ResolvedScale.NaturalExtent"/>. An explicit linear domain and range keep all
+///             their entries and map piecewise like d3's <c>polymap</c> (<c>min(domain.length, range.length)</c> entries
+///             are used, <c>zero</c>, pixel padding and <c>nice</c> change only the first and the last domain entry); a band
+///             or point scale uses the first two entries of its range, as <c>scaleBand</c> does.
 ///         </description></item>
 ///     </list>
 ///     <para>
@@ -677,13 +694,16 @@ internal static class ScaleResolver
     /// <returns>The scale, or null when the channel cannot have one (a size on a mark without sizes).</returns>
     private static ResolvedScale? BuildLinear(CommonInputs input, Context context)
     {
-        // The domain: explicit, or the extent of the valid values
+        // The domain: explicit, or the extent of the valid values; an explicit domain of more than two numbers is piecewise
         double start;
         double end;
+        double[]? piecewise = null;
         var domainNode = input.ScaleDef?["domain"] is { IsArray: true } array ? array : null;
         if (domainNode is not null)
         {
-            (start, end) = ReadNumericDomain(domainNode, context);
+            var explicitDomain = ReadNumericDomain(domainNode, context);
+            (start, end) = (explicitDomain[0], explicitDomain[^1]);
+            piecewise = explicitDomain.Length > 2 ? explicitDomain : null;
         }
         else
         {
@@ -702,6 +722,12 @@ internal static class ScaleResolver
             if (end < 0)
             {
                 end = 0;
+            }
+
+            if (piecewise is not null)
+            {
+                piecewise[0] = start;
+                piecewise[^1] = end;
             }
         }
 
@@ -732,6 +758,7 @@ internal static class ScaleResolver
             Location = input.Location,
             DomainStart = start,
             DomainEnd = end,
+            Domain = piecewise,
             NiceCount = NiceRule(input, domainNode is not null, isPosition),
             PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
             Clamp = input.ScaleDef?["clamp"]?.AsBool() ?? false,
@@ -1026,28 +1053,31 @@ internal static class ScaleResolver
     }
 
     /// <summary>
-    ///     Reads an explicit linear domain: the first and last of an array of numbers.
+    ///     Reads an explicit linear domain: an array of numbers, all of which are kept (more than two make a piecewise scale).
     /// </summary>
     /// <param name="domain">The <c>scale.domain</c> array.</param>
     /// <param name="context">The view facts (for the source name).</param>
-    /// <returns>The two ends.</returns>
+    /// <returns>The entries.</returns>
     /// <exception cref="VegaLiteSpecException">Thrown when the array has fewer than two entries or a non-numeric entry.</exception>
-    private static (double Start, double End) ReadNumericDomain(SpecNode domain, Context context)
+    private static double[] ReadNumericDomain(SpecNode domain, Context context)
     {
         if (domain.Items.Count < 2)
         {
             throw new VegaLiteSpecException("The scale domain of a quantitative field needs at least two numbers.", domain.GetLocation(context.SourceName));
         }
 
-        foreach (var item in domain.Items)
+        var entries = new double[domain.Items.Count];
+        for (var i = 0; i < entries.Length; i++)
         {
-            if (!item.IsNumber)
+            if (!domain.Items[i].IsNumber)
             {
-                throw new VegaLiteSpecException("The scale domain of a quantitative field must contain numbers.", item.GetLocation(context.SourceName));
+                throw new VegaLiteSpecException("The scale domain of a quantitative field must contain numbers.", domain.Items[i].GetLocation(context.SourceName));
             }
+
+            entries[i] = domain.Items[i].NumberValue;
         }
 
-        return (domain.Items[0].NumberValue, domain.Items[^1].NumberValue);
+        return entries;
     }
 
     /// <summary>

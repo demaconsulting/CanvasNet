@@ -27,7 +27,9 @@ internal enum ScaleKind
 /// <remarks>
 ///     <para>
 ///         The model is a C# version of the d3-scale 4 scales Vega-Lite uses for its first charts: <c>scaleLinear</c>
-///         (<see cref="ScaleKind.Linear"/>, with <c>clamp</c> and <c>round</c> and a reversed domain or range), <c>scaleBand</c>
+///         (<see cref="ScaleKind.Linear"/>, with <c>clamp</c> and <c>round</c>, a reversed domain or range and d3's piecewise
+///         (polylinear) mapping for a domain and a range of more than two entries, see
+///         <see cref="CreateLinear(double[], double[], bool, bool)"/>), <c>scaleBand</c>
 ///         (<see cref="ScaleKind.Band"/>, with inner and outer padding, alignment, rounding and a reversed range),
 ///         <c>scalePoint</c> (<see cref="ScaleKind.Point"/>) and <c>scaleOrdinal</c> (<see cref="ScaleKind.Ordinal"/>). The arithmetic of
 ///         d3 is kept, so for example the band step is
@@ -81,17 +83,29 @@ internal sealed class ScaleModel
     /// <summary>Gets the kind of scale.</summary>
     public ScaleKind Kind { get; }
 
-    /// <summary>Gets the start of the numeric domain of a linear scale.</summary>
+    /// <summary>Gets the start of the numeric domain of a linear scale (the first entry of the complete domain).</summary>
     public double DomainStart { get; private init; }
 
-    /// <summary>Gets the end of the numeric domain of a linear scale.</summary>
+    /// <summary>Gets the end of the numeric domain of a linear scale (the last entry of the complete domain).</summary>
     public double DomainEnd { get; private init; }
 
-    /// <summary>Gets the start of the numeric range of a linear, band or point scale.</summary>
+    /// <summary>Gets the start of the numeric range of a linear, band or point scale (the first entry of the complete range).</summary>
     public double RangeStart { get; private init; }
 
-    /// <summary>Gets the end of the numeric range of a linear, band or point scale.</summary>
+    /// <summary>Gets the end of the numeric range of a linear, band or point scale (the last entry of the complete range for a linear scale).</summary>
     public double RangeEnd { get; private init; }
+
+    /// <summary>Gets the lower clamp limit of a linear scale.</summary>
+    private double ClampLow { get; init; }
+
+    /// <summary>Gets the upper clamp limit of a linear scale.</summary>
+    private double ClampHigh { get; init; }
+
+    /// <summary>Gets the piecewise map from domain to range of a linear scale.</summary>
+    private Piecewise? Forward { get; init; }
+
+    /// <summary>Gets the piecewise map from range to domain of a linear scale.</summary>
+    private Piecewise? Inverse { get; init; }
 
     /// <summary>Gets a value indicating whether a linear scale clamps values to its domain.</summary>
     public bool Clamp { get; private init; }
@@ -154,15 +168,63 @@ internal sealed class ScaleModel
     /// <param name="round">Whether results are rounded to whole numbers.</param>
     /// <returns>The scale.</returns>
     public static ScaleModel CreateLinear(double domainStart, double domainEnd, double rangeStart, double rangeEnd, bool clamp = false, bool round = false) =>
-        new(ScaleKind.Linear, [], [])
+        CreateLinear([domainStart, domainEnd], [rangeStart, rangeEnd], clamp, round);
+
+    /// <summary>
+    ///     Creates a linear scale from a domain and a range of any length, with d3's piecewise (polylinear) semantics.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         As in d3-scale's <c>continuous.js</c>, <c>min(domain.length, range.length)</c> entries are used: with two the
+    ///         scale is a single segment from the first two domain entries to the first two range entries (so an
+    ///         entry beyond them is ignored, whichever array is longer); with more, one segment lies between each pair of
+    ///         neighbors, and a value is mapped by the segment that <c>bisectRight(domain, x, 1, n - 1)</c> picks, so a value
+    ///         beyond the last entry continues the last segment and one before the first continues the first.
+    ///     </para>
+    ///     <para>
+    ///         A descending domain (the last used entry below the first) reverses both complete arrays before they are
+    ///         cut to that length, exactly as d3 does. <paramref name="clamp"/> limits a value to the first and the last
+    ///         used domain entry. <see cref="DomainStart"/> and <see cref="DomainEnd"/> are the first and the last entry of
+    ///         the complete domain and <see cref="RangeStart"/> and <see cref="RangeEnd"/> those of the complete range,
+    ///         which is what d3's <c>nice</c>, <c>ticks</c> and an axis use.
+    ///     </para>
+    /// </remarks>
+    /// <param name="domain">The domain: at least two numbers.</param>
+    /// <param name="range">The range: at least two numbers.</param>
+    /// <param name="clamp">Whether values outside the domain are clamped to its ends.</param>
+    /// <param name="round">Whether results are rounded to whole numbers.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> or <paramref name="range"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the domain or the range has fewer than two entries.</exception>
+    public static ScaleModel CreateLinear(double[] domain, double[] range, bool clamp = false, bool round = false)
+    {
+        ArgumentNullException.ThrowIfNull(domain);
+        ArgumentNullException.ThrowIfNull(range);
+        if (domain.Length < 2)
         {
-            DomainStart = domainStart,
-            DomainEnd = domainEnd,
-            RangeStart = rangeStart,
-            RangeEnd = rangeEnd,
+            throw new ArgumentException("A linear scale needs at least two domain entries.", nameof(domain));
+        }
+
+        if (range.Length < 2)
+        {
+            throw new ArgumentException("A linear scale needs at least two range entries.", nameof(range));
+        }
+
+        var used = Math.Min(domain.Length, range.Length);
+        return new ScaleModel(ScaleKind.Linear, [], [])
+        {
+            DomainStart = domain[0],
+            DomainEnd = domain[^1],
+            RangeStart = range[0],
+            RangeEnd = range[^1],
             Clamp = clamp,
             Round = round,
+            Forward = Piecewise.Create(domain, range),
+            Inverse = Piecewise.Create(range, domain),
+            ClampLow = Math.Min(domain[0], domain[used - 1]),
+            ClampHigh = Math.Max(domain[0], domain[used - 1]),
         };
+    }
 
     /// <summary>
     ///     Creates a band scale.
@@ -249,27 +311,10 @@ internal sealed class ScaleModel
 
         if (Clamp)
         {
-            value = Math.Max(Math.Min(DomainStart, DomainEnd), Math.Min(Math.Max(DomainStart, DomainEnd), value));
+            value = Math.Max(ClampLow, Math.Min(ClampHigh, value));
         }
 
-        // d3 swaps both pairs when the domain runs backwards, and so does this
-        double t;
-        double from;
-        double to;
-        if (DomainEnd < DomainStart)
-        {
-            t = Normalize(DomainEnd, DomainStart, value);
-            from = RangeEnd;
-            to = RangeStart;
-        }
-        else
-        {
-            t = Normalize(DomainStart, DomainEnd, value);
-            from = RangeStart;
-            to = RangeEnd;
-        }
-
-        var result = (from * (1 - t)) + (to * t);
+        var result = Forward!.Evaluate(value);
         return Round ? JsNumber.Round(result) : result;
     }
 
@@ -337,26 +382,8 @@ internal sealed class ScaleModel
             return double.NaN;
         }
 
-        double t;
-        double from;
-        double to;
-        if (RangeEnd < RangeStart)
-        {
-            t = Normalize(RangeEnd, RangeStart, position);
-            from = DomainEnd;
-            to = DomainStart;
-        }
-        else
-        {
-            t = Normalize(RangeStart, RangeEnd, position);
-            from = DomainStart;
-            to = DomainEnd;
-        }
-
-        var result = (from * (1 - t)) + (to * t);
-        return Clamp
-            ? Math.Max(Math.Min(DomainStart, DomainEnd), Math.Min(Math.Max(DomainStart, DomainEnd), result))
-            : result;
+        var result = Inverse!.Evaluate(position);
+        return Clamp ? Math.Max(ClampLow, Math.Min(ClampHigh, result)) : result;
     }
 
     /// <summary>
@@ -430,21 +457,119 @@ internal sealed class ScaleModel
     }
 
     /// <summary>
-    ///     Normalizes a value between two ends of a domain to the unit interval.
+    ///     One piecewise-linear map between two arrays of numbers: d3-scale's <c>bimap</c> for two entries and
+    ///     <c>polymap</c> for more (with <c>interpolateNumber</c> and <c>normalize</c>).
     /// </summary>
-    /// <param name="a">The first end.</param>
-    /// <param name="b">The second end (not below the first).</param>
-    /// <param name="x">The value.</param>
-    /// <returns>The position of <paramref name="x"/> between the ends; 0.5 when the ends are equal, NaN when they are not numbers.</returns>
-    private static double Normalize(double a, double b, double x)
+    private sealed class Piecewise
     {
-        var width = b - a;
-        if (width != 0)
+        /// <summary>The used entries of the input side, ascending (after the reversal of a descending domain).</summary>
+        private readonly double[] _input;
+
+        /// <summary>The width of every segment of the input side.</summary>
+        private readonly double[] _width;
+
+        /// <summary>The output value at the start of every segment.</summary>
+        private readonly double[] _from;
+
+        /// <summary>The output value at the end of every segment.</summary>
+        private readonly double[] _to;
+
+        /// <summary>
+        ///     Initializes a map.
+        /// </summary>
+        /// <param name="input">The used input entries.</param>
+        /// <param name="output">The used output entries, as many as the input entries.</param>
+        private Piecewise(double[] input, double[] output)
         {
-            return (x - a) / width;
+            _input = input;
+            var segments = input.Length - 1;
+            _width = new double[segments];
+            _from = new double[segments];
+            _to = new double[segments];
+            for (var i = 0; i < segments; i++)
+            {
+                _width[i] = input[i + 1] - input[i];
+                _from[i] = output[i];
+                _to[i] = output[i + 1];
+            }
         }
 
-        return double.IsNaN(width) ? double.NaN : 0.5;
+        /// <summary>
+        ///     Builds the map the way d3's <c>piecewise</c> does.
+        /// </summary>
+        /// <param name="input">The complete input array (the domain for the forward map, the range for the inverse).</param>
+        /// <param name="output">The complete output array.</param>
+        /// <returns>The map over the first <c>min(input.Length, output.Length)</c> entries.</returns>
+        public static Piecewise Create(double[] input, double[] output)
+        {
+            var used = Math.Min(input.Length, output.Length);
+            if (used == 2)
+            {
+                // bimap: a descending pair is swapped, and nothing beyond the first two entries counts
+                return input[1] < input[0]
+                    ? new Piecewise([input[1], input[0]], [output[1], output[0]])
+                    : new Piecewise([input[0], input[1]], [output[0], output[1]]);
+            }
+
+            // polymap: a descending input reverses both complete arrays before the first entries are used
+            if (input[used - 1] < input[0])
+            {
+                var reversedInput = new double[input.Length];
+                var reversedOutput = new double[output.Length];
+                Array.Copy(input, reversedInput, input.Length);
+                Array.Copy(output, reversedOutput, output.Length);
+                Array.Reverse(reversedInput);
+                Array.Reverse(reversedOutput);
+                input = reversedInput;
+                output = reversedOutput;
+            }
+
+            return new Piecewise(input[..used], output[..used]);
+        }
+
+        /// <summary>
+        ///     Maps a number.
+        /// </summary>
+        /// <param name="x">The number, not NaN.</param>
+        /// <returns>The mapped number; NaN when the segment has NaN ends.</returns>
+        public double Evaluate(double x)
+        {
+            // bisectRight(input, x, 1, n - 1) - 1 picks the segment; the last or first segment extends beyond the ends
+            var segment = 0;
+            if (_input.Length > 2)
+            {
+                var low = 1;
+                var high = _input.Length - 1;
+                while (low < high)
+                {
+                    var middle = (low + high) >>> 1;
+                    if (_input[middle] > x)
+                    {
+                        high = middle;
+                    }
+                    else
+                    {
+                        low = middle + 1;
+                    }
+                }
+
+                segment = low - 1;
+            }
+
+            // normalize: a segment of zero width maps to the middle of the output segment
+            var width = _width[segment];
+            double t;
+            if (width != 0)
+            {
+                t = (x - _input[segment]) / width;
+            }
+            else
+            {
+                t = double.IsNaN(width) ? double.NaN : 0.5;
+            }
+
+            return (_from[segment] * (1 - t)) + (_to[segment] * t);
+        }
     }
 
     /// <summary>

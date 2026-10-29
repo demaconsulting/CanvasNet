@@ -338,6 +338,77 @@ public class ScaleResolverTests
     }
 
     /// <summary>
+    ///     Validates that an explicit domain and range of more than two entries map piecewise as d3's <c>polymap</c> does,
+    ///     with <c>zero</c>, pixel padding, <c>nice</c>, <c>clamp</c> and <c>reverse</c> acting on the end entries only, and that
+    ///     a band or point scale takes the first two entries of its range.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_PiecewiseDomainAndRangeFollowD3()
+    {
+        // Arrange / Act: domain 0..50..100 onto range 0..200..300 (the keyword is not needed)
+        var piecewise = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100],"range":[0, 200, 300]}} }"""))["x"]!;
+        var model = piecewise.CreateModel(999);
+
+        // Assert: 25 is halfway through the first segment (100), 75 halfway through the second (250), and nice does not change it
+        Assert.Null(piecewise.NiceCount);
+        Assert.Equal(100, model.Map(25), Precision);
+        Assert.Equal(200, model.Map(50), Precision);
+        Assert.Equal(250, model.Map(75), Precision);
+        Assert.Equal((0.0, 100.0, 0.0, 300.0), (model.DomainStart, model.DomainEnd, model.RangeStart, model.RangeEnd));
+
+        // Assert: with a range keyword the entries follow the data rectangle: [0, "width", 600] on a width of 300 maps the
+        // second domain entry to 300 and the third to 600
+        var keyword = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100],"range":[0, "width", 600]}} }"""))["x"]!.CreateModel(300);
+        Assert.Equal(300, keyword.Map(50), Precision);
+        Assert.Equal(450, keyword.Map(75), Precision);
+
+        // Assert: a domain with three entries on the default two-entry range uses the first two entries only (d3's bimap):
+        // 0..50 onto 0..300, so 25 is 150 and 100 is 600
+        var truncated = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100]}} }"""))["x"]!.CreateModel(300);
+        Assert.Equal(150, truncated.Map(25), Precision);
+        Assert.Equal(600, truncated.Map(100), Precision);
+        Assert.Equal(100, truncated.DomainEnd);
+
+        // Assert: clamp stops at the first and last entry: -10 is 0 and 500 is 300
+        var clamped = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100],"range":[0, 200, 300],"clamp":true}} }"""))["x"]!.CreateModel(999);
+        Assert.Equal(0, clamped.Map(-10), Precision);
+        Assert.Equal(300, clamped.Map(500), Precision);
+
+        // Assert: reverse flips the whole range: [300, 200, 0], so 0 is 300, 25 is 250 and 100 is 0
+        var reversed = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100],"range":[0, 200, 300],"reverse":true}} }"""))["x"]!.CreateModel(999);
+        Assert.Equal(300, reversed.Map(0), Precision);
+        Assert.Equal(250, reversed.Map(25), Precision);
+        Assert.Equal(0, reversed.Map(100), Precision);
+
+        // Assert: zero true changes only the first entry: 5..10..15 becomes 0..10..15 over 0..50..100, so 5 is 25
+        var zero = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[5, 10, 15],"range":[0, 50, 100],"zero":true}} }"""))["x"]!.CreateModel(100);
+        Assert.Equal(25, zero.Map(5), Precision);
+        Assert.Equal(50, zero.Map(10), Precision);
+        Assert.Equal(100, zero.Map(15), Precision);
+        Assert.Equal(0, zero.DomainStart);
+
+        // Assert: nice with 5 ticks extends 0..97 to 0..100 and leaves the middle entry: 3 -> 100, 100 -> 200
+        var nice = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 3, 97],"range":[0, 100, 200],"nice":5}} }"""))["x"]!.CreateModel(100);
+        Assert.Equal((0.0, 100.0), (nice.DomainStart, nice.DomainEnd));
+        Assert.Equal(100, nice.Map(3), Precision);
+        Assert.Equal(200, nice.Map(100), Precision);
+
+        // Assert: 10 pixels of padding over a range of 300 widens the end entries around their middle (50) by 300/280:
+        // -3.5714..103.5714; the middle entry stays at 50 (pixel 200) and 0 lands 1/15 of the way into the first segment
+        var padded = Resolve(Spec("point", """{ "x": {"field":"r","type":"quantitative","scale":{"domain":[0, 50, 100],"range":[0, 200, 300],"padding":10}} }"""))["x"]!.CreateModel(999);
+        Assert.Equal(-25.0 / 7, padded.DomainStart, Precision);
+        Assert.Equal(725.0 / 7, padded.DomainEnd, Precision);
+        Assert.Equal(200, padded.Map(50), Precision);
+        Assert.Equal(200.0 / 15, padded.Map(0), Precision);
+
+        // Assert: a band scale uses the first two entries of its range (d3's [r0, r1] = range), here 0..100 for three bands
+        // with Vega-Lite's bar padding: a step of 100 / 3
+        var band = Resolve(Spec("bar", """{ "x": {"field":"k","type":"nominal","scale":{"range":[0, 100, 500]}} }"""))["x"]!.CreateModel(999);
+        Assert.Equal((0.0, 100.0), (band.RangeStart, band.RangeEnd));
+        Assert.Equal(100.0 / 3, band.Step, Precision);
+    }
+
+    /// <summary>
     ///     Validates that the paddings of band and point scales follow the mark, the configuration and the scale
     ///     properties.
     /// </summary>

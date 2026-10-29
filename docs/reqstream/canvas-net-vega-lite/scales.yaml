@@ -50,10 +50,10 @@ sections:
 
           - id: CanvasNetVegaLite-Scales-Positions
             title: >-
-              The Scales subsystem shall map data values to pixel positions with linear, band, and point
-              scales using the d3-scale arithmetic - domain to range, padding, alignment, band width and
-              step, clamping, rounding, and reversal - and shall derive the ranges, paddings, and steps of
-              the position, size, and opacity channels from the data rectangle and the configuration.
+              The Scales subsystem shall map data values to pixel positions with linear, band, and point scales using
+              the d3-scale arithmetic - domain to range (piecewise for more than two entries), padding, alignment, band
+              width and step, clamping, rounding, and reversal - and shall derive the ranges, paddings, and steps of the
+              position, size, and opacity channels from the data rectangle and the configuration.
             justification: |
               Every mark and every tick is placed by these mappings, so they must match analytic
               expectations exactly.
@@ -62,6 +62,9 @@ sections:
               - CanvasNetVegaLite-Scales-ScaleResolver-Ranges
             tests:
               - ScaleModel_Map_LinearBandAndPointMatchAnalyticPositions
+              - ScaleModel_Map_PiecewiseLinearFollowsD3Polymap
+              - ScaleModel_Map_PiecewiseTruncatesToTheShorterOfDomainAndRange
+              - ScaleResolver_Resolve_PiecewiseDomainAndRangeFollowD3
               - ScaleResolver_Resolve_PaddingsFollowMarkAndScaleProperties
               - ScaleResolver_Resolve_DiscreteSizesComeFromTheStep
 

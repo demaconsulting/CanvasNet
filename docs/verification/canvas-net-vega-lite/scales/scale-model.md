@@ -63,6 +63,27 @@ that duplicate categories are ignored and a number is distinct from its text (`1
 an empty domain maps nothing, and that the center of a band is its start plus half its bandwidth while the center of a
 point is the point.
 
+##### Piecewise Linear Scales Follow d3
+
+**Tests**: `ScaleModelTests.ScaleModel_Map_PiecewiseLinearFollowsD3Polymap`,
+`ScaleModelTests.ScaleModel_Map_PiecewiseTruncatesToTheShorterOfDomainAndRange`,
+`ScaleModelTests.ScaleModel_CreateLinear_PiecewiseEdgeCases`
+
+The expectations are derived by hand from d3-scale's `continuous.js` (`polymap`, `bimap`, `bisectRight`, `normalize`,
+`clamper`). Domain 0, 10, 100 onto range 0, 50, 100 maps 5 to 25 (halfway through the first segment), 10 to 50
+(`bisectRight` sends an equal value into the next segment), 55 to 75, and extrapolates -10 to -50 and 200 to 1400 / 9
+(the second segment continues, t = 190 / 90); the inverse maps 25 to 5, 75 to 55, and 50 to 10; clamping limits to the
+first and last domain entry (-10 gives 0, 200 gives 100). A descending domain 100, 10, 0 reverses both arrays (5 gives
+75, 55 gives 25), and a descending range gives the same segments. A domain of three entries over a range of two uses
+only the first two domain entries (bimap: 5 gives 100, 100 gives 2000, clamp stops at the second entry, 10) while the
+complete domain still reports its end (100); two domain entries over three range entries use the first two range
+entries; four domain entries over three range entries use polymap over the first three of each (100 gives 2, 1000 gives
+12). The case that d3 handles in a surprising way is kept: a descending domain 10, 5, 0, -1 over the range 0, 1, 2
+reverses the complete arrays (-1, 0, 5, 10 and 2, 1, 0) before the first three are used, so -1 gives 2, 0 gives 1, 5
+gives 0, and 10 gives -1. A segment of zero width maps to the middle of its output segment (-1 gives 25, 0 gives 50, 5
+gives 75 for domain 0, 0, 10 onto 0, 50, 100), rounding applies to the result, and a domain or range with fewer than two
+entries, or a null one, is rejected.
+
 ##### Ordinal Mapping Cycles Through The Range
 
 **Tests**: `ScaleModelTests.ScaleModel_MapOrdinal_CyclesThroughTheRange`

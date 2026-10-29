@@ -72,8 +72,9 @@ item per visible mark in row order (deterministic), and the budget has been char
 
 #### Error Handling
 
-Exceeding `MaxSceneItems` is a `VegaLiteRenderException` located at the mark, thrown as soon as the item that passes
-the limit would be created (the `SceneBudget` carries the failure). A canceled token is an
+Exceeding `MaxSceneItems` is a `VegaLiteRenderException` located at the mark, thrown before the item that passes
+the limit is created (the `SceneBudget` carries the failure; the marks group and every mark are charged first, then
+created). A canceled token is an
 `OperationCanceledException`. A null configuration,
 view, table, or scales argument is `ArgumentNullException` (not converted). Invalid data is not an error: affected rows
 are dropped as described above. A mark type that is not drawn yields an empty group, because the feature catalog has already
