@@ -165,7 +165,8 @@ throws after a successful call propagates its exception (the surface is disposed
 
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
   `ConfigResolver`, `ResolvedConfig`
-- **`Data` subsystem** - `DataLoader` (one instance per call), `DataTable`
+- **`Data` subsystem** - `DataLoader` (one instance per call; reads local files through `DataFileResolver` and
+  delimited text through `DelimitedTextParser`), `DataTable`, `DataFileResolver`, `DelimitedTextParser`
 - **`Scales` subsystem** - `ScaleResolver`, `ResolvedScales`
 - **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records
