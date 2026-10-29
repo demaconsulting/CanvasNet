@@ -415,6 +415,49 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that the reservoir sampler polls the cancellation token while it fills the reservoir, not only in the
+    ///     sampling loop: a sample whose size is below the first polling interval after it must still stop.
+    /// </summary>
+    [Fact]
+    public void RowSampler_Select_ReservoirInitializationObservesCancellation()
+    {
+        // Arrange: size 700 of 800 rows, so no row index of the sampling loop (700 to 799) is a multiple of 1,024
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        // Act / Assert
+        Assert.Throws<OperationCanceledException>(() => RowSampler.Select(800, 700, "/transform/0", source.Token));
+        Assert.Equal(700, RowSampler.Select(800, 700, "/transform/0", Ct).Length);
+    }
+
+    /// <summary>
+    ///     Validates that the whole row that a lookup copies is an object even when its names are the indexes 0 to n-1, and
+    ///     that a reader of the whole row of an empty row gives the empty object while a reader of a path gives null.
+    /// </summary>
+    [Fact]
+    public void FieldReader_WholeRow_IsAlwaysAnObject()
+    {
+        // Arrange: the secondary row has the field names 0 and 1
+        var json = Spec(
+            "[{\"id\":2}]",
+            "[{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":[{\"0\":2,\"1\":\"x\"}]},\"key\":\"0\"},\"as\":\"hit\"}]");
+        var empty = DataTable.Create([], [new List<DataValue>()]);
+
+        // Act
+        var table = Run(json);
+        var emptyWhole = new FieldReader(empty, string.Empty).Read(0);
+        var emptyPath = new FieldReader(empty, "a").Read(0);
+
+        // Assert
+        var hit = table.GetValue(0, "hit");
+        Assert.True(hit.IsObject);
+        Assert.Equal(["0", "1"], hit.ObjectValue!.Keys);
+        Assert.True(emptyWhole.IsObject);
+        Assert.Empty(emptyWhole.ObjectValue!.Keys);
+        Assert.True(emptyPath.IsNull);
+    }
+
+    /// <summary>
     ///     Validates that repeated and concurrent runs select identical rows, whatever the degree of parallelism.
     /// </summary>
     [Fact]

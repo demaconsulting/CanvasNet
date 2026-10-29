@@ -447,12 +447,19 @@ internal sealed partial class ExpressionParser
             Enter(token.Offset);
             ParseUnary();
             Leave();
+            if (token.Text == "~")
+            {
+                // Bitwise not is deferred like the binary bitwise operators: it is reported and evaluates to null
+                RecordConstruct(ExpressionConstructKind.Deferred, "bitwise-not", token.Offset);
+                Emit(ExpressionOpcode.Unsupported, 0, 1, token.Offset, 0);
+                return;
+            }
+
             var op = token.Text switch
             {
                 "+" => ExpressionOpcode.Plus,
                 "-" => ExpressionOpcode.Negate,
-                "!" => ExpressionOpcode.Not,
-                _ => ExpressionOpcode.BitNot,
+                _ => ExpressionOpcode.Not,
             };
             Emit(op, 0, 0, token.Offset, 0);
             return;

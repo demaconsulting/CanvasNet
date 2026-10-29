@@ -30,10 +30,32 @@ internal static partial class ExpressionFunctions
         table["isNaN"] = (a, _) => DataValue.FromBoolean(Arg(a, 0) is { IsNumber: true } n && double.IsNaN(n.Number));
         table["isValid"] = (a, _) => DataValue.FromBoolean(Arg(a, 0) is { IsNull: false } v && !(v.IsNumber && double.IsNaN(v.Number)));
         table["toBoolean"] = (a, _) => ToBoolean(Arg(a, 0));
-        table["toNumber"] = (a, _) => IsNullOrEmptyString(Arg(a, 0)) ? default : DataValue.FromNumber(ExpressionEvaluator.ToNumber(Arg(a, 0)));
-        table["toString"] = (a, c) => IsNullOrEmptyString(Arg(a, 0))
-            ? default
-            : DataValue.FromString(ExpressionEvaluator.ToJsString(Arg(a, 0), c.MaxStringLength));
+        table["toNumber"] = (a, c) =>
+        {
+            var value = Arg(a, 0);
+            if (IsNullOrEmptyString(value))
+            {
+                return default;
+            }
+
+            if (value.IsString)
+            {
+                c.ChargeSize(value.Text!.Length);
+            }
+
+            return DataValue.FromNumber(ExpressionEvaluator.ToNumber(value));
+        };
+        table["toString"] = (a, c) =>
+        {
+            if (IsNullOrEmptyString(Arg(a, 0)))
+            {
+                return default;
+            }
+
+            var text = ExpressionEvaluator.ToJsString(Arg(a, 0), c.MaxStringLength);
+            c.ChargeSize(text.Length);
+            return DataValue.FromString(text);
+        };
     }
 
     /// <summary>

@@ -117,6 +117,7 @@ internal sealed partial class RowTransforms
 
             for (var i = 0; i < lengths[row]; i++)
             {
+                Tick(target);
                 layout.CopyRow(input, row, cells, target);
                 for (var j = 0; j < values.Length; j++)
                 {

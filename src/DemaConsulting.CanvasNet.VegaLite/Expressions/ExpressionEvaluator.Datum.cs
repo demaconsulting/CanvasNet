@@ -118,6 +118,15 @@ internal sealed partial class ExpressionEvaluator
             root.Add(segments, 0, table.GetValue(_row, i));
         }
 
+        if (!found && prefix.Length == 0)
+        {
+            // A row without any field (an inline empty object) is the empty object, not null; it is cached like any composite
+            // so that every read of the whole row is the same value
+            var empty = DataValue.FromObject(DataObject.Create([]));
+            _nested[path] = empty;
+            return empty;
+        }
+
         return found ? root.ToValue(path, _nested, prefix.Length == 0) : default;
     }
 }

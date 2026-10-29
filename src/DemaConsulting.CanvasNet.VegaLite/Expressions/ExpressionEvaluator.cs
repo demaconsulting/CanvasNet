@@ -379,9 +379,6 @@ internal sealed partial class ExpressionEvaluator
             case ExpressionOpcode.Not:
                 stack[sp - 1] = DataValue.FromBoolean(!IsTruthy(stack[sp - 1]));
                 return sp;
-            case ExpressionOpcode.BitNot:
-                stack[sp - 1] = DataValue.FromNumber(~ToInt32(ToNumber(stack[sp - 1])));
-                return sp;
         }
 
         // Every remaining operator takes two operands and leaves one result

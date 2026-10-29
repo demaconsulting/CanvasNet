@@ -43,7 +43,7 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 - **Access**: `datum` (the whole row), `datum.name` and `datum['a b']` (a field), and member and index access on any value
   (`a.b`, `a[0]`, `a['k']`). `datum` access compiles to a direct field read.
 - **Operators**, from the lowest precedence: the conditional `?:`, `||`, `&&` (both return an operand and short-circuit),
-  `===`, `!==`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `+`, `-`, `*`, `/`, `%`, and the unary `+`, `-`, `!`, and `~`, with
+  `===`, `!==`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `+`, `-`, `*`, `/`, `%`, and the unary `+`, `-`, and `!`, with
   parentheses for grouping. All binary operators are left-associative.
 - **Calls** of a function by name (`lower(datum.name)`); an identifier that is none of the above is a **parameter
   reference**.
@@ -63,6 +63,7 @@ that holds it (JSON pointer, line, and column), the postfix `Program` (an array 
 `ExpressionConstruct` is `(Kind, Name, Offset)` with the stable `Identifier` (`vl-expr-function-<name>` with the function
 name lower-cased by the invariant culture, while `Name` keeps the spelling of the text,
 `vl-expr-view-state`, or `vl-expr-construct-<name>`, with the deferred names `bitwise-or`, `bitwise-xor`, `bitwise-and`,
+`bitwise-not` (the unary `~`),
 `shift-left`, `shift-right`, `shift-right-unsigned`, and `in`); `ExpressionReference` is
 `(Name, Offset)` with one entry per
 distinct parameter name at its first use. Offsets are zero-based UTF-16 offsets in the expression text.

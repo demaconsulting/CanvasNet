@@ -290,6 +290,33 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates that the unary bitwise not is deferred like the binary bitwise operators: it is reported as a construct
+    ///     and evaluates to null instead of being executed.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("~5")]
+    [InlineData("~~3.7")]
+    [InlineData("~'7'")]
+    [InlineData("~NaN")]
+    public void ExpressionParser_Parse_UnaryBitwiseNot_IsDeferredAndEvaluatesToNull(string text)
+    {
+        // Arrange / Act
+        var compiled = Compile(text);
+
+        // Assert: reported with the deferred identifier, and null
+        Assert.All(compiled.UnsupportedConstructs, c =>
+        {
+            Assert.Equal(ExpressionConstructKind.Deferred, c.Kind);
+            Assert.Equal("vl-expr-construct-bitwise-not", c.Identifier);
+        });
+        Assert.NotEmpty(compiled.UnsupportedConstructs);
+        Assert.Equal(text.Count(c => c == '~'), compiled.UnsupportedConstructs.Count);
+        Assert.True(Eval(text).IsNull);
+        Assert.Equal("true", EvalText("isValid(~5) === false"));
+    }
+
+    /// <summary>
     ///     Validates that regular expression literals are recognized after operators and that a slash after an operand
     ///     is a division.
     /// </summary>

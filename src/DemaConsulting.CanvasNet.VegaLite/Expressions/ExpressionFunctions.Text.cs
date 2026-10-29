@@ -23,7 +23,12 @@ internal static partial class ExpressionFunctions
     {
         table["lower"] = (a, c) => CaseConverted(Text(a, 0, c), ToJsLower, c);
         table["upper"] = (a, c) => CaseConverted(Text(a, 0, c), ToJsUpper, c);
-        table["trim"] = (a, c) => DataValue.FromString(Trim(Text(a, 0, c)));
+        table["trim"] = (a, c) =>
+        {
+            var text = Text(a, 0, c);
+            c.ChargeSize(text.Length);
+            return DataValue.FromString(Trim(text));
+        };
         table["substring"] = Substring;
         table["slice"] = Slice;
         table["indexof"] = (a, c) => IndexOf(a, c, last: false);
@@ -51,6 +56,8 @@ internal static partial class ExpressionFunctions
     /// <exception cref="ExpressionRuntimeException">Thrown when the result is longer than the string limit.</exception>
     private static DataValue CaseConverted(string text, Func<string, string> convert, ExpressionFunctionContext context)
     {
+        // The conversion walks the whole text, so its size is charged before any work is done
+        context.ChargeSize(text.Length);
         var converted = convert(text);
         context.CheckStringLength(converted.Length);
         return DataValue.FromString(converted);

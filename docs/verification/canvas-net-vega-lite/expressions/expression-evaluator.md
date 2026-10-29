@@ -23,7 +23,7 @@ without timing. The internal types are reached through the test assembly's `Inte
 The expected values are written out by hand from the ECMAScript rules and the Vega expression documentation, never
 produced by running a JavaScript engine: `1 + '2'` is `12`, `'3' * '4'` is `12`, `null + 1` is `1`, `[1, 2] + 3` is
 `1,23`, `'x' - 1` is `NaN`, `-5 % 3` is `-2` and `5 % -3` is `2`, `0.1 + 0.2` is `0.30000000000000004`, `1e21 + 1` is
-`1e+21`, `~4294967296` is `-1` (a 32-bit integer conversion), `null == 0` is false while `null < 1` and `null >= 0` are
+`1e+21`, `null == 0` is false while `null < 1` and `null >= 0` are
 true, `NaN == NaN` is false, `[1] == 1` is true while `[1] === [1]` is false (composite values are identical only to
 themselves), `'B' < 'a'` is true and `'10' < '9'` is true (strings compare by ordinal code units), and `0 || 'x'`
 returns the operand `x`, not a boolean. The sign of zero is shown through the infinity of a reciprocal (`1 / (-0)` is
@@ -71,7 +71,7 @@ evaluations constitutes a failure.
 Asserts, as theories of thirty-six binary and twenty-one unary texts, the coercions of numbers, text, booleans, null,
 arrays, and objects in `+`, `-`, `*`, `/`, and `%` (including the empty text, hexadecimal and exponent text, `Infinity`
 in its exact spelling, division by zero, the sign of a remainder, and the shortest round-trip number text), the unary
-`+`, `-`, `!`, and `~` (with the 32-bit conversion of `~`), that the unary operators give the same result when repeated,
+`+`, `-`, and `!`, that the unary operators give the same result when repeated,
 and that negative zero survives multiplication and unary minus where JavaScript keeps it.
 
 ##### Equality And Comparison Follow ECMAScript

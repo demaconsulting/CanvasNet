@@ -858,4 +858,49 @@ public class ExpressionFunctionsTests
             Assert.NotNull(context.GetRegex("p" + i, string.Empty));
         }
     }
+
+    /// <summary>
+    ///     Validates that the functions whose work is proportional to the length of their input charge it to the step
+    ///     budget before converting: one step for every 64 characters, nothing for a short text.
+    /// </summary>
+    /// <param name="name">The function name.</param>
+    /// <param name="text">The argument text (digits, so that <c>toNumber</c> is valid too).</param>
+    [Theory]
+    [InlineData("lower", "AbCdEfGh")]
+    [InlineData("upper", "aBcDeFgH")]
+    [InlineData("trim", "  12345678  ")]
+    [InlineData("toString", "12345678")]
+    [InlineData("toNumber", "12345678")]
+    public void ExpressionFunctions_SizeProportionalFunctions_ChargeTheLengthOfTheInput(string name, string text)
+    {
+        // Arrange: a short text and a text of 6,400 characters (100 steps) under a budget of 10 steps
+        var shortContext = new ExpressionFunctionContext(Steps(10), CancellationToken.None);
+        var longText = string.Concat(Enumerable.Repeat(text, 800));
+        var longContext = new ExpressionFunctionContext(Steps(10), CancellationToken.None);
+
+        // Act
+        ExpressionFunctions.Invoke(name, [DataValue.FromString(text)], shortContext);
+
+        // Assert: the short text is free, the long one exhausts the budget before the conversion is made
+        Assert.Equal(0, shortContext.Steps);
+        Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke(name, [DataValue.FromString(longText)], longContext));
+        Assert.True(longContext.Steps > 10);
+    }
+
+    /// <summary>
+    ///     Validates that a case conversion observes cancellation through the charge of its input.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_CaseConversion_ObservesCancellationThroughTheCharge()
+    {
+        // Arrange: a canceled token is seen when the charge crosses a multiple of 1,024 steps
+        using var cancellation = new CancellationTokenSource();
+        var context = new ExpressionFunctionContext(null, cancellation.Token);
+        cancellation.Cancel();
+        var text = DataValue.FromString(new string('a', 64 * 1_100));
+
+        // Act / Assert
+        Assert.Throws<OperationCanceledException>(() => ExpressionFunctions.Invoke("upper", [text], context));
+        Assert.Throws<OperationCanceledException>(() => ExpressionFunctions.Invoke("lower", [text], context));
+    }
 }

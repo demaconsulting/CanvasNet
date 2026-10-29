@@ -46,7 +46,8 @@ object, and regular expression. The value model has **one null for both `null` a
 - **Operators**: `+` is concatenation when either operand coerces to text, otherwise addition; `-`, `*`, `/`, and `%` are
   numeric (division by zero is an infinity or NaN; the sign of zero is kept; `%` is the
   JavaScript remainder); the unary `+`,
-  `-`, `!`, and `~` (`~` is the 32-bit integer complement); `===` and `!==` follow strict equality (NaN differs from itself,
+  `-`, and `!` (the unary `~` is a deferred construct that gives null);
+  `===` and `!==` follow strict equality (NaN differs from itself,
   zero equals negative zero, composites compare by identity, so two separately written `[]`
   differ); `==` and `!=` follow the
   abstract equality table; `<`, `<=`, `>`, and `>=` follow the abstract relational

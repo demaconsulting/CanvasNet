@@ -101,6 +101,11 @@ internal static class RowSampler
         var reservoir = new int[size];
         for (var i = 0; i < size; i++)
         {
+            if (i % CancellationInterval == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             reservoir[i] = i;
         }
 

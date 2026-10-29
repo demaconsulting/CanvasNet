@@ -4140,7 +4140,7 @@ and a parsed document can be rendered any number of times and from several threa
 | Constants | `NaN`, `Infinity`, `PI`, `E`. The other Vega constants (`SQRT2`, `LN2`, ...) are not available |
 | `datum` | The row: `datum.name`, `datum['a b']`, `datum.a.b`, and `datum[expression]`. A missing field is `null`; a nested field is read from the data as a path (`a.b`) or rebuilt as an object or array when the row has `a.b` or `a.0` fields (names `0` to n-1 make an array; reading the same path twice gives the same value, so `datum.a === datum.a`) |
 | Member access | `value.name`, `value[key]`, `array.length`, `string.length`, `array[0]`, `string[0]`, and the `source`, `flags`, and `global` of a regular expression. The member of `null` or of a scalar is `null`; there are no method calls (`a.b()` is a syntax error) |
-| Operators, from the lowest to the highest precedence | `? :` (right to left); `\|\|`; `&&`; `==` `!=` `===` `!==`; `<` `<=` `>` `>=`; `+` `-`; `*` `/` `%`; the unary `+` `-` `!` `~`; member access, indexing, and calls. Parentheses group |
+| Operators, from the lowest to the highest precedence | `? :` (right to left); `\|\|`; `&&`; `==` `!=` `===` `!==`; `<` `<=` `>` `>=`; `+` `-`; `*` `/` `%`; the unary `+` `-` `!`; member access, indexing, and calls. Parentheses group |
 | Short circuit | `&&`, `\|\|`, and `? :` run only the operand they need, and `&&` and `\|\|` **return an operand**, not a boolean, as in JavaScript |
 | Parameters | Any other identifier is the value of the parameter of that name (see *Vega-Lite Parameters*); a name that is not a parameter is a `VegaLiteSpecException` when the document is opened |
 <!-- markdownlint-enable MD013 -->
@@ -4163,6 +4163,7 @@ evaluates to `null`, so one unsupported call does not hide the rest of the chart
 list below (`vl-expr-function-<name>`), `signal`, `event`, `item`, and the signals of the view that no parameter
 declares (`width`, `height`, `padding`, `autosize`, `background`, `cursor`: `vl-expr-view-state`), and the operators
 `|`, `^`, `&`, `<<`, `>>`, `>>>`, and `in` (`vl-expr-construct-<name>`: `bitwise-or`, `bitwise-xor`, `bitwise-and`,
+`bitwise-not` (the unary `~`),
 `shift-left`, `shift-right`, `shift-right-unsigned`, `in`). In strict mode the first report throws a
 `VegaLiteUnsupportedFeatureException` (see *Vega-Lite Unsupported Features and Strict Mode*); the report is located at
 the string value of the expression and its message names the offset of the construct.
@@ -4461,7 +4462,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-expr-label` | Unsupported | `axis.labelExpr` |
 | `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 57 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-timeformat` for `timeFormat`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
-| `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
+| `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
 | `vl-transform-<name>` | Unsupported | An entry of `transform` for `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeunit`, `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition) |
 | `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |

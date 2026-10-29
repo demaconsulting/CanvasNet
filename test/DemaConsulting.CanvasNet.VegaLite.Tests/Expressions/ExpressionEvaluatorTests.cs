@@ -65,7 +65,7 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
-    ///     Validates the unary operators including the 32-bit integer conversion of <c>~</c>.
+    ///     Validates the unary operators; <c>~</c> is a deferred construct and is tested with the parser.
     /// </summary>
     /// <param name="text">The expression text.</param>
     /// <param name="expected">The expected value as JavaScript text.</param>
@@ -82,15 +82,6 @@ public class ExpressionEvaluatorTests
     [InlineData("!'0'", "false")]
     [InlineData("![]", "false")]
     [InlineData("!!{}", "true")]
-    [InlineData("~5", "-6")]
-    [InlineData("~-1", "0")]
-    [InlineData("~~3.7", "3")]
-    [InlineData("~~-3.7", "-3")]
-    [InlineData("~4294967296", "-1")]
-    [InlineData("~2147483648", "2147483647")]
-    [InlineData("~NaN", "-1")]
-    [InlineData("~Infinity", "-1")]
-    [InlineData("~'7'", "-8")]
     public void ExpressionEvaluator_Evaluate_UnaryOperators_FollowJavaScript(string text, string expected)
     {
         // Arrange / Act: evaluate twice to show that the result does not depend on evaluator state
@@ -488,6 +479,30 @@ public class ExpressionEvaluatorTests
         Assert.True(evaluator.Evaluate(Compile("isArray(datum.tags) && datum.tags.length === 1 && datum.tags === datum.tags"), table, 0).Boolean);
         Assert.Equal("s", evaluator.Evaluate(Compile("datum.tags"), table, 1).Text);
         Assert.True(evaluator.Evaluate(Compile("datum.tags"), table, 2).IsNull);
+    }
+
+    /// <summary>
+    ///     Validates that a row without any field (an inline empty object) is the empty object as a whole datum, not null, and
+    ///     that every read of it is the same value.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_TableRow_EmptyRowIsTheEmptyObject()
+    {
+        // Arrange: one row, no fields (inline [{}])
+        var table = DataTable.Create([], [new List<DataValue>()]);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        var whole = evaluator.Evaluate(Compile("datum"), table, 0);
+
+        // Assert: an object without members; identity is stable; a field of it is null
+        Assert.True(whole.IsObject);
+        Assert.Empty(whole.ObjectValue!.Keys);
+        Assert.True(evaluator.Evaluate(Compile("isObject(datum)"), table, 0).Boolean);
+        Assert.False(evaluator.Evaluate(Compile("isArray(datum)"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum === datum"), table, 0).Boolean);
+        Assert.True(evaluator.Evaluate(Compile("datum.a === null"), table, 0).Boolean);
+        Assert.Equal("[object Object]", evaluator.Evaluate(Compile("toString(datum)"), table, 0).Text);
     }
 
     /// <summary>

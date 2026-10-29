@@ -180,6 +180,9 @@ internal sealed class FieldReader
     /// <summary>The position of the field of that exact name, or -1.</summary>
     private readonly int _direct;
 
+    /// <summary>Whether the reader reads the whole row (an object, even when its names are indexes).</summary>
+    private readonly bool _whole;
+
     /// <summary>The fields below the path with the names that follow it.</summary>
     private readonly List<(int Field, IReadOnlyList<string> Segments)> _below = [];
 
@@ -191,7 +194,8 @@ internal sealed class FieldReader
     public FieldReader(DataTable table, string? path)
     {
         _table = table;
-        var canonical = path is { Length: 0 } ? string.Empty : FieldPath.Canonicalize(path);
+        _whole = path is { Length: 0 };
+        var canonical = _whole ? string.Empty : FieldPath.Canonicalize(path);
         _direct = canonical is null || canonical.Length == 0 ? -1 : table.IndexOfField(canonical);
         if (canonical is null)
         {
@@ -232,7 +236,8 @@ internal sealed class FieldReader
 
         if (_below.Count == 0)
         {
-            return default;
+            // A row without any field is the empty object, not null
+            return _whole ? DataValue.FromObject(DataObject.Create([])) : default;
         }
 
         var root = new FlatRowNode();
@@ -241,6 +246,6 @@ internal sealed class FieldReader
             root.Add(segments, 0, _table.GetValue(row, field));
         }
 
-        return root.ToValue();
+        return root.ToValue(string.Empty, null, _whole);
     }
 }

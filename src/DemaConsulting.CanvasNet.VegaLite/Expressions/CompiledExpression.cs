@@ -42,9 +42,6 @@ internal enum ExpressionOpcode
     /// <summary>Logical not.</summary>
     Not,
 
-    /// <summary>Bitwise not (<c>~</c>).</summary>
-    BitNot,
-
     /// <summary>Addition or string concatenation.</summary>
     Add,
 
