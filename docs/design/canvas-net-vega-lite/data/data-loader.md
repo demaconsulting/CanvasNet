@@ -31,7 +31,12 @@ then `sequence`, then `name`. Anything else (no `data`, no source, or `values` t
 value with the value in the field `data`. The JSON types are kept (number, string, boolean, null). A nested object or
 array is flattened to one field per leaf, named by the canonical path of the leaf (`FieldPath.Join`, which escapes a
 literal dot), and a field a row does not have is null. The same rules apply to a JSON data file, a top-level dataset, and
-a dataset of the caller (whose `DateTime` and `DateTimeOffset` values become dates in UTC).
+a dataset of the caller. A caller's `DateTime` (local converted to UTC, unspecified taken as UTC) and `DateTimeOffset`
+values become dates in UTC; `DataLoader.FromDateTime` clamps a value past the last supported whole millisecond of the
+year 9999 - which is exactly `DateTime.MaxValue` and `DateTimeOffset.MaxValue`, the usual "no end" sentinels, whose
+sub-millisecond ticks the whole-millisecond date model cannot hold - to that last millisecond (`9999-12-31T23:59:59.999Z`)
+instead of failing, and reports any other unexpected failure to represent a date as a `VegaLiteRenderException`
+located at the data object (`FromObject` receives the location for that purpose).
 
 **Format.** For a local `url`, `format.type` decides (`json`, `csv`, `tsv`, `dsv`); without it the extension of the
 path does (`.csv`, `.tsv`, in any case; anything else is JSON). A DSV uses the single-character `format.delimiter` (a
@@ -73,7 +78,13 @@ drive path, or a network path) is the empty table and is never given to the reso
   row into a record while checking the field count of the row and the token every 1,024 rows, applies the `parse`
   directives, and builds the table with `DataTable.FromRecords`.
 - `LoadUrl` - classifies remote data, finds the type, asks the resolver for the file, and routes to `LoadDelimited`
-  (the parser unit) or `LoadJson` (`JsonDocument` under `MaxJsonDepth`, `format.property`, `Charge`, flatten, parse).
+  (the parser unit) or `LoadJson` (`JsonDocument` under `MaxJsonDepth`, then `ReadJsonRecords`: `format.property`,
+  `Charge`, flatten; then parse). `ReadJsonRecords` is the one boundary around every element access of the rows: the
+  JSON parser accepts an escaped lone surrogate (such as `\ud800`) and only the later read of a string, a property
+  name, or a property lookup throws a raw `InvalidOperationException`, so that exception (unless it already is a
+  located `VegaLiteRenderException`, which derives from it) becomes a located failure saying that the data contains
+  text that is not valid Unicode. `JsonException` keeps its own line and position message. Caller datasets are managed
+  objects, not JSON, and need no such path.
 - `LoadNamed`, `LoadCallerRows`, and `LoadSequence` - the named-dataset and sequence sources; `LoadSequence` validates
   the endpoints and the step, computes the length with overflow-safe arithmetic, charges it before anything is
   allocated, and generates the values lazily.
@@ -93,7 +104,8 @@ Every failure of the data is a `VegaLiteRenderException` located at the construc
 mode alike: a file that the resolver refuses or cannot find or read (the resolver's exceptions are propagated, and the
 resolver also reports a failing callback or stream as the located read failure), invalid
 JSON or JSON nested deeper than `MaxJsonDepth`, a JSON root that is not an array or a `format.property` that is not
-found, a delimiter that is not one valid character, delimited text that is malformed (located by the parser), a
+found, JSON text that is not valid Unicode (an escaped lone surrogate in a string or a property name), a delimiter that
+is not one valid character, delimited text that is malformed (located by the parser), a
 `name` that is not defined, a sequence without a finite numeric `start` and `stop`, with a zero, non-finite, or
 non-numeric `step`, or with a value outside the range of a number, more rows than `MaxDataRows` (in total, also for an
 overflowing sequence length), more fields in a row than `MaxFieldCount`, a

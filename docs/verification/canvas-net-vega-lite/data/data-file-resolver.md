@@ -41,8 +41,8 @@ Unit tests reside in `DataFileResolverTests.cs` and `DataFileResolverLinkTests.c
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None; the in-memory file set, the temporary directories, and the injected link probe are real
-  implementations of the unit's seams
+- **Mocking**: None; the in-memory file set, the temporary directories, the injected link probe, and the injected file
+  opener (which raises a chosen open failure or hands out a real stream) are real implementations of the unit's seams
 - **Files**: Per-test temporary directories under the system temporary folder, deleted by the test; no checked-in file
   is read by these tests
 - **Threads**: The resolver-mode scenario asserts that every request came from the calling thread
@@ -94,19 +94,31 @@ that fails while it is read, a callback that throws, and a stream whose disposal
 located "cannot be read" failure (the callback's own text is not leaked), the failing stream is disposed exactly once,
 and a cancellation raised by the callback passes through unchanged as `OperationCanceledException`.
 
-##### Missing Files, Directories And No File Source
+##### Missing Files, Directories, Open Failures And No File Source
 
 **Tests**: `DataFileResolverTests.DataFileResolver_Load_MissingFileIsHardFailure`,
 `DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
+`DataFileResolverTests.DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure`,
+`DataFileResolverTests.DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot`,
+`DataFileResolverTests.DataFileResolver_Load_MissingFinalComponentIsDecidedByTheOpen`,
 `DataFileResolverTests.DataFileResolver_Load_StreamWithoutFileSourceThrows`
 
 Asserts that a file that does not exist is a "was not found" failure with the location in both modes and without the
 host's directory in the message, that an existing directory where the file is expected is a located "cannot be read"
 failure (it exists, so it is not "not found") that also does not reveal the host's directory, and that a resolver with
 no base directory, data path, or callback (as a document opened from a string or stream has) says so and reports
-`HasFileSource` false. An open that fails with a sharing or access error maps to the same read failure; no test asserts
-an operating-system-specific lock, because the files are opened with `FileShare.ReadWrite | FileShare.Delete` and the
-failure cannot be provoked portably.
+`HasFileSource` false.
+
+The open of an existing file is made to fail through the injected opener (`Func<string, Stream>`, the second test seam
+of the unit), so no file permission, ACL, or lock is involved and the scenarios behave identically on Windows, Linux,
+and macOS. As a theory over `UnauthorizedAccessException` and `IOException`, with a real temporary file in the base
+directory and another in a data path, the open fails and the load asserts a located "cannot be read" failure that is not
+"not found", carries the location, does not reveal the host's directory, and that only the first root was opened (the
+search ends). With the opener reporting `FileNotFoundException` (and `DirectoryNotFoundException`) for the first root,
+the candidate is missing: the base directory is tried first, then the data path in declaration order, whose file is
+returned; with no other root the failure is "not found". With an opener that records and delegates to the file system,
+a missing file whose directory exists reaches the open (the open decides it is missing) while a file below a missing
+directory never does (the walk stops that candidate). No test asserts an operating-system-specific lock.
 
 ##### Per-Call Cache
 

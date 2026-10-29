@@ -59,14 +59,20 @@ sections:
                   invariant integer, decimal, or exponent number, else a date column when every non-empty
                   text is an ISO 8601 date or date-time, else text, with an empty cell null in a typed
                   column, and shall read an ISO 8601 date or date-time as an instant in UTC, taking a
-                  value without a zone as UTC, independently of the host culture and time zone.
+                  value without a zone as UTC, independently of the host culture and time zone, and shall
+                  treat text beyond the supported date range (the years 1 to 9999 in whole milliseconds)
+                  as not a date: it keeps its column text under inference and, under an explicit date
+                  conversion, becomes null with the ordinary parse-failure warning, never an exception.
                 justification: |
                   Charts built from CSV files that opt in need typed values to scale correctly, and the
                   result must not depend on the machine that renders them; Vega infers by column, so a mixed
-                  column must stay text rather than become partly numeric.
+                  column must stay text rather than become partly numeric. A date that the value model
+                  cannot hold must not crash the render.
                 tests:
                   - DelimitedTextParser_Parse_AutoInfersBooleanNumberIsoDateAndString
                   - DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly
+                  - DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText
+                  - DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
                 title: >-

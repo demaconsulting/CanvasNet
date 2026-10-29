@@ -67,12 +67,16 @@ sections:
                 title: >-
                   The DataLoader unit shall read a data name from the datasets that the caller supplied
                   first and from the top-level datasets of the specification second, so that the caller's
-                  dataset wins, keeping the kinds of the caller's values (a date in UTC) and treating a
+                  dataset wins, keeping the kinds of the caller's values (a date in UTC, with the largest
+                  DateTime and DateTimeOffset values, the usual no-end sentinels, represented by the last
+                  supported millisecond of the year 9999 instead of failing) and treating a
                   specification dataset that is not an array of rows as empty for the catalog to report.
                 justification: |
-                  Hosts supply data without editing the specification, and the precedence must be defined.
+                  Hosts supply data without editing the specification, and the precedence must be defined;
+                  a host that marks an open end with DateTime.MaxValue must not break the render.
                 tests:
                   - DataLoader_Load_NamedDatasetsUseCallerPrecedence
+                  - DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate
 
               - id: CanvasNetVegaLite-Data-DataLoader-Sequences
                 title: >-
@@ -142,13 +146,19 @@ sections:
                   or name, in lenient and strict mode alike and never with an empty table, when
                   a local file is missing or cannot be used, when a file is not valid JSON, is not an
                   array of rows, lacks the format.property, holds a number outside the range of a double,
-                  or is nested too deeply, and when a data name is defined by nobody.
+                  holds text that is not valid Unicode (an escaped lone surrogate in a string or a property
+                  name, however it is reached), or is nested too deeply, and when a data name is defined by
+                  nobody.
                 justification: |
                   A broken data file or dataset reference is a deployment error; an empty chart would
-                  hide it, so only remote data, which is never read, is reported and left empty.
+                  hide it, so only remote data, which is never read, is reported and left empty. Text that
+                  cannot be represented must be a located data failure, not a raw exception.
                 tests:
                   - DataLoader_Load_MissingLocalFileIsHardFailure
                   - DataLoader_Load_UnusableJsonFileIsALocatedFailure
+                  - DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure
+                  - DataLoader_Load_JsonLoneSurrogatePropertyNameIsLocatedUnicodeFailure
+                  - DataLoader_Load_JsonLoneSurrogatePropertyLookupIsLocatedUnicodeFailure
                   - DataLoader_Load_MissingNamedDataIsHardFailure
 
               - id: CanvasNetVegaLite-Data-DataLoader-Limits

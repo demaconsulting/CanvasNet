@@ -31,8 +31,12 @@ normalized logical path in resolver mode), `Display` (the path as the specificat
 messages), and `Text` (the decoded text, without the byte-order mark).
 
 **`DataFileResolver`** is created for one measure or render call with the effective `VegaLiteOpenOptions`, the
-`VegaLiteLimits`, a cancellation token, and an optional link probe (`Func<string, bool>`, a seam for tests; the
-default asks the file system). It holds the cache of the files found by candidate key (a `null` remembers a candidate
+`VegaLiteLimits`, a cancellation token, an optional link probe (`Func<string, bool>`, a seam for tests; the
+default asks the file system), and an optional file opener (`Func<string, Stream>`, also a test-only seam; the default
+opens the file read-only with permissive sharing). The opener exists so that tests can make the open of an existing file
+fail with an access or I/O error, or report "not found", on every platform without any file permission, ACL, or lock; it
+is internal infrastructure and no public option. It holds the cache of the files found by candidate key (a `null`
+remembers a candidate
 that does not exist), the result of each link probe by full path, the number of files read, and the roots, which are
 computed on first use. It is not thread-safe and runs on the calling thread only.
 
@@ -58,11 +62,16 @@ link before the file is opened; no more than `MaxDataFiles` distinct files are r
   and then each prefix), loading each through the cache and returning the first file that exists; fails with "not
   found" when none does.
 - `LoadCandidate` - answers from the cache, otherwise reads the bytes, decodes them, and remembers the result.
-- `ReadBytes` - in resolver mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk, then
-  `File.Exists` (a directory where the file is expected is a located read failure, not a missing file), then opens the
-  file read-only with `FileShare.ReadWrite | FileShare.Delete`, and treats a file that vanished between the check and
-  the open (`FileNotFoundException`, `DirectoryNotFoundException`) as missing; any other `IOException` or
-  `UnauthorizedAccessException` of the open is a located read failure.
+- `ReadBytes` - in resolver mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
+  stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
+  directory where the file is expected as a located read failure (not a missing file), then attempts to open the
+  file read-only with `FileShare.ReadWrite | FileShare.Delete`. **The open attempt, not an existence probe, decides
+  missing versus unreadable**: `File.Exists` answers `false` for an existing file the process cannot access, so
+  gating on it would report an inaccessible file as "not found". Only a `FileNotFoundException` or
+  `DirectoryNotFoundException` from the open (a file that is missing, or that vanished since the walk) makes the
+  candidate missing and lets the search continue; any other `IOException` or `UnauthorizedAccessException` of the
+  open is a located read failure that ends the search.
+- `DefaultOpenFile` - the default opener; the constructor accepts an optional `Func<string, Stream>` that replaces it.
 - `ReadFromCallback` - calls the callback with the normalized logical path, reads the stream it returns, and disposes it
   exactly once, all inside one boundary: a failure of the callback, of the bounded read, or of the disposal (any
   exception other than a cancellation or an already located `VegaLiteRenderException`) is the located read failure.
@@ -72,7 +81,8 @@ link before the file is opened; no more than `MaxDataFiles` distinct files are r
 - `Decode` - removes a UTF-8 byte-order mark and decodes strictly (invalid bytes, UTF-16 text, and encoded surrogates
   are errors, never U+FFFD).
 - `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each existing component once
-  (the first missing component ends the walk and nothing below it is probed); a symbolic link or junction anywhere
+  (the first missing component above the file ends the walk and nothing below it is probed; a missing final component is
+  left to the open attempt); a symbolic link or junction anywhere
   below the root is an error, whatever its target; the root and everything above it are trusted; a probe that throws
   rejects the file (fail closed).
 - `DefaultIsLink` - a component is a link when its `LinkTarget` is not null (symbolic links and junctions, for files and
@@ -95,8 +105,10 @@ not use it as a data root.
 
 Every failure is a `VegaLiteRenderException` carrying the location of the `url` (never an empty result): no file source
 is configured, the path text is refused or leaves its root ("is not allowed" or "is outside the allowed
-directories"), a component is a link or the link probe fails, the file is not found, it cannot be read (an existing
-directory where a file is expected, an open that fails with an `IOException` or `UnauthorizedAccessException`, a stream
+directories"), a component is a link or the link probe fails, the file is not found (reported by the open attempt in
+every root), it cannot be read (an existing
+directory where a file is expected, an existing file whose open fails with an `IOException` or
+`UnauthorizedAccessException`, which is never reported as missing, a stream
 that fails while being read, a callback that throws, or a callback stream whose disposal throws), it is not
 valid UTF-8, it is larger than `MaxDataBytes`, or it would be the file after `MaxDataFiles`; the limit messages
 contain "the limit of ..." so that `CanvasNetTool` maps them to `budget-exceeded`. A configured directory that is not a

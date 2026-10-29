@@ -224,6 +224,113 @@ public class DataFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that an existing file whose open fails (an access or I/O failure) is a located read failure, never a
+    ///     missing file, and that no later root is tried. The opener is injected, so the test needs no file permission
+    ///     or lock and behaves the same on every platform.
+    /// </summary>
+    /// <param name="denied">Whether the open fails with an access failure (otherwise an I/O failure).</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure(bool denied)
+    {
+        // Arrange: the file exists in the base directory and in the second root; the open of every file fails
+        using var directory = new DataTempDirectory();
+        directory.Write("base/a.csv", "from base");
+        directory.Write("two/a.csv", "from two");
+        var opened = new List<string>();
+        var resolver = new DataFileResolver(
+            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base"), DataPaths = [directory.Combine("two")] },
+            VegaLiteLimits.Default,
+            Ct,
+            openFile: path =>
+            {
+                opened.Add(path);
+                throw denied ? new UnauthorizedAccessException("denied") : new IOException("locked");
+            });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("a.csv", Where));
+
+        // Assert: unreadable rather than missing, located, without the host path, and the second root was never opened
+        Assert.Contains("'a.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("not found", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+        Assert.Equal([Path.GetFullPath(directory.Combine("base/a.csv"))], opened);
+    }
+
+    /// <summary>
+    ///     Validates that a file that is reported missing by the open itself (it vanished, or the existence probe could
+    ///     not see it) is a missing candidate: the next root is tried, in base-directory-then-data-path order.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot()
+    {
+        // Arrange: the file exists everywhere, but the open of the first root's file reports "not found" (a race)
+        using var directory = new DataTempDirectory();
+        directory.Write("base/a.csv", "from base");
+        directory.Write("two/a.csv", "from two");
+        var opened = new List<string>();
+        var resolver = new DataFileResolver(
+            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base"), DataPaths = [directory.Combine("two")] },
+            VegaLiteLimits.Default,
+            Ct,
+            openFile: path =>
+            {
+                opened.Add(path);
+                return path == Path.GetFullPath(directory.Combine("base/a.csv"))
+                    ? throw new FileNotFoundException("gone")
+                    : new MemoryStream(Encoding.UTF8.GetBytes("from two"));
+            });
+        var onlyMissing = new DataFileResolver(
+            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base") },
+            VegaLiteLimits.Default,
+            Ct,
+            openFile: _ => throw new DirectoryNotFoundException("gone"));
+
+        // Act
+        var file = resolver.Load("a.csv", Where);
+        var missing = Assert.Throws<VegaLiteRenderException>(() => onlyMissing.Load("a.csv", Where));
+
+        // Assert: the next root supplied the file after the first was tried; with no other root it is "not found"
+        Assert.Equal("from two", file.Text);
+        Assert.Equal([Path.GetFullPath(directory.Combine("base/a.csv")), Path.GetFullPath(directory.Combine("two/a.csv"))], opened);
+        Assert.Contains("'a.csv' was not found", missing.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a final component that no existence probe can see is left to the open attempt: a real missing
+    ///     file is still "not found", and the open is attempted rather than skipped.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_MissingFinalComponentIsDecidedByTheOpen()
+    {
+        // Arrange: an existing directory without the file; the opener records the attempt and delegates to the file system
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root/sub"));
+        var opened = new List<string>();
+        var resolver = new DataFileResolver(
+            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") },
+            VegaLiteLimits.Default,
+            Ct,
+            openFile: path =>
+            {
+                opened.Add(path);
+                return new FileStream(path, FileMode.Open, FileAccess.Read);
+            });
+
+        // Act
+        var final = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("sub/none.csv", Where));
+        var intermediate = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("absent/none.csv", Where));
+
+        // Assert: both are "not found"; only the missing final component reached the open (a missing directory did not)
+        Assert.Contains("'sub/none.csv' was not found", final.Message, StringComparison.Ordinal);
+        Assert.Contains("'absent/none.csv' was not found", intermediate.Message, StringComparison.Ordinal);
+        Assert.Equal([Path.GetFullPath(directory.Combine("root/sub/none.csv"))], opened);
+    }
+
+    /// <summary>
     ///     Validates that each candidate is requested at most once per call: a file that is loaded again comes from the
     ///     cache and a miss is remembered too.
     /// </summary>

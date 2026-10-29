@@ -73,7 +73,9 @@ are consumed and validated but never stored.
 ##### Type Inference Per Column
 
 **Tests**: `DelimitedTextParserTests.DelimitedTextParser_Parse_AutoInfersBooleanNumberIsoDateAndString`,
-`DelimitedTextParserTests.DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly`
+`DelimitedTextParserTests.DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly`,
+`DelimitedTextParserTests.DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText`,
+`DelimitedTextParserTests.DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning`
 
 Asserts, with the explicit `ParseDirectives.Auto` opt-in, that a column of `true` and `false` in any case is boolean
 with an empty cell null, a column of integers,
@@ -84,7 +86,13 @@ kinds stays text, and that hexadecimal, `NaN`, and infinities leave their column
 non-empty cell keeps its empty text; and, as a theory, that the date forms `yyyy-MM-dd`, minutes, seconds, and up to
 seven fraction digits, with and without `Z` or an offset, are accepted (a text without a zone is UTC, and a leap day is
 valid), while impossible dates, a day without two digits, other separators, a space instead of `T`, more than seven
-fraction digits, a bare year, and the empty text are refused.
+fraction digits, a bare year, and the empty text are refused. The same theory covers the boundary of the supported
+date range: `9999-12-31T23:59:59.999` is a date, while `9999-12-31T23:59:59.9995` and `9999-12-31T23:59:59.9999999`
+(a fraction of a millisecond past the last supported millisecond, which .NET itself parses) are refused. Under
+inference a column holding such text stays text with the original text kept and no failure recorded, while a column
+holding the exact last millisecond is a date whose milliseconds equal 253402300799999 exactly. Under an explicit
+`date` conversion the representable value converts and the out-of-range text is null with exactly one
+`vl-data-parse-failed` warning naming the count, the row, and the text, and no exception escapes.
 
 ##### Explicit Parse
 

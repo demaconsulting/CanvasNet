@@ -207,16 +207,46 @@ internal sealed class DataLoader
     ///     Converts a value of a caller's dataset.
     /// </summary>
     /// <param name="value">The value: null, a bool, a string, a finite number of any built-in type, a <see cref="DateTime"/> or a <see cref="DateTimeOffset"/>.</param>
+    /// <param name="location">The location of the data, for errors.</param>
     /// <returns>The data value.</returns>
-    private static DataValue FromObject(object? value) => value switch
+    /// <exception cref="VegaLiteRenderException">Thrown when a date cannot be represented.</exception>
+    private static DataValue FromObject(object? value, VegaLiteLocation location) => value switch
     {
         null => DataValue.Null,
         bool flag => DataValue.FromBoolean(flag),
         string text => DataValue.FromString(text),
-        DateTime date => DataValue.FromDateTime(date),
-        DateTimeOffset offset => DataValue.FromDateTime(offset.UtcDateTime),
+        DateTime date => FromDateTime(date, location),
+        DateTimeOffset offset => FromDateTime(offset.UtcDateTime, location),
         _ => DataValue.FromNumber(Convert.ToDouble(value, CultureInfo.InvariantCulture)),
     };
+
+    /// <summary>
+    ///     Converts a date of a caller's dataset, clamping the largest value of the .NET types to the largest supported date.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="DateTime.MaxValue"/> and <see cref="DateTimeOffset.MaxValue"/> are the usual "no end" sentinels. They
+    ///     carry sub-millisecond ticks that the whole-millisecond date range cannot hold, so a point in time past the last
+    ///     whole millisecond of year 9999 is represented by that millisecond. Kind handling is that of
+    ///     <see cref="DataValue.FromDateTime(DateTime)"/> (local converted to UTC, unspecified taken as UTC). Any other
+    ///     failure to represent the date is a located failure, never a raw exception.
+    /// </remarks>
+    /// <param name="value">The point in time.</param>
+    /// <param name="location">The location of the data, for errors.</param>
+    /// <returns>The date value.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the date cannot be represented.</exception>
+    private static DataValue FromDateTime(DateTime value, VegaLiteLocation location)
+    {
+        try
+        {
+            var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+            var milliseconds = DataValue.MillisecondsSinceEpoch(utc);
+            return DataValue.FromDate(Math.Min(milliseconds, DataValue.MaxDateMilliseconds));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new VegaLiteRenderException("A date in the data cannot be represented (the supported dates are the years 1 to 9999).", location);
+        }
+    }
 
     /// <summary>
     ///     Reads the <c>delimiter</c> of a DSV format.
@@ -410,7 +440,7 @@ internal sealed class DataLoader
             var record = new Dictionary<string, DataValue>(row.Count, StringComparer.Ordinal);
             foreach (var (field, value) in row)
             {
-                record[FieldPath.Escape(field)] = FromObject(value);
+                record[FieldPath.Escape(field)] = FromObject(value, location);
                 CheckFieldCount(record, location);
             }
 
@@ -577,7 +607,32 @@ internal sealed class DataLoader
 
         using (document)
         {
-            var root = document.RootElement;
+            var records = ReadJsonRecords(document.RootElement, format, file, location);
+            var failures = new ParseFailures();
+            ParseDirectives.Read(format, defaultAuto: false).Apply(records, failures, _cancellation);
+            return Complete(records, failures, location, dataLocation);
+        }
+    }
+
+    /// <summary>
+    ///     Reads the rows of a parsed JSON document, turning text that is not valid Unicode into a located failure.
+    /// </summary>
+    /// <remarks>
+    ///     The JSON parser accepts an escaped lone surrogate (such as <c>\ud800</c>) and only fails when the string or the
+    ///     property name is read, with a raw <see cref="InvalidOperationException"/>. Every element access of the rows (the
+    ///     <c>format.property</c> lookup, the property names and the strings) is inside one boundary that reports it as a
+    ///     <see cref="VegaLiteRenderException"/> at the data location. A failure that is already located passes through.
+    /// </remarks>
+    /// <param name="root">The root element of the document.</param>
+    /// <param name="format">The <c>format</c> object, or null.</param>
+    /// <param name="file">The file.</param>
+    /// <param name="location">The location of the <c>url</c>.</param>
+    /// <returns>The rows.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the property is missing, the selected value is not an array, a limit is exceeded or the text is not valid Unicode.</exception>
+    private List<Dictionary<string, DataValue>> ReadJsonRecords(JsonElement root, SpecNode? format, DataFile file, VegaLiteLocation location)
+    {
+        try
+        {
             if (format?["property"] is { IsString: true } property)
             {
                 root = SelectProperty(root, property.StringValue!, file.Display, location);
@@ -611,9 +666,11 @@ internal sealed class DataLoader
                 records.Add(record);
             }
 
-            var failures = new ParseFailures();
-            ParseDirectives.Read(format, defaultAuto: false).Apply(records, failures, _cancellation);
-            return Complete(records, failures, location, dataLocation);
+            return records;
+        }
+        catch (InvalidOperationException ex) when (ex is not VegaLiteRenderException)
+        {
+            throw new VegaLiteRenderException($"The data '{file.Display}' contains text that is not valid Unicode (an unpaired surrogate escape).", location);
         }
     }
 

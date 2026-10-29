@@ -250,7 +250,8 @@ internal sealed class ParseDirectives
     /// <remarks>
     ///     The forms are <c>yyyy-MM-dd</c> (midnight UTC), and <c>yyyy-MM-ddTHH:mm</c>, <c>...:ss</c> and <c>...:ss.f</c> (up
     ///     to seven fraction digits), each with an optional <c>Z</c> or <c>+HH:mm</c> offset; without an offset the time is
-    ///     taken as UTC, so the result never depends on the host time zone or culture.
+    ///     taken as UTC, so the result never depends on the host time zone or culture. A date beyond the supported range of
+    ///     <c>DataValue</c> (years 1 to 9999, whole milliseconds) is not a date.
     /// </remarks>
     /// <param name="text">The text; surrounding white space is ignored.</param>
     /// <param name="milliseconds">Receives the milliseconds since 1970-01-01T00:00:00Z.</param>
@@ -274,7 +275,15 @@ internal sealed class ParseDirectives
             return false;
         }
 
-        milliseconds = (parsed - DateTime.UnixEpoch).TotalMilliseconds;
+        milliseconds = DataValue.MillisecondsSinceEpoch(parsed);
+
+        // A sub-millisecond fraction in the last millisecond of year 9999 is beyond the supported date range, so it is not a date
+        if (milliseconds < DataValue.MinDateMilliseconds || milliseconds > DataValue.MaxDateMilliseconds)
+        {
+            milliseconds = 0;
+            return false;
+        }
+
         return true;
     }
 
@@ -442,10 +451,19 @@ internal sealed class ParseDirectives
                     return true;
                 }
 
+                // The ISO reader only returns milliseconds inside the supported range; a failure to convert is still the
+                // ordinary "not a date" outcome (null with a warning, or text under auto inference), never a raw exception
                 if (TryParseIsoDate(value.Text, out var milliseconds))
                 {
-                    result = DataValue.FromDate(milliseconds);
-                    return true;
+                    try
+                    {
+                        result = DataValue.FromDate(milliseconds);
+                        return true;
+                    }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        return false;
+                    }
                 }
 
                 return false;

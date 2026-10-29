@@ -25,7 +25,11 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Data-DataTable-*` req
 `Milliseconds`, and `Text`. A **date** is an instant held as milliseconds since 1970-01-01T00:00:00Z in UTC (as
 JavaScript's `Date` holds it), finite and within the years 1 to 9999 (`FromDate` throws `ArgumentOutOfRangeException`
 outside that range); `FromDateTime` converts a local `DateTime` to UTC and takes an unspecified one as UTC, so a date
-never depends on the host's time zone. Equality is JavaScript's SameValueZero (so NaN equals NaN and zero equals
+never depends on the host's time zone. The supported range is exposed as `MinDateMilliseconds` and `MaxDateMilliseconds`
+(0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999Z) so callers can test a candidate instant before creating a date, and
+`MillisecondsSinceEpoch(DateTime)` computes the milliseconds of a UTC point in time from whole milliseconds in integer
+arithmetic (`TimeSpan.TotalMilliseconds` divides a tick count that a double cannot hold exactly for the distant years).
+Equality is JavaScript's SameValueZero (so NaN equals NaN and zero equals
 negative zero), which makes the struct usable as a dictionary key. `TryGetQuantitative(out double)` reads a finite
 number, a date (its milliseconds), a boolean (1 or 0), or a numeric string (trimmed), and fails for null, an empty
 string, NaN, and infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`,

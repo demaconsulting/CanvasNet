@@ -72,26 +72,38 @@ the four unit verification documents passes without error or unexpected exceptio
   `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
   `DataFileResolverLinkTests.DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen`,
   `DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
+  `DataFileResolverTests.DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure`,
+  `DataFileResolverTests.DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot`,
   `DataFileResolverTests.DataFileResolver_Load_CallbackFailureIsLocatedReadFailure`,
+  `DataLoaderTests.DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException` —
   a missing file, a path outside the sandbox, and bytes that are not UTF-8 each fail with a located
   `VegaLiteRenderException`, in lenient and strict mode alike, a file behind a link is refused before it is opened
   (with the injected link probe), a directory in place of a file and a throwing resolver callback are located read
-  failures (never raw exceptions), and an absolute path is remote data that is never opened.
+  failures (never raw exceptions), an existing file whose open fails with an access or I/O error (raised by the
+  injected opener on every platform) is "cannot be read" and not "not found" while a "not found" from the open is a
+  missing candidate that lets the next root be tried, JSON text with an escaped lone surrogate is a located
+  invalid-Unicode failure, and an absolute path is remote data that is never opened.
 - **Named Datasets And Sequences**:
   `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
+  `DataLoaderTests.DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate`,
   `DataLoaderTests.DataLoader_Load_SequenceUsesExclusiveStopAndAs`,
   `DataLoaderTests.DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure`,
   `DataLoaderTests.DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender` — the
-  caller's dataset beats the specification's, a sequence excludes its stop, and both draw the pixels of the same rows
+  caller's dataset beats the specification's, the largest `DateTime` and `DateTimeOffset` values (and the last supported
+  millisecond itself) are the date `9999-12-31T23:59:59.999Z` instead of failing, a sequence excludes its stop, and both
+  draw the pixels of the same rows
   written inline without any report, while a sequence with a missing, non-finite, or zero-step input fails with a
   located error.
 - **Parse Conversions And Failures**:
   `DataLoaderTests.DataLoader_Load_ParseFailuresAreCollectedAsWarnings`,
+  `DelimitedTextParserTests.DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText`,
+  `DelimitedTextParserTests.DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings` —
   values that an explicit conversion cannot read are null and give one warning per field, delivered after the reports of
-  the specification.
+  the specification; ISO text beyond the supported date range stays text under inference and is null with the same
+  warning under an explicit date conversion.
 - **Row, Field, File, And Byte Limits Fail Closed With The Location Of The Data**:
   `DataLoaderTests.DataLoader_Load_RowLimitFailsWithLocation`,
   `DataLoaderTests.DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf`,

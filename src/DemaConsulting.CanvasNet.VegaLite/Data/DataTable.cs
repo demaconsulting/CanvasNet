@@ -49,10 +49,10 @@ internal enum DataValueKind
 internal readonly struct DataValue : IEquatable<DataValue>
 {
     /// <summary>The smallest date in milliseconds since the epoch: 0001-01-01T00:00:00Z.</summary>
-    private const double MinDateMilliseconds = -62135596800000.0;
+    internal const double MinDateMilliseconds = -62135596800000.0;
 
     /// <summary>The largest date in milliseconds since the epoch: 9999-12-31T23:59:59.999Z.</summary>
-    private const double MaxDateMilliseconds = 253402300799999.0;
+    internal const double MaxDateMilliseconds = 253402300799999.0;
 
     /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
@@ -145,6 +145,22 @@ internal readonly struct DataValue : IEquatable<DataValue>
     }
 
     /// <summary>
+    ///     Gets the milliseconds since the epoch of a UTC point in time, exactly to the sub-millisecond fraction.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="TimeSpan.TotalMilliseconds"/> divides a tick count that is beyond the exact range of a double for the
+    ///     distant years, which would turn the last whole millisecond into a nearby fraction. The whole milliseconds are
+    ///     computed in integer arithmetic here, so every whole millisecond of the supported range is exact.
+    /// </remarks>
+    /// <param name="utc">The point in time, taken as UTC.</param>
+    /// <returns>The milliseconds since 1970-01-01T00:00:00Z.</returns>
+    public static double MillisecondsSinceEpoch(DateTime utc)
+    {
+        var ticks = utc.Ticks - DateTime.UnixEpoch.Ticks;
+        return (ticks / TimeSpan.TicksPerMillisecond) + ((ticks % TimeSpan.TicksPerMillisecond) / (double)TimeSpan.TicksPerMillisecond);
+    }
+
+    /// <summary>
     ///     Creates a date value from a point in time.
     /// </summary>
     /// <remarks>
@@ -156,7 +172,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public static DataValue FromDateTime(DateTime value)
     {
         var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
-        return FromDate((utc - DateTime.UnixEpoch).TotalMilliseconds);
+        return FromDate(MillisecondsSinceEpoch(utc));
     }
 
     /// <summary>

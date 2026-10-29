@@ -42,7 +42,8 @@ internal sealed record DataFile(string Key, string Display, string Text);
 ///         the specification text. A file that is found, read or decoded wrongly, a file that is missing and a file that
 ///         is blocked by the sandbox are all failures (<see cref="VegaLiteRenderException"/>): a local data file that
 ///         cannot be used is never treated as an empty dataset. A directory where a file is expected, an open that fails
-///         with an I/O or access error, and a callback that throws or whose stream fails to read or dispose are the same
+///         with an I/O or access error (an existing file the process cannot open is unreadable, never missing: only the
+///         open attempt itself reporting "not found" makes a candidate missing), and a callback that throws or whose stream fails to read or dispose are the same
 ///         located read failure; only a cancellation passes through unchanged. Files are opened read-only with
 ///         <see cref="FileShare.ReadWrite"/> and <see cref="FileShare.Delete"/>, so concurrent readers, writers and
 ///         rename or delete operations by other processes do not block the bounded read.
@@ -81,12 +82,19 @@ internal sealed partial class DataFileResolver
     /// <param name="limits">The render limits.</param>
     /// <param name="cancellation">The cancellation token, polled between files and chunks.</param>
     /// <param name="isLink">The probe that tells whether a full path is a symbolic link or junction; <see langword="null"/> uses the file system. A seam for tests.</param>
-    public DataFileResolver(VegaLiteOpenOptions options, VegaLiteLimits limits, CancellationToken cancellation, Func<string, bool>? isLink = null)
+    /// <param name="openFile">The opener of a file-system candidate for reading; <see langword="null"/> opens the file read-only on the file system. A seam for tests (it lets a test raise an access or I/O failure without any file-system permission or lock assumption).</param>
+    public DataFileResolver(
+        VegaLiteOpenOptions options,
+        VegaLiteLimits limits,
+        CancellationToken cancellation,
+        Func<string, bool>? isLink = null,
+        Func<string, Stream>? openFile = null)
     {
         _options = options;
         _limits = limits;
         _cancellation = cancellation;
         _isLink = isLink ?? DefaultIsLink;
+        _openFile = openFile ?? DefaultOpenFile;
         _keyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
         _files = new Dictionary<string, DataFile?>(_keyComparer);
         _linkStates = new Dictionary<string, bool>(_keyComparer);
@@ -172,29 +180,29 @@ internal sealed partial class DataFileResolver
             return ReadFromCallback(candidate, display, location);
         }
 
-        // The walk runs before the file is opened (and before File.Exists on the final component), so nothing is
-        // ever read through a link and a file behind a link is never reported as existing
+        // The walk runs before the file is opened, so nothing is ever read through a link and a file behind a link is
+        // never reported as existing. A missing intermediate component ends the candidate there; the final component is
+        // not decided by an existence probe, because a probe reports "missing" for an existing file it cannot access
         if (!WalkRejectingLinks(candidate, display, location))
         {
             return null;
         }
 
-        if (!File.Exists(candidate.Key))
+        // A directory where a file is expected is not a missing file: it exists but cannot be read as data
+        if (Directory.Exists(candidate.Key))
         {
-            // A directory where a file is expected is not a missing file: it exists but cannot be read as data
-            return Directory.Exists(candidate.Key) ? throw CannotRead(display, location) : null;
+            throw CannotRead(display, location);
         }
 
         try
         {
-            // Read-only access that tolerates concurrent readers, writers and rename or delete operations by other
-            // processes, so a file that is being written elsewhere does not turn into a sharing violation
-            using var file = new FileStream(candidate.Key, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, ReadChunkSize);
+            // The open attempt decides: only "not found" means the candidate is missing
+            using var file = _openFile(candidate.Key);
             return ReadBounded(file, display, location);
         }
         catch (FileNotFoundException)
         {
-            // The file vanished between the check and the open: it is missing
+            // The file is missing (or vanished since the walk): the next candidate is tried
             return null;
         }
         catch (DirectoryNotFoundException)
@@ -207,6 +215,15 @@ internal sealed partial class DataFileResolver
             throw CannotRead(display, location);
         }
     }
+
+    /// <summary>
+    ///     The default opener: read-only access that tolerates concurrent readers, writers and rename or delete
+    ///     operations by other processes, so a file that is being written elsewhere does not turn into a sharing violation.
+    /// </summary>
+    /// <param name="path">The full path of the file.</param>
+    /// <returns>The open stream.</returns>
+    private static FileStream DefaultOpenFile(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, ReadChunkSize);
 
     /// <summary>
     ///     Reads the bytes of a candidate from the resolver callback.

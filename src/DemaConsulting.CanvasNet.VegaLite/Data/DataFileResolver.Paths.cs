@@ -16,8 +16,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         paths. A candidate is the full path of the text combined with a root and must lie under that root (ordinal
 ///         comparison; case-insensitive on Windows and macOS). Every component below the root, including the file
 ///         itself, must not be a symbolic link or junction, whatever its target: the candidate is walked top-down from
-///         the root, only existing components are probed (a missing component means the file is missing, and nothing
-///         below it is examined), each component is probed once per resolver, and a probe that fails rejects the file.
+///         the root, only existing components are probed (a missing component above the file means the file is missing,
+///         and nothing below it is examined; the file itself is probed for a link when it exists, and is otherwise
+///         classified by the open attempt, which tells a missing file from an existing one that cannot be opened), each component is probed once per resolver, and a probe that fails rejects the file.
 ///         The root itself and everything above it are trusted, because the caller chose them. The check precedes
 ///         opening the file, so nothing is read through a link and a file behind a link is not reported as existing. A
 ///         caller who wants to use linked content adds the real directory as a data path. Other reparse points that
@@ -49,6 +50,9 @@ internal sealed partial class DataFileResolver
 
     /// <summary>The link probe: tells whether a full path is a symbolic link or junction.</summary>
     private readonly Func<string, bool> _isLink;
+
+    /// <summary>The opener of a file-system candidate: a seam so tests can raise an open failure.</summary>
+    private readonly Func<string, Stream> _openFile;
 
     /// <summary>The probe results by full path of an existing component, so each component is probed once.</summary>
     private readonly Dictionary<string, bool> _linkStates;
@@ -244,21 +248,24 @@ internal sealed partial class DataFileResolver
     /// <param name="candidate">The candidate; its key is a full path under its root.</param>
     /// <param name="display">The name shown in messages.</param>
     /// <param name="location">The location of the path.</param>
-    /// <returns><see langword="true"/> when every component exists and none is a link; <see langword="false"/> when a component does not exist.</returns>
+    /// <returns><see langword="true"/> when no component is a link and every component above the file exists (the file itself is left to the open attempt); <see langword="false"/> when a component above the file does not exist.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when a component is a link, or cannot be checked.</exception>
     private bool WalkRejectingLinks(Candidate candidate, string display, VegaLiteLocation location)
     {
         // The root itself and everything above it are trusted; only components strictly below it are examined
         var current = candidate.Root;
-        foreach (var segment in Path.GetRelativePath(candidate.Root, candidate.Key).Split(Path.DirectorySeparatorChar))
+        var segments = Path.GetRelativePath(candidate.Root, candidate.Key).Split(Path.DirectorySeparatorChar);
+        for (var index = 0; index < segments.Length; index++)
         {
-            current = Path.Join(current, segment);
+            current = Path.Join(current, segments[index]);
             if (!_linkStates.TryGetValue(current, out var isLink))
             {
-                // The first missing component ends the walk: nothing below it can exist, so it is never probed
+                // The first missing component ends the walk: nothing below it can exist, so it is never probed. The
+                // final component is the exception: an existence probe also says "missing" for an existing file it
+                // cannot access, so the open attempt (not the probe) decides whether the file is missing or unreadable
                 if (!File.Exists(current) && !Directory.Exists(current))
                 {
-                    return false;
+                    return index == segments.Length - 1;
                 }
 
                 isLink = ProbeLink(current, display, location);

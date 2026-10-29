@@ -67,6 +67,12 @@ sign (hexadecimal, thousands separators, `NaN`, infinities, and numbers outside 
 numbers); else a **date** column when every non-empty text is an ISO 8601 date or date-time (`yyyy-MM-dd`,
 `yyyy-MM-ddTHH:mm`, `...:ss`, and `...:ss.f` with up to seven fraction digits, each with an optional `Z` or `+HH:mm`
 offset); otherwise text. A date without a zone is UTC, so the result never depends on the host time zone or culture.
+A date counts only if the value model can hold it: the instant must lie within the years 1 to 9999 in whole
+milliseconds (`DataValue.MinDateMilliseconds` to `MaxDateMilliseconds`), so `9999-12-31T23:59:59.999` is a date while
+`9999-12-31T23:59:59.9995` (a fraction of a millisecond beyond the last supported one) is not, even though .NET parses
+it. `TryParseIsoDate` applies that range itself, computing the milliseconds in integer arithmetic
+(`DataValue.MillisecondsSinceEpoch`, because `TimeSpan.TotalMilliseconds` is inexact for the distant years), so text
+beyond the range is simply "not a date" in both paths below and no `ArgumentOutOfRangeException` can reach the caller.
 In a typed column an empty text is null. A column with no non-empty text stays text. The tests are in that order, so a
 column of `1` and `0` is numbers and a column of dates is not numbers.
 
@@ -78,7 +84,8 @@ white-space text becomes null except for `string`):
 - `boolean`: a boolean stays; a number is true when not zero; a text is `true` or `false` in any case, or `1` or `0`; a
   date or any other text is a failure
 - `date`: a date stays; a number is milliseconds since the epoch (a failure outside the years 1 to 9999); a text is an
-  ISO 8601 date or date-time; a boolean or any other text is a failure
+  ISO 8601 date or date-time within the supported range (an out-of-range one is a failure: null plus the ordinary
+  `vl-data-parse-failed` warning); a boolean or any other text is a failure
 - `string`: the JavaScript text form of the value (`DataValue.ToText`)
 - a custom date format (`date:'%fmt'`, `utc:'%fmt'`): recognized and **not applied**; the field is left as read and
   no failure is recorded; the feature catalog reports it as `vl-data-parse-date-format`

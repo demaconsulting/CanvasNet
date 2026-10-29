@@ -99,7 +99,9 @@ sections:
               explicit opt-in to per-column inference), named fields are converted to number, boolean,
               date, or string, and null keeps a source as read; ISO 8601 dates are read as instants in
               UTC, a value that cannot be converted becomes null with one vl-data-parse-failed warning per
-              field, and a custom date format is left as read. Quantitative encodings still coerce numeric
+              field, and a custom date format is left as read. Text beyond the supported date range is
+              not a date: it stays text under inference and becomes null with the same warning under an
+              explicit date conversion. Quantitative encodings still coerce numeric
               text when they are drawn.
             justification: |
               Typed values are what scales and axes need when asked for, identifiers such as postal codes
@@ -116,13 +118,16 @@ sections:
               - DataLoader_Load_LocalCsvUrlUsesRelativeFile
               - DataLoader_Load_DefaultDelimitedTextKeepsTextValues
               - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
+              - DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText
+              - DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning
               - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
               - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
 
           - id: CanvasNetVegaLite-Data-NamedAndSequence
             title: >-
               The Data subsystem shall load a named dataset from the caller's datasets first and the
-              top-level datasets of the specification second, and shall generate a sequence of numbers
+              top-level datasets of the specification second (representing the largest DateTime and
+              DateTimeOffset values by the last supported millisecond), and shall generate a sequence of numbers
               from start up to, but not including, stop with the documented step and field name, checking
               the length with overflow-safe arithmetic before allocating it and failing closed for a
               sequence whose start, stop, or step is missing, not finite, or (for the step) zero.
@@ -134,6 +139,7 @@ sections:
               - CanvasNetVegaLite-Data-DataLoader-SequenceValidation
             tests:
               - DataLoader_Load_NamedDatasetsUseCallerPrecedence
+              - DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate
               - DataLoader_Load_SequenceUsesExclusiveStopAndAs
               - DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure
               - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
@@ -143,8 +149,9 @@ sections:
             title: >-
               The Data subsystem shall fail with a VegaLiteRenderException located at the offending data
               url or name, never with an empty table, when a local data file is missing, cannot be read
-              (including a directory in place of a file, an open failure, and a failing resolver callback
-              or stream), or is not valid, and when a named dataset is defined by nobody.
+              (including a directory in place of a file, an existing file that cannot be opened, which is
+              never reported as missing, and a failing resolver callback or stream), or is not valid
+              (including JSON text that is not valid Unicode), and when a named dataset is defined by nobody.
             justification: |
               A broken data reference is a deployment error that an empty chart would hide, and raw I/O
               or callback exceptions must not escape the documented render contract.
@@ -156,6 +163,8 @@ sections:
               - DataLoader_Load_MissingLocalFileIsHardFailure
               - DataLoader_Load_MissingNamedDataIsHardFailure
               - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
+              - DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure
+              - DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure
               - DataFileResolver_Load_CallbackFailureIsLocatedReadFailure
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
 

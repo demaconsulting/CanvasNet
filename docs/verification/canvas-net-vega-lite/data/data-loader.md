@@ -109,6 +109,7 @@ that a file named twice in one call is requested once and counts once for a file
 ##### Named Datasets And Sequences
 
 **Tests**: `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
+`DataLoaderTests.DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate`,
 `DataLoaderTests.DataLoader_Load_SequenceUsesExclusiveStopAndAs`,
 `DataLoaderTests.DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation`,
 `DataLoaderTests.DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure`,
@@ -119,7 +120,10 @@ that a file named twice in one call is requested once and counts once for a file
 
 Asserts that a caller's dataset replaces a top-level dataset of the same name (and keeps the kinds of its values: numbers
 of several types, text, booleans, null, and a `DateTime` or `DateTimeOffset` as a UTC date, with a dotted key escaped),
-that a dataset only the specification defines is used, and that one given as text is the shared empty table; that a
+that a dataset only the specification defines is used, and that one given as text is the shared empty table. A caller
+dataset holding `DateTime.MaxValue`, `DateTimeOffset.MaxValue`, a local-kind `DateTime.MaxValue`, and the exact last
+supported millisecond gives, for each, the date with milliseconds 253402300799999 and the text
+`9999-12-31T23:59:59.999Z` instead of failing, while `DateTime.MinValue` is `0001-01-01T00:00:00.000Z`; that a
 sequence runs from the start up to, and excluding, the stop in the field `data` by default, with a custom step and field
 name, with a negative step counting down, and empty for a step in the wrong direction, and computes each value from
 its index (ten values and no drift for a step of 0.1); and that a sequence of 1e15 values is refused against the
@@ -146,6 +150,9 @@ is untouched.
 
 **Tests**: `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
 `DataLoaderTests.DataLoader_Load_UnusableJsonFileIsALocatedFailure`,
+`DataLoaderTests.DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure`,
+`DataLoaderTests.DataLoader_Load_JsonLoneSurrogatePropertyNameIsLocatedUnicodeFailure`,
+`DataLoaderTests.DataLoader_Load_JsonLoneSurrogatePropertyLookupIsLocatedUnicodeFailure`,
 `DataLoaderTests.DataLoader_Load_MissingNamedDataIsHardFailure`
 
 Asserts that a local file that cannot be found is a "was not found" failure at `/data/url`, that a document without any
@@ -153,6 +160,12 @@ file source fails the same way and no request was made for it, that malformed JS
 missing or malformed `format.property`, a number outside the range of a double, and nesting deeper than the limit are
 located failures at the `url` (as a theory), and that a named dataset that nobody defines fails with the dataset's name
 and where to define it, located at `/data/name`, directly and through `Render` in lenient and strict mode alike.
+
+Three scenarios read a virtual JSON file whose text holds an escaped lone surrogate (`\ud800`, `\udc00`), which the JSON
+parser accepts and only a later element access rejects: in a string value, in a property name of a row, and in a
+property name that the `format.property` lookup must compare. Each asserts a `VegaLiteRenderException` (a raw
+`InvalidOperationException` would fail the exact-type check, because the render exception derives from it) whose message
+says that `'d.json'` contains text that is not valid Unicode, located at `/data/url` in the specification file.
 
 ##### Limits And Cancellation
 

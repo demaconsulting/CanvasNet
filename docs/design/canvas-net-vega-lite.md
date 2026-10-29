@@ -579,9 +579,12 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     `vl-data-parse-failed` warning for the field, instead of NaN or an invalid date; an empty text becomes null.
 13. **Local files are hard errors**: a data file that cannot be used fails the render with a located
     `VegaLiteRenderException` in lenient mode too, because an empty chart would hide a broken deployment; only remote
-    data, which is never fetched, is reported and empty. This includes a directory where a file is expected, an open
-    that fails, and a callback or callback stream that throws, which are the located "cannot be read" failure rather
-    than a raw exception.
+    data, which is never fetched, is reported and empty. This includes a directory where a file is expected, an existing
+    file that cannot be opened (never reported as missing: only the open attempt decides that), JSON data text that is
+    not valid Unicode, and a callback or callback stream that throws, which are located failures ("cannot be read", or a
+    located data failure) rather than a raw exception.
+    Caller dataset dates are UTC; `DateTime.MaxValue` and `DateTimeOffset.MaxValue` (the usual "no end" sentinels) are
+    clamped to the last supported millisecond of the year 9999, and ISO text beyond the supported date range is not a date.
 14. **Links**: a symbolic link or junction below a root is refused (a link target is never followed), whatever it
     points to; a link at or above the root, which the caller chose, is trusted, and other reparse points that redirect
     nothing (for example the placeholders of a synchronized folder) are not links in this sense.

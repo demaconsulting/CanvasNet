@@ -233,6 +233,9 @@ public class DelimitedTextParserTests
     [InlineData("2024-03-05T10:20:30+05:30", true)]
     [InlineData("2024-03-05T10:20:30-08:00", true)]
     [InlineData("2024-02-29", true)]
+    [InlineData("9999-12-31T23:59:59.999", true)]
+    [InlineData("9999-12-31T23:59:59.9995", false)]
+    [InlineData("9999-12-31T23:59:59.9999999", false)]
     [InlineData("2023-02-29", false)]
     [InlineData("2024-13-01", false)]
     [InlineData("2024-3-5", false)]
@@ -255,6 +258,49 @@ public class DelimitedTextParserTests
         {
             Assert.True(milliseconds > 0);
         }
+    }
+
+    /// <summary>
+    ///     Validates that ISO text beyond the supported date range stays text under automatic inference: a column holding
+    ///     one is not a date column, and nothing throws.
+    /// </summary>
+    [Fact]
+    public void DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText()
+    {
+        // Arrange: a column whose second cell is past the last whole millisecond of year 9999, and a column in range
+        const string text = "late,ok\n2024-03-05,9999-12-31T23:59:59.999\n9999-12-31T23:59:59.9995,2024-03-05";
+
+        // Act
+        var result = Parse(text, directives: ParseDirectives.Auto);
+
+        // Assert: the column with the out-of-range cell is text; the other column is dates, the maximum being exact
+        Assert.All(result.Records, r => Assert.True(r["late"].IsString));
+        Assert.Equal("9999-12-31T23:59:59.9995", result.Records[1]["late"].Text);
+        Assert.All(result.Records, r => Assert.Equal(DataValueKind.Date, r["ok"].Kind));
+        Assert.Equal(253402300799999.0, result.Records[0]["ok"].Milliseconds);
+        Assert.True(result.Failures.IsEmpty);
+    }
+
+    /// <summary>
+    ///     Validates that an explicit date conversion of ISO text beyond the supported range is the ordinary failure: the
+    ///     value is null, one warning counts it, and no exception escapes.
+    /// </summary>
+    [Fact]
+    public void DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning()
+    {
+        // Arrange
+        const string text = "d\n2024-03-05\n9999-12-31T23:59:59.9995";
+
+        // Act
+        var result = Parse(text, directives: Directives("{\"parse\":{\"d\":\"date\"}}"));
+
+        // Assert: the representable date converts, the other is null with a warning naming the first offender
+        Assert.Equal(Ms(2024, 3, 5), result.Records[0]["d"].Milliseconds);
+        Assert.True(result.Records[1]["d"].IsNull);
+        var report = Assert.Single(result.Failures.ToReports(Where));
+        Assert.Equal("vl-data-parse-failed", report.Id);
+        Assert.Equal(FeatureReportKind.Warning, report.Kind);
+        Assert.Contains("1 value(s) of the field 'd' could not be read as date and are null (the first is in row 2: '9999-12-31T23:59:59.9995')", report.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

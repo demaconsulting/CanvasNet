@@ -94,17 +94,25 @@ sections:
                   The DataFileResolver unit shall fail with a VegaLiteRenderException located at the data
                   url, never with an empty result, when no file exists for a path and when the document
                   has no base directory, no data path, and no resolver at all, and shall report an
-                  existing directory where a file is expected, and an open that fails with an I/O or
-                  access error, as a located "cannot be read" failure; it shall open files read-only
-                  with FileShare.ReadWrite and FileShare.Delete.
+                  existing directory where a file is expected, and an existing file that cannot be opened
+                  (an access or I/O failure, whatever an existence check reports), as a located "cannot be
+                  read" failure that is never reported as missing and that ends the search, while a file
+                  that the open itself reports as not found is missing and lets the search continue with
+                  the next root; it shall open files read-only with FileShare.ReadWrite and
+                  FileShare.Delete.
                 justification: |
                   A local data file that cannot be used must never be mistaken for an empty dataset, an
                   implicit current directory would make a chart depend on the host's working directory,
-                  and a raw I/O exception must not escape the documented render contract. Permissive
-                  sharing keeps a concurrent writer or rename from failing the render.
+                  and a raw I/O exception must not escape the documented render contract. An inaccessible
+                  file is not a missing one, so the author is told the real cause instead of being sent to
+                  look for a typo. Permissive sharing keeps a concurrent writer or rename from failing the
+                  render.
                 tests:
                   - DataFileResolver_Load_MissingFileIsHardFailure
                   - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
+                  - DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure
+                  - DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot
+                  - DataFileResolver_Load_MissingFinalComponentIsDecidedByTheOpen
                   - DataFileResolver_Load_StreamWithoutFileSourceThrows
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-Cache

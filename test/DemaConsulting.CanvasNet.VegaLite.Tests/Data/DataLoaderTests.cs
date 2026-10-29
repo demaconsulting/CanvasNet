@@ -552,6 +552,90 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates that the largest values of the .NET date types (the usual "no end" sentinels) are clamped to the
+    ///     largest supported date and never fail, whatever their kind.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate()
+    {
+        // Arrange: both sentinels, the exact maximum millisecond, and a local-kind maximum
+        var tree = Spec("{\"name\":\"d\"}");
+        var maxMillisecond = new DateTime(9999, 12, 31, 23, 59, 59, 999, DateTimeKind.Utc);
+        var caller = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+        {
+            ["d"] = new List<IReadOnlyDictionary<string, object?>>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["dateTime"] = DateTime.MaxValue,
+                    ["offset"] = DateTimeOffset.MaxValue,
+                    ["exact"] = maxMillisecond,
+                    ["local"] = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Local),
+                    ["min"] = DateTime.MinValue,
+                },
+            },
+        };
+
+        // Act
+        var table = CreateLoader(tree, caller: caller).Load(tree.Root["data"]);
+
+        // Assert: every maximum is the last supported millisecond (as a date and as text), the minimum is the first
+        foreach (var field in new[] { "dateTime", "offset", "exact", "local" })
+        {
+            Assert.Equal(DataValueKind.Date, table.GetValue(0, field).Kind);
+            Assert.Equal(253402300799999.0, table.GetValue(0, field).Milliseconds);
+            Assert.Equal("9999-12-31T23:59:59.999Z", table.GetValue(0, field).ToText());
+        }
+
+        Assert.Equal("0001-01-01T00:00:00.000Z", table.GetValue(0, "min").ToText());
+    }
+
+    /// <summary>
+    ///     Validates that a JSON data file with an escaped lone surrogate in a string value is a located failure about
+    ///     invalid Unicode, never a raw <see cref="InvalidOperationException"/>.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure() =>
+        AssertUnicodeFailure("""[{"a":"ok"},{"a":"\ud800"}]""", "{}");
+
+    /// <summary>
+    ///     Validates that a JSON data file with an escaped lone surrogate in a property name is a located failure about
+    ///     invalid Unicode.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_JsonLoneSurrogatePropertyNameIsLocatedUnicodeFailure() =>
+        AssertUnicodeFailure("""[{"\udc00":1}]""", "{}");
+
+    /// <summary>
+    ///     Validates that a JSON data file whose <c>format.property</c> lookup has to compare a property name that holds an
+    ///     escaped lone surrogate is a located failure about invalid Unicode.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_JsonLoneSurrogatePropertyLookupIsLocatedUnicodeFailure() =>
+        AssertUnicodeFailure("""{"rows":[{"a":1}],"\ud800":1}""", """{"property":"rows"}""");
+
+    /// <summary>
+    ///     Loads a JSON file that must fail with the located invalid-Unicode failure and checks the failure.
+    /// </summary>
+    /// <param name="content">The content of the file.</param>
+    /// <param name="format">The text of the format object.</param>
+    private static void AssertUnicodeFailure(string content, string format)
+    {
+        // Arrange
+        var files = new VirtualDataFiles().With("d.json", content);
+        var tree = Spec("{\"url\":\"d.json\",\"format\":" + format + "}");
+        var loader = new DataLoader(tree.SourceName, cancellationToken: Ct, openOptions: Virtual(files));
+
+        // Act: a raw InvalidOperationException would not be a VegaLiteRenderException (which derives from it)
+        var ex = Assert.Throws<VegaLiteRenderException>(() => loader.Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Contains("'d.json' contains text that is not valid Unicode", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", ex.Location.Pointer);
+        Assert.Equal(SpecName, ex.Location.File);
+    }
+
+    /// <summary>
     ///     Validates that a named dataset that nobody defines is a located failure and not an empty chart, in lenient and
     ///     strict mode alike.
     /// </summary>

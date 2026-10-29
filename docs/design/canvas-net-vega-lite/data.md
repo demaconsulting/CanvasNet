@@ -60,8 +60,10 @@ absolute (remote data) is never given to the resolver and never opened: the tabl
 therefore one resolver cache, one file count, and one row budget, serves exactly one `Measure` or `Render` call.
 
 **Local files are hard errors; unsupported sources are reports.** A local file that is missing, refused by the sandbox,
-a link, a directory where a file is expected, unreadable (an open failure, or a callback or stream that fails), not
-valid UTF-8, not valid JSON or delimited text, or over a limit, a `name` that no dataset defines, and a sequence that is
+a link, a directory where a file is expected, unreadable (an existing file whose open fails, which is never reported as
+missing because only the open attempt itself decides that, or a callback or stream that fails), not
+valid UTF-8, not valid JSON (including JSON text that is not valid Unicode, such as an escaped lone surrogate) or
+delimited text, or over a limit, a `name` that no dataset defines, and a sequence that is
 not valid (a missing or non-finite endpoint, or a zero, non-finite, or non-numeric step) are `VegaLiteRenderException`s
 with the location of the `url`, `name`, or `sequence`, in
 lenient and strict mode alike, because an empty chart would hide a broken deployment. What is only recognized and not
@@ -88,7 +90,9 @@ CSV column still scales as numbers; temporal parsing of text arrives with the ti
 (JavaScript's SameValueZero, so it can be a dictionary key), a total order (null, boolean, number, date, string) used for
 discrete domains, a quantitative reading (`TryGetQuantitative`: numbers, dates as milliseconds, booleans as 1 and 0, and
 numeric strings), and a JavaScript-style text form (`ToText`) so that category labels and axis labels read as they do in
-Vega. A date is an instant in UTC held as milliseconds since the epoch. `JsNumber` reproduces JavaScript's
+Vega. A date is an instant in UTC held as milliseconds since the epoch, within the years 1 to 9999: ISO text beyond that
+range is not a date (text under inference, null with a warning under an explicit conversion), and a caller's
+`DateTime.MaxValue` or `DateTimeOffset.MaxValue` is clamped to the last supported millisecond. `JsNumber` reproduces JavaScript's
 number-to-string conversion (the shortest round-trip digits) and the other number helpers that d3 relies on.
 
 **Rows are columnar and flat.** A table has an ordered list of canonical field names and typed rows; nested objects and

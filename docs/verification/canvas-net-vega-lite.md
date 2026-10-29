@@ -300,8 +300,9 @@ the allowed directories"), a file that is not UTF-8 ("is not valid UTF-8"), and 
 each fail with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; that the good file
 renders; and that an absolute path to the real file beside the root is remote data: it is reported as
 `vl-data-remote-url`, never opened, draws an empty chart in lenient mode, and throws `VegaLiteUnsupportedFeatureException`
-in strict mode. The directory-in-place-of-file, callback-failure, and stream-disposal failures are verified at the
-`DataFileResolver` unit level.
+in strict mode. The directory-in-place-of-file, existing-file-open-failure, callback-failure, stream-disposal, and
+invalid-Unicode JSON failures, and the clamping of a caller's maximum dates, are verified at the
+`DataFileResolver` and `DataLoader` unit levels.
 
 ### Data: Sequences And Named Datasets Render Without A Report
 

@@ -3983,7 +3983,10 @@ column types. JSON files, inline rows, and datasets keep their JSON types. You a
 - ISO 8601 dates are `yyyy-MM-dd` (midnight UTC), and `yyyy-MM-ddTHH:mm`, `...:ss`, and `...:ss.fff` (up to seven digits
   of fraction), each with an optional `Z` or `+HH:mm` offset. A date-time **without** a zone is taken as UTC, so a
   chart never depends on the time zone of the machine. A date is an instant: its numeric value is the milliseconds since
-  1970-01-01T00:00:00Z, and its text is `yyyy-MM-ddTHH:mm:ss.fffZ`.
+  1970-01-01T00:00:00Z, and its text is `yyyy-MM-ddTHH:mm:ss.fffZ`. Dates are supported from the year 1 to the **last
+  millisecond of the year 9999**; ISO text beyond that (for example `9999-12-31T23:59:59.9995`, a fraction of a
+  millisecond past it) is **not a date**: under `"auto"` its column stays text, and under an explicit `date`
+  conversion it becomes `null` with the usual `vl-data-parse-failed` warning.
 
 *Numbers in unparsed text.* Because the cells stay text, a chart still works with an unparsed CSV: as in Vega, a
 **quantitative** encoding coerces numeric text to a number when it draws it, so quantitative `x`, `y`, `size`, and
@@ -4005,7 +4008,9 @@ category it reads as its ISO text.
 
 **Named datasets from code.** `VegaLiteRenderOptions.Datasets` maps a name to a list of rows, each row a dictionary
 from field name to a value (`null`, `bool`, `string`, a finite number, a `DateTime`, or a `DateTimeOffset`; a
-`DateTime` of unspecified kind is taken as UTC, so the result does not depend on the host). A name in `Datasets`
+`DateTime` of unspecified kind is taken as UTC, so the result does not depend on the host; `DateTime.MaxValue` and
+`DateTimeOffset.MaxValue`, which are often used to mean "no end", are represented by the last supported millisecond of
+the year 9999 (`9999-12-31T23:59:59.999Z`) instead of failing). A name in `Datasets`
 replaces a dataset of the same name in the specification. This is the way to chart data that you hold in memory without
 writing a file. The same `format.parse` rules apply to a named dataset.
 
@@ -4035,9 +4040,12 @@ the chart is drawn with an empty dataset (strict mode throws `VegaLiteUnsupporte
 
 **Errors.** A local file that cannot be used is **not** an empty chart. These fail the render with a
 `VegaLiteRenderException` located at the `url` (or `name`) in the specification, in lenient and strict mode alike: no
-place to look, a path the sandbox refuses, a link, a missing file, a directory where a file is expected, a file or a
+place to look, a path the sandbox refuses, a link, a missing file, a directory where a file is expected, an existing file
+that cannot be opened (for example for lack of permission, which is reported as a read failure and **never** as a
+missing file), a file or a
 `FileResolver` stream that cannot be read (including a callback that throws, which is reported as a read failure and
 never as the callback's own exception), text that is not UTF-8, JSON that is invalid, nested too deeply, or not an array,
+JSON text that is not valid Unicode (such as an escaped lone surrogate, `"\ud800"`, in a string or a property name),
 a missing `format.property`, malformed delimited text, a name that nobody defines, a sequence with a missing,
 non-finite, or zero value, and any data limit. A cancellation is never an error of this kind: it is always an
 `OperationCanceledException`. Files are opened read-only and tolerate other programs reading, writing, renaming, or
