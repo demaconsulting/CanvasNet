@@ -62,12 +62,13 @@ internal sealed partial class SpecParser
     public static bool IsViewSignal(string name) => ViewSignals.Contains(name);
 
     /// <summary>
-    ///     Determines whether a name is one of the transforms whose result the renderer computes.
+    ///     Determines whether a name is one of the transforms whose result the renderer computes or accepts.
     /// </summary>
     /// <param name="name">The transform name.</param>
-    /// <returns><see langword="true"/> for <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>.</returns>
+    /// <returns><see langword="true"/> for <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>.</returns>
     public static bool IsSupportedTransform(string name) =>
-        name is "calculate" or "filter" or "fold" or "flatten" or "sample" or "pivot" or "lookup";
+        name is "calculate" or "filter" or "fold" or "flatten" or "sample" or "pivot" or "lookup"
+            or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute";
 
     /// <summary>
     ///     Determines whether a view is the one the renderer draws: the root of a specification that is not a composition.
@@ -239,6 +240,21 @@ internal sealed partial class SpecParser
                 break;
             case "lookup":
                 ValidateLookup(entry, operation);
+                break;
+            case "aggregate" or "joinaggregate":
+                ValidateAggregateTransform(entry, operation);
+                break;
+            case "window":
+                ValidateWindowTransform(entry, operation);
+                break;
+            case "bin":
+                ValidateBinTransform(entry, operation);
+                break;
+            case "stack":
+                ValidateStackTransform(entry, operation);
+                break;
+            case "impute":
+                ValidateImputeTransform(entry, operation);
                 break;
             default:
                 break;

@@ -132,7 +132,10 @@ internal sealed partial class RowTransforms
                 "flatten" => Flatten(table, entry, operation),
                 "sample" => Sample(table, entry, operation),
                 "pivot" => Pivot(table, entry, operation),
-                _ => Lookup(table, entry, operation),
+                "lookup" => Lookup(table, entry, operation),
+
+                // Validated and accepted by the specification model; the aggregating transforms compute in a later work package
+                _ => table,
             };
         }
 

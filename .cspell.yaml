@@ -650,6 +650,17 @@ words:
   - lastindexof
   - startswith
   - trunc
+  - argmax
+  - argmin
+  - cume
+  - exponentialb
+  - keyvals
+  - minstep
+  - ntile
+  - stackable
+  - stdev
+  - stdevp
+  - variancep
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

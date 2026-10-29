@@ -591,11 +591,11 @@ public class VegaLiteSystemIntegrationTests
         var failing = new VegaLiteRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
         Assert.Throws<InvalidOperationException>(() => document.Render(failing, Ct));
 
-        // Assert: strict mode on a specification file stops at the first construct in the text (the window transform, line 12)
+        // Assert: strict mode on a specification file stops at the first construct in the text (the regression transform, line 12)
         var fixture = VegaLiteDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "unsupported.vl.json"));
         var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
         var first = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => fixture.Measure(strict, Ct));
-        Assert.Equal(("vl-transform-window", "/transform/0", 12), (first.Feature, first.Location.Pointer, first.Location.Line));
+        Assert.Equal(("vl-transform-regression", "/transform/0", 12), (first.Feature, first.Location.Pointer, first.Location.Line));
     }
 
     /// <summary>

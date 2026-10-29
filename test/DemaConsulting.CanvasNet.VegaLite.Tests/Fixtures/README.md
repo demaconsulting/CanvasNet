@@ -12,7 +12,7 @@ describe nothing real. They exist to give the tests small, readable charts whose
   `rule` (and change the tick thickness) to draw stems and thicker ticks.
 - `titles-config.vl.json`: a title with a subtitle, a background, and the configuration of axes, bars and the title
   (`config`), plus an explicit scale domain and tick count.
-- `unsupported.vl.json`: a line mark, a window transform and an aggregate, which are recognized but not drawn yet
+- `unsupported.vl.json`: a line mark, a regression transform and a band position, which are recognized but not drawn yet
   and must be reported with their locations.
 - `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
   relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
@@ -32,7 +32,8 @@ copied, adapted or used as a source of expected values. The expected values (the
 charts, the reservoir of the sample transform, the order of sorted categories, the pixels of the colors) are derived by
 hand from the scale formulas and from the algorithm that the tests describe, and the only change to an existing
 fixture is that `unsupported.vl.json` now uses a window transform (a later phase) so that it still has an unsupported
-transform to report.
+transform to report. In Phase 6 the window transform and the aggregate became supported, so the same fixture now uses a
+regression transform and a band position (both still unsupported) for the same purpose.
 
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or

@@ -38,13 +38,13 @@ public class FeatureCatalogTests
               "transform": [
                 { "calculate": "datum.a * 2", "as": "b" },
                 { "filter": "datum.b > 1" },
-                { "aggregate": [ { "op": "count", "as": "n" } ], "groupby": [ "a" ] }
+                { "regression": "n", "on": "a" }
               ],
               "mark": "arc",
               "encoding": {
                 "x": { "field": "d", "type": "temporal", "timeUnit": "year" },
                 "y": { "field": "n", "type": "quantitative", "aggregate": "sum", "bin": true, "stack": "zero", "sort": "-x", "condition": { "param": "s", "value": 1 } },
-                "color": { "field": "c", "type": "nominal", "scale": { "type": "log", "scheme": "x" }, "legend": { "encode": {} } },
+                "color": { "field": "c", "type": "nominal", "bin": true, "scale": { "type": "log", "scheme": "x" }, "legend": { "encode": {} } },
                 "theta": { "field": "n", "type": "quantitative" },
                 "latitude": { "field": "lat", "type": "quantitative" },
                 "tooltip": { "field": "c" }
@@ -67,15 +67,12 @@ public class FeatureCatalogTests
                 ("vl-data-parse-date-format", "/data/format/parse/d"),
                 ("vl-transform-calculate", "/transform/0"),
                 ("vl-transform-filter", "/transform/1"),
-                ("vl-transform-aggregate", "/transform/2"),
+                ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-arc", "/mark"),
                 ("vl-type-temporal", "/encoding/x/type"),
                 ("vl-encoding-timeunit", "/encoding/x/timeUnit"),
-                ("vl-encoding-aggregate", "/encoding/y/aggregate"),
-                ("vl-encoding-bin", "/encoding/y/bin"),
-                ("vl-encoding-stack", "/encoding/y/stack"),
-                ("vl-encoding-sort", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
+                ("vl-encoding-bin", "/encoding/color/bin"),
                 ("vl-scale-log", "/encoding/color/scale/type"),
                 ("vl-scale-property-scheme", "/encoding/color/scale/scheme"),
                 ("vl-guide-legend", "/encoding/color/legend"),
@@ -469,8 +466,6 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-encoding-bin", "/encoding/color/bin"),
-                ("vl-encoding-stack", "/encoding/color/stack"),
-                ("vl-encoding-sort", "/encoding/size/sort"),
                 ("vl-encoding-impute", "/encoding/size/impute"),
                 ("vl-encoding-bandposition", "/encoding/size/bandPosition"),
             ],
@@ -620,35 +615,85 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the implicit stacking report: bars that Vega-Lite would stack by default are reported at the
-    ///     measure, and charts that it would draw unstacked are not.
+    ///     Validates that no bar chart is reported for being stacked implicitly (the stack is computed now), whatever the channels.
     /// </summary>
     /// <param name="json">The specification text.</param>
-    /// <param name="expectedPointer">The pointer of the report, or null when there must be none.</param>
     [Theory]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", "/encoding/y")]
-    [InlineData("{\"mark\":{\"type\":\"bar\"},\"encoding\":{\"y\":{\"field\":\"k\",\"type\":\"ordinal\"},\"x\":{\"field\":\"v\",\"type\":\"quantitative\"},\"detail\":[{\"field\":\"g\"}]}}", "/encoding/x")]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"size\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", "/encoding/y")]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", null)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"k\",\"type\":\"nominal\",\"legend\":null}}}", null)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"w\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", null)]
-    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", null)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"value\":\"red\"}}}", null)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}", null)]
-    public void FeatureCatalog_Visit_ImplicitBarStackIsReportedAtTheMeasure(string json, string? expectedPointer)
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}")]
+    [InlineData("{\"mark\":{\"type\":\"bar\"},\"encoding\":{\"y\":{\"field\":\"k\",\"type\":\"ordinal\"},\"x\":{\"field\":\"v\",\"type\":\"quantitative\"},\"detail\":[{\"field\":\"g\"}]}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"size\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"w\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}}}")]
+    public void FeatureCatalog_Visit_ImplicitBarStackIsNotReported(string json)
     {
         // Arrange / Act
-        var stacks = Visit(json).Where(r => r.Id == "vl-encoding-stack").ToList();
+        var ids = Visit(json).Select(r => r.Id).ToList();
+
+        // Assert: no report is about stacking (the detail channel of the second chart is reported for what it is)
+        Assert.DoesNotContain("vl-encoding-stack", ids);
+        Assert.DoesNotContain(ids, id => id.StartsWith("vl-encoding-", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates that the <c>order</c> channel is accepted when it orders a stack and reported otherwise.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="reported">Whether <c>vl-channel-order</c> is expected.</param>
+    [Theory]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":[{\"field\":\"o\"},{\"field\":\"p\",\"sort\":\"descending\"}]}}", false)]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"order\":{\"field\":\"o\"}}}", true)]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"order\":{\"field\":\"o\"}}}", true)]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":true},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
+    public void FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack(string json, bool reported)
+    {
+        // Arrange / Act
+        var ids = Visit(json).Select(r => r.Id).ToList();
 
         // Assert
-        if (expectedPointer is null)
-        {
-            Assert.Empty(stacks);
-        }
-        else
-        {
-            Assert.Equal([("vl-encoding-stack", expectedPointer)], stacks);
-        }
+        Assert.Equal(reported ? new[] { "vl-channel-order" } : [], ids);
+    }
+
+    /// <summary>
+    ///     Validates that a secondary position channel is accepted for a bar, rect or rule that has the channel it extends, and reported otherwise.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="expectedId">The identifier that is expected, or null when there must be no report.</param>
+    [Theory]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", null)]
+    [InlineData("{\"mark\":\"rect\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", null)]
+    [InlineData("{\"mark\":\"rule\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"value\":3}}}", null)]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", "vl-channel-x2")]
+    [InlineData("{\"mark\":\"tick\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", "vl-channel-y2")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", "vl-channel-x2")]
+    public void FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges(string json, string? expectedId)
+    {
+        // Arrange / Act
+        var ids = Visit(json).Select(r => r.Id).ToList();
+
+        // Assert
+        Assert.Equal(expectedId is null ? [] : new[] { expectedId }, ids);
+    }
+
+    /// <summary>
+    ///     Validates that an explicit stack on a scale that is not linear is reported, and a stack on a linear scale is not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_StackOnANonLinearScaleIsReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "bar", "encoding": {
+              "x": { "field": "k", "type": "nominal" },
+              "y": { "field": "v", "type": "quantitative", "stack": "center", "scale": { "type": "log" } }
+            } }
+            """;
+
+        // Act
+        var reports = Visit(json);
+
+        // Assert
+        Assert.Equal([("vl-encoding-stack-nonlinear", "/encoding/y/stack"), ("vl-scale-log", "/encoding/y/scale/type")], reports);
     }
 
     /// <summary>
@@ -678,7 +723,6 @@ public class FeatureCatalogTests
                 ("vl-expr-ref", "/width"),
                 ("vl-param-selection", "/params/1"),
                 ("vl-transform-timeunit", "/transform/1"),
-                ("vl-transform-joinaggregate", "/transform/2"),
                 ("vl-expr-ref", "/mark/size"),
             ],
             ids);
@@ -874,7 +918,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the transforms of a later phase, conditional encodings and selection parameters are still reported.
+    ///     Validates that the transforms of a later phase, conditional encodings and selection parameters are still reported, and that
+    ///     the aggregating transforms of the drawn view are accepted without a report.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported()
@@ -904,14 +949,94 @@ public class FeatureCatalogTests
             """;
 
         // Act
-        var ids = Visit(json).Select(r => r.Id);
+        var ids = Visit(json);
+
+        // Assert: the six aggregating transforms are computed, the later phases are reported
+        Assert.Equal(
+            [
+                ("vl-param-selection", "/params/0"), ("vl-transform-timeunit", "/transform/6"), ("vl-transform-regression", "/transform/7"),
+                ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
+                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition", "/encoding/color/condition"),
+            ],
+            ids);
+    }
+
+    /// <summary>
+    ///     Validates that every aggregating transform of a nested view (which is not drawn) is reported, and that a bin extent that is a
+    ///     parameter is reported for the drawn view only.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported()
+    {
+        // Arrange
+        const string nested = """
+            {
+              "layer": [
+                { "mark": "point", "transform": [
+                  { "aggregate": [ { "op": "count", "as": "n" } ] },
+                  { "joinaggregate": [ { "op": "sum", "field": "v", "as": "t" } ] },
+                  { "window": [ { "op": "rank", "as": "r" } ] },
+                  { "bin": { "extent": { "param": "e" } }, "field": "x", "as": "b" },
+                  { "stack": "v" },
+                  { "impute": "v", "key": "k" }
+                ] }
+              ]
+            }
+            """;
+        const string drawn = """
+            { "mark": "point", "transform": [
+              { "bin": { "extent": { "param": "e" } }, "field": "x", "as": "b" },
+              { "bin": { "extent": [ 0, 10 ] }, "field": "x", "as": "c" }
+            ] }
+            """;
+
+        // Act
+        var nestedIds = Visit(nested);
+        var drawnIds = Visit(drawn);
 
         // Assert
         Assert.Equal(
             [
-                "vl-param-selection", "vl-transform-aggregate", "vl-transform-joinaggregate", "vl-transform-window", "vl-transform-bin",
-                "vl-transform-stack", "vl-transform-impute", "vl-transform-timeunit", "vl-transform-regression", "vl-transform-loess",
-                "vl-transform-density", "vl-transform-quantile", "vl-transform-extent", "vl-encoding-condition",
+                ("vl-composition-layer", "/layer"),
+                ("vl-transform-aggregate", "/layer/0/transform/0"),
+                ("vl-transform-joinaggregate", "/layer/0/transform/1"),
+                ("vl-transform-window", "/layer/0/transform/2"),
+                ("vl-transform-bin", "/layer/0/transform/3"),
+                ("vl-transform-stack", "/layer/0/transform/4"),
+                ("vl-transform-impute", "/layer/0/transform/5"),
+            ],
+            nestedIds);
+        Assert.Equal([("vl-transform-bin-extent-param", "/transform/0/bin/extent")], drawnIds);
+    }
+
+    /// <summary>
+    ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: bin on a channel other
+    ///     than x and y, a bin extent that is a parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
+    ///     impute of a channel, and a stack on a scale that is not linear.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "bar", "encoding": {
+              "x": { "field": "k", "type": "quantitative", "bin": { "maxbins": 5, "extent": { "param": "p" } } },
+              "y": { "aggregate": "sum", "field": "v", "type": "quantitative", "stack": "normalize", "scale": { "type": "linear" } },
+              "color": { "field": "c", "type": "nominal", "bin": true, "legend": null },
+              "size": { "field": "c", "type": "nominal", "legend": null, "sort": { "encoding": "y", "order": "descending" } },
+              "x2": { "field": "e" },
+              "order": { "field": "o", "sort": "descending" }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert: x2 draws a range and the order channel orders the stack of y; only the binned scale parts are reported
+        Assert.Equal(
+            [
+                ("vl-encoding-bin-extent-param", "/encoding/x/bin/extent"),
+                ("vl-encoding-bin", "/encoding/color/bin"),
             ],
             ids);
     }
@@ -1037,12 +1162,16 @@ public class FeatureCatalogTests
     [InlineData("{\"op\":\"count\"}", false)]
     [InlineData("{\"op\":\"median\",\"field\":\"v\",\"order\":\"descending\"}", false)]
     [InlineData("{\"op\":\"sum\",\"field\":\"v\",\"order\":null}", false)]
-    [InlineData("{\"op\":\"sum\",\"encoding\":\"y\"}", true)]
-    [InlineData("{\"field\":\"v\"}", true)]
-    [InlineData("{\"op\":\"valid\",\"field\":\"v\"}", true)]
-    [InlineData("{\"op\":\"sum\",\"order\":\"sideways\"}", true)]
-    [InlineData("{\"op\":\"sum\",\"field\":\"a[\"}", true)]
-    [InlineData("\"-y\"", true)]
+    [InlineData("{\"op\":\"valid\",\"field\":\"v\"}", false)]
+    [InlineData("{\"op\":\"q1\",\"field\":\"v\",\"order\":\"descending\"}", false)]
+    [InlineData("{\"field\":\"v\"}", false)]
+    [InlineData("{\"encoding\":\"y\",\"order\":\"descending\"}", false)]
+    [InlineData("{\"encoding\":\"color\"}", true)]
+    [InlineData("{\"op\":\"values\",\"field\":\"v\"}", true)]
+    [InlineData("{\"op\":\"exponential\",\"field\":\"v\"}", true)]
+    [InlineData("\"-y\"", false)]
+    [InlineData("\"x\"", false)]
+    [InlineData("\"-color\"", true)]
     public void FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms(string sort, bool reported)
     {
         // Arrange

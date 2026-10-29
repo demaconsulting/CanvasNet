@@ -201,9 +201,9 @@ public class VegaLiteChartIntegrationTests
         // Assert: exactly one report per construct with its stable identifier, pointer and one-based line and column of its value
         Assert.Equal(
             [
-                ("vl-transform-window", "/transform/0", 12, 5),
+                ("vl-transform-regression", "/transform/0", 12, 5),
                 ("vl-mark-line", "/mark", 14, 11),
-                ("vl-encoding-aggregate", "/encoding/y/aggregate", 17, 68),
+                ("vl-encoding-bandposition", "/encoding/y/bandPosition", 17, 71),
             ],
             reports.Select(r => (r.Feature, r.Location.Pointer, r.Location.Line, r.Location.Column)));
         Assert.All(reports, r => Assert.EndsWith("unsupported.vl.json", r.Location.File, StringComparison.Ordinal));
@@ -905,10 +905,10 @@ public class VegaLiteChartIntegrationTests
             { "params": [ { "name": "sel", "select": "interval" } ],
               "data": { "values": [ { "a": 1, "d": "2020-01-01" } ] },
               "transform": [
-                { "aggregate": [ { "op": "count", "as": "n" } ] },
-                { "window": [ { "op": "rank", "as": "r" } ] },
-                { "bin": true, "field": "a", "as": "b" },
-                { "stack": "a", "as": ["s0", "s1"] },
+                { "regression": "a", "on": "d" },
+                { "loess": "a", "on": "d" },
+                { "density": "a" },
+                { "quantile": "a" },
                 { "timeUnit": "year", "field": "d", "as": "y" },
                 { "calculate": "timeFormat(now(), '%Y') + format(1, ',')", "as": "t" }
               ],
@@ -924,7 +924,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: each one is reported once, in document order, and the chart is still drawn
         Assert.Equal(
             [
-                "vl-param-selection", "vl-transform-aggregate", "vl-transform-window", "vl-transform-bin", "vl-transform-stack",
+                "vl-param-selection", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
                 "vl-transform-timeunit", "vl-expr-function-timeformat", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
             ],
             reported);

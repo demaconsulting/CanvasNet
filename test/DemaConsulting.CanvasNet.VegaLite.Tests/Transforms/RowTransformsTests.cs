@@ -1244,14 +1244,14 @@ public class RowTransformsTests
     }
 
     /// <summary>
-    ///     Validates that a transform that a later phase owns (an aggregate) is skipped by the executor and leaves the rows as
+    ///     Validates that a transform that a later phase owns (a regression) is skipped by the executor and leaves the rows as
     ///     they are.
     /// </summary>
     [Fact]
     public void RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped()
     {
         // Arrange / Act
-        var table = Run(Spec(Numbers, "[{\"aggregate\":[{\"op\":\"count\",\"as\":\"n\"}]},{\"calculate\":\"datum.a\",\"as\":\"z\"}]"));
+        var table = Run(Spec(Numbers, "[{\"regression\":\"a\",\"on\":\"b\"},{\"calculate\":\"datum.a\",\"as\":\"z\"}]"));
 
         // Assert: only the calculate ran
         Assert.Equal(["a", "b", "z"], table.Fields);

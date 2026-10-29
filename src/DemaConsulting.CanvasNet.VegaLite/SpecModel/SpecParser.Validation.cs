@@ -605,6 +605,7 @@ internal sealed partial class SpecParser
     private void ValidateChannelDefinition(SpecNode definition)
     {
         CheckObject(definition, ChannelDefRules);
+        ValidateAggregationProperties(definition);
         foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
         {
             WarnUnknown(property, "a channel definition");
