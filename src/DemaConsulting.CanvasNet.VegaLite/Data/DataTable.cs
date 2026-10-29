@@ -23,12 +23,28 @@ internal enum DataValueKind
 
     /// <summary>A string.</summary>
     String,
+
+    /// <summary>An immutable array of values (a computed expression result; see <see cref="DataValue.FromArray"/>).</summary>
+    Array,
+
+    /// <summary>An immutable object with ordered string keys (a computed expression result; see <see cref="DataObject"/>).</summary>
+    Object,
+
+    /// <summary>A regular expression object produced by an expression (an opaque, immutable payload).</summary>
+    RegExp,
 }
 
 /// <summary>
-///     One scalar value of a data row: null, boolean, number, date or string.
+///     One value of a data row: null, boolean, number, date or string, or (as the result of an expression) an
+///     immutable array, object or regular expression.
 /// </summary>
 /// <remarks>
+///     <para>
+///         The composite kinds exist for the expression engine: they hold immutable payloads, are equal only to themselves
+///         (JavaScript identity), are never produced by the data loaders, and are ordered after the scalar kinds by
+///         <see cref="Compare"/>. Their text follows JavaScript: an array is its comma-joined elements, an object is
+///         <c>[object Object]</c> and a regular expression is <c>/source/flags</c>.
+///     </para>
 ///     <para>
 ///         A date is an instant held as milliseconds since the Unix epoch in UTC (the way JavaScript's <c>Date</c>
 ///         holds it), so it is deterministic and independent of the time zone and culture of the host: its quantitative
@@ -57,20 +73,20 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
 
-    /// <summary>The text of a string.</summary>
-    private readonly string? _text;
+    /// <summary>The text of a string, or the immutable payload of an array, object or regular expression.</summary>
+    private readonly object? _reference;
 
     /// <summary>
     ///     Initializes a value.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="number">The number (1 or 0 for a boolean).</param>
-    /// <param name="text">The text of a string.</param>
-    private DataValue(DataValueKind kind, double number, string? text)
+    /// <param name="reference">The text of a string or the payload of a composite value.</param>
+    private DataValue(DataValueKind kind, double number, object? reference)
     {
         Kind = kind;
         _number = number;
-        _text = text;
+        _reference = reference;
     }
 
     /// <summary>Gets the null value.</summary>
@@ -104,7 +120,25 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public bool Boolean => Kind == DataValueKind.Boolean && _number != 0;
 
     /// <summary>Gets the text of a string value; null for other kinds.</summary>
-    public string? Text => _text;
+    public string? Text => _reference as string;
+
+    /// <summary>Gets the elements of an array value; empty for other kinds.</summary>
+    public ReadOnlySpan<DataValue> Elements => _reference is DataArray array ? array.Items : default;
+
+    /// <summary>Gets the object of an object value; null for other kinds.</summary>
+    public DataObject? ObjectValue => _reference as DataObject;
+
+    /// <summary>Gets the opaque payload of a regular expression value; null for other kinds.</summary>
+    public object? RegExpPayload => Kind == DataValueKind.RegExp ? _reference : null;
+
+    /// <summary>Gets a value indicating whether this value is an array.</summary>
+    public bool IsArray => Kind == DataValueKind.Array;
+
+    /// <summary>Gets a value indicating whether this value is an object.</summary>
+    public bool IsObject => Kind == DataValueKind.Object;
+
+    /// <summary>Gets a value indicating whether this value is a regular expression.</summary>
+    public bool IsRegExp => Kind == DataValueKind.RegExp;
 
     /// <summary>
     ///     Creates a boolean value.
@@ -197,7 +231,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 number = _number;
                 return true;
             case DataValueKind.String:
-                return JsNumber.TryParse(_text!, out number) && double.IsFinite(number) && _text!.AsSpan().Trim().Length > 0;
+                return JsNumber.TryParse(Text!, out number) && double.IsFinite(number) && Text!.AsSpan().Trim().Length > 0;
             default:
                 number = 0;
                 return false;
@@ -219,9 +253,80 @@ internal readonly struct DataValue : IEquatable<DataValue>
         DataValueKind.Boolean => _number != 0 ? "true" : "false",
         DataValueKind.Number => JsNumber.ToString(_number),
         DataValueKind.Date => DateTime.UnixEpoch.AddMilliseconds(_number).ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture),
-        DataValueKind.String => _text!,
+        DataValueKind.String => Text!,
+        DataValueKind.Array => ArrayText(Elements),
+        DataValueKind.Object => "[object Object]",
+        DataValueKind.RegExp => _reference!.ToString() ?? string.Empty,
         _ => "null",
     };
+
+    /// <summary>
+    ///     Creates an array value.
+    /// </summary>
+    /// <remarks>The elements are copied, so later changes to the argument do not affect the value.</remarks>
+    /// <param name="elements">The elements.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="elements"/> is null.</exception>
+    public static DataValue FromArray(IEnumerable<DataValue> elements)
+    {
+        ArgumentNullException.ThrowIfNull(elements);
+        return new DataValue(DataValueKind.Array, 0, new DataArray(elements.ToArray()));
+    }
+
+    /// <summary>
+    ///     Creates an array value from an array that the caller never changes again.
+    /// </summary>
+    /// <param name="elements">The elements; ownership passes to the value.</param>
+    /// <returns>The value.</returns>
+    internal static DataValue FromOwnedArray(DataValue[] elements) => new(DataValueKind.Array, 0, new DataArray(elements));
+
+    /// <summary>
+    ///     Creates an object value.
+    /// </summary>
+    /// <param name="value">The immutable object.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    public static DataValue FromObject(DataObject value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new DataValue(DataValueKind.Object, 0, value);
+    }
+
+    /// <summary>
+    ///     Creates a regular expression value around an opaque, immutable payload.
+    /// </summary>
+    /// <param name="payload">The payload; its <c>ToString()</c> is the text of the value (for example <c>/a+/i</c>).</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is null.</exception>
+    public static DataValue FromRegExp(object payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return new DataValue(DataValueKind.RegExp, 0, payload);
+    }
+
+    /// <summary>
+    ///     Formats an array like JavaScript's <c>Array.prototype.join()</c> with a comma.
+    /// </summary>
+    /// <param name="elements">The elements.</param>
+    /// <returns>The text; null elements are empty.</returns>
+    private static string ArrayText(ReadOnlySpan<DataValue> elements)
+    {
+        var text = new StringBuilder();
+        for (var i = 0; i < elements.Length; i++)
+        {
+            if (i > 0)
+            {
+                text.Append(',');
+            }
+
+            if (!elements[i].IsNull)
+            {
+                text.Append(elements[i].ToText());
+            }
+        }
+
+        return text.ToString();
+    }
 
     /// <summary>
     ///     Compares two values in ascending order (the order of a sorted Vega domain).
@@ -258,7 +363,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 return Math.Sign(a._number.CompareTo(b._number));
             case DataValueKind.String:
                 // JavaScript compares strings by UTF-16 code units, which is the ordinal comparison
-                return Math.Sign(string.CompareOrdinal(a._text, b._text));
+                return Math.Sign(string.CompareOrdinal(a.Text, b.Text));
             default:
                 return 0;
         }
@@ -285,7 +390,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
         Kind == other.Kind
         && Kind switch
         {
-            DataValueKind.String => string.Equals(_text, other._text, StringComparison.Ordinal),
+            DataValueKind.String => string.Equals(Text, other.Text, StringComparison.Ordinal),
+            DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => ReferenceEquals(_reference, other._reference),
             DataValueKind.Number or DataValueKind.Date => _number.CompareTo(other._number) == 0,
             DataValueKind.Boolean => Boolean == other.Boolean,
             _ => true,
@@ -297,7 +403,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <inheritdoc/>
     public override int GetHashCode() => Kind switch
     {
-        DataValueKind.String => HashCode.Combine(Kind, _text!.GetHashCode(StringComparison.Ordinal)),
+        DataValueKind.String => HashCode.Combine(Kind, Text!.GetHashCode(StringComparison.Ordinal)),
+        DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => HashCode.Combine(Kind, System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_reference)),
         DataValueKind.Number or DataValueKind.Date => HashCode.Combine(Kind, JsNumber.IsZero(_number) ? 0.0 : _number),
         DataValueKind.Boolean => HashCode.Combine(Kind, _number),
         _ => 0,

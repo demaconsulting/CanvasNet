@@ -639,6 +639,15 @@ words:
   - yocto
   - yotta
   - zindex
+  - acosh
+  - asinh
+  - atanh
+  - endswith
+  - gimsu
+  - indexof
+  - lastindexof
+  - startswith
+  - trunc
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
