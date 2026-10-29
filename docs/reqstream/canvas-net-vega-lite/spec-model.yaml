@@ -56,9 +56,11 @@ sections:
               tolerating unknown properties keeps forward-compatible specifications usable.
             children:
               - CanvasNetVegaLite-SpecModel-SpecParser-StructuralValidation
+              - CanvasNetVegaLite-SpecModel-SpecParser-DataFormats
               - CanvasNetVegaLite-SpecModel-SpecParser-DuplicateAndUnknownKeys
             tests:
               - SpecParser_Parse_WrongTypeReportsPointer
+              - SpecParser_Parse_Phase4DataFormsAreAccepted
               - SpecParser_Parse_DuplicateKeyLastWinsAndWarns
               - SpecParser_Parse_UnknownPropertiesWarnOnceAndValidKeysNeverWarn
 
@@ -113,6 +115,7 @@ sections:
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
+              - FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported
               - FeatureCatalog_Visit_ReportsAreInDocumentOrder
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 

@@ -356,6 +356,19 @@ public class SpecParserTests
     [InlineData("{\"data\":{\"format\":{\"type\":\"xml\"}}}", "/data/format/type")]
     [InlineData("{\"data\":{\"sequence\":{\"start\":0}}}", "/data/sequence")]
     [InlineData("{\"data\":{\"sequence\":{\"start\":\"a\",\"stop\":3}}}", "/data/sequence/start")]
+    [InlineData("{\"data\":{\"sequence\":{\"start\":0,\"stop\":3,\"step\":\"x\"}}}", "/data/sequence/step")]
+    [InlineData("{\"data\":{\"sequence\":{\"start\":0,\"stop\":3,\"as\":\"\"}}}", "/data/sequence/as")]
+    [InlineData("{\"data\":{\"format\":{\"delimiter\":\"ab\"}}}", "/data/format/delimiter")]
+    [InlineData("{\"data\":{\"format\":{\"delimiter\":\"\"}}}", "/data/format/delimiter")]
+    [InlineData("{\"data\":{\"format\":{\"delimiter\":\"\\\"\"}}}", "/data/format/delimiter")]
+    [InlineData("{\"data\":{\"format\":{\"delimiter\":\"\\n\"}}}", "/data/format/delimiter")]
+    [InlineData("{\"data\":{\"format\":{\"delimiter\":3}}}", "/data/format/delimiter")]
+    [InlineData("{\"data\":{\"format\":{\"parse\":\"manual\"}}}", "/data/format/parse")]
+    [InlineData("{\"data\":{\"format\":{\"parse\":5}}}", "/data/format/parse")]
+    [InlineData("{\"data\":{\"format\":{\"parse\":{\"a\":\"integer\"}}}}", "/data/format/parse/a")]
+    [InlineData("{\"data\":{\"format\":{\"parse\":{\"a\":5}}}}", "/data/format/parse/a")]
+    [InlineData("{\"data\":{\"format\":{\"parse\":{\"a\":null}}}}", "/data/format/parse/a")]
+    [InlineData("{\"data\":{\"format\":{\"property\":3}}}", "/data/format/property")]
     [InlineData("{\"encoding\":[]}", "/encoding")]
     [InlineData("{\"encoding\":{\"x\":5}}", "/encoding/x")]
     [InlineData("{\"encoding\":{\"x\":[{}]}}", "/encoding/x")]
@@ -385,6 +398,37 @@ public class SpecParserTests
         Assert.True(ex.Location.Line >= 1);
         Assert.True(ex.Location.Column >= 1);
         Assert.StartsWith("t.json:", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the Phase 4 data forms are accepted: delimiters, parse directives (including custom date formats,
+    ///     which the feature catalog reports), sequences with a negative or zero step, and the kinds of top-level datasets.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_Phase4DataFormsAreAccepted()
+    {
+        // Arrange: each form on its own line so that a failure points at it
+        const string json = """
+            { "datasets": { "rows": [ { "a": 1 } ], "text": "a,b\n1,2", "geo": { "type": "Topology" } },
+              "layer": [
+              { "data": { "url": "a.txt", "format": { "type": "dsv", "delimiter": "|" } } },
+              { "data": { "url": "a.txt", "format": { "type": "dsv", "delimiter": "\t" } } },
+              { "data": { "url": "a.csv", "format": { "parse": "auto" } } },
+              { "data": { "url": "a.csv", "format": { "parse": null } } },
+              { "data": { "url": "a.csv", "format": { "parse": { "a": "number", "b": "boolean", "c": "date", "d": "string", "e": "date:'%d/%m/%Y'", "f": "utc:'%Y'" } } } },
+              { "data": { "url": "a.json", "format": { "type": "json", "property": "x.y" } } },
+              { "data": { "sequence": { "start": 5, "stop": 0, "step": -1, "as": "n" } } },
+              { "data": { "sequence": { "start": 0, "stop": 5, "step": 0 } } },
+              { "data": { "name": "rows" } }
+            ] }
+            """;
+
+        // Act
+        var tree = SpecParser.Parse(json);
+
+        // Assert: accepted without a parse warning (the layers themselves are only reported by the catalog)
+        Assert.Empty(tree.Warnings);
+        Assert.Equal(9, tree.Root["layer"]!.Items.Count);
     }
 
     /// <summary>

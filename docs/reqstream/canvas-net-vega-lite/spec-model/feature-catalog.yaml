@@ -49,27 +49,34 @@ sections:
                   URI), a UNC path, a drive letter, or an absolute or rooted path (a leading slash or
                   backslash, on every host operating system) as remote and report it with the stable
                   vl-data-remote-url identifier, and shall classify a plain relative URL as a local file
-                  reported with vl-data-file.
+                  that it does not report, because the data stage reads it (a local file that cannot be
+                  read is an error of the render, not a report).
                 justification: |
                   A remote URL must never reach a file resolver or the network, and the difference between
                   a remote and a local reference is the difference between a security boundary and a
-                  missing feature.
+                  supported feature.
                 tests:
-                  - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+                  - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
                   - FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
                 title: >-
-                  The FeatureCatalog unit shall report each data source other than inline row values with
-                  its own identifier (named dataset, sequence, parse, csv, tsv, and dsv formats, a
-                  format property, text values, and geographic sources), and shall warn with
-                  vl-data-empty when a data object has no rows.
+                  The FeatureCatalog unit shall not report a data source or format that the data stage
+                  reads (inline rows, a relative local url, the csv, tsv, dsv, and json formats, a
+                  parse map, a format property, a named dataset, and a sequence), shall report the data
+                  that is recognized but not read with its own identifier (text values, geographic
+                  sources, and a top-level dataset that a data name refers to given as text or as an
+                  object), shall report a custom date format of a parse entry with the stable identifier
+                  vl-data-parse-date-format, and shall warn with vl-data-empty when a data object has no
+                  rows.
                 justification: |
                   Data that was not used must be explained to the author instead of leaving an unexplained
-                  empty chart.
+                  empty chart, and data that is used must not make every chart noisy.
                 tests:
+                  - FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported
                   - FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers
-                  - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+                  - FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier
+                  - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
                 title: >-

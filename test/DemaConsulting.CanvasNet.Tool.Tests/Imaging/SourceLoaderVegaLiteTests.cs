@@ -485,4 +485,136 @@ public class SourceLoaderVegaLiteTests
         Assert.InRange(info.Width, 1, Surface.MaxDimension);
         Assert.InRange(info.Height, 1, Surface.MaxDimension);
     }
+
+    /// <summary>
+    ///     Compares the pixels of two surfaces.
+    /// </summary>
+    /// <param name="expected">The expected surface.</param>
+    /// <param name="actual">The actual surface.</param>
+    /// <returns><see langword="true"/> when both have the same size and the same pixels.</returns>
+    private static bool SamePixels(Surface expected, Surface actual)
+    {
+        if (expected.Width != actual.Width || expected.Height != actual.Height)
+        {
+            return false;
+        }
+
+        for (var y = 0; y < expected.Height; y++)
+        {
+            if (!expected.GetRowSpanBytes(y).SequenceEqual(actual.GetRowSpanBytes(y)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Test that a chart whose rows are in a CSV file beside its specification is measured and drawn from the folder of
+    ///     the specification, whatever the current directory is, exactly like the same chart with inline rows, and that the
+    ///     chart facts name the file.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder()
+    {
+        // Arrange: the specification and its data file in a sub folder, and the inline chart as the reference
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "charts/bars.vl.json", FixtureFactory.TwoBarFileChart);
+        FixtureFactory.WriteText(directory.Path, "charts/bars.csv", FixtureFactory.TwoBarCsv);
+        var inline = FixtureFactory.WriteText(directory.Path, "inline.vl.json", FixtureFactory.TwoBarChart);
+        Assert.NotEqual(Path.GetDirectoryName(Path.GetFullPath(path)), Path.GetFullPath(Directory.GetCurrentDirectory()));
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        var reference = SourceLoader.Probe(inline);
+        using var loaded = SourceLoader.Load(path, new SourceOptions());
+        using var expected = SourceLoader.Load(inline, new SourceOptions());
+
+        // Assert: the same natural size and the same pixels as the inline chart, and no diagnostic
+        Assert.Equal((reference.Width, reference.Height), (info.Width, info.Height));
+        Assert.True(SamePixels(expected.Surface, loaded.Surface));
+        Assert.Empty(loaded.Diagnostics);
+
+        // Assert: the chart facts describe the text only, so they name the file
+        var data = Assert.Single(info.Chart!.DataReferences);
+        Assert.Equal(("url", "bars.csv"), (data.Kind, data.Url));
+    }
+
+    /// <summary>
+    ///     Test that a local data file that is missing, outside the folder of the specification, or not valid text is a
+    ///     <c>vega-lite-error</c> in lenient and strict mode (never an empty chart), that remote data is only a diagnostic
+    ///     (and an <c>unsupported-feature</c> error with strict) and is never fetched.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError()
+    {
+        // Arrange: charts that name a missing file, a file beside the folder, a file of invalid UTF-8, and a remote url
+        using var directory = new TempDirectory();
+        string Chart(string url) => FixtureFactory.TwoBarFileChart.Replace("bars.csv", url, StringComparison.Ordinal);
+        var missing = FixtureFactory.WriteText(directory.Path, "charts/missing.vl.json", Chart("gone.csv"));
+        var outside = FixtureFactory.WriteText(directory.Path, "charts/outside.vl.json", Chart("../secret.csv"));
+        var invalid = FixtureFactory.WriteText(directory.Path, "charts/invalid.vl.json", Chart("bad.csv"));
+        var remote = FixtureFactory.WriteText(directory.Path, "charts/remote.vl.json", Chart("https://example.invalid/bars.csv"));
+        FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
+        File.WriteAllBytes(directory.Combine("charts/bad.csv"), [0x6B, 0x0A, 0xFF, 0xFE, 0x0A]);
+
+        // Act / Assert: each is a located error of the chart on one line, whether it is probed or loaded, strict or not
+        foreach (var (path, expected) in new[] { (missing, "was not found"), (outside, "outside the allowed directories"), (invalid, "is not valid UTF-8") })
+        {
+            var probe = Assert.Throws<ToolException>(() => SourceLoader.Probe(path));
+            var load = Assert.Throws<ToolException>(() => SourceLoader.Load(path, new SourceOptions()));
+            var strict = Assert.Throws<ToolException>(() => SourceLoader.Load(path, new SourceOptions { Strict = true }));
+            foreach (var error in new[] { probe, load, strict })
+            {
+                Assert.Equal(ErrorCodes.VegaLiteError, error.Code);
+                Assert.StartsWith("Vega-Lite render error: ", error.Message);
+                Assert.Contains(expected, error.Message);
+                Assert.DoesNotContain('\n', error.Message);
+                Assert.IsType<VegaLiteRenderException>(error.InnerException);
+            }
+        }
+
+        // Assert: remote data is reported (not fetched) and the chart is empty; strict mode makes it an error
+        using var loaded = SourceLoader.Load(remote, new SourceOptions());
+        Assert.Equal(["vl-data-remote-url"], loaded.Diagnostics.Select(d => d.Code));
+        var remoteStrict = Assert.Throws<ToolException>(() => SourceLoader.Load(remote, new SourceOptions { Strict = true }));
+        Assert.Equal(ErrorCodes.UnsupportedFeature, remoteStrict.Code);
+        Assert.Contains("vl-data-remote-url", remoteStrict.Message);
+    }
+
+    /// <summary>
+    ///     Test that the library's data failures are mapped from the real exceptions: a data limit is
+    ///     <c>budget-exceeded</c> (rows of a file, bytes of a file) and every other data failure is a
+    ///     <c>vega-lite-error</c>; the texts of the library are pinned here because the tool tells the two apart by them.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded()
+    {
+        // Arrange: a file-backed chart opened from its path, and limits that its file exceeds
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "bars.vl.json", FixtureFactory.TwoBarFileChart);
+        FixtureFactory.WriteText(directory.Path, "bars.csv", FixtureFactory.TwoBarCsv);
+        var document = VegaLiteDocument.Open(path);
+        var rows = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = 1 } }, TestContext.Current.CancellationToken));
+        var bytes = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataBytes = 3 } }, TestContext.Current.CancellationToken));
+        var missing = Assert.Throws<VegaLiteRenderException>(
+            () => VegaLiteDocument.Parse(FixtureFactory.TwoBarFileChart).Render(cancellationToken: TestContext.Current.CancellationToken));
+
+        // Act
+        var mappedRows = SourceLoader.MapVegaLiteRender(rows);
+        var mappedBytes = SourceLoader.MapVegaLiteRender(bytes);
+        var mappedMissing = SourceLoader.MapVegaLiteRender(missing);
+
+        // Assert: limits are budget errors that name the limit; a document without a data folder is an error of the chart
+        Assert.Equal(ErrorCodes.BudgetExceeded, mappedRows.Code);
+        Assert.Contains("MaxDataRows", mappedRows.Message);
+        Assert.Equal(ErrorCodes.BudgetExceeded, mappedBytes.Code);
+        Assert.Contains("MaxDataBytes", mappedBytes.Message);
+        Assert.Same(bytes, mappedBytes.InnerException);
+        Assert.Equal(ErrorCodes.VegaLiteError, mappedMissing.Code);
+        Assert.Contains("no base directory, data path or file resolver", mappedMissing.Message);
+    }
 }

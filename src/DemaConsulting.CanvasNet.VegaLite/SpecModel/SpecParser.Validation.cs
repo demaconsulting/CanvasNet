@@ -1,5 +1,6 @@
 // cspell:ignore SNZE BOSZ SAOZ STZE BNSO
 using System.Text;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -407,6 +408,7 @@ internal sealed partial class SpecParser
         if (node["format"] is { IsObject: true } format)
         {
             CheckObject(format, FormatRules);
+            ValidateFormat(format);
         }
 
         if (node["sequence"] is { IsObject: true } sequence)
@@ -416,6 +418,52 @@ internal sealed partial class SpecParser
             if (missing is not null)
             {
                 throw Error(sequence, $"The sequence needs a numeric '{missing}'.");
+            }
+
+            // An empty field name cannot be addressed by an encoding. (A zero step is not rejected here: the data reference
+            // reports an unknown length for it, and the data stage fails the render with its location.)
+            if (sequence["as"] is { IsString: true, StringValue.Length: 0 } empty)
+            {
+                throw Error(empty, "The sequence field name ('as') must not be empty.");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the parts of a data <c>format</c> that the data stage reads: the delimiter and the <c>parse</c> directives.
+    /// </summary>
+    /// <remarks>
+    ///     A delimiter is exactly one character that can separate fields (not a quote, a line break or half of a surrogate
+    ///     pair). <c>parse</c> is <c>"auto"</c>, <c>null</c>, or an object that maps field names to <c>number</c>,
+    ///     <c>boolean</c>, <c>date</c>, <c>string</c> or a custom date format (<c>date:'%fmt'</c>, <c>utc:'%fmt'</c>); a
+    ///     custom date format is valid here and reported by the feature catalog, because it is not applied.
+    /// </remarks>
+    /// <param name="format">The <c>format</c> object.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown for a delimiter that is not one valid character or a parse directive that is not known.</exception>
+    private void ValidateFormat(SpecNode format)
+    {
+        if (format["delimiter"] is { IsString: true } delimiter
+            && (delimiter.StringValue!.Length != 1 || !DelimitedTextParser.IsValidDelimiter(delimiter.StringValue[0])))
+        {
+            throw Error(delimiter, "The 'delimiter' must be a single character other than a quote or a line break.");
+        }
+
+        var parse = format["parse"];
+        if (parse is { IsString: true } && parse.StringValue != "auto")
+        {
+            throw Error(parse, "The 'parse' must be \"auto\", null or an object that maps field names to data types.");
+        }
+
+        if (parse is not { IsObject: true })
+        {
+            return;
+        }
+
+        foreach (var entry in parse.Properties)
+        {
+            if (!entry.IsString || !ParseDirectives.TryClassify(entry.StringValue!, out _))
+            {
+                throw Error(entry, $"The parse type of '{entry.Name}' must be \"number\", \"boolean\", \"date\", \"string\" or a date format such as \"date:'%Y-%m-%d'\".");
             }
         }
     }

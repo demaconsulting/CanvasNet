@@ -689,14 +689,18 @@ sections:
           The tool shall render a Vega-Lite chart (a `.vl.json` or `.vl` file, or a `.json` file with a
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default),
           over the background of the chart (white by default) unless `--background` says otherwise, with
-          UTC dates and only the fonts bundled with the tool, without reading anything from the network,
-          giving the same picture every time; shall describe a chart with the `info` command (its
+          UTC dates and only the fonts bundled with the tool, without reading anything from the network and
+          reading the local data files of a chart (CSV, TSV, or JSON named by a relative url) only from the
+          folder of its specification and below it, with no option for another data folder, giving the same
+          picture every time; shall describe a chart with the `info` command (its
           laid-out size and, in a `chart` object, its marks, data references, parameters, title, and schema
           version) and list the `vega-lite` format with the `formats` command; shall refuse a plain Vega
           specification as an unsupported format; and shall report an invalid chart (including a specification
-          that nests deeper than, or has a string longer than, the limit of the parser) with the error code
-          vega-lite-error, a chart that exceeds a limit of the library while it is laid out or drawn with the
-          error code budget-exceeded, a specification file longer than the limit of the library with the error
+          that nests deeper than, or has a string longer than, the limit of the parser, and a local data file
+          that is missing, outside the specification folder, or not valid) with the error code
+          vega-lite-error, a chart that exceeds a limit of the library while it is laid out or drawn (including
+          the data row and data byte limits) with the error code budget-exceeded, a specification file longer
+          than the limit of the library with the error
           code corrupt-input (as for an overlong SCAD model), and a chart that lays out larger than the maximum
           image size with the error code size-limit, as expected failures. The self-validation includes the
           Vega-Lite self-test (see the validate requirement).
@@ -704,20 +708,22 @@ sections:
         justification: |
           Agents are asked to show data; a declarative chart specification says what to draw without a
           plotting program, the same picture on every machine lets results be compared and cached, and
-          reading only the specification (and never the network) means that rendering a chart from an
-          untrusted source cannot reach other systems. Every limit and mistake of a chart is a concise,
-          coded error rather than a crash, and the constructs the renderer cannot draw yet are reported,
-          never silently skipped.
+          reading only the specification, the data files beside it, and never the network means that
+          rendering a chart from an untrusted source cannot reach other systems or other folders. Every limit
+          and mistake of a chart is a concise, coded error rather than a crash, and the constructs the renderer
+          cannot draw yet are reported, never silently skipped.
         children:
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteData
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
           - CanvasNetTool-Commands-RenderCommand-VegaLite
         tests:
           - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+          - RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder
 
       - id: CanvasNetTool-System-Diagnostics
         title: >-

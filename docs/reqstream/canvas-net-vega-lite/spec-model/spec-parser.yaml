@@ -66,6 +66,24 @@ sections:
                   - SpecParser_Parse_FirstWrongValueInDocumentOrderIsReported
                   - SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-DataFormats
+                title: >-
+                  The SpecParser unit shall throw a located VegaLiteSpecException for a data format
+                  delimiter that is not exactly one character that can separate fields (an empty one, a
+                  longer one, a quote, a line break, or a value that is not text), for a parse property that
+                  is not auto, null, or an object, for a parse entry that is not a known type or a date
+                  format (number, boolean, date, string, date:format, utc:format), for a format property that
+                  is not text, for a sequence step that is not a number, and for an empty sequence field
+                  name, and shall accept the documented valid forms, including a custom date format, a
+                  negative or zero sequence step, and top-level datasets of every kind.
+                justification: |
+                  The data stage reads these properties as given; a malformed one must stop the renderer
+                  with its location before the data is read, and a valid form that is rejected would make
+                  correct specifications unusable.
+                tests:
+                  - SpecParser_Parse_Phase4DataFormsAreAccepted
+                  - SpecParser_Parse_WrongTypeReportsPointer
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-DuplicateAndUnknownKeys
                 title: >-
                   The SpecParser unit shall keep the last value of a key written twice while keeping the

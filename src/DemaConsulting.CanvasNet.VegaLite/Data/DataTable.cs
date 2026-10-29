@@ -18,29 +18,43 @@ internal enum DataValueKind
     /// <summary>A number (a JSON number is always finite; computed values may not be).</summary>
     Number,
 
+    /// <summary>A date: an instant in time, held as whole or fractional milliseconds since 1970-01-01T00:00:00Z (UTC).</summary>
+    Date,
+
     /// <summary>A string.</summary>
     String,
 }
 
 /// <summary>
-///     One scalar value of a data row: null, boolean, number or string.
+///     One scalar value of a data row: null, boolean, number, date or string.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Dates are not part of the value model yet; a date in the data is an ordinary string. The type is an
+///         A date is an instant held as milliseconds since the Unix epoch in UTC (the way JavaScript's <c>Date</c>
+///         holds it), so it is deterministic and independent of the time zone and culture of the host: its quantitative
+///         value is that number of milliseconds and its text is the ISO 8601 form <c>yyyy-MM-ddTHH:mm:ss.fffZ</c>. A
+///         date appears in the data when the data names it with <c>format.parse</c> or the data of a delimited file is
+///         recognized as ISO 8601 dates, or when the caller supplies a <see cref="DateTime"/> or
+///         <see cref="DateTimeOffset"/>. The type is an
 ///         immutable value type. Equality follows JavaScript's SameValueZero rules (the same kind and the same value;
 ///         <c>NaN</c> equals <c>NaN</c>; zero equals negative zero), so a value can be used as a dictionary key the way
 ///         Vega uses values as keys of an ordinal domain.
 ///     </para>
 ///     <para>
 ///         <see cref="Compare"/> is the ascending order Vega uses for sorted domains, with one deliberate difference:
-///         values of different kinds are ordered by kind (null, boolean, number, string) instead of through JavaScript's
-///         implicit type coercions, so the order is total and stable.
+///         values of different kinds are ordered by kind (null, boolean, number, date, string) instead of through
+///         JavaScript's implicit type coercions, so the order is total and stable.
 ///     </para>
 /// </remarks>
 internal readonly struct DataValue : IEquatable<DataValue>
 {
-    /// <summary>The numeric payload of a number (or 1/0 of a boolean).</summary>
+    /// <summary>The smallest date in milliseconds since the epoch: 0001-01-01T00:00:00Z.</summary>
+    internal const double MinDateMilliseconds = -62135596800000.0;
+
+    /// <summary>The largest date in milliseconds since the epoch: 9999-12-31T23:59:59.999Z.</summary>
+    internal const double MaxDateMilliseconds = 253402300799999.0;
+
+    /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
 
     /// <summary>The text of a string.</summary>
@@ -77,8 +91,14 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>Gets a value indicating whether this value is a string.</summary>
     public bool IsString => Kind == DataValueKind.String;
 
+    /// <summary>Gets a value indicating whether this value is a date.</summary>
+    public bool IsDate => Kind == DataValueKind.Date;
+
     /// <summary>Gets the number of a number value; zero for other kinds.</summary>
     public double Number => Kind == DataValueKind.Number ? _number : 0;
+
+    /// <summary>Gets the milliseconds since 1970-01-01T00:00:00Z of a date value; zero for other kinds.</summary>
+    public double Milliseconds => Kind == DataValueKind.Date ? _number : 0;
 
     /// <summary>Gets the boolean of a boolean value; false for other kinds.</summary>
     public bool Boolean => Kind == DataValueKind.Boolean && _number != 0;
@@ -108,10 +128,59 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public static DataValue FromString(string? value) => value is null ? default : new DataValue(DataValueKind.String, 0, value);
 
     /// <summary>
+    ///     Creates a date value.
+    /// </summary>
+    /// <param name="milliseconds">The milliseconds since 1970-01-01T00:00:00Z; must be finite and within the range of <see cref="DateTime"/> (years 1 to 9999).</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="milliseconds"/> is not finite or is outside the supported range.</exception>
+    public static DataValue FromDate(double milliseconds)
+    {
+        if (!double.IsFinite(milliseconds) || milliseconds < MinDateMilliseconds || milliseconds > MaxDateMilliseconds)
+        {
+            throw new ArgumentOutOfRangeException(nameof(milliseconds), milliseconds, "A date must be a finite number of milliseconds within the years 1 to 9999.");
+        }
+
+        // Negative zero and zero are the same instant; one representation keeps equality and hashing simple
+        return new DataValue(DataValueKind.Date, milliseconds == 0 ? 0 : milliseconds, null);
+    }
+
+    /// <summary>
+    ///     Gets the milliseconds since the epoch of a UTC point in time, exactly to the sub-millisecond fraction.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="TimeSpan.TotalMilliseconds"/> divides a tick count that is beyond the exact range of a double for the
+    ///     distant years, which would turn the last whole millisecond into a nearby fraction. The whole milliseconds are
+    ///     computed in integer arithmetic here, so every whole millisecond of the supported range is exact.
+    /// </remarks>
+    /// <param name="utc">The point in time, taken as UTC.</param>
+    /// <returns>The milliseconds since 1970-01-01T00:00:00Z.</returns>
+    public static double MillisecondsSinceEpoch(DateTime utc)
+    {
+        var ticks = utc.Ticks - DateTime.UnixEpoch.Ticks;
+        return (ticks / TimeSpan.TicksPerMillisecond) + ((ticks % TimeSpan.TicksPerMillisecond) / (double)TimeSpan.TicksPerMillisecond);
+    }
+
+    /// <summary>
+    ///     Creates a date value from a point in time.
+    /// </summary>
+    /// <remarks>
+    ///     A <see cref="DateTime"/> of kind <see cref="DateTimeKind.Local"/> is converted to UTC; one of kind
+    ///     <see cref="DateTimeKind.Unspecified"/> is taken as UTC, so the result never depends on the host time zone.
+    /// </remarks>
+    /// <param name="value">The point in time.</param>
+    /// <returns>The value.</returns>
+    public static DataValue FromDateTime(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        return FromDate(MillisecondsSinceEpoch(utc));
+    }
+
+    /// <summary>
     ///     Tries to read the value as the number of a quantitative field.
     /// </summary>
     /// <remarks>
-    ///     Vega-Lite parses a quantitative field as a number: numbers are taken as they are, a boolean is 1 or 0, and a
+    ///     Vega-Lite parses a quantitative field as a number: numbers are taken as they are, a date is its milliseconds
+    ///     since the epoch, a boolean is 1 or 0, and a
     ///     string is read as a decimal number (surrounding white space allowed). Null, an empty string, a string that is
     ///     not a number, <c>NaN</c> and infinities are invalid and are not drawn.
     /// </remarks>
@@ -124,7 +193,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
             case DataValueKind.Number:
                 number = _number;
                 return double.IsFinite(number);
-            case DataValueKind.Boolean:
+            case DataValueKind.Boolean or DataValueKind.Date:
                 number = _number;
                 return true;
             case DataValueKind.String:
@@ -139,7 +208,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
     ///     Formats the value the way JavaScript's <c>String()</c> does, with the invariant culture.
     /// </summary>
     /// <remarks>
-    ///     Null is <c>null</c>, a boolean is <c>true</c> or <c>false</c>, a string is itself, and a number follows the
+    ///     Null is <c>null</c>, a boolean is <c>true</c> or <c>false</c>, a string is itself, a date is its ISO 8601 form in
+    ///     UTC (<c>2024-03-05T00:00:00.000Z</c>, like <c>toISOString()</c>), and a number follows the
     ///     JavaScript rules: <c>1</c> is <c>1</c>, <c>0.5</c> is <c>0.5</c>, <c>1e21</c> is <c>1e+21</c>, an integer
     ///     below 1e21 has no decimal point and negative zero is <c>0</c>.
     /// </remarks>
@@ -148,6 +218,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
     {
         DataValueKind.Boolean => _number != 0 ? "true" : "false",
         DataValueKind.Number => JsNumber.ToString(_number),
+        DataValueKind.Date => DateTime.UnixEpoch.AddMilliseconds(_number).ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture),
         DataValueKind.String => _text!,
         _ => "null",
     };
@@ -183,8 +254,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 }
 
                 return Math.Sign(a._number.CompareTo(b._number));
-            case DataValueKind.Boolean:
-                return a._number.CompareTo(b._number);
+            case DataValueKind.Boolean or DataValueKind.Date:
+                return Math.Sign(a._number.CompareTo(b._number));
             case DataValueKind.String:
                 // JavaScript compares strings by UTF-16 code units, which is the ordinal comparison
                 return Math.Sign(string.CompareOrdinal(a._text, b._text));
@@ -215,7 +286,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
         && Kind switch
         {
             DataValueKind.String => string.Equals(_text, other._text, StringComparison.Ordinal),
-            DataValueKind.Number => _number.CompareTo(other._number) == 0,
+            DataValueKind.Number or DataValueKind.Date => _number.CompareTo(other._number) == 0,
             DataValueKind.Boolean => Boolean == other.Boolean,
             _ => true,
         };
@@ -227,7 +298,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public override int GetHashCode() => Kind switch
     {
         DataValueKind.String => HashCode.Combine(Kind, _text!.GetHashCode(StringComparison.Ordinal)),
-        DataValueKind.Number => HashCode.Combine(Kind, JsNumber.IsZero(_number) ? 0.0 : _number),
+        DataValueKind.Number or DataValueKind.Date => HashCode.Combine(Kind, JsNumber.IsZero(_number) ? 0.0 : _number),
         DataValueKind.Boolean => HashCode.Combine(Kind, _number),
         _ => 0,
     };

@@ -102,8 +102,10 @@ is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size 
 document with no pages is `corrupt-input`. An OpenSCAD model is parsed with `ScadDocument.Open(path)` (the parse
 reads no other file and evaluates nothing): its `ModuleNames` and `FunctionNames` become `Modules` and `Functions`,
 its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. A Vega-Lite chart is parsed
-with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing) and
-measured with `Measure()` (the library lays the chart out, which reads its data, but draws no pixel): the size is
+with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing; the folder of the path becomes the
+base directory of the library's data sandbox) and
+measured with `Measure()` (the library lays the chart out, which reads its data files from that folder and below it, but
+draws no pixel): the size is
 `Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
 the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
 larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. No pixels
@@ -171,7 +173,13 @@ transparent picture), `ThrowOnUnsupportedFeature` is `Strict`, and the handlers 
 note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an unsupported
 feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-arc` as the code, and
 `file:line:column /pointer: message`). There are no options of the chart in this release: no parameters, datasets,
-configuration, or data folders are passed, and the library reads data files only through its own sandbox. The
+configuration, or data folders are passed, and there is **no data-folder option** (the shared option grammar of the
+render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A
+chart's local data files (CSV, TSV, DSV, or JSON named by a relative `url`) are therefore read by the library through
+its own sandbox from the folder of the specification and below it only - the base directory that `Open(path)` sets, never
+the current directory - and no link below that folder is followed; a file that is missing, outside the folder, or not
+valid is a `VegaLiteRenderException` (`vega-lite-error`, in strict mode too), and a remote URL is only a diagnostic that
+is never fetched (an `unsupported-feature` error with the strict switch). The
 picture is the same for the same chart and options: the library's render is deterministic. The operation recorded
 is `render` with the `width`, the `height`, the `timeZone` (`UTC`), and, when it was given, the `background`.
 
@@ -254,10 +262,14 @@ exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in
 naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
 nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to `vega-lite-error`
 ("Vega-Lite specification error: file:line:column /pointer: ..."); and `VegaLiteRenderException` (an
-`InvalidOperationException`: missing or invalid data, a chart that cannot be laid out) to `budget-exceeded` when it
+`InvalidOperationException`: a local data file that is missing, outside the folder of the specification, a link, not valid
+UTF-8, or not valid JSON or delimited text, an undefined dataset name, a data limit, or a chart that cannot be laid
+out) to
+`budget-exceeded` when it
 reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."). The limits of the specification
 parser are deliberately `vega-lite-error`, as the nesting limit of the SCAD parser is a `scad-error`: only the limits
-applied while the chart is laid out or drawn (data rows, ticks, scene items, and so on) are `budget-exceeded`. The
+applied while the chart is laid out or drawn (data rows, data files, data bytes, ticks, scene items, and so on) are
+`budget-exceeded`. The
 library names every limit in the message, either as "the limit of N" or with the
 name of the limit ("VegaLiteLimits.MaxSceneItems"), which `MapVegaLiteRender` recognizes; the library gives no other way
 to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.

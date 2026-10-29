@@ -3,10 +3,13 @@
 #
 # These requirements decompose the CanvasNetVegaLite system's data responsibility into the Data subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Data): the immutable typed row table and its value
-# model (DataTable) and the loader that turns the inline values of a view into a table (DataLoader). Only
-# inline row values are read; every other source is an empty table that the feature catalog reports, and
-# nothing here opens a file or uses the network. Each requirement here links down to the unit requirements
-# that implement it. See docs/verification/canvas-net-vega-lite/data.md for the test-evidence mapping.
+# model (DataTable), the loader that chooses the source of a view and builds its table (DataLoader), the
+# sandboxed resolver that reads local data files (DataFileResolver), and the parser of delimited text and of
+# the parse conversions (DelimitedTextParser). Inline values, local CSV, TSV, DSV, and JSON files, named
+# datasets, and sequences are read; remote URLs and the other sources are empty tables that the feature
+# catalog reports, and nothing here uses the network. Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-vega-lite/data.md for the test-evidence
+# mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -16,12 +19,12 @@ sections:
           - id: CanvasNetVegaLite-Data-InlineValues
             title: >-
               The Data subsystem shall load the inline values of a view into an immutable table of
-              null, boolean, number, and string values that preserves the JSON types, turning each
+              null, boolean, number, date, and string values that preserves the JSON types, turning each
               object into a row, each primitive or array into a row with the data field, and nested
               containers into leaf fields named by their path, with a field a row lacks being null.
             justification: |
-              Inline values are the only data source of the first delivery, and the later stages need
-              one typed, immutable, culture-independent representation of them.
+              Inline values are the simplest data source, and the later stages need one typed, immutable,
+              culture-independent representation of every source.
             children:
               - CanvasNetVegaLite-Data-DataTable-ImmutableRows
               - CanvasNetVegaLite-Data-DataTable-FieldPaths
@@ -34,10 +37,11 @@ sections:
 
           - id: CanvasNetVegaLite-Data-EmptyAndRemote
             title: >-
-              The Data subsystem shall give a view with no data, an empty values array, or any data
-              source other than inline values an empty table without opening a file or using the
-              network, so that the chart renders empty while the feature catalog reports the data
-              source (vl-data-empty, vl-data-remote-url, and the other vl-data-* identifiers).
+              The Data subsystem shall give a view with no data, an empty values array, a remote URL,
+              text or object values, or a geographic source an empty table without opening a file,
+              handing the URL to a resolver, or using the network, so that the chart renders empty while
+              the feature catalog reports the data source (vl-data-empty, vl-data-remote-url, and the
+              other vl-data-* identifiers).
             justification: |
               A remote or unsupported source must never be fetched, and the chart must still render so
               that the author sees the other problems.
@@ -48,20 +52,144 @@ sections:
               - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl
               - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
 
+          - id: CanvasNetVegaLite-Data-LocalFiles
+            title: >-
+              The Data subsystem shall load the rows of a relative local data url from a file found by
+              the sandboxed resolver, as JSON (with an optional property path to the rows), CSV, TSV, or
+              DSV chosen by the format type or else by the file extension, so that the table equals the
+              one written inline, reading each distinct file once per call.
+            justification: |
+              Most real charts keep their data in files beside the specification; the same rows from a
+              file or inline must draw the same chart.
+            children:
+              - CanvasNetVegaLite-Data-DataLoader-LocalFiles
+              - CanvasNetVegaLite-Data-DataFileResolver-Resolution
+              - CanvasNetVegaLite-Data-DataFileResolver-Cache
+              - CanvasNetVegaLite-Data-DelimitedTextParser-Grammar
+              - CanvasNetVegaLite-Data-DelimitedTextParser-RaggedRows
+            tests:
+              - DataLoader_Load_LocalCsvUrlUsesRelativeFile
+              - DataLoader_Load_JsonPropertyAndExplicitParseAreApplied
+              - DataLoader_Load_FileIsReadOnceWhenNamedAgain
+              - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
+
+          - id: CanvasNetVegaLite-Data-Sandbox
+            title: >-
+              The Data subsystem shall read a data file only from the base directory, the data paths, or
+              the caller's callback, refusing a path that is absolute, rooted, a drive or UNC path,
+              empty, or that leaves its root, refusing a file reached through a symbolic link or
+              junction below a root, and never touching the file system when the caller's callback is
+              set, failing closed whenever it cannot decide.
+            justification: |
+              A specification may come from an untrusted source; a data url must never become a way to
+              read arbitrary files of the host.
+            children:
+              - CanvasNetVegaLite-Data-DataFileResolver-Sandbox
+              - CanvasNetVegaLite-Data-DataFileResolver-Links
+              - CanvasNetVegaLite-Data-DataFileResolver-ResolverCallback
+            tests:
+              - DataLoader_Load_MissingLocalFileIsHardFailure
+              - DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen
+              - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
+
+          - id: CanvasNetVegaLite-Data-Parsing
+            title: >-
+              The Data subsystem shall convert the values of a data source only as its format parse property
+              says, matching Vega: delimited text keeps every cell as a string unless parse is auto (the
+              explicit opt-in to per-column inference), named fields are converted to number, boolean,
+              date, or string, and null keeps a source as read; ISO 8601 dates are read as instants in
+              UTC, a value that cannot be converted becomes null with one vl-data-parse-failed warning per
+              field, and a custom date format is left as read. Text beyond the supported date range is
+              not a date: it stays text under inference and becomes null with the same warning under an
+              explicit date conversion. Quantitative encodings still coerce numeric
+              text when they are drawn.
+            justification: |
+              Typed values are what scales and axes need when asked for, identifiers such as postal codes
+              must not be silently changed, and a conversion must be predictable, culture-independent, and
+              visible when it fails.
+            children:
+              - CanvasNetVegaLite-Data-DelimitedTextParser-Inference
+              - CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
+              - CanvasNetVegaLite-Data-DelimitedTextParser-CustomDateFormat
+              - CanvasNetVegaLite-Data-DataLoader-ParseDefaults
+              - CanvasNetVegaLite-Data-DataLoader-ParseFailures
+              - CanvasNetVegaLite-Data-DataTable-DateValues
+            tests:
+              - DataLoader_Load_LocalCsvUrlUsesRelativeFile
+              - DataLoader_Load_DefaultDelimitedTextKeepsTextValues
+              - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
+              - DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText
+              - DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning
+              - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
+              - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
+
+          - id: CanvasNetVegaLite-Data-NamedAndSequence
+            title: >-
+              The Data subsystem shall load a named dataset from the caller's datasets first and the
+              top-level datasets of the specification second (representing the largest DateTime and
+              DateTimeOffset values by the last supported millisecond), and shall generate a sequence of numbers
+              from start up to, but not including, stop with the documented step and field name, checking
+              the length with overflow-safe arithmetic before allocating it and failing closed for a
+              sequence whose start, stop, or step is missing, not finite, or (for the step) zero.
+            justification: |
+              Hosts supply data without editing the specification, and generated data needs no file.
+            children:
+              - CanvasNetVegaLite-Data-DataLoader-NamedDatasets
+              - CanvasNetVegaLite-Data-DataLoader-Sequences
+              - CanvasNetVegaLite-Data-DataLoader-SequenceValidation
+            tests:
+              - DataLoader_Load_NamedDatasetsUseCallerPrecedence
+              - DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate
+              - DataLoader_Load_SequenceUsesExclusiveStopAndAs
+              - DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure
+              - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
+              - CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender
+
+          - id: CanvasNetVegaLite-Data-HardErrors
+            title: >-
+              The Data subsystem shall fail with a VegaLiteRenderException located at the offending data
+              url or name, never with an empty table, when a local data file is missing, cannot be read
+              (including a directory in place of a file, an existing file that cannot be opened, which is
+              never reported as missing, and a failing resolver callback or stream), or is not valid
+              (including JSON text that is not valid Unicode), and when a named dataset is defined by nobody.
+            justification: |
+              A broken data reference is a deployment error that an empty chart would hide, and raw I/O
+              or callback exceptions must not escape the documented render contract.
+            children:
+              - CanvasNetVegaLite-Data-DataLoader-HardFailures
+              - CanvasNetVegaLite-Data-DataFileResolver-MissingFiles
+              - CanvasNetVegaLite-Data-DataFileResolver-StrictUtf8
+            tests:
+              - DataLoader_Load_MissingLocalFileIsHardFailure
+              - DataLoader_Load_MissingNamedDataIsHardFailure
+              - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
+              - DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure
+              - DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure
+              - DataFileResolver_Load_CallbackFailureIsLocatedReadFailure
+              - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
+
           - id: CanvasNetVegaLite-Data-Limits
             title: >-
-              The Data subsystem shall bound the rows and fields of a table, failing closed with a
-              VegaLiteRenderException located at the offending data pointer when the row limit or the
-              field limit is exceeded and before the rows are converted, and shall stop loading when the
-              cancellation token is canceled.
+              The Data subsystem shall bound the rows, fields, files, and bytes of the data of a call,
+              failing closed with a VegaLiteRenderException located at the offending data pointer when
+              the row limit (a total across all tables), the field limit, the file limit, or the byte
+              limit is exceeded and before the rows are converted or allocated, and shall stop loading
+              when the cancellation token is canceled.
             justification: |
-              Inline data is untrusted input; unbounded rows or fields would exhaust memory, and callers
-              need to abandon a long load.
+              Data is untrusted input; unbounded rows, fields, files, or bytes would exhaust memory, and
+              callers need to abandon a long load.
             children:
               - CanvasNetVegaLite-Data-DataTable-Limits
               - CanvasNetVegaLite-Data-DataLoader-Limits
               - CanvasNetVegaLite-Data-DataLoader-Cancellation
+              - CanvasNetVegaLite-Data-DataFileResolver-FileLimit
+              - CanvasNetVegaLite-Data-DataFileResolver-ByteLimit
+              - CanvasNetVegaLite-Data-DataFileResolver-Cancellation
+              - CanvasNetVegaLite-Data-DelimitedTextParser-Limits
+              - CanvasNetVegaLite-Data-DelimitedTextParser-Cancellation
             tests:
               - DataLoader_Load_RowLimitFailsWithLocation
               - DataTable_Create_LimitsFailClosedWithLocation
               - DataLoader_Load_CanceledTokenStopsLoading
+              - DataLoader_Load_RowLimitIsATotalAcrossTables
+              - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget

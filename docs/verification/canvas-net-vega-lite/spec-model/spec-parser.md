@@ -88,16 +88,22 @@ astral character that counts as two columns), while a valid surrogate pair is ac
 
 **Tests**: `SpecParserTests.SpecParser_Parse_WrongTypeReportsPointer`,
 `SpecParserTests.SpecParser_Parse_FirstWrongValueInDocumentOrderIsReported`,
-`SpecParserTests.SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted`
+`SpecParserTests.SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted`,
+`SpecParserTests.SpecParser_Parse_Phase4DataFormsAreAccepted`
 
-Asserts that a known property with the wrong type or value (a theory of about sixty rows over `$schema`, `title`,
+Asserts that a known property with the wrong type or value (a theory of about seventy rows over `$schema`, `title`,
 `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`, `mark`, `layer`,
 `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
-`/encoding/y/axis/orient` and `/data/sequence/start`) throws a
+`/encoding/y/axis/orient`, `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`, `/data/format/delimiter`
+(empty, longer than one character, a quote, a line break, or not text), `/data/format/parse` (an unknown word or a
+number), `/data/format/parse/a` (an unknown type, a number, or null), and `/data/format/property`) throws a
 `VegaLiteSpecException` whose pointer names the offending value and whose location has a text position and the file;
 that when a nested view comes before a bad top-level mark in the text, the first problem in document order is the one
 reported; and that an original specification that touches every checked property with a valid but unusual form
-(including expression references) is accepted with no warnings.
+(including expression references) is accepted with no warnings, and that the data forms of the data stage - DSV
+delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`, `boolean`, `date`, `string`, and custom
+date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a negative or a zero step and a field name,
+a named dataset, and top-level datasets given as an array, as text, and as an object - are accepted without a warning.
 
 ##### Duplicate Keys: Last Wins, First Position, One Warning
 

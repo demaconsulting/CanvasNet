@@ -1,0 +1,11 @@
+{
+  "meta": { "note": "made-up crates, nothing real" },
+  "report": {
+    "rows": [
+      { "stall": "North", "crates": 28 },
+      { "stall": "South", "crates": 55 },
+      { "stall": "East", "crates": 43 },
+      { "stall": "West", "crates": 91 }
+    ]
+  }
+}

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.VegaLite.Tests.Data;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
@@ -655,6 +656,407 @@ public class VegaLiteSystemIntegrationTests
         Assert.StartsWith("vl-data-empty:", warning.Message, StringComparison.Ordinal);
         Assert.Equal("/layer/2/data", warning.Location.Pointer);
         Assert.Empty(resolved);
+
+        // Assert: strict mode turns the first remote url into an exception, still without any request
+        var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(
+            () => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+        Assert.Equal("vl-composition-layer", strict.Feature);
+        var single = VegaLiteDocument.Parse("{\"data\":{\"url\":\"https://example.org/a.csv\"},\"mark\":\"point\"}", open);
+        var remoteStrict = Assert.Throws<VegaLiteUnsupportedFeatureException>(
+            () => single.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+        Assert.Equal("vl-data-remote-url", remoteStrict.Feature);
+        Assert.Equal("/data", remoteStrict.Location.Pointer);
+        Assert.Empty(resolved);
+    }
+
+    /// <summary>The specification of a bar chart whose rows come from a relative file.</summary>
+    private const string FileChartSpec = """
+        { "data": { "url": "data-files.csv" }, "mark": "bar",
+          "encoding": { "x": { "field": "stall", "type": "nominal" }, "y": { "field": "crates", "type": "quantitative" } } }
+        """;
+
+    /// <summary>The same chart with its rows written inline, to compare pixels with the file-backed one.</summary>
+    private const string InlineChartSpec = """
+        { "data": { "values": [ { "stall": "North", "crates": 28 }, { "stall": "South", "crates": 55 },
+                                { "stall": "East", "crates": 43 }, { "stall": "West", "crates": 91 } ] },
+          "mark": "bar",
+          "encoding": { "x": { "field": "stall", "type": "nominal" }, "y": { "field": "crates", "type": "quantitative" } } }
+        """;
+
+    /// <summary>Gets the folder that holds the fixture specifications and their data files.</summary>
+    private static string FixturesFolder => Path.Combine(AppContext.BaseDirectory, "Fixtures");
+
+    /// <summary>
+    ///     Renders a document and returns the pixels.
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <param name="options">The render options, or null.</param>
+    /// <returns>The size and the pixel bytes.</returns>
+    private static (int Width, int Height, byte[] Pixels) Pixels(VegaLiteDocument document, VegaLiteRenderOptions? options = null)
+    {
+        using var surface = document.Render(options, Ct);
+        return (surface.Width, surface.Height, VegaLiteTestHelpers.Snapshot(surface));
+    }
+
+    /// <summary>
+    ///     Validates that a specification opened from a file reads its relative data file from its own folder, that the
+    ///     base directory, a data path and a resolver callback find the same file for a specification that has no folder, and
+    ///     that every way gives the pixels of the inline chart.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder()
+    {
+        // Arrange: the inline charts are the references; the fixture and a copy in a new folder are opened from their paths
+        var inlineFixture = Pixels(VegaLiteDocument.Open(Path.Combine(FixturesFolder, "bar-inline.vl.json")));
+        var inlineChart = Pixels(VegaLiteDocument.Parse(InlineChartSpec));
+        using var directory = new DataTempDirectory();
+        File.Copy(Path.Combine(FixturesFolder, "data-files.vl.json"), directory.Combine("chart.vl.json"));
+        File.Copy(Path.Combine(FixturesFolder, "data-files.csv"), directory.Combine("data-files.csv"));
+        var csv = File.ReadAllBytes(Path.Combine(FixturesFolder, "data-files.csv"));
+        var requests = new List<string>();
+
+        // Act
+        var fromFixture = Pixels(VegaLiteDocument.Open(Path.Combine(FixturesFolder, "data-files.vl.json")));
+        var fromCopy = Pixels(VegaLiteDocument.Open(directory.Combine("chart.vl.json")));
+        var viaBase = Pixels(VegaLiteDocument.Parse(FileChartSpec, new VegaLiteOpenOptions { BaseDirectory = FixturesFolder }));
+        var viaDataPath = Pixels(VegaLiteDocument.Parse(FileChartSpec, new VegaLiteOpenOptions { DataPaths = [FixturesFolder] }));
+        var viaCallback = Pixels(VegaLiteDocument.Parse(
+            FileChartSpec,
+            new VegaLiteOpenOptions { FileResolver = name => { requests.Add(name); return name == "data-files.csv" ? new MemoryStream(csv) : null; } }));
+
+        // Assert: the chart of a file is the chart of the same rows written inline, whichever way the file was found
+        foreach (var actual in new[] { fromFixture, fromCopy })
+        {
+            Assert.Equal((inlineFixture.Width, inlineFixture.Height), (actual.Width, actual.Height));
+            Assert.True(inlineFixture.Pixels.AsSpan().SequenceEqual(actual.Pixels));
+        }
+
+        foreach (var actual in new[] { viaBase, viaDataPath, viaCallback })
+        {
+            Assert.Equal((inlineChart.Width, inlineChart.Height), (actual.Width, actual.Height));
+            Assert.True(inlineChart.Pixels.AsSpan().SequenceEqual(actual.Pixels));
+        }
+
+        // Assert: the callback was asked for the logical path only
+        Assert.Equal(["data-files.csv"], requests);
+    }
+
+    /// <summary>
+    ///     Validates that a document without a folder (parsed from a string or opened from a stream) fails to render a
+    ///     local data file unless a base directory, a data path or a resolver is given, in lenient and strict mode.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(FileChartSpec));
+        var document = VegaLiteDocument.Open(stream);
+        var parsed = VegaLiteDocument.Parse(FileChartSpec);
+
+        // Act / Assert: rendering and measuring fail with the location of the url, never with an empty chart
+        foreach (var candidate in new[] { document, parsed })
+        {
+            var render = Assert.Throws<VegaLiteRenderException>(() => candidate.Render(cancellationToken: Ct));
+            var measure = Assert.Throws<VegaLiteRenderException>(() => candidate.Measure(cancellationToken: Ct));
+            var strict = Assert.Throws<VegaLiteRenderException>(() => candidate.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+            Assert.Contains("no base directory, data path or file resolver", render.Message, StringComparison.Ordinal);
+            Assert.Equal("/data/url", render.Location.Pointer);
+            Assert.Equal("/data/url", measure.Location.Pointer);
+            Assert.Equal("/data/url", strict.Location.Pointer);
+        }
+
+        // Assert: opening itself never needs the file (the references describe the text only)
+        var reference = Assert.Single(document.DataReferences);
+        Assert.Equal((VegaLiteDataKind.Url, "data-files.csv"), (reference.Kind, reference.Url));
+    }
+
+    /// <summary>
+    ///     Validates that a local file that is missing, outside the sandbox, a directory link, or not valid UTF-8 fails the
+    ///     render with a located <see cref="VegaLiteRenderException"/> in lenient and strict mode, while an absolute path is
+    ///     remote data and is never opened.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException()
+    {
+        // Arrange: a folder with a spec-visible root, a file beside it, a file of invalid UTF-8, and a spec for each case
+        using var directory = new DataTempDirectory();
+        directory.Write("root/ok.csv", "a\n1\n");
+        directory.Write("root/bad.csv", new byte[] { 0x61, 0x0A, 0xFF, 0x0A });
+        directory.Write("outside.csv", "a\n1\n");
+        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") };
+        string Spec(string url) => "{\"data\":{\"url\":" + System.Text.Json.JsonSerializer.Serialize(url) + "},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}";
+
+        // Act / Assert: each failure is located at the url, whatever the mode
+        foreach (var (url, expected) in new[]
+        {
+            ("missing.csv", "was not found"),
+            ("../outside.csv", "outside the allowed directories"),
+            ("bad.csv", "is not valid UTF-8"),
+            ("dir/../../outside.csv", "outside the allowed directories"),
+            ("dir/a:b.csv", "is not allowed"),
+        })
+        {
+            var document = VegaLiteDocument.Parse(Spec(url), open);
+            foreach (var strict in new[] { false, true })
+            {
+                var ex = Assert.Throws<VegaLiteRenderException>(
+                    () => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = strict }, Ct));
+                Assert.Contains(expected, ex.Message, StringComparison.Ordinal);
+                Assert.Equal("/data/url", ex.Location.Pointer);
+            }
+        }
+
+        // Assert: the file that is fine renders, and an absolute path is remote data, never opened (empty chart in lenient mode)
+        using var fine = VegaLiteDocument.Parse(Spec("ok.csv"), open).Render(cancellationToken: Ct);
+        Assert.True(fine.Width > 0);
+
+        var absolute = VegaLiteDocument.Parse(Spec(directory.Combine("outside.csv")), open);
+        var reports = new List<VegaLiteUnsupportedFeature>();
+        using var emptyChart = absolute.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add }, Ct);
+        Assert.True(emptyChart.Width > 0);
+        Assert.Equal(["vl-data-remote-url"], reports.Select(r => r.Feature));
+        Assert.Throws<VegaLiteUnsupportedFeatureException>(
+            () => absolute.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+    }
+
+    /// <summary>
+    ///     Validates that sequences, named datasets given by the caller and named datasets of the specification render
+    ///     without any report (strict mode accepts them) and give the pixels of the same rows written inline.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender()
+    {
+        // Arrange: three ways to say "x from 0 to 3" and "the four stalls"
+        const string encoding = "\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"}}";
+        var inline = Pixels(VegaLiteDocument.Parse("{\"data\":{\"values\":[{\"x\":0},{\"x\":1},{\"x\":2}]}," + encoding + "}"));
+        var sequence = VegaLiteDocument.Parse("{\"data\":{\"sequence\":{\"start\":0,\"stop\":3,\"as\":\"x\"}}," + encoding + "}");
+        var named = VegaLiteDocument.Parse("{\"data\":{\"name\":\"rows\"}," + encoding + "}");
+        var specDatasets = VegaLiteDocument.Parse("{\"datasets\":{\"rows\":[{\"x\":0},{\"x\":1},{\"x\":2}]},\"data\":{\"name\":\"rows\"}," + encoding + "}");
+        var callerRows = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+        {
+            ["rows"] = new[] { 0, 1, 2 }.Select(i => (IReadOnlyDictionary<string, object?>)new Dictionary<string, object?> { ["x"] = i }).ToList(),
+        };
+        var features = new List<VegaLiteUnsupportedFeature>();
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = features.Add };
+
+        // Act
+        var fromSequence = Pixels(sequence, strict);
+        var fromCaller = Pixels(named, new VegaLiteRenderOptions { Datasets = callerRows, ThrowOnUnsupportedFeature = true });
+        var fromSpec = Pixels(specDatasets, strict);
+
+        // Assert: no report, and the same pixels as the inline rows
+        Assert.Empty(features);
+        foreach (var actual in new[] { fromSequence, fromCaller, fromSpec })
+        {
+            Assert.Equal((inline.Width, inline.Height), (actual.Width, actual.Height));
+            Assert.True(inline.Pixels.AsSpan().SequenceEqual(actual.Pixels));
+        }
+
+        // Assert: the caller's dataset replaces the one of the specification
+        var override3 = Pixels(
+            specDatasets,
+            new VegaLiteRenderOptions
+            {
+                Datasets = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+                {
+                    ["rows"] = new List<IReadOnlyDictionary<string, object?>> { new Dictionary<string, object?> { ["x"] = 100 } },
+                },
+            });
+        Assert.False(inline.Pixels.AsSpan().SequenceEqual(override3.Pixels));
+    }
+
+    /// <summary>
+    ///     Validates that values that an explicit parse cannot read are delivered as the warning
+    ///     <c>vl-data-parse-failed</c> once per field, after the reports of the specification and with the location of the data.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings()
+    {
+        // Arrange: a schema version warning first, then two cells of one field that are not numbers
+        const string spec = """
+            { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+              "data": { "url": "d.csv", "format": { "parse": { "n": "number" } } }, "mark": "point",
+              "encoding": { "x": { "field": "n", "type": "quantitative" } } }
+            """;
+        var files = new VirtualDataFiles().With("d.csv", "n\n1\nbad\nworse\n4\n");
+        var document = VegaLiteDocument.Parse(spec, new VegaLiteOpenOptions { FileResolver = files.Resolve });
+        var log = new List<string>();
+        var messages = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            WarningHandler = w =>
+            {
+                messages.Add(w.Message);
+                log.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + "|" + w.Location.Pointer);
+            },
+        };
+
+        // Act
+        using var surface = document.Render(options, Ct);
+
+        // Assert: the specification's warning first, the data stage's after it, once, with the counts
+        Assert.Equal(["vl-schema-version|/$schema", "vl-data-parse-failed|/data"], log);
+        Assert.Contains("2 value(s) of the field 'n'", messages[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the warnings of the data stage are delivered, once and in order after the reports of the
+    ///     specification, even when a later stage (here the scene-item limit) fails the call, and before the exception.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_ParseWarningsAreDeliveredWhenALaterStageFails()
+    {
+        // Arrange: a schema version warning, a parse failure in the data, and a scene limit the marks cannot fit in
+        const string spec = """
+            { "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+              "data": { "url": "d.csv", "format": { "parse": { "n": "number" } } }, "mark": "point",
+              "encoding": { "x": { "field": "n", "type": "quantitative" } } }
+            """;
+        var files = new VirtualDataFiles().With("d.csv", "n\n1\nbad\nworse\n4\n");
+        var document = VegaLiteDocument.Parse(spec, new VegaLiteOpenOptions { FileResolver = files.Resolve });
+        var log = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            Limits = new VegaLiteLimits { MaxSceneItems = 20 },
+            WarningHandler = w => log.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + "|" + w.Location.Pointer),
+        };
+
+        // Act / Assert: every entry point fails on the limit after delivering both warnings, exactly once each
+        var ex = Assert.Throws<VegaLiteRenderException>(() => document.Render(options, Ct));
+        Assert.Contains("MaxSceneItems", ex.Message, StringComparison.Ordinal);
+        string[] expected = ["vl-schema-version|/$schema", "vl-data-parse-failed|/data"];
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteRenderException>(() => document.Render(64, 64, options, Ct));
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteRenderException>(() => document.Measure(options, Ct));
+        Assert.Equal(expected, log);
+    }
+
+    /// <summary>
+    ///     Validates that every measure and render call reads its data again (nothing is cached between calls) and that
+    ///     changing a file between calls changes the result.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_EachCallReadsTheFileAgain()
+    {
+        // Arrange
+        using var directory = new DataTempDirectory();
+        directory.Write("d.csv", "a\n1\n2\n");
+        var document = VegaLiteDocument.Parse(
+            "{\"data\":{\"url\":\"d.csv\"},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}",
+            new VegaLiteOpenOptions { BaseDirectory = directory.Path });
+
+        // Act
+        var first = Pixels(document);
+        directory.Write("d.csv", "a\n1\n50\n");
+        var second = Pixels(document);
+        var measured = document.Measure(cancellationToken: Ct);
+
+        // Assert: the second call saw the new file (the first would have drawn a different chart otherwise)
+        Assert.False(first.Pixels.AsSpan().SequenceEqual(second.Pixels));
+        Assert.Equal(new VegaLiteSize(second.Width, second.Height), measured);
+    }
+
+    /// <summary>
+    ///     Validates that the data limits are enforced before any scene item is created: a file over the row, file or byte
+    ///     limit fails with that limit named and located at the url even when the scene limit would also fail, while a chart
+    ///     whose data fits and whose scene does not fails with the scene limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget()
+    {
+        // Arrange: a three-row file; the scene limit of one would fail every chart, so only the order tells the failures apart
+        var files = new VirtualDataFiles().With("rows.csv", "a\n1\n2\n3\n");
+        var open = new VegaLiteOpenOptions { FileResolver = files.Resolve };
+        var document = VegaLiteDocument.Parse(
+            "{\"data\":{\"url\":\"rows.csv\"},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}", open);
+
+        // Act
+        var rows = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = 2, MaxSceneItems = 1 } }, Ct));
+        var bytes = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataBytes = 5, MaxSceneItems = 1 } }, Ct));
+        var scene = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 1 } }, Ct));
+
+        // Assert: the data limits are named and located at the url; the scene limit only fails when the data was fine
+        Assert.Contains("MaxDataRows", rows.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", rows.Location.Pointer);
+        Assert.Contains("MaxDataBytes", bytes.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", bytes.Location.Pointer);
+        Assert.Contains("MaxSceneItems", scene.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the file-backed fixture chart does not depend on the line endings of the checkout: the same
+    ///     rows written with LF and with CRLF line breaks (and without a final line break) give the same pixels.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_FixtureLineEndingsDoNotChangeTheChart()
+    {
+        // Arrange: the fixture text normalized to LF, then written back with each line ending
+        var text = File.ReadAllText(Path.Combine(FixturesFolder, "data-files.csv")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var lf = new VirtualDataFiles().With("data-files.csv", text);
+        var crlf = new VirtualDataFiles().With("data-files.csv", text.Replace("\n", "\r\n", StringComparison.Ordinal));
+        var noFinalBreak = new VirtualDataFiles().With("data-files.csv", text.TrimEnd('\n'));
+
+        // Act
+        var actual = new[] { lf, crlf, noFinalBreak }
+            .Select(files => Pixels(VegaLiteDocument.Parse(FileChartSpec, new VegaLiteOpenOptions { FileResolver = files.Resolve })))
+            .ToList();
+        var inline = Pixels(VegaLiteDocument.Parse(InlineChartSpec));
+
+        // Assert: every spelling draws the chart of the inline rows
+        foreach (var chart in actual)
+        {
+            Assert.Equal((inline.Width, inline.Height), (chart.Width, chart.Height));
+            Assert.True(inline.Pixels.AsSpan().SequenceEqual(chart.Pixels));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that delimited text without <c>parse</c> keeps its cells as text (as Vega does), so nominal text with
+    ///     leading zeros is not turned into numbers and no report or warning appears, while the quantitative x, y and size
+    ///     encodings still coerce the numeric text when they draw: the chart has the pixels of the same rows written
+    ///     inline with real numbers.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces()
+    {
+        // Arrange: a CSV whose nominal column has leading zeros and whose other columns are numeric text; the inline
+        // chart has the same values with real numbers for the quantitative fields
+        const string encoding = """
+            "mark": "point",
+            "encoding": {
+              "x": { "field": "x", "type": "quantitative" },
+              "y": { "field": "y", "type": "quantitative" },
+              "size": { "field": "w", "type": "quantitative" },
+              "color": { "field": "zip", "type": "nominal" } }
+            """;
+        var files = new VirtualDataFiles().With("p.csv", "zip,x,y,w\n007,1,10,5\n008,2,20,15\n010,3,15,30\n");
+        var fromCsv = VegaLiteDocument.Parse(
+            "{ \"data\": { \"url\": \"p.csv\" }, " + encoding + " }",
+            new VegaLiteOpenOptions { FileResolver = files.Resolve });
+        var inline = VegaLiteDocument.Parse(
+            "{ \"data\": { \"values\": [ { \"zip\": \"007\", \"x\": 1, \"y\": 10, \"w\": 5 }, { \"zip\": \"008\", \"x\": 2, \"y\": 20, \"w\": 15 },"
+            + " { \"zip\": \"010\", \"x\": 3, \"y\": 15, \"w\": 30 } ] }, " + encoding + " }");
+        var warnings = new List<VegaLiteDiagnostic>();
+        var features = new List<VegaLiteUnsupportedFeature>();
+        var options = new VegaLiteRenderOptions { WarningHandler = warnings.Add, UnsupportedFeatureHandler = features.Add };
+
+        // Act
+        var actual = Pixels(fromCsv, options);
+        var expected = Pixels(inline);
+
+        // Assert: no data report or warning appears (the text was kept, not mis-converted; the legend warnings of the size
+        // and color encodings are unrelated) and the quantitative channels read the text as numbers, giving the same chart
+        // as real numbers
+        Assert.DoesNotContain(warnings, w => w.Message.StartsWith("vl-data", StringComparison.Ordinal));
+        Assert.DoesNotContain(features, f => f.Feature.StartsWith("vl-data", StringComparison.Ordinal));
+        Assert.Equal((expected.Width, expected.Height), (actual.Width, actual.Height));
+        Assert.True(expected.Pixels.AsSpan().SequenceEqual(actual.Pixels));
     }
 
     /// <summary>

@@ -14,6 +14,19 @@ describe nothing real. They exist to give the tests small, readable charts whose
   (`config`), plus an explicit scale domain and tick count.
 - `unsupported.vl.json`: a line mark, a calculate transform and an aggregate, which are recognized but not drawn yet
   and must be reported with their locations.
+- `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
+  relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
+  has a quoted field with a comma, a quoted field with doubled quotes, an empty cell, a boolean column and an ISO date
+  column, so the tests can check parsing and quoting (the cells stay text unless a test asks for `parse`); the chart must
+  be pixel-identical to the inline one.
+- `data-values.json`: a JSON document with the rows nested under `report.rows`, which the tests read with
+  `format.property`. TSV, DSV, hostile and oversized data files are never fixtures: the tests write them to a
+  temporary folder or an in-memory file set, so that no unusual file sits in the repository.
+
+Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
+hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or
+rendered meaning (rows, values, pixels) and never the raw bytes or the line endings of the file; do not rewrite a
+fixture only to change its line endings.
 
 Rules for adding fixtures:
 

@@ -128,8 +128,10 @@ and `threshold-failed`
 (the `ErrorCodes` supporting type documented in _Program Unit Design_). A code is never changed once
 released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
 nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
-cannot lay out or draw (including any argument failure of the library); `budget-exceeded` is a limit applied while the
-chart is laid out or drawn; `corrupt-input` is a specification file longer than the limit of the library, as for an
+cannot lay out or draw (including any argument failure of the library, and a local data file that is missing, outside the
+folder of the specification, or not valid); `budget-exceeded` is a limit applied while the
+chart is laid out or drawn (including the data row, data file, and data byte limits); `corrupt-input` is a
+specification file longer than the limit of the library, as for an
 overlong SCAD model; and `size-limit` is only a chart that lays out larger than the maximum image size. See _SourceLoader
 Unit Design_ for the mapping.
 
@@ -146,7 +148,9 @@ Unit Design_ for the mapping.
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
   `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite`
   system, which parses, measures, and draws a chart (the tool uses only its public API and sets the options that
-  make a render static and deterministic: UTC dates, only the bundled fonts, and no network). The core `Fonts` and
+  make a render static and deterministic: UTC dates, only the bundled fonts, and no network; the data files of a chart
+  are read by the library from the folder of the specification and below it only, because the tool opens the chart by its
+  path and passes no other data folder, so there is no `--data-dir` option). The core `Fonts` and
   `Rendering` subsystems also supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
   never depend on the fonts installed on a machine. Each

@@ -128,7 +128,11 @@ public sealed class VegaLiteRenderOptions
     /// </summary>
     /// <remarks>
     ///     Each dataset is a list of rows and each row maps field names to values of the same kinds that
-    ///     <see cref="Parameters"/> accepts. The whole structure is copied when it is set.
+    ///     <see cref="Parameters"/> accepts; a <see cref="DateTime"/> or <see cref="DateTimeOffset"/> becomes a date
+    ///     (UTC, a <see cref="DateTimeKind.Unspecified"/> time is taken as UTC). A caller dataset replaces a dataset of the
+    ///     same name in the top-level <c>datasets</c> of the specification; a <c>data.name</c> that neither defines makes
+    ///     the chart fail with a <see cref="VegaLiteRenderException"/>. The rows count against
+    ///     <see cref="VegaLiteLimits.MaxDataRows"/> like any other data. The whole structure is copied when it is set.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when a name or field is empty, a row is null, or a value is not supported.</exception>
     public IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>? Datasets

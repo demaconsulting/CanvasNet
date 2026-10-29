@@ -1901,6 +1901,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared chart test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/README.md"  # fixture provenance (original works)
       - "src/DemaConsulting.CanvasNet.VegaLite/DemaConsulting.CanvasNet.VegaLite.csproj"  # project file
@@ -2082,6 +2083,40 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/data/data-loader.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataLoader.cs"    # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Data-DataFileResolver Review (one per unit; the shared data test helpers live here)
+  - id: CanvasNetVegaLite-Data-DataFileResolver
+    title: Review that CanvasNetVegaLite Data DataFileResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/data-file-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/data-file-resolver.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/data/data-file-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver*.cs"  # unit source (resolver and path rules)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverLinkTests.cs"  # unit tests (link walk)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared test support (files, links)
+
+  # CanvasNetVegaLite-Data-DelimitedTextParser Review (one per unit)
+  - id: CanvasNetVegaLite-Data-DelimitedTextParser
+    title: Review that CanvasNetVegaLite Data DelimitedTextParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/delimited-text-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/delimited-text-parser.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/data/delimited-text-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/delimited-text-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DelimitedTextParser.cs"  # unit source (includes ParseDirectives)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DelimitedTextParserTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scales Review (one per subsystem)
   - id: CanvasNetVegaLite-Scales

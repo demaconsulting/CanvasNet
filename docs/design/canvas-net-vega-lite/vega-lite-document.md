@@ -12,7 +12,10 @@ version, title, mark types, data references, parameter names), so that tools can
 render it. **Opening never loads data, never opens another file, and never uses the network.** A document can then be
 **measured** (`Measure`) and **rendered** (`Render`, at its natural size times a scale or at an exact size): both run
 the same internal pipeline, which drives the `SpecModel`, `Data`, `Scales`, `Guides`, `Layout`, `Marks`, and
-`Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers.
+`Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
+`Measure` and `Render` read data:** inline rows, named datasets, and sequences need no I/O, and a relative local
+`data.url` is read from the sandbox that the open options define (see _Data Subsystem Design_); a file that cannot be
+used is a `VegaLiteRenderException`, and a remote URL is reported and never fetched.
 
 The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
 `VegaLiteDocument.Render.cs` (`Measure`, `Render`, and the pipeline), the options `VegaLiteOpenOptions.cs`,
@@ -45,15 +48,19 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   (`string?`), and `Limits` (`VegaLiteLimits?`; the defaults when null). Every property is validated in its `init`
   accessor: null is allowed for the nullable properties, but empty or whitespace text throws `ArgumentException`; a
   null `DataPaths` list or entry throws `ArgumentNullException`, and a whitespace entry throws `ArgumentException`.
-  Opening consumes only `SourceName` and `Limits`; `BaseDirectory`, `DataPaths`, and `FileResolver` define the sandbox
-  of the later data-file phase and are stored. The internal `WithEffective(baseDirectory, sourceName)` creates a copy
+  Opening consumes only `SourceName` and `Limits`; `BaseDirectory` (the base directory of the sandbox: the folder of an
+  opened file unless set; for a document from a string or stream, none), `DataPaths` (further directories, searched in
+  order after the base directory), and `FileResolver` (a callback that receives a normalized logical path and returns
+  a stream or null; it replaces the file system and is never called for a remote URL) are consumed by `Measure` and
+  `Render` through the data stage. The internal `WithEffective(baseDirectory, sourceName)` creates a copy
   with those two values filled in, and `EffectiveLimits` is the limits or `VegaLiteLimits.Default`.
 - **`VegaLiteRenderOptions`** (sealed class, init-only) - `Scale` (default 1; finite, greater than zero, at most
   `Surface.MaxDimension`, else `ArgumentOutOfRangeException`), `Background` (`Rgba32?`), `Config` (`string?`; a JSON
   object of at most 4,194,304 characters and 64 levels, else `ArgumentException`), `Parameters`
   (`IReadOnlyDictionary<string, object?>?`; keys non-blank; values null, `bool`, `string`, a finite number of any
   built-in numeric type, `DateTime`, or `DateTimeOffset`; copied), `Datasets` (named lists of rows of the same value
-  kinds, deep-copied), `TimeZone` (`TimeZoneInfo?`; null is UTC), `ContainerWidth` (default 400) and
+  kinds, deep-copied; a caller dataset replaces a top-level dataset of the same name, and a `DateTime` or
+  `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; null is UTC), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
   (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
   (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
@@ -120,8 +127,13 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
   runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
   exceptions ignored; on success a handler exception propagates after the result is disposed.
-- `PrepareChart(options, token)` - the pure layout described in the system design (configuration, measurer, data,
-  scales, view request, title, and either the empty layout or `BuildChart`). `BuildChart` iterates the axes and the
+- `PrepareChart(options, token)` - the layout described in the system design (configuration, measurer, data,
+  scales, view request, title, and either the empty layout or `BuildChart`). For a single view with a supported mark it
+  creates one `DataLoader` for the call (passing the effective open options, the top-level `datasets` node, the
+  caller's `Datasets`, the limits, and the token), loads the data **before** the scene budget is created and before the
+  scales are resolved, and keeps the loader's warnings (`vl-data-parse-failed`) in the plan; the `BuildPlan` step records
+  them after the reports of the specification. The only I/O of the pipeline happens here, on the calling thread.
+  `BuildChart` iterates the axes and the
   layout at most three passes, then builds the marks once and assembles the scene. `PrepareChartOrReport` wraps it so
   that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
   rethrown (in strict mode the first unsupported feature wins).
@@ -139,8 +151,11 @@ Errors are typed and fail closed. Null arguments and invalid options throw `Argu
 `MaxSourceLength` is an `InvalidDataException`. Malformed JSON, nesting beyond `MaxJsonDepth`, a known property with a
 wrong value, and plain Vega are `VegaLiteSpecException`s with the location of the first problem (detected by
 `SpecParser`; the unit only delegates). Failures while preparing the chart are `VegaLiteSpecException` (an invalid axis
-orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data, scale, axis, or scene limit), each
-with a location and thrown from the stage that detected them; the unit does not catch and convert them, except that it
+orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data, scale, axis, or scene limit, and a
+local data file or named dataset that cannot be used: no file source, a path the sandbox refuses, a link, a missing or
+unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined name; in lenient and strict mode alike),
+each with a location and thrown from the stage that detected them; the unit does not catch and convert them,
+except that it
 delivers the already-found reports first. A scaled size outside 1 to `Surface.MaxDimension` and an unknown parameter
 name are argument exceptions. A cancellation is an `OperationCanceledException`, never wrapped. Strict mode throws a
 `VegaLiteUnsupportedFeatureException` at the first unsupported feature after delivering that report. A handler that
@@ -150,7 +165,7 @@ throws after a successful call propagates its exception (the surface is disposed
 
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
   `ConfigResolver`, `ResolvedConfig`
-- **`Data` subsystem** - `DataLoader`, `DataTable`
+- **`Data` subsystem** - `DataLoader` (one instance per call), `DataTable`
 - **`Scales` subsystem** - `ScaleResolver`, `ResolvedScales`
 - **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records

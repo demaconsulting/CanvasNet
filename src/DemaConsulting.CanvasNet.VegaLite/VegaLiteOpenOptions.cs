@@ -68,9 +68,15 @@ public sealed class VegaLiteOpenOptions
     /// <summary>
     ///     Gets a callback that supplies the content of data files in place of the file system, or
     ///     <see langword="null"/>. It is never invoked while opening. When set, rendering does not touch the file
-    ///     system at all: the callback receives a normalized logical path (forward slashes, no leading slash) and
+    ///     system at all: the callback receives a normalized logical path (forward slashes, no leading slash, <c>.</c>
+    ///     and <c>..</c> collapsed, never leaving the logical root) and
     ///     returns a readable stream, which the library disposes, or <see langword="null"/> when there is no such
-    ///     file. It is only called on the thread that called the render method.
+    ///     file. The base directory plays no role then, and each <see cref="DataPaths"/> entry that is a valid
+    ///     relative logical path is a directory prefix that is tried after the root. It is only called on the thread
+    ///     that called the measure or render method, at most once per candidate path and call, and never for a URL that
+    ///     has a scheme or is absolute (remote data is never requested). The content must be UTF-8 and is bounded by
+    ///     <see cref="VegaLiteLimits.MaxDataBytes"/>; a <see langword="null"/> result for every candidate makes the
+    ///     chart fail with a <see cref="VegaLiteRenderException"/>.
     /// </summary>
     public Func<string, Stream?>? FileResolver { get; init; }
 

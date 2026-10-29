@@ -77,7 +77,8 @@ constituent software items, specifically:
   Vega-Lite JSON specification and measures and renders the supported chart subset to a `Surface`, containing a single
   direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
   exceptions), and seven internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
-  `Data` (units `DataTable` and `DataLoader`), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
+  `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`), `Scales` (units
+  `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
   and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
   `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
@@ -133,8 +134,11 @@ For example, the unit `ScaleResolver` of the `Scales` subsystem of the CanvasNet
 `src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs`, and the tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`. The system-level tests of that system are in
 `VegaLiteSystemIntegrationTests.cs` and `VegaLiteChartIntegrationTests.cs` in the root of its test project, and its
-original-work specification fixtures, with their provenance statement, are in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. Only original fixtures are used: no Vega-Lite example,
+original-work specification fixtures (including the data-file chart, its CSV file, and the nested JSON rows), with their
+provenance statement, are in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The file-backed data tests of the `Data` subsystem use the
+helpers in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs` (per-test temporary directories, an
+in-memory file set behind the file callback, and an endless stream). Only original fixtures are used: no Vega-Lite example,
 gallery chart, documentation snippet, or `vega-datasets` data set is copied.
 
 OTS items have parallel artifacts in:

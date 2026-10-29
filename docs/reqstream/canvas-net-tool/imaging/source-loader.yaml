@@ -328,6 +328,27 @@ sections:
           - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
 
+      - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteData
+        title: >-
+          The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by
+          a relative url by opening the specification by its path, so that the data is read from the folder of
+          the specification and below it (never the current directory, another folder, or the network), exactly
+          as the same chart with inline rows, and shall name the data file in the chart facts; shall report a
+          local data file that is missing, outside the folder of the specification, or not valid text as a
+          vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data
+          only as a diagnostic (an unsupported-feature error with the strict switch) and never fetch it; and
+          shall report a data limit of the library (rows or bytes of a file) as budget-exceeded and every other
+          data failure as vega-lite-error.
+        justification: |
+          A chart is only as useful as its data, and the data of a chart that an agent was given sits beside it;
+          reading exactly that folder keeps the result independent of the working directory and keeps an
+          untrusted chart from reaching other files or hosts, while a coded error for a missing or oversized
+          file tells a script what to fix.
+        tests:
+          - SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder
+          - SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError
+          - SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded
+
       - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
         title: >-
           The SourceLoader class shall report an invalid Vega-Lite specification (malformed JSON, a property

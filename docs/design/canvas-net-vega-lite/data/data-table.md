@@ -17,17 +17,26 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Data-DataTable-*` req
 
 #### Data Model
 
-**`DataValueKind`** is `Null`, `Boolean`, `Number`, or `String`.
+**`DataValueKind`** is `Null`, `Boolean`, `Number`, `Date`, or `String`.
 
 **`DataValue`** (readonly struct, `IEquatable<DataValue>`) holds one value. The factories are `Null`, `FromBoolean`,
-`FromNumber`, and `FromString` (a null string is the null value). It exposes `Kind`, the predicates `IsNull`,
-`IsBoolean`, `IsNumber`, and `IsString`, and the values `Number`, `Boolean`, and `Text`. Equality is JavaScript's
-SameValueZero (so NaN equals NaN and zero equals negative zero), which makes the struct usable as a dictionary key.
-`TryGetQuantitative(out double)` reads a finite number, a boolean (1 or 0), or a numeric string (trimmed), and fails for
-null, an empty string, NaN, and infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`,
-0.5 is `"0.5"`, 1e21 is `"1e+21"`, and negative zero is `"0"`. `Compare(a, b)` orders values ascending as Vega's
-comparator does, with a fixed kind order (null, boolean, number, string) so that the order is total (a documented
-deviation: JavaScript's coercions would not be).
+`FromNumber`, `FromString` (a null string is the null value), `FromDate(milliseconds)`, and `FromDateTime`. It exposes
+`Kind`, the predicates `IsNull`, `IsBoolean`, `IsNumber`, `IsDate`, and `IsString`, and the values `Number`, `Boolean`,
+`Milliseconds`, and `Text`. A **date** is an instant held as milliseconds since 1970-01-01T00:00:00Z in UTC (as
+JavaScript's `Date` holds it), finite and within the years 1 to 9999 (`FromDate` throws `ArgumentOutOfRangeException`
+outside that range); `FromDateTime` converts a local `DateTime` to UTC and takes an unspecified one as UTC, so a date
+never depends on the host's time zone. The supported range is exposed as `MinDateMilliseconds` and `MaxDateMilliseconds`
+(0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999Z) so callers can test a candidate instant before creating a date, and
+`MillisecondsSinceEpoch(DateTime)` computes the milliseconds of a UTC point in time from whole milliseconds in integer
+arithmetic (`TimeSpan.TotalMilliseconds` divides a tick count that a double cannot hold exactly for the distant years).
+Equality is JavaScript's SameValueZero (so NaN equals NaN and zero equals
+negative zero), which makes the struct usable as a dictionary key. `TryGetQuantitative(out double)` reads a finite
+number, a date (its milliseconds), a boolean (1 or 0), or a numeric string (trimmed), and fails for null, an empty
+string, NaN, and infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`,
+0.5 is `"0.5"`, 1e21 is `"1e+21"`, negative zero is `"0"`, and a date is its ISO 8601 form in UTC with milliseconds
+(`2024-03-05T00:00:00.000Z`, like `toISOString()`). `Compare(a, b)` orders values ascending as Vega's
+comparator does, with a fixed kind order (null, boolean, number, date, string) so that the order is total (a documented
+deviation: JavaScript's coercions would not be); two dates compare by instant.
 
 **`JsNumber`** reproduces JavaScript number semantics: `ToString(double)` (the shortest decimal digits that round-trip,
 placed in fixed or exponential notation by JavaScript's rules), `ShortestDecimal` (the digits and the point position),
@@ -67,7 +76,9 @@ within its limits, or an exception was thrown and nothing is returned.
 
 An exceeded row or field limit is a `VegaLiteRenderException` carrying the supplied location (the `values` array, or
 the offending leaf). A null argument is `ArgumentNullException`; duplicate field names and a row of the wrong length are
-`ArgumentException`s; these are programming errors of the caller and are not converted. Lookups never throw for a
+`ArgumentException`s, and a date that is not finite or is outside the years 1 to 9999 is an `ArgumentOutOfRangeException`;
+these are programming errors of the caller and are not converted (the parse conversions check the range and treat an
+unrepresentable date as an unconverted value). Lookups never throw for a
 missing field: they return -1 or null. Numeric readings return `false` rather than throwing for text that is not a number.
 
 #### Dependencies
@@ -79,7 +90,8 @@ missing field: they return -1 or null. Numeric readings return `false` rather th
 
 #### Callers
 
-`DataLoader` builds tables with `FromRecords`. `ScaleResolver` reads the table to infer domains; `ScaleModel` keys its
+`DataLoader` builds tables with `FromRecords` and `Create`, and its parse conversions create date values.
+`ScaleResolver` reads the table to infer domains; `ScaleModel` keys its
 discrete domains on `DataValue`; `AxisBuilder` reads `DataValue` for category labels; `MarkBuilder` reads the rows to
 build marks; `NumberFormat` uses `JsNumber`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs` call the types directly through
