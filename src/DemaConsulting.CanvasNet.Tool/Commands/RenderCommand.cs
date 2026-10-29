@@ -81,9 +81,10 @@ internal sealed partial class RenderCommand : ICommand
         + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
         + "A Vega-Lite chart is drawn at the size its specification lays out (--scale, --width, and --height resize it" + Environment.NewLine
         + "sharply) over its own background, white by default, with UTC dates and the bundled fonts. Its local data" + Environment.NewLine
-        + "files (CSV, TSV, or JSON named by a relative url) are read from the folder of the specification and below it" + Environment.NewLine
-        + "only, and one that is missing is an error; there is no data-folder option, and nothing is read from the" + Environment.NewLine
-        + "network. A feature that is not supported yet is reported (an error with --strict)." + Environment.NewLine
+        + "files (CSV, TSV, DSV with format.delimiter, or JSON named by a relative url) are read from" + Environment.NewLine
+        + "the folder of the specification and below it only, and one that is missing is an error; there is" + Environment.NewLine
+        + "no data-folder option, and nothing is read from the network. Delimited text is not type-inferred" + Environment.NewLine
+        + "unless its format.parse is \"auto\". A feature that is not supported yet is reported (an error with --strict)." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine

@@ -3942,7 +3942,7 @@ opening a document never reads a data file.
 | Inline rows | `"data": {"values": [{...}, ...]}` | An array of objects (one row each) or of primitives (one row `{"data": value}`); nested objects and arrays are flattened to fields named by their path (`a.b`, `p.r.0`) |
 | A local file | `"data": {"url": "rows.csv"}` | A **relative** path only; see *Data files* and *The sandbox* below |
 | A named dataset | `"data": {"name": "rows"}` | The caller's `VegaLiteRenderOptions.Datasets` first, then the top-level `datasets` of the specification; the caller wins. A name that nobody defines is an error |
-| A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). A step of zero fails the render |
+| A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). `start` and `stop` must be finite numbers; a step that is present must be a finite number other than zero (an absent step is 1), and a step that points away from `stop` gives no rows. A missing, non-finite, or zero value fails the render, and so does a sequence longer than `MaxDataRows` |
 <!-- markdownlint-enable MD013 -->
 
 **Data files.** The format is `format.type` (`json`, `csv`, `tsv`, or `dsv`) when it is given; otherwise a path ending in
@@ -3960,17 +3960,20 @@ delimited text is always the header.
   ignored. Repeated header names, and more columns than `MaxFieldCount`, are errors. A header such as `a.b` is
   addressed in an encoding as `a\.b`, like a JSON key that contains a dot.
 
-**Types: `format.parse`.** Delimited text is read as text and then converted, as in Vega: by default each **column**
-gets one type (`parse: "auto"`). JSON files, inline rows, and datasets keep their JSON types unless you ask.
+**Types: `format.parse`.** Delimited text is read as text and, **as in Vega, nothing is converted unless you ask**: with
+no `parse` property (or `"parse": null`) every cell of a CSV, TSV, or DSV file stays a **string**, so identifiers such as
+`01234` and text such as `2024-03-05` or `true` are kept exactly as written, and there is no data-based inference of
+column types. JSON files, inline rows, and datasets keep their JSON types. You ask for conversion in one of three ways:
 
-- `"parse": "auto"` (the default for delimited text) looks at the whole column and picks, in this order, **boolean**
-  when every non-empty value is `true` or `false` (any case), **number** when every non-empty value is a number
-  (`12`, `-2.5`, `+4`, `.5`, `1e3`, `007`), **date** when every non-empty value is an ISO 8601 date or date-time, and
-  otherwise leaves the column as text. One value that does not fit keeps the **whole** column text. An empty value is
-  `null` in a typed column. (On JSON data `"auto"` applies the same rule to columns that hold text.)
-- `"parse": null` keeps every value as read (text stays text).
-- `"parse": {"price": "number", "ok": "boolean", "day": "date", "id": "string"}` converts only the named fields (the
-  keys are field paths): `number` reads a finite number (a boolean is 1 or 0, a date is its milliseconds since the
+- `"parse": "auto"` is the explicit opt-in to inference. It looks at the whole column and picks, in this order,
+  **boolean** when every non-empty value is `true` or `false` (any case), **number** when every non-empty value is a
+  number (`12`, `-2.5`, `+4`, `.5`, `1e3`, `007`), **date** when every non-empty value is an ISO 8601 date or date-time,
+  and otherwise leaves the column as text. One value that does not fit keeps the **whole** column text. An empty value
+  is `null` in a typed column. (On JSON data `"auto"` applies the same rule to columns that hold text.)
+- `"parse": null` (or no `parse`) keeps every value as read (text stays text).
+- `"parse": {"price": "number", "ok": "boolean", "day": "date", "id": "string"}` converts only the **named** fields
+  (the keys are field paths) and leaves every other field as read: `number` reads a finite number (a boolean is 1 or 0,
+  a date is its milliseconds since the
   epoch); `boolean` reads `true` or `false` (any case) or `1` or `0`, and a number is true unless it is zero; `date` reads
   an ISO 8601 text, or a number as milliseconds since the epoch; `string` is the text of the value (a number as
   JavaScript would write it, a date as `2024-03-05T00:00:00.000Z`). An empty value is `null` (except for `string`).
@@ -3982,7 +3985,14 @@ gets one type (`parse: "auto"`). JSON files, inline rows, and datasets keep thei
   chart never depends on the time zone of the machine. A date is an instant: its numeric value is the milliseconds since
   1970-01-01T00:00:00Z, and its text is `yyyy-MM-ddTHH:mm:ss.fffZ`.
 
-*Where this differs from Vega.* The inference and conversion rules follow Vega's by column, with these deliberate
+*Numbers in unparsed text.* Because the cells stay text, a chart still works with an unparsed CSV: as in Vega, a
+**quantitative** encoding coerces numeric text to a number when it draws it, so quantitative `x`, `y`, `size`, and
+`opacity` fields (and a linear scale's domain) read `"12.5"` as 12.5 without any `parse`. This coercion is not a parse
+mode, so the values stay text in every other use (a nominal field or a label). Quantitative `color` is not drawn
+by the current subset. Parsing text as **dates** for temporal encodings, and the time scales that need it, arrive with the
+time support (Phase 8): until then convert a date column with `parse` (ISO 8601), or write it in ISO 8601.
+
+*Where this differs from Vega.* The conversion rules follow Vega's, with these deliberate
 differences: a number is a finite decimal or exponent number (hexadecimal, thousands separators, `NaN`, and infinities
 are not numbers, where JavaScript's conversion would accept some of them); a date is ISO 8601 only and always UTC
 (Vega accepts any text that JavaScript's `Date.parse` reads, in more formats, and reads a date-time without a zone as
@@ -4025,9 +4035,13 @@ the chart is drawn with an empty dataset (strict mode throws `VegaLiteUnsupporte
 
 **Errors.** A local file that cannot be used is **not** an empty chart. These fail the render with a
 `VegaLiteRenderException` located at the `url` (or `name`) in the specification, in lenient and strict mode alike: no
-place to look, a path the sandbox refuses, a link, a missing file (also a directory with that name), a file that cannot
-be read, text that is not UTF-8, JSON that is invalid, nested too deeply, or not an array, a missing `format.property`,
-malformed delimited text, a name that nobody defines, a sequence with a zero step, and any data limit.
+place to look, a path the sandbox refuses, a link, a missing file, a directory where a file is expected, a file or a
+`FileResolver` stream that cannot be read (including a callback that throws, which is reported as a read failure and
+never as the callback's own exception), text that is not UTF-8, JSON that is invalid, nested too deeply, or not an array,
+a missing `format.property`, malformed delimited text, a name that nobody defines, a sequence with a missing,
+non-finite, or zero value, and any data limit. A cancellation is never an error of this kind: it is always an
+`OperationCanceledException`. Files are opened read-only and tolerate other programs reading, writing, renaming, or
+deleting them at the same time.
 `MaxDataFiles` (64 distinct files per call), `MaxDataBytes` (64 MiB per file; reading stops one chunk past the limit,
 so a
 stream that never ends cannot exhaust memory), `MaxDataRows` (1,000,000 rows in total per call, checked before the rows

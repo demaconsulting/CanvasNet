@@ -38,9 +38,9 @@ public class DelimitedTextParserTests
     ///     Parses the <c>format</c> object of a <c>data</c> property written as JSON into directives.
     /// </summary>
     /// <param name="formatJson">The JSON of the <c>format</c> object.</param>
-    /// <param name="defaultAuto">Whether an absent <c>parse</c> means inference.</param>
+    /// <param name="defaultAuto">Whether an absent <c>parse</c> means inference (never in the loader; Vega infers only for <c>"auto"</c>).</param>
     /// <returns>The directives.</returns>
-    private static ParseDirectives Directives(string formatJson, bool defaultAuto = true) =>
+    private static ParseDirectives Directives(string formatJson, bool defaultAuto = false) =>
         ParseDirectives.Read(SpecParser.Parse("{\"data\":{\"url\":\"x.csv\",\"format\":" + formatJson + "}}").Root["data"]!["format"], defaultAuto);
 
     /// <summary>
@@ -345,7 +345,7 @@ public class DelimitedTextParserTests
         // Arrange: a date column with a custom format next to a plain ISO column
         const string spec = """{"data":{"url":"x.csv","format":{"parse":{"d":"date:'%d/%m/%Y'","u":"utc:'%Y%m%d'","iso":"date"}}}}""";
         var tree = SpecParser.Parse(spec, "dates.json");
-        var directives = ParseDirectives.Read(tree.Root["data"]!["format"], defaultAuto: true);
+        var directives = ParseDirectives.Read(tree.Root["data"]!["format"], defaultAuto: false);
 
         // Act
         var result = Parse("d,u,iso\n05/03/2024,20240305,2024-03-05\n", directives: directives);
@@ -426,26 +426,112 @@ public class DelimitedTextParserTests
     }
 
     /// <summary>
-    ///     Validates how the directives are read from a format: the defaults, <c>"auto"</c>, null and an object.
+    ///     Validates how the directives are read from a format: an absent <c>parse</c> converts nothing (as in Vega, for
+    ///     delimited text and JSON alike), <c>"auto"</c> is the explicit opt-in to inference, null converts nothing, and an
+    ///     object converts the named fields only.
     /// </summary>
     [Fact]
     public void DelimitedTextParser_Directives_ReadTheModeFromTheFormat()
     {
         // Arrange / Act
-        var absentDelimited = ParseDirectives.Read(null, defaultAuto: true);
-        var absentJson = ParseDirectives.Read(null, defaultAuto: false);
-        var auto = Directives("{\"parse\":\"auto\"}", defaultAuto: false);
+        var absentDelimited = ParseDirectives.Read(null, defaultAuto: false);
+        var absentWithFormat = Directives("{\"delimiter\":\";\"}");
+        var auto = Directives("{\"parse\":\"auto\"}");
         var none = Directives("{\"parse\":null}");
         var fields = Directives("{\"parse\":{\"a\":\"number\",\"b.c\":\"date\",\"d\":\"date:'%Y'\"}}");
 
         // Assert
-        Assert.Equal(ParseMode.Auto, absentDelimited.Mode);
-        Assert.Equal(ParseMode.None, absentJson.Mode);
+        Assert.Equal(ParseMode.None, absentDelimited.Mode);
+        Assert.Equal(ParseMode.None, absentWithFormat.Mode);
         Assert.Equal(ParseMode.Auto, auto.Mode);
         Assert.Equal(ParseMode.None, none.Mode);
         Assert.Equal(ParseMode.Fields, fields.Mode);
         Assert.Equal(ParseType.Number, fields.Fields["a"]);
         Assert.Equal(ParseType.Date, fields.Fields["b.c"]);
         Assert.Equal(ParseType.CustomDate, fields.Fields["d"]);
+    }
+
+    /// <summary>
+    ///     Validates that parsing with the default directives (absent <c>parse</c>) keeps leading zeros, ISO-looking dates
+    ///     and booleans as text, while an explicit field map converts only the named field.
+    /// </summary>
+    [Fact]
+    public void DelimitedTextParser_Parse_DefaultDelimitedTextKeepsLeadingZerosAndDateLikeText()
+    {
+        // Arrange: text that inference would convert
+        const string text = "zip,day,flag,n\n01234,2024-03-05,true,7\n007,2024-03-06T10:00:00Z,false,8\n";
+        var defaults = Directives("{\"delimiter\":\",\"}");
+        var named = Directives("{\"parse\":{\"n\":\"number\"}}");
+
+        // Act
+        var byDefault = Parse(text, directives: defaults).Records;
+        var byName = Parse(text, directives: named).Records;
+
+        // Assert: nothing is converted by default
+        Assert.All(byDefault, r => Assert.All(r.Values, v => Assert.Equal(DataValueKind.String, v.Kind)));
+        Assert.Equal("01234", byDefault[0]["zip"].Text);
+        Assert.Equal("007", byDefault[1]["zip"].Text);
+        Assert.Equal("2024-03-05", byDefault[0]["day"].Text);
+        Assert.Equal("true", byDefault[0]["flag"].Text);
+        Assert.Equal("7", byDefault[0]["n"].Text);
+
+        // Assert: a field map converts the named field only
+        Assert.Equal(7, byName[0]["n"].Number);
+        Assert.Equal("01234", byName[0]["zip"].Text);
+        Assert.Equal(DataValueKind.String, byName[0]["day"].Kind);
+    }
+
+    /// <summary>
+    ///     Validates that a header with more entries than <c>MaxFieldCount</c> is refused as soon as it exceeds the limit,
+    ///     without reading (or materializing) the entries that follow, even when they are malformed or enormous.
+    /// </summary>
+    [Fact]
+    public void DelimitedTextParser_Parse_HeaderFieldLimitStopsMaterialization()
+    {
+        // Arrange: a header of 100,000 entries against a limit of 3, followed by an unclosed quote that would also be an
+        // error if the reader got that far
+        var header = string.Join(',', Enumerable.Repeat("h", 100_000));
+        var limits = new VegaLiteLimits { MaxFieldCount = 3 };
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => Parse(header + ",\"unclosed\n1\n", limits: limits));
+
+        // Assert: the column limit is what is reported (not the later quote error), at the data location
+        Assert.Contains("the limit of 3 (MaxFieldCount)", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("not closed", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that entries beyond the header width are not kept but are still fully validated: a valid extra entry
+    ///     is ignored, while an unclosed quote, text after a closing quote and an over-long entry past the header width
+    ///     are located failures.
+    /// </summary>
+    [Fact]
+    public void DelimitedTextParser_Parse_ExtraFieldsAreValidatedWithoutMaterialization()
+    {
+        // Arrange: many valid extra entries, and three malformed rows whose problem lies beyond the header width
+        var many = string.Join(',', Enumerable.Repeat("x", 50_000));
+        var limits = new VegaLiteLimits { MaxStringLength = 5 };
+
+        // Act
+        var valid = Parse("a,b\n1,2," + many + "\n3,4\n");
+        var unclosed = Assert.Throws<VegaLiteRenderException>(() => Parse("a,b\n1,2,\"open\n3,4\n"));
+        var afterQuote = Assert.Throws<VegaLiteRenderException>(() => Parse("a,b\n1,2,\"q\"x\n"));
+        var tooLong = Assert.Throws<VegaLiteRenderException>(() => Parse("a,b\n1,2,123456\n", limits: limits));
+        var tooLongQuoted = Assert.Throws<VegaLiteRenderException>(() => Parse("a,b\n1,2,\"123456\"\n", limits: limits));
+
+        // Assert: the extras are dropped and the stored row has only the header fields
+        Assert.Equal(2, valid.Records.Count);
+        Assert.Equal(["a", "b"], valid.Records[0].Keys);
+        Assert.Equal("2", valid.Records[0]["b"].Text);
+        Assert.Equal("3", valid.Records[1]["a"].Text);
+
+        // Assert: the malformed extras are still failures at the data location
+        Assert.Contains("not closed", unclosed.Message, StringComparison.Ordinal);
+        Assert.Contains("closing quote", afterQuote.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxStringLength", tooLong.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxStringLength", tooLongQuoted.Message, StringComparison.Ordinal);
+        Assert.All(new[] { unclosed, afterQuote, tooLong, tooLongQuoted }, e => Assert.Equal(Where, e.Location));
     }
 }

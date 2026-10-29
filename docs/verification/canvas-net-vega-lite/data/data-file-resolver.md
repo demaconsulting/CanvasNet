@@ -1,7 +1,5 @@
 ### DataFileResolver Unit Verification Design
 
-<!-- cspell:ignore junction junctions symlink symlinks sandboxed mklink -->
-
 This document describes the unit-level verification strategy for the `DataFileResolver` unit: the internal
 `DataFileResolver` (search, sandbox, link walk, bounded strict-UTF-8 reads, per-call cache, and the data-file limits)
 and the `DataFile` record it returns, in the `DemaConsulting.CanvasNet.VegaLite.Data` namespace.
@@ -84,22 +82,31 @@ as "not allowed" with the location, and that the callback received no request.
 ##### Resolver Mode
 
 **Tests**: `DataFileResolverTests.DataFileResolver_Load_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem`,
-`DataFileResolverTests.DataFileResolver_Load_CallbackAndStreamFailuresArePropagatedOrLocated`
+`DataFileResolverTests.DataFileResolver_Load_CallbackStreamReadFailureIsLocated`,
+`DataFileResolverTests.DataFileResolver_Load_CallbackFailureIsLocatedReadFailure`,
+`DataFileResolverTests.DataFileResolver_Load_StreamDisposeFailureIsLocatedReadFailure`
 
 Asserts that the callback receives only normalized logical paths (the root first, then each valid data path as a prefix
 in declaration order, invalid data paths ignored) while a same-named file in the base directory is never read, that every
-stream it handed out is disposed, that every request came from the calling thread, that an escape above the logical
-root is refused without a request, that an exception thrown by the callback propagates unchanged, and that a stream that
-fails while it is read is a located "cannot be read" failure.
+stream it handed out is disposed, that every request came from the calling thread, and that an escape above the logical
+root is refused without a request. It also asserts the located read-failure contract of the callback boundary: a stream
+that fails while it is read, a callback that throws, and a stream whose disposal throws after a complete read are each a
+located "cannot be read" failure (the callback's own text is not leaked), the failing stream is disposed exactly once,
+and a cancellation raised by the callback passes through unchanged as `OperationCanceledException`.
 
-##### Missing Files And No File Source
+##### Missing Files, Directories And No File Source
 
 **Tests**: `DataFileResolverTests.DataFileResolver_Load_MissingFileIsHardFailure`,
+`DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
 `DataFileResolverTests.DataFileResolver_Load_StreamWithoutFileSourceThrows`
 
-Asserts that a file that does not exist, and a directory that has the file's name, is a "was not found" failure with the
-location in both modes and without the host's directory in the message, and that a resolver with no base directory, data
-path, or callback (as a document opened from a string or stream has) says so and reports `HasFileSource` false.
+Asserts that a file that does not exist is a "was not found" failure with the location in both modes and without the
+host's directory in the message, that an existing directory where the file is expected is a located "cannot be read"
+failure (it exists, so it is not "not found") that also does not reveal the host's directory, and that a resolver with
+no base directory, data path, or callback (as a document opened from a string or stream has) says so and reports
+`HasFileSource` false. An open that fails with a sharing or access error maps to the same read failure; no test asserts
+an operating-system-specific lock, because the files are opened with `FileShare.ReadWrite | FileShare.Delete` and the
+failure cannot be provoked portably.
 
 ##### Per-Call Cache
 

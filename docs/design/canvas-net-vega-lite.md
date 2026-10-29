@@ -25,7 +25,8 @@ formatting, titles with subtitles, the Vega-Lite default theme and configuration
 `autosize` of `pad` or `none`. Phase 4 adds the **data sources** of that single view: **local CSV, TSV, DSV, and JSON
 files** read from a sandbox (the folder of the specification, extra data directories, or a caller callback), **named
 datasets** (the top-level `datasets` of the specification and the caller's `Datasets` option), **generated
-sequences**, `format.parse` conversions and per-column type inference, and `format.property`. Remote URLs are still
+sequences**, `format.parse` conversions (no data-based inference unless `parse` is `"auto"`, as in Vega), and
+`format.property`. Remote URLs are still
 never fetched. Compositions, transforms, expressions, parameters, legends, and time are later phases.
 
 `CanvasNetVegaLite` consists of one direct unit and seven internal subsystems:
@@ -50,7 +51,7 @@ never fetched. Compositions, transforms, expressions, parameters, legends, and t
   memory, with four units. `DataTable` is the immutable typed value and table model. `DataLoader` chooses the source
   of a view (inline `values`, a local file, a named dataset, or a sequence) and builds the table under the data
   limits. `DataFileResolver` finds and reads local data files inside the sandbox. `DelimitedTextParser` reads CSV,
-  TSV, and DSV text and applies the `parse` conversions and the type inference. See _Data Subsystem Design_
+  TSV, and DSV text and applies the `parse` conversions (and the opt-in type inference). See _Data Subsystem Design_
   (`canvas-net-vega-lite/data.md`).
 - **Scales** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Scales`, folder `Scales/`): the numeric
   heart, with five units. `ScaleModel` maps values to pixels (linear, band, point, ordinal). `ScaleResolver` infers
@@ -274,7 +275,8 @@ input:
   is checked before the file is opened and a symbolic link or junction is refused, and the check fails closed when
   it cannot answer. With a `FileResolver` callback no file-system access happens at all. A file is read as bytes under
   `MaxDataBytes` and decoded as strict UTF-8, and each call reads each distinct file at most once. A local file that
-  cannot be used is a `VegaLiteRenderException`, in lenient and strict mode alike, never an empty dataset. The
+  cannot be used (including an existing directory in place of a file, an open that fails, and a callback or callback
+  stream that throws) is a `VegaLiteRenderException`, in lenient and strict mode alike, never an empty dataset. The
   residual risk is a concurrent writer that replaces a checked path with a link before it is opened; the resolver
   does not defend against it, and a deployment that renders files an attacker can modify must not share the
   directory with them. No code in the specification is ever executed: expressions, transforms, and parameters are
@@ -455,7 +457,7 @@ construct.
 | ---- | --------- | ------------------------------------------------------- |
 | Schema | `$schema` of Vega-Lite version 5 or 6, interpreted with the version 6 defaults; no `$schema` | Another major version, or a URL naming no Vega-Lite version: warning `vl-schema-version` (still rendered with the version 6 defaults); a malformed value is a `VegaLiteSpecException`; plain Vega is rejected |
 | Views | One single view | `layer`, `concat`, `hconcat`, `vconcat`, `facet`, `repeat`: `vl-composition-<name>` (only the title, background, and empty view are drawn; nested views are examined too); `projection`: `vl-projection` |
-| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields, or of primitives, one row `{data: value}`); a **relative local `data.url`** read as JSON (the default), CSV, TSV, or DSV (`format.type`, else the extension `.csv` or `.tsv`, else JSON; DSV uses `format.delimiter`, a comma when omitted); `format.property` (a dotted path to the array of rows in a JSON file); `format.parse` as `"auto"`, `null`, or a field map of `number`, `boolean`, `date`, and `string`, with Vega-style per-column inference for delimited text and ISO 8601 dates in UTC; **named datasets** (`data.name` found in the caller's `Datasets`, then in the top-level `datasets` arrays); `data.sequence` (`start`, exclusive `stop`, `step`, `as`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, never given to a resolver, empty dataset); a custom `parse` date format (`date:'%Y'`, `utc:'%Y'`): `vl-data-parse-date-format` (the field is left as read); `values` (or a referenced dataset) as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` (or a referenced dataset) as an object: `vl-data-geo`. Not a report but a `VegaLiteRenderException`: a local file that is missing, refused by the sandbox, a link, invalid UTF-8, invalid JSON or delimited text, or over a limit; an undefined `name`; a sequence with a zero or non-finite step. Values that an explicit `parse` could not convert become null and give the warning `vl-data-parse-failed` |
+| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields, or of primitives, one row `{data: value}`); a **relative local `data.url`** read as JSON (the default), CSV, TSV, or DSV (`format.type`, else the extension `.csv` or `.tsv`, else JSON; DSV uses `format.delimiter`, a comma when omitted); `format.property` (a dotted path to the array of rows in a JSON file); `format.parse` as `"auto"` (explicit per-column inference, never the default), `null`, or a field map of `number`, `boolean`, `date`, and `string` (named fields only; delimited text keeps its cells as strings otherwise), with ISO 8601 dates in UTC; **named datasets** (`data.name` found in the caller's `Datasets`, then in the top-level `datasets` arrays); `data.sequence` (`start`, exclusive `stop`, `step`, `as`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, never given to a resolver, empty dataset); a custom `parse` date format (`date:'%Y'`, `utc:'%Y'`): `vl-data-parse-date-format` (the field is left as read); `values` (or a referenced dataset) as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` (or a referenced dataset) as an object: `vl-data-geo`. Not a report but a `VegaLiteRenderException`: a local file that is missing, refused by the sandbox, a link, a directory in place of a file, unreadable (an open failure, or a failing callback or stream), invalid UTF-8, invalid JSON or delimited text, or over a limit; an undefined `name`; a sequence with a missing or non-finite `start` or `stop` or a zero, non-finite, or non-numeric `step`. Values that an explicit `parse` could not convert become null and give the warning `vl-data-parse-failed` |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick` (a mark given as a string or as a definition object with `type`) | Every other recognized mark type: `vl-mark-<type>`; the chart is drawn without marks and without axes |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity` as `field`, literal `value`, or literal `datum` where the channel permits; `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report | Every other recognized channel: `vl-channel-<name>`; `longitude`, `latitude`, `longitude2`, `latitude2`: `vl-channel-geo` |
 | Field types | `quantitative`, `nominal`, `ordinal` | `temporal`: `vl-type-temporal`; `geojson`: `vl-type-geojson` |
@@ -564,21 +566,30 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
 10. **Data format by extension**: without `format.type` a `url` ending in `.csv` or `.tsv` (any case) is delimited text
     and everything else is JSON, as in Vega-Lite; `format.type` always wins. `format.header` and `format.property` on
     delimited data, and `format.delimiter` on CSV and TSV, are ignored, and a DSV without a delimiter uses a comma.
-11. **Inference per column**: delimited text is converted by the type of its whole column (boolean, then number, then
-    ISO 8601 date, only when every non-empty text of the column fits; otherwise the column stays text), as Vega's
-    `parse: "auto"` does, never per cell. Numbers are finite invariant integers, decimals, and exponents (no hex,
-    no thousands separators, no `NaN` or infinity); a date without a zone is UTC, so the result never depends on the
-    host. Custom `date:'%fmt'` parsing is not implemented (`vl-data-parse-date-format`).
+11. **Inference only on request**: as in Vega, no data-based type inference is applied unless `parse` is `"auto"`: delimited
+    text without `parse` (or with `parse: null`) keeps every cell as a string (a leading zero or an ISO-looking date
+    stays text), and a `parse` object converts only the fields it names. With `"auto"` a column is converted by the type
+    of its whole column (boolean, then number, then ISO 8601 date, only when every non-empty text of the column fits;
+    otherwise the column stays text), never per cell. Numbers are finite invariant integers, decimals, and exponents (no
+    hex, no thousands separators, no `NaN` or infinity); a date without a zone is UTC, so the result never depends on
+    the host. Quantitative encodings still coerce numeric text to numbers when they are drawn (as Vega does for its
+    linear scales); quantitative color is not drawn by this subset, and temporal parsing of text arrives with the time
+    support of Phase 8. Custom `date:'%fmt'` parsing is not implemented (`vl-data-parse-date-format`).
 12. **Failed conversions**: a value that an explicit `parse` cannot convert becomes null, with a
     `vl-data-parse-failed` warning for the field, instead of NaN or an invalid date; an empty text becomes null.
 13. **Local files are hard errors**: a data file that cannot be used fails the render with a located
     `VegaLiteRenderException` in lenient mode too, because an empty chart would hide a broken deployment; only remote
-    data, which is never fetched, is reported and empty.
+    data, which is never fetched, is reported and empty. This includes a directory where a file is expected, an open
+    that fails, and a callback or callback stream that throws, which are the located "cannot be read" failure rather
+    than a raw exception.
 14. **Links**: a symbolic link or junction below a root is refused (a link target is never followed), whatever it
     points to; a link at or above the root, which the caller chose, is trusted, and other reparse points that redirect
     nothing (for example the placeholders of a synchronized folder) are not links in this sense.
-15. **Zero sequence step**: a `sequence` with a step of zero is not a specification error (the metadata reports an
-    unknown length) and fails the render with a located `VegaLiteRenderException` instead.
+15. **Invalid sequences fail the render**: a `sequence` without a finite numeric `start` and `stop`, or with a step that
+    is zero, not finite, or not a number, fails the render with a located `VegaLiteRenderException` instead of being
+    defaulted (only an absent step is 1); a step that points away from the stop is an empty table, and a length that
+    overflows fails the row limit before anything is allocated. The specification metadata reports an unknown length for
+    these.
 16. **Provenance of the data rules**: the format, parse, and inference behavior follows the public Vega and Vega-Lite
     documentation of data loading; the parsers are original code and no upstream source, dataset, or example was copied.
 
@@ -614,7 +625,7 @@ own scope, and everything not yet implemented is reported with a stable identifi
    tool's own design, verification, and requirements are documented in the `CanvasNetTool` artifacts.
 4. **Phase 4 - Data files (delivered with this pull request).** The `Data` units `DataFileResolver` (the sandboxed,
    bounded, cached reading of local data files and of the caller's callback) and `DelimitedTextParser` (CSV, TSV, and
-   DSV, `parse`, and per-column inference), the extended `DataLoader` (files, `format.property`, named datasets,
+   DSV, `parse`, and opt-in per-column inference), the extended `DataLoader` (files, `format.property`, named datasets,
    `sequence`) and `DataTable` (a date value), the active `BaseDirectory`, `DataPaths`, `FileResolver`, `Datasets`,
    `MaxDataFiles`, and `MaxDataBytes` options, the retired and new `vl-data-*` identifiers, the data folder behavior of
    the `canvasnet` tool, and the original data fixtures.

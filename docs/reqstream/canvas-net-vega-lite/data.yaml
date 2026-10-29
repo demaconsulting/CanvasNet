@@ -94,48 +94,60 @@ sections:
 
           - id: CanvasNetVegaLite-Data-Parsing
             title: >-
-              The Data subsystem shall convert the values of a data source as its format parse property
-              says - inferring the type of each column of delimited text by default, converting named
-              fields to number, boolean, date, or string, keeping a source as read for null - reading
-              ISO 8601 dates as instants in UTC, making a value that cannot be converted null with one
-              vl-data-parse-failed warning per field, and leaving a custom date format as read.
+              The Data subsystem shall convert the values of a data source only as its format parse property
+              says, matching Vega: delimited text keeps every cell as a string unless parse is auto (the
+              explicit opt-in to per-column inference), named fields are converted to number, boolean,
+              date, or string, and null keeps a source as read; ISO 8601 dates are read as instants in
+              UTC, a value that cannot be converted becomes null with one vl-data-parse-failed warning per
+              field, and a custom date format is left as read. Quantitative encodings still coerce numeric
+              text when they are drawn.
             justification: |
-              Typed values are what scales and axes need, and a conversion must be predictable,
-              culture-independent, and visible when it fails.
+              Typed values are what scales and axes need when asked for, identifiers such as postal codes
+              must not be silently changed, and a conversion must be predictable, culture-independent, and
+              visible when it fails.
             children:
               - CanvasNetVegaLite-Data-DelimitedTextParser-Inference
               - CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
               - CanvasNetVegaLite-Data-DelimitedTextParser-CustomDateFormat
+              - CanvasNetVegaLite-Data-DataLoader-ParseDefaults
               - CanvasNetVegaLite-Data-DataLoader-ParseFailures
               - CanvasNetVegaLite-Data-DataTable-DateValues
             tests:
               - DataLoader_Load_LocalCsvUrlUsesRelativeFile
+              - DataLoader_Load_DefaultDelimitedTextKeepsTextValues
               - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
               - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
+              - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
 
           - id: CanvasNetVegaLite-Data-NamedAndSequence
             title: >-
               The Data subsystem shall load a named dataset from the caller's datasets first and the
               top-level datasets of the specification second, and shall generate a sequence of numbers
               from start up to, but not including, stop with the documented step and field name, checking
-              the length before allocating it.
+              the length with overflow-safe arithmetic before allocating it and failing closed for a
+              sequence whose start, stop, or step is missing, not finite, or (for the step) zero.
             justification: |
               Hosts supply data without editing the specification, and generated data needs no file.
             children:
               - CanvasNetVegaLite-Data-DataLoader-NamedDatasets
               - CanvasNetVegaLite-Data-DataLoader-Sequences
+              - CanvasNetVegaLite-Data-DataLoader-SequenceValidation
             tests:
               - DataLoader_Load_NamedDatasetsUseCallerPrecedence
               - DataLoader_Load_SequenceUsesExclusiveStopAndAs
+              - DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure
+              - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
               - CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender
 
           - id: CanvasNetVegaLite-Data-HardErrors
             title: >-
               The Data subsystem shall fail with a VegaLiteRenderException located at the offending data
-              url or name, never with an empty table, when a local data file is missing, cannot be used,
-              or is not valid, and when a named dataset is defined by nobody.
+              url or name, never with an empty table, when a local data file is missing, cannot be read
+              (including a directory in place of a file, an open failure, and a failing resolver callback
+              or stream), or is not valid, and when a named dataset is defined by nobody.
             justification: |
-              A broken data reference is a deployment error that an empty chart would hide.
+              A broken data reference is a deployment error that an empty chart would hide, and raw I/O
+              or callback exceptions must not escape the documented render contract.
             children:
               - CanvasNetVegaLite-Data-DataLoader-HardFailures
               - CanvasNetVegaLite-Data-DataFileResolver-MissingFiles
@@ -143,6 +155,8 @@ sections:
             tests:
               - DataLoader_Load_MissingLocalFileIsHardFailure
               - DataLoader_Load_MissingNamedDataIsHardFailure
+              - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
+              - DataFileResolver_Load_CallbackFailureIsLocatedReadFailure
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
 
           - id: CanvasNetVegaLite-Data-Limits

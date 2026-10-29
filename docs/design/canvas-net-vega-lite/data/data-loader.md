@@ -38,9 +38,23 @@ path does (`.csv`, `.tsv`, in any case; anything else is JSON). A DSV uses the s
 comma when omitted). `format.property` selects the array of rows inside a JSON document by a dotted field path. The
 `format.type` `topojson` is the empty table (reported by the catalog).
 
-**Sequence.** `start` and `stop` are required numbers, `step` is a finite number other than zero (1 by default), and
-`as` names the field (`data` by default). The values are `start + i * step` for `i` from 0 up to, excluding, `stop`
-(a negative step counts down); each is computed from its index, so rounding does not drift.
+**Sequence.** `start` and `stop` are required finite numbers, `step` is 1 when it is absent and otherwise must be a
+finite number other than zero (a present step that is not a number is an error, never silently 1), and `as` names the
+field (`data` by default). The values are `start + i * step` for `i` from 0 up to, excluding, `stop` (a negative step
+counts down); each is computed from its index, so rounding does not drift. The length is `ceil((stop - start) / step)`
+in floating point: a quotient that is not positive (a step that points away from `stop`, including a positive step
+with `stop` below `start`) is an empty table, and a difference or quotient that overflows to infinity, or any length
+above the remaining `MaxDataRows` budget, fails the row limit before anything is allocated (the message describes an
+unrepresentable count instead of printing it); the count is converted to an integer only after that check.
+
+**Parse default.** As in Vega, no data-based type inference happens unless the specification asks for it. For CSV, TSV,
+and DSV an absent `format.parse` and `parse: null` keep every cell as a string (so `01234`, `2024-03-05`, and `true`
+stay text); `parse: "auto"` is the explicit opt-in to per-column inference of booleans, numbers, and ISO dates; a
+`parse` object converts only the fields it names. The loader therefore always reads the directives with
+`defaultAuto: false`. A quantitative encoding still coerces numeric text to a number when it is drawn (`DataValue`
+parses it lazily for linear domains, positions, size, and opacity), which is a property of the encodings and not a
+parse mode; a quantitative color encoding is not drawn by the current subset. Date parsing of text for temporal
+encodings and time support arrive in Phase 8.
 
 **Named data.** A `name` is looked up in the caller's datasets (`VegaLiteRenderOptions.Datasets`) first and then in
 the top-level `datasets` of the specification; the caller wins; neither defining it is an error.
@@ -60,8 +74,9 @@ drive path, or a network path) is the empty table and is never given to the reso
   directives, and builds the table with `DataTable.FromRecords`.
 - `LoadUrl` - classifies remote data, finds the type, asks the resolver for the file, and routes to `LoadDelimited`
   (the parser unit) or `LoadJson` (`JsonDocument` under `MaxJsonDepth`, `format.property`, `Charge`, flatten, parse).
-- `LoadNamed`, `LoadCallerRows`, and `LoadSequence` - the named-dataset and sequence sources; the length of a sequence
-  is computed arithmetically and charged before anything is allocated, and the values are generated lazily.
+- `LoadNamed`, `LoadCallerRows`, and `LoadSequence` - the named-dataset and sequence sources; `LoadSequence` validates
+  the endpoints and the step, computes the length with overflow-safe arithmetic, charges it before anything is
+  allocated, and generates the values lazily.
 - `InferFormatType(path)` - `csv`, `tsv`, or `json` by extension.
 - `Complete` - builds the table, adds its rows to `RowsLoaded`, and converts the parse failures into warnings.
 - `Charge`, `Add`, and `CheckFieldCount` - enforce `MaxDataRows` as a total, `MaxFieldCount` per row, and the string
@@ -75,11 +90,13 @@ list is complete for this call. Root-level data inheritance for layered views is
 #### Error Handling
 
 Every failure of the data is a `VegaLiteRenderException` located at the construct that caused it, in lenient and strict
-mode alike: a file that the resolver refuses or cannot find or read (the resolver's exceptions are propagated), invalid
+mode alike: a file that the resolver refuses or cannot find or read (the resolver's exceptions are propagated, and the
+resolver also reports a failing callback or stream as the located read failure), invalid
 JSON or JSON nested deeper than `MaxJsonDepth`, a JSON root that is not an array or a `format.property` that is not
 found, a delimiter that is not one valid character, delimited text that is malformed (located by the parser), a
-`name` that is not defined, a sequence without numeric `start` and `stop` or with a zero or non-finite step or a value
-outside the range of a number, more rows than `MaxDataRows` (in total), more fields in a row than `MaxFieldCount`, a
+`name` that is not defined, a sequence without a finite numeric `start` and `stop`, with a zero, non-finite, or
+non-numeric `step`, or with a value outside the range of a number, more rows than `MaxDataRows` (in total, also for an
+overflowing sequence length), more fields in a row than `MaxFieldCount`, a
 string longer than `MaxStringLength`, and a number outside the range of a double. A canceled token is an
 `OperationCanceledException`, never wrapped. Values that an explicit `parse` could not convert are not errors: they are
 null and reported as `vl-data-parse-failed` warnings. Sources that are only recognized and not supported (remote data, `values`

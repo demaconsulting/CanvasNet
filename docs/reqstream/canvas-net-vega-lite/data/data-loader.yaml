@@ -52,7 +52,8 @@ sections:
                   and .tsv in any case, anything else JSON), using the single-character delimiter of a DSV
                   format, selecting the rows of a JSON file by a dotted format.property path (also through
                   an array index), reading each distinct file once per call, and keeping the JSON types of
-                  a JSON file.
+                  a JSON file. A resolver failure (not found, cannot be read, outside the sandbox) is
+                  reported with the location of the url.
                 justification: |
                   Local files are the data source of most real charts; the format rules must be the ones
                   Vega-Lite documents so that a specification means the same thing in both.
@@ -78,14 +79,50 @@ sections:
                   The DataLoader unit shall generate a sequence of numbers from start up to, but not
                   including, stop in steps of step (1 by default, negative allowed) in the field named by
                   as (data by default), computing each value from its index, giving no rows for a
-                  direction that never reaches stop, and checking the row count against the row limit
-                  arithmetically before any row is allocated.
+                  direction that never reaches stop (including a positive step with stop below start), and
+                  checking the row count against the row limit before any row is allocated, with
+                  arithmetic that cannot overflow into an invalid count (an overflowing difference or
+                  quotient fails the row limit instead of allocating).
                 justification: |
                   Generated sequences are a data source with no input to bound, so the length must be
-                  checked before the memory is spent.
+                  checked before the memory is spent, and no pair of finite numbers may produce an invalid
+                  count.
                 tests:
                   - DataLoader_Load_SequenceUsesExclusiveStopAndAs
                   - DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation
+                  - DataLoader_Load_SequenceWrongDirectionWithPositiveStepIsEmpty
+                  - DataLoader_Load_SequenceArithmeticOverflowFailsBeforeAllocation
+
+              - id: CanvasNetVegaLite-Data-DataLoader-SequenceValidation
+                title: >-
+                  The DataLoader unit shall fail with a VegaLiteRenderException located at the sequence,
+                  never with an empty table or a defaulted value, when a sequence lacks a start or a stop,
+                  when a start or a stop is not a finite number, when a step that is present is zero,
+                  not finite, or not a number, defaulting the step to 1 only when it is absent.
+                justification: |
+                  A sequence with an unusable endpoint or step cannot be given a meaning; silently
+                  substituting a default or an empty table would hide an authoring error, and a zero step
+                  would never terminate.
+                tests:
+                  - DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure
+                  - DataLoader_Load_SequenceNonNumericEndpointsAreLocatedFailure
+                  - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
+
+              - id: CanvasNetVegaLite-Data-DataLoader-ParseDefaults
+                title: >-
+                  The DataLoader unit shall, as Vega does, apply no data-based type inference to CSV, TSV,
+                  or DSV data unless format.parse is "auto": an absent or null parse shall keep every
+                  cell as a string (a leading zero, an ISO-looking date, and true or false stay text), an
+                  explicit "auto" shall infer booleans, numbers, and ISO dates per column, and a parse
+                  object shall convert only the named fields.
+                justification: |
+                  Whole-column inference by default silently changes identifiers such as postal codes and
+                  differs from Vega, so the same specification would mean different things in the two
+                  engines; quantitative encodings still coerce numeric text when they are drawn.
+                tests:
+                  - DataLoader_Load_DefaultDelimitedTextKeepsTextValues
+                  - DataLoader_Load_LocalCsvUrlUsesRelativeFile
+                  - DataLoader_Load_JsonPropertyAndExplicitParseAreApplied
 
               - id: CanvasNetVegaLite-Data-DataLoader-ParseFailures
                 title: >-

@@ -955,6 +955,76 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the file-backed fixture chart does not depend on the line endings of the checkout: the same
+    ///     rows written with LF and with CRLF line breaks (and without a final line break) give the same pixels.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_FixtureLineEndingsDoNotChangeTheChart()
+    {
+        // Arrange: the fixture text normalized to LF, then written back with each line ending
+        var text = File.ReadAllText(Path.Combine(FixturesFolder, "data-files.csv")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var lf = new VirtualDataFiles().With("data-files.csv", text);
+        var crlf = new VirtualDataFiles().With("data-files.csv", text.Replace("\n", "\r\n", StringComparison.Ordinal));
+        var noFinalBreak = new VirtualDataFiles().With("data-files.csv", text.TrimEnd('\n'));
+
+        // Act
+        var actual = new[] { lf, crlf, noFinalBreak }
+            .Select(files => Pixels(VegaLiteDocument.Parse(FileChartSpec, new VegaLiteOpenOptions { FileResolver = files.Resolve })))
+            .ToList();
+        var inline = Pixels(VegaLiteDocument.Parse(InlineChartSpec));
+
+        // Assert: every spelling draws the chart of the inline rows
+        foreach (var chart in actual)
+        {
+            Assert.Equal((inline.Width, inline.Height), (chart.Width, chart.Height));
+            Assert.True(inline.Pixels.AsSpan().SequenceEqual(chart.Pixels));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that delimited text without <c>parse</c> keeps its cells as text (as Vega does), so nominal text with
+    ///     leading zeros is not turned into numbers and no report or warning appears, while the quantitative x, y and size
+    ///     encodings still coerce the numeric text when they draw: the chart has the pixels of the same rows written
+    ///     inline with real numbers.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces()
+    {
+        // Arrange: a CSV whose nominal column has leading zeros and whose other columns are numeric text; the inline
+        // chart has the same values with real numbers for the quantitative fields
+        const string encoding = """
+            "mark": "point",
+            "encoding": {
+              "x": { "field": "x", "type": "quantitative" },
+              "y": { "field": "y", "type": "quantitative" },
+              "size": { "field": "w", "type": "quantitative" },
+              "color": { "field": "zip", "type": "nominal" } }
+            """;
+        var files = new VirtualDataFiles().With("p.csv", "zip,x,y,w\n007,1,10,5\n008,2,20,15\n010,3,15,30\n");
+        var fromCsv = VegaLiteDocument.Parse(
+            "{ \"data\": { \"url\": \"p.csv\" }, " + encoding + " }",
+            new VegaLiteOpenOptions { FileResolver = files.Resolve });
+        var inline = VegaLiteDocument.Parse(
+            "{ \"data\": { \"values\": [ { \"zip\": \"007\", \"x\": 1, \"y\": 10, \"w\": 5 }, { \"zip\": \"008\", \"x\": 2, \"y\": 20, \"w\": 15 },"
+            + " { \"zip\": \"010\", \"x\": 3, \"y\": 15, \"w\": 30 } ] }, " + encoding + " }");
+        var warnings = new List<VegaLiteDiagnostic>();
+        var features = new List<VegaLiteUnsupportedFeature>();
+        var options = new VegaLiteRenderOptions { WarningHandler = warnings.Add, UnsupportedFeatureHandler = features.Add };
+
+        // Act
+        var actual = Pixels(fromCsv, options);
+        var expected = Pixels(inline);
+
+        // Assert: no data report or warning appears (the text was kept, not mis-converted; the legend warnings of the size
+        // and color encodings are unrelated) and the quantitative channels read the text as numbers, giving the same chart
+        // as real numbers
+        Assert.DoesNotContain(warnings, w => w.Message.StartsWith("vl-data", StringComparison.Ordinal));
+        Assert.DoesNotContain(features, f => f.Feature.StartsWith("vl-data", StringComparison.Ordinal));
+        Assert.Equal((expected.Width, expected.Height), (actual.Width, actual.Height));
+        Assert.True(expected.Pixels.AsSpan().SequenceEqual(actual.Pixels));
+    }
+
+    /// <summary>
     ///     A readable stream of spaces that never ends and counts the bytes read from it.
     /// </summary>
     private sealed class EndlessStream : Stream

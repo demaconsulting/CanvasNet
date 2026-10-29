@@ -34,7 +34,7 @@ internal enum ParseMode
     /// <summary>No conversion: every value keeps the type it was read with (<c>parse: null</c>).</summary>
     None,
 
-    /// <summary>The type of each column of text is inferred from its values (<c>parse: "auto"</c>, the default for delimited text).</summary>
+    /// <summary>The type of each column of text is inferred from its values (<c>parse: "auto"</c>); always an explicit opt-in, never a default of the loader.</summary>
     Auto,
 
     /// <summary>The fields named in <see cref="ParseDirectives.Fields"/> are converted; all others keep their type.</summary>
@@ -46,11 +46,14 @@ internal enum ParseMode
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Modes.</b> Delimited text (CSV, TSV, DSV) is parsed with <see cref="ParseMode.Auto"/> unless the
-///         specification says otherwise; JSON data keeps its JSON types unless the specification asks for
-///         <c>"auto"</c> or names fields. <c>parse: null</c> keeps every value as read (text stays text). An object
-///         names the fields to convert (<c>number</c>, <c>boolean</c>, <c>date</c>, <c>string</c>); the keys are field
-///         paths, compared in their canonical form like the fields of an encoding. All other fields keep their type.
+///         <b>Modes.</b> As in Vega, no data-based type inference happens unless the specification asks for it: delimited
+///         text (CSV, TSV, DSV) and JSON data both default to <see cref="ParseMode.None"/>, so every delimited cell
+///         stays a string (a leading zero or an ISO-looking date is kept as text) and JSON keeps its JSON types.
+///         <c>parse: "auto"</c> is the explicit opt-in to <see cref="ParseMode.Auto"/> inference. <c>parse: null</c> keeps
+///         every value as read. An object names the fields to convert (<c>number</c>, <c>boolean</c>, <c>date</c>,
+///         <c>string</c>); the keys are field paths, compared in their canonical form like the fields of an encoding,
+///         and only the named fields are converted. All other fields keep their type. Quantitative encodings still
+///         coerce numeric text to numbers when they are drawn; that is not a parse mode.
 ///     </para>
 ///     <para>
 ///         <b>Auto inference</b> looks at a whole column, as Vega does: a column is a boolean column when every non-empty
@@ -123,7 +126,7 @@ internal sealed class ParseDirectives
     ///     Reads the directives of a data format.
     /// </summary>
     /// <param name="format">The <c>format</c> object, or null.</param>
-    /// <param name="defaultAuto">Whether an absent <c>parse</c> means <see cref="ParseMode.Auto"/> (delimited text) or <see cref="ParseMode.None"/>.</param>
+    /// <param name="defaultAuto">Whether an absent <c>parse</c> means <see cref="ParseMode.Auto"/> or <see cref="ParseMode.None"/>; the loader always passes <see langword="false"/> (Vega applies no inference unless <c>parse</c> is <c>"auto"</c>).</param>
     /// <returns>The directives.</returns>
     public static ParseDirectives Read(SpecNode? format, bool defaultAuto)
     {
@@ -679,14 +682,15 @@ internal sealed record DelimitedResult(List<Dictionary<string, DataValue>> Recor
 ///     </para>
 ///     <para>
 ///         <b>Ragged rows.</b> A row with fewer entries than the header has null in the missing fields; entries beyond
-///         the header are ignored. A repeated header name or more header names than
-///         <see cref="VegaLiteLimits.MaxFieldCount"/> is an error, as is a field text longer than
+///         the header are ignored (they are still read and validated, but never stored). A repeated header name or more
+///         header names than <see cref="VegaLiteLimits.MaxFieldCount"/> (refused as soon as the header exceeds it) is an
+///         error, as is a field text longer than
 ///         <see cref="VegaLiteLimits.MaxStringLength"/> and more rows than the budget allows. Every error is a
 ///         <see cref="VegaLiteRenderException"/> with the location of the data and, where it helps, the line of the text.
 ///     </para>
 ///     <para>
 ///         <b>Types.</b> The cells are read as text and then converted by the <see cref="ParseDirectives"/>; the default
-///         for delimited text is inference per column (see <see cref="ParseDirectives"/>).
+///         is no conversion, so cells stay text unless <c>parse</c> asks for inference or names fields.
 ///     </para>
 /// </remarks>
 internal static class DelimitedTextParser
@@ -721,7 +725,7 @@ internal static class DelimitedTextParser
         }
 
         var reader = new Reader(text, options);
-        var header = reader.ReadRecord();
+        var header = reader.ReadRecord(options.Limits.MaxFieldCount, rejectOverflow: true);
         var records = new List<Dictionary<string, DataValue>>();
         var failures = new ParseFailures();
         if (header is null)
@@ -731,7 +735,9 @@ internal static class DelimitedTextParser
 
         var names = ReadHeader(header, options);
         var count = 0;
-        while (reader.ReadRecord() is { } cells)
+
+        // The header width is known now: a data row keeps at most that many entries and only validates the rest
+        while (reader.ReadRecord(names.Length, rejectOverflow: false) is { } cells)
         {
             if (++count % CancellationInterval == 0)
             {
@@ -764,15 +770,10 @@ internal static class DelimitedTextParser
     /// <param name="header">The entries of the header record.</param>
     /// <param name="options">The options.</param>
     /// <returns>The canonical names, in column order.</returns>
-    /// <exception cref="VegaLiteRenderException">Thrown when there are too many columns or a name is repeated.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when a name is repeated.</exception>
     private static string[] ReadHeader(List<string> header, DelimitedOptions options)
     {
-        if (header.Count > options.Limits.MaxFieldCount)
-        {
-            throw new VegaLiteRenderException(
-                $"The data '{options.Display}' has {header.Count} columns, more than the limit of {options.Limits.MaxFieldCount} (MaxFieldCount).", options.Location);
-        }
-
+        // The reader has already refused a header with more than MaxFieldCount entries, before storing them
         var names = new string[header.Count];
         var seen = new HashSet<string>(StringComparer.Ordinal);
         for (var i = 0; i < names.Length; i++)
@@ -821,9 +822,17 @@ internal static class DelimitedTextParser
         /// <summary>
         ///     Reads the next record, skipping lines that have no character.
         /// </summary>
-        /// <returns>The entries of the record, or <see langword="null"/> at the end of the text.</returns>
-        /// <exception cref="VegaLiteRenderException">Thrown for a malformed record.</exception>
-        public List<string>? ReadRecord()
+        /// <remarks>
+        ///     Storage is bounded by <paramref name="storeLimit"/>: entries beyond it are still consumed and fully
+        ///     validated (quote closure, text after a closing quote, field length) but are not kept, so a record with an
+        ///     enormous number of entries never materializes them. When <paramref name="rejectOverflow"/> is set (the
+        ///     header), the first entry beyond the limit is an error instead, before that entry is read.
+        /// </remarks>
+        /// <param name="storeLimit">The most entries that are kept.</param>
+        /// <param name="rejectOverflow">Whether an entry beyond <paramref name="storeLimit"/> is an error (the header) or ignored (a data row).</param>
+        /// <returns>The kept entries of the record, or <see langword="null"/> at the end of the text.</returns>
+        /// <exception cref="VegaLiteRenderException">Thrown for a malformed record, or a header with too many entries.</exception>
+        public List<string>? ReadRecord(int storeLimit, bool rejectOverflow)
         {
             // Skip empty lines (and the line break at the very end of the text)
             while (_position < _text.Length && IsLineBreak(_text[_position]))
@@ -839,7 +848,21 @@ internal static class DelimitedTextParser
             var cells = new List<string>();
             while (true)
             {
-                cells.Add(ReadField());
+                if (cells.Count < storeLimit)
+                {
+                    cells.Add(ReadField(store: true)!);
+                }
+                else if (rejectOverflow)
+                {
+                    throw new VegaLiteRenderException(
+                        $"The data '{_options.Display}' has more columns than the limit of {storeLimit} (MaxFieldCount).", _options.Location);
+                }
+                else
+                {
+                    // An ignored entry is read for its validation only: nothing is stored for it
+                    ReadField(store: false);
+                }
+
                 if (_position >= _text.Length)
                 {
                     return cells;
@@ -861,16 +884,18 @@ internal static class DelimitedTextParser
         /// <summary>
         ///     Reads one field.
         /// </summary>
-        /// <returns>The text of the field.</returns>
+        /// <param name="store">Whether the text is kept; when not, the field is only validated and consumed.</param>
+        /// <returns>The text of the field, or <see langword="null"/> when it is not kept.</returns>
         /// <exception cref="VegaLiteRenderException">Thrown for an unterminated quote, text after a closing quote, or a field that is too long.</exception>
-        private string ReadField() =>
-            _position < _text.Length && _text[_position] == '"' ? ReadQuoted() : ReadUnquoted();
+        private string? ReadField(bool store) =>
+            _position < _text.Length && _text[_position] == '"' ? ReadQuoted(store) : ReadUnquoted(store);
 
         /// <summary>
         ///     Reads an unquoted field: everything up to the next delimiter or line break.
         /// </summary>
-        /// <returns>The text.</returns>
-        private string ReadUnquoted()
+        /// <param name="store">Whether the text is kept.</param>
+        /// <returns>The text, or <see langword="null"/> when it is not kept.</returns>
+        private string? ReadUnquoted(bool store)
         {
             var start = _position;
             while (_position < _text.Length && _text[_position] != _options.Delimiter && !IsLineBreak(_text[_position]))
@@ -879,17 +904,19 @@ internal static class DelimitedTextParser
             }
 
             CheckLength(_position - start);
-            return _text.Substring(start, _position - start);
+            return store ? _text.Substring(start, _position - start) : null;
         }
 
         /// <summary>
         ///     Reads a quoted field: a doubled quote is one quote, and delimiters and line breaks are text.
         /// </summary>
-        /// <returns>The text between the quotes.</returns>
-        private string ReadQuoted()
+        /// <param name="store">Whether the text is kept.</param>
+        /// <returns>The text between the quotes, or <see langword="null"/> when it is not kept.</returns>
+        private string? ReadQuoted(bool store)
         {
             var startLine = _line;
-            var builder = new StringBuilder();
+            var builder = store ? new StringBuilder() : null;
+            var length = 0;
             _position++;
             while (true)
             {
@@ -903,9 +930,9 @@ internal static class DelimitedTextParser
                 {
                     if (_position < _text.Length && _text[_position] == '"')
                     {
-                        builder.Append('"');
+                        builder?.Append('"');
                         _position++;
-                        CheckLength(builder.Length);
+                        CheckLength(++length);
                         continue;
                     }
 
@@ -917,8 +944,8 @@ internal static class DelimitedTextParser
                     _line++;
                 }
 
-                builder.Append(c);
-                CheckLength(builder.Length);
+                builder?.Append(c);
+                CheckLength(++length);
             }
 
             // Nothing may stand between the closing quote and the next delimiter or line break
@@ -927,7 +954,7 @@ internal static class DelimitedTextParser
                 throw Error("unexpected text after the closing quote of a field");
             }
 
-            return builder.ToString();
+            return builder?.ToString();
         }
 
         /// <summary>

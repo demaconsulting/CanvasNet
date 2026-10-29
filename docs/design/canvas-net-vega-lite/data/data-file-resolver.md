@@ -2,8 +2,6 @@
 
 ![Data Structure](VegaLiteDataView.svg)
 
-<!-- cspell:ignore sandboxed sandboxing junction junctions symlink symlinks -->
-
 The `DataFileResolver` unit is the third software unit in the `Data` subsystem. It comprises two source files in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace, both `internal`:
 
@@ -60,9 +58,14 @@ link before the file is opened; no more than `MaxDataFiles` distinct files are r
   and then each prefix), loading each through the cache and returning the first file that exists; fails with "not
   found" when none does.
 - `LoadCandidate` - answers from the cache, otherwise reads the bytes, decodes them, and remembers the result.
-- `ReadBytes` - in resolver mode calls the callback with the normalized logical path, reads the stream it returns, and
-  disposes it; in file-system mode first runs the link walk and `File.Exists`, then opens the file for reading with
-  sharing, and treats a file that vanished between the check and the open as missing.
+- `ReadBytes` - in resolver mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk, then
+  `File.Exists` (a directory where the file is expected is a located read failure, not a missing file), then opens the
+  file read-only with `FileShare.ReadWrite | FileShare.Delete`, and treats a file that vanished between the check and
+  the open (`FileNotFoundException`, `DirectoryNotFoundException`) as missing; any other `IOException` or
+  `UnauthorizedAccessException` of the open is a located read failure.
+- `ReadFromCallback` - calls the callback with the normalized logical path, reads the stream it returns, and disposes it
+  exactly once, all inside one boundary: a failure of the callback, of the bounded read, or of the disposal (any
+  exception other than a cancellation or an already located `VegaLiteRenderException`) is the located read failure.
 - `ReadBounded` - counts the file against `MaxDataFiles` as soon as it is known to exist and before any byte is read,
   checks a size the stream reports, then reads in 8 KiB chunks and stops as soon as the running length exceeds
   `MaxDataBytes`, so a stream that never ends stops one chunk past the limit; the token is observed after every chunk.
@@ -92,13 +95,22 @@ not use it as a data root.
 
 Every failure is a `VegaLiteRenderException` carrying the location of the `url` (never an empty result): no file source
 is configured, the path text is refused or leaves its root ("is not allowed" or "is outside the allowed
-directories"), a component is a link or the link probe fails, the file is not found (also when a directory has the
-name), it cannot be read (`IOException`, `UnauthorizedAccessException`, a stream that fails while being read), it is not
+directories"), a component is a link or the link probe fails, the file is not found, it cannot be read (an existing
+directory where a file is expected, an open that fails with an `IOException` or `UnauthorizedAccessException`, a stream
+that fails while being read, a callback that throws, or a callback stream whose disposal throws), it is not
 valid UTF-8, it is larger than `MaxDataBytes`, or it would be the file after `MaxDataFiles`; the limit messages
 contain "the limit of ..." so that `CanvasNetTool` maps them to `budget-exceeded`. A configured directory that is not a
-valid path is also a located failure. An exception thrown by the caller's callback is the caller's code and propagates
-unchanged. A canceled token is an `OperationCanceledException`, never wrapped, thrown before any request or file access
-and between files and chunks.
+valid path is also a located failure. The callback is untrusted caller code at a render boundary, so its failures are
+normalized to the same located "cannot be read" failure and its own message is not copied into the result. A canceled
+token is an `OperationCanceledException`, never wrapped (also when the callback raises it), thrown before any request or
+file access and between files and chunks.
+
+**Design decision: file sharing.** Files are opened read-only with `FileShare.ReadWrite | FileShare.Delete`. The
+resolver reads a bounded snapshot and never writes, so it is the least restrictive reader: another process that is
+writing, replacing, renaming, or deleting the file (an editor saving a chart's data while it is rendered) does not turn
+the render into a sharing violation. The trade-off is that the bytes read may be a mix of two versions of a file that is
+being rewritten, which is the same exposure as the documented check/use race and is not defended against; a concurrent
+change that does make the open or read fail is reported as the located read failure.
 
 #### Dependencies
 

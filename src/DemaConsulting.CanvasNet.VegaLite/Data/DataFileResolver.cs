@@ -41,7 +41,11 @@ internal sealed record DataFile(string Key, string Display, string Text);
 ///         (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced by U+FFFD), the same strictness as
 ///         the specification text. A file that is found, read or decoded wrongly, a file that is missing and a file that
 ///         is blocked by the sandbox are all failures (<see cref="VegaLiteRenderException"/>): a local data file that
-///         cannot be used is never treated as an empty dataset.
+///         cannot be used is never treated as an empty dataset. A directory where a file is expected, an open that fails
+///         with an I/O or access error, and a callback that throws or whose stream fails to read or dispose are the same
+///         located read failure; only a cancellation passes through unchanged. Files are opened read-only with
+///         <see cref="FileShare.ReadWrite"/> and <see cref="FileShare.Delete"/>, so concurrent readers, writers and
+///         rename or delete operations by other processes do not block the bounded read.
 ///     </para>
 ///     <para>
 ///         <b>Cache.</b> Each distinct candidate is requested at most once per instance (a miss is remembered too, so a
@@ -165,21 +169,27 @@ internal sealed partial class DataFileResolver
     {
         if (UsesResolver)
         {
-            // The callback owns what it returns until it is handed to us; we dispose it after reading
-            using var stream = _options.FileResolver!(candidate.Key);
-            return stream is null ? null : ReadBounded(stream, display, location);
+            return ReadFromCallback(candidate, display, location);
         }
 
         // The walk runs before the file is opened (and before File.Exists on the final component), so nothing is
         // ever read through a link and a file behind a link is never reported as existing
-        if (!WalkRejectingLinks(candidate, display, location) || !File.Exists(candidate.Key))
+        if (!WalkRejectingLinks(candidate, display, location))
         {
             return null;
         }
 
+        if (!File.Exists(candidate.Key))
+        {
+            // A directory where a file is expected is not a missing file: it exists but cannot be read as data
+            return Directory.Exists(candidate.Key) ? throw CannotRead(display, location) : null;
+        }
+
         try
         {
-            using var file = new FileStream(candidate.Key, FileMode.Open, FileAccess.Read, FileShare.Read, ReadChunkSize);
+            // Read-only access that tolerates concurrent readers, writers and rename or delete operations by other
+            // processes, so a file that is being written elsewhere does not turn into a sharing violation
+            using var file = new FileStream(candidate.Key, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, ReadChunkSize);
             return ReadBounded(file, display, location);
         }
         catch (FileNotFoundException)
@@ -191,7 +201,47 @@ internal sealed partial class DataFileResolver
         {
             return null;
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Any other failure to open the file (sharing, access, device) is a located read failure
+            throw CannotRead(display, location);
+        }
     }
+
+    /// <summary>
+    ///     Reads the bytes of a candidate from the resolver callback.
+    /// </summary>
+    /// <remarks>
+    ///     The callback, the bounded read and the disposal of the returned stream form one boundary: a failure of any of
+    ///     them (other than a cancellation or a limit failure that is already located) is the located read failure,
+    ///     because the callback is untrusted code that must not leak a raw exception through the render contract.
+    /// </remarks>
+    /// <param name="candidate">The candidate.</param>
+    /// <param name="display">The name shown in messages.</param>
+    /// <param name="location">The location of the path, for errors.</param>
+    /// <returns>The bytes, or <see langword="null"/> when the callback has no such file.</returns>
+    private byte[]? ReadFromCallback(Candidate candidate, string display, VegaLiteLocation location)
+    {
+        try
+        {
+            // The callback owns what it returns until it is handed to us; we dispose it exactly once after reading
+            using var stream = _options.FileResolver!(candidate.Key);
+            return stream is null ? null : ReadBounded(stream, display, location);
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or VegaLiteRenderException))
+        {
+            throw CannotRead(display, location);
+        }
+    }
+
+    /// <summary>
+    ///     Creates the exception for a file that cannot be read.
+    /// </summary>
+    /// <param name="display">The name shown in messages.</param>
+    /// <param name="location">The location of the path.</param>
+    /// <returns>The exception, ready to throw.</returns>
+    private static VegaLiteRenderException CannotRead(string display, VegaLiteLocation location) =>
+        new($"The data file '{display}' cannot be read.", location);
 
     /// <summary>
     ///     Reads a whole stream as bytes under the limits, stopping once a limit is certainly exceeded.
@@ -241,7 +291,7 @@ internal sealed partial class DataFileResolver
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            throw new VegaLiteRenderException($"The data file '{display}' cannot be read.", location);
+            throw CannotRead(display, location);
         }
     }
 

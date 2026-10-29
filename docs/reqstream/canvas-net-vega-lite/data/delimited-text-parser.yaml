@@ -39,17 +39,21 @@ sections:
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-RaggedRows
                 title: >-
                   The DelimitedTextParser unit shall give a row with fewer entries than the header null in
-                  the missing fields, ignore entries beyond the header, and give no rows for empty text or
-                  a header without records.
+                  the missing fields, ignore entries beyond the header without storing them (while still
+                  validating their quoting and length), and give no rows for empty text or a header
+                  without records.
                 justification: |
                   Data files in the wild are ragged; a deterministic rule keeps a short row from shifting
-                  or dropping values.
+                  or dropping values, and ignoring extras must not let a malformed or enormous row escape
+                  validation or force it to be materialized.
                 tests:
                   - DelimitedTextParser_Parse_RaggedRowsFillMissingAndIgnoreExtra
+                  - DelimitedTextParser_Parse_ExtraFieldsAreValidatedWithoutMaterialization
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-Inference
                 title: >-
-                  The DelimitedTextParser unit shall, unless the format says otherwise, infer the type of
+                  The DelimitedTextParser unit shall, when the parse directives ask for inference
+                  (parse "auto", an explicit opt-in that is never the default), infer the type of
                   each column of delimited text as a whole: a boolean column when every non-empty text is
                   true or false in any case, else a number column when every non-empty text is a finite
                   invariant integer, decimal, or exponent number, else a date column when every non-empty
@@ -57,26 +61,29 @@ sections:
                   column, and shall read an ISO 8601 date or date-time as an instant in UTC, taking a
                   value without a zone as UTC, independently of the host culture and time zone.
                 justification: |
-                  Charts built from CSV files need typed values to scale correctly, and the result must
-                  not depend on the machine that renders them; Vega infers by column, so a mixed column
-                  must stay text rather than become partly numeric.
+                  Charts built from CSV files that opt in need typed values to scale correctly, and the
+                  result must not depend on the machine that renders them; Vega infers by column, so a mixed
+                  column must stay text rather than become partly numeric.
                 tests:
                   - DelimitedTextParser_Parse_AutoInfersBooleanNumberIsoDateAndString
                   - DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
                 title: >-
-                  The DelimitedTextParser unit shall apply the parse property of a data format as written:
-                  absent means inference for delimited text and no conversion for JSON, auto means
-                  inference, null keeps every cell as read, and an object converts only the named fields
-                  to number, boolean, date, or string by documented rules, turning an empty cell into null
-                  and a value that cannot be converted into null while recording one failure per field
-                  and type with the row and text of the first.
+                  The DelimitedTextParser unit shall apply the parse property of a data format as written,
+                  matching Vega: absent and null mean no conversion for every source (delimited text keeps
+                  its cells as strings, so a leading zero or an ISO-looking date stays text), auto means
+                  inference, and an object converts only the named fields to number, boolean, date, or
+                  string by documented rules, turning an empty cell into null and a value that cannot be
+                  converted into null while recording one failure per field and type with the row and
+                  text of the first.
                 justification: |
-                  An author who names a type expects it; a value that cannot be converted must neither be
-                  invented nor dropped silently, so it becomes null and is counted for a warning.
+                  An author who names a type expects it, and an author who names none expects the text to
+                  be kept, as in Vega; a value that cannot be converted must neither be invented nor
+                  dropped silently, so it becomes null and is counted for a warning.
                 tests:
                   - DelimitedTextParser_Directives_ReadTheModeFromTheFormat
+                  - DelimitedTextParser_Parse_DefaultDelimitedTextKeepsLeadingZerosAndDateLikeText
                   - DelimitedTextParser_Parse_NullKeepsTextAndExplicitMapCoercesFields
                   - DelimitedTextParser_Parse_ExplicitConversionsOfOtherKindsFollowTheDocumentedRules
 
@@ -94,14 +101,18 @@ sections:
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-Limits
                 title: >-
                   The DelimitedTextParser unit shall fail closed with a VegaLiteRenderException located at
-                  the data url when the header has more names than the field limit or a repeated name,
-                  when a text is longer than the string-length limit, or when the rows would exceed the
-                  row budget it was given, accepting exactly each limit.
+                  the data url when the header has more names than the field limit (refused as soon as the
+                  header exceeds it, before the remaining names are read or stored) or a repeated name,
+                  when a text is longer than the string-length limit (also in an entry beyond the header
+                  width), or when the rows would exceed the row budget it was given, accepting exactly each
+                  limit.
                 justification: |
                   A delimited file is untrusted input; unbounded columns, texts, or rows would exhaust
-                  memory.
+                  memory, and a header or row with an enormous number of entries must not be materialized.
                 tests:
                   - DelimitedTextParser_Parse_RowAndFieldLimitsFailClosed
+                  - DelimitedTextParser_Parse_HeaderFieldLimitStopsMaterialization
+                  - DelimitedTextParser_Parse_ExtraFieldsAreValidatedWithoutMaterialization
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-Cancellation
                 title: >-

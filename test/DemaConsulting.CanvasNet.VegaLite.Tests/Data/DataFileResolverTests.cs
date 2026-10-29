@@ -179,30 +179,48 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that a file that does not exist is a failure with the location, never an empty result, also when a
-    ///     directory has the name.
+    ///     Validates that a file that does not exist is a failure with the location, never an empty result.
     /// </summary>
     [Fact]
     public void DataFileResolver_Load_MissingFileIsHardFailure()
     {
-        // Arrange: an existing base directory with a sub folder named like the requested file
+        // Arrange: an existing base directory without the requested file
         using var directory = new DataTempDirectory();
-        Directory.CreateDirectory(directory.Combine("root/folder.csv"));
+        Directory.CreateDirectory(directory.Combine("root"));
         var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") });
         var callback = new VirtualDataFiles();
         var resolverMode = Create(new VegaLiteOpenOptions { FileResolver = callback.Resolve });
 
         // Act
         var missing = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("nope.csv", Where));
-        var folder = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("folder.csv", Where));
         var virtualMissing = Assert.Throws<VegaLiteRenderException>(() => resolverMode.Load("nope.csv", Where));
 
         // Assert
         Assert.Contains("'nope.csv' was not found", missing.Message, StringComparison.Ordinal);
-        Assert.Contains("'folder.csv' was not found", folder.Message, StringComparison.Ordinal);
         Assert.Contains("'nope.csv' was not found", virtualMissing.Message, StringComparison.Ordinal);
         Assert.Equal(Where, missing.Location);
         Assert.DoesNotContain(directory.Path, missing.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an existing directory where a file is expected is a located read failure (it exists but cannot
+    ///     be read as data), not a missing file, and that the message does not reveal the host path.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure()
+    {
+        // Arrange: a sub folder named like the requested file
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root/folder.csv"));
+        var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("folder.csv", Where));
+
+        // Assert
+        Assert.Contains("'folder.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -379,21 +397,63 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that the callback's own failure is not swallowed or rewritten (it is the caller's code) and that a
-    ///     stream that fails while it is read is a located failure.
+    ///     Validates that a stream that fails while it is read is a located read failure and that the stream is disposed.
     /// </summary>
     [Fact]
-    public void DataFileResolver_Load_CallbackAndStreamFailuresArePropagatedOrLocated()
+    public void DataFileResolver_Load_CallbackStreamReadFailureIsLocated()
+    {
+        // Arrange
+        var stream = new FailingStream();
+        var broken = Create(new VegaLiteOpenOptions { FileResolver = _ => stream });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => broken.Load("a.csv", Where));
+
+        // Assert
+        Assert.Contains("'a.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+        Assert.Equal(1, stream.DisposeCount);
+    }
+
+    /// <summary>
+    ///     Validates that a callback that throws is a located read failure, while a cancellation raised by the callback
+    ///     passes through unchanged.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_CallbackFailureIsLocatedReadFailure()
     {
         // Arrange
         var throwing = Create(new VegaLiteOpenOptions { FileResolver = _ => throw new InvalidOperationException("callback") });
-        var broken = Create(new VegaLiteOpenOptions { FileResolver = _ => new FailingStream() });
+        var canceling = Create(new VegaLiteOpenOptions { FileResolver = _ => throw new OperationCanceledException() });
 
-        // Act / Assert: the callback's exception is the caller's business; a failing read is a located failure
-        Assert.Equal("callback", Assert.Throws<InvalidOperationException>(() => throwing.Load("a.csv", Where)).Message);
-        var ex = Assert.Throws<VegaLiteRenderException>(() => broken.Load("a.csv", Where));
-        Assert.Contains("cannot be read", ex.Message, StringComparison.Ordinal);
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => throwing.Load("a.csv", Where));
+
+        // Assert: the failure is located and does not leak the callback's own text; cancellation is never rewritten
+        Assert.Contains("'a.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("callback", ex.Message, StringComparison.Ordinal);
         Assert.Equal(Where, ex.Location);
+        Assert.Throws<OperationCanceledException>(() => canceling.Load("a.csv", Where));
+    }
+
+    /// <summary>
+    ///     Validates that a stream whose disposal fails after a complete read is a located read failure, and that the
+    ///     stream was disposed exactly once.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_StreamDisposeFailureIsLocatedReadFailure()
+    {
+        // Arrange
+        var stream = new FailingDisposeStream();
+        var resolver = Create(new VegaLiteOpenOptions { FileResolver = _ => stream });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("a.csv", Where));
+
+        // Assert
+        Assert.Contains("'a.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+        Assert.Equal(1, stream.DisposeCount);
     }
 
     /// <summary>
@@ -401,7 +461,38 @@ public class DataFileResolverTests
     /// </summary>
     private sealed class FailingStream : MemoryStream
     {
+        /// <summary>Gets the number of times the stream was disposed.</summary>
+        public int DisposeCount { get; private set; }
+
         /// <inheritdoc/>
         public override int Read(byte[] buffer, int offset, int count) => throw new IOException("broken");
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            DisposeCount++;
+            base.Dispose(disposing);
+        }
+    }
+
+    /// <summary>
+    ///     A readable stream whose disposal fails with an I/O error.
+    /// </summary>
+    private sealed class FailingDisposeStream : MemoryStream
+    {
+        /// <summary>Initializes the stream with a small, valid file.</summary>
+        public FailingDisposeStream()
+            : base([(byte)'x']) { }
+
+        /// <summary>Gets the number of times the stream was disposed.</summary>
+        public int DisposeCount { get; private set; }
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            DisposeCount++;
+            base.Dispose(disposing);
+            throw new IOException("dispose failed");
+        }
     }
 }

@@ -204,8 +204,10 @@ malformed chart is a `vega-lite-error` of one line that names the file, and plai
 chart is
 `page-out-of-range`; `-D x=1` with a chart is a usage error that names the kind; the usage text names Vega-Lite
 charts and has
-a chart example, and says that the data files of a chart are read from the folder of the specification and below it
-only, that a missing file is an error, that there is no data-folder option, and that nothing is read from the network.
+a chart example, and says that the local CSV, TSV, DSV (`format.delimiter`), and JSON data files of a chart are read
+from the folder of the specification and below it
+only, that delimited text is not type-inferred unless `format.parse` is `"auto"`, that a missing file is an error, that
+there is no data-folder option, and that nothing is read from the network.
 
 **RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder**: a chart whose rows are in a CSV file in a sub folder
 beside its specification renders, whatever the current directory is, to the same PNG bytes as the chart with the rows

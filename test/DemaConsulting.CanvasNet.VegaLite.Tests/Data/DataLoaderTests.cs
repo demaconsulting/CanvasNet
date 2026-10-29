@@ -330,7 +330,8 @@ public class DataLoaderTests
 
     /// <summary>
     ///     Validates that a relative <c>url</c> is read from the base directory, with the format taken from
-    ///     <c>format.type</c> or else from the extension, and that the cells are typed by per-column inference.
+    ///     <c>format.type</c> or else from the extension, and that the cells are typed by per-column inference when
+    ///     <c>parse</c> is <c>"auto"</c>.
     /// </summary>
     [Fact]
     public void DataLoader_Load_LocalCsvUrlUsesRelativeFile()
@@ -343,11 +344,11 @@ public class DataLoaderTests
         directory.Write("really.json", "k,v\na,9\n");
         var open = new VegaLiteOpenOptions { BaseDirectory = directory.Path };
 
-        // Act
-        var csv = LoadData("{\"url\":\"sub/t.csv\"}", open);
-        var tsv = LoadData("{\"url\":\"t.tsv\"}", open);
-        var dsv = LoadData("{\"url\":\"t.txt\",\"format\":{\"type\":\"dsv\",\"delimiter\":\";\"}}", open);
-        var typed = LoadData("{\"url\":\"really.json\",\"format\":{\"type\":\"csv\"}}", open);
+        // Act: inference is an explicit opt-in
+        var csv = LoadData("{\"url\":\"sub/t.csv\",\"format\":{\"parse\":\"auto\"}}", open);
+        var tsv = LoadData("{\"url\":\"t.tsv\",\"format\":{\"parse\":\"auto\"}}", open);
+        var dsv = LoadData("{\"url\":\"t.txt\",\"format\":{\"type\":\"dsv\",\"delimiter\":\";\",\"parse\":\"auto\"}}", open);
+        var typed = LoadData("{\"url\":\"really.json\",\"format\":{\"type\":\"csv\",\"parse\":\"auto\"}}", open);
 
         // Assert: the CSV has typed columns
         Assert.Equal(2, csv.RowCount);
@@ -362,6 +363,46 @@ public class DataLoaderTests
         Assert.Equal(7, tsv.GetValue(0, "v").Number);
         Assert.Equal(8, dsv.GetValue(0, "v").Number);
         Assert.Equal(9, typed.GetValue(0, "v").Number);
+    }
+
+    /// <summary>
+    ///     Validates that delimited text without <c>parse</c> (or with <c>parse: null</c>) keeps every cell as text, as
+    ///     Vega does, and that a field map converts only the named field.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_DefaultDelimitedTextKeepsTextValues()
+    {
+        // Arrange: text that inference would turn into numbers, a date and a boolean
+        var files = new VirtualDataFiles().With("t.csv", "zip,short,day,flag,n\n01234,007,2024-03-05,true,7\n98765,008,2024-03-06T10:00:00Z,false,8\n");
+        var open = Virtual(files);
+
+        // Act
+        var absent = LoadData("{\"url\":\"t.csv\"}", open);
+        var nullParse = LoadData("{\"url\":\"t.csv\",\"format\":{\"parse\":null}}", open);
+        var named = LoadData("{\"url\":\"t.csv\",\"format\":{\"parse\":{\"n\":\"number\"}}}", open);
+        var dsv = LoadData("{\"url\":\"t.csv\",\"format\":{\"type\":\"dsv\",\"delimiter\":\",\"}}", open);
+
+        // Assert: nothing is converted by default, whatever way the format is written
+        foreach (var table in new[] { absent, nullParse, dsv })
+        {
+            Assert.Equal(2, table.RowCount);
+            foreach (var field in table.Fields)
+            {
+                Assert.Equal(DataValueKind.String, table.GetValue(0, field).Kind);
+            }
+
+            Assert.Equal("01234", table.GetValue(0, "zip").Text);
+            Assert.Equal("007", table.GetValue(0, "short").Text);
+            Assert.Equal("2024-03-05", table.GetValue(0, "day").Text);
+            Assert.Equal("2024-03-06T10:00:00Z", table.GetValue(1, "day").Text);
+            Assert.Equal("true", table.GetValue(0, "flag").Text);
+            Assert.Equal("7", table.GetValue(0, "n").Text);
+        }
+
+        // Assert: an explicit map affects the named field only
+        Assert.Equal(7, named.GetValue(0, "n").Number);
+        Assert.Equal("01234", named.GetValue(0, "zip").Text);
+        Assert.Equal("true", named.GetValue(0, "flag").Text);
     }
 
     /// <summary>
@@ -584,6 +625,158 @@ public class DataLoaderTests
         Assert.Equal("/data/sequence", hugeEx.Location.Pointer);
         Assert.Contains("generated sequence has 4 rows", smallEx.Message, StringComparison.Ordinal);
         Assert.Equal(4, DataLoader.Load(small.Root["data"], SpecName, new VegaLiteLimits { MaxDataRows = 4 }, Ct).RowCount);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence without a <c>start</c> or a <c>stop</c> is a located failure, never an empty table.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure()
+    {
+        // Arrange / Act: the loader is exercised directly (the specification parser also refuses these before it)
+        var noStart = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("stop", 3.0)));
+        var noStop = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("start", 0.0)));
+        var neither = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers());
+        var onlyStep = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("step", 1.0)));
+
+        // Assert
+        foreach (var ex in new[] { noStart, noStop, neither, onlyStep })
+        {
+            Assert.Contains("needs a finite numeric 'start' and 'stop'", ex.Message, StringComparison.Ordinal);
+            Assert.Equal("/data/sequence", ex.Location.Pointer);
+            Assert.Equal(SpecName, ex.Location.File);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a <c>start</c> or <c>stop</c> that is not a number (text, boolean, null, object) or not finite
+    ///     is a located failure.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceNonNumericEndpointsAreLocatedFailure()
+    {
+        // Arrange: values that are not numbers (text, boolean, null, object) and numbers that are not finite
+        object?[] bad = ["0", true, null, new object(), double.NaN, double.PositiveInfinity, double.NegativeInfinity];
+
+        // Act / Assert: each is refused as the start and as the stop, located at the sequence
+        foreach (var value in bad)
+        {
+            var start = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("start", value), ("stop", 3.0)));
+            var stop = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("start", 0.0), ("stop", value)));
+            foreach (var ex in new[] { start, stop })
+            {
+                Assert.Contains("needs a finite numeric 'start' and 'stop'", ex.Message, StringComparison.Ordinal);
+                Assert.Equal("/data/sequence", ex.Location.Pointer);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a step of zero, a non-finite step and a step that is present but not a number are located
+    ///     failures, while an absent step defaults to 1.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure()
+    {
+        // Arrange: a step of zero (or negative zero), non-finite numbers, and values that are present but not numbers
+        object?[] bad = [0.0, -0.0, double.NaN, double.PositiveInfinity, double.NegativeInfinity, "1", true, null, new object()];
+
+        // Act / Assert: each is refused (a present step never silently becomes 1), located at the sequence
+        foreach (var value in bad)
+        {
+            var ex = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceMembers(("start", 0.0), ("stop", 3.0), ("step", value)));
+            Assert.Contains("step must be a finite number other than zero", ex.Message, StringComparison.Ordinal);
+            Assert.Equal("/data/sequence", ex.Location.Pointer);
+        }
+
+        // Assert: only an absent step defaults to 1
+        Assert.Equal(3, LoadSequenceMembers(("start", 0.0), ("stop", 3.0)).RowCount);
+    }
+
+    /// <summary>
+    ///     Validates that a step that points away from the stop gives an empty table (not an error), for a positive and a
+    ///     negative step, and that equal endpoints are empty too.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceWrongDirectionWithPositiveStepIsEmpty()
+    {
+        // Arrange / Act
+        var positiveStepDownhill = DataLoader.Load(Spec("{\"sequence\":{\"start\":5,\"stop\":1}}").Root["data"], null, null, Ct);
+        var explicitPositive = DataLoader.Load(Spec("{\"sequence\":{\"start\":5,\"stop\":1,\"step\":2}}").Root["data"], null, null, Ct);
+        var negativeStepUphill = DataLoader.Load(Spec("{\"sequence\":{\"start\":1,\"stop\":5,\"step\":-1}}").Root["data"], null, null, Ct);
+        var equal = DataLoader.Load(Spec("{\"sequence\":{\"start\":2,\"stop\":2}}").Root["data"], null, null, Ct);
+
+        // Assert: all are empty tables with the sequence field
+        Assert.All(new[] { positiveStepDownhill, explicitPositive, negativeStepUphill, equal }, t => Assert.Equal(0, t.RowCount));
+        Assert.Equal(["data"], positiveStepDownhill.Fields);
+    }
+
+    /// <summary>
+    ///     Validates that arithmetic that overflows (the difference of the endpoints, or the quotient by a tiny step) is
+    ///     refused by the row limit before any allocation, as a located failure, and that an overflowing difference in the
+    ///     wrong direction is still empty.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceArithmeticOverflowFailsBeforeAllocation()
+    {
+        // Arrange / Act: stop - start overflows to infinity; the quotient overflows with a tiny step; both directions
+        var span = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceNode(-double.MaxValue, double.MaxValue));
+        var tiny = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceNode(0, double.MaxValue, double.Epsilon));
+        var big = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceNode(0, 1e300, 1e-10));
+        var huge = Assert.Throws<VegaLiteRenderException>(() => LoadSequenceNode(0, 1e300));
+        var backward = LoadSequenceNode(double.MaxValue, -double.MaxValue);
+
+        // Assert: refused with the limit named at the sequence, with no invalid count in the message
+        foreach (var ex in new[] { span, tiny, big, huge })
+        {
+            Assert.Contains("(MaxDataRows)", ex.Message, StringComparison.Ordinal);
+            Assert.Equal("/data/sequence", ex.Location.Pointer);
+            Assert.DoesNotContain("Infinity", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("NaN", ex.Message, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(0, backward.RowCount);
+    }
+
+    /// <summary>
+    ///     Loads a sequence built directly as specification nodes, for values the specification parser refuses (it
+    ///     validates the numbers of a sequence itself) or cannot represent (non-finite numbers).
+    /// </summary>
+    /// <param name="start">The <c>start</c>.</param>
+    /// <param name="stop">The <c>stop</c>.</param>
+    /// <param name="step">The <c>step</c>, or null to leave it out.</param>
+    /// <returns>The table.</returns>
+    private static DataTable LoadSequenceNode(double start, double stop, double? step = null) =>
+        step is { } given
+            ? LoadSequenceMembers(("start", start), ("stop", stop), ("step", given))
+            : LoadSequenceMembers(("start", start), ("stop", stop));
+
+    /// <summary>
+    ///     Loads a sequence whose members are built directly as specification nodes.
+    /// </summary>
+    /// <param name="members">
+    ///     The members: a <see cref="double"/> becomes a number, a <see cref="string"/> a string, a <see cref="bool"/> a
+    ///     boolean, <see langword="null"/> a JSON null and anything else an empty object.
+    /// </param>
+    /// <returns>The table.</returns>
+    private static DataTable LoadSequenceMembers(params (string Name, object? Value)[] members)
+    {
+        var position = new NodePosition(1, 1, 1, 1);
+        SpecNode Member(string name, object? value) => value switch
+        {
+            double number => new SpecNode(SpecNodeKind.Number, name, -1, position, null, number, false, null),
+            string text => new SpecNode(SpecNodeKind.String, name, -1, position, text, 0, false, null),
+            bool flag => new SpecNode(SpecNodeKind.Boolean, name, -1, position, null, 0, flag, null),
+            null => new SpecNode(SpecNodeKind.Null, name, -1, position, null, 0, false, null),
+            _ => new SpecNode(SpecNodeKind.Object, name, -1, position, null, 0, false, null),
+        };
+
+        var sequence = new SpecNode(SpecNodeKind.Object, "sequence", -1, position, null, 0, false, [.. members.Select(m => Member(m.Name, m.Value))]);
+        var data = new SpecNode(SpecNodeKind.Object, "data", -1, position, null, 0, false, [sequence]);
+
+        // The root adopts the data node, so that the pointer of the sequence is /data/sequence
+        _ = new SpecNode(SpecNodeKind.Object, null, -1, position, null, 0, false, [data]);
+        return DataLoader.Load(data, SpecName, null, Ct);
     }
 
     /// <summary>

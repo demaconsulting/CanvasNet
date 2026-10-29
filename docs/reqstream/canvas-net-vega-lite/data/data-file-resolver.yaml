@@ -74,27 +74,37 @@ sections:
                   When the open options supply a file resolver, the DataFileResolver unit shall use only
                   that callback and shall not touch the file system, shall pass it only normalized logical
                   paths (the logical root first, then each data path that is itself a valid logical path
-                  as a prefix) on the calling thread, shall dispose the stream it returns, shall let an
-                  exception thrown by the callback propagate unchanged, and shall report a failure while
-                  reading the stream as a located VegaLiteRenderException.
+                  as a prefix) on the calling thread, shall dispose the stream it returns exactly once, and
+                  shall report a callback that throws, a failure while reading the stream, and a failure
+                  while disposing the stream as a located VegaLiteRenderException (without copying the
+                  callback's own message), while letting a cancellation pass through unchanged.
                 justification: |
                   Hosts that serve data from memory, archives, or a database need to control file access
-                  completely and must be able to trust that no other access happens.
+                  completely and must be able to trust that no other access happens; the callback is
+                  untrusted code, so its failures must never leak through the render contract as raw
+                  exceptions.
                 tests:
                   - DataFileResolver_Load_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
-                  - DataFileResolver_Load_CallbackAndStreamFailuresArePropagatedOrLocated
+                  - DataFileResolver_Load_CallbackStreamReadFailureIsLocated
+                  - DataFileResolver_Load_CallbackFailureIsLocatedReadFailure
+                  - DataFileResolver_Load_StreamDisposeFailureIsLocatedReadFailure
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-MissingFiles
                 title: >-
                   The DataFileResolver unit shall fail with a VegaLiteRenderException located at the data
-                  url, never with an empty result, when no file exists for a path (also when a directory
-                  has that name) and when the document has no base directory, no data path, and no
-                  resolver at all.
+                  url, never with an empty result, when no file exists for a path and when the document
+                  has no base directory, no data path, and no resolver at all, and shall report an
+                  existing directory where a file is expected, and an open that fails with an I/O or
+                  access error, as a located "cannot be read" failure; it shall open files read-only
+                  with FileShare.ReadWrite and FileShare.Delete.
                 justification: |
-                  A local data file that cannot be used must never be mistaken for an empty dataset, and an
-                  implicit current directory would make a chart depend on the host's working directory.
+                  A local data file that cannot be used must never be mistaken for an empty dataset, an
+                  implicit current directory would make a chart depend on the host's working directory,
+                  and a raw I/O exception must not escape the documented render contract. Permissive
+                  sharing keeps a concurrent writer or rename from failing the render.
                 tests:
                   - DataFileResolver_Load_MissingFileIsHardFailure
+                  - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
                   - DataFileResolver_Load_StreamWithoutFileSourceThrows
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-Cache

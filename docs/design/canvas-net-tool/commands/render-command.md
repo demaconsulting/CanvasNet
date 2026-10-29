@@ -49,8 +49,10 @@ it.
 The command's name is `render`, its alias is `convert`, and its usage text has examples, says how the pipeline options
 combine, and says how an OpenSCAD model is drawn (the views, the 800 by 800 default size, `-D`) and where its
 `include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
-background, with UTC dates and the bundled fonts; its local data files are read from the folder of the specification
-and below it only, a missing one is an error, there is no data-folder option, and nothing is read from the network; no
+background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`format.delimiter`), and JSON data files are
+read from the folder of the specification
+and below it only, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
+there is no data-folder option, and nothing is read from the network; no
 options of its own). A verb has no alias, and its
 usage text is `canvasnet {verb} <input>
 {operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of

@@ -229,22 +229,26 @@ sections:
 
       - id: CanvasNetVegaLite-DataParsing
         title: >-
-          The library shall type the values of a data file the way Vega does - inferring the type of
-          each column of delimited text as a whole by default, converting the fields that format.parse
-          names to number, boolean, date, or string, and reading ISO 8601 dates in UTC independently of
-          the host - shall make a value that an explicit conversion cannot read null with a located
-          vl-data-parse-failed warning per field, and shall report a custom date format as the
-          unsupported vl-data-parse-date-format while leaving the field as read.
+          The library shall type the values of a data file the way Vega does - applying no data-based
+          type inference to delimited text unless format.parse is "auto" (so an absent or null parse keeps
+          every cell a string, while quantitative encodings still coerce numeric text when they are
+          drawn), converting only the fields that format.parse names to number, boolean, date, or string,
+          and reading ISO 8601 dates in UTC independently of the host - shall make a value that an
+          explicit conversion cannot read null with a located vl-data-parse-failed warning per field, and
+          shall report a custom date format as the unsupported vl-data-parse-date-format while leaving the
+          field as read.
         tags: [system]
         justification: |
-          Scales, sorting, and labels depend on the type of a value, and the same file must draw the same
-          chart on every machine; a conversion that fails must be visible.
+          Scales, sorting, and labels depend on the type of a value, identifiers such as postal codes must
+          not be silently converted, and the same file must draw the same chart on every machine and mean
+          the same as in Vega; a conversion that fails must be visible.
         children:
           - CanvasNetVegaLite-Data-Parsing
           - CanvasNetVegaLite-SpecModel-FeatureReporting
           - CanvasNetVegaLite-SpecModel-StructuralValidation
         tests:
           - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
+          - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
           - CanvasNetVegaLite_SystemIntegration_Render_FileBackedChartsMatchTheInlineChart
           - FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier
 
@@ -253,15 +257,18 @@ sections:
           The library shall draw a chart whose data is a named dataset - taken from the caller's Datasets
           option first and the top-level datasets of the specification second - or a generated sequence
           (start, exclusive stop, step, and field name), without any report, and shall fail with a located
-          VegaLiteRenderException when a data name is defined by nobody.
+          VegaLiteRenderException when a data name is defined by nobody or when a sequence has a missing
+          or non-finite start or stop, or a zero, non-finite, or non-numeric step.
         tags: [system]
         justification: |
-          Hosts supply data without editing the specification, and generated data needs no file at all.
+          Hosts supply data without editing the specification, and generated data needs no file at all;
+          an unusable sequence must be an error, not a silent default.
         children:
           - CanvasNetVegaLite-Data-NamedAndSequence
         tests:
           - CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender
           - DataLoader_Load_MissingNamedDataIsHardFailure
+          - DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure
 
       - id: CanvasNetVegaLite-DataSandbox
         title: >-
@@ -285,8 +292,9 @@ sections:
         title: >-
           The library shall fail with a VegaLiteRenderException located at the data url or name, in
           lenient and strict mode alike, when a local data file is missing, refused by the sandbox,
-          unreadable, not valid UTF-8, or not valid data, and shall never render such a chart as an empty
-          one.
+          unreadable (including a directory in place of a file, an open failure, and a failing resolver
+          callback or stream), not valid UTF-8, or not valid data, and shall never render such a chart as
+          an empty one.
         tags: [system]
         justification: |
           A broken data reference is a deployment error; only remote data, which is never read, is

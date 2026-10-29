@@ -92,22 +92,30 @@ and that the resolver callback, which the test supplies, received no request.
 **Tests**: `DataLoaderTests.DataLoader_Load_LocalCsvUrlUsesRelativeFile`,
 `DataLoaderTests.DataLoader_InferFormatType_UsesTheExtension`,
 `DataLoaderTests.DataLoader_Load_JsonPropertyAndExplicitParseAreApplied`,
+and `DataLoaderTests.DataLoader_Load_DefaultDelimitedTextKeepsTextValues`,
 `DataLoaderTests.DataLoader_Load_FileIsReadOnceWhenNamedAgain`
 
 Asserts that a relative `url` is read from the base directory (also from a sub folder) and that a CSV with quoted commas
-and CRLF line ends gives typed columns (number, boolean, and date, with the date text in UTC); that the extension
-chooses TSV, a DSV names its delimiter, and `format.type` beats a misleading extension; that the format is guessed
-as `csv`, `tsv`, or `json` for a theory of paths (any case of the extension, no extension, and a directory named like a
-CSV file); that a dotted and indexed `format.property` selects the rows of a JSON file (also from the fixture
-`data-values.json`, whose rows are under `report.rows`), that explicit parse maps convert strings to a number, a date, and
-a boolean while other fields keep their JSON types, and that JSON is not inferred by default; and that a file named
-twice in one call is requested once and counts once for a file limit of one.
+and CRLF line ends gives typed columns (number, boolean, and date, with the date text in UTC) when `parse` is `"auto"`;
+that the extension chooses TSV, a DSV names its delimiter, and `format.type` beats a misleading extension; that the
+format is guessed as `csv`, `tsv`, or `json` for a theory of paths (any case of the extension, no extension, and a
+directory named like a CSV file); that a dotted and indexed `format.property` selects the rows of a JSON file (also
+from the fixture `data-values.json`, whose rows are under `report.rows`), that explicit parse maps convert strings to a
+number, a date, and a boolean while other fields keep their JSON types, and that JSON is not inferred by default; that
+delimited text with an absent `parse`, with `parse: null`, and as a DSV keeps `01234`, `007`, ISO-looking dates, and
+`true` as strings, while a parse map converts only the field it names (no inference without `"auto"`, as in Vega); and
+that a file named twice in one call is requested once and counts once for a file limit of one.
 
 ##### Named Datasets And Sequences
 
 **Tests**: `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
 `DataLoaderTests.DataLoader_Load_SequenceUsesExclusiveStopAndAs`,
-`DataLoaderTests.DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation`
+`DataLoaderTests.DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation`,
+`DataLoaderTests.DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure`,
+`DataLoaderTests.DataLoader_Load_SequenceNonNumericEndpointsAreLocatedFailure`,
+`DataLoaderTests.DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure`,
+`DataLoaderTests.DataLoader_Load_SequenceWrongDirectionWithPositiveStepIsEmpty`,
+`DataLoaderTests.DataLoader_Load_SequenceArithmeticOverflowFailsBeforeAllocation`
 
 Asserts that a caller's dataset replaces a top-level dataset of the same name (and keeps the kinds of its values: numbers
 of several types, text, booleans, null, and a `DateTime` or `DateTimeOffset` as a UTC date, with a dotted key escaped),
@@ -115,7 +123,16 @@ that a dataset only the specification defines is used, and that one given as tex
 sequence runs from the start up to, and excluding, the stop in the field `data` by default, with a custom step and field
 name, with a negative step counting down, and empty for a step in the wrong direction, and computes each value from
 its index (ten values and no drift for a step of 0.1); and that a sequence of 1e15 values is refused against the
-row limit, at `/data/sequence`, before any row is allocated, while exactly the limit is accepted.
+row limit, at `/data/sequence`, before any row is allocated, while exactly the limit is accepted. The invalid-input
+scenarios build the `sequence` node directly through the internal `SpecNode` constructor (the specification parser
+already refuses most of these forms and cannot represent a non-finite number, so the loader is exercised on its own):
+a missing `start`, `stop`, or both; a `start` or `stop` that is text, a boolean, null, an object, `NaN`, or an infinity;
+and a `step` of zero or negative zero, `NaN`, an infinity, text, a boolean, null, or an object each fail with a located
+failure at `/data/sequence`, while an absent step defaults to 1. A positive step with the stop below the start, a
+negative step with the stop above the start, and equal endpoints give an empty table with the field. An endpoint
+difference that overflows (`-MaxValue` to `MaxValue`), a quotient that overflows with a tiny step, and a finite but
+astronomically long sequence fail against `MaxDataRows` at `/data/sequence` with no `Infinity` or `NaN` in the message
+and without allocating, while an overflowing difference in the wrong direction is still empty.
 
 ##### Parse Failures Are Warnings
 
@@ -136,9 +153,6 @@ file source fails the same way and no request was made for it, that malformed JS
 missing or malformed `format.property`, a number outside the range of a double, and nesting deeper than the limit are
 located failures at the `url` (as a theory), and that a named dataset that nobody defines fails with the dataset's name
 and where to define it, located at `/data/name`, directly and through `Render` in lenient and strict mode alike.
-_Not covered by a named test:_ a sequence with a zero or non-finite step or without numeric `start` and `stop`, which the
-design says fails the render with a located error; the specification parser accepts the forms, and the loader code path
-is reviewed but has no dedicated test.
 
 ##### Limits And Cancellation
 

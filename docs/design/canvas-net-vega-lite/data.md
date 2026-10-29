@@ -60,8 +60,10 @@ absolute (remote data) is never given to the resolver and never opened: the tabl
 therefore one resolver cache, one file count, and one row budget, serves exactly one `Measure` or `Render` call.
 
 **Local files are hard errors; unsupported sources are reports.** A local file that is missing, refused by the sandbox,
-a link, not valid UTF-8, not valid JSON or delimited text, or over a limit, a `name` that no dataset defines, and a
-sequence that is not valid are `VegaLiteRenderException`s with the location of the `url`, `name`, or `sequence`, in
+a link, a directory where a file is expected, unreadable (an open failure, or a callback or stream that fails), not
+valid UTF-8, not valid JSON or delimited text, or over a limit, a `name` that no dataset defines, and a sequence that is
+not valid (a missing or non-finite endpoint, or a zero, non-finite, or non-numeric step) are `VegaLiteRenderException`s
+with the location of the `url`, `name`, or `sequence`, in
 lenient and strict mode alike, because an empty chart would hide a broken deployment. What is only recognized and not
 supported (remote data, text values, GeoJSON and TopoJSON, no source) is an empty table that the feature catalog
 reports.
@@ -69,13 +71,18 @@ reports.
 **Sandbox.** The resolver confines every relative path to a root (the document folder, then each data path, in
 order, or the logical root of the caller's callback), refuses a symbolic link or junction below a root, reads at most
 `MaxDataBytes` bytes of at most `MaxDataFiles` distinct files, and decodes strict UTF-8; see _DataFileResolver Unit
-Design_. With a callback, nothing touches the file system.
+Design_. With a callback, nothing touches the file system, and a callback that throws or returns a failing stream is the
+same located read failure.
 
-**Types by column, as Vega does.** `DelimitedTextParser` reads the cells as text and its `ParseDirectives`
-convert them: delimited text is inferred per column by default (boolean, then number, then ISO 8601 date, only when
-every non-empty text of the column fits), JSON keeps its types unless `parse` is `"auto"` or names fields, and an
+**No implicit type inference, as in Vega.** `DelimitedTextParser` reads the cells as text and its `ParseDirectives`
+convert them only when the specification asks: delimited text (and JSON) is not inferred by default, so a leading zero
+or an ISO-looking date stays text; `parse: "auto"` is the explicit opt-in to per-column inference (boolean, then number,
+then ISO 8601 date, only when every non-empty text of the column fits); a `parse` object converts only the named
+fields; and an
 explicit conversion never invents a value (a text that cannot be converted is null and counted into one
-`vl-data-parse-failed` warning per field). Custom `date:'%fmt'` formats are recognized and not applied.
+`vl-data-parse-failed` warning per field). Custom `date:'%fmt'` formats are recognized and not applied. Quantitative
+encodings still coerce numeric text when they are drawn (`DataValue.TryGetQuantitative`), which is why an unparsed
+CSV column still scales as numbers; temporal parsing of text arrives with the time support of Phase 8.
 
 **A small typed value model.** `DataValue` is a `null`, boolean, number, date, or string with value equality
 (JavaScript's SameValueZero, so it can be a dictionary key), a total order (null, boolean, number, date, string) used for

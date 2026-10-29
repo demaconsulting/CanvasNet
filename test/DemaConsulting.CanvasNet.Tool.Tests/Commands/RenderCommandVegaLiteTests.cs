@@ -252,6 +252,10 @@ public class RenderCommandVegaLiteTests
         Assert.Contains("folder of the specification", usage);
         Assert.Contains("no data-folder option", usage);
         Assert.Contains("nothing is read from the", usage);
+
+        // Assert: the help lists every delimited format and says that the text is not type-inferred by default
+        Assert.Contains("CSV, TSV, DSV with format.delimiter, or JSON", usage);
+        Assert.Contains("not type-inferred", usage);
     }
 
     /// <summary>

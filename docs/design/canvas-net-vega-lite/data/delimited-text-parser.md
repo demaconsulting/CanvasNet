@@ -41,13 +41,25 @@ format names.
 header without records, gives no rows. A header with more names than `MaxFieldCount`, a repeated name, a field text
 longer than `MaxStringLength`, and more rows than `RowBudget` are errors.
 
+**Bounded storage.** The reader receives a storage cap with each record. The header is read with a cap of
+`MaxFieldCount` and is refused as soon as it has one entry more, before that entry is read or stored, so a header of
+millions of delimiters never builds a list. A data row is read with a cap of the header width: an entry beyond it is
+still consumed and fully validated (quote closure, text after a closing quote, and the `MaxStringLength` rule, counted
+without building the text) but no string or list entry is created for it. A valid wide row is therefore ignored as the
+ragged-row rule says, and a malformed or over-long extra entry is still an error.
+
 **`ParseDirectives`** says how values are converted. Its mode is `None` (nothing converted), `Auto` (infer per column),
 or `Fields` (a map from canonical field name to `ParseType`: `Number`, `Boolean`, `Date`, `String`, or `CustomDate`).
-`Read(format, defaultAuto)` reads the `parse` property: absent means `Auto` for delimited text (`defaultAuto`) and `None`
-for JSON, inline rows, and datasets; `"auto"` means `Auto`; `null` means `None`; an object means `Fields`. Keys are
-field paths compared in canonical form, like the fields of an encoding.
+`Read(format, defaultAuto)` reads the `parse` property: as in Vega, no data-based inference happens unless it is asked
+for, so an absent property is `None` (the loader always passes `defaultAuto: false`, for delimited text, JSON, inline
+rows, and datasets alike); `"auto"` is the explicit opt-in to `Auto`; `null` means `None`; an object means `Fields`,
+which converts only the fields it names. Keys are field paths compared in canonical form, like the fields of an
+encoding. Delimited cells therefore stay strings (a leading zero or an ISO-looking date is kept as text) unless the
+specification opts in; quantitative encodings still coerce numeric text lazily when they are drawn, and temporal
+parsing of text arrives in Phase 8.
 
-**Type inference (`Auto`)** looks at a whole column, as Vega does, only at columns whose values are all text (a column
+**Type inference (`Auto`, only when requested)** looks at a whole column, as Vega does, only at columns whose values
+are all text (a column
 that holds anything else, such as JSON numbers, is left alone): the column is a **boolean** column when every non-empty
 text is `true` or `false` in any case (surrounding white space ignored); else a **number** column when every non-empty
 text is a finite number in the invariant culture - an integer, a decimal with a point, or an exponent, with an optional
@@ -82,9 +94,9 @@ holds only null, boolean, number, date, and string values; the parser keeps no s
 #### Key Methods
 
 - `DelimitedTextParser.Parse(text, options)` - validates the delimiter, reads the header with `ReadHeader` (canonical
-  names, field and duplicate limits), reads the records one at a time under the row budget and the string limit,
-  checks the token every 1,024 records, builds one dictionary per row, then applies the directives and returns the
-  rows and the failures.
+  names and the duplicate rule; the field limit is enforced by the reader while it reads), reads the records one at a
+  time under the row budget, the storage cap, and the string limit, checks the token every 1,024 records, builds one
+  dictionary per row, then applies the directives and returns the rows and the failures.
 - `DelimitedTextParser.IsValidDelimiter(char)` - the delimiter rule shared with `SpecParser`'s validation.
 - `ParseDirectives.Read`, `TryClassify`, and `Apply` - read the property, classify a `parse` entry (also used by
   `SpecParser` and `FeatureCatalog` so that validation, reports, and loading agree), and convert the rows in place.
@@ -98,7 +110,8 @@ returned.
 
 #### Error Handling
 
-A delimiter that is not valid, a quote that is never closed, text after a closing quote, too many header names, a
+A delimiter that is not valid, a quote that is never closed, text after a closing quote (also in an entry beyond the
+header width), too many header names, a
 repeated header name, a field text longer than `MaxStringLength`, and more rows than the budget are
 `VegaLiteRenderException`s with the location of the `url` and, where it helps, the line of the text; the limit
 messages contain "the limit of ..." so that `CanvasNetTool` maps them to `budget-exceeded`. Null arguments are

@@ -37,8 +37,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         still draws the rest of the chart.
 ///     </para>
 ///     <para>
-///         <b>Conversion.</b> <c>format.parse</c> converts values as described at <see cref="ParseDirectives"/>; delimited
-///         text is inferred per column by default, JSON keeps its types. Values that an explicit conversion cannot read
+///         <b>Conversion.</b> <c>format.parse</c> converts values as described at <see cref="ParseDirectives"/>; as in
+///         Vega, delimited text keeps every cell as a string unless <c>parse</c> asks for more (<c>"auto"</c> infers
+///         booleans, numbers and ISO dates per column; a field map converts the named fields only), and JSON keeps its
+///         types. Values that an explicit conversion cannot read
 ///         become null and are reported once per field as the warning <c>vl-data-parse-failed</c> (see
 ///         <see cref="Warnings"/>). <c>format.property</c> selects the array of rows inside a JSON document by a dotted
 ///         path.
@@ -288,8 +290,13 @@ internal sealed class DataLoader
         var total = _rowsLoaded == 0
             ? string.Empty
             : string.Create(CultureInfo.InvariantCulture, $"; with the {_rowsLoaded} rows read before, that is");
+
+        // A count that overflowed or is beyond any exact integer is described, not printed digit by digit
+        var count = double.IsFinite(rows) && rows < 1e18
+            ? string.Create(CultureInfo.InvariantCulture, $"{rows:0}")
+            : "an unrepresentable number of";
         throw new VegaLiteRenderException(
-            string.Create(CultureInfo.InvariantCulture, $"The {what} has {rows:0} rows{total}, more than the limit of {_limits.MaxDataRows} (MaxDataRows)."),
+            string.Create(CultureInfo.InvariantCulture, $"The {what} has {count} rows{total}, more than the limit of {_limits.MaxDataRows} (MaxDataRows)."),
             location);
     }
 
@@ -424,20 +431,31 @@ internal sealed class DataLoader
     private DataTable LoadSequence(SpecNode sequence)
     {
         var location = sequence.GetLocation(_sourceName);
-        if (sequence["start"]?.AsNumber() is not { } start || sequence["stop"]?.AsNumber() is not { } stop)
+
+        // The endpoints must be present, numeric and finite; a missing or wrongly typed one is never a default
+        if (sequence["start"]?.AsNumber() is not { } start || sequence["stop"]?.AsNumber() is not { } stop
+            || !double.IsFinite(start) || !double.IsFinite(stop))
         {
-            throw new VegaLiteRenderException("The sequence needs a numeric 'start' and 'stop'.", location);
+            throw new VegaLiteRenderException("The sequence needs a finite numeric 'start' and 'stop'.", location);
         }
 
-        var step = sequence["step"]?.AsNumber() ?? 1;
-        if (step == 0 || !double.IsFinite(step))
+        // Only an absent step defaults to 1; a step that is present must be a finite number other than zero
+        var step = 1.0;
+        if (sequence["step"] is { } stepNode)
         {
-            throw new VegaLiteRenderException("The sequence step must be a finite number other than zero.", location);
+            if (stepNode.AsNumber() is not { } given || given == 0 || !double.IsFinite(given))
+            {
+                throw new VegaLiteRenderException("The sequence step must be a finite number other than zero.", location);
+            }
+
+            step = given;
         }
 
-        // The length is computed arithmetically and charged before anything is allocated: start inclusive, stop exclusive
-        var length = Math.Ceiling((stop - start) / step);
-        length = double.IsNaN(length) || length < 0 ? 0 : length;
+        // The length is computed arithmetically and charged before anything is allocated: start inclusive, stop
+        // exclusive. The difference and the quotient may overflow to infinity, which the charge then refuses, and a
+        // step that points away from the stop (a quotient that is not positive) gives an empty sequence.
+        var length = (stop - start) / step;
+        length = double.IsNaN(length) || length <= 0 ? 0 : Math.Ceiling(length);
         Charge(length, "generated sequence", location);
         var field = FieldPath.Escape(sequence["as"]?.AsString() ?? PrimitiveField);
         var table = DataTable.Create([field], Generate(start, step, (long)length, location), _limits, location);
@@ -522,7 +540,7 @@ internal sealed class DataLoader
     {
         var options = new DelimitedOptions(
             delimiter,
-            ParseDirectives.Read(format, defaultAuto: true),
+            ParseDirectives.Read(format, defaultAuto: false),
             _limits,
             _limits.MaxDataRows - _rowsLoaded,
             file.Display,

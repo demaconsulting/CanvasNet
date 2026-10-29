@@ -460,18 +460,22 @@ is read from the network.
 **Data files.** A chart's rows can be inline (`data.values`), generated (`data.sequence`), or in a file next to the
 specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read from the **folder of the
 specification and below it**, whatever the current directory is, so a chart and its data can be moved together. The format
-is chosen by `format.type` or else by the extension (`.csv`, `.tsv`; anything else is JSON), as in Vega-Lite, and the
-files are read as UTF-8 text. The tool has **no option to name another data folder** (there is no `--data-dir`; such an
+is chosen by `format.type` (`json`, `csv`, `tsv`, or `dsv`, a DSV naming its one-character `format.delimiter`) or else by
+the extension (`.csv`, `.tsv`; anything else is JSON), as in Vega-Lite, and the
+files are read as UTF-8 text. As in Vega, delimited text is **not type-inferred**: every cell stays a string unless the
+chart's `format.parse` is `"auto"` or names fields (quantitative encodings still read numeric text as numbers when they
+draw it). The tool has **no option to name another data folder** (there is no `--data-dir`; such an
 option is a `usage-error`), and the library's extra data paths and named datasets are not available from the command
 line: keep the data in or below the folder of the specification. A path that leaves that folder (`../secret.csv`),
 an absolute path, and a file reached through a symbolic link or junction inside that folder are refused. A local data
-file that is missing, refused, not valid UTF-8, or not valid JSON or CSV is a `vega-lite-error` that names the file, line,
+file that is missing, refused, unreadable, not valid UTF-8, or not valid JSON or delimited text is a `vega-lite-error`
+that names the file, line,
 and column of the `url` (also with `--strict`), never an empty chart. A `url` with a scheme (`https:`), a drive letter,
 or an absolute path is **never fetched or opened**: it is reported as the diagnostic `vl-data-remote-url` and the
 chart is
 drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it reads
-the same data files. See _Vega-Lite Data_ in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the type
-inference, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
+the same data files. See _Vega-Lite Data_ in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the
+`format.parse` rules, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
 
 The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
 channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result, with the stable `vl-*`

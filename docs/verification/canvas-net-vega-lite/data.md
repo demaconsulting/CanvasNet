@@ -57,22 +57,36 @@ the four unit verification documents passes without error or unexpected exceptio
   `DataLoaderTests.DataLoader_Load_FileIsReadOnceWhenNamedAgain`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder` — a CSV
   (with quoted commas and CRLF line ends), a TSV, a DSV, and a JSON file with a nested property are read through the real
-  resolver and parser, each with its format chosen by `format.type` or the extension, with typed columns by inference
-  and by explicit `parse`, a file named twice is read once, and a chart drawn from the file has the pixels of the same
-  rows written inline.
+  resolver and parser, each with its format chosen by `format.type` or the extension, with typed columns by explicit
+  `parse: "auto"` inference and by explicit `parse` maps, a file named twice is read once, and a chart drawn from the file
+  has the pixels of the same rows written inline (also when the fixture's line ends are LF or CRLF, so no test depends on
+  how the checkout normalized the file).
+- **Delimited Text Is Not Inferred Unless Asked, And Quantitative Channels Still Coerce**:
+  `DataLoaderTests.DataLoader_Load_DefaultDelimitedTextKeepsTextValues`,
+  `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces`
+  — a CSV without `parse` keeps `01234`, `007`, ISO-looking dates, and `true` as strings (as Vega does), a parse map
+  converts only its named field, and a chart whose x, y, and size are quantitative fields of unparsed CSV text has the
+  pixels of the same rows with real numbers, with no data warning, so the numeric text is coerced where it is drawn.
+  Quantitative color is not drawn by the current subset and is not claimed.
 - **The Sandbox Refuses What It Must And Fails Closed**:
   `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
   `DataFileResolverLinkTests.DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen`,
+  `DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
+  `DataFileResolverTests.DataFileResolver_Load_CallbackFailureIsLocatedReadFailure`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException` —
   a missing file, a path outside the sandbox, and bytes that are not UTF-8 each fail with a located
   `VegaLiteRenderException`, in lenient and strict mode alike, a file behind a link is refused before it is opened
-  (with the injected link probe), and an absolute path is remote data that is never opened.
+  (with the injected link probe), a directory in place of a file and a throwing resolver callback are located read
+  failures (never raw exceptions), and an absolute path is remote data that is never opened.
 - **Named Datasets And Sequences**:
   `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
   `DataLoaderTests.DataLoader_Load_SequenceUsesExclusiveStopAndAs`,
+  `DataLoaderTests.DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure`,
+  `DataLoaderTests.DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender` — the
   caller's dataset beats the specification's, a sequence excludes its stop, and both draw the pixels of the same rows
-  written inline without any report.
+  written inline without any report, while a sequence with a missing, non-finite, or zero-step input fails with a
+  located error.
 - **Parse Conversions And Failures**:
   `DataLoaderTests.DataLoader_Load_ParseFailuresAreCollectedAsWarnings`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings` —

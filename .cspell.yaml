@@ -582,6 +582,8 @@ words:
   - midnightblue
   - mintcream
   - mistyrose
+  - junction
+  - junctions
   - mklink
   - navajowhite
   - neue
@@ -606,6 +608,7 @@ words:
   - saddlebrown
   - sandybrown
   - sandboxed
+  - sandboxing
   - scenegraph
   - seagreen
   - skyblue
@@ -615,6 +618,8 @@ words:
   - springgreen
   - steelblue
   - strokewidth
+  - symlink
+  - symlinks
   - symlog
   - tahoma
   - tickband

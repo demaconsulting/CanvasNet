@@ -61,18 +61,24 @@ as an escaped canonical field name so that the table finds it under the path tha
 
 ##### Ragged Rows
 
-**Tests**: `DelimitedTextParserTests.DelimitedTextParser_Parse_RaggedRowsFillMissingAndIgnoreExtra`
+**Tests**: `DelimitedTextParserTests.DelimitedTextParser_Parse_RaggedRowsFillMissingAndIgnoreExtra`,
+`DelimitedTextParserTests.DelimitedTextParser_Parse_ExtraFieldsAreValidatedWithoutMaterialization`
 
 Asserts that a row shorter than the header has null in the missing fields, that entries beyond the header are ignored,
-and that empty text and a header without records give no rows.
+and that empty text and a header without records give no rows. It also asserts that fifty thousand valid entries beyond
+the header width are ignored (the stored row has only the header's fields) while an unclosed quote, text after a closing
+quote, and an over-long unquoted or quoted entry beyond the header width are still located failures: ignored entries
+are consumed and validated but never stored.
 
 ##### Type Inference Per Column
 
 **Tests**: `DelimitedTextParserTests.DelimitedTextParser_Parse_AutoInfersBooleanNumberIsoDateAndString`,
 `DelimitedTextParserTests.DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly`
 
-Asserts that a column of `true` and `false` in any case is boolean with an empty cell null, a column of integers,
-decimals, leading zeros, exponents, and signs (`1`, `-2.5`, `007`, `1e3`, `.5`, `+4`) is number, a column of ISO 8601 dates
+Asserts, with the explicit `ParseDirectives.Auto` opt-in, that a column of `true` and `false` in any case is boolean
+with an empty cell null, a column of integers,
+decimals, leading zeros, exponents, and signs (`1`, `-2.5`, `007`, `1e3`, `.5`, `+4`) is number, a column of ISO 8601
+dates
 and date-times is date (in UTC, with a zone offset applied), and any other column is text; that a column that mixes
 kinds stays text, and that hexadecimal, `NaN`, and infinities leave their column as text; that a column with no
 non-empty cell keeps its empty text; and, as a theory, that the date forms `yyyy-MM-dd`, minutes, seconds, and up to
@@ -83,11 +89,14 @@ fraction digits, a bare year, and the empty text are refused.
 ##### Explicit Parse
 
 **Tests**: `DelimitedTextParserTests.DelimitedTextParser_Directives_ReadTheModeFromTheFormat`,
+`DelimitedTextParserTests.DelimitedTextParser_Parse_DefaultDelimitedTextKeepsLeadingZerosAndDateLikeText`,
 `DelimitedTextParserTests.DelimitedTextParser_Parse_NullKeepsTextAndExplicitMapCoercesFields`,
 `DelimitedTextParserTests.DelimitedTextParser_Parse_ExplicitConversionsOfOtherKindsFollowTheDocumentedRules`
 
-Asserts that the directives are inference for delimited text and none for JSON when `parse` is absent, inference for
-`"auto"`, none for `null`, and the named fields for an object (with field names compared as canonical paths); that
+Asserts that the directives are none when `parse` is absent (as in Vega, for every source; inference is never a
+default), inference only for the explicit `"auto"`, none for `null`, and the named fields for an object (with field
+names compared as canonical paths); that parsing with the default directives keeps leading zeros (`01234`, `007`),
+ISO-looking dates, and `true` and `false` as strings while a map converts only the one field it names; that
 `parse: null` keeps every cell as text; that a map converts only the named fields, turns empty cells into null, and
 makes each value that cannot be read null while recording one failure per field and type with the count and the first
 row and text; and that the conversions of other value kinds (JSON numbers, booleans, and dates) to number, boolean,
@@ -105,9 +114,12 @@ read, no failure is recorded, and the feature catalog reports each custom format
 ##### Limits And Cancellation
 
 **Tests**: `DelimitedTextParserTests.DelimitedTextParser_Parse_RowAndFieldLimitsFailClosed`,
+`DelimitedTextParserTests.DelimitedTextParser_Parse_HeaderFieldLimitStopsMaterialization`,
 `DelimitedTextParserTests.DelimitedTextParser_Parse_CanceledTokenStopsParsing`
 
 Asserts that more header names than `MaxFieldCount`, a repeated header name, a field text longer than `MaxStringLength`,
 and more rows than the budget each fail with a `VegaLiteRenderException` that carries the location of the data and, for
-a limit, names it ("the limit of ..."), that exactly each limit is accepted, and that a canceled token stops parsing with
-an `OperationCanceledException`.
+a limit, names it ("the limit of ..."), that exactly each limit is accepted, that a header of a hundred thousand
+entries against a limit of three is refused for the column limit (not for a later unclosed quote that the reader
+never reaches, which shows that the header is rejected before the remaining entries are read or stored), and that a
+canceled token stops parsing with an `OperationCanceledException`.

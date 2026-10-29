@@ -300,7 +300,8 @@ the allowed directories"), a file that is not UTF-8 ("is not valid UTF-8"), and 
 each fail with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; that the good file
 renders; and that an absolute path to the real file beside the root is remote data: it is reported as
 `vl-data-remote-url`, never opened, draws an empty chart in lenient mode, and throws `VegaLiteUnsupportedFeatureException`
-in strict mode.
+in strict mode. The directory-in-place-of-file, callback-failure, and stream-disposal failures are verified at the
+`DataFileResolver` unit level.
 
 ### Data: Sequences And Named Datasets Render Without A Report
 
@@ -309,7 +310,9 @@ in strict mode.
 Renders a point chart from a sequence (`start` 0, `stop` 3, field `x`), from a name that the caller's `Datasets`
 define, and from a name that the specification's top-level `datasets` define, in strict mode with a handler. Asserts that
 nothing is reported and that each draws the pixels of the three rows written inline, and that a caller dataset with
-another value replaces the specification's dataset of the same name (the pixels differ).
+another value replaces the specification's dataset of the same name (the pixels differ). Sequences whose inputs are
+unusable (a missing or non-finite endpoint, a zero, non-finite, or non-numeric step, an overflowing length) are verified
+at the `DataLoader` unit level, because the specification parser already refuses most of those forms before a render.
 
 ### Data: Parse Failures Are Warnings After The Specification Reports
 
@@ -319,6 +322,19 @@ Renders a chart with a schema version warning and a file whose field `n` has two
 conversion cannot read. Asserts that the warnings arrive in the order `vl-schema-version` at `/$schema` and then one
 `vl-data-parse-failed` at `/data` (the data stage's reports follow those of the specification), once, with the count of
 two values in its message, and that the chart is still drawn.
+
+### Data: Delimited Text Is Not Inferred Unless Asked, And Quantitative Channels Coerce It
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces`,
+`CanvasNetVegaLite_SystemIntegration_Data_FixtureLineEndingsDoNotChangeTheChart`
+
+Renders a point chart from a virtual CSV without `parse`, whose nominal color column holds `007`, `008`, and `010` and
+whose x, y, and size columns hold numeric text, and the same chart from inline rows with real numbers. Asserts that no
+`vl-data-*` warning or report is delivered (the text was kept, not mis-converted) and that the two charts have the same
+size and pixels, so the quantitative x, y, and size channels coerced the text where they draw it, as Vega does for an
+unparsed column (quantitative color is not drawn by this subset and is not claimed). A second scenario writes the
+`data-files.csv` fixture text with LF line ends, with CRLF line ends, and without a final line break and asserts that each
+draws the pixels of the inline chart, so no fixture assertion depends on how the checkout normalized line endings.
 
 ### Data: Each Call Reads The File Again
 
