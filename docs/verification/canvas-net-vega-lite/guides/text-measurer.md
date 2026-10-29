@@ -81,15 +81,20 @@ returns the same object.
 ##### Named Families Need The System Option Or A Directory
 
 **Tests**: `TextMeasurerTests.TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories`,
-`TextMeasurerTests.TextMeasurer_Resolve_AdditionalDirectoryFontIsFoundByFamilyName`
+`TextMeasurerTests.TextMeasurer_Resolve_AdditionalDirectoryFontIsFoundByFamilyName`,
+`TextMeasurerTests.TextMeasurer_LoadDirectoryFonts_StopsAtTheBound`
 
 Asserts that a family that does not exist resolves to the bundled sans-serif; that, on a machine that has one, an
-installed non-generic family is ignored by default and by an explicit `UseSystemFonts = false`, is loaded from the host
-(case-insensitive) with `UseSystemFonts`, and that a missing first family in a list falls through to it; and that a font
+installed family that the measurer does not map itself (the test asks `TextMeasurer.IsMappedFamily`, so a name such as
+`Helvetica Neue` that macOS installs is not chosen), that a family list can carry unchanged and whose face loads, is
+ignored by default and by an explicit `UseSystemFonts = false`, is loaded from the host
+(case-insensitive) with `UseSystemFonts`, and that a missing first family in a list falls through to it; that a font
 file in an additional directory is found by family name (case-insensitive, also from a list and with a requested weight
 the file does not have), with a missing directory, a broken file, and a text file ignored, that generic families never
 come from the directories, that without the option the family is not found, and that the directory font measures
-differently from the fallback, so the option really changes the layout.
+differently from the fallback, so the option really changes the layout; and that the bound on font files is applied while
+a directory is enumerated (five font files and three other files read with a bound of 4,096, 2, 1, and 0 give 5, 2, 1, and
+0 faces; the bound is shared over several directories; files that are not fonts do not count).
 
 ##### Measurement, Truncation, And Line Blocks
 

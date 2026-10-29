@@ -47,7 +47,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <listheader><term>Identifier</term><description>Reported at, and when</description></listheader>
 ///         <item><term><c>vl-schema-version</c> (warning)</term><description><c>$schema</c>, when the major version is not 5 or 6 or the URL names no Vega-Lite version; the text is interpreted with the version 6 defaults.</description></item>
 ///         <item><term><c>vl-data-empty</c> (warning)</term><description>the <c>data</c> object, when it has an empty <c>values</c> array or no source at all.</description></item>
-///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is a network path or UNC path; never fetched.</description></item>
+///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched.</description></item>
 ///         <item><term><c>vl-data-file</c></term><description>the <c>data</c> object, when <c>url</c> is a relative local path.</description></item>
 ///         <item><term><c>vl-data-named</c></term><description>the <c>data</c> object that has only a <c>name</c> (a named data set).</description></item>
 ///         <item><term><c>vl-data-sequence</c></term><description>the <c>sequence</c> generator.</description></item>
@@ -149,7 +149,10 @@ internal static class FeatureCatalog
     /// <remarks>
     ///     Such a URL is never handed to a file resolver: a chart renderer that fetches resources named by an
     ///     untrusted specification would be a server-side request forgery primitive, so remote data is reported and
-    ///     the dataset is left empty instead.
+    ///     the dataset is left empty instead. The decision does not depend on the host operating system: a Unix
+    ///     absolute path (<c>/etc/hosts</c>), a path rooted at a backslash, a drive path (<c>C:\data</c>, <c>C:data</c>),
+    ///     a UNC or network path (<c>\\server\share</c>, <c>//server/share</c>) and a <c>file:</c> URI are all
+    ///     classified alike on every platform.
     /// </remarks>
     /// <param name="url">The URL as written.</param>
     /// <returns><see langword="true"/> when the URL is not a plain relative path.</returns>
@@ -157,7 +160,10 @@ internal static class FeatureCatalog
     {
         ArgumentNullException.ThrowIfNull(url);
         var trimmed = url.AsSpan().TrimStart();
-        if (trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.StartsWith("\\", StringComparison.Ordinal))
+
+        // Absolute and network paths of either operating system family: a leading '/' (a Unix absolute path or a network
+        // path) or '\' (a Windows rooted or UNC path), whichever the host is; Path.IsPathRooted adds what the host knows
+        if (trimmed.StartsWith("/", StringComparison.Ordinal) || trimmed.StartsWith("\\", StringComparison.Ordinal) || Path.IsPathRooted(trimmed))
         {
             return true;
         }

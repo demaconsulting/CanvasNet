@@ -101,14 +101,14 @@ public class TextMeasurerTests
     [Fact]
     public void TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories()
     {
-        // Arrange: a family that is installed on this machine, if any (the families the measurer maps itself are excluded)
-        var generic = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Arial", "Helvetica", "Liberation Sans", "DejaVu Sans", "Segoe UI", "Verdana", "Tahoma", "Trebuchet MS", "Roboto", "Open Sans",
-            "Times New Roman", "Times", "Georgia", "Liberation Serif", "Palatino Linotype", "Book Antiqua", "Cambria", "Garamond", "Palatino",
-            "Courier New", "Courier", "Consolas", "Liberation Mono", "DejaVu Sans Mono", "Lucida Console", "Monaco", "Menlo",
-        };
-        var installed = SystemFontCatalog.Fonts.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FamilyName) && !generic.Contains(f.FamilyName));
+        // Arrange: a family that is installed on this machine, if any. The families the measurer maps itself are excluded (it
+        // owns that list, which also holds names such as "Helvetica Neue" that macOS installs), as are names that a CSS family
+        // list cannot carry unchanged and faces that cannot be loaded as fonts (the host may install formats the loader rejects).
+        var installed = SystemFontCatalog.Fonts.FirstOrDefault(f =>
+            !string.IsNullOrWhiteSpace(f.FamilyName)
+            && !TextMeasurer.IsMappedFamily(f.FamilyName)
+            && TextMeasurer.SplitFamilies(f.FamilyName).SequenceEqual([f.FamilyName])
+            && CanLoad(f.FilePath, f.FaceIndex));
         var bundledSans = SystemFontCatalog.LoadBundledFallback(false, false, false, false);
 
         // Act / Assert: without options, a family that does not exist resolves to the bundled sans-serif font
@@ -190,6 +190,73 @@ public class TextMeasurerTests
         finally
         {
             Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the bound on font files is applied while a directory is enumerated, and that files that are
+    ///     not fonts do not count against it.
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_LoadDirectoryFonts_StopsAtTheBound()
+    {
+        // Arrange: five font files (and three files that are not fonts) in a directory and a subdirectory
+        var folder = Path.Combine(Path.GetTempPath(), "vegalite-bound-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        try
+        {
+            using (var resource = typeof(Surface).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoSans-Regular.ttf"))
+            {
+                Assert.NotNull(resource);
+                var bytes = new byte[resource.Length];
+                resource.ReadExactly(bytes);
+                foreach (var name in new[] { "a.ttf", "b.TTF", "c.otf", Path.Combine("sub", "d.ttf"), Path.Combine("sub", "e.ttf") })
+                {
+                    File.WriteAllBytes(Path.Combine(folder, name), bytes);
+                }
+            }
+
+            foreach (var name in new[] { "x.txt", "y.png", Path.Combine("sub", "z.json") })
+            {
+                File.WriteAllText(Path.Combine(folder, name), "not a font");
+            }
+
+            // Act
+            var all = TextMeasurer.LoadDirectoryFonts([folder], TextMeasurer.MaxDirectoryFonts);
+            var two = TextMeasurer.LoadDirectoryFonts([folder], 2);
+            var one = TextMeasurer.LoadDirectoryFonts([folder], 1);
+            var spread = TextMeasurer.LoadDirectoryFonts([Path.Combine(folder, "sub"), folder], 3);
+
+            // Assert: the bound limits the font files read, over all directories, and the default is 4,096
+            Assert.Equal(4096, TextMeasurer.MaxDirectoryFonts);
+            Assert.Equal(5, all.Count);
+            Assert.Equal(2, two.Count);
+            Assert.Single(one);
+            Assert.Equal(3, spread.Count);
+            Assert.Empty(TextMeasurer.LoadDirectoryFonts([folder], 0));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a face of an installed font file can be loaded.
+    /// </summary>
+    /// <param name="path">The file.</param>
+    /// <param name="faceIndex">The face index.</param>
+    /// <returns>True when the face loads.</returns>
+    private static bool CanLoad(string path, int faceIndex)
+    {
+        try
+        {
+            return TrueTypeFont.Load(path, faceIndex) is not null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException
+            or NotSupportedException or OverflowException or FormatException or InvalidOperationException)
+        {
+            return false;
         }
     }
 

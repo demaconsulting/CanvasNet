@@ -275,11 +275,12 @@ sections:
       - id: CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
         title: >-
           The SourceLoader class shall recognize a Vega-Lite chart by the file name suffix .vl.json or .vl
-          (checked before the extension, which is only .json), or, for a .json file, by a $schema under
-          vega.github.io/schema/vega-lite/ in the first 4 KiB, whatever else the text mentions (a JSON file
-          is never taken for an SVG), while a signature still wins over the name; and shall report a plain
-          Vega specification, and a JSON file that is not a Vega-Lite chart, as unsupported-format with a hint
-          that says that Vega is not supported or how to name a chart.
+          (checked before the extension, which is only .json), or, for a .json file, by a top-level $schema
+          string property under vega.github.io/schema/vega-lite/ read from the first 4 KiB (the address in
+          any other property or nested value does not count; a JSON file is never taken for an SVG), while a
+          signature still wins over the name; and shall report a plain Vega specification, and a JSON file
+          that is not a Vega-Lite chart, as unsupported-format with a hint that says that Vega is not
+          supported or how to name a chart.
         justification: |
           A chart is JSON text without a signature, and JSON is used for everything; the double suffix
           .vl.json names a chart for people and for the tool, and the schema sniff finds a chart that was
@@ -288,6 +289,7 @@ sections:
         tests:
           - SourceLoader_Detect_VegaLiteSuffixesAndSchema_ReturnsVegaLite
           - SourceLoader_Detect_VegaSchema_IsUnsupported
+          - SourceLoader_Detect_SchemaMustBeATopLevelProperty
           - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
           - SourceLoader_ExtensionKinds_AreWellFormed
 

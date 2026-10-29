@@ -90,9 +90,11 @@ again by the catalog (the parser warns about it once).
 `FeatureCatalogTests.FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers`
 
 Asserts that remote data reports `vl-data-remote-url` at the data object and a relative local path reports
-`vl-data-file`; that, as a theory, `http`, upper-case `HTTPS`, `file`, `data`, `javascript`, and `ftp` URLs, a drive
-letter path, a protocol-relative path, a UNC path, and a URL with leading blanks are scheme-bearing, while `a.csv`,
-`data/a.csv`, `../a.csv`, `a b.csv`, the empty string, and `1:2.csv` are not; and that empty or sourceless inline data
+`vl-data-file`; that, as a theory, `http`, upper-case `HTTPS`, `file` (`file:///`, `file:/`, and `FILE://`), `data`,
+`javascript`, and `ftp` URLs, a drive letter path (`C:\`, `C:name`, and `d:/`), a protocol-relative path, a Unix absolute
+path (`/etc/hosts`), a backslash-rooted path, a UNC path, and a URL with leading blanks are scheme-bearing on every host
+operating system, while `a.csv`, `data/a.csv`, `../a.csv`, `a b.csv`, the empty string, and `1:2.csv` are not; and that
+empty or sourceless inline data
 warns with `vl-data-empty` while each deferred source kind has its own identifier (`vl-data-named`,
 `vl-data-sequence`, `vl-data-parse`, `vl-data-format-csv`, `vl-data-property`, `vl-data-values-text`, and the geographic
 forms).

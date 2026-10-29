@@ -147,6 +147,7 @@ public class FeatureCatalogTests
         [
             "http://example.org/a.csv", "https://example.org/a.csv", "ftp://host/a.csv", "file:///etc/hosts",
             "data:text/csv,a", "javascript:alert(1)", "//server/share/a.csv", "\\\\server\\share\\a.csv", "C:\\data\\a.csv",
+            "/etc/hosts", "/a.csv", "\\windows\\system32\\a.csv", "C:a.csv", "d:/data/a.csv", "file:///etc/hosts", "file:/etc/hosts", "FILE://host/a.csv",
         ];
         string[] local = ["a.csv", "data/a.csv", "../a.csv"];
         var layers = string.Join(",", remote.Concat(local).Select(u => "{\"data\":{\"url\":" + System.Text.Json.JsonSerializer.Serialize(u) + "}}"));
@@ -185,6 +186,14 @@ public class FeatureCatalogTests
     [InlineData("C:\\data\\a.csv", true)]
     [InlineData("//server/share/a.csv", true)]
     [InlineData("\\\\server\\share\\a.csv", true)]
+    [InlineData("/etc/hosts", true)]
+    [InlineData("/", true)]
+    [InlineData("  /etc/hosts", true)]
+    [InlineData("\\windows\\a.csv", true)]
+    [InlineData("C:data.csv", true)]
+    [InlineData("d:/data/a.csv", true)]
+    [InlineData("file:/etc/hosts", true)]
+    [InlineData("FILE://host/share/a.csv", true)]
     [InlineData("  http://example.org/a.csv", true)]
     [InlineData("a.csv", false)]
     [InlineData("data/a.csv", false)]

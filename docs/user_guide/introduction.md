@@ -3967,7 +3967,8 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
 - **Time.** There are no time scales yet: `temporal` fields, `timeUnit`, and `datetime` are reported
   (`vl-type-temporal`, `vl-encoding-timeunit`). The `TimeZone` option is accepted and reserved; it is UTC when `null`,
   so the output will not depend on the local zone of the machine when time support arrives.
-- **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, or a network path is
+- **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, an absolute path, or a
+  network path is
   reported as `vl-data-remote-url` and is **never fetched**; the chart is drawn with an empty dataset.
 
 ### Vega-Lite Unsupported Features and Strict Mode
@@ -3985,7 +3986,7 @@ thread, after the work finished and before the method returns or throws.
 | ---------- | ---- | --------------------- |
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version (the chart is rendered with the version 6 defaults) |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
-| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme, a drive letter, or is a network or UNC path (never fetched; empty dataset) |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path (never fetched; empty dataset) |
 | `vl-data-file` | Unsupported | The `data` object, when `url` is a relative local path |
 | `vl-data-named` | Unsupported | The `data` object that has only a `name` |
 | `vl-data-sequence` | Unsupported | `data/sequence` |

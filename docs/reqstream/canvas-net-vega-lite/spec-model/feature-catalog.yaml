@@ -45,10 +45,11 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
                 title: >-
-                  The FeatureCatalog unit shall classify a data URL that carries a scheme, a UNC path, a
-                  drive letter, or a leading double slash or backslash as remote and report it with the
-                  stable vl-data-remote-url identifier, and shall classify a plain relative URL as a
-                  local file reported with vl-data-file.
+                  The FeatureCatalog unit shall classify a data URL that carries a scheme (including a file:
+                  URI), a UNC path, a drive letter, or an absolute or rooted path (a leading slash or
+                  backslash, on every host operating system) as remote and report it with the stable
+                  vl-data-remote-url identifier, and shall classify a plain relative URL as a local file
+                  reported with vl-data-file.
                 justification: |
                   A remote URL must never reach a file resolver or the network, and the difference between
                   a remote and a local reference is the difference between a security boundary and a

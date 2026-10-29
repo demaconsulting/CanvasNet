@@ -242,7 +242,8 @@ input:
   maps them to `vega-lite-error`, `corrupt-input` (as for an overlong SCAD model), `budget-exceeded`, and `size-limit`
   respectively; no other argument failure is a size or a usage problem.
 - **No file or network access.** Parsing and rendering read only the text they are given. A data `url` is never
-  opened or fetched: a URL with a scheme, a drive letter, or a network path reports `vl-data-remote-url`, and any other
+  opened or fetched: a URL with a scheme, a drive letter, an absolute path, or a network path reports
+  `vl-data-remote-url`, and any other
   `url` reports `vl-data-file`; both use an empty dataset. No code in the specification is ever executed: expressions,
   transforms, and parameters are reported, not evaluated.
 - **Cancellation.** A `CancellationToken` is honored before any work, in the data and scale stages, per tick of an
@@ -413,7 +414,7 @@ throws at the first report. The reports carry the RFC 6901 pointer and the one-b
 | ---- | --------- | ------------------------------------------------------- |
 | Schema | `$schema` of Vega-Lite version 5 or 6, interpreted with the version 6 defaults; no `$schema` | Another major version, or a URL naming no Vega-Lite version: warning `vl-schema-version` (still rendered with the version 6 defaults); a malformed value is a `VegaLiteSpecException`; plain Vega is rejected |
 | Views | One single view | `layer`, `concat`, `hconcat`, `vconcat`, `facet`, `repeat`: `vl-composition-<name>` (only the title, background, and empty view are drawn; nested views are examined too); `projection`: `vl-projection` |
-| Data | Inline `data.values`: an array of objects (one row per object, nested values flattened to path fields) or of primitives (one row `{data: value}`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, or network path: `vl-data-remote-url` (never fetched, empty dataset); other `url`: `vl-data-file`; `name` only: `vl-data-named`; `sequence`: `vl-data-sequence`; `format.parse`: `vl-data-parse`; `format.type` csv, tsv, or dsv: `vl-data-format-csv`, `-tsv`, `-dsv`; `format.property`: `vl-data-property`; `values` as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` as an object: `vl-data-geo` |
+| Data | Inline `data.values`: an array of objects (one row per object, nested values flattened to path fields) or of primitives (one row `{data: value}`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, empty dataset); other `url`: `vl-data-file`; `name` only: `vl-data-named`; `sequence`: `vl-data-sequence`; `format.parse`: `vl-data-parse`; `format.type` csv, tsv, or dsv: `vl-data-format-csv`, `-tsv`, `-dsv`; `format.property`: `vl-data-property`; `values` as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` as an object: `vl-data-geo` |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick` (a mark given as a string or as a definition object with `type`) | Every other recognized mark type: `vl-mark-<type>`; the chart is drawn without marks and without axes |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity` as `field`, literal `value`, or literal `datum` where the channel permits; `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report | Every other recognized channel: `vl-channel-<name>`; `longitude`, `latitude`, `longitude2`, `latitude2`: `vl-channel-geo` |
 | Field types | `quantitative`, `nominal`, `ordinal` | `temporal`: `vl-type-temporal`; `geojson`: `vl-type-geojson` |
@@ -439,7 +440,7 @@ name taken from the specification is lower-cased without separators (`timeUnit` 
 | ---------- | ---- | --------------------- |
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
-| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme, a drive letter, or is a network or UNC path |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path |
 | `vl-data-file` | Unsupported | The `data` object, when `url` is a relative local path |
 | `vl-data-named` | Unsupported | The `data` object that has only a `name` |
 | `vl-data-sequence` | Unsupported | `data/sequence` |

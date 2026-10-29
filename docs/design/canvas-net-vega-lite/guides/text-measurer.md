@@ -42,8 +42,11 @@ an empty or exhausted list means Liberation Sans. A weight of 600 or more, `bold
 `italic` or `oblique` the italic face; a family that lacks the requested style is used as it is.
 
 **Directory scan.** The additional directories are scanned on first use, recursively to a depth of 4, for `.ttf`, `.otf`,
-and `.ttc` files, skipping reparse points and system files, in ordinal path order within a directory, reading at most 4,096
-files in total; a directory that does not exist, a file that cannot be read, and a face that cannot be loaded are skipped.
+and `.ttc` files, skipping reparse points and system files, reading at most 4,096 font files in total. The bound is applied
+while a directory is being enumerated (enumeration stops as soon as 4,096 font files have been found, so a huge tree is
+never listed in full), and the files found are then read in ordinal path order; the result is therefore deterministic
+whenever there are at most 4,096 font files, and beyond that which files are kept depends on the enumeration order of
+the file system. A directory that does not exist, a file that cannot be read, and a face that cannot be loaded are skipped.
 
 #### Key Methods
 

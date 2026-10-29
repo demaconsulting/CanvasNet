@@ -117,7 +117,7 @@ internal sealed class TextMeasurer
     };
 
     /// <summary>The most font files that are read from the additional directories.</summary>
-    private const int MaxDirectoryFonts = 4096;
+    internal const int MaxDirectoryFonts = 4096;
 
     /// <summary>The font options.</summary>
     private readonly VegaLiteFontOptions _options;
@@ -443,6 +443,16 @@ internal sealed class TextMeasurer
     }
 
     /// <summary>
+    ///     Determines whether the measurer maps a family name to a bundled font itself (a generic or well-known family).
+    /// </summary>
+    /// <param name="family">The family name.</param>
+    /// <returns>True when the family resolves to a bundled font whatever fonts are installed.</returns>
+    internal static bool IsMappedFamily(string family)
+    {
+        return SansFamilies.Contains(family) || SerifFamilies.Contains(family) || MonospaceFamilies.Contains(family);
+    }
+
+    /// <summary>
     ///     Resolves a family list without the cache.
     /// </summary>
     /// <param name="families">The family names.</param>
@@ -559,10 +569,33 @@ internal sealed class TextMeasurer
     /// <returns>The faces found: directories in the given order, files in ordinal order within a directory.</returns>
     private static IReadOnlyList<ResolvedFont> LoadDirectoryFonts(IReadOnlyList<string> directories)
     {
+        return LoadDirectoryFonts(directories, MaxDirectoryFonts);
+    }
+
+    /// <summary>
+    ///     Reads the font files of the additional directories, reading at most a given number of font files.
+    /// </summary>
+    /// <param name="directories">The directories, in order.</param>
+    /// <param name="maxFiles">The most font files to read, over all directories.</param>
+    /// <returns>The faces found: directories in the given order, files in ordinal order within a directory.</returns>
+    /// <remarks>
+    ///     The bound is applied while the directory is being enumerated: enumeration stops as soon as the font files
+    ///     found, over all directories, reach <paramref name="maxFiles"/>, so a huge tree is never listed in full. The
+    ///     files that were found are then sorted by ordinal path comparison, so the result is deterministic whenever the directories
+    ///     hold no more than <paramref name="maxFiles"/> font files; beyond that, which files are kept depends on the
+    ///     enumeration order of the file system.
+    /// </remarks>
+    internal static IReadOnlyList<ResolvedFont> LoadDirectoryFonts(IReadOnlyList<string> directories, int maxFiles)
+    {
         var result = new List<ResolvedFont>();
         var seen = 0;
         foreach (var directory in directories)
         {
+            if (seen >= maxFiles)
+            {
+                break;
+            }
+
             if (!Directory.Exists(directory))
             {
                 continue;
@@ -576,30 +609,37 @@ internal sealed class TextMeasurer
                 AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System,
                 MatchCasing = MatchCasing.CaseInsensitive,
             };
-            IEnumerable<string> files;
+            var files = new List<string>();
             try
             {
-                files = Directory.EnumerateFiles(directory, "*.*", options)
-                    .Where(f => f.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
-                        || f.EndsWith(".otf", StringComparison.OrdinalIgnoreCase)
-                        || f.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase))
-                    .Order(StringComparer.Ordinal)
-                    .ToList();
+                foreach (var file in Directory.EnumerateFiles(directory, "*.*", options))
+                {
+                    if (!file.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                        && !file.EndsWith(".otf", StringComparison.OrdinalIgnoreCase)
+                        && !file.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    files.Add(file);
+                    if (seen + files.Count >= maxFiles)
+                    {
+                        break;
+                    }
+                }
             }
             catch (Exception ex) when (IsSkippable(ex))
             {
-                continue;
+                // An enumeration that fails midway keeps the files found so far
             }
 
+            files.Sort(StringComparer.Ordinal);
             foreach (var file in files)
             {
-                if (++seen > MaxDirectoryFonts)
-                {
-                    return result;
-                }
-
                 AddFaces(file, result);
             }
+
+            seen += files.Count;
         }
 
         return result;

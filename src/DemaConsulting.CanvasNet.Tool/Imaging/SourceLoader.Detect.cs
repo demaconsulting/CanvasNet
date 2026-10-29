@@ -2,6 +2,7 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
 
@@ -83,8 +84,9 @@ internal static partial class SourceLoader
     ///     The content decides first: the signature bytes of the raster formats and PDF, then the entries of a ZIP
     ///     package (PowerPoint, Visio), then a text sniff for SVG. A model has no signature: a file named <c>.scad</c> is
     ///     an OpenSCAD model (and is never taken for an SVG, whatever its text mentions). A chart has no signature either:
-    ///     a file named <c>.vl.json</c> or <c>.vl</c> is a Vega-Lite chart, and so is a <c>.json</c> file whose first
-    ///     4 KiB name a Vega-Lite <c>$schema</c>; a JSON file is never taken for an SVG.
+    ///     a file named <c>.vl.json</c> or <c>.vl</c> is a Vega-Lite chart, and so is a <c>.json</c> file whose top-level
+    ///     <c>$schema</c> string property (read from the first 4 KiB) names a Vega-Lite schema; the address in any other
+    ///     property or nested value does not count. A JSON file is never taken for an SVG.
     ///     Only when the content says nothing does the file name extension decide, so that a damaged or empty file
     ///     with a known extension is reported as corrupt (by the load that follows) rather than as unsupported. A
     ///     damaged ZIP package is distinguished by its extension.
@@ -140,7 +142,7 @@ internal static partial class SourceLoader
                 "Run 'canvasnet formats' to list the formats the tool reads.");
         }
 
-        return ContainsMarker(header, VegaSchemaMarker)
+        return ReadTopLevelSchema(header)?.Contains(VegaSchemaMarker, StringComparison.Ordinal) == true
             ? new ToolException(
                 ErrorCodes.UnsupportedFormat,
                 $"'{path}' is a Vega specification; only Vega-Lite charts are supported.",
@@ -148,19 +150,69 @@ internal static partial class SourceLoader
             : new ToolException(
                 ErrorCodes.UnsupportedFormat,
                 $"'{path}' is a JSON file that is not a Vega-Lite chart.",
-                "A Vega-Lite chart is recognized by the suffix .vl.json (or .vl), or by a $schema under vega.github.io/schema/vega-lite/ in the first 4 KiB; rename the file to .vl.json if it is one.");
+                "A Vega-Lite chart is recognized by the suffix .vl.json (or .vl), or by a top-level $schema under vega.github.io/schema/vega-lite/ in the first 4 KiB; rename the file to .vl.json if it is one.");
     }
 
     /// <summary>
-    ///     Determines whether the start of a file contains a marker text.
+    ///     Reads the top-level <c>$schema</c> string property of a JSON document from its first bytes.
     /// </summary>
-    /// <param name="header">The first bytes of the file.</param>
-    /// <param name="marker">The text to look for.</param>
-    /// <returns><see langword="true"/> when the header is text that contains <paramref name="marker"/>.</returns>
-    private static bool ContainsMarker(ReadOnlySpan<byte> header, string marker)
+    /// <param name="header">The first bytes of the file; the document may be cut off anywhere.</param>
+    /// <returns>
+    ///     The value of the <c>$schema</c> property of the root object, or <see langword="null"/> when the header is not
+    ///     JSON text, the root is not an object, the property is missing, is not a string, or lies beyond the header.
+    /// </returns>
+    /// <remarks>
+    ///     Only the properties of the root object are looked at (nested values are skipped), so a schema address that
+    ///     appears in another property or deeper in the document does not count. A document cut off by the end of the
+    ///     header is not an error: the properties before the cut are still read.
+    /// </remarks>
+    private static string? ReadTopLevelSchema(ReadOnlySpan<byte> header)
     {
-        // Binary data (a NUL byte) is not a JSON document
-        return header.IndexOf((byte)0) < 0 && Encoding.UTF8.GetString(header).Contains(marker, StringComparison.Ordinal);
+        // Binary data (a NUL byte) is not a JSON document; a UTF-8 byte order mark is not part of the text
+        if (header.IndexOf((byte)0) >= 0)
+        {
+            return null;
+        }
+
+        if (header.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
+        {
+            header = header[3..];
+        }
+
+        var options = new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
+        var reader = new Utf8JsonReader(header, isFinalBlock: false, new JsonReaderState(options));
+        try
+        {
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+            {
+                return null;
+            }
+
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                var isSchema = reader.ValueTextEquals("$schema"u8);
+                if (!reader.Read())
+                {
+                    return null;
+                }
+
+                if (isSchema)
+                {
+                    return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                }
+
+                if (!reader.TrySkip())
+                {
+                    return null;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Text that is not JSON (or is damaged before the property is reached) names no schema
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -198,7 +250,7 @@ internal static partial class SourceLoader
 
         if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
         {
-            return ContainsMarker(header, VegaLiteSchemaMarker) ? SourceKind.VegaLite : null;
+            return ReadTopLevelSchema(header)?.Contains(VegaLiteSchemaMarker, StringComparison.Ordinal) == true ? SourceKind.VegaLite : null;
         }
 
         if (LooksLikeSvg(header) && !extension.Equals(".scad", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".vl", StringComparison.OrdinalIgnoreCase))

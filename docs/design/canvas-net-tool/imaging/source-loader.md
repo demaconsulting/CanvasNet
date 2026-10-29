@@ -81,11 +81,14 @@ file name ending in `.vl.json` (checked on the whole name, in any case, because 
 `vega.github.io/schema/vega-lite/` (the address every version of the schema is under); and the extension `.vl` is a
 chart by the extension table. A `.json` file, a `.vl` file, and a `.vl.json` file are never taken for an SVG, whatever
 their text mentions (the title of a chart can contain `<svg`). A signature still wins: a PNG named `x.vl.json` is a PNG.
-A `.json` file whose header contains `vega.github.io/schema/vega/` is a plain Vega specification, which the tool does
-not read, and any other `.json` file is not a chart; both are `unsupported-format`, the first with the message "is a
-Vega specification; only Vega-Lite charts are supported" and the hint "Vega is not supported", the second with a hint that
-a chart is recognized by the suffix `.vl.json` (or `.vl`) or by its `$schema` in the first 4 KiB, so that the file can be
-renamed.
+A `.json` file whose top-level `$schema` string property names `vega.github.io/schema/vega/` is a plain Vega specification,
+which the tool does not read, and any other `.json` file is not a chart; both are `unsupported-format`, the first with the
+message "is a Vega specification; only Vega-Lite charts are supported" and the hint "Vega is not supported", the second
+with a hint that a chart is recognized by the suffix `.vl.json` (or `.vl`) or by its top-level `$schema` in the first
+4 KiB, so that the file can be renamed. The `$schema` is read with a `Utf8JsonReader` over the 4 KiB header (a document
+cut off by the end of the header is not an error; nested values are skipped; comments, trailing commas, and a byte order
+mark are tolerated), so the schema address in another property, in a nested object, or in an array element never
+makes a chart.
 The content wins over the extension, but a file whose content says nothing keeps its extension's kind, so that an
 empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise throws
 `unsupported-format` with a hint to run `canvasnet formats`.

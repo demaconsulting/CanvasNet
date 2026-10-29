@@ -109,6 +109,52 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that only a top-level <c>$schema</c> string property decides: the schema address in another property, in
+    ///     a nested object or in a comment is not a chart, a plain Vega schema is still reported as Vega, and a document
+    ///     cut off by the end of the 4 KiB header still gives the properties before the cut.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Detect_SchemaMustBeATopLevelProperty()
+    {
+        // Arrange
+        const string lite = "https://vega.github.io/schema/vega-lite/v5.json";
+        const string vegaUrl = "https://vega.github.io/schema/vega/v5.json";
+        using var directory = new TempDirectory();
+        var otherProperty = FixtureFactory.WriteText(directory.Path, "other-property.json", "{\"description\": \"see " + lite + "\"}");
+        var nested = FixtureFactory.WriteText(directory.Path, "nested.json", "{\"config\": {\"$schema\": \"" + lite + "\"}}");
+        var inArray = FixtureFactory.WriteText(directory.Path, "array.json", "[{\"$schema\": \"" + lite + "\"}]");
+        var notString = FixtureFactory.WriteText(directory.Path, "not-string.json", "{\"$schema\": [\"" + lite + "\"]}");
+        var vegaWithLiteText = FixtureFactory.WriteText(directory.Path, "vega-with-text.json", "{\"title\": \"" + lite + "\", \"$schema\": \"" + vegaUrl + "\"}");
+        var topLevel = FixtureFactory.WriteText(directory.Path, "top.json", "{\"$schema\": \"" + lite + "\", \"data\": {\"values\": []}}");
+        var afterNested = FixtureFactory.WriteText(directory.Path, "after-nested.json", "{\"config\": {\"a\": [1, {\"b\": 2}]}, \"$schema\": \"" + lite + "\"}");
+        var commented = FixtureFactory.WriteText(directory.Path, "commented.json", "\uFEFF// chart\n{ /* c */ \"$schema\": \"" + lite + "\",}");
+        var escaped = FixtureFactory.WriteText(directory.Path, "escaped.json", "{\"\\u0024schema\": \"https://vega.github.io/schema/vega-lite/v6.json\"}");
+        var cutOff = FixtureFactory.WriteText(
+            directory.Path,
+            "cut-off.json",
+            "{\"$schema\": \"" + lite + "\", \"padding\": \"" + new string('x', 6000) + "\"}");
+
+        // Act / Assert: the address elsewhere is an unsupported JSON file
+        foreach (var path in new[] { otherProperty, nested, inArray, notString })
+        {
+            var error = Assert.Throws<ToolException>(() => SourceLoader.Detect(path));
+            Assert.Equal(ErrorCodes.UnsupportedFormat, error.Code);
+            Assert.Contains("not a Vega-Lite chart", error.Message);
+        }
+
+        // Assert: a plain Vega schema is Vega whatever else the text mentions
+        var vegaError = Assert.Throws<ToolException>(() => SourceLoader.Detect(vegaWithLiteText));
+        Assert.Equal(ErrorCodes.UnsupportedFormat, vegaError.Code);
+        Assert.Contains("Vega is not supported", vegaError.Hint);
+
+        // Assert: a top-level $schema is a chart, wherever it is among the properties and however it is written
+        foreach (var path in new[] { topLevel, afterNested, commented, escaped, cutOff })
+        {
+            Assert.Equal(SourceKind.VegaLite, SourceLoader.Detect(path));
+        }
+    }
+
+    /// <summary>
     ///     Test that probing a chart reports its natural size, four channels, one page, and what the specification declares.
     /// </summary>
     [Fact]

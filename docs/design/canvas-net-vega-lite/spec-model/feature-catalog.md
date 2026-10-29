@@ -62,8 +62,10 @@ identifier with its trigger. The warnings `vl-duplicate-key` and `vl-unknown-pro
 - `VisitTransforms` reports every entry as `vl-transform-<name>` (and `vl-expr-calculate` or `vl-expr-filter` for an
   expression); `VisitParams` reports `vl-param-variable` or `vl-param-selection`; `VisitAutosize` reports
   `vl-layout-autosize-<type>` for fit modes.
-- `IsSchemeBearingUrl(string url)` - true for a URL that starts with `//` or a backslash, or has a scheme (a letter
-  followed by letters, digits, `+`, `-`, or `.`, then a colon, which includes a drive letter); such a URL is never
+- `IsSchemeBearingUrl(string url)` - true for a URL that starts with `/` or a backslash (a Unix absolute path, a
+  Windows rooted path, a network or UNC path), is rooted according to `Path.IsPathRooted`, or has a scheme (a letter
+  followed by letters, digits, `+`, `-`, or `.`, then a colon, which includes a drive letter and `file:` URIs); the
+  result does not depend on the host operating system. Such a URL is never
   handed to a resolver, because a renderer that fetches resources named by an untrusted specification would be a
   server-side request forgery primitive.
 

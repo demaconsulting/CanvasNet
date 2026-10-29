@@ -157,7 +157,8 @@ as well.
 The format of an input is recognized from its content (signature bytes, or the document structure inside a ZIP
 package), and the extension is used only when the content is not conclusive. A model and a chart are text without a
 signature: a model is recognized by `.scad`, and a chart by the file name suffix `.vl.json` or `.vl`, or, for a `.json`
-file, by a Vega-Lite `$schema` (an address under `vega.github.io/schema/vega-lite/`) in the first 4 KiB of the file. A
+file, by a top-level Vega-Lite `$schema` property (an address under `vega.github.io/schema/vega-lite/`) in the first
+4 KiB of the file; the address in any other property does not count. A
 `.json` file with the schema of plain Vega is refused as `unsupported-format` (Vega is not supported), and so is any
 other `.json` file; name a chart `chart.vl.json` to have it recognized without a schema. The output format is
 selected by the

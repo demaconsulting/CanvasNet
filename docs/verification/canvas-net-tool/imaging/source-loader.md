@@ -93,7 +93,8 @@ every kind.
 
 **SourceLoader_Detect_VegaLiteSuffixesAndSchema_ReturnsVegaLite**: a file named `.vl.json` (in lower and upper
 case), `.vl`, or
-`.json` with a Vega-Lite `$schema` (version 5 or 6) in its first 4 KiB is a chart, also when its text contains an SVG start
+`.json` with a top-level Vega-Lite `$schema` (version 5 or 6) in its first 4 KiB is a chart, also when its text contains
+an SVG start
 tag; a PNG named like a chart is still a PNG (the signature wins); the kind has the format name `vega-lite`, is a
 vector kind,
 and is neither a model nor a document.
@@ -102,6 +103,13 @@ and is neither a model nor a document.
 `unsupported-format` with the hint "Vega is not supported"; a `.json` file with no schema, with another schema, or
 with the
 Vega-Lite schema only after the first 4 KiB is `unsupported-format` with a hint that names the `.vl.json` suffix.
+
+**SourceLoader_Detect_SchemaMustBeATopLevelProperty**: a `.json` file that has the Vega-Lite address in another property
+(`description`), in a nested object (`config`), as an array element, or as a `$schema` that is not a string is
+`unsupported-format` ("not a Vega-Lite chart"); a plain Vega `$schema` is "Vega is not supported" even when another
+property holds the Vega-Lite address; and a top-level `$schema` is a chart wherever it is among the properties (after a
+nested value too), with comments, a trailing comma, a byte order mark, or an escaped property name, and also when the
+document is cut off by the end of the 4 KiB header after the property.
 
 **SourceLoader_Detect_ScadMentioningSvg_ReturnsScad**: a file named `.scad` whose comment contains the text of an SVG
 start tag is a model, not an SVG, while the same text without the `.scad` extension is still taken for an SVG.
