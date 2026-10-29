@@ -7,6 +7,7 @@ using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
@@ -81,6 +82,11 @@ public class ImagingSubsystemTests
                     SourceLoader.DefaultScadSize,
                     SourceLoader.DefaultScadSize,
                     new ScadRenderOptions { Projection = CameraProjection.Orthographic });
+
+            case "vega-lite":
+                var chart = VegaLiteDocument.Open(path);
+                var size = chart.Measure();
+                return chart.Render(size.Width, size.Height);
 
             default:
                 using (var drawn = SvgCodec.Load(path, 100, 80))

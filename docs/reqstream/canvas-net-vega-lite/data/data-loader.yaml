@@ -1,0 +1,65 @@
+---
+# Software Unit Requirements for DataLoader
+#
+# These requirements describe the design-level behavior of the DataLoader unit of the Data subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Data): the loader that reads the inline values of a view into a
+# DataTable in one bounded pass. It never opens a file or uses the network; the catalog reports the sources it
+# does not read. See docs/verification/canvas-net-vega-lite/data/data-loader.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Data Requirements
+        sections:
+          - title: DataLoader Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Data-DataLoader-InlineValues
+                title: >-
+                  The DataLoader unit shall read an inline values array so that each JSON type is
+                  preserved, an object becomes one row, a primitive or array becomes one row holding the
+                  data field, nested objects and arrays become leaf fields named by their path, and a very
+                  large array loads completely.
+                justification: |
+                  The chart can only show what the loader reads, so the mapping from JSON to rows must be
+                  exact and complete.
+                tests:
+                  - DataLoader_Load_InlineValuesPreservesJsonTypes
+                  - DataLoader_Load_PrimitiveValuesBecomeRowsWithTheDataField
+                  - DataLoader_Load_NestedObjectsAreFlattenedToPathFields
+                  - DataLoader_Load_LargeInlineTableLoadsAllRows
+
+              - id: CanvasNetVegaLite-Data-DataLoader-EmptyAndRemote
+                title: >-
+                  The DataLoader unit shall return an empty table, without opening, resolving, or
+                  fetching anything, for a missing data object, an empty values array, a URL (remote or
+                  local), a named dataset, a sequence, and text values, leaving their report to the
+                  feature catalog.
+                justification: |
+                  Sources that are not supported must never be fetched, and the chart must still render so
+                  that the report can explain the empty result.
+                tests:
+                  - DataLoader_Load_MissingDataGivesAnEmptyTable
+                  - DataLoader_Load_EmptyValuesReportsVlDataEmpty
+                  - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl
+                  - DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog
+
+              - id: CanvasNetVegaLite-Data-DataLoader-Limits
+                title: >-
+                  The DataLoader unit shall fail with a VegaLiteRenderException located at /data/values
+                  when the number of rows exceeds the row limit, checked before any row is converted, and
+                  located at the offending leaf when a row or the union of fields exceeds the field limit.
+                justification: |
+                  Bounded loading keeps hostile data from exhausting memory, and a located failure tells
+                  the author which data to shrink.
+                tests:
+                  - DataLoader_Load_RowLimitFailsWithLocation
+                  - DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf
+
+              - id: CanvasNetVegaLite-Data-DataLoader-Cancellation
+                title: >-
+                  The DataLoader unit shall observe the cancellation token at bounded intervals while it
+                  loads rows and stop with an OperationCanceledException.
+                justification: |
+                  Loading a large table can take noticeable time, and callers must be able to abandon it.
+                tests:
+                  - DataLoader_Load_CanceledTokenStopsLoading

@@ -6,13 +6,15 @@
 
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
 resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
-model), and `RenderCommandPipelineTests.cs` (the image pipeline options and the verb commands). The command is run
+model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), and `RenderCommandPipelineTests.cs` (the image
+pipeline options and the verb commands). The command is run
  in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
 `ToolHost` helper; failures are asserted as the `ToolException` the command throws (the registry would record the
 command name on it). Inputs are generated in a temporary directory (rasters with the codecs, an EXIF segment injected
 into a JPEG, a PNG that declares an oversized image, the PDF, presentation, and drawing the test project writes, and
-the models the tests write as text) plus the original SVG and model fixtures, and the outputs are decoded with the
+the models and charts the tests write as text) plus the original SVG, model, and chart fixtures, and the outputs are
+decoded with the
 codecs and compared with the generated pixels.
 
 #### Test Environment
@@ -33,6 +35,11 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   and the operation, diagnostics, and echo are in the result; a model option for another kind of input, an unknown
   view, and a malformed value are usage errors; an exceeded limit, a syntax error, and a strict-mode unsupported
   feature are expected errors and leave no output.
+- A chart is rendered at its laid-out size or the size asked for, over its own background or the one given, with no option
+  of its own; the operation, the natural size, and the diagnostics are in the result; an unsupported feature is a note or,
+  in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
+  errors; no
+  failure leaves an output.
 - The pipeline operations are applied in the order written, after the source sizing and before the output is written,
   and each is reported with its parameters and result size; a failing operation writes nothing and leaves an
   existing output untouched; a vector source is not scaled twice; the border color default follows the background.
@@ -173,6 +180,31 @@ billion, a definition without `=`, with a name that starts with a digit, or with
 mention the option and write nothing; the unknown view names the views in its hint; `-D x=1` with a PNG, an SVG, and a
 PDF is a usage error that names the kind; page 2 of a model is `page-out-of-range`; a model with a syntax error is a
 `scad-error` that names the line and leaves no output.
+
+**RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
+size in the JSON result, which names the `vega-lite` format and has one `render` operation with the `UTC` time zone
+and no
+diagnostics; the corner is white and a point of the second bar, computed from the layout, has the default mark color.
+
+**RenderCommand_Run_VegaLiteSizeOptions_FollowTheNaturalSize**,
+**RenderCommand_Run_VegaLiteToEachOutputFormat_WritesDecodableFile**, and
+**RenderCommand_Run_VegaLiteTwice_WritesIdenticalBytes**: a scale of 2, a width of 100, and `--size 90x50` give twice the
+natural size, a height that keeps the aspect ratio, and 90x50; the chart is written as PNG, JPEG, BMP, and TIFF (a transparent
+background leaves the corner clear in the formats that keep it and white in the JPEG); two runs with a scale of 1.5 give
+identical bytes.
+
+**RenderCommand_Run_VegaLiteDiagnosticsAndStrict_AreReportedOrFail** and
+**RenderCommand_Run_VegaLiteError_UsesStableErrorCode**: a chart with an unknown property and an `arc` mark has three
+diagnostics in the JSON result (source `vega-lite`; the `vega-lite-warning` warning, then the `vl-mark-arc` and
+`vl-channel-theta` unsupported notes, with no page); with `--strict` it is an `unsupported-feature` error and no file; a
+malformed chart is a `vega-lite-error` of one line that names the file, and plain Vega named like a chart is a
+`vega-lite-error` with exit code 1 and the code in the failure document, through the entry point, with no output.
+
+**RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails** and **RenderCommand_Usage_NamesVegaLite**: page 2 of a
+chart is
+`page-out-of-range`; `-D x=1` with a chart is a usage error that names the kind; the usage text names Vega-Lite
+charts and has
+a chart example.
 
 **RenderCommand_Usage_DescribesModelOptionsAndIncludeRule**: the help of the command lists the nine model options (and
 `-D`), the 800x800 default size, and the rule that include and use files are read from the folder of the model and

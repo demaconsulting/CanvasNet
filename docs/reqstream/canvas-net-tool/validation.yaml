@@ -121,3 +121,18 @@ sections:
         tests:
           - Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded
           - CanvasNetTool_Adjustments
+
+      - id: CanvasNetTool-Validation-VegaLiteSelfTest
+        title: >-
+          The Validation class shall run the Vega-Lite self-test, which writes a small bar chart with inline data to a
+          temporary folder, runs the info command on it (checking the vega-lite format and the chart object) and the
+          render command to a PNG in-process, and checks the decoded size and the pixels of the bars and of the
+          background.
+        justification: |
+          The Vega-Lite self-test proves, in the deployment environment, that the Vega-Lite library bundled with the
+          tool, the source loader, and the commands work together on an original chart; its name is a contract with the
+          qualification evidence. It is the fifteenth and last self-test and a smoke test of one chart: the detailed
+          coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
+        tests:
+          - Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded
+          - CanvasNetTool_RenderVegaLite

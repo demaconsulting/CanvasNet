@@ -1,0 +1,50 @@
+---
+# Software Unit Requirements for SceneModel
+#
+# These requirements describe the design-level behavior of the SceneModel unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene records (Scene,
+# SceneGroup, SceneRect, SceneRule, ScenePath, SceneSymbol, SceneText, SceneClip, ScenePoint, SceneEntry), the
+# deterministic enumeration, and SceneBounds. The records and their defaults follow the Vega scenegraph. See
+# docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: SceneModel Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-Structure
+                title: >-
+                  The SceneModel unit shall create a scene of nested groups and items in which each item
+                  has a role, copy the lists it is given into read-only lists, and enumerate the items in
+                  deterministic pre-order drawing order with the accumulated offsets of the enclosing
+                  groups, using an explicit stack, and find items by role.
+                justification: |
+                  Analytic tests walk the scene to assert geometry, so its structure and order must be
+                  fixed and cannot change after it is built.
+                tests:
+                  - SceneModel_Create_GroupsAndItemsPreservesDeterministicOrder
+                  - SceneModel_Create_ListsAreCopiedAndReadOnly
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-Defaults
+                title: >-
+                  The SceneModel unit shall give items the Vega defaults (full opacity, no stroke dash,
+                  circle symbols, alphabetic baseline, left alignment, the ellipsis character) and
+                  support copies that change a property, and shall reject invalid arguments such as a
+                  blank role.
+                justification: |
+                  Default values decide the look of every item that does not set them.
+                tests:
+                  - SceneModel_With_DefaultsAndCopiesFollowVega
+                  - SceneModel_Create_InvalidArgumentsAreRejected
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-Bounds
+                title: >-
+                  The SceneModel unit shall compute exact bounds - union, translation, and rotation by
+                  an arbitrary angle with exact results for quarter turns - and report an empty bounds
+                  for no content.
+                justification: |
+                  Bounds decide the extent of guides and titles and thereby the size of the canvas.
+                tests:
+                  - SceneBounds_UnionTranslateAndRotate_AreExact

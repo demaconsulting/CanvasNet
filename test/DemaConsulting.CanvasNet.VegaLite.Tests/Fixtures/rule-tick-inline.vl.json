@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Reading time per chapter (minutes)",
+  "width": 300,
+  "height": 120,
+  "data": {
+    "values": [
+      { "chapter": "One", "minutes": 12 },
+      { "chapter": "One", "minutes": 18 },
+      { "chapter": "Two", "minutes": 25 },
+      { "chapter": "Two", "minutes": 31 },
+      { "chapter": "Two", "minutes": 36 },
+      { "chapter": "Three", "minutes": 8 },
+      { "chapter": "Three", "minutes": 44 }
+    ]
+  },
+  "mark": "tick",
+  "encoding": {
+    "x": { "field": "minutes", "type": "quantitative", "axis": { "title": "Minutes" } },
+    "y": { "field": "chapter", "type": "ordinal", "sort": null, "axis": { "title": null } }
+  }
+}

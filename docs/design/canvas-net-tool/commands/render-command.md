@@ -7,7 +7,8 @@
 #### Purpose
 
 `RenderCommand` is the `render` command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`,
-`flip`, and `pad`: it loads an image, drawing, document page, or 3D model view, transforms it with the image
+`flip`, and `pad`: it loads an image, drawing, document page, 3D model view, or Vega-Lite chart, transforms it with
+the image
 pipeline (including the photo tools: tone adjustments, deskew, trim, and grid), and writes it as PNG, JPEG, BMP, or
 TIFF. Its single responsibility is to turn a command line into one
 pass of load, transform, and write for one page or every page, and to report the result. The unit is the partial
@@ -47,7 +48,9 @@ it.
 
 The command's name is `render`, its alias is `convert`, and its usage text has examples, says how the pipeline options
 combine, and says how an OpenSCAD model is drawn (the views, the 800 by 800 default size, `-D`) and where its
-`include` and `use` files are read from. A verb has no alias, and its usage text is `canvasnet {verb} <input>
+`include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
+background, with UTC dates and the bundled fonts, no network; no options of its own). A verb has no alias, and its
+usage text is `canvasnet {verb} <input>
 {operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of
 `render`, and its examples.
 
@@ -110,7 +113,7 @@ the loaded surface (the loaded surface stays untouched and is disposed with the 
 disposed in a `finally` block after the staging) and stages the transformed surface with `ImageWriter.Stage`;
 with none, stages the loaded surface. It returns the page's report and the `StagedOutput`. A border with no color
 of its own gets the default: the `--background` color when given (also a transparent one), otherwise white for a
-vector source (SVG, document page, model, which the loader flattened over white) and
+vector source (SVG, document page, model, chart, which the loader flattened over white) and
 transparent for a raster. The `--background` color the user gave is also passed to `ImagePipeline.Apply` as the fill of
 a rotation (a rotation without `--rotate-fill` fills its corners with it; without a background the pipeline's rule
 applies: opaque white for an image with no transparent pixel, else transparent). Everything the pipeline does happens
@@ -155,9 +158,9 @@ fields after the envelope, in this order:
 | --- | ----- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
-| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
+| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model, `render` (`width`, `height`, `timeZone` (`UTC`), and `background` when one was given) for a Vega-Lite chart, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
 | `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
-| `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, or `scad`), `severity` (`unsupported`, or `warning` for a model), `code` (the feature token, or `scad-warning`), `message`, and `page` (documents only) |
+| `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, or `vega-lite`), `severity` (`unsupported`, or `warning` for a model or a chart), `code` (the feature token, or `scad-warning` or `vega-lite-warning`), `message`, and `page` (documents only) |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
 <!-- markdownlint-enable MD013 -->
 
@@ -177,9 +180,10 @@ smaller than a pixel) are `ToolException` with
 `usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the
 maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
-`--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model -
+`--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model or a chart -
 `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a failed `assert`, or an `include` that cannot be
-read, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles`) and output failures
+read, `vega-lite-error` for an invalid chart specification or a chart that cannot be rendered, and `budget-exceeded`
+for a model that exceeds a limit such as `--max-triangles` or a chart that exceeds a limit of the library) and output failures
 from `ImageWriter` (`same-input-output`, `output-exists`, `output-write-failed`); none of them leaves an output file
 for the page that failed. Null arguments throw `ArgumentNullException`. The registry records the command name on
 every `ToolException`.

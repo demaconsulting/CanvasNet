@@ -52,6 +52,38 @@ package CanvasNet {
         expose CanvasNetScadSystem;
     }
 
+    view CanvasNetVegaLiteView {
+        expose CanvasNetVegaLiteSystem;
+    }
+
+    view VegaLiteSpecModelView {
+        expose VegaLiteSpecModel;
+    }
+
+    view VegaLiteDataView {
+        expose VegaLiteData;
+    }
+
+    view VegaLiteScalesView {
+        expose VegaLiteScales;
+    }
+
+    view VegaLiteGuidesView {
+        expose VegaLiteGuides;
+    }
+
+    view VegaLiteLayoutView {
+        expose VegaLiteLayout;
+    }
+
+    view VegaLiteMarksView {
+        expose VegaLiteMarks;
+    }
+
+    view VegaLiteScenegraphView {
+        expose VegaLiteScenegraph;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

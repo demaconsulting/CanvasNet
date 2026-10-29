@@ -48,6 +48,9 @@ internal static class ErrorCodes
     /// <summary>An OpenSCAD model has a syntax or evaluation error.</summary>
     public const string ScadError = "scad-error";
 
+    /// <summary>A Vega-Lite chart has a specification error or cannot be rendered.</summary>
+    public const string VegaLiteError = "vega-lite-error";
+
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
 

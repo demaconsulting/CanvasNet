@@ -1,0 +1,63 @@
+---
+# Software Unit Requirements for Ticks
+#
+# These requirements describe the design-level behavior of the Ticks unit of the Scales subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Scales): the C# port of the d3-array ticks, tickStep, and
+# tickIncrement algorithms and the d3-scale linear nice algorithm, with the Vega-Lite default tick count and
+# the Vega tick-count reduction. The port is an own implementation of the algorithms of d3-array 3.2.4 and
+# d3-scale 4.0.2 (ISC license); the attribution is in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and
+# the expected values in the tests are derived by hand, not copied from the d3 tests. See
+# docs/verification/canvas-net-vega-lite/scales/ticks.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: Ticks Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-Ticks-Generation
+                title: >-
+                  The Ticks unit shall generate the tick values of a linear range and the signed tick
+                  step for a start, a stop, and a count with the d3-array algorithm, giving the hand-derived
+                  tick vector and step for the documented inputs, in either direction.
+                justification: |
+                  The tick values are what an axis shows; they must equal what the d3 algorithm gives.
+                tests:
+                  - Ticks_Ticks_LinearRangeMatchesHandDerivedExpectedVector
+                  - Ticks_TickStep_UsesHandDerivedExpectedStep
+
+              - id: CanvasNetVegaLite-Scales-Ticks-Nice
+                title: >-
+                  The Ticks unit shall expand a domain to nice boundaries with the d3-scale linear nice
+                  algorithm for the requested count, keeping the direction of the domain and leaving a
+                  domain unchanged when it cannot settle.
+                justification: |
+                  A nice domain makes the axis end on a tick, which is what a reader of a chart expects.
+                tests:
+                  - Ticks_Nice_ExpandsDomainToExpectedBoundaries
+
+              - id: CanvasNetVegaLite-Scales-Ticks-AxisCounts
+                title: >-
+                  The Ticks unit shall provide the Vega-Lite default tick count of an axis of a given
+                  length (the length divided by 40, rounded up), the default minimum tick step for an
+                  integer format, and the Vega reduction of a count so that the tick step respects the
+                  minimum step.
+                justification: |
+                  The default number of ticks decides how dense every axis is, and must be the number a
+                  Vega-Lite user expects.
+                tests:
+                  - Ticks_DefaultAxisTickCountAndMinStep_FollowVegaLite
+                  - Ticks_ResolveTickCount_ReducesCountToRespectTheMinimumStep
+
+              - id: CanvasNetVegaLite-Scales-Ticks-Limits
+                title: >-
+                  The Ticks unit shall fail with a VegaLiteRenderException instead of allocating when the
+                  number of ticks would exceed the tick limit, and shall return no ticks, never a
+                  non-finite tick value, for a span that overflows the double range or an infinite end.
+                justification: |
+                  A huge range with a huge count must not be able to exhaust memory, and an overflowing
+                  range must not put a NaN position into the layout of a chart.
+                tests:
+                  - Ticks_Ticks_ResultOverTheLimitFailsClosed
+                  - Ticks_Ticks_OverflowingSpanHasNoNonFiniteTicks

@@ -1877,6 +1877,490 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs"  # unit tests
 
+  # ---------------------------------------------------------------------------------------------
+  # CanvasNetVegaLite review-sets (static Vega-Lite renderer, derived with attribution)
+  # Provenance check for every CanvasNetVegaLite set: reviewers confirm that no source, test, example,
+  # dataset, or documentation text of the Vega, Vega-Lite, or d3 projects was copied, that every file
+  # containing ported logic carries the "Portions derived from" header, and that the attribution is
+  # recorded in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md (see the Third-Party
+  # Provenance and Attribution section of docs/design/canvas-net-vega-lite.md).
+  # ---------------------------------------------------------------------------------------------
+
+  # CanvasNetVegaLite-Architecture Review (one per system)
+  - id: CanvasNetVegaLite-Architecture
+    title: Review that CanvasNetVegaLite Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite.yaml"                    # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-vega-lite.md"                         # system design (provenance, supported subset)
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-vega-lite.md"                   # system verification
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared chart test helpers
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/README.md"  # fixture provenance (original works)
+      - "src/DemaConsulting.CanvasNet.VegaLite/DemaConsulting.CanvasNet.VegaLite.csproj"  # project file
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/**"        # license texts and provenance record
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/DemaConsulting.CanvasNet.VegaLite.Tests.csproj"  # test project
+
+  # CanvasNetVegaLite-Design Review (one per system)
+  - id: CanvasNetVegaLite-Design
+    title: Review that CanvasNetVegaLite Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-vega-lite.md"                         # system design (provenance, supported subset)
+      - "docs/design/canvas-net-vega-lite/**/*.md"                    # all system design documents
+
+  # CanvasNetVegaLite-Verification Review (one per system)
+  - id: CanvasNetVegaLite-Verification
+    title: Review that CanvasNetVegaLite Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-vega-lite.md"                   # system verification
+      - "docs/verification/canvas-net-vega-lite/**/*.md"              # all verification documents
+
+  # CanvasNetVegaLite-AllRequirements Review (one per system)
+  - id: CanvasNetVegaLite-AllRequirements
+    title: Review that All CanvasNetVegaLite Requirements are Complete
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/**/*.yaml"               # all requirements files
+
+  # CanvasNetVegaLite-VegaLiteDocument Review (one per direct unit; includes the fixture provenance check)
+  - id: CanvasNetVegaLite-VegaLiteDocument
+    title: Review that CanvasNetVegaLite VegaLiteDocument Implementation is Correct and Fixtures are Original Works
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/vega-lite-document.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/vega-lite-document.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/vega-lite-document.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/vega-lite-document.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/NamespaceDoc.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Render.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteOpenOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteRenderOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteFontOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteLimits.cs"     # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteLocation.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteSize.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDataReference.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDataKind.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDiagnostic.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteUnsupportedFeature.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteSpecException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteRenderException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteUnsupportedFeatureException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteReportSink.cs"  # unit source (internal report sink)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteDocumentLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/VegaLiteDocumentSpecModelTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteOpenOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRenderOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLimitsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLocationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRecordsAndExceptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteReportSinkTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/**"    # original fixtures and provenance README
+
+  # CanvasNetVegaLite-SpecModel Review (one per subsystem)
+  - id: CanvasNetVegaLite-SpecModel
+    title: Review that CanvasNetVegaLite SpecModel Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/spec-model.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/spec-model.md"              # subsystem design
+      - "docs/verification/canvas-net-vega-lite/spec-model.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/spec-model.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-SpecModel-SpecParser Review (one per unit)
+  - id: CanvasNetVegaLite-SpecModel-SpecParser
+    title: Review that CanvasNetVegaLite SpecModel SpecParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/spec-model.md"
+      - "docs/reqstream/canvas-net-vega-lite/spec-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/spec-model/spec-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/spec-model/spec-parser.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/spec-model/spec-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecParser*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNode.cs"  # unit source (immutable tree)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecMetadata.cs"  # unit source (descriptive facts)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-SpecModel-FeatureCatalog Review (one per unit)
+  - id: CanvasNetVegaLite-SpecModel-FeatureCatalog
+    title: Review that CanvasNetVegaLite SpecModel FeatureCatalog Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/spec-model.md"
+      - "docs/reqstream/canvas-net-vega-lite/spec-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/spec-model/feature-catalog.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/spec-model/feature-catalog.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/spec-model/feature-catalog.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/FeatureCatalog.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-SpecModel-ConfigResolver Review (one per unit)
+  - id: CanvasNetVegaLite-SpecModel-ConfigResolver
+    title: Review that CanvasNetVegaLite SpecModel ConfigResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/spec-model.md"
+      - "docs/reqstream/canvas-net-vega-lite/spec-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/spec-model/config-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/spec-model/config-resolver.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/spec-model/config-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/spec-model/config-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/ConfigResolver.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ConfigResolverTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Data Review (one per subsystem)
+  - id: CanvasNetVegaLite-Data
+    title: Review that CanvasNetVegaLite Data Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"               # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/data.md"                    # subsystem design
+      - "docs/verification/canvas-net-vega-lite/data.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data.sysml"           # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Data-DataTable Review (one per unit)
+  - id: CanvasNetVegaLite-Data-DataTable
+    title: Review that CanvasNetVegaLite Data DataTable Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/data-table.yaml"    # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/data-table.md"         # unit design
+      - "docs/verification/canvas-net-vega-lite/data/data-table.md"   # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/data-table.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataTable.cs"     # unit source (includes DataValue)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Data-DataLoader Review (one per unit)
+  - id: CanvasNetVegaLite-Data-DataLoader
+    title: Review that CanvasNetVegaLite Data DataLoader Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/data-loader.yaml"   # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/data-loader.md"        # unit design
+      - "docs/verification/canvas-net-vega-lite/data/data-loader.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/data-loader.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataLoader.cs"    # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales Review (one per subsystem)
+  - id: CanvasNetVegaLite-Scales
+    title: Review that CanvasNetVegaLite Scales Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/scales.md"                  # subsystem design
+      - "docs/verification/canvas-net-vega-lite/scales.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Scales-ScaleModel Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-ScaleModel
+    title: Review that CanvasNetVegaLite Scales ScaleModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/scale-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/scale-model.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/scale-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleModel.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales-ScaleResolver Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-ScaleResolver
+    title: Review that CanvasNetVegaLite Scales ScaleResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/scale-resolver.md"   # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/scale-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-Ticks
+    title: Review that CanvasNetVegaLite Scales Ticks Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/ticks.yaml"       # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/ticks.md"            # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/ticks.md"      # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/ticks.sysml"   # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/Ticks.cs"       # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/TicksTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales-NumberFormat Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-NumberFormat
+    title: Review that CanvasNetVegaLite Scales NumberFormat Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/number-format.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/number-format.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/number-format.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/number-format.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/NumberFormat.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/NumberFormatTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales-ColorSchemes Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-ColorSchemes
+    title: Review that CanvasNetVegaLite Scales ColorSchemes Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/color-schemes.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/color-schemes.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/color-schemes.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/color-schemes.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ColorSchemes.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ColorSchemesTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Guides Review (one per subsystem)
+  - id: CanvasNetVegaLite-Guides
+    title: Review that CanvasNetVegaLite Guides Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/guides.md"                  # subsystem design
+      - "docs/verification/canvas-net-vega-lite/guides.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Guides-TextMeasurer Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-TextMeasurer
+    title: Review that CanvasNetVegaLite Guides TextMeasurer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/text-measurer.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/text-measurer.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/text-measurer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/text-measurer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/TextMeasurer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TextMeasurerTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Guides-TitleBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-TitleBuilder
+    title: Review that CanvasNetVegaLite Guides TitleBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/title-builder.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/title-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/title-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/TitleBuilder.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Guides-AxisBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-AxisBuilder
+    title: Review that CanvasNetVegaLite Guides AxisBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/axis-builder.md"     # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/axis-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/axis-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/AxisBuilder.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Layout Review (one per subsystem)
+  - id: CanvasNetVegaLite-Layout
+    title: Review that CanvasNetVegaLite Layout Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/layout.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/layout.md"                  # subsystem design
+      - "docs/verification/canvas-net-vega-lite/layout.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/layout.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Layout/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Layout-ViewLayout Review (one per unit)
+  - id: CanvasNetVegaLite-Layout-ViewLayout
+    title: Review that CanvasNetVegaLite Layout ViewLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/layout.md"
+      - "docs/reqstream/canvas-net-vega-lite/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/layout/view-layout.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/layout/view-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Marks Review (one per subsystem)
+  - id: CanvasNetVegaLite-Marks
+    title: Review that CanvasNetVegaLite Marks Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/marks.yaml"              # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/marks.md"                   # subsystem design
+      - "docs/verification/canvas-net-vega-lite/marks.md"             # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/marks.sysml"          # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Marks/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Marks-MarkBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Marks-MarkBuilder
+    title: Review that CanvasNetVegaLite Marks MarkBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/marks.md"
+      - "docs/reqstream/canvas-net-vega-lite/marks.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/marks/mark-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/marks/mark-builder.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/marks/mark-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/marks/mark-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Scenegraph Review (one per subsystem)
+  - id: CanvasNetVegaLite-Scenegraph
+    title: Review that CanvasNetVegaLite Scenegraph Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"              # subsystem design
+      - "docs/verification/canvas-net-vega-lite/scenegraph.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNetVegaLite-Scenegraph-SceneModel Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-SceneModel
+    title: Review that CanvasNetVegaLite Scenegraph SceneModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/scene-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/scene-model.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/scene-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBounds.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBudget.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scenegraph-ScenePainter Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-ScenePainter
+    title: Review that CanvasNetVegaLite Scenegraph ScenePainter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/scene-painter.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/scene-painter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePainter.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Scenegraph-CssColor Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-CssColor
+    title: Review that CanvasNetVegaLite Scenegraph CssColor Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/css-color.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/css-color.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/css-color.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/css-color.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/CssColor.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/CssColorTests.cs"  # unit tests
+
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
     title: Review that CanvasNetTool Architecture Satisfies Requirements

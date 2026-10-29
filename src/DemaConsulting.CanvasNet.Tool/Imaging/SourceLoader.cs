@@ -5,6 +5,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
+using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
@@ -20,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         <c>SourceLoader.Raster.cs</c> and <c>SourceLoader.Svg.cs</c> handle the single-image sources;
 ///         <c>SourceLoader.Documents.cs</c> holds what the page-based sources share, and <c>SourceLoader.Pdf.cs</c>,
 ///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents; <c>SourceLoader.Scad.cs</c>
-///         handles an OpenSCAD model drawn from one viewpoint. A further source kind is
+///         handles an OpenSCAD model drawn from one viewpoint, and <c>SourceLoader.VegaLite.cs</c> handles a Vega-Lite
+///         chart. A further source kind is
 ///         added by a new partial file with a probe method and a page source and one new case in each of
 ///         <see cref="Probe"/> and <see cref="OpenPages"/>.
 ///     </para>
@@ -60,6 +62,7 @@ internal static partial class SourceLoader
             SourceKind.Pptx => ProbePptx(path, bytes),
             SourceKind.Vsdx => ProbeVsdx(path, bytes),
             SourceKind.Scad => ProbeScad(path, bytes),
+            SourceKind.VegaLite => ProbeVegaLite(path, bytes),
             _ => throw UnhandledKind(kind)
         };
     }
@@ -131,6 +134,7 @@ internal static partial class SourceLoader
             SourceKind.Pptx => PptxPageSource.Open(info, options),
             SourceKind.Vsdx => VsdxPageSource.Open(info, options),
             SourceKind.Scad => ScadPageSource.Open(info, options),
+            SourceKind.VegaLite => VegaLitePageSource.Open(info, options),
             _ => throw UnhandledKind(info.Format)
         };
     }
@@ -390,7 +394,10 @@ internal static partial class SourceLoader
     ///     <see cref="VsdxUnsupportedFeatureException"/>, and <see cref="ScadUnsupportedFeatureException"/>
     ///     (<c>unsupported-feature</c>), a syntax error of a model - <see cref="ScadSyntaxException"/> - or a failure
     ///     of its evaluation - <see cref="ScadEvaluationException"/> (<c>scad-error</c>, or <c>budget-exceeded</c> when a
-    ///     limit was exceeded; see <see cref="MapScadEvaluation"/>), and
+    ///     limit was exceeded; see <see cref="MapScadEvaluation"/>), <see cref="VegaLiteUnsupportedFeatureException"/>
+    ///     (<c>unsupported-feature</c>), an invalid chart specification - <see cref="VegaLiteSpecException"/> - or a
+    ///     chart that cannot be rendered - <see cref="VegaLiteRenderException"/> (<c>vega-lite-error</c>, or
+    ///     <c>budget-exceeded</c> when a limit was exceeded; see <see cref="MapVegaLiteRender"/>), and
     ///     invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
     ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
     ///     (<c>corrupt-input</c>).
@@ -448,6 +455,23 @@ internal static partial class SourceLoader
         catch (ScadEvaluationException ex)
         {
             throw MapScadEvaluation(ex);
+        }
+        catch (VegaLiteUnsupportedFeatureException ex)
+        {
+            // The message of the library already names the file, the position, and the pointer
+            throw new ToolException(
+                ErrorCodes.UnsupportedFeature,
+                $"The Vega-Lite chart uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
+                "Without --strict the feature is left out and reported in the diagnostics.",
+                ex);
+        }
+        catch (VegaLiteSpecException ex)
+        {
+            throw new ToolException(ErrorCodes.VegaLiteError, $"Vega-Lite specification error: {OneLine(ex.Message)}", null, ex);
+        }
+        catch (VegaLiteRenderException ex)
+        {
+            throw MapVegaLiteRender(ex);
         }
         catch (Exception ex) when (ex is InvalidDataException or XmlException or EndOfStreamException or FormatException)
         {

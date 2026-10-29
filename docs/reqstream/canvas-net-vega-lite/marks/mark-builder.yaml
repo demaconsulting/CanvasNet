@@ -1,0 +1,69 @@
+---
+# Software Unit Requirements for MarkBuilder
+#
+# These requirements describe the design-level behavior of the MarkBuilder unit of the Marks subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
+# circle, square, rule, and tick, the resolution of the paint and size channels, and the limits. The
+# geometry rules follow Vega-Lite behavior, attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/marks/mark-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Marks Requirements
+        sections:
+          - title: MarkBuilder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-BarRect
+                title: >-
+                  The MarkBuilder unit shall build a bar or rect for each row spanning the band of a
+                  discrete scale (the band width reduced by the padding, or centered at an explicit size)
+                  or centered at the continuous band size on a continuous scale, and from the value to
+                  zero (or to the first domain value when zero is outside the domain) along the measure
+                  axis, spanning the whole rectangle when a channel is absent.
+                justification: |
+                  Bars and rects are the most common marks, and their position and extent are what a
+                  reader compares.
+                tests:
+                  - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-SymbolsRuleTick
+                title: >-
+                  The MarkBuilder unit shall build a point, circle, or square at the center of the band
+                  or value of each row with the size from the mark, the size scale, or the style, a rule
+                  as a full-height vertical line for x only or a full-width horizontal line for y only or
+                  from the value to zero along the measure axis for both, and a tick across the band with
+                  the configured thickness, oriented by the orientation rule.
+                justification: |
+                  These marks show individual values and their positions must match analytic
+                  expectations.
+                tests:
+                  - MarkBuilder_Build_PointCircleSquareRuleAndTickMatchExpectedSceneItems
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Channels
+                title: >-
+                  The MarkBuilder unit shall give each item its paint, size, and opacity from the color,
+                  fill, stroke, size, and opacity channels (a field through the scale, a value as given,
+                  fill winning over color), from the mark definition, and from the style, mark, and
+                  Vega configuration in that order, apply the default opacity of 0.7 to point, tick,
+                  circle, and square marks that configure none, and drop the rows whose continuous value is
+                  null or not a number.
+                justification: |
+                  The channels carry additional data in a chart and their defaults decide its look.
+                tests:
+                  - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Limits
+                title: >-
+                  The MarkBuilder unit shall fail with a located VegaLiteRenderException when the number of scene items
+                  would exceed the scene-item limit, counting the marks group and each item before it is created (a row
+                  that draws nothing costs nothing; a limit of N allows exactly N items), shall stop with an
+                  OperationCanceledException when the cancellation token is canceled, and shall build nothing for a mark
+                  type it does not support.
+                justification: |
+                  Marks scale with the data, so their number and their time must be bounded.
+                tests:
+                  - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
+                  - MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated
+                  - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary

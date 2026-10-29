@@ -23,8 +23,8 @@ internal static class DiscoveryCommands
     /// </summary>
     /// <remarks>
     ///     <c>Kind</c> is <c>raster</c> (decoded at its own size), <c>vector</c> (a drawing rendered at any
-    ///     requested size), <c>document</c> (pages or slides rendered at any requested size), or <c>model</c>
-    ///     (a 3D model rendered from a viewpoint).
+    ///     requested size), <c>document</c> (pages or slides rendered at any requested size), <c>model</c>
+    ///     (a 3D model rendered from a viewpoint), or <c>chart</c> (a Vega-Lite chart rendered at any requested size).
     /// </remarks>
     internal static readonly IReadOnlyList<InputFormat> InputFormats =
     [
@@ -38,7 +38,8 @@ internal static class DiscoveryCommands
         new("pdf", "document", [".pdf"], true, true),
         new("pptx", "document", [".pptx"], true, true),
         new("vsdx", "document", [".vsdx"], true, true),
-        new("scad", "model", [".scad"], false, true)
+        new("scad", "model", [".scad"], false, true),
+        new("vega-lite", "chart", [".vl.json", ".vl"], false, true)
     ];
 
     /// <summary>
@@ -56,7 +57,7 @@ internal static class DiscoveryCommands
     ///     Describes an input format.
     /// </summary>
     /// <param name="Name">The format name, which is also its name in JSON output.</param>
-    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, or <c>model</c>.</param>
+    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, <c>model</c>, or <c>chart</c>.</param>
     /// <param name="Extensions">The file name extensions, including the dot, in lower case.</param>
     /// <param name="MultiPage"><see langword="true"/> when one file holds several pages or slides that can be chosen.</param>
     /// <param name="Vector"><see langword="true"/> when the content is rendered at the requested size rather than decoded at its own size.</param>
@@ -106,12 +107,15 @@ internal static class DiscoveryCommands
             + "A PDF, PPTX, or VSDX document reports its number of pages and the size of a page (the first, or the" + Environment.NewLine
             + "one chosen with --page, or every page with --all-pages): in pixels at 96 dpi and in points, the" + Environment.NewLine
             + "rotation of a PDF page, and the name of a VSDX page. An OpenSCAD model is parsed (not evaluated) and" + Environment.NewLine
-            + "reports the modules and functions it defines and its include and use directives." + Environment.NewLine
+            + "reports the modules and functions it defines and its include and use directives. A Vega-Lite chart" + Environment.NewLine
+            + "(.vl.json or .vl) is parsed and measured (not drawn) and reports the size it is laid out at, and the" + Environment.NewLine
+            + "marks, data references, parameters, title, and schema version of its specification." + Environment.NewLine
             + Environment.NewLine
             + "Examples:" + Environment.NewLine
             + "  canvasnet info photo.jpg" + Environment.NewLine
             + "  canvasnet info report.pdf --all-pages" + Environment.NewLine
             + "  canvasnet info part.scad --json" + Environment.NewLine
+            + "  canvasnet info chart.vl.json --json" + Environment.NewLine
             + "  canvasnet info drawing.svg --json";
 
         /// <inheritdoc />
@@ -182,6 +186,74 @@ internal static class DiscoveryCommands
                 writer.WriteNumber("exifOrientation", orientation);
             }
 
+            writer.WriteEndObject();
+
+            if (info.Chart is { } chart)
+            {
+                WriteChart(writer, chart);
+            }
+        }
+
+        /// <summary>
+        ///     Writes the <c>chart</c> object of a Vega-Lite file.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="chart">What the chart declares.</param>
+        /// <remarks>
+        ///     The object lists what the specification declares: its <c>marks</c> (as written, in document order), its
+        ///     <c>dataReferences</c> (each with the <c>kind</c> - <c>inline</c>, <c>url</c>, <c>name</c>, or
+        ///     <c>sequence</c> - the <c>url</c> and the number of <c>rows</c> when the text gives them, and the
+        ///     <c>line</c>), and the names of its <c>parameters</c>; the <c>title</c> and the <c>schemaMajorVersion</c>
+        ///     are present when the specification has them. The chart is parsed and measured but not drawn, and no
+        ///     data file is opened to produce the data references.
+        /// </remarks>
+        private static void WriteChart(Utf8JsonWriter writer, ChartFacts chart)
+        {
+            writer.WriteStartObject("chart");
+            if (chart.Title != null)
+            {
+                writer.WriteString("title", chart.Title);
+            }
+
+            if (chart.SchemaMajorVersion is { } version)
+            {
+                writer.WriteNumber("schemaMajorVersion", version);
+            }
+
+            writer.WriteStartArray("marks");
+            foreach (var mark in chart.Marks)
+            {
+                writer.WriteStringValue(mark);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("dataReferences");
+            foreach (var reference in chart.DataReferences)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("kind", reference.Kind);
+                if (reference.Url != null)
+                {
+                    writer.WriteString("url", reference.Url);
+                }
+
+                if (reference.Rows is { } rows)
+                {
+                    writer.WriteNumber("rows", rows);
+                }
+
+                writer.WriteNumber("line", reference.Line);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteStartArray("parameters");
+            foreach (var name in chart.Parameters)
+            {
+                writer.WriteStringValue(name);
+            }
+
+            writer.WriteEndArray();
             writer.WriteEndObject();
         }
 
@@ -336,6 +408,18 @@ internal static class DiscoveryCommands
             var builder = new StringBuilder();
             builder.Append(CultureInfo.InvariantCulture, $"{info.Path}: {info.Format.ToFormatName()}, {info.Width}x{info.Height} px");
             builder.Append(info.Format == SourceKind.Svg ? " (intrinsic size)" : string.Empty);
+            if (info.Chart is { } chart)
+            {
+                builder.Append(" (laid out)");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(chart.Marks.Count, "mark")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(chart.DataReferences.Count, "data reference")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(chart.Parameters.Count, "parameter")}");
+                builder.Append(chart.Title is { } title ? string.Create(CultureInfo.InvariantCulture, $", title \"{title.ReplaceLineEndings(" ")}\"") : string.Empty);
+                builder.Append(chart.SchemaMajorVersion is { } version ? string.Create(CultureInfo.InvariantCulture, $", schema v{version}") : string.Empty);
+                builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");
+                return builder.ToString();
+            }
+
             builder.Append(CultureInfo.InvariantCulture, $", {info.Channels} channel{(info.Channels == 1 ? string.Empty : "s")}");
             builder.Append(info.HasAlpha ? " with alpha" : string.Empty);
             builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");

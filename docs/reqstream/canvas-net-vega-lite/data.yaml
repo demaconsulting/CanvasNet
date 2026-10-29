@@ -1,0 +1,67 @@
+---
+# Software Subsystem Requirements for Data
+#
+# These requirements decompose the CanvasNetVegaLite system's data responsibility into the Data subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Data): the immutable typed row table and its value
+# model (DataTable) and the loader that turns the inline values of a view into a table (DataLoader). Only
+# inline row values are read; every other source is an empty table that the feature catalog reports, and
+# nothing here opens a file or uses the network. Each requirement here links down to the unit requirements
+# that implement it. See docs/verification/canvas-net-vega-lite/data.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Data Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Data-InlineValues
+            title: >-
+              The Data subsystem shall load the inline values of a view into an immutable table of
+              null, boolean, number, and string values that preserves the JSON types, turning each
+              object into a row, each primitive or array into a row with the data field, and nested
+              containers into leaf fields named by their path, with a field a row lacks being null.
+            justification: |
+              Inline values are the only data source of the first delivery, and the later stages need
+              one typed, immutable, culture-independent representation of them.
+            children:
+              - CanvasNetVegaLite-Data-DataTable-ImmutableRows
+              - CanvasNetVegaLite-Data-DataTable-FieldPaths
+              - CanvasNetVegaLite-Data-DataTable-Values
+              - CanvasNetVegaLite-Data-DataLoader-InlineValues
+            tests:
+              - DataLoader_Load_InlineValuesPreservesJsonTypes
+              - DataTable_Create_StoresTypedImmutableRows
+              - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
+
+          - id: CanvasNetVegaLite-Data-EmptyAndRemote
+            title: >-
+              The Data subsystem shall give a view with no data, an empty values array, or any data
+              source other than inline values an empty table without opening a file or using the
+              network, so that the chart renders empty while the feature catalog reports the data
+              source (vl-data-empty, vl-data-remote-url, and the other vl-data-* identifiers).
+            justification: |
+              A remote or unsupported source must never be fetched, and the chart must still render so
+              that the author sees the other problems.
+            children:
+              - CanvasNetVegaLite-Data-DataLoader-EmptyAndRemote
+            tests:
+              - DataLoader_Load_EmptyValuesReportsVlDataEmpty
+              - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl
+              - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
+
+          - id: CanvasNetVegaLite-Data-Limits
+            title: >-
+              The Data subsystem shall bound the rows and fields of a table, failing closed with a
+              VegaLiteRenderException located at the offending data pointer when the row limit or the
+              field limit is exceeded and before the rows are converted, and shall stop loading when the
+              cancellation token is canceled.
+            justification: |
+              Inline data is untrusted input; unbounded rows or fields would exhaust memory, and callers
+              need to abandon a long load.
+            children:
+              - CanvasNetVegaLite-Data-DataTable-Limits
+              - CanvasNetVegaLite-Data-DataLoader-Limits
+              - CanvasNetVegaLite-Data-DataLoader-Cancellation
+            tests:
+              - DataLoader_Load_RowLimitFailsWithLocation
+              - DataTable_Create_LimitsFailClosedWithLocation
+              - DataLoader_Load_CanceledTokenStopsLoading

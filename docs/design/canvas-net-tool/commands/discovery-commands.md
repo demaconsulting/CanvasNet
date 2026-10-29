@@ -14,12 +14,15 @@ provides two commands, `formats` and `info`, implemented as the nested classes `
 #### Data Model
 
 **InputFormats** (`IReadOnlyList<InputFormat>`): one row per input format, in listing order - `png`, `jpeg`, `bmp`,
-`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`. A row (`InputFormat`) has `Name`, `Kind`
+`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`. A row (`InputFormat`) has `Name`, `Kind`
 (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages or slides
-rendered at any requested size; `model`: a 3D model rendered from a viewpoint), `Extensions` (lower case, with the
+rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart rendered at
+any requested size), `Extensions` (lower case, with the
 dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
 rather than decoded at its own size). The rows are the `SourceKind` members in order, and their extensions are those
-that `SourceLoader.ExtensionKinds` maps to the kind; a test keeps the table consistent with the enumeration and the
+that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
+the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
+extension); a test keeps the table consistent with the enumeration and the
 loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
 the loader reads it.
 
@@ -78,7 +81,10 @@ page described a line `page|slide {n}["{name}"]: {w}x{h} px at 96 dpi ({w}x{h} p
 presentation is called a slide; sizes in points are rounded to two decimals). For an OpenSCAD model, a line
 `{path}: scad, {n} module[s], {n} function[s], {n} include/use directive[s], {bytes} bytes`, then a line
 `module {name}` for each module, `function {name}` for each function, and `include <{path}> (line {n})` or
-`use <{path}> (line {n})` for each directive, all in source order.
+`use <{path}> (line {n})` for each directive, all in source order. For a Vega-Lite chart, one line:
+`{path}: vega-lite, {w}x{h} px (laid out), {n} mark[s], {n} data reference[s], {n} parameter[s][, title "{title}"]
+[, schema v{n}], {bytes} bytes` (the size is the one the library lays the chart out at; a title of several lines is
+joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -88,19 +94,27 @@ presentation is called a slide; sizes in points are rounded to two decimals). Fo
 | `input` | object: `path`, `format`, `bytes` |
 | `image` | for an image: object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and `exifOrientation` only when the file has one |
 | `document` | for a PDF, PPTX, or VSDX document, instead of `image`: object: `pageCount` and `pages`, an array with one object for each page described: `page`, `width`, `height` (pixels at 96 dpi), `widthPt`, `heightPt`, `rotation` (PDF only), and `name` (VSDX only) |
+| `chart` | for a Vega-Lite chart, after `image` (which gives the laid-out `width` and `height`, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1): object: `title` and `schemaMajorVersion` only when the specification has them, `marks` (an array of the mark types as written, in document order, including those of layers and concatenations), `dataReferences` (an array of objects in document order: `kind` (`inline`, `url`, `name`, or `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data` object), and `parameters` (an array of the declared parameter names) |
 | `model` | for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or `use`), `path` as written, and `line`) |
 <!-- markdownlint-enable MD013 -->
 
 The model is parsed, not evaluated, so `info` neither runs its code nor reads the files it includes (their
 existence is not checked, and a syntax error in an included file is found only when the model is rendered).
 
+A chart is parsed and measured, not drawn: `info` reads no data file and contacts no network to describe it (the data
+references are the text of the specification), but the library lays the chart out to say how large it is, which reads
+the data the chart names inline. The `chart` object keeps the style of the `model` object: arrays are always present
+(empty when the chart declares nothing) and the optional scalars are omitted when absent.
+
 #### Error Handling
 
 An argument or option on the `formats` command line throws a `ToolException` with the code `usage-error` (from
 `ArgumentReader`); so does a missing input, an extra input, an unknown option, or both page options on the `info`
 command line. The `info` command's failures to read the file come from `SourceLoader.Probe` (`input-not-found`,
-`input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, and `scad-error` for a model with a
-syntax error), and a page the file does not have
+`input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `scad-error` for a model with a
+syntax error, and `vega-lite-error` for a chart with an invalid specification, `budget-exceeded` for a chart that
+exceeds a limit of the library, and `size-limit` for a chart that lays out larger than the maximum image size), and
+a page the file does not have
 is `page-out-of-range`. Null arguments throw `ArgumentNullException`. The `formats` command does not touch the file
 system and has no other failure mode.
 

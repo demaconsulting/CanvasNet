@@ -1,0 +1,238 @@
+---
+# Software Unit Requirements for VegaLiteDocument
+#
+# These requirements describe the design-level behavior of the VegaLiteDocument direct unit, the public entry
+# point of the CanvasNetVegaLite system in the DemaConsulting.CanvasNet.VegaLite namespace: Parse and Open,
+# Measure and Render, the public options (VegaLiteOpenOptions, VegaLiteRenderOptions, VegaLiteFontOptions,
+# VegaLiteLimits), the public records (VegaLiteLocation, VegaLiteDiagnostic, VegaLiteUnsupportedFeature,
+# VegaLiteSize, VegaLiteDataReference), the three exceptions, and the internal report sink that delivers
+# warnings and unsupported-feature reports. The unit orchestrates the pipeline implemented by the subsystems.
+# Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/vega-lite-document.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: VegaLiteDocument Requirements
+        requirements:
+          - id: CanvasNetVegaLite-VegaLiteDocument-ParseOpen
+            title: >-
+              The VegaLiteDocument unit shall provide Parse (string), Open (file path), and Open (stream) entry points
+              that yield an equivalent document, shall read files and streams as strict UTF-8 with an optional
+              byte-order mark (malformed UTF-8 is a located VegaLiteSpecException, never replaced by U+FFFD), shall
+              leave a caller's stream open, shall stop reading a source as soon as it exceeds the source-length limit,
+              shall default the source name and base directory of a path from the path, and shall reject null, empty,
+              and unreadable arguments with the documented exception types.
+            justification: |
+              Callers hold specifications in different forms and must get the same document from each;
+              an endless stream must not exhaust memory and invalid arguments must fail closed.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Open_ParseStringOpenStreamAndOpenPathAgree
+              - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+              - VegaLiteDocument_Open_MalformedUtf8StreamAndFileAreRejected
+              - VegaLiteDocument_Parse_UnpairedSurrogateIsRejectedAndStreamSizeLimitIsInCharacters
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-PublicMetadata
+            title: >-
+              The VegaLiteDocument unit shall expose the source name, the schema URL and major version,
+              the plain-text title, the mark types in document order, the data references, and the
+              parameter names of the specification as read-only properties computed when the document
+              is opened, with VegaLiteSize and VegaLiteDataReference as immutable value types.
+            justification: |
+              Tools list what a chart needs before rendering it, and immutable value records can be
+              shared and compared freely.
+            tests:
+              - VegaLiteDocument_Open_SupportedChartHasMetadataAndNoReports
+              - VegaLiteSize_And_DataReference_HaveValueEquality
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-Options
+            title: >-
+              The VegaLiteDocument unit shall validate every public option when it is set - a scale that
+              is finite and positive, container sizes of at least one, a configuration that is a JSON
+              object of bounded depth, non-null limits, parameters and datasets copied into read-only
+              collections, data paths and additional font directories copied and validated, a base
+              directory that is not blank - and shall never change an options instance after it is
+              created, so that an instance is safe to share between threads.
+            justification: |
+              Validation at initialization lets the pipeline trust every instance, and immutability makes
+              sharing safe.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Options_AreValidatedAndImmutable
+              - VegaLiteOpenOptions_Defaults_AreUnsetAndEmpty
+              - VegaLiteOpenOptions_ValidValues_AreStored
+              - VegaLiteOpenOptions_InvalidValues_Throw
+              - VegaLiteOpenOptions_NullDataPaths_Throw
+              - VegaLiteOpenOptions_DataPaths_AreCopiedAndReadOnly
+              - VegaLiteOpenOptions_WithEffective_CopiesAndFillsDefaults
+              - VegaLiteFontOptions_Defaults_AreBundledOnly
+              - VegaLiteFontOptions_AdditionalDirectories_AreCopiedAndValidated
+              - VegaLiteRenderOptions_Defaults_AreDocumented
+              - VegaLiteRenderOptions_ValidValues_AreStored
+              - VegaLiteRenderOptions_InvalidScale_Throws
+              - VegaLiteRenderOptions_InvalidContainerSize_Throws
+              - VegaLiteRenderOptions_NullLimits_Throws
+              - VegaLiteRenderOptions_InvalidConfig_Throws
+              - VegaLiteRenderOptions_Parameters_AreCopiedAndValidated
+              - VegaLiteRenderOptions_Datasets_AreDeepCopiedAndValidated
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-RenderContract
+            title: >-
+              The VegaLiteDocument unit shall provide Measure, Render at the natural size multiplied by
+              the scale option and rounded to whole pixels, and Render at an exact width and height by
+              scaling uniformly and centering over the background, shall run the same pipeline for all
+              three so that Measure reports exactly the rendered size, shall validate the size, scale,
+              and parameter names before delivering any report, shall transfer ownership of the
+              returned Surface to the caller, and shall fill the surface with the background option or
+              white.
+            justification: |
+              Hosts size pages and images with Measure before drawing, so the sizes must agree; a fixed
+              destination must not distort the chart; ownership of the surface must be unambiguous.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors
+              - CanvasNetVegaLite_SystemIntegration_Render_ScaleAndExplicitSizeFit
+              - CanvasNetVegaLite_SystemIntegration_Measure_MatchesNaturalRenderedSize
+              - CanvasNetVegaLite_SystemIntegration_Render_WidthHeightUniformlyFitsAndCenters
+              - CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer
+              - VegaLiteDocument_Measure_ReportsExactlyTheRenderedSize
+              - VegaLiteDocument_Measure_NaturalSizeFollowsPaddingTitleAndAutosize
+              - VegaLiteDocument_Render_ExplicitSizeFitsUniformlyAndCenters
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-InlineChartPipeline
+            title: >-
+              The VegaLiteDocument unit shall render a single view with a supported mark by loading its
+              inline data, resolving the configuration and scales, building the axes, marks, and title,
+              sizing the canvas around them with the view layout, and painting the resulting scene,
+              while a composition or a view with an unsupported mark shall draw only its title and
+              background without producing misleading axes.
+            justification: |
+              The pipeline order determines the geometry of every chart, and an unsupported construct
+              must not produce a chart that looks complete but is not.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
+              - CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels
+              - CanvasNetVegaLite_SystemIntegration_Render_CallerConfigOverridesSpecificationConfig
+              - VegaLiteDocument_Render_ResolvesConfigurationFromSpecificationAndOptions
+              - VegaLiteDocument_Render_TitleIsPaintedAboveThePlotAndCenteredOnIt
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-Diagnostics
+            title: >-
+              The VegaLiteDocument unit shall deliver the warnings and unsupported-feature reports of a
+              measure or render to the caller's handlers in document order, once each, de-duplicated
+              by identifier and location, on the calling thread, before the call returns or throws,
+              shall collapse reports beyond the diagnostics limit into one notice, shall let a failing
+              handler's exception propagate after success but never hide the original failure, and shall
+              render a located, human-readable text for every report.
+            justification: |
+              Predictable delivery lets hosts display and test diagnostics, a cap bounds memory for
+              hostile input, and a handler must not be able to mask a rendering failure.
+            tests:
+              - VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder
+              - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
+              - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+              - VegaLiteReportSink_Deliver_PreservesOrderAcrossKinds
+              - VegaLiteReportSink_Duplicates_AreRecordedOnce
+              - VegaLiteReportSink_Cap_CollapsesOverflowIntoOneNotice
+              - VegaLiteReportSink_HandlerFailure_PropagatesOnlyFromNormalDelivery
+              - VegaLiteDiagnostic_ToString_KnownLocation_PrefixesLocation
+              - VegaLiteDiagnostic_ToString_UnknownLocation_IsMessageOnly
+              - VegaLiteUnsupportedFeature_ToString_IncludesFeatureAndLocation
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-UnsupportedStrictness
+            title: >-
+              The VegaLiteDocument unit shall, when ThrowOnUnsupportedFeature is set, record the first
+              unsupported feature, deliver it to the handler, and abort with a
+              VegaLiteUnsupportedFeatureException that carries the feature identifier and location,
+              while warnings never abort and a failing handler does not replace the exception.
+            justification: |
+              Strict mode lets a build refuse an approximate chart; the exception must name the exact
+              feature and place that caused it.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature
+              - VegaLiteReportSink_Strict_ThrowsAtFirstUnsupportedFeatureAfterRecordingIt
+              - VegaLiteDocument_Render_StrictModeIgnoresWarningsAndThrowsAtTheFirstUnsupportedFeature
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-ErrorContract
+            title: >-
+              The VegaLiteDocument unit shall report a specification problem as a VegaLiteSpecException,
+              a data, layout, or limit problem as a VegaLiteRenderException, and a strict-mode failure as
+              a VegaLiteUnsupportedFeatureException, each carrying a VegaLiteLocation (source name, line,
+              column, and JSON pointer) that formats all known parts and leaves unknown parts out, and
+              shall compare locations by value.
+            justification: |
+              Callers must be able to tell the kinds of failure apart and point an author at the exact
+              place in the text.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Spec_MalformedJsonReportsLineAndColumn
+              - VegaLiteDocument_Parse_WrongTypeFailsWithPointerAndSourceName
+              - VegaLiteSpecException_WithLocation_CarriesLocationAndPrefixesMessage
+              - VegaLiteSpecException_OtherConstructors_LeaveLocationUnknownOrKeepInner
+              - VegaLiteRenderException_Constructors_CarryLocationAndInner
+              - VegaLiteUnsupportedFeatureException_Constructors_CarryFeatureAndLocation
+              - VegaLiteLocation_ToString_FileCoordinatesAndPointer_FormatsAllParts
+              - VegaLiteLocation_ToString_NoFile_OmitsFile
+              - VegaLiteLocation_ToString_UnknownPosition_PrintsPlaceholderAndPointer
+              - VegaLiteLocation_Default_IsUnknown
+              - VegaLiteLocation_IsKnown_PointerOnly_IsTrue
+              - VegaLiteLocation_Equality_SameValues_AreEqual
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-Limits
+            title: >-
+              The VegaLiteDocument unit shall provide VegaLiteLimits with documented defaults, a shared default
+              instance, validation that every limit is positive and not above its ceiling, and shall enforce the limits
+              (the scene-item limit counts every item of the scene, groups included, before the item is created, so a
+              limit of N allows exactly N items) and observe the cancellation token so that an exceeded limit fails
+              closed with a located exception and a canceled token stops Measure and both Render overloads with an
+              unwrapped OperationCanceledException.
+            justification: |
+              Rendering untrusted specifications must not exhaust memory or time, and callers need to
+              abandon long work.
+            tests:
+              - VegaLiteLimits_Default_HasDocumentedValues
+              - VegaLiteLimits_Default_IsSharedInstance
+              - VegaLiteLimits_ValidValues_AreStored
+              - VegaLiteLimits_ZeroOrNegative_Throws
+              - VegaLiteLimits_AboveCeiling_Throws
+              - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+              - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
+              - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary
+              - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitCountsEveryItemOfTheScene
+              - CanvasNetVegaLite_SystemIntegration_Limits_LabelsRemovedByOverlapCostNoBudget
+              - CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt
+              - CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem
+              - CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept
+              - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-Determinism
+            title: >-
+              The VegaLiteDocument unit shall hold no state between calls, so that repeated and
+              concurrent Measure and Render calls on one document, with any font options that use
+              the bundled fonts, return byte-identical surfaces and identical reports.
+            justification: |
+              Reproducibility is required for golden tests and caching, and a shared document must be
+              safe to render from several threads.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical
+              - VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions
+              - CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-TimeZone
+            title: >-
+              The VegaLiteDocument unit shall use UTC when the TimeZone render option is not set, and
+              shall store and use the time zone the caller sets.
+            justification: |
+              Output must not depend on the local time zone of the machine that renders it.
+            tests:
+              - VegaLiteRenderOptions_Defaults_AreDocumented
+              - VegaLiteRenderOptions_ValidValues_AreStored
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-NoNetwork
+            title: >-
+              The VegaLiteDocument unit shall open and render using only managed code and the public
+              CanvasNet APIs, without network access, and shall treat a remote URL in a
+              specification as empty data that is reported, never fetched.
+            justification: |
+              Following URLs found in untrusted specifications would be a request-forgery vector and
+              would make the output depend on the network.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
+              - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl

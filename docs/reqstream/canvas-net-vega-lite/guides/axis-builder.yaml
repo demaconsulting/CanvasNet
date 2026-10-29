@@ -1,0 +1,76 @@
+---
+# Software Unit Requirements for AxisBuilder
+#
+# These requirements describe the design-level behavior of the AxisBuilder unit of the Guides subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): the axis guide of a linear, band, or point
+# position scale - grid, ticks, labels, domain line, and title - as scene items, with the extent that the
+# layout must reserve. The default and configuration rules follow Vega-Lite and Vega. See
+# docs/verification/canvas-net-vega-lite/guides/axis-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: AxisBuilder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-GridTicksLabelsTitles
+                title: >-
+                  The AxisBuilder unit shall build for a linear scale the tick values of the d3 algorithm
+                  with labels formatted by the d3 format, and for a band or point scale one tick and label
+                  per category, with a grid, ticks, labels, a domain line, and a title positioned at the
+                  edge of the data rectangle by the documented analytic geometry, and shall report the
+                  extent of the guide.
+                justification: |
+                  The axis shows the reader what the positions mean, and its extent decides the data
+                  rectangle.
+                tests:
+                  - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
+                  - AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid
+                  - AxisBuilder_Build_TitleAndExtentMatchAnalyticLayout
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-Configuration
+                title: >-
+                  The AxisBuilder unit shall honor the axis orientation, the switches that turn the grid,
+                  ticks, labels, domain, and title on and off, explicit tick values, the tick count and
+                  minimum step, the label format, and label flushing, and shall resolve every property
+                  through the documented precedence of the explicit axis, the Vega-Lite configuration, the
+                  Vega configuration, and the guide styles.
+                justification: |
+                  Authors control axes through properties and configuration, so which source wins must be
+                  defined and tested.
+                tests:
+                  - AxisBuilder_Build_OrientAndPartSwitchesChangeTheItems
+                  - AxisBuilder_Build_ValuesCountFormatAndFlushAreHonored
+                  - AxisBuilder_Build_ConfigurationPrecedenceFollowsVegaLite
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-LabelOverlap
+                title: >-
+                  The AxisBuilder unit shall remove overlapping labels by parity, keeping every other
+                  label, when label overlap applies to the axis.
+                justification: |
+                  Overlapping labels make an axis unreadable.
+                tests:
+                  - AxisBuilder_Build_OverlappingLabelsAreRemovedByParity
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-DrawingOrder
+                title: >-
+                  The AxisBuilder unit shall draw the grid of every axis behind the marks and the axis
+                  itself behind or in front of the marks according to its z-index, with the axes of a rect
+                  mark with a discrete channel in front.
+                justification: |
+                  The order of drawing decides which of overlapping elements the reader sees.
+                tests:
+                  - AxisBuilder_Build_AxesOfRectMarksWithDiscreteChannelsAreInFront
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-Errors
+                title: >-
+                  The AxisBuilder unit shall fail with a located VegaLiteSpecException for an axis
+                  orientation that does not fit the channel or a d3 format that is invalid, and with a
+                  located VegaLiteRenderException when the number of ticks or labels exceeds the tick
+                  limit.
+                justification: |
+                  Invalid axis properties must stop the renderer with the location of the mistake, and the
+                  number of ticks must be bounded.
+                tests:
+                  - AxisBuilder_Build_InvalidSettingsAndLimitsFailWithLocations

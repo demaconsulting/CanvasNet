@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// <remarks>
 ///     <para>
 ///         The command is one pass of load, transform, and write. Loading is <see cref="SourceLoader"/>: a vector
-///         source (SVG, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
+///         source (SVG, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
 ///         white unless a background is given; a raster source is decoded, turned upright by its EXIF orientation
 ///         (unless <c>--no-auto-orient</c>), and resized when a size is requested. Writing is
 ///         <see cref="ImageWriter"/>: the format comes from the extension or <c>--format</c>, JPEG is flattened over
@@ -72,12 +72,16 @@ internal sealed partial class RenderCommand : ICommand
     private static string RenderUsage =>
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
-        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, or SCAD and writes the format of the output" + Environment.NewLine
+        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, or Vega-Lite (.vl.json, .vl) and" + Environment.NewLine
+        + "writes the format of the output" + Environment.NewLine
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
         + "pixels unless a size is given; -D sets its variables. Its include and use directives are read from the" + Environment.NewLine
         + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
+        + "A Vega-Lite chart is drawn at the size its specification lays out (--scale, --width, and --height resize it" + Environment.NewLine
+        + "sharply) over its own background, white by default, with UTC dates and the bundled fonts; nothing is read" + Environment.NewLine
+        + "from the network, and a feature that is not supported yet is reported (an error with --strict)." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine
@@ -90,6 +94,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render slides.pptx --all-pages -o out/slide-{page}.png" + Environment.NewLine
         + "  canvasnet render part.scad --view top -D width=30 -o part-top.png" + Environment.NewLine
         + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
+        + "  canvasnet render chart.vl.json --scale 2 -o chart.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
         + "  canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json" + Environment.NewLine

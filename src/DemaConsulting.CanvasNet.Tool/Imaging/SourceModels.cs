@@ -44,7 +44,10 @@ internal enum SourceKind
     Vsdx,
 
     /// <summary>An OpenSCAD model.</summary>
-    Scad
+    Scad,
+
+    /// <summary>A Vega-Lite chart specification.</summary>
+    VegaLite
 }
 
 /// <summary>
@@ -71,13 +74,14 @@ internal enum OutputFormat
 internal static class SourceKindExtensions
 {
     /// <summary>
-    ///     Gets the format name of a source kind: its lower-case member name, for example <c>jpeg2000</c>.
+    ///     Gets the format name of a source kind: its lower-case member name, for example <c>jpeg2000</c>; a Vega-Lite
+    ///     chart is <c>vega-lite</c>.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <returns>The format name.</returns>
     public static string ToFormatName(this SourceKind kind)
     {
-        return kind.ToString().ToLowerInvariant();
+        return kind == SourceKind.VegaLite ? "vega-lite" : kind.ToString().ToLowerInvariant();
     }
 
     /// <summary>
@@ -115,10 +119,20 @@ internal static class SourceKindExtensions
     ///     being resampled from pixels.
     /// </summary>
     /// <param name="kind">The kind.</param>
-    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, and OpenSCAD.</returns>
+    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, and Vega-Lite.</returns>
     public static bool IsVector(this SourceKind kind)
     {
-        return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad;
+        return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite;
+    }
+
+    /// <summary>
+    ///     Determines whether a source kind is a chart specification, which is described by a <see cref="ChartFacts"/>.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for a Vega-Lite chart.</returns>
+    public static bool IsChart(this SourceKind kind)
+    {
+        return kind == SourceKind.VegaLite;
     }
 }
 
@@ -189,7 +203,37 @@ internal sealed record SourceInfo(
     ///     other kind.
     /// </summary>
     public IReadOnlyList<SourceDirective> Directives { get; init; } = [];
+
+    /// <summary>
+    ///     Gets what a Vega-Lite chart declares (its marks, data references, parameters, title, and schema version),
+    ///     or <see langword="null"/> for every other kind.
+    /// </summary>
+    public ChartFacts? Chart { get; init; }
 }
+
+/// <summary>
+///     What a Vega-Lite chart specification declares, read without drawing it.
+/// </summary>
+/// <param name="Marks">The mark types in document order, as written (for example <c>bar</c>).</param>
+/// <param name="DataReferences">The data sources the specification names, in document order.</param>
+/// <param name="Parameters">The names of the declared parameters, in document order.</param>
+/// <param name="Title">The plain text of the title, or <see langword="null"/> when there is none.</param>
+/// <param name="SchemaMajorVersion">The Vega-Lite major version named by the <c>$schema</c>, or <see langword="null"/> when there is none.</param>
+internal sealed record ChartFacts(
+    IReadOnlyList<string> Marks,
+    IReadOnlyList<ChartDataReference> DataReferences,
+    IReadOnlyList<string> Parameters,
+    string? Title,
+    int? SchemaMajorVersion);
+
+/// <summary>
+///     A data source named by a Vega-Lite chart.
+/// </summary>
+/// <param name="Kind">How the data is named: <c>inline</c>, <c>url</c>, <c>name</c>, or <c>sequence</c>.</param>
+/// <param name="Url">The <c>url</c> as written for a <c>url</c> source, otherwise <see langword="null"/>.</param>
+/// <param name="Rows">The number of rows when the text alone gives it, otherwise <see langword="null"/>.</param>
+/// <param name="Line">The 1-based line of the <c>data</c> object, or 0 when unknown.</param>
+internal sealed record ChartDataReference(string Kind, string? Url, long? Rows, int Line);
 
 /// <summary>
 ///     An <c>include</c> or <c>use</c> directive of an OpenSCAD model.

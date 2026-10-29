@@ -6,7 +6,7 @@
 
 `SourceLoader` (with `ExifOrientation` and `SurfaceOperations`) is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
-OpenSCAD models), and `ExifOrientationTests.cs`. The
+OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `ExifOrientationTests.cs`. The
 tests generate their inputs: rasters are written in memory
 with the CanvasNet codecs (a gradient that differs at every pixel and channel, so a mirroring, rotation, or offset
 changes it), the GIF with a small encoder in the test project (the libraries have none), EXIF segments are injected
@@ -15,7 +15,10 @@ built from its header. The documents are written by the test project (`FixtureFa
 `.Vsdx.cs`): a two-page PDF with a rotated second page, and a two-slide presentation and a two-page drawing built
 with `System.IO.Compression`, each with a few filled rectangles and no text so that the pixels do not depend on
 installed fonts; variants add an EMF picture, an unsupported shape, an unsupported geometry row, malformed content,
-an unsupported encryption handler, and a broken part. The fixture files are an original SVG drawing and a JPEG 2000
+an unsupported encryption handler, and a broken part. Charts are JSON text written by the tests
+(`FixtureFactory.VegaLite.cs`) with inline data, no URL, and no
+custom font; one original chart is a fixture file (`baskets.vl.json`). The other fixture files are an original SVG
+drawing and a JPEG 2000
 image copied from the
 repository's own codec fixtures (see `Fixtures/README.md`). Expected pixels come from the codecs and document
 libraries themselves or from the generator, never from the loader. The tests use real files in a temporary
@@ -27,7 +30,9 @@ byte, a header only, half, and short by one byte, and garbage of the file's own 
 either loads or raises a `ToolException` with an expected code - an unexpected exception type fails the test, which
 is how gaps in the allow-list are found; by doing the same for each document with eight prefix lengths, a dropped
 tail, and an overwritten or zeroed middle, probing and loading every page; and by loading garbage with each known
-extension and requiring `corrupt-input` (`scad-error` for a model). The models have their own sweep in
+extension and requiring `corrupt-input` (`scad-error` for a model, `vega-lite-error` for a chart; the shared sweeps
+include the chart
+fixture and also accept `vega-lite-error`). The models have their own sweep in
 `SourceLoaderScadTests.cs`, because a model is text and a cut one is
 usually still a valid, shorter model: a model with several kinds of statement is cut after every seventh character,
 garbage of four sizes is added, and some forty stress models probe the library for exceptions that are not mapped; a
@@ -54,6 +59,15 @@ N/A - standard test environment; the tests need no network and write only to tem
   variables, time, default color, and triangle limit given, the same picture every time; its include and use files
   are read from its folder and below only; a missing include, a syntax error, and a failed assertion are `scad-error`,
   an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
+- A chart (`.vl.json`, `.vl`, or a `.json` with a Vega-Lite `$schema` in its first 4 KiB, never taken for an SVG) is probed
+  by parsing and measuring it (the laid-out size, four channels, the marks, data references, parameters, title, and
+  schema version) and drawn at that size or the size given, over its own background or the one given, with the bundled
+  fonts and UTC dates, with the bars where the layout puts them and the warnings and unsupported features as notes (or,
+  in strict mode, `unsupported-feature`); plain Vega and other JSON files are `unsupported-format` with a hint; an invalid
+  specification (including nesting deeper than, or a string longer than, the limit of the parser, as the nesting limit of
+  the SCAD parser is a `scad-error`) is `vega-lite-error`, an exceeded limit of the library while the chart is laid out
+  or drawn `budget-exceeded`, a specification file longer than the limit of the library `corrupt-input` (as an overlong
+  model is), and a chart larger than 8192 pixels `size-limit` (no other failure to measure is `size-limit`).
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
@@ -77,6 +91,26 @@ every kind.
 **SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError**: an unknown file is
 `unsupported-format` with a hint; a missing file is `input-not-found` and a directory `input-unreadable`.
 
+**SourceLoader_Detect_VegaLiteSuffixesAndSchema_ReturnsVegaLite**: a file named `.vl.json` (in lower and upper
+case), `.vl`, or
+`.json` with a top-level Vega-Lite `$schema` (version 5 or 6) in its first 4 KiB is a chart, also when its text contains
+an SVG start
+tag; a PNG named like a chart is still a PNG (the signature wins); the kind has the format name `vega-lite`, is a
+vector kind,
+and is neither a model nor a document.
+
+**SourceLoader_Detect_VegaSchema_IsUnsupported**: a `.json` file whose `$schema` is the plain Vega address is
+`unsupported-format` with the hint "Vega is not supported"; a `.json` file with no schema, with another schema, or
+with the
+Vega-Lite schema only after the first 4 KiB is `unsupported-format` with a hint that names the `.vl.json` suffix.
+
+**SourceLoader_Detect_SchemaMustBeATopLevelProperty**: a `.json` file that has the Vega-Lite address in another property
+(`description`), in a nested object (`config`), as an array element, or as a `$schema` that is not a string is
+`unsupported-format` ("not a Vega-Lite chart"); a plain Vega `$schema` is "Vega is not supported" even when another
+property holds the Vega-Lite address; and a top-level `$schema` is a chart wherever it is among the properties (after a
+nested value too), with comments, a trailing comma, a byte order mark, or an escaped property name, and also when the
+document is cut off by the end of the 4 KiB header after the property.
+
 **SourceLoader_Detect_ScadMentioningSvg_ReturnsScad**: a file named `.scad` whose comment contains the text of an SVG
 start tag is a model, not an SVG, while the same text without the `.scad` extension is still taken for an SVG.
 
@@ -85,6 +119,16 @@ start tag is a model, not an SVG, while the same text without the `.scad` extens
 frame count, and page facts are right (a document has two pages and lists them; a model is 800x800 with one module,
 `block`, one function, `half`, and no directives); a PNG with transparency and an SVG
 report four channels with alpha; a JPEG with an EXIF segment reports its orientation and its stored size.
+
+**SourceLoader_Probe_VegaLite_ReportsChartFacts**: a chart with a title, a layer of a `bar` and a `rule`, a parameter, and
+inline and named data is probed; the size equals the library's own `Measure` and is larger than the data rectangle,
+there are
+four channels with alpha, one page, and no module, function, or directive, and the chart facts list the marks `bar`
+and `rule`,
+the data references `inline` (2 rows) and `name`, the parameter, the title, and schema version 5.
+
+**SourceLoader_Probe_VegaLiteLargerThanMaximum_IsSizeLimit**: a chart whose data rectangle is 9000 pixels wide is a
+`size-limit` error on one line with a hint, not an unexpected exception.
 
 **SourceLoader_Probe_ModelWithDirectives_ListsModulesFunctionsAndDirectives**: a model with an `include`, a `use`, two
 modules, and a function declared twice lists the names in source order (the repeated name kept) and the two directives
@@ -97,6 +141,48 @@ list, and the natural size 800x800.
 starts with "SCAD syntax error", names the file, line, and column, and keeps the library's exception as its cause; a
 failed `assert` is a `scad-error` with the message and the position; a model one character over the 4,194,304 the
 library reads is `corrupt-input` ("exceeds the maximum length"); parentheses nested 400 deep are a `scad-error`.
+
+**SourceLoader_Load_VegaLite_RendersInlineChartWithExpectedPixels**: the two-bar chart (a 200x100 data rectangle)
+loads at the
+laid-out size as a vector source of one page with no notes and a `render` operation (`width`, `height`, `timeZone`); the
+corner is white, the bars have the default mark color `#4c78a8` at the points the layout puts them (computed from the
+5-pixel padding and the 100-pixel bands, no pixel read back from the library), the pixel above the shorter bar and the gap
+between the bars are white; a scale of 2 doubles the size; a background replaces the white and is reported.
+
+**SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors**: a chart with an unknown property and an `arc` mark
+returns the
+`vega-lite-warning` note and the `vl-mark-arc` and `vl-channel-theta` unsupported notes, each on one line with the
+file, the
+position, and the pointer; with strict mode the load is `unsupported-feature` naming `vl-mark-arc` and keeping the
+library's
+exception as its cause; malformed JSON is a `vega-lite-error` that starts with "Vega-Lite specification error", names the
+file, and keeps the library's exception; plain Vega named like a chart is a `vega-lite-error`; a missing file is
+`input-not-found`.
+
+**SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded**: real failures of the library with a row limit of 1
+and a
+scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budget-exceeded` with a hint and the
+exception as
+its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") without a hint; this pins the texts of the
+library that the mapping recognizes.
+
+**SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput**: a chart one character over the limit of the library is
+`corrupt-input` naming the limit, as for a model (the parity with SCAD that the design keeps on purpose).
+
+**SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors**: a specification nested ten levels deeper than the
+default depth limit and one with a string ten characters over the default string limit are each a `vega-lite-error`
+that starts with "Vega-Lite specification error", names the limit, is on one line, and keeps the library's
+`VegaLiteSpecException` as its cause; neither is `budget-exceeded`, as the SCAD nesting limit is a `scad-error`.
+
+**SourceLoader_RenderAndMeasureChart_MapArgumentFailures**: an `ArgumentException` and an
+`ArgumentOutOfRangeException` thrown by a render are `vega-lite-error` ("Vega-Lite render error: ...") that keeps the
+exception as its cause; the same two thrown by a measure are `vega-lite-error`, except an
+`ArgumentOutOfRangeException` for the parameter `options` (the size check of the library), which is `size-limit` with a
+hint; a `VegaLiteRenderException` that reports a limit is still `budget-exceeded` through the render.
+
+**SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit**: a chart whose quantitative data runs from -1e308 to
+1e308 (a domain whose span overflows a double, so that it has no ticks) is probed and measured at a size within the
+image limits, so that it is neither `size-limit` nor an unexpected exception.
 
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the
@@ -274,8 +360,10 @@ throw.
 and **SourceLoader_Read_UnexpectedExceptions_Propagate**: the error-mapping checks described above; in addition a PDF
 whose rectangle operator has too few operands is `corrupt-input`, one that declares an unsupported encryption handler
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
-Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, the one kind whose damage is a syntax
-error; **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**: facts that name a kind the loader has no case for
+Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, and garbage or a truncation of a chart
+is a
+`vega-lite-error`, the kinds whose damage is a syntax error; **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
+facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and

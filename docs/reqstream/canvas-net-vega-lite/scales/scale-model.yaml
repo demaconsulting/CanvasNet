@@ -1,0 +1,44 @@
+---
+# Software Unit Requirements for ScaleModel
+#
+# These requirements describe the design-level behavior of the ScaleModel unit of the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable linear, band, point, and ordinal
+# scale mappings, with the d3-scale arithmetic and the Vega band-space rule. See
+# docs/verification/canvas-net-vega-lite/scales/scale-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: ScaleModel Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Mappings
+                title: >-
+                  The ScaleModel unit shall map a value through an immutable linear scale (domain to range with optional
+                  clamping and rounding, and d3's piecewise mapping for a domain and a range of more than two entries,
+                  including descending domains and domains and ranges of different lengths), a band scale (the start of
+                  the band of a category, with inner and outer padding, alignment, step, and bandwidth), and a point
+                  scale, give the center of a band, invert a position, compute the Vega band space of a category count,
+                  and refuse to be read as a kind it is not.
+                justification: |
+                  Every mark and tick is placed by these mappings, so their arithmetic must match
+                  hand-derived expectations exactly.
+                tests:
+                  - ScaleModel_Map_LinearBandAndPointMatchAnalyticPositions
+                  - ScaleModel_Map_PiecewiseLinearFollowsD3Polymap
+                  - ScaleModel_Map_PiecewiseTruncatesToTheShorterOfDomainAndRange
+                  - ScaleModel_CreateLinear_PiecewiseEdgeCases
+                  - ScaleModel_BandSpace_MatchesVega
+                  - ScaleModel_WrongKind_Throws
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Ordinal
+                title: >-
+                  The ScaleModel unit shall map a value of an ordinal scale to its range entry by the
+                  position of the value in the domain, cycling through the range when the domain is
+                  longer, and give null for an unknown value or an empty range.
+                justification: |
+                  Categorical colors repeat when there are more categories than colors, and an unknown
+                  value must not be assigned an arbitrary color.
+                tests:
+                  - ScaleModel_MapOrdinal_CyclesThroughTheRange

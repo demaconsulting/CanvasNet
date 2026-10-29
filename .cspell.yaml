@@ -14,12 +14,16 @@ language: en
 
 # Project-specific technical terms and tool names
 words:
+  - canvasnet
   - scad
   - openscad
   - Hival
   - Cmaps
   - unthemed
   - Unthemed
+  - polymap
+  - bimap
+  - polylinear
   - subtables
   - bilinearly
   - stackalloc
@@ -486,6 +490,148 @@ words:
   - polytope
   - affinely
   - nonconvex
+
+  # Vega-Lite / charting terms
+  - albers
+  - aliceblue
+  - antiqua
+  - antiquewhite
+  - autosize
+  - bandposition
+  - bandspace
+  - blanchedalmond
+  - blinkmacsystemfont
+  - blueorange
+  - blueviolet
+  - Bostock
+  - burlywood
+  - cadetblue
+  - consolas
+  - cornflowerblue
+  - cornsilk
+  - darkcyan
+  - darkgoldenrod
+  - darkgray
+  - darkgreen
+  - darkgrey
+  - darkkhaki
+  - darkmagenta
+  - darkolivegreen
+  - darkorange
+  - darkorchid
+  - darkred
+  - darksalmon
+  - darkseagreen
+  - darkslateblue
+  - darkslategray
+  - darkslategrey
+  - darkturquoise
+  - darkviolet
+  - deeppink
+  - deepskyblue
+  - dejavu
+  - dimgray
+  - dimgrey
+  - dodgerblue
+  - errorband
+  - errorbar
+  - feff
+  - floralwhite
+  - forestgreen
+  - gainsboro
+  - geoshape
+  - ghostwhite
+  - greenyellow
+  - groupby
+  - hconcat
+  - hotpink
+  - indianred
+  - joinaggregate
+  - labelbound
+  - labeloverlap
+  - lavenderblush
+  - lawngreen
+  - lemonchiffon
+  - lightcoral
+  - lightcyan
+  - lightgoldenrodyellow
+  - lightgray
+  - lightgreen
+  - lightpink
+  - lightsalmon
+  - lightseagreen
+  - lightskyblue
+  - lightslategray
+  - lightslategrey
+  - lightsteelblue
+  - lightyellow
+  - limegreen
+  - lucida
+  - matplotlib
+  - maxbins
+  - mediumaquamarine
+  - mediumblue
+  - mediumorchid
+  - mediumpurple
+  - mediumseagreen
+  - mediumslateblue
+  - mediumspringgreen
+  - mediumturquoise
+  - mediumvioletred
+  - menlo
+  - midnightblue
+  - mintcream
+  - mistyrose
+  - navajowhite
+  - neue
+  - oldlace
+  - olivedrab
+  - orangered
+  - paddinginner
+  - palatino
+  - palegoldenrod
+  - palegreen
+  - paleturquoise
+  - palevioletred
+  - papayawhip
+  - peachpuff
+  - postconditions
+  - powderblue
+  - rebecca
+  - rebeccapurple
+  - rosybrown
+  - royalblue
+  - rrggbbaa
+  - saddlebrown
+  - sandybrown
+  - scenegraph
+  - seagreen
+  - skyblue
+  - slateblue
+  - slategray
+  - slategrey
+  - springgreen
+  - steelblue
+  - strokewidth
+  - symlog
+  - tahoma
+  - tickband
+  - tickminstep
+  - timeunit
+  - topo
+  - topojson
+  - unbinned
+  - usermeta
+  - vconcat
+  - vegalite
+  - verdana
+  - whitesmoke
+  - xoffset
+  - yellowgreen
+  - yellowgreenblue
+  - yocto
+  - yotta
+  - zindex
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

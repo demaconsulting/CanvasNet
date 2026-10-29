@@ -1,0 +1,70 @@
+---
+# Software Subsystem Requirements for Guides
+#
+# These requirements decompose the CanvasNetVegaLite system's guide responsibility into the Guides subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): text measurement with the bundled fonts
+# (TextMeasurer), the title and subtitle block (TitleBuilder), and the axis guide with its grid, ticks, labels,
+# domain line, and title (AxisBuilder). Guides produce scene items and the extents they need; the layout places
+# them. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-vega-lite/guides.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Guides-TextMeasurement
+            title: >-
+              The Guides subsystem shall resolve a font family to a TrueType font from the bundled fonts
+              by default - mapping generic and Arial-like names to Liberation Sans, serif names to
+              Liberation Serif, and monospace names to Liberation Mono, with bold and italic selected
+              from the weight and style - use additional directories or installed fonts only when the
+              caller opts in, and measure text by the real advance widths of the resolved font.
+            justification: |
+              Text width drives the layout of every axis and title; the bundled fonts keep the layout
+              identical on every machine.
+            children:
+              - CanvasNetVegaLite-Guides-TextMeasurer-BundledFonts
+              - CanvasNetVegaLite-Guides-TextMeasurer-FontSelection
+              - CanvasNetVegaLite-Guides-TextMeasurer-Measurement
+            tests:
+              - TextMeasurer_Resolve_DefaultUsesBundledFonts
+              - TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories
+              - TextMeasurer_Measure_TruncatesAndSplitsLines
+
+          - id: CanvasNetVegaLite-Guides-Titles
+            title: >-
+              The Guides subsystem shall build the title and subtitle of a chart as scene items for the
+              orientations top, bottom, left, and right, the anchors start, middle, and end, and the
+              frames group and bounds, with the configured fonts, offset, padding, and limit, giving the
+              extent the layout must reserve for them and placing the block over the data rectangle and
+              the guides.
+            justification: |
+              Titles are part of nearly every chart, and their extent decides the size of the canvas.
+            children:
+              - CanvasNetVegaLite-Guides-TitleBuilder-Placement
+              - CanvasNetVegaLite-Guides-TitleBuilder-Properties
+            tests:
+              - TitleBuilder_Build_OrientAnchorAndSubtitleProduceExpectedExtent
+              - TitleBuilder_Build_PropertiesLinesConfigurationAndLimit
+              - VegaLiteDocument_Render_TitleIsPaintedAboveThePlotAndCenteredOnIt
+
+          - id: CanvasNetVegaLite-Guides-Axes
+            title: >-
+              The Guides subsystem shall build the axis of a linear, band, or point position scale as
+              scene items - grid, ticks, labels, domain line, and title - with the tick values and
+              labels of the d3 algorithms, the Vega-Lite defaults and configuration precedence, the
+              documented axis properties, removal of overlapping labels, drawing order, and the extent
+              the layout must reserve, failing with a located exception for an invalid property.
+            justification: |
+              Axes are what make a chart readable, and their geometry decides the data rectangle.
+            children:
+              - CanvasNetVegaLite-Guides-AxisBuilder-GridTicksLabelsTitles
+              - CanvasNetVegaLite-Guides-AxisBuilder-Configuration
+              - CanvasNetVegaLite-Guides-AxisBuilder-LabelOverlap
+              - CanvasNetVegaLite-Guides-AxisBuilder-DrawingOrder
+              - CanvasNetVegaLite-Guides-AxisBuilder-Errors
+            tests:
+              - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
+              - AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid
+              - AxisBuilder_Build_TitleAndExtentMatchAnalyticLayout

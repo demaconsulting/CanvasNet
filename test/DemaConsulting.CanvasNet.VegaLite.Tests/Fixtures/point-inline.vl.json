@@ -1,0 +1,25 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Kiln batches: firing time and yield",
+  "width": 300,
+  "height": 200,
+  "data": {
+    "values": [
+      { "hours": 6, "yield": 52, "glaze": "matte", "load": 4 },
+      { "hours": 8, "yield": 61, "glaze": "matte", "load": 6 },
+      { "hours": 10, "yield": 70, "glaze": "gloss", "load": 8 },
+      { "hours": 12, "yield": 78, "glaze": "gloss", "load": 10 },
+      { "hours": 14, "yield": 74, "glaze": "matte", "load": 12 },
+      { "hours": 16, "yield": 88, "glaze": "gloss", "load": 14 },
+      { "hours": 18, "yield": 95, "glaze": "gloss", "load": 16 },
+      { "hours": 20, "yield": null, "glaze": "matte", "load": 18 }
+    ]
+  },
+  "mark": { "type": "point", "filled": true },
+  "encoding": {
+    "x": { "field": "hours", "type": "quantitative", "scale": { "zero": false }, "axis": { "title": "Firing time (h)" } },
+    "y": { "field": "yield", "type": "quantitative", "axis": { "title": "Yield (%)" } },
+    "color": { "field": "glaze", "type": "nominal" },
+    "size": { "field": "load", "type": "quantitative" }
+  }
+}

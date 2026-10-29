@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for ConfigResolver
+#
+# These requirements describe the design-level behavior of the ConfigResolver unit of the SpecModel subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the Vega-Lite version 6 default
+# configuration (with the Vega guide and style defaults it builds on), the merge of the specification's config
+# and the caller's configuration, and the typed accessors and style-chain lookups that the later stages use.
+# The default values are facts about Vega-Lite and Vega behavior, implemented as own C# code; they are
+# attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md (BSD-3-Clause). See
+# docs/verification/canvas-net-vega-lite/spec-model/config-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        sections:
+          - title: ConfigResolver Requirements
+            requirements:
+              - id: CanvasNetVegaLite-SpecModel-ConfigResolver-V6Defaults
+                title: >-
+                  The ConfigResolver unit shall provide the Vega-Lite version 6 default configuration
+                  (a 300 by 300 view, padding of 5, white background, pad autosize, title, axis, and
+                  mark defaults, the tableau10 category range) for specifications of version 5 and 6
+                  alike, shall keep the Vega mark defaults out of the merged tree, and shall decide
+                  which mark types are filled by default.
+                justification: |
+                  Every default size, color, and spacing of a chart comes from these values, so they must
+                  be defined once and pinned by tests.
+                tests:
+                  - ConfigResolver_Resolve_VegaLiteV6DefaultsAndOverrides
+                  - ConfigResolver_Resolve_SchemaV5UsesV6Defaults
+                  - ConfigResolver_Resolve_VegaMarkDefaultsStayOutOfTheMergedTree
+                  - ConfigResolver_IsFilledByDefault_PointLineAndRuleAreOutlines
+
+              - id: CanvasNetVegaLite-SpecModel-ConfigResolver-Precedence
+                title: >-
+                  The ConfigResolver unit shall merge the defaults, the specification's config, and the
+                  caller's configuration so that later sources override earlier ones, merging objects
+                  deeply and replacing every other value, and shall reject a caller configuration that
+                  is not a JSON object or is nested too deeply with an ArgumentException.
+                justification: |
+                  Callers restyle charts through the caller configuration, so its precedence over the
+                  specification must be exact and invalid input must fail closed.
+                tests:
+                  - ConfigResolver_Resolve_CallerConfigOverridesSpecConfig
+                  - ConfigNode_Merge_MergesObjectsAndReplacesEverythingElse
+                  - ConfigResolver_Resolve_InvalidCallerConfigThrowsArgumentException
+                  - ConfigResolver_Resolve_TooDeepCallerConfigThrowsArgumentException
+
+              - id: CanvasNetVegaLite-SpecModel-ConfigResolver-StyleResolution
+                title: >-
+                  The ConfigResolver unit shall resolve a mark property through the chain of explicit
+                  mark style, mark-type configuration, general mark configuration, and Vega default
+                  styles, a view property through the cell style chain, a title property through the
+                  title configuration and title styles, shall apply the font shorthand to the text and
+                  guide styles, and shall provide typed accessors by dotted path.
+                justification: |
+                  The marks, view, and title builders all depend on one definition of which source wins
+                  for a property.
+                tests:
+                  - ConfigResolver_Resolve_MarkPropertiesFollowTheStylePrecedenceChain
+                  - ConfigResolver_Resolve_ViewPropertiesFollowTheCellStyleChain
+                  - ConfigResolver_Resolve_FontShorthandAppliesToTextAndGuideStyles
+                  - ResolvedConfig_Accessors_ReadTypedValuesByDottedPath

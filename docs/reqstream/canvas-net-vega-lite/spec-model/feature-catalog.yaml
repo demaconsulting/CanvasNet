@@ -1,0 +1,129 @@
+---
+# Software Unit Requirements for FeatureCatalog
+#
+# These requirements describe the design-level behavior of the FeatureCatalog unit of the SpecModel subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the visitor that walks a parsed
+# specification and reports, with stable vl-* identifiers, every recognized construct that the renderer does
+# not draw, plus the schema-version and empty-data warnings. The supported sets are the Supported* fields of
+# the unit; a construct that becomes supported is removed from the reported set in the same change. See
+# docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        sections:
+          - title: FeatureCatalog Requirements
+            requirements:
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
+                title: >-
+                  The FeatureCatalog unit shall report each unsupported construct with a stable
+                  lower-case identifier built from its category and name (for example vl-transform-calculate
+                  or vl-composition-layer, with spec names lower-cased and stripped of separators), a
+                  message, and the pointer, line, and column of the construct, and shall return the
+                  reports in document order.
+                justification: |
+                  Tools and builds react to specific gaps by identifier, so identifiers must never change
+                  silently, and reports in document order make output stable.
+                tests:
+                  - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
+                  - FeatureCatalog_Visit_MarkReportCarriesLineAndColumn
+                  - FeatureCatalog_Visit_ReportsAreInDocumentOrder
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SupportedSilent
+                title: >-
+                  The FeatureCatalog unit shall return no report for a specification that uses only the
+                  supported subset and shall not report channels or properties that Vega-Lite does not
+                  define or that the renderer deliberately ignores (tooltip, href, description, key).
+                justification: |
+                  Reporting a supported construct would make every chart noisy, and reporting an unknown
+                  name as unsupported would hide the typo warning that is the better diagnostic.
+                tests:
+                  - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
+                  - FeatureCatalog_Visit_UnknownChannelIsNotReported
+                  - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
+                title: >-
+                  The FeatureCatalog unit shall classify a data URL that carries a scheme (including a file:
+                  URI), a UNC path, a drive letter, or an absolute or rooted path (a leading slash or
+                  backslash, on every host operating system) as remote and report it with the stable
+                  vl-data-remote-url identifier, and shall classify a plain relative URL as a local file
+                  reported with vl-data-file.
+                justification: |
+                  A remote URL must never reach a file resolver or the network, and the difference between
+                  a remote and a local reference is the difference between a security boundary and a
+                  missing feature.
+                tests:
+                  - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+                  - FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
+                title: >-
+                  The FeatureCatalog unit shall report each data source other than inline row values with
+                  its own identifier (named dataset, sequence, parse, csv, tsv, and dsv formats, a
+                  format property, text values, and geographic sources), and shall warn with
+                  vl-data-empty when a data object has no rows.
+                justification: |
+                  Data that was not used must be explained to the author instead of leaving an unexplained
+                  empty chart.
+                tests:
+                  - FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers
+                  - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
+                title: >-
+                  The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
+                  square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
+                  stroke, size, and opacity as vl-channel-name, the temporal and geographic types, and the
+                  encoding properties aggregate, bin, timeUnit, stack, sort, condition, impute, and
+                  bandPosition when they change the chart, including an implicit bar stack at the
+                  measure channel.
+                justification: |
+                  Marks and channels are the heart of the supported boundary; each unsupported one must be
+                  named so that the author knows exactly what was not drawn.
+                tests:
+                  - FeatureCatalog_Visit_UnsupportedMarkReportsMarkId
+                  - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
+                  - FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart
+                  - FeatureCatalog_Visit_ImplicitBarStackIsReportedAtTheMeasure
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
+                title: >-
+                  The FeatureCatalog unit shall report scale types other than linear, band, point, and
+                  ordinal, scale properties and color schemes outside the supported set, a legend only
+                  when one would be drawn, and the guide properties and encode blocks that the axis
+                  builder does not honor, and shall not report the properties it does honor.
+                justification: |
+                  Scales and guides decide how data is positioned and labeled; a silently ignored property
+                  would produce a plausible but wrong chart.
+                tests:
+                  - FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset
+                  - FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset
+                  - FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes
+                  - FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
+                title: >-
+                  The FeatureCatalog unit shall report each transform, expression reference, calculate
+                  and filter expression, parameter, selection, projection, composition (layer, concat,
+                  hconcat, vconcat, facet, repeat), and autosize fit mode, shall examine the nested views
+                  of a composition, and shall report each construct once at its own location.
+                justification: |
+                  These features change what a chart means; none of them is implemented in the first
+                  delivery and each must be reported rather than skipped.
+                tests:
+                  - FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported
+                  - FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined
+                  - FeatureCatalog_Visit_AutosizeFitModesAreReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
+                title: >-
+                  The FeatureCatalog unit shall warn with vl-schema-version, at the $schema value, when the
+                  schema names a Vega-Lite major version other than 5 or 6 or names no Vega-Lite version,
+                  and shall not warn for versions 5 and 6 or for a specification without a schema.
+                justification: |
+                  The renderer implements the version 6 defaults; a specification written for another
+                  version may render differently and its author should be told.
+                tests:
+                  - FeatureCatalog_Visit_SchemaVersionWarnsOutsideFiveAndSix

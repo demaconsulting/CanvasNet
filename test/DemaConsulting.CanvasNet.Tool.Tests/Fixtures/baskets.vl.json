@@ -1,0 +1,18 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Baskets per day",
+  "width": 120,
+  "height": 80,
+  "data": {
+    "values": [
+      { "day": "Mon", "baskets": 4 },
+      { "day": "Tue", "baskets": 7 },
+      { "day": "Wed", "baskets": 2 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "day", "type": "nominal", "sort": null },
+    "y": { "field": "baskets", "type": "quantitative" }
+  }
+}

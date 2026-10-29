@@ -1,0 +1,19 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Uses a line mark and a calculate transform, which are recognized but not drawn yet.",
+  "data": {
+    "values": [
+      { "week": 1, "visits": 120 },
+      { "week": 2, "visits": 150 },
+      { "week": 3, "visits": 90 }
+    ]
+  },
+  "transform": [
+    { "calculate": "datum.visits * 2", "as": "doubled" }
+  ],
+  "mark": "line",
+  "encoding": {
+    "x": { "field": "week", "type": "ordinal" },
+    "y": { "field": "doubled", "type": "quantitative", "aggregate": "sum" }
+  }
+}

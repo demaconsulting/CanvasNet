@@ -1,0 +1,376 @@
+---
+# Software System Requirements for CanvasNetVegaLite
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.VegaLite
+# package (root namespace DemaConsulting.CanvasNet.VegaLite; internal subsystem namespaces SpecModel, Data,
+# Scales, Guides, Layout, Marks, and Scenegraph) from the perspective of its consumers, without specifying
+# implementation details.
+#
+# CanvasNetVegaLite is an independent software system distributed as its own NuGet package. It reads a
+# Vega-Lite specification and renders a static, deterministic chart onto a CanvasNet Surface using only
+# managed code and the public CanvasNet APIs: there is no JavaScript runtime, no network access, and no
+# dependency on any Vega or d3 package. Version 1 supports a deliberately small, documented subset - a single
+# view with inline data, the marks bar, rect, point, circle, square, rule, and tick, linear, band, and point
+# scales, axes, and titles - and reports every recognized construct outside that subset with a stable vl-*
+# identifier instead of skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And
+# Deferred Features). The tick generation and number formatting are ports of the d3-array and d3-format
+# algorithms; the default configuration, view layout, and text layout follow Vega-Lite and Vega behavior.
+# Both are attributed in the package's third-party notices (src/DemaConsulting.CanvasNet.VegaLite/third-party).
+#
+# Every requirement below links down to the subsystem and unit requirements that implement it; the test
+# evidence is mapped in docs/verification/canvas-net-vega-lite.md.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    requirements:
+      - id: CanvasNetVegaLite-Open
+        title: >-
+          The library shall parse Vega-Lite specification text supplied as a string, a readable stream,
+          or a file path into a VegaLiteDocument that is identical whichever entry point is used, shall
+          ignore a leading byte-order mark, and shall reject null arguments and unreadable sources with
+          the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers hold specifications in different forms; every entry point must yield the same
+          validated result, and invalid arguments must fail closed with a predictable exception rather
+          than being coerced.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-ParseOpen
+          - CanvasNetVegaLite-SpecModel-Parse
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Open_ParseStringOpenStreamAndOpenPathAgree
+          - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+
+      - id: CanvasNetVegaLite-DocumentMetadata
+        title: >-
+          The library shall let a caller read what a specification declares - its schema URL and major
+          version, plain-text title, mark types, data references, and parameter names - from a parsed
+          document without rendering it and without opening any other file or the network.
+        tags: [system]
+        justification: |
+          Tools list what a chart needs before they render it; the description must therefore be
+          available from the text alone, cheaply and safely.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-PublicMetadata
+          - CanvasNetVegaLite-SpecModel-Metadata
+        tests:
+          - VegaLiteDocument_Open_SupportedChartHasMetadataAndNoReports
+          - SpecMetadata_Read_DescribesSchemaTitleMarksDataAndParameters
+
+      - id: CanvasNetVegaLite-SpecErrors
+        title: >-
+          The library shall fail closed on a malformed or invalid specification with a
+          VegaLiteSpecException that carries the source name, one-based line and column, and RFC 6901
+          JSON pointer of the first problem - malformed JSON, a known property of the wrong type, or
+          plain Vega instead of Vega-Lite - while treating properties it does not know as warnings, not
+          errors.
+        tags: [system]
+        justification: |
+          Authors need to find a mistake in a specification quickly, and a renderer that guesses at
+          invalid input would produce a chart that silently differs from the author's intent.
+        children:
+          - CanvasNetVegaLite-SpecModel-Locations
+          - CanvasNetVegaLite-SpecModel-StructuralValidation
+          - CanvasNetVegaLite-VegaLiteDocument-ErrorContract
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Spec_MalformedJsonReportsLineAndColumn
+          - VegaLiteDocument_Parse_WrongTypeFailsWithPointerAndSourceName
+
+      - id: CanvasNetVegaLite-SchemaVersions
+        title: >-
+          The library shall accept a $schema of Vega-Lite version 5 or 6 and interpret both with the
+          version 6 defaults, and shall render a specification of any other or unnamed version with the
+          same defaults while reporting a stable schema-version warning.
+        tags: [system]
+        justification: |
+          Specifications in the wild name version 5 or 6; the renderer implements one set of defaults, so
+          the outcome must be well defined and visible for every version rather than depending on an
+          unstated assumption.
+        children:
+          - CanvasNetVegaLite-SpecModel-SchemaCompatibility
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Schema_V5AndV6UseV6Defaults
+          - FeatureCatalog_Visit_SchemaVersionWarnsOutsideFiveAndSix
+
+      - id: CanvasNetVegaLite-Configuration
+        title: >-
+          The library shall resolve the effective configuration in the order Vega-Lite version 6
+          defaults, then the specification's own config, then the caller's Config option, so that a
+          caller can restyle a chart without editing its text.
+        tags: [system]
+        justification: |
+          Hosts such as documentation builds must apply a house style on top of whatever a specification
+          says, and the precedence must be defined.
+        children:
+          - CanvasNetVegaLite-SpecModel-ConfigDefaults
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Render_CallerConfigOverridesSpecificationConfig
+          - ConfigResolver_Resolve_CallerConfigOverridesSpecConfig
+
+      - id: CanvasNetVegaLite-ImmutableOptions
+        title: >-
+          The library shall let a caller supply immutable, validated open options (source name, base
+          directory, data paths), render options (scale, background, container size, limits,
+          configuration, parameters, datasets, time zone, fonts, and report handlers), font options, and
+          limits, rejecting invalid values when they are set and never changing an options instance
+          afterwards.
+        tags: [system]
+        justification: |
+          Options that are validated at initialization let the document trust every instance it receives,
+          and immutability makes a shared options instance safe to use from several threads.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-Options
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Options_AreValidatedAndImmutable
+
+      - id: CanvasNetVegaLite-MeasureRender
+        title: >-
+          The library shall compute the size a chart renders at without drawing it (Measure), render the
+          chart onto a new Surface at its natural size multiplied by the scale option, and render it onto
+          a Surface of an exact width and height by scaling the natural chart uniformly to fit and
+          centering it over the background, with Measure always reporting exactly the size Render
+          returns.
+        tags: [system]
+        justification: |
+          Hosts must size a page, a slide, or an image before they draw, and a fixed destination size
+          must not distort the chart; the measured and rendered sizes must agree so that layout built on
+          Measure is reliable.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-RenderContract
+          - CanvasNetVegaLite-Layout-ViewGeometry
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors
+          - CanvasNetVegaLite_SystemIntegration_Render_ScaleAndExplicitSizeFit
+          - CanvasNetVegaLite_SystemIntegration_Measure_MatchesNaturalRenderedSize
+          - CanvasNetVegaLite_SystemIntegration_Render_WidthHeightUniformlyFitsAndCenters
+
+      - id: CanvasNetVegaLite-InlineCharts
+        title: >-
+          The library shall render a single-view chart whose data is given inline - loading the rows,
+          resolving the scales, drawing the axes, grid, tick labels, marks, and title, and laying them
+          out on the view with the Vega-Lite version 6 default size, padding, background, and border -
+          into a chart whose geometry and colors are the documented ones.
+        tags: [system]
+        justification: |
+          Rendering inline-data charts is the purpose of the first delivery; the geometry must be
+          specified by analytic expectations rather than inherited from another renderer.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-InlineChartPipeline
+          - CanvasNetVegaLite-Data-InlineValues
+          - CanvasNetVegaLite-Scales-Positions
+          - CanvasNetVegaLite-Scales-CategoryColors
+          - CanvasNetVegaLite-Guides-Axes
+          - CanvasNetVegaLite-Guides-Titles
+          - CanvasNetVegaLite-Layout-ViewAppearance
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
+          - CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels
+          - CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer
+
+      - id: CanvasNetVegaLite-SupportedSubset
+        title: >-
+          The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
+          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, and opacity
+          channels with field, value, and datum forms, quantitative, nominal, and ordinal types, and
+          linear, band, and point scales with their documented properties - and shall draw each
+          supported construct without reporting it.
+        tags: [system]
+        justification: |
+          A renderer that claims general Vega-Lite support but draws a subset misleads its users; the
+          boundary must be explicit and the supported side must be exercised by tests.
+        children:
+          - CanvasNetVegaLite-Marks-SupportedSubset
+          - CanvasNetVegaLite-Marks-Properties
+          - CanvasNetVegaLite-Scales-Types
+          - CanvasNetVegaLite-Scales-Domains
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
+          - CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels
+          - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
+
+      - id: CanvasNetVegaLite-InlineData
+        title: >-
+          The library shall read data only from inline values: a missing or empty values array shall
+          render an empty chart with the stable vl-data-empty warning, and every other data source -
+          a URL, a named dataset, a sequence, text values, or a data format - shall load as an empty
+          table and be reported with its own stable vl-data-* identifier.
+        tags: [system]
+        justification: |
+          The first delivery has no data-file, named-dataset, or parsing support; the consumer must be
+          told when a chart's data was not used instead of receiving an unexplained empty chart.
+        children:
+          - CanvasNetVegaLite-Data-EmptyAndRemote
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
+          - DataLoader_Load_EmptyValuesReportsVlDataEmpty
+          - DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog
+
+      - id: CanvasNetVegaLite-NoNetwork
+        title: >-
+          The library shall never use the network or read a file named by a specification: a remote URL
+          in the data of a specification shall be reported with the stable vl-data-remote-url identifier
+          as an unsupported feature, the data shall be treated as empty, and the URL shall never be
+          fetched.
+        tags: [system]
+        justification: |
+          A renderer that follows URLs in untrusted specifications would be a request-forgery vector that
+          can leak data, and its output would depend on the state of the network.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-NoNetwork
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
+          - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+
+      - id: CanvasNetVegaLite-Diagnostics
+        title: >-
+          The library shall report recoverable problems - an unknown property, a duplicate key, an
+          unrecognized schema version, and empty data - as located, de-duplicated warnings delivered to
+          the caller's handler in document order, once, on the calling thread, before Measure or Render
+          returns or throws, and shall bound how many it keeps.
+        tags: [system]
+        justification: |
+          Authors need feedback on mistakes, but a chart with a mistake should still render; delivery on
+          the calling thread in a defined order keeps the behavior testable and thread safe.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-Diagnostics
+        tests:
+          - VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder
+          - VegaLiteReportSink_Cap_CollapsesOverflowIntoOneNotice
+
+      - id: CanvasNetVegaLite-UnsupportedFeatures
+        title: >-
+          The library shall report every recognized construct outside the supported subset - marks,
+          channels, types, scale types and properties, legends, guide properties, expressions,
+          transforms, parameters, compositions, and data sources - as an unsupported-feature report with
+          a stable vl-* identifier, a message, and the RFC 6901 pointer with one-based line and column of
+          the construct, once per feature and location, and shall never skip such a construct silently.
+        tags: [system]
+        justification: |
+          Unsupported features are a different problem from mistakes and must be distinguishable from
+          them; stable identifiers let tools and builds react to a specific gap.
+        children:
+          - CanvasNetVegaLite-SpecModel-FeatureReporting
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
+          - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+
+      - id: CanvasNetVegaLite-StrictMode
+        title: >-
+          The library shall, when the caller sets ThrowOnUnsupportedFeature, abort at the first
+          unsupported feature with a VegaLiteUnsupportedFeatureException that carries the feature
+          identifier and location after delivering that report to the handler, and shall not abort for
+          warnings.
+        tags: [system]
+        justification: |
+          Builds that must never accept an approximate chart need a way to turn an unsupported feature
+          into a failure.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-UnsupportedStrictness
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature
+          - VegaLiteDocument_Render_StrictModeIgnoresWarningsAndThrowsAtTheFirstUnsupportedFeature
+
+      - id: CanvasNetVegaLite-LimitsCancellation
+        title: >-
+          The library shall bound every resource a specification can consume - source length, JSON
+          nesting, data rows and fields, scale domain size, ticks, scene items, and reports - and shall
+          fail closed with a located exception when a limit is exceeded, accepting exactly the limit,
+          and shall observe a cancellation token before and during measuring and rendering by stopping
+          with an unwrapped OperationCanceledException.
+        tags: [system]
+        justification: |
+          Rendering untrusted specifications must not be able to exhaust memory or time, and callers need
+          a way to abandon work that takes longer than they can afford.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-Limits
+          - CanvasNetVegaLite-SpecModel-Limits
+          - CanvasNetVegaLite-Data-Limits
+          - CanvasNetVegaLite-Marks-Limits
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
+          - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
+          - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+
+      - id: CanvasNetVegaLite-Determinism
+        title: >-
+          The library shall be deterministic: the same specification and options shall render
+          byte-identical images and give identical reports on every platform, in every culture, on every
+          thread, and for repeated and concurrent renders.
+        tags: [system]
+        justification: |
+          Reproducibility is required for golden tests, caching, and trustworthy use of the results, and a
+          shared document must be safe to render from several threads.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-Determinism
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical
+          - VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions
+
+      - id: CanvasNetVegaLite-BundledFonts
+        title: >-
+          The library shall measure and draw text with the fonts bundled with CanvasNet by default,
+          resolving generic and Arial-like family names to the bundled Liberation family regardless of
+          the fonts installed on the machine, and shall use additional font directories or installed
+          system fonts only when the caller opts in through the font options.
+        tags: [system]
+        justification: |
+          Text width drives the layout of every axis and title; using installed fonts would make the same
+          chart a different size on different machines.
+        children:
+          - CanvasNetVegaLite-Guides-TextMeasurement
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation
+          - VegaLiteFontOptions_Defaults_AreBundledOnly
+
+      - id: CanvasNetVegaLite-UtcDefault
+        title: >-
+          The library shall use UTC as the default time zone, independent of the host's local time zone,
+          and shall let the caller choose another time zone through the render options.
+        tags: [system]
+        justification: |
+          Date handling that depended on the local time zone would make a chart differ between the
+          machines that render it.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-TimeZone
+        tests:
+          - VegaLiteRenderOptions_Defaults_AreDocumented
+          - VegaLiteRenderOptions_ValidValues_AreStored
+
+      - id: CanvasNetVegaLite-ScenePainting
+        title: >-
+          The library shall describe a chart as an immutable scene of groups, rectangles, rules, paths,
+          symbols, and text with CSS-string colors, and paint that scene onto a CanvasNet Surface using
+          only the public CanvasNet drawing APIs, with fill, stroke, dash, opacity, rotation, uniform
+          scale, and clipping applied as documented.
+        tags: [system]
+        justification: |
+          Separating the scene from the pixels lets geometry be asserted analytically and lets the
+          painter be verified independently of the chart logic.
+        children:
+          - CanvasNetVegaLite-Scenegraph-Model
+          - CanvasNetVegaLite-Scenegraph-Painting
+          - CanvasNetVegaLite-Scenegraph-Colors
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
+          - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
+          - SceneModel_Create_GroupsAndItemsPreservesDeterministicOrder
+
+      - id: CanvasNetVegaLite-D3Ports
+        title: >-
+          The library shall generate axis ticks and format quantitative labels with its own C# ports of
+          the d3-array tick, tick-step, and nice algorithms and the d3-format number-formatting
+          algorithm, producing the same values as the documented algorithms, culture-independently, and
+          shall distribute the BSD-3-Clause (Vega-Lite and Vega) and ISC (d3) notices of the ported
+          behavior with the package.
+        tags: [system]
+        justification: |
+          Matching d3's tick values and label text is what makes an axis look like a Vega-Lite axis; the
+          algorithms are third-party works whose licenses require attribution in distributions, and no
+          JavaScript runtime or package dependency is acceptable.
+        children:
+          - CanvasNetVegaLite-Scales-Ticks
+          - CanvasNetVegaLite-Scales-Formatting
+        tests:
+          - Ticks_Ticks_LinearRangeMatchesHandDerivedExpectedVector
+          - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
+          - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels

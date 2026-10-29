@@ -5,8 +5,10 @@
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
-document pages, and OpenSCAD models, cleans up photographs of sketches (contrast, tilt, borders, and a coordinate
-grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's standard
+document pages, OpenSCAD models, and Vega-Lite charts, cleans up photographs of sketches (contrast, tilt, borders,
+and a coordinate
+grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's
+standard
 output holds only
 its own result, every result can be written as one JSON document, a failure is reported with a stable error code, and
 the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
@@ -122,8 +124,9 @@ parse standard output alone in both cases; the text report on standard error is 
 | `inspect` | Report the dominant colors and luma statistics (`colors`), or the value of a pixel (`pixel`) |
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
-takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, and
-so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`, and so on; see _Photos
+takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
+Vega-Lite chart, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`,
+and so on; see _Photos
 and Sketches_) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
 as well.
 
@@ -142,6 +145,7 @@ as well.
 | PowerPoint | `.pptx` | Multi-page (slides) |
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
+| Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -151,7 +155,13 @@ as well.
 | TIFF | `.tif`, `.tiff` | Uncompressed, with alpha |
 
 The format of an input is recognized from its content (signature bytes, or the document structure inside a ZIP
-package), and the extension is used only when the content is not conclusive. The output format is selected by the
+package), and the extension is used only when the content is not conclusive. A model and a chart are text without a
+signature: a model is recognized by `.scad`, and a chart by the file name suffix `.vl.json` or `.vl`, or, for a `.json`
+file, by a top-level Vega-Lite `$schema` property (an address under `vega.github.io/schema/vega-lite/`) in the first
+4 KiB of the file; the address in any other property does not count. A
+`.json` file with the schema of plain Vega is refused as `unsupported-format` (Vega is not supported), and so is any
+other `.json` file; name a chart `chart.vl.json` to have it recognized without a schema. The output format is
+selected by the
 output extension, or by `--format png|jpeg|jpg|bmp|tiff|tif`, which overrides the extension. An output with neither a
 known extension nor `--format` is a `usage-error`. The largest image side the tool reads or writes is **8192
 pixels**; a larger size is refused with `size-limit` before any pixels are allocated.
@@ -173,6 +183,7 @@ Input formats:
   png       raster    .png            single    no
   ...
   scad      model     .scad           single    yes
+  vega-lite chart     .vl.json .vl    single    yes
 
 Output formats:
   Format  Extensions  Alpha  Quality
@@ -195,7 +206,8 @@ Versions:
 canvasnet info <input> [--page N | --all-pages] [--json]
 ```
 
-Reads only the header of a file (a model is parsed but not evaluated) and reports its properties without rendering
+Reads only the header of a file (a model is parsed but not evaluated, and a chart is parsed and laid out but not
+drawn) and reports its properties without rendering
 it, which is cheap even for a large file.
 
 - A **raster image or SVG** reports its format, size in pixels (the intrinsic size for an SVG), number of channels,
@@ -205,7 +217,12 @@ it, which is cheap even for a large file.
   plus the rotation of a PDF page and the name of a VSDX page. `--page N` selects the page (default 1, counted from 1)
   and `--all-pages` lists every page.
 - An **OpenSCAD model** reports the modules and functions it defines and its `include` and `use` directives.
+- A **Vega-Lite chart** reports the size it is laid out at (its natural size, the size it is drawn at by default), 4
+  channels with transparency, and what its specification declares: the mark types, the data sources (inline, a URL, a
+  named data set, or a generated sequence, with the row count when the text gives it), the names of its parameters, its
+  title, and its schema version. Describing a chart opens no data file and uses no network.
 
+<!-- markdownlint-disable MD013 -->
 ```text
 $ canvasnet info shapes.svg
 shapes.svg: svg, 100x80 px (intrinsic size), 4 channels with alpha, 303 bytes
@@ -217,7 +234,10 @@ $ canvasnet info part.scad
 part.scad: scad, 1 module, 1 function, 0 include/use directives, 376 bytes
   module block
   function half
+$ canvasnet info chart.vl.json
+chart.vl.json: vega-lite, 289x264 px (laid out), 1 mark, 1 data reference, 0 parameters, title "Crates sold per stall", schema v5, 562 bytes
 ```
+<!-- markdownlint-enable MD013 -->
 
 ### render and convert
 
@@ -419,9 +439,48 @@ canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective 
 canvasnet render part.scad --view front --size 400x400 --background transparent -o front.png
 ```
 
+#### Vega-Lite Charts
+
+A Vega-Lite chart (`.vl.json` or `.vl`, or a `.json` file with a Vega-Lite `$schema`) is drawn as a still image at the
+size the specification lays out (its `width` and `height` plus its axes, title, and padding; `info` reports it), or at the
+size the size options ask for: `--scale` multiplies the layout, `--width` or `--height` fits the chart (keeping its aspect
+ratio), and `--size WxH` fits it inside that box and centers it. The chart is always drawn sharply at the final size, not
+enlarged afterwards, so text and lines stay crisp. A chart has no options of its own: there is no option to set
+parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a
+`usage-error`. A
+chart has one page, so `--page` beyond 1 is `page-out-of-range`.
+
+The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
+`--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are in
+UTC, only the fonts bundled with the tool are used (so the lettering does not depend on the installed fonts), and nothing
+is read from the network. The data of a chart comes from the specification itself (`data.values`); a data file, a remote
+`url`, and other data sources the library cannot read yet are reported as unsupported features, never fetched.
+
+The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
+channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result, with the stable `vl-*`
+identifier of the feature as the `code` and the file, line, column, and JSON pointer of the construct in the message;
+`--strict` makes the first such construct a failure (`unsupported-feature`) instead. Questionable but harmless input (a
+property Vega-Lite does not define, a `$schema` of another version) is a `vega-lite-warning` diagnostic.
+
+A specification that is not valid JSON, has a property of the wrong type, is nested deeper than the parser allows, has
+a string longer than the parser allows, or is plain Vega named like a chart is a
+`vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example data
+that does not fit the encoding). A chart that exceeds a limit of the library while it is laid out or drawn (too many
+data rows, scene items, or ticks) fails with `budget-exceeded`; a specification file longer than the library reads
+(4,194,304 characters) is `corrupt-input`, as an overlong OpenSCAD model is; and a chart that lays out larger
+than 8192 pixels on a side is `size-limit` (nothing else is).
+
+```bash
+canvasnet info chart.vl.json --json
+canvasnet render chart.vl.json -o chart.png
+canvasnet render chart.vl.json --scale 2 --background "#f4f4f4" -o chart-large.png --json
+canvasnet render chart.vl.json --strict -o chart.png
+```
+
 #### Diagnostics and --strict
 
-PPTX and VSDX documents and OpenSCAD models report every picture, shape, or feature the library recognizes but cannot
+PPTX and VSDX documents, OpenSCAD models, and Vega-Lite charts report every picture, shape, or feature the library
+recognizes but cannot
 draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result.
 `--strict` turns the report into a failure (`unsupported-feature`) and writes no output. SVG and PDF have no such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them.
@@ -953,6 +1012,9 @@ starts with the same envelope.
   96 dpi, `widthPt` and `heightPt` in points, and, when there is one, `rotation` (PDF) and `name` (VSDX). Without
   `--page` or `--all-pages` only the first page is listed.
 - `model` (SCAD): `modules` and `functions` (names) and `directives` (`kind` `include` or `use`, `path`, `line`).
+- `chart` (Vega-Lite), after an `image` object that gives the laid-out `width` and `height`: `title` and
+  `schemaMajorVersion` when the specification has them, `marks` (the mark types as written), `dataReferences` (each with
+  `kind` `inline`, `url`, `name`, or `sequence`, `url` and `rows` when known, and the `line`), and `parameters` (names).
 
 `render`, `convert`, and the transformation commands add:
 
@@ -967,14 +1029,14 @@ starts with the same envelope.
 - `outputs`: one entry per file written: `path` (as given), `format`, `width`, `height`, `bytes`, and `page` for a
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}` and `page` for a
-  document (`source` is `scad`, `pptx`, or `vsdx`; `code` is the library's stable feature token, such as
-  `scad-module-surface`).
+  document (`source` is `scad`, `pptx`, `vsdx`, or `vega-lite`; `code` is the library's stable feature token, such as
+  `scad-module-surface` or `vl-mark-arc`, or `vega-lite-warning` for a warning of the chart library).
 - `echo`: the text a SCAD model printed with `echo`.
 
 | `op` | Fields besides `op` |
 | --- | --- |
 | `auto-orient` | `orientation` (the EXIF orientation, 2-8, that was applied) |
-| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor` |
+| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given |
 | `resize` | `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`, or `--size`, or `--resize`) |
 | `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
 | `flatten` | `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder) |
@@ -1031,15 +1093,16 @@ and hint may be improved at any time.
 | `input-not-found` | The input file or folder does not exist | Check the path |
 | `input-unreadable` | The input exists but cannot be read (permissions, a folder, a locked file) | Check the permissions |
 | `unsupported-format` | The input is not a format the tool reads (for example a DOCX or an unknown extension) | See `canvasnet formats` |
-| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file) | Repair or replace the file |
+| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file), or a model or chart file is longer than the library reads | Repair or replace the file |
 | `unsupported-feature` | The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG, a PPTX shape the library lacks, or any skipped feature with `--strict`) | Remove the feature, or drop `--strict` if it is only a skipped picture |
 | `page-out-of-range` | `--page` is beyond the last page of the document | Pages are counted from 1; use `info` for the count |
-| `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side | Use a smaller size, dpi, or border |
+| `size-limit` | A requested, declared, or resulting size exceeds 8192 pixels on a side (for a chart, only its laid-out size) | Use a smaller size, dpi, or border |
 | `same-input-output` | The output file is the input file (also reached through a symbolic link) | Name a different output |
 | `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
-| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles` | Raise the limit or simplify the model |
+| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn | The message has the file, line, column, and JSON pointer |
+| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library while it is laid out or drawn (data rows, ticks, scene items) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
 
@@ -1051,12 +1114,14 @@ and hint may be improved at any time.
 | Output the same as the input | Refused (`same-input-output`) | Choose another output |
 | Output format | From the output extension | `--format` |
 | JPEG quality | 90 | `--quality` |
-| Transparency in a vector source (SVG, document page, model) | Flattened over white | `--background <color>`; `--background transparent` keeps it |
+| Transparency in a vector source (SVG, document page, model, chart) | Flattened over white (a chart over its own background) | `--background <color>`; `--background transparent` keeps it |
 | Transparency in a raster source | Kept (PNG, BMP, TIFF); a JPEG output flattens over `--background` or white | `--background <color>` flattens a raster too |
 | JPEG orientation | Turned upright by its EXIF orientation; `info` reports the raw value | `--no-auto-orient` |
 | Resolution of a document page | 96 dpi | `--dpi` (at most 2400) |
 | Size of a drawing | Its natural size | `--scale`, `--width`, `--height`, `--size`, `--dpi` |
 | Size of an OpenSCAD model | 800 by 800 pixels | The size options |
+| Size of a Vega-Lite chart | The size its specification lays out | The size options |
+| Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
 | SCAD view and projection | `iso`, orthographic | `--view`, `--azimuth`, `--elevation`, `--projection perspective` |
 | SCAD default surface color | Gray | `--default-color` |
 | Maximum triangles of a model | 5,000,000 | `--max-triangles` |
@@ -1087,7 +1152,8 @@ crops the 800-pixel drawing, not the natural-size one.
 ## Using the Tool from an AI Agent
 
 The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a
-PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model) into a PNG the agent can inspect, and writes
+PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart) into a PNG the agent can
+inspect, and writes
 the agent's own drawings (an SVG or a SCAD model) as pictures it can compare with a reference. A few conventions make
 this reliable:
 
@@ -1284,7 +1350,9 @@ pictures side by side.
 - **Determinism.** For the same input, command line, tool version, and machine, the output file is identical byte for
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
-  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts. SVG text is always drawn: a
+  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts use
+  only the
+  bundled fonts and UTC dates, so they are the same on every machine. SVG text is always drawn: a
   family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
   is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
 - **Determinism of `compare` and `montage`.** The measures of `compare` are computed from exact integer sums with a
@@ -1296,11 +1364,16 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, and SCAD: `diagnostics`). PDF and SVG have no such report, and a
+  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`). PDF and SVG have no such
+  report, and a
   construct they cannot draw is simply absent from the picture.
 - **One frame.** A GIF is read as its first frame.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.
+- **Charts.** A static picture of one chart: no interaction (selections and bindings are reported as unsupported
+  features), no network (a remote `url` is never fetched), no options to change parameters or data from the command line,
+  and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
+  reported). Vega (as opposed to Vega-Lite) specifications are not read.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
@@ -1342,14 +1415,15 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RenderSvg - Passed
 ✓ CanvasNetTool_PdfMinimal - Passed
 ✓ CanvasNetTool_RenderScad - Passed
+✓ CanvasNetTool_RenderVegaLite - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
 ✓ CanvasNetTool_Compare - Passed
 ✓ CanvasNetTool_Montage - Passed
 ✓ CanvasNetTool_Adjustments - Passed
 
-Total Tests: 14
-Passed: 14
+Total Tests: 15
+Passed: 15
 Failed: 0
 ```
 
@@ -1364,6 +1438,7 @@ Failed: 0
 | `CanvasNetTool_RenderSvg` | An SVG drawing is rasterized |
 | `CanvasNetTool_PdfMinimal` | A one-page PDF is read and a page is rendered |
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
+| `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |

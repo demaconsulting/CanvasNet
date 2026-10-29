@@ -36,7 +36,11 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
 (`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
-reported as passed, are named in the TRX file, and the run reports fourteen tests in all.
+reported as passed, are named in the TRX file, and the run reports fifteen tests in all.
+
+**Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded**: the chart self-test (`CanvasNetTool_RenderVegaLite`) passes
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports fifteen tests, fifteen passed, and
+none failed.
 
 **Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded**: the photo self-test (`CanvasNetTool_Adjustments`) passes
 (exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test.

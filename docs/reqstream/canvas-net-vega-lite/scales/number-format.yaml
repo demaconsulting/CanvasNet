@@ -1,0 +1,68 @@
+---
+# Software Unit Requirements for NumberFormat
+#
+# These requirements describe the design-level behavior of the NumberFormat unit of the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the C# port of the numeric subset of d3-format
+# (specifier parsing, number formatting, SI prefixes, and the tick-format precision rules). The port is an own
+# implementation of the algorithms of d3-format 3.1.2 (ISC license) with the en-US locale; the attribution is
+# in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and the expected values in the tests are derived by
+# hand. See docs/verification/canvas-net-vega-lite/scales/number-format.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: NumberFormat Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-NumberFormat-Specifier
+                title: >-
+                  The NumberFormat unit shall parse a d3-format specifier into its fill, align, sign,
+                  symbol, zero, width, comma, precision, trim, and type parts, reproduce its text form,
+                  and reject invalid text with a FormatException.
+                justification: |
+                  Axis formats come from the specification; an invalid one must be an error, not a guess.
+                tests:
+                  - NumberFormat_ParseSpecifier_ReadsEveryPartAndRejectsInvalidText
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-Formatting
+                title: >-
+                  The NumberFormat unit shall format a number by a specifier with the d3-format rules for
+                  the types, grouping, sign, padding, trimming, and SI prefixes, give the hand-derived
+                  label text for the documented values, and provide the precision helpers that derive the
+                  digits from a step.
+                justification: |
+                  The label text of an axis must match what a Vega-Lite user expects.
+                tests:
+                  - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
+                  - NumberFormat_PrecisionHelpers_MatchHandDerivedValues
+                  - NumberFormat_CreatePrefix_ScalesByThePrefixOfTheReferenceValue
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-TickFormat
+                title: >-
+                  The NumberFormat unit shall create the format of an axis from the domain, the tick
+                  count, and an optional specifier by choosing the precision from the tick step, with the
+                  default specifier ,f.
+                justification: |
+                  Tick labels of one axis must share one precision derived from the tick step, so that the
+                  labels are consistent.
+                tests:
+                  - NumberFormat_TickFormat_ChoosesThePrecisionFromTheTickStep
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-Culture
+                title: >-
+                  The NumberFormat unit shall produce the same text in every culture, using the en-US
+                  separators and the minus sign U+2212, and shall use no culture-dependent conversion.
+                justification: |
+                  A chart must look the same on every machine, whatever its regional settings.
+                tests:
+                  - NumberFormat_Format_IgnoresTheCurrentCulture
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-Limits
+                title: >-
+                  The NumberFormat unit shall limit a requested field width to a documented maximum so that
+                  a specifier cannot demand unbounded memory.
+                justification: |
+                  Format specifiers come from untrusted specifications.
+                tests:
+                  - NumberFormat_Format_HugeWidthIsLimited

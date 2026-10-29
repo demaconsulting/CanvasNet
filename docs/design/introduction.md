@@ -224,6 +224,33 @@ software items, specifically:
   and on `CanvasNetRender3D` (the scene, tessellation, and rendering API), all through their public API, and must
   never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
   `CanvasNetVsdx`, or `CanvasNetCharts`
+- **CanvasNetVegaLite (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.VegaLite`)
+  providing a static renderer for the public Vega-Lite specification language that parses, describes, measures, and
+  renders charts, derived with attribution from Vega, Vega-Lite, and d3 (ISC and BSD-3-Clause license texts ship in
+  the package; not affiliated with those projects). It contains one direct unit, `VegaLiteDocument` (the public
+  `Parse`/`Open`/`Measure`/`Render` API with `VegaLiteOpenOptions`, `VegaLiteRenderOptions`, `VegaLiteLimits`,
+  `VegaLiteFontOptions`, `VegaLiteLocation`, `VegaLiteDiagnostic`, `VegaLiteUnsupportedFeature`, `VegaLiteSize`,
+  `VegaLiteDataReference`, `VegaLiteSpecException`, `VegaLiteRenderException`, and
+  `VegaLiteUnsupportedFeatureException`), and seven internal subsystems. The `SpecModel` subsystem has three units:
+  `SpecParser` (UTF-8 JSON into an immutable tree with JSON pointers and line and column under size and depth
+  limits, structural validation, and duplicate and unknown key warnings), `FeatureCatalog` (the stable `vl-*` reports
+  of every recognized-but-unsupported construct), and `ConfigResolver` (the Vega and Vega-Lite default configuration
+  merged with the configuration of the specification and of the caller). The `Data` subsystem has two units:
+  `DataTable` (typed values and tables) and `DataLoader` (inline rows under data limits). The `Scales` subsystem has
+  five units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
+  scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
+  number formatter), and `ColorSchemes` (the `tableau10` palette). The `Guides` subsystem has three units:
+  `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle), and
+  `AxisBuilder` (grid, ticks, labels, domain, and title of an axis). The `Layout` subsystem has one unit,
+  `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
+  unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
+  subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
+  and `CssColor` (CSS color parsing). Compositions, transforms, expressions, parameters, legends, time, and local
+  data files are deferred and reported with stable identifiers — see _CanvasNetVegaLite System Design_
+  (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
+  `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
+  subsystems through their public API, and must never reference `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`,
+  `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, or `CanvasNetScad`
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -240,8 +267,9 @@ software items, specifically:
   `rotate`, `flip`, and `pad`, the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
   with the `montage` command, and the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands)
   and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
-  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, and views of OpenSCAD
-  models, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts, deskews,
+  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of OpenSCAD
+  models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
+  pads, adjusts, deskews,
   trims, and grids pixels in the order the options
   were written, the `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units, which do the
   tone, geometry, grid, and measurement work for it, the `ImageWriter`
@@ -395,6 +423,23 @@ system's `Canvas` (`Surface`, `Rgba32`), `Fonts` (for `text`: `TrueTypeFont` and
 tessellation, and renderer), through their public API. See
 the Folder Layout section below and _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
+A further sibling top-level system, `CanvasNetVegaLite`, likewise lives in this same repository alongside `CanvasNet`
+and is distributed as its own NuGet package. It is a static renderer for the public Vega-Lite specification language
+that parses, describes, measures, and renders charts, derived with attribution from Vega, Vega-Lite, and d3 (the
+licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
+the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
+`SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable` and
+`DataLoader` units, its internal `Scales` subsystem holds the `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
+and `ColorSchemes` units, its internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
+units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
+`MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
+units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
+subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteScenegraph`, and so on) and the
+scene unit is `VegaLiteSceneModel`, because the model package is shared by every system and `SceneModel` already
+names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's `Canvas` (`Surface`, `Rgba32`),
+`Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See the Folder Layout section
+below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
 Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
@@ -410,8 +455,8 @@ commands), and its `Imaging` subsystem (namespace
 `ContactSheet`, `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units that turn files into
 pixels, transform pixels (tone, rotation by any angle, deskew, trim, and grid), turn pixels into files, compare two
 images, compose a contact sheet, and measure colors and pixels. It uses the `CanvasNet`, `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, and `CanvasNetScad` systems through
-their public API and bundles their assemblies in its package. No library system references the tool. See the
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and `CanvasNetVegaLite` systems
+through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
 
 ## Folder Layout
@@ -1003,6 +1048,77 @@ for `Fonts` and `Geometry`) and the `BuildScene` and
 `Render` methods of `ScadDocument`, and declares both packages as its dependencies — see
 _CanvasNetScad System Design_ (`canvas-net-scad.md`).
 
+The `CanvasNetVegaLite` system lives in the `src/DemaConsulting.CanvasNet.VegaLite/` project folder (the separate
+`DemaConsulting.CanvasNet.VegaLite` package). The `VegaLiteDocument` unit occupies the project root; the internal
+`SpecModel`, `Data`, `Scales`, `Guides`, `Layout`, `Marks`, and `Scenegraph` subsystems occupy the sub-folders of the same
+names, whose names equal their sub-namespaces; no unit has a nested sub-folder of its own (see _CanvasNetVegaLite System
+Design_, `canvas-net-vega-lite.md`):
+
+```text
+src/DemaConsulting.CanvasNet.VegaLite/
+├── DemaConsulting.CanvasNet.VegaLite.csproj — Package definition (net8.0/net9.0/net10.0; packable)
+├── NamespaceDoc.cs                — VegaLiteDocument: namespace-level XML documentation
+├── VegaLiteDocument.cs            — VegaLiteDocument: Parse/Open entry points and descriptive properties
+├── VegaLiteDocument.Render.cs     — VegaLiteDocument: Measure, Render, and the pipeline
+├── VegaLiteOpenOptions.cs         — VegaLiteDocument: immutable, validated open options
+├── VegaLiteRenderOptions.cs       — VegaLiteDocument: immutable, validated render options
+├── VegaLiteFontOptions.cs         — VegaLiteDocument: font resolution options
+├── VegaLiteLimits.cs              — VegaLiteDocument: resource limits
+├── VegaLiteLocation.cs            — VegaLiteDocument: file, JSON pointer, line, and column value
+├── VegaLiteSize.cs                — VegaLiteDocument: size in pixels
+├── VegaLiteDataReference.cs       — VegaLiteDocument: data source as written
+├── VegaLiteDataKind.cs            — VegaLiteDocument: data source kind enumeration
+├── VegaLiteDiagnostic.cs          — VegaLiteDocument: warning record
+├── VegaLiteUnsupportedFeature.cs  — VegaLiteDocument: unsupported-feature report record
+├── VegaLiteSpecException.cs       — VegaLiteDocument: specification error exception with location
+├── VegaLiteRenderException.cs     — VegaLiteDocument: render error exception with location
+├── VegaLiteUnsupportedFeatureException.cs — VegaLiteDocument: strict-mode unsupported-feature exception
+├── VegaLiteReportSink.cs          — VegaLiteDocument: buffered, de-duplicated, capped report delivery
+├── third-party/                   — Attribution: README.md provenance record, LICENSE-vega.txt, LICENSE-d3.txt
+├── SpecModel/                     — SpecModel subsystem (internal)
+│   ├── NamespaceDoc.cs            — SpecModel: namespace-level XML documentation
+│   ├── SpecParser.cs              — SpecParser: entry points, single-pass reader, limits, duplicate keys
+│   ├── SpecParser.Validation.cs   — SpecParser: structural validation and unknown properties
+│   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
+│   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
+│   ├── FeatureCatalog.cs          — FeatureCatalog: stable vl- reports of unsupported constructs
+│   └── ConfigResolver.cs          — ConfigResolver: defaults, configuration merge, precedence chains
+├── Data/                          — Data subsystem (internal)
+│   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
+│   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
+│   └── DataLoader.cs              — DataLoader: inline rows under the data limits
+├── Scales/                        — Scales subsystem (internal)
+│   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
+│   ├── ScaleModel.cs              — ScaleModel: linear, band, point, and ordinal mappings
+│   ├── ScaleResolver.cs           — ScaleResolver: scale inference, ResolvedScales, and ResolvedScale
+│   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
+│   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
+│   └── ColorSchemes.cs            — ColorSchemes: the tableau10 category palette
+├── Guides/                        — Guides subsystem (internal)
+│   ├── NamespaceDoc.cs            — Guides: namespace-level XML documentation
+│   ├── TextMeasurer.cs            — TextMeasurer: font resolution, measurement, and truncation
+│   ├── TitleBuilder.cs            — TitleBuilder: title, subtitle, and TitleBlock placement
+│   └── AxisBuilder.cs             — AxisBuilder: axis grid, ticks, labels, domain, title, and extents
+├── Layout/                        — Layout subsystem (internal)
+│   ├── NamespaceDoc.cs            — Layout: namespace-level XML documentation
+│   └── ViewLayout.cs              — ViewLayout: data rectangle, padding, autosize, and scene assembly
+├── Marks/                         — Marks subsystem (internal)
+│   ├── NamespaceDoc.cs            — Marks: namespace-level XML documentation
+│   └── MarkBuilder.cs             — MarkBuilder: bar, rect, point, circle, square, rule, and tick items
+└── Scenegraph/                    — Scenegraph subsystem (internal)
+    ├── NamespaceDoc.cs            — Scenegraph: namespace-level XML documentation
+    ├── SceneModel.cs              — SceneModel: Scene, scene items, and value types
+    ├── SceneBounds.cs             — SceneModel: bounding boxes
+    ├── SceneBudget.cs             — SceneModel: scene-item budget
+    ├── ScenePainter.cs            — ScenePainter: drawing a scene onto a Surface and placement
+    └── CssColor.cs                — CssColor: CSS color parsing
+```
+
+`CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface` and `Rgba32` of `Canvas`, `Path` of `Geometry`,
+`PathFiller` and `PathStroker` of `Drawing`, `TrueTypeFont` and `SystemFontCatalog` of `Fonts`, and `TextRenderer` of
+`Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter` and
+`TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
 `Commands` and `Imaging` subsystems occupy the `Commands/` and `Imaging/` sub-folders, whose names equal their
@@ -1079,6 +1195,18 @@ Each software item has corresponding artifacts in parallel directory trees:
 - Tests: `test/{System}.Tests/.../{Item}Tests.cs` (PascalCase for C#)
 - SysML2 model: `docs/sysml2/model/{system}/.../{item}.sysml` (kebab-case)
 - Review-sets: defined in `.reviewmark.yaml`
+
+For the `CanvasNetVegaLite` system the parallel paths are, for example for the `ViewLayout` unit in the `Layout`
+subsystem: requirements `docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml`, design
+`docs/design/canvas-net-vega-lite/layout/view-layout.md`, verification
+`docs/verification/canvas-net-vega-lite/layout/view-layout.md`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs`, tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs`, and SysML2 model
+`docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml`. The direct unit `VegaLiteDocument` has no
+subsystem folder (`docs/design/canvas-net-vega-lite/vega-lite-document.md`), the system itself is
+`docs/design/canvas-net-vega-lite.md` with `docs/sysml2/model/canvas-net-vega-lite.sysml`, and the original chart
+fixtures and their provenance record are in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The attribution
+record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References
 

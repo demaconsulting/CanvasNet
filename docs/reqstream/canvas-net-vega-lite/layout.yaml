@@ -1,0 +1,48 @@
+---
+# Software Subsystem Requirements for Layout
+#
+# These requirements decompose the CanvasNetVegaLite system's layout responsibility into the Layout subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the single-view layout (ViewLayout) that sizes
+# the data rectangle, the canvas, and the padding around the guides and the title, and assembles the scene with
+# its view background and border. Each requirement here links down to the unit requirements that implement it.
+# See docs/verification/canvas-net-vega-lite/layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Layout Requirements
+        requirements:
+          - id: CanvasNetVegaLite-Layout-ViewGeometry
+            title: >-
+              The Layout subsystem shall compute the data rectangle and the natural size of a single
+              view from the specification's width and height, the configuration (300 by 300 in Vega-Lite
+              version 6), the step of a discrete scale, a container size, the padding, the autosize mode
+              (pad or none), the extents of the guides, and the title block, growing the canvas by whole
+              pixels where the guides or a wide title stick out.
+            justification: |
+              The natural size of a chart decides the size of every rendering and the answer of Measure,
+              so it must follow one documented rule.
+            children:
+              - CanvasNetVegaLite-Layout-ViewLayout-Sizes
+              - CanvasNetVegaLite-Layout-ViewLayout-DataRectangle
+              - CanvasNetVegaLite-Layout-ViewLayout-GuideExtents
+            tests:
+              - ViewLayout_Compute_PaddingTitleAndAutosizeProduceExpectedDataRectangle
+              - ViewLayout_Compute_GuideExtentsGrowTheCanvas
+              - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors
+
+          - id: CanvasNetVegaLite-Layout-ViewAppearance
+            title: >-
+              The Layout subsystem shall resolve the fill, stroke, and other style of the view and the
+              background of the canvas by their precedence, and shall assemble the scene as a root group
+              holding the view group with its content in drawing order and the title group last.
+            justification: |
+              The border and background of the view and the order of its content are part of the look of
+              every chart.
+            children:
+              - CanvasNetVegaLite-Layout-ViewLayout-Appearance
+              - CanvasNetVegaLite-Layout-ViewLayout-SceneAssembly
+            tests:
+              - ViewLayout_Resolve_ViewStyleAndBackgroundFollowPrecedence
+              - ViewLayout_Build_ContentTitleClipAndRoundingFollowTheMeasure
+              - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors

@@ -20,7 +20,8 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Formats`, and the imaging self-tests `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
-`CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments` (fourteen in
+`CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
+chart self-test `CanvasNetTool_RenderVegaLite` (fifteen in
 total; the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests).
 Each is
 recorded as a `TestResult` with
@@ -95,7 +96,7 @@ and in the file, white padding at the corner, the image fitted and centered in t
 label strip. These exercise the comparison, the
 contact sheet with its bundled-font labels, the picture creators, and the commands together.
 
-**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 14th and last self-test).
+**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 14th self-test).
 It generates a 160x100 PNG sketch with `CreateSketchSurface` (light-gray paper `#C8C8C8` with four dark two-pixel lines
 tilted 3 degrees clockwise, drawn with plain arithmetic, so that the pixel at 80,19 is ink and the pixel at 0,0 is
 paper) and runs the checks of four helpers in turn, stopping at the first failure. `CheckToneOperations` runs
@@ -109,6 +110,18 @@ differs from the sketch and that the input file still equals the generated sketc
 and `inspect pixel 0,0` with `--json` and requires that the first dominant color and the pixel are both `#C8C8C8`.
 This exercises the tone operations, the skew estimation, the arbitrary-angle rotation, the trim, the grid with its
 bundled-font labels, the analysis, and the commands together.
+
+**RunRenderVegaLiteTest**: the chart self-test (the 15th and last self-test, `CanvasNetTool_RenderVegaLite`), run
+through `RunSelfTest` and `RunCommand`. It writes an original bar chart to `chart.vl.json` in its temporary directory: a
+schema, a 200x100 data rectangle, two inline rows (`a` is 3 and `b` is 5), a `bar` mark, a nominal x field and a
+quantitative y field. It runs `info --json` and requires the `vega-lite` format, one `bar` mark, one data reference, and
+a laid-out size larger than the data rectangle (the axes and the padding add to it); then it renders the chart to a PNG
+and requires that the file has exactly the size `info` reported, that the corner is white, and, at positions computed from
+the layout (the padding is 5 pixels at the top and the right, the two bands are 100 pixels wide with a 90-pixel bar in
+each), that the second bar (the full height) and the first bar (three fifths of it) have the default mark color `#4c78a8`
+and that the pixel above the first bar is white. This exercises the bundled Vega-Lite library, the detection of a chart
+by its file name, the source loader, the `chart` object of `info`, and the `render` command together; it needs no data
+file, no network, and no installed font.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

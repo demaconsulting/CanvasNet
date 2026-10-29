@@ -30,7 +30,8 @@ public class DiscoveryCommandsTests
         + "{\"format\":\"pdf\",\"kind\":\"document\",\"extensions\":[\".pdf\"],\"multiPage\":true,\"vector\":true},"
         + "{\"format\":\"pptx\",\"kind\":\"document\",\"extensions\":[\".pptx\"],\"multiPage\":true,\"vector\":true},"
         + "{\"format\":\"vsdx\",\"kind\":\"document\",\"extensions\":[\".vsdx\"],\"multiPage\":true,\"vector\":true},"
-        + "{\"format\":\"scad\",\"kind\":\"model\",\"extensions\":[\".scad\"],\"multiPage\":false,\"vector\":true}],"
+        + "{\"format\":\"scad\",\"kind\":\"model\",\"extensions\":[\".scad\"],\"multiPage\":false,\"vector\":true},"
+        + "{\"format\":\"vega-lite\",\"kind\":\"chart\",\"extensions\":[\".vl.json\",\".vl\"],\"multiPage\":false,\"vector\":true}],"
         + "\"outputs\":["
         + "{\"format\":\"png\",\"extensions\":[\".png\"],\"alpha\":true,\"lossy\":false},"
         + "{\"format\":\"jpeg\",\"extensions\":[\".jpg\",\".jpeg\"],\"alpha\":false,\"lossy\":true},"
@@ -145,7 +146,7 @@ public class DiscoveryCommandsTests
             Assert.StartsWith(".", e);
             Assert.Equal(e.ToLowerInvariant(), e);
         });
-        Assert.All(DiscoveryCommands.InputFormats, f => Assert.Contains(f.Kind, new[] { "raster", "vector", "document", "model" }));
+        Assert.All(DiscoveryCommands.InputFormats, f => Assert.Contains(f.Kind, new[] { "raster", "vector", "document", "model", "chart" }));
     }
 
     /// <summary>
@@ -209,11 +210,14 @@ public class DiscoveryCommandsTests
         var kinds = Enum.GetValues<SourceKind>();
         var rows = DiscoveryCommands.InputFormats;
 
-        // Assert: one row per kind, in order, and the extensions of each row are those that detect that kind
+        // Assert: one row per kind, in order, and the extensions of each row are those that detect that kind (a chart
+        // is also detected by the two-part suffix .vl.json, which is not an extension)
         Assert.Equal(kinds.Select(k => k.ToFormatName()), rows.Select(r => r.Name));
         foreach (var (kind, row) in kinds.Zip(rows))
         {
-            var detected = SourceLoader.ExtensionKinds.Where(e => e.Value == kind).Select(e => e.Key).Order();
+            var detected = SourceLoader.ExtensionKinds.Where(e => e.Value == kind).Select(e => e.Key)
+                .Concat(kind == SourceKind.VegaLite ? [SourceLoader.VegaLiteJsonSuffix] : [])
+                .Order();
             Assert.Equal(detected, row.Extensions.Order());
         }
     }

@@ -62,6 +62,7 @@ sections:
           - CanvasNetTool-Validation-ImagingSelfTests
           - CanvasNetTool-Validation-CompareMontageSelfTests
           - CanvasNetTool-Validation-AdjustmentsSelfTest
+          - CanvasNetTool-Validation-VegaLiteSelfTest
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 
@@ -328,10 +329,11 @@ sections:
 
       - id: CanvasNetTool-System-Info
         title: >-
-          The tool shall describe an image, drawing, document, or model file (its format, pixel size,
+          The tool shall describe an image, drawing, document, model, or chart file (its format, pixel size,
           channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
-          the number and size of the pages of a PDF, PPTX, or VSDX document, and the modules,
-          functions, and include and use directives of an OpenSCAD model) without rendering it
+          the number and size of the pages of a PDF, PPTX, or VSDX document, the modules,
+          functions, and include and use directives of an OpenSCAD model, and the marks, data
+          references, parameters, title, and schema version of a Vega-Lite chart) without rendering it
           when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
@@ -343,6 +345,7 @@ sections:
           - CanvasNetTool_Info_Requested_DescribesFile
           - CanvasNetTool_Info_DocumentPages_DescribesPages
           - CanvasNetTool_Scad_Info_DescribesModel
+          - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -620,9 +623,10 @@ sections:
 
       - id: CanvasNetTool-System-InputFormats
         title: >-
-          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, and
-          OpenSCAD (SCAD) files, recognizing the format from the content before the file name
-          extension (a model by its extension).
+          The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
+          OpenSCAD (SCAD), and Vega-Lite (.vl.json, .vl, or a .json file with a Vega-Lite schema)
+          files, recognizing the format from the content before the file name extension (a model or
+          a chart by its file name, or a chart also by its schema).
         tags: [system]
         justification: |
           Agents work with whatever files they are given; reading the common raster formats, SVG
@@ -634,6 +638,7 @@ sections:
           - CanvasNetTool_InputFormats_EveryFormat_AreReadable
           - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
+          - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
       - id: CanvasNetTool-System-Documents
         title: >-
@@ -677,12 +682,49 @@ sections:
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
           - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
+          - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+
+      - id: CanvasNetTool-System-VegaLite
+        title: >-
+          The tool shall render a Vega-Lite chart (a `.vl.json` or `.vl` file, or a `.json` file with a
+          Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default),
+          over the background of the chart (white by default) unless `--background` says otherwise, with
+          UTC dates and only the fonts bundled with the tool, without reading anything from the network,
+          giving the same picture every time; shall describe a chart with the `info` command (its
+          laid-out size and, in a `chart` object, its marks, data references, parameters, title, and schema
+          version) and list the `vega-lite` format with the `formats` command; shall refuse a plain Vega
+          specification as an unsupported format; and shall report an invalid chart (including a specification
+          that nests deeper than, or has a string longer than, the limit of the parser) with the error code
+          vega-lite-error, a chart that exceeds a limit of the library while it is laid out or drawn with the
+          error code budget-exceeded, a specification file longer than the limit of the library with the error
+          code corrupt-input (as for an overlong SCAD model), and a chart that lays out larger than the maximum
+          image size with the error code size-limit, as expected failures. The self-validation includes the
+          Vega-Lite self-test (see the validate requirement).
+        tags: [system]
+        justification: |
+          Agents are asked to show data; a declarative chart specification says what to draw without a
+          plotting program, the same picture on every machine lets results be compared and cached, and
+          reading only the specification (and never the network) means that rendering a chart from an
+          untrusted source cannot reach other systems. Every limit and mistake of a chart is a concise,
+          coded error rather than a crash, and the constructs the renderer cannot draw yet are reported,
+          never silently skipped.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
+          - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
+          - CanvasNetTool-Commands-RenderCommand-VegaLite
+        tests:
+          - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
       - id: CanvasNetTool-System-Diagnostics
         title: >-
           The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
-          skip or approximate, and the warnings, unsupported features, and echoed text of an OpenSCAD
-          model, in the `diagnostics` and `echo` of the JSON result, and with `--strict` shall fail
+          skip or approximate, the warnings, unsupported features, and echoed text of an OpenSCAD
+          model, and the warnings and unsupported features of a Vega-Lite chart, in the `diagnostics`
+          and `echo` of the JSON result, and with `--strict` shall fail
           with the error code unsupported-feature and write no output instead of skipping an
           unsupported feature.
         tags: [system]
@@ -692,6 +734,7 @@ sections:
         tests:
           - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
           - CanvasNetTool_Scad_Diagnostics_AreReportedInJson
+          - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
       - id: CanvasNetTool-System-OutputFormats
         title: >-
@@ -748,8 +791,8 @@ sections:
       - id: CanvasNetTool-System-InputErrors
         title: >-
           The tool shall report a missing, unsupported, truncated, or corrupt input file (including a
-          document with a missing page or a broken part, and a model with a syntax error or an include
-          that cannot be read), a page that does not exist, and an image
+          document with a missing page or a broken part, a model with a syntax error or an include
+          that cannot be read, and a chart with an invalid specification), a page that does not exist, and an image
           larger than the maximum size, as an expected failure with a stable error code and exit code
           1, never as an unexpected error, and shall write no output.
         tags: [system]
@@ -763,3 +806,4 @@ sections:
           - CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
+          - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
