@@ -27,6 +27,12 @@ internal sealed partial class RowTransforms
         var fields = operation.Items.Select(f => f.StringValue!).ToArray();
         var readers = fields.Select(f => new FieldReader(input, f)).ToArray();
 
+        // The key of every folded row is the name of its field, a text of the specification
+        foreach (var field in fields)
+        {
+            CheckText(DataValue.FromString(field), "A field name of the fold transform", location);
+        }
+
         // The output rows are counted before anything is allocated; the input counts until the output is complete
         var outputRows = (long)input.RowCount * fields.Length;
         _context.Loader.ReserveDerivedRows(outputRows, "fold transform output", location);

@@ -131,6 +131,67 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>Gets the opaque payload of a regular expression value; null for other kinds.</summary>
     public object? RegExpPayload => Kind == DataValueKind.RegExp ? _reference : null;
 
+    /// <summary>
+    ///     Determines whether this value is, or contains at any depth, a text (or an object key) longer than a limit.
+    /// </summary>
+    /// <remarks>
+    ///     This is the one check that every path by which a text from outside the table operations (a constructor of the
+    ///     expression language, a parameter, a value of the specification) enters a derived table uses. It is iterative, so
+    ///     the depth of a composite value cannot exhaust the stack, and does not allocate for a scalar.
+    /// </remarks>
+    /// <param name="maxLength">The longest text allowed, in UTF-16 characters.</param>
+    /// <returns>True when a text is longer than <paramref name="maxLength"/>.</returns>
+    public bool HasTextLongerThan(int maxLength)
+    {
+        if (!IsString && !IsArray && !IsObject)
+        {
+            return false;
+        }
+
+        var pending = new Stack<DataValue>();
+        pending.Push(this);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (current.IsString)
+            {
+                if (current.Text!.Length > maxLength)
+                {
+                    return true;
+                }
+            }
+            else if (current.IsArray)
+            {
+                foreach (var element in current.Elements)
+                {
+                    if (element.IsString || element.IsArray || element.IsObject)
+                    {
+                        pending.Push(element);
+                    }
+                }
+            }
+            else if (current.IsObject)
+            {
+                var members = current.ObjectValue!;
+                for (var i = 0; i < members.Count; i++)
+                {
+                    if (members.Keys[i].Length > maxLength)
+                    {
+                        return true;
+                    }
+
+                    var member = members.ValueAt(i);
+                    if (member.IsString || member.IsArray || member.IsObject)
+                    {
+                        pending.Push(member);
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Gets a value indicating whether this value is an array.</summary>
     public bool IsArray => Kind == DataValueKind.Array;
 

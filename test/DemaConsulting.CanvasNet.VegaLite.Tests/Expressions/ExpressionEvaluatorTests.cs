@@ -536,6 +536,32 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the texts inside an array or object literal are bounded by <see cref="VegaLiteLimits.MaxStringLength"/>
+    ///     at any depth, like a scalar result, and that the failure is located at the expression.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("['0123456789']")]
+    [InlineData("{a: '0123456789'}")]
+    [InlineData("[1, [2, {k: ['0123456789']}]]")]
+    [InlineData("{'0123456789': 1}")]
+    public void ExpressionEvaluator_Evaluate_CompositeWithTextLongerThanLimit_IsLocatedRenderError(string text)
+    {
+        // Arrange: compiled under the default limits and evaluated under a limit of 5
+        var limits = new VegaLiteLimits { MaxStringLength = 5 };
+        var evaluator = new ExpressionEvaluator(limits, CancellationToken.None);
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => evaluator.Evaluate(Compile(text)));
+        var fits = evaluator.Evaluate(Compile("[1, ['abc'], {k: 'abcde'}]"));
+
+        // Assert
+        Assert.Equal(Location, exception.Location);
+        Assert.Contains("the limit of 5 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.True(fits.IsArray);
+    }
+
+    /// <summary>
     ///     Validates that every conversion to text is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, not only a
     ///     string or an array: a number, a boolean and a regular expression converted to text longer than the limit fail even
     ///     when the text is only measured.

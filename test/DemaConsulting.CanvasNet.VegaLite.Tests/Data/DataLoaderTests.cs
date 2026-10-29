@@ -579,6 +579,25 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates that a text of an inline dataset is checked against the limit of the call, which can be lower than the
+    ///     limit the specification was parsed with.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_InlineTextLongerThanCallLimit_IsLocatedRenderError()
+    {
+        // Arrange: parsed under the default limit, loaded under a limit of 8
+        var tree = Spec("{\"values\":[{\"s\":\"012345678\"}]}");
+        var limits = new VegaLiteLimits { MaxStringLength = 8 };
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => CreateLoader(tree, limits: limits).Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Contains("the limit of 8 characters (MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SpecName, exception.Location.File);
+    }
+
+    /// <summary>
     ///     Validates that the largest values of the .NET date types (the usual "no end" sentinels) are clamped to the
     ///     largest supported date and never fail, whatever their kind.
     /// </summary>

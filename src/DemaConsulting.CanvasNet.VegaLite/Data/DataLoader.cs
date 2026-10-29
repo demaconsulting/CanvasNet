@@ -838,6 +838,14 @@ internal sealed class DataLoader
 
                 break;
             case SpecNodeKind.String:
+                // The limit of the call can be lower than the one the specification was parsed with
+                if (node.StringValue!.Length > _limits.MaxStringLength)
+                {
+                    throw new VegaLiteRenderException(
+                        $"A text in the data is longer than the limit of {_limits.MaxStringLength} characters (MaxStringLength).",
+                        node.GetLocation(_sourceName));
+                }
+
                 Add(node, key, DataValue.FromString(node.StringValue), record);
                 break;
             case SpecNodeKind.Number:

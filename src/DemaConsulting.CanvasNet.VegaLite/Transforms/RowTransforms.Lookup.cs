@@ -78,6 +78,7 @@ internal sealed partial class RowTransforms
 
         var readers = wholeRow ? new[] { new FieldReader(secondary, string.Empty) } : paths.Select(p => new FieldReader(secondary, p)).ToArray();
         var fallback = entry["default"] is { } defaultNode ? SpecValues.ToDataValue(defaultNode) : DataValue.Null;
+        CheckText(fallback, "The default of the lookup transform", location);
 
         var layout = new TableLayout(input, outputNames, keepInput: true, _context.Limits, location);
         var cells = layout.Allocate(input.RowCount);

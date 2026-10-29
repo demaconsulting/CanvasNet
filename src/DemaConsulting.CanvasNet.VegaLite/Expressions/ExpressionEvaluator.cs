@@ -230,9 +230,10 @@ internal sealed partial class ExpressionEvaluator
                 sp = Execute(expression, instruction, stack, sp, ref pc);
             }
 
-            // A text that is the result as it is (a parameter, a field, a literal) never went through a function that checks it
+            // A text that is the result as it is (a parameter, a field, a literal) never went through a function that checks it,
+            // and neither does a text inside an array or object literal, which is checked here at any depth
             var result = stack[0];
-            if (result.IsString && result.Text!.Length > _context.MaxStringLength)
+            if (result.HasTextLongerThan(_context.MaxStringLength))
             {
                 throw new ExpressionRuntimeException(
                     $"The expression produced a string longer than the limit of {_context.MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");

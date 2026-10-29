@@ -158,6 +158,29 @@ internal sealed partial class RowTransforms
     }
 
     /// <summary>
+    ///     Checks that a value that the specification gives a transform, and that a transform copies into the cells of its
+    ///     output, has no text (at any depth) longer than the limit of the call.
+    /// </summary>
+    /// <remarks>
+    ///     The limit of the call can be lower than the one the specification was parsed with, so a text of the specification
+    ///     is not trusted to fit. The check is made once, before any output is allocated.
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    /// <param name="what">What the value is, for the message.</param>
+    /// <param name="location">The location of the transform.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when a text is longer than <see cref="VegaLiteLimits.MaxStringLength"/>.</exception>
+    private void CheckText(DataValue value, string what, VegaLiteLocation location)
+    {
+        var maxLength = _context.Limits.MaxStringLength;
+        if (value.HasTextLongerThan(maxLength))
+        {
+            throw new VegaLiteRenderException(
+                $"{what} has a text longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).",
+                location);
+        }
+    }
+
+    /// <summary>
     ///     Records a recoverable finding of a transform.
     /// </summary>
     /// <param name="id">The identifier (<c>vl-transform-runtime</c> or <c>vl-expr-runtime</c>).</param>

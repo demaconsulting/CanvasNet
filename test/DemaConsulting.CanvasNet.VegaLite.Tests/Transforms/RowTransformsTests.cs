@@ -609,6 +609,95 @@ public class RowTransformsTests
         Assert.Contains("'k'", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    ///     Validates that a text of the specification that a transform copies into its output (the default of a lookup and the field names a fold turns into keys) is checked against the limit of the call, which
+    ///     can be lower than the limit the specification was parsed with.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_SpecTextLongerThanRenderLimit_IsLocatedRenderError()
+    {
+        // Arrange: parsed under the default limit, applied under a limit of 10
+        var limits = new VegaLiteLimits { MaxStringLength = 10 };
+        var lookupScalar = "[{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":" + Secondary + "},\"key\":\"k\",\"fields\":[\"n\"]},\"default\":\"0123456789a\"}]";
+        var lookupFits = "[{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":" + Secondary + "},\"key\":\"k\",\"fields\":[\"n\"]},\"default\":\"0123456789\"}]";
+        var fold = "[{\"fold\":[\"0123456789a\"]}]";
+
+        // Act
+        var scalar = Assert.Throws<VegaLiteRenderException>(() => RunUnder(Spec("[{\"id\":9}]", lookupScalar), limits));
+        var folded = Assert.Throws<VegaLiteRenderException>(() => RunUnder(Spec("[{\"0123456789a\":1}]", fold), limits));
+        var fits = RunUnder(Spec("[{\"id\":9}]", lookupFits), limits);
+
+        // Assert: located at the transform, naming the limit; a text at the limit is kept
+        foreach (var exception in new[] { scalar, folded })
+        {
+            Assert.Equal("/transform/0", exception.Location.Pointer);
+            Assert.Contains("the limit of 10 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        }
+
+        Assert.Equal("0123456789", fits.GetValue(0, "n").Text);
+    }
+
+    /// <summary>
+    ///     Validates that a calculated array or object whose texts are over the limit is not stored in a field.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_CalculateOfCompositeWithLongText_IsLocatedRenderError()
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxStringLength = 5 };
+        var array = Spec("[{\"i\":1}]", "[{\"calculate\":\"['0123456789']\",\"as\":\"a\"}]");
+        var obj = Spec("[{\"i\":1}]", "[{\"calculate\":\"{k: '0123456789'}\",\"as\":\"o\"}]");
+
+        // Act
+        var first = Assert.Throws<VegaLiteRenderException>(() => RunUnder(array, limits));
+        var second = Assert.Throws<VegaLiteRenderException>(() => RunUnder(obj, limits));
+
+        // Assert
+        Assert.Equal("/transform/0/calculate", first.Location.Pointer);
+        Assert.Equal("/transform/0/calculate", second.Location.Pointer);
+        Assert.Contains("the limit of 5 characters (VegaLiteLimits.MaxStringLength)", first.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the shared text check: it finds a text or object key over the limit at any depth and passes the rest.
+    /// </summary>
+    [Fact]
+    public void DataValue_HasTextLongerThan_FindsLongTextAtAnyDepth()
+    {
+        // Arrange
+        var deep = DataValue.FromString("abcdef");
+        for (var i = 0; i < 1000; i++)
+        {
+            deep = DataValue.FromObject(DataObject.Create([new KeyValuePair<string, DataValue>("k", deep)]));
+        }
+
+        var longKey = DataValue.FromObject(DataObject.Create([new KeyValuePair<string, DataValue>("abcdef", DataValue.FromNumber(1))]));
+
+        // Act and assert
+        Assert.True(deep.HasTextLongerThan(5));
+        Assert.False(deep.HasTextLongerThan(6));
+        Assert.True(longKey.HasTextLongerThan(5));
+        Assert.False(longKey.HasTextLongerThan(6));
+        Assert.False(DataValue.FromNumber(1).HasTextLongerThan(0));
+        Assert.False(DataValue.Null.HasTextLongerThan(0));
+    }
+
+    /// <summary>
+    ///     Parses a specification under the default limits and applies it under the limits of the call.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="limits">The limits of the call.</param>
+    /// <returns>The transformed table.</returns>
+    private static DataTable RunUnder(string json, VegaLiteLimits limits)
+    {
+        var tree = SpecParser.Parse(json, "t.vl.json");
+        var loader = new DataLoader(tree.SourceName, VegaLiteLimits.Default, null, tree.Root["datasets"], null, Ct);
+        var table = loader.Load(tree.Root["data"]);
+        var values = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        var evaluator = new ExpressionEvaluator(limits, Ct, values);
+        return RowTransforms.Apply(table, tree.Root["transform"], new TransformContext(tree, loader, evaluator, values, limits, Ct, []));
+    }
+
     /// <summary>The secondary rows used by the lookup tests.</summary>
     private const string Secondary = "[{\"k\":1,\"n\":\"one\",\"m\":10},{\"k\":2,\"n\":\"two\",\"m\":20},{\"k\":1,\"n\":\"uno\",\"m\":99}]";
 

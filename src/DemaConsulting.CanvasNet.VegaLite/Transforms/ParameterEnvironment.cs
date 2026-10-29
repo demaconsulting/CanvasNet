@@ -132,26 +132,11 @@ internal static class ParameterEnvironment
     /// <exception cref="VegaLiteRenderException">Thrown when a text is longer than <paramref name="maxLength"/>.</exception>
     private static DataValue Checked(DataValue value, string name, VegaLiteLocation location, int maxLength)
     {
-        if (value.IsString && value.Text!.Length > maxLength)
+        if (value.HasTextLongerThan(maxLength))
         {
             throw new VegaLiteRenderException(
                 $"The value of the parameter '{name}' has a text longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).",
                 location);
-        }
-
-        if (value.IsArray)
-        {
-            foreach (var element in value.Elements)
-            {
-                Checked(element, name, location, maxLength);
-            }
-        }
-        else if (value.IsObject)
-        {
-            for (var i = 0; i < value.ObjectValue!.Count; i++)
-            {
-                Checked(value.ObjectValue.ValueAt(i), name, location, maxLength);
-            }
         }
 
         return value;
