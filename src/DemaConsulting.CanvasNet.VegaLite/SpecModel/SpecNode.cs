@@ -319,15 +319,20 @@ internal sealed class SpecTree
     /// <param name="root">The root object.</param>
     /// <param name="sourceName">The source name used in locations, or null.</param>
     /// <param name="warnings">The warnings found while parsing.</param>
-    public SpecTree(SpecNode root, string? sourceName, IReadOnlyList<FeatureReport> warnings)
+    /// <param name="expressions">The compiled expressions of the specification; none when null.</param>
+    public SpecTree(SpecNode root, string? sourceName, IReadOnlyList<FeatureReport> warnings, SpecExpressions? expressions = null)
     {
         Root = root;
         SourceName = sourceName;
         Warnings = warnings;
+        Expressions = expressions ?? SpecExpressions.Empty;
     }
 
     /// <summary>Gets the root object of the specification.</summary>
     public SpecNode Root { get; }
+
+    /// <summary>Gets the expressions that the specification parser compiled (see <see cref="SpecExpressions"/>).</summary>
+    public SpecExpressions Expressions { get; }
 
     /// <summary>Gets the source name used in locations, or <see langword="null"/> when the source is unnamed.</summary>
     public string? SourceName { get; }

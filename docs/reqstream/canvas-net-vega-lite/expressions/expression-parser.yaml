@@ -1,0 +1,121 @@
+---
+# Software Unit Requirements for ExpressionParser
+#
+# These requirements describe the design-level behavior of the ExpressionParser unit of the Expressions subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the tokenizer and single-pass compiler that
+# turns the text of a Vega expression into an immutable CompiledExpression (a postfix program with forward jumps,
+# the findings that the feature catalog reports, and the parameter references that the document validates). The
+# unit comprises ExpressionParser.cs, ExpressionParser.Primary.cs, ExpressionParser.Tokenizer.cs,
+# CompiledExpression.cs, and ExpressionConstruct.cs. See
+# docs/verification/canvas-net-vega-lite/expressions/expression-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Expressions Requirements
+        sections:
+          - title: ExpressionParser Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-Grammar
+                title: >-
+                  The ExpressionParser unit shall compile the documented subset of the Vega expression
+                  language - the literals null, true, false, finite numbers (decimal, hexadecimal, and exponent
+                  forms), strings with escapes, regular expression literals with the flags g, i, m, and s
+                  (u, v, y, and d are rejected), array and object literals, and the constants PI, E, NaN, and
+                  Infinity; the unary operators +, -, !, and ~; the arithmetic, relational, equality, logical, and
+                  conditional operators with the JavaScript precedence and associativity; grouping; and calls of a
+                  function by name - and shall reject a null expression text.
+                justification: |
+                  The renderer must read an expression exactly as its author and Vega do; a different
+                  precedence or literal reading would silently change which rows are drawn.
+                tests:
+                  - ExpressionParser_Parse_NumberLiterals_HaveJavaScriptValues
+                  - ExpressionParser_Parse_StringLiterals_DecodeEscapes
+                  - ExpressionParser_Parse_KeywordsAndConstants_HaveTheirValues
+                  - ExpressionParser_Parse_ArrayAndObjectLiterals_BuildCompositeValues
+                  - ExpressionParser_Parse_PrecedenceAndAssociativity_MatchJavaScript
+                  - ExpressionParser_Parse_RegExpLiteralsAndDivision_AreDistinguished
+                  - ExpressionParser_Parse_UnhonoredRegExpFlag_IsLocatedSpecError
+                  - ExpressionParser_Parse_NullText_ThrowsArgumentNullException
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-Access
+                title: >-
+                  The ExpressionParser unit shall compile access to the row (datum, datum.name, datum['a b'],
+                  and member and index access on any calculated value) and shall record whether the expression
+                  reads the datum, and shall collect, once per distinct name with the offset of its first use,
+                  every other identifier as a reference to a parameter for the caller to validate.
+                justification: |
+                  Field and parameter access is how an expression reaches data; the caller can only reject an
+                  undeclared parameter or order the evaluation of parameters when the references are exposed.
+                tests:
+                  - ExpressionParser_Parse_DatumAccess_IsRecordedAndReadsFields
+                  - ExpressionParser_Parse_ParameterReferences_AreCollectedOncePerName
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-Constructs
+                title: >-
+                  The ExpressionParser unit shall collect, in order of appearance and with the offset of each,
+                  the constructs that are parsed but not executed - a call of a function outside the whitelist
+                  (vl-expr-function-name, the name lower-cased), view state (signal, event, and item, as
+                  vl-expr-view-state), and the
+                  deferred operators (the bitwise and shift operators and in, as vl-expr-construct-name) - and
+                  shall reject as a syntax error the constructs that Vega expressions do not have or that
+                  could reach the host: assignment, method calls, new, function expressions, arrow functions,
+                  the comma and semicolon, and the operators ** and ??.
+                justification: |
+                  A construct that the renderer cannot execute must be reported by a stable identifier and
+                  never run, while syntax that could execute arbitrary host behavior must not be accepted.
+                tests:
+                  - ExpressionParser_Parse_UnsupportedConstructs_AreCollectedInOrder
+                  - ExpressionParser_Parse_MixedCaseFunction_HasLowerCaseIdentifierAndOriginalName
+                  - ExpressionParser_Parse_DeferredOperators_AreNamed
+                  - ExpressionParser_Parse_MalformedExpression_ReportsFirstProblemAndOffset
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-Locations
+                title: >-
+                  The ExpressionParser unit shall report a syntax error, an invalid regular expression
+                  literal, and an expression that exceeds a limit as a VegaLiteSpecException that carries the
+                  location of the string value that holds the expression and whose message names the
+                  zero-based offset of the first problem inside the expression text, reporting the first
+                  problem in the text.
+                justification: |
+                  An author must be able to find the mistake both in the specification and inside the
+                  expression text.
+                tests:
+                  - ExpressionParser_Parse_SyntaxError_CarriesLocationAndOffset
+                  - ExpressionParser_Parse_InvalidRegExpLiteral_IsLocatedSpecError
+                  - ExpressionParser_Parse_MalformedExpression_ReportsFirstProblemAndOffset
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-Limits
+                title: >-
+                  The ExpressionParser unit shall reject an expression longer than the expression-length limit
+                  before it tokenizes it (4,096 characters by default, a text of exactly the limit being
+                  accepted) and an expression whose nesting - of groups, brackets, call argument lists, array
+                  and object literals, conditional branches, and unary operands - exceeds the expression-depth
+                  limit (64 by default, a nesting of exactly the limit being accepted), and shall compile
+                  a long chain of operators or logical operands without recursion proportional to its length
+                  and a nesting at the largest configurable depth without overflowing the stack.
+                justification: |
+                  Expressions are untrusted input; recursion or memory proportional to hostile text would let a
+                  specification terminate the host process.
+                tests:
+                  - ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit
+                  - ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst
+                  - ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit
+                  - ExpressionParser_Parse_EveryNestingConstruct_IsBoundedByDepthLimit
+                  - ExpressionParser_Parse_MaximumConfiguredDepth_DoesNotOverflowTheStack
+                  - ExpressionParser_Parse_LongOperatorChain_IsNotRecursive
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionParser-CompiledProgram
+                title: >-
+                  The ExpressionParser unit shall produce an immutable CompiledExpression that exposes its
+                  source text, its location, its nesting depth, its instruction count, and its findings, that
+                  can be shared between calls and threads, and that is the same for the same text however
+                  often and from however many threads it is compiled, and a long logical chain shall evaluate
+                  without recursion.
+                justification: |
+                  A specification compiles each expression once when it is opened and every render call
+                  evaluates it; the program must therefore be immutable and independent of the thread.
+                tests:
+                  - ExpressionParser_Parse_CompiledExpression_ExposesSourceAndLocation
+                  - ExpressionParser_Parse_RepeatedAndConcurrent_GivesIdenticalResults
+                  - ExpressionParser_Parse_LongLogicalChain_EvaluatesWithoutRecursion

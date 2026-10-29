@@ -64,6 +64,14 @@ package CanvasNet {
         expose VegaLiteData;
     }
 
+    view VegaLiteExpressionsView {
+        expose VegaLiteExpressions;
+    }
+
+    view VegaLiteTransformsView {
+        expose VegaLiteTransforms;
+    }
+
     view VegaLiteScalesView {
         expose VegaLiteScales;
     }

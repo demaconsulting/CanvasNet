@@ -19,7 +19,9 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Data-DataLoader-*` re
 
 One instance serves one call and is not thread-safe. It holds the source name, the limits, the cancellation token, its
 `DataFileResolver`, the top-level `datasets` node, the caller's datasets, the list of warnings, and the running count
-of rows created (`RowsLoaded`). It defines the constants `PrimitiveField` (`"data"`, the field that holds the value of
+of rows created (`RowsLoaded`), which is the row budget of the call: the rows of every loaded source and, through
+`ReserveDerivedRows` and `ReleaseRows`, of the tables that the row transforms derive. It defines the constants
+`PrimitiveField` (`"data"`, the field that holds the value of
 a row when the values are primitives, and the default field of a sequence) and the cancellation interval (1,024
 rows). Its input is the `data` node of a view (`SpecNode?`); its output is a `DataTable` and the `Warnings`
 (`vl-data-parse-failed` reports, one per field and type).
@@ -89,6 +91,14 @@ drive path, or a network path) is the empty table and is never given to the reso
   the endpoints and the step, computes the length with overflow-safe arithmetic, charges it before anything is
   allocated, and generates the values lazily.
 - `InferFormatType(path)` - `csv`, `tsv`, or `json` by extension.
+- `ReserveDerivedRows(rows, what, location)` and `ReleaseRows(rows)` - the row budget of the call as the row transforms
+  use it: `ReserveDerivedRows` charges the rows of a derived table against `MaxDataRows` (through the same `Charge` as a
+  loaded source, before anything is allocated, as a `double` so that a product that overflows an integer still fails the
+  limit) and adds them to `RowsLoaded`; `ReleaseRows` gives back the rows of a table that is no longer needed (never below
+  zero). A fold or flatten reserves its output while the input still counts, so the peak of two tables is bounded.
+- `FromObject(value, location)` (internal static) - converts a caller value (null, boolean, string, a number of any
+  built-in type, `DateTime`, `DateTimeOffset`) to a `DataValue`; it is also what converts a `VegaLiteRenderOptions.Parameters`
+  override.
 - `Complete` - builds the table, adds its rows to `RowsLoaded`, and converts the parse failures into warnings.
 - `Charge`, `Add`, and `CheckFieldCount` - enforce `MaxDataRows` as a total, `MaxFieldCount` per row, and the string
   length of JSON values at the leaf's location.
@@ -108,7 +118,8 @@ found, JSON text that is not valid Unicode (an escaped lone surrogate in a strin
 is not one valid character, delimited text that is malformed (located by the parser), a
 `name` that is not defined, a sequence without a finite numeric `start` and `stop`, with a zero, non-finite, or
 non-numeric `step`, or with a value outside the range of a number, more rows than `MaxDataRows` (in total, also for an
-overflowing sequence length), more fields in a row than `MaxFieldCount`, a
+overflowing sequence length, a lookup source, and the output of a transform that reserves its rows), more fields in
+a row than `MaxFieldCount`, a
 string longer than `MaxStringLength`, and a number outside the range of a double. A canceled token is an
 `OperationCanceledException`, never wrapped. Values that an explicit `parse` could not convert are not errors: they are
 null and reported as `vl-data-parse-failed` warnings. Sources that are only recognized and not supported (remote data, `values`
@@ -131,5 +142,9 @@ chart is still drawn.
 #### Callers
 
 `VegaLiteDocument` creates one loader per `Measure` or `Render` call for a single view with a supported mark, calls
-`Load`, and delivers the `Warnings` after the reports of the specification. The tests in
+`Load`, and delivers the `Warnings` after the reports of the specification. The loader is then the **context of the row
+transforms**: `RowTransforms` calls `Load` on the same instance for the `from.data` of a `lookup` (so the source has the
+sandbox, the file cache, the file and byte limits, and the row total of the main data) and reserves and releases the rows
+of its derived tables with `ReserveDerivedRows` and `ReleaseRows`; `ParameterEnvironment` converts the caller's
+`Parameters` with `FromObject`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs` call it directly through `InternalsVisibleTo`.

@@ -19,8 +19,10 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Marks-MarkBuilder-*` 
 
 #### Data Model
 
-The builder is stateless between calls; an instance holds the `ResolvedConfig`, the shared `SceneBudget`, and the source
-name. A private run object holds the state of one `Build` call (the mark definition, the view, the table, the scales, the
+The builder is stateless between calls; an instance holds the `ResolvedConfig`, the shared `SceneBudget`, the source
+name, and the optional `RowExpressions` (the compiled expressions of the specification and the evaluator of the call; null
+leaves every `{"expr": ...}` unevaluated). A private run object holds the state of one `Build` call (the mark
+definition, the view, the table, the scales, the
 data rectangle, and the token), and private helpers describe a channel (its definition, scale, and how to read a row's
 value), a position sizing (fixed, band, or encoded), and a paint (fill, stroke, stroke width, and opacity).
 
@@ -51,8 +53,25 @@ the opacity scale. `point`, `circle`, `square`, and `tick` marks get an opacity 
 `fillOpacity`, `strokeOpacity`, `strokeDash`, `strokeDashOffset`, `strokeCap`, and `strokeJoin` properties of the mark
 definition are honored. Explicit mark properties win over style, `config.<mark>`, `config.mark`, and the Vega styles.
 
-**Ignored without a report**: `tooltip`, `href`, expression-valued mark properties, individual corner radii, and
-`cornerRadiusEnd`. `x2`, `y2`, and the offset channels are reported by the feature catalog and ignored here.
+**Row-bound expressions.** A value written as `{"expr": ...}` is evaluated once per row, with
+`datum` bound to the row of the
+**transformed** table, by the evaluator of the call (so the steps count against the shared `MaxEvaluationSteps`). The
+parser compiled the expression when the document was opened, so no text is parsed here. The sites are exactly:
+
+- the paint properties of the mark definition `color`, `fill`, `stroke`, `opacity`, and `strokeWidth`, and `size` for the
+  `point`, `circle`, and `square` marks (the area of the symbol), following the same precedence as the plain properties
+  (`fill` or `stroke` wins over `color`; `color` is the fill of a filled mark and the stroke of an unfilled one); and
+- the constant `value` of the `color`, `fill`, `stroke`, and `opacity` channels, and of the `size` channel of a symbol mark
+  (a `value` of a channel overrides the corresponding mark-definition property, as before).
+
+A result of the wrong kind leaves the default in place: a color expression that does not give text, a number expression
+(`opacity`, `strokeWidth`, `size`) that does not give a finite number. Everything else that is an `{"expr": ...}` (other
+mark properties, other encoding values, and conditional encodings) is not evaluated and is reported by the feature
+catalog (`vl-expr-ref`, `vl-encoding-condition`).
+
+**Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
+`cornerRadiusEnd`. `x2`, `y2`, and the
+offset channels are reported by the feature catalog and ignored here.
 
 #### Key Methods
 
@@ -75,7 +94,9 @@ item per visible mark in row order (deterministic), and the budget has been char
 Exceeding `MaxSceneItems` is a `VegaLiteRenderException` located at the mark, thrown before the item that passes
 the limit is created (the `SceneBudget` carries the failure; the marks group and every mark are charged first, then
 created). A canceled token is an
-`OperationCanceledException`. A null configuration,
+`OperationCanceledException`. The evaluation of a row-bound expression can fail with a
+`VegaLiteRenderException` located at
+the expression (the step budget or the string limit is exhausted), which is propagated unchanged. A null configuration,
 view, table, or scales argument is `ArgumentNullException` (not converted). Invalid data is not an error: affected rows
 are dropped as described above. A mark type that is not drawn yields an empty group, because the feature catalog has already
 reported it. The unit performs no I/O.
@@ -84,6 +105,8 @@ reported it. The unit performs no I/O.
 
 - **`ResolvedScales`**, **`ResolvedScale`**, and **`ScaleModel`** - the scales of the `Scales` subsystem
 - **`DataTable`** and **`DataValue`** - the data of the `Data` subsystem
+- **`RowExpressions`** - the compiled expressions and the evaluator of the call (the `Transforms` subsystem), and
+  **`CompiledExpression`** and **`ExpressionEvaluator`** of the `Expressions` subsystem, for the row-bound paint values
 - **`ResolvedConfig`** and **`SpecNode`** - the `SpecModel` subsystem
 - **`SceneGroup`**, **`SceneRect`**, **`SceneRule`**, **`SceneSymbol`**, **`SceneClip`**, and **`SceneBudget`** - the
   `Scenegraph` subsystem
@@ -93,6 +116,7 @@ reported it. The unit performs no I/O.
 
 #### Callers
 
-`VegaLiteDocument` calls `IsSupported` to decide if a view is drawn and `Build` once for the final data rectangle. The
+`VegaLiteDocument` calls `IsSupported` to decide if a view is drawn and `Build` once for the final data rectangle, passing
+the table that the transforms produced and the `RowExpressions` of the call. The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs` call the builder directly through
 `InternalsVisibleTo`, and the chart integration tests exercise it through the public document.

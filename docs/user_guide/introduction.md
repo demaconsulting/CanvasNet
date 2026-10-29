@@ -3839,10 +3839,12 @@ public sealed partial class VegaLiteDocument
 - `Parse` and the two `Open` overloads read UTF-8 text (at most 4,194,304 UTF-16 characters by default; a leading byte
   order mark is ignored; invalid UTF-8, or a string with an unpaired surrogate, is rejected rather than replaced) and
   throw a `VegaLiteSpecException` with the location of the first problem when the text is not valid JSON, is nested too
-  deeply, or has a known property of the wrong type or value. Plain **Vega** specifications (a `$schema` under
+  deeply, has a known property of the wrong type or value, or holds an invalid expression or parameter (see
+  *Vega-Lite Expressions* and *Vega-Lite Parameters*). Plain **Vega** specifications (a `$schema` under
   `vega.github.io/schema/vega/`) are rejected. `Open(string)` names the source by the path; `Open(Stream)` reads from
-  the current position and leaves the stream open. Opening never loads data, never opens another file, and never uses
-  the network; only `Measure` and `Render` read data, and only as described in *Vega-Lite Data*.
+  the current position and leaves the stream open. Opening never loads data, never opens another file, never uses
+  the network, and never evaluates an expression (it only compiles them); only `Measure` and `Render` read data, as
+  described in *Vega-Lite Data*, and run expressions.
 - The descriptive properties (`SchemaUrl`, `SchemaMajorVersion`, `Title`, `MarkTypes`, `DataReferences`,
   `ParameterNames`) describe the text only: nothing is loaded or evaluated, so they are cheap and safe to read for a
   file you do not trust. A `VegaLiteDataReference` records the `Kind` of a data source as written (`Inline`, `Url`,
@@ -3866,7 +3868,10 @@ public sealed partial class VegaLiteDocument
   invalid value that can only be found while laying out (for example an unknown axis orientation or a malformed d3
   format).
 - `VegaLiteRenderException`: Thrown, with the location of the construct, when the data, scale, axis, or scene cannot
-  be built or a limit of `VegaLiteLimits` is exceeded. A local data file that is missing, refused by the sandbox,
+  be built or a limit of `VegaLiteLimits` is exceeded. An expression or transform that fails while it runs (the
+  evaluation budget, a string limit, a regular expression, a row, field, or cell limit of a derived table) is this
+  exception, located at the expression or the transform (see *Vega-Lite Expressions* and *Vega-Lite Transforms*). A
+  local data file that is missing, refused by the sandbox,
   behind a link, not valid UTF-8, or not valid JSON or delimited text, a `data.name` that nobody defines, and a
   document with no place to look for a local data file are all this exception, in lenient and strict mode alike (see
   *Vega-Lite Data*).
@@ -3890,7 +3895,7 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `VegaLiteOpenOptions` property | Default | Meaning |
 | ------------------------------ | ------- | ------- |
 | `SourceName` | `null` (the path for `Open(string)`) | The name shown in locations and messages |
-| `Limits` | `null` (`VegaLiteLimits.Default`) | The resource limits of parsing (the source length and the JSON depth) |
+| `Limits` | `null` (`VegaLiteLimits.Default`) | The resource limits of parsing (the source length, the JSON depth, and the length and nesting depth of every expression) |
 | `BaseDirectory` | `null` (the folder of the file for `Open(string)`) | The folder that a relative data `url` is looked up in first. A document opened from a string or a stream has none unless you set it. The current directory is never used |
 | `DataPaths` | empty | More folders that a relative data `url` is looked up in, in order, after `BaseDirectory`; copied when set |
 | `FileResolver` | `null` | A `Func<string, Stream?>` callback that replaces the file system: it receives a normalized logical path (forward slashes, no leading slash) and returns a readable stream of UTF-8 text, or `null` when the file does not exist. When it is set the file system is never touched. The library disposes the stream |
@@ -3905,7 +3910,7 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"` |
 | `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
 | `TimeZone` | `null` (UTC) | Accepted and reserved for the time support that is planned for a later release; there is no time scale yet |
-| `Parameters` | `null` | Caller-supplied parameter values, validated and copied when set; accepted and reserved for the parameter support that is planned for a later release (they have no effect today). Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
+| `Parameters` | `null` | Caller-supplied values that **replace the definition** of the named parameters of the specification, validated and copied when set (see *Vega-Lite Parameters*). A name that the document does not declare (`ParameterNames`) is an `ArgumentException` when the chart is measured or rendered. Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
 | `Datasets` | `null` | Named tables of rows for a `data.name`, copied when set; a caller dataset **replaces** a dataset of the same name in the specification's top-level `datasets`. Each row is a dictionary of field name to a value that is `null`, `bool`, `string`, a finite number, a `DateTime` (UTC; an unspecified kind is taken as UTC), or a `DateTimeOffset` (see *Vega-Lite Data*) |
 | `Limits` | `VegaLiteLimits.Default` | The resource limits of the call (see below) |
 | `WarningHandler` | `null` | Receives each `VegaLiteDiagnostic` (a warning); `null` drops them |
@@ -3927,8 +3932,11 @@ N items and fails on the next one; tick labels that are dropped because they ove
 data limits apply to each `Measure` or `Render` call: `MaxDataRows` is a **total** across every table that the call
 creates (inline rows, files, datasets, and sequences), `MaxDataFiles` counts the distinct files read, `MaxDataBytes` is
 the size of each file, and `MaxFieldCount` is the number of fields of a row (the columns of a file). The data is read
-and checked before any scene item is counted. The expression limits belong to features that are planned for later
-releases and are not reached today.
+and checked before any scene item is counted. `MaxExpressionLength` and `MaxExpressionDepth` are checked when the
+document is opened (with `VegaLiteOpenOptions.Limits`); `MaxEvaluationSteps` is **one budget per measure or render
+call** that the parameters, the transforms, and the row-bound mark values share, and `MaxStringLength` also bounds every
+text that an expression builds. The fields and rows that the row transforms derive count against `MaxFieldCount` and
+`MaxDataRows` as well (see *Vega-Lite Expressions* and *Vega-Lite Transforms* for the details).
 
 ### Vega-Lite Data
 
@@ -4057,9 +4065,10 @@ are allocated, also for a sequence), `MaxFieldCount`, and `MaxStringLength` (a t
 the message. Data is read before the scene is built, so a data failure never depends on `MaxSceneItems`.
 
 **What is not read.** Geographic data (`topojson`, `sphere`, `graticule`, GeoJSON values), `values` given as text, and
-remote URLs are reported (`vl-data-geo`, `vl-data-values-text`, `vl-data-remote-url`) and give an empty dataset; the
-transforms that could reshape data (`calculate`, `filter`, `aggregate`, and the others) are not available yet and are
-reported (`vl-transform-<name>`).
+remote URLs are reported (`vl-data-geo`, `vl-data-values-text`, `vl-data-remote-url`) and give an empty dataset. The
+rows that are read can be reshaped by the row transforms (see *Vega-Lite Transforms*); the transforms that aggregate,
+bin, or compute over groups of rows (`aggregate`, `window`, and the others) are not available yet and are reported
+(`vl-transform-<name>`).
 
 ### Supported Vega-Lite Subset
 
@@ -4077,14 +4086,17 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
 | Field types | `quantitative`, `nominal`, and `ordinal` |
-| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `sort` (ascending, descending, `null`, or an array of values), and `bin` and `stack` (as `false` or `null` only) |
+| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `sort` (ascending, descending, `null`, an array of values, or an object that sorts by an aggregate of a field; see *Vega-Lite Transforms*), and `bin` and `stack` (as `false` or `null` only) |
 | Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette); a quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
 | Legends | **None**: a color, fill, stroke, size, or opacity channel driven by a field is drawn without a legend and reported (`vl-guide-legend`), unless `legend` or `scale` is `null` |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad` or `none`; `background`; the `view` configuration (size, fill, and stroke) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism |
-| Transforms, expressions, parameters, time | **None** (see the identifiers below) |
+| Expressions | A subset of the Vega expression language with 57 functions (math, string, array, type, and regular expression), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
+| Parameters | Static **variable** parameters of the single view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture |
+| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms* |
+| Time, conditional encodings, other transforms | **None** (see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
 
 The default colors, sizes, orientations, and layout constants follow Vega-Lite 6 and Vega; positions are derived from
@@ -4093,6 +4105,296 @@ missing, `null`, NaN, or non-numeric value on a continuous `x`, `y`, `size`, or 
 Vega-Lite 6 behavior for marks that are not lines), and so are values outside an explicit discrete `domain`.
 Discrete domains are ascending by default, with mixed kinds ordered null, boolean, number, and string. Marks are clipped
 only with `"clip": true`. A line feed inside title text splits the title into lines, which Vega itself does not do.
+
+### Vega-Lite Expressions
+
+An expression is a string in a **subset of the Vega expression language** (itself a subset of JavaScript). The package
+parses it with its own bounded parser and runs it with its own interpreter: there is no `eval`, no reflection, no
+user-defined function, no file, network, clock, or random source, so an expression is a pure, deterministic function
+of its row and its parameters. Expressions are accepted in these places, and only these:
+
+- the `calculate` of a `calculate` transform, and a `filter` that is a string (also inside the `and`, `or`, and `not`
+  of a filter predicate): the expression runs once for every row, with `datum` bound to the row;
+- the `expr` of a variable parameter: it runs once per call, without a row (see *Vega-Lite Parameters*);
+- an `{"expr": ...}` value that is evaluated for every mark row: the mark properties `color`, `fill`, `stroke`,
+  `opacity`, and `strokeWidth`, `size` for a `point`, `circle`, or `square`, and the constant `value` of the `color`,
+  `fill`, `stroke`, `opacity`, and (for those marks) `size` channels. A result of the wrong kind (a color that is not
+  text, a number that is not finite) leaves the default of a mark property in place; the `opacity` or `size` of a
+  channel `value` that is not a finite number leaves that row out of the picture, like a missing value of a continuous channel.
+
+An expression anywhere else (a title, `width`, `height`, `padding`, `background`, `view`, another mark property, an
+encoding `value` of another channel, `axis.labelExpr`) is not evaluated and is reported (`vl-expr-ref`, `vl-expr-label`).
+Conditional encodings (`condition`) are reported (`vl-encoding-condition`) and not applied.
+
+Every expression of every view is **compiled when the document is opened**, once, so a mistake is a
+`VegaLiteSpecException` at the string value of the expression, with the pointer, line, and column of the value and the
+zero-based offset inside the expression text in the message (`... Invalid expression: <what> at expression offset N.`),
+and a parsed document can be rendered any number of times and from several threads.
+
+**The language.**
+
+<!-- markdownlint-disable MD013 -->
+| Element | Supported |
+| ------- | --------- |
+| Literals | `null`, `true`, `false`; numbers (decimal with fraction and exponent, and hexadecimal `0x1F`); strings in `'...'` or `"..."` with the JavaScript escapes (`\n`, `\t`, `\xHH`, `\uHHHH`, `\u{...}`; no octal escapes, no template strings); array literals `[1, 2]`; object literals `{a: 1, 'b c': 2}`; regular expression literals `/ab+c/gi` (flags `g`, `i`, `m`, `s`; `u`, `v`, `y`, and `d` are not supported and are an error) |
+| Constants | `NaN`, `Infinity`, `PI`, `E`. The other Vega constants (`SQRT2`, `LN2`, ...) are not available |
+| `datum` | The row: `datum.name`, `datum['a b']`, `datum.a.b`, and `datum[expression]`. A missing field is `null`; a nested field is read from the data as a path (`a.b`) or rebuilt as an object or array when the row has `a.b` or `a.0` fields (names `0` to n-1 make an array; reading the same path twice gives the same value, so `datum.a === datum.a`) |
+| Member access | `value.name`, `value[key]`, `array.length`, `string.length`, `array[0]`, `string[0]`, and the `source`, `flags`, and `global` of a regular expression. The member of `null` or of a scalar is `null`; there are no method calls (`a.b()` is a syntax error) |
+| Operators, from the lowest to the highest precedence | `? :` (right to left); `\|\|`; `&&`; `==` `!=` `===` `!==`; `<` `<=` `>` `>=`; `+` `-`; `*` `/` `%`; the unary `+` `-` `!`; member access, indexing, and calls. Parentheses group |
+| Short circuit | `&&`, `\|\|`, and `? :` run only the operand they need, and `&&` and `\|\|` **return an operand**, not a boolean, as in JavaScript |
+| Parameters | Any other identifier is the value of the parameter of that name (see *Vega-Lite Parameters*); a name that is not a parameter is a `VegaLiteSpecException` when the document is opened |
+<!-- markdownlint-enable MD013 -->
+
+The evaluation follows JavaScript with the invariant culture: `+` concatenates when either side is text and adds
+numbers otherwise, `==` and the relational operators convert their operands as JavaScript does, `===` compares the
+kind and the value, division by zero is an infinity or `NaN`, and `%` is the remainder of JavaScript. Arrays and
+objects are values that compare **by identity** (`[1] == [1]` is false, as in JavaScript). Two differences are
+deliberate: the data model has one `null` for both JavaScript's `null` and `undefined`, so `null + 1` is 1 (JavaScript
+gives `NaN` for `undefined + 1`), and `isNaN` and `isFinite` do not convert their argument (see below). A date in the
+data is a value that reads as its milliseconds since the epoch in arithmetic and as its ISO text as a string, and
+expressions have no way to create one.
+
+**What is a syntax error.** Assignments (`=`, `+=`, ...), `++` and `--`, `new`, `function` and `=>`, `typeof`, `void`,
+and `delete`, the comma operator and `;`, `**`, `??`, `?.`, spread (`...`), template strings, method calls, and every
+other JavaScript reserved word are errors that fail when the document is opened.
+
+**What parses but does not run.** A construct that the language has but this release does not run is **reported** and
+evaluates to `null`, so one unsupported call does not hide the rest of the chart: a call of a function outside the
+list below (`vl-expr-function-<name>`), `signal`, `event`, `item`, and the signals of the view that no parameter
+declares (`width`, `height`, `padding`, `autosize`, `background`, `cursor`: `vl-expr-view-state`), and the operators
+`|`, `^`, `&`, `<<`, `>>`, `>>>`, and `in` (`vl-expr-construct-<name>`: `bitwise-or`, `bitwise-xor`, `bitwise-and`,
+`bitwise-not` (the unary `~`),
+`shift-left`, `shift-right`, `shift-right-unsigned`, `in`). In strict mode the first report throws a
+`VegaLiteUnsupportedFeatureException` (see *Vega-Lite Unsupported Features and Strict Mode*); the report is located at
+the string value of the expression and its message names the offset of the construct.
+
+**The functions.** There are exactly **57** functions; names are case-sensitive and an argument that is not given is
+`undefined` (`NaN` as a number, the text `undefined` as a string). Number arguments are converted as in JavaScript.
+
+<!-- markdownlint-disable MD013 -->
+| Math (27) | Meaning |
+| --------- | ------- |
+| `abs(x)`, `ceil(x)`, `floor(x)`, `trunc(x)`, `sign(x)`, `sqrt(x)` | The absolute value; the smallest integer not below `x`; the largest integer not above `x`; `x` without its fraction; -1, 0 (a zero keeps its sign), 1, or `NaN`; the square root |
+| `round(x)` | The nearest integer; halves go toward positive infinity, as JavaScript's `Math.round` |
+| `exp(x)`, `log(x)`, `log10(x)`, `pow(x, y)` | e to the power `x`; the natural logarithm; the base-10 logarithm; `x` to the power `y` with JavaScript's special cases (`NaN` for a `NaN` exponent) |
+| `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)`, `atan(x)` | The circular functions, in radians |
+| `sinh(x)`, `cosh(x)`, `tanh(x)`, `asinh(x)`, `acosh(x)`, `atanh(x)` | The hyperbolic functions |
+| `atan2(y, x)` | The angle of the point (`x`, `y`) in radians |
+| `clamp(value, min, max)` | `value` limited to the range from `min` to `max` |
+| `max(a, b, ...)`, `min(a, b, ...)` | The largest or smallest argument; any number of arguments (negative or positive infinity for none); `NaN` when an argument is `NaN` |
+
+| String (9) | Meaning |
+| ---------- | ------- |
+| `lower(s)`, `upper(s)` | The text in lower or upper case with the full JavaScript mappings, independent of the culture (`upper('ß')` is `SS`, `lower('İ')` is `i` and a combining dot, and a capital sigma at the end of a word becomes `ς`); the result is at most `MaxStringLength` characters |
+| `trim(s)` | The text without JavaScript white space at both ends |
+| `substring(s, start[, end])` | The part from `start` to `end` (the end of the text when omitted); positions are clamped to the text and swapped when `start` is larger; counted in UTF-16 code units |
+| `startswith(s, search[, position])`, `endswith(s, search[, endPosition])` | Whether the text has `search` at `position` (0 by default), or ends with it when cut at `endPosition` |
+| `pad(s, length[, character[, align]])` | The text padded with repeated `character` (a space by default) up to `length`: at the end by default, at the start for an `align` of `"left"`, on both sides for `"center"` |
+| `replace(s, pattern, replacement)` | The text with the first occurrence of a text `pattern`, or the matches of a regular expression (all of them with the `g` flag), replaced; the replacement may use `$&`, `` $` ``, `$'`, `$$`, `$1`, and `$<name>` |
+| `split(s, separator[, limit])` | The array of the parts between the matches of a text or regular expression `separator` (captured groups are included, as in JavaScript), at most `limit` parts |
+
+| Array and text (6) | Meaning |
+| ------------------ | ------- |
+| `length(x)` | The number of UTF-16 code units of a text or of elements of an array; `null` for anything else |
+| `slice(x, start[, end])` | A part of a text or array (a new array); a negative position counts from the end |
+| `indexof(x, value)`, `lastindexof(x, value)` | The first or last position of a text in a text, or of an element strictly equal (`===`) to `value` in an array; -1 when it does not occur |
+| `includes(x, value)` | Whether the text contains the text `value`, or the array has an element that is the same value (`NaN` equals `NaN`) |
+| `join(array[, separator])` | The elements as text joined by `separator` (`,` by default; `null` elements are empty); `null` when `x` is not an array |
+
+| Type and conversion (13) | Meaning |
+| ------------------------ | ------- |
+| `isArray(x)`, `isBoolean(x)`, `isDate(x)`, `isNumber(x)`, `isString(x)`, `isRegExp(x)` | Whether the value is of that kind; `isNumber` is true for `NaN` and the infinities |
+| `isObject(x)` | True for objects, arrays, dates, and regular expressions (not for `null`) |
+| `isFinite(x)`, `isNaN(x)` | True for a number that is finite, or is `NaN`; false for any other kind, **without conversion** (like `Number.isFinite` and `Number.isNaN`) |
+| `isValid(x)` | True unless the value is `null` or `NaN` |
+| `toBoolean(x)`, `toNumber(x)`, `toString(x)` | The value converted as JavaScript does (the texts `false` and `0` are false for `toBoolean`); `null` and the empty text give `null`, so a missing value stays missing |
+
+| Regular expression (2) | Meaning |
+| ---------------------- | ------- |
+| `regexp(pattern[, flags])` | A regular expression value; an invalid pattern or an unknown, unsupported (`u`, `v`, `y`, `d`) or repeated flag fails the render |
+| `test(regexp, s)` | Whether the text matches; a text instead of a regular expression is used as the pattern |
+<!-- markdownlint-enable MD013 -->
+
+The functions of the date and time, formatting (`format`, `timeFormat`, ...), color (`rgb`, `hsl`, ...), scale, data
+(`data`, `scale`), and geographic families, and the other functions of Vega, are reported as unsupported
+(`vl-expr-function-<name>`, for example `vl-expr-function-datetime`) and give `null`. `now` and `random` are not
+available by design: an expression has no clock and no random source.
+
+**Regular expressions** are JavaScript regular expressions run by the .NET engine, so a few details follow .NET: `\d`,
+`\D`, `\w`, and `\W` are ASCII classes (also inside a character class), `\s` and `\S` are the JavaScript white space,
+`$` without the `m` flag matches only at the very end, `[^]` matches any
+character, `[]` matches nothing, and `.` and the numbering of mixed named and unnamed groups follow .NET. The
+linear-time matching engine is used (so a pattern cannot cause catastrophic backtracking); look-around and
+back-references need the backtracking engine and are stopped after 100 ms, which fails the render with a located error.
+A pattern is at most 1,024 characters; an invalid pattern in a literal is an error when the document is opened, and one
+built by `regexp()` fails when it runs. Matching works on UTF-16 code units, so the flags `u` and `v` (Unicode matching),
+`y` (sticky), and `d` (match indices) are rejected, in a literal when the document is opened and in `regexp()` when it
+runs, instead of being accepted and ignored.
+
+**Limits and errors.**
+
+<!-- markdownlint-disable MD013 -->
+| Limit | Default | Checked | Failure |
+| ----- | ------- | ------- | ------- |
+| `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`) | `VegaLiteSpecException` (the offset is the limit) |
+| `MaxExpressionDepth` | 64 (at most 256) | When the document is opened | `VegaLiteSpecException`; the nesting of parentheses, brackets, call arguments, array and object literals, conditional branches, and unary operators counts, a long chain such as `a + b + c + ...` does not |
+| `MaxEvaluationSteps` | 50,000,000 | At every instruction; **one budget per call** shared by the parameters, the transforms, and the row-bound mark values | `VegaLiteRenderException` located at the expression, with the offset of the instruction that ran out. A step is one executed instruction, plus one per 64 characters or elements of the work of a function such as `split` or `replace`, or of an operator that reads a long string or array as a number or text |
+| `MaxStringLength` | 1,048,576 | For every text an expression builds (`+`, `join`, `pad`, `replace`, ...) | `VegaLiteRenderException` |
+<!-- markdownlint-enable MD013 -->
+
+A failure that depends on the data (a limit, a regular expression) is a `VegaLiteRenderException`; everything else in
+the data is a value, never an exception: a missing field, a member of `null`, or a call with the wrong kind of argument
+gives `null`, `NaN`, or the JavaScript result. A canceled token is an `OperationCanceledException`, never wrapped, and
+is checked when an evaluation starts and whenever the instruction counter passes a multiple of 1,024.
+
+Examples of expressions (each is the value of a `calculate`, a `filter`, or an `expr`):
+
+```json
+{ "calculate": "datum.crates - datum.returned", "as": "sold" }
+{ "filter": "datum.sold > 20 && lower(datum.stall) != 'east'" }
+{ "calculate": "join(split(datum.tags, ';'), ' / ')", "as": "label" }
+{ "calculate": "test(/^n/i, datum.stall) ? 'north' : 'other'", "as": "region" }
+{ "calculate": "clamp(round(datum.crates / 10) * 10, 20, 80)", "as": "bucket" }
+```
+
+### Vega-Lite Parameters
+
+A **variable parameter** is a named value that expressions read. The package supports the **static** form: the
+parameter has the value that its definition gives, because a still picture has no widget that could change it.
+
+```json
+{
+  "params": [
+    { "name": "cut", "value": 3 },
+    { "name": "limit", "expr": "cut + 1" },
+    { "name": "show", "value": true }
+  ],
+  "transform": [ { "filter": "datum.x > limit" }, { "filter": { "param": "show" } } ]
+}
+```
+
+- A parameter is an entry of the `params` array of the (single, drawn) view with a text `name` and **no `select`**. Its
+  value is the `expr` when it has one (an expression, evaluated once per call) and otherwise the `value` (any JSON
+  value: text, number, boolean, `null`, an array, or an object; arrays and objects work with `length`, `slice`,
+  member access, and so on). A parameter with neither is `null`. A `bind` is accepted, ignored, and not reported, and
+  `empty` is ignored: the parameter keeps its initial value.
+- The names must be unique in a view, and `datum`, `event`, `item`, and `parent` are reserved. A repeated or reserved
+  name is a `VegaLiteSpecException` at the `name`.
+- An expression reads a parameter by writing its name. A name that no enclosing view declares is a
+  `VegaLiteSpecException` at the
+  expression when the document is opened (except the view signals, which are reported as `vl-expr-view-state`). The
+  parameters are evaluated in **dependency order** (a parameter after the parameters its expression reads, otherwise in
+  the order of the text), so the order in the text does not matter. A parameter that depends on itself, directly or
+  through others, is a cycle and a `VegaLiteSpecException` at the `expr` of the first parameter of the text that is on
+  the cycle or depends on it.
+- A `filter` predicate `{"param": "name"}` keeps every row when the parameter is truthy (JavaScript truthiness) and no
+  row otherwise.
+- `VegaLiteRenderOptions.Parameters` **replaces the definition** of a parameter by a value of the host: the `value` and
+  the `expr` of the specification are not used and the expression is **not evaluated**, and the expressions that read
+  the parameter see the override. A date (`DateTime`, `DateTimeOffset`) becomes a date value. The names that may be
+  overridden are `VegaLiteDocument.ParameterNames`; any other name is an `ArgumentException` when the chart is measured
+  or rendered. The override of a selection parameter is accepted and has no effect. A text of an override (or of a
+  `value`) longer than `MaxStringLength` fails the render with a located `VegaLiteRenderException`.
+- A **selection** parameter (an entry with `select`, and the legacy `selection`) is reported (`vl-param-selection`);
+  an expression that reads it sees `null`, and a filter on it (`{"param": "brush"}`, `{"selection": "brush"}`) keeps
+  every row and is reported (`vl-transform-filter-param`). The variable parameters of a view inside a composition are
+  checked but not evaluated and are reported (`vl-param-variable`).
+
+### Vega-Lite Transforms
+
+The `transform` array of the view is run **in the order of the text**, once per measure or render call, on the rows
+that the data source gave and **before** the scales are built, so every scale, axis, and mark sees the transformed rows.
+Each transform is applied to the whole table that the previous one produced. An entry that names a transform that is
+not supported (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`,
+`density`, `quantile`, `extent`) is reported (`vl-transform-<name>`) and **skipped**; the later transforms still run on
+the rows without it, so the chart is only approximate. A transform of a view that is not drawn (a view inside a
+composition) is reported and never applied.
+
+The shape of an entry is checked when the document is opened: an entry that is not an object, or has none of the
+transform properties, or a transform of the wrong shape (a `fold` that is not an array, a `calculate` without `as`, a
+predicate that is neither an expression nor an object, a pivot without `value`, a lookup without `from`) is a
+`VegaLiteSpecException` at the offending value; the first transform property of an entry names its transform. A field
+name is a Vega-Lite field path (`a`, `a.b`, `a\.b`).
+
+<!-- markdownlint-disable MD013 -->
+| Transform | Properties | Behavior and differences from Vega-Lite |
+| --------- | ---------- | --------------------------------------- |
+| `calculate` | `calculate` (an expression), `as` (required, a non-empty text) | Stores the result in the field `as` for every row, replacing a field of that name. `as` is a literal name (a dot is part of the name, not a path). The result may be a number, text, boolean, `null`, array, or object; a regular expression cannot be stored and gives `null` with the warning `vl-expr-runtime` |
+| `filter` | `filter`: an expression text or a predicate (below) | Keeps the rows for which an expression is truthy (JavaScript truthiness: not `null`, `false`, `0`, `NaN`, or the empty text) or a predicate holds |
+| `fold` | `fold` (an array of fields), `as` (one or two names; `["key", "value"]` by default) | Turns each row into one row per folded field, in the order of the rows and then of the fields: the key is the field name as written and the value the cell (`null` for a missing field). Every field of the row stays, the folded ones included |
+| `flatten` | `flatten` (an array of fields), `as` (at most as many names as fields; the field itself by default) | Turns each row into as many rows as its longest array. The arrays of several fields are expanded in parallel (shorter ones are padded with `null`); a value that is not an array counts as an array of one element; `null`, an empty array, and a missing field count as none, and a row in which every field is empty disappears. A trailing `null` element of an array in the data is not kept |
+| `sample` | `sample` (a number of rows, not negative) | Keeps at most that many rows, in the order of the data. See *Determinism* below |
+| `pivot` | `pivot` (the field whose values become columns), `value` (required), `groupby` (fields), `limit` (0 or absent for no limit), `op` (`sum` or `count`) | One row per distinct `groupby` combination (in the order of first appearance; all rows form one group without `groupby`), with the `groupby` fields and one column per distinct pivot value, named by the text of the value and in ordinal order. A cell is the sum of the numbers of `value` of the group (the default; numeric text and booleans count as numbers) or the number of rows (`count`); a combination without rows is 0. Any other field is dropped. A pivot `op` other than `sum` or `count` is reported (`vl-transform-pivot-op`) and `sum` is used |
+| `lookup` | `lookup` (the field of the data), `from.data` (a data source), `from.key`, `from.fields`, `as`, `default` | Copies the fields `from.fields` of the **first** row of the other data whose `from.key` has the same value into the fields `as` (the field names when `as` is absent). Without `from.fields` the whole row goes into one field, `data` by default, as an object. A row with no match gets `default` (a text, number, boolean, or `null`; `null` by default). Vega-Lite takes the last row for a repeated key; this package takes the first |
+<!-- markdownlint-enable MD013 -->
+
+**Filter predicates.** A field predicate is an object with a `field` and one comparison; `and`, `or`, and `not`
+combine predicates, and `param` names a parameter. Comparisons follow JavaScript, so a value is compared by kind:
+
+<!-- markdownlint-disable MD013 -->
+| Predicate | Holds when |
+| --------- | ---------- |
+| `{"field": f, "equal": v}` | The value is strictly equal (`===`) to `v`: the number 1 does not equal the text `"1"` |
+| `{"field": f, "lt": v}`, `"lte"`, `"gt"`, `"gte"` | The relational comparison (`<`, `<=`, `>`, `>=`) of JavaScript is true, so a missing value compares as 0 with a number |
+| `{"field": f, "range": [low, high]}` | The value is between the two values, **inclusive**; a `null` endpoint is open and endpoints in the wrong order are swapped |
+| `{"field": f, "oneOf": [v, ...]}` | The value is strictly equal to one of the values |
+| `{"field": f, "valid": true}` | The value is not `null` and not `NaN` (`false` selects the others) |
+| `{"and": [p, ...]}`, `{"or": [p, ...]}`, `{"not": p}` | All, any, or none of the predicates hold; each part is a predicate or an expression text |
+| `{"param": "name"}` | The variable parameter is truthy (see *Vega-Lite Parameters*) |
+<!-- markdownlint-enable MD013 -->
+
+When an object has several comparisons, the first of `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`, `valid` is
+used. A `timeUnit` in a predicate is ignored (`vl-transform-filter-timeunit`), a comparison with a date object
+(`{"year": 2020}`) is ignored and holds for every row (`vl-transform-filter-datetime`), and a `selection` predicate or
+the `param` of a selection keeps every row (`vl-transform-filter-param`).
+
+**Sorting by a field.** The `sort` of a discrete channel takes these forms:
+
+<!-- markdownlint-disable MD013 -->
+| `sort` | Order of the categories |
+| ------ | ----------------------- |
+| absent or `"ascending"`, `"descending"` | By the values of the channel's field |
+| `null` | In the order of first appearance in the (transformed) rows |
+| An array of values | In the order of the array; values that it does not list come first |
+| `{"op": ..., "field": ..., "order": ...}` | By an aggregate of a field over the rows of each category |
+<!-- markdownlint-enable MD013 -->
+
+In the object form `op` is one of `count`, `sum`, `mean`, `average` (the same as `mean`), `median`, `min`, or `max`,
+`field` is the field to aggregate (the channel's own field by default), and `order` is `"ascending"` (the default) or
+`"descending"`. The aggregate is computed over the rows after the transforms; only valid numbers of the field count
+(numeric text too), `count` counts the rows, and a category with no valid number sorts first in ascending order (except
+for `sum`, which is 0, and `count`). Categories with the same value keep their order of first appearance. A sort by
+another channel (`encoding`), by another `op`, or by a shorthand text such as `"-y"` is reported (`vl-encoding-sort`)
+and the default order is used.
+
+**Determinism and limits.** `sample` is a reservoir sample whose generator is seeded from the **JSON pointer of the
+transform** (for example `/transform/0`), so the same chart always keeps the same rows, on every machine, and two
+`sample` transforms of one chart draw independent samples; where Vega-Lite samples at random, a chart here does not
+change between renders. A size of at least the number of rows keeps every row. The rows of every table that a transform
+derives count against `MaxDataRows` (a `fold` or `flatten` needs room for the input and the output together, and a
+`filter`, `sample`, or `pivot` gives the rows it drops back), the lookup source counts like any data source (and a
+local file in it is read under the same sandbox, file count, and size limits), the fields against `MaxFieldCount`, and a
+derived table may hold at most 2^25 (33,554,432) cells, rows times fields. The counts are checked **before** the memory
+is allocated, and a failure is a `VegaLiteRenderException` located at the transform. A `pivot` that would output more
+than `MaxFieldCount` fields fails the same way; the check counts the columns **after** `limit` keeps the first `limit`
+distinct values in ordinal order, so a pivot with many distinct values and a small `limit` succeeds, and only a pivot
+without a `limit` (or with one above the bound) and more distinct values than the bound allows fails. Recoverable
+findings of a pivot are warnings (`vl-transform-runtime`): rows whose pivot value is `null` are skipped, the columns
+beyond `limit` are cut, and a pivot value that has the name of a `groupby` field replaces that field. Cancellation is
+checked between the transforms and every 1,024 rows.
+
+Examples:
+
+```json
+{ "fold": ["north", "south"], "as": ["region", "crates"] }
+{ "flatten": ["tags"], "as": ["tag"] }
+{ "pivot": "region", "value": "crates", "groupby": ["week"] }
+{ "lookup": "stall", "from": { "data": { "name": "owners" }, "key": "stall", "fields": ["owner"] }, "default": "-" }
+{ "filter": { "and": [ { "field": "crates", "range": [20, 80] }, { "not": { "field": "stall", "equal": "East" } } ] } }
+{ "sample": 100 }
+```
+
+Example 33 draws a chart with parameters, an expression, a filter, a calculate, and a sort by a field.
 
 ### Time Zone, Fonts, and Determinism
 
@@ -4110,8 +4412,15 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   directories first and then among the installed fonts. A family that cannot be found falls back to the bundled sans
   font.
 - **Time.** There are no time scales yet: `temporal` fields, `timeUnit`, and `datetime` are reported
-  (`vl-type-temporal`, `vl-encoding-timeunit`). The `TimeZone` option is accepted and reserved; it is UTC when `null`,
-  so the output will not depend on the local zone of the machine when time support arrives.
+  (`vl-type-temporal`, `vl-encoding-timeunit`), and so are the date and time functions of expressions. The `TimeZone`
+  option is accepted and reserved; it is UTC when `null`, so the output will not depend on the local zone of the machine
+  when time support arrives.
+- **Expressions and transforms.** An expression is a pure function of its row and its parameters, with no clock, random
+  source, or locale, and the `sample` transform is seeded from the JSON pointer of the transform, so rows and results
+  are the same on every call. The one limit of exactness: the math functions come from the host's math library, so a
+  transcendental result (`sin`, `exp`, `log`, ...) can differ in the last bit between platforms or from a browser. A
+  regular expression that only a backtracking engine can run (look-around, back-references) is stopped after 100 ms and
+  fails the render, which is the only wall-clock bound; patterns that the linear-time engine runs have none.
 - **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, an absolute path, or a
   network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your `FileResolver`**;
   the chart is drawn with an empty dataset (strict mode throws). Download such a file next to the specification and
@@ -4122,7 +4431,10 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
 A construct that Vega-Lite defines but the package cannot draw is reported as a `VegaLiteUnsupportedFeature` with a
 stable, lower-case `Feature` identifier of the form `vl-<area>-<detail>`, a message, and the `VegaLiteLocation` of the
 construct, and the rest of the chart is still drawn. A name taken from the specification is lower-cased without
-separators (`timeUnit` gives `timeunit`). The identifiers are part of the documented behavior of the package and are
+separators (`timeUnit` gives `timeunit`), and so is the name of an unsupported expression function
+(`timeFormat` gives `vl-expr-function-timeformat`); the message keeps the function name as written, so that it can be
+found in the text. The identifiers are part of the documented
+behavior of the package and are
 never renamed once released. A **warning** (`VegaLiteDiagnostic`) is a questionable construct that still renders: its
 message starts with its `vl-*` identifier and a colon. Reports are delivered once, in document order, on the calling
 thread, after the work finished and before the method returns or throws.
@@ -4142,17 +4454,29 @@ thread, after the work finished and before the method returns or throws.
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-scale-color-ramp` | Unsupported | A quantitative `color`, `fill`, or `stroke` field (the default mark color is used) |
-| `vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`bin` and `stack` unless false or null; `sort` only for a shorthand or an object) |
+| `vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`bin` and `stack` unless false or null; `sort` only for a form that is not ascending, descending, `null`, an array, or an object with a supported `op`) |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
 | `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-format-type-custom` | Unsupported | `axis.formatType` |
-| `vl-expr-ref`, `vl-expr-calculate`, `vl-expr-filter`, `vl-expr-label` | Unsupported | An `{"expr": ...}` value in a title, size, padding, background, view, mark, or encoding; a calculate expression; a string filter; `axis.labelExpr` |
-| `vl-transform-<name>` | Unsupported | Every entry of `transform` |
+| `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, size, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, or square, an encoding `value` other than that of color, fill, stroke, opacity, or the size of a symbol, and every such value in a view that is not drawn. The value is not used |
+| `vl-expr-label` | Unsupported | `axis.labelExpr` |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 57 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-timeformat` for `timeFormat`; the message names the function **as written**). The call evaluates to null |
+| `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
+| `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
+| `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
+| `vl-transform-<name>` | Unsupported | An entry of `transform` for `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeunit`, `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition) |
+| `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |
+| `vl-transform-filter-timeunit` | Unsupported | A `timeUnit` in a filter predicate; it is ignored |
+| `vl-transform-filter-datetime` | Unsupported | A date object (`{"year": 2020}`) in a filter predicate; the predicate holds for every row |
+| `vl-transform-pivot-op` | Unsupported | A pivot `op` other than `sum` or `count`; `sum` is used |
+| `vl-transform-lookup-param` | Unsupported | A lookup whose `from` is a `param` (the data of a selection); the transform is skipped |
+| `vl-transform-runtime` | Warning | A pivot that skipped rows whose pivot value is null, cut its columns at `limit`, or let a pivot value replace a group field of the same name |
 | `vl-composition-layer`, `-concat`, `-hconcat`, `-vconcat`, `-facet`, `-repeat` | Unsupported | That property; the nested views are examined too |
-| `vl-param-variable`, `vl-param-selection` | Unsupported | Every entry of `params`; the legacy top-level `selection` |
+| `vl-param-selection` | Unsupported | Every selection parameter (an entry of `params` with `select`) and the legacy top-level `selection`; nothing is selected |
+| `vl-param-variable` | Unsupported | A variable parameter of a nested view (a view inside a composition); the variable parameters of the single drawn view are supported |
 | `vl-projection` | Unsupported | `projection` |
 | `vl-layout-autosize-<type>` | Unsupported | `autosize` types other than pad and none (laid out as `pad`) |
 | `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
@@ -4167,10 +4491,17 @@ The identifiers `vl-data-file`, `vl-data-named`, `vl-data-sequence`, `vl-data-pa
 `vl-data-format-tsv`, `vl-data-format-dsv`, and `vl-data-property` were reported by earlier releases and are no longer
 produced, because local files, named data, sequences, `parse`, the delimited formats, and `format.property` are now
 supported (see *Vega-Lite Data*); a build that matched one of them should stop doing so.
-Planned later releases add, among other things, expressions and row transforms, aggregation and binning,
-legends and further color schemes and scale types, time scales, line-like marks, layers, composition, and parameters;
-until then the constructs are reported with the identifiers above. Geographic constructs (`projection`, `geoshape`,
-`longitude` and `latitude`, topojson) are not planned and remain reported.
+The identifiers `vl-expr-calculate` and `vl-expr-filter`, `vl-transform-calculate`, `-filter`, `-fold`, `-flatten`,
+`-sample`, `-pivot`, and `-lookup` (for the drawn view), and `vl-param-variable` (for the single drawn view) were
+reported by earlier releases and are no longer produced, because expressions, those transforms, and static variable
+parameters are now supported (see *Vega-Lite Expressions*, *Vega-Lite Transforms*, and *Vega-Lite Parameters*); a build
+that matched one of them should stop doing so. An expression that uses something that is still deferred is reported
+with the more precise identifiers above (`vl-expr-function-<name>`, `vl-expr-view-state`, `vl-expr-construct-<name>`).
+Planned later releases add, among other things, conditional encodings, aggregation and binning and the other
+transforms that compute over groups of rows, the date, time, formatting, and color functions of the expression
+language, expressions in more places, legends and further color schemes and scale types, time scales, line-like marks,
+layers, composition, and selections; until then the constructs are reported with the identifiers above. Geographic
+constructs (`projection`, `geoshape`, `longitude` and `latitude`, topojson) are not planned and remain reported.
 
 ### Vega-Lite Third-Party Attribution
 
@@ -4184,6 +4515,12 @@ file, test, example, data set, or documentation text of the upstream projects wa
 - **d3-array**, **d3-format**, **d3-scale**, and **d3-scale-chromatic** (ISC, Copyright Mike Bostock): the tick
   algorithms, the number format grammar, the arithmetic of the linear, band, and point scales, and the ten `tableau10`
   colors.
+
+The expression language and the row transforms are original code written from the public documentation of the Vega
+expression language, ECMAScript, and the Vega-Lite transforms: no value, source file, test, or example of the upstream
+projects was ported or copied for them. The functions follow the behavior that the Vega documentation describes; the
+`sample` transform does not reproduce Vega's random generator but uses published algorithms (FNV-1a, SplitMix64, and
+reservoir sampling) implemented from their public descriptions.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` records what was ported, from which
@@ -5368,6 +5705,89 @@ try
 catch (VegaLiteRenderException ex)
 {
     Console.WriteLine($"{ex.Location}: {ex.Message}"); // names the url and says that the file was not found
+}
+```
+
+## Example 33: Vega-Lite Expressions, Parameters, and Row Transforms
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// 1. Two static parameters (the second is an expression of the first), a calculate and a filter transform that read
+//    them, a bar sorted by an aggregate, and a row-bound fill: a bar is red above "alert" and blue otherwise
+var chart = VegaLiteDocument.Parse("""
+    {
+      "params": [
+        { "name": "threshold", "value": 40 },
+        { "name": "alert", "expr": "threshold * 1.5" }
+      ],
+      "data": { "values": [
+        { "stall": "North", "crates": 28, "returned": 3 },
+        { "stall": "South", "crates": 55, "returned": 9 },
+        { "stall": "East", "crates": 43, "returned": 2 },
+        { "stall": "West", "crates": 91, "returned": 12 }
+      ] },
+      "transform": [
+        { "calculate": "datum.crates - datum.returned", "as": "sold" },
+        { "filter": "datum.sold > threshold" }
+      ],
+      "mark": { "type": "bar", "fill": { "expr": "datum.sold > alert ? '#b22222' : '#4682b4'" } },
+      "encoding": {
+        "x": { "field": "stall", "type": "nominal",
+               "sort": { "op": "sum", "field": "sold", "order": "descending" } },
+        "y": { "field": "sold", "type": "quantitative" }
+      }
+    }
+    """);
+Console.WriteLine(string.Join(", ", chart.ParameterNames)); // Output: threshold, alert
+
+// By default threshold is 40 and alert is 60: South (46) and East (41) are blue, West (79) is red, North (25) is
+// filtered out, and the bars are ordered West, South, East by the sold total
+using var normal = chart.Render();
+
+// 2. The host replaces the definition of a parameter. threshold = 20 also moves alert (30, still computed from it), so
+//    North (25) stays; alert = 100 replaces the expression, which is then not evaluated, so no bar is red
+using var lower = chart.Render(new VegaLiteRenderOptions
+{
+    Parameters = new Dictionary<string, object?> { ["threshold"] = 20 },
+});
+using var calm = chart.Render(new VegaLiteRenderOptions
+{
+    Parameters = new Dictionary<string, object?> { ["alert"] = 100 },
+});
+PngCodec.Save(lower, "stalls-lower.png");
+
+// 3. A function that is not in the supported list is reported, evaluates to null, and the chart is still drawn;
+//    strict mode refuses the approximate chart at the first report
+var dated = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "d": 1 } ] },
+      "transform": [ { "calculate": "timeFormat(datum.d, '%Y')", "as": "year" } ],
+      "mark": "point",
+      "encoding": { "x": { "field": "d", "type": "quantitative" } }
+    }
+    """);
+
+try
+{
+    using var never = dated.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
+}
+catch (VegaLiteUnsupportedFeatureException ex)
+{
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-expr-function-timeformat /transform/0/calculate
+}
+
+// 4. A mistake in an expression is found when the document is opened, with the location of the text and the offset
+//    inside it, never while rendering
+try
+{
+    VegaLiteDocument.Parse("""{ "transform": [ { "calculate": "datum.a +", "as": "b" } ], "mark": "point" }""");
+}
+catch (VegaLiteSpecException ex)
+{
+    Console.WriteLine(ex.Location.Pointer); // Output: /transform/0/calculate
 }
 ```
 

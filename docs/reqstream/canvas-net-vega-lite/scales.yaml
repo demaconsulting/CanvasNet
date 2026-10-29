@@ -34,7 +34,8 @@ sections:
           - id: CanvasNetVegaLite-Scales-Domains
             title: >-
               The Scales subsystem shall compute scale domains from the data or from an explicit domain,
-              applying zero, nice, and sort as documented, ordering discrete values ascending by default
+              applying zero, nice, and sort as documented (including a sort by an aggregate of a field of the
+              transformed rows), ordering discrete values ascending by default
               with a fixed order across value kinds, and shall fail with a located specification
               exception for an invalid scale property.
             justification: |
@@ -43,9 +44,11 @@ sections:
             children:
               - CanvasNetVegaLite-Scales-ScaleResolver-Domains
               - CanvasNetVegaLite-Scales-ScaleResolver-Validation
+              - CanvasNetVegaLite-Scales-ScaleResolver-SortByField
             tests:
               - ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding
               - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
+              - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
               - ScaleResolver_Resolve_InvalidInputsFailWithLocation
 
           - id: CanvasNetVegaLite-Scales-Positions

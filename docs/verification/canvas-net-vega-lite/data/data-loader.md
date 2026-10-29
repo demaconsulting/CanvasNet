@@ -2,11 +2,13 @@
 
 This document describes the unit-level verification strategy for the `DataLoader` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: the internal `DataLoader` class (its constructor, `Load`,
-`InferFormatType`, `Warnings`, `RowsLoaded`, and the `PrimitiveField` constant). The loader turns the `data` node of a
-parsed specification into a `DataTable`: inline `values` arrays, a relative local `url` (read through the
-`DataFileResolver` unit as JSON, CSV, TSV, or DSV), a named dataset, and a generated sequence are read; remote data and
-the other recognized sources (text or object values, geographic data, no data at all) are an empty table that is never
-opened or fetched, and that the feature catalog reports.
+`InferFormatType`, `Warnings`, `RowsLoaded`, the `ReserveDerivedRows` and `ReleaseRows` methods that let a transform
+count the rows of a table it derives against the same row total, and the `PrimitiveField` constant). The loader turns
+the `data` node of a parsed specification into a `DataTable`: inline `values` arrays, a relative local `url` (read
+through the `DataFileResolver` unit as JSON, CSV, TSV, or DSV), a named dataset, and a generated sequence are read; the
+same `Load` serves the `from.data` source of a lookup transform and shares the file cache, the sandbox, and the row
+budget of the call; remote data and the other recognized sources (text or object values, geographic data, no data at
+all) are an empty table that is never opened or fetched, and that the feature catalog reports.
 
 #### Verification Approach
 
@@ -172,17 +174,19 @@ says that `'d.json'` contains text that is not valid Unicode, located at `/data/
 **Tests**: `DataLoaderTests.DataLoader_Load_RowLimitFailsWithLocation`,
 `DataLoaderTests.DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf`,
 `DataLoaderTests.DataLoader_Load_RowLimitIsATotalAcrossTables`,
+`DataLoaderTests.DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError`,
 `DataLoaderTests.DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl`,
 `DataLoaderTests.DataLoader_Load_CanceledTokenStopsLoading`
 
 Asserts that more rows than `MaxDataRows` fail before any row is converted with a `VegaLiteRenderException` whose
-pointer is `/data/values`, whose file and line are those of the values (`rows.vl.json`, line 2), and whose message
-names the limit and starts with the location, while exactly the limit is accepted; that more fields than
-`MaxFieldCount` fail at the pointer of the leaf that exceeded the limit, and that the limit also applies to the union
-of the fields of different rows; that the row limit is a total across the tables of one loader (a second table that
-would pass the total is refused with the rows read before named, and `RowsLoaded` reports what was read); that a CSV
-over the row limit, and one with a repeated column, fail at the `url` (`/data/url`, line 1); and that a canceled token
-throws `OperationCanceledException`.
+pointer is `/data/values`, whose file and line are those of the values (`rows.vl.json`, line 2), and whose message names
+the limit and starts with the location, while exactly the limit is accepted; that more fields than `MaxFieldCount` fail
+at the pointer of the leaf that exceeded the limit, and that the limit also applies to the union of the fields of
+different rows; that the row limit is a total across the tables of one loader (a second table that would pass the total
+is refused with the rows read before named, and `RowsLoaded` reports what was read); that a CSV over the row limit, and
+one with a repeated column, fail at the `url` (`/data/url`, line 1); that a text of a dataset that the caller supplied
+is bounded by `MaxStringLength` like a text of a file (8 characters pass a limit of 8 and 9 fail with a located failure
+that names the limit); and that a canceled token throws `OperationCanceledException`.
 
 ##### Large Tables Load Completely
 
@@ -190,3 +194,26 @@ throws `OperationCanceledException`.
 
 Asserts that an inline table of 20,000 rows loads completely: the row count, the last row's string value `c19999`,
 and its number `19999` are all as written.
+
+##### Derived Rows Share The Row Budget Of The Call
+
+**Tests**: `DataLoaderTests.DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall`
+
+Asserts, with three loaded rows and a `MaxDataRows` of ten, that reserving five derived rows for "fold transform
+output" is accepted and counted (eight rows in all), that reserving three more fails with a `VegaLiteRenderException`
+at the location passed in, whose message says "The fold transform output has 3 rows; with the 8 rows read before" and
+names "the limit of 10 (MaxDataRows)", and that the failed reservation counted nothing; that releasing five rows gives
+three, a negative release is ignored, a release of more rows than are counted stops at zero, and the data can be loaded
+again afterwards; and that a count that cannot be an exact row count (positive infinity) is described as "an
+unrepresentable number of" rows and refused.
+
+##### Lookup Sources Share The Sandbox, The Cache, And The Budget
+
+**Tests**: `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall`
+
+Asserts, with a file limit of one and a row limit of four, that the main data and the source of a lookup that name the
+same two-row file read it once (one request in the virtual file set), that four rows are counted in total, that a
+lookup source outside the sandbox (`../secret.csv`) is a `VegaLiteRenderException` ("outside the allowed directories")
+located at `/transform/1/from/data/url`, that a remote lookup source (`https`) is an empty table that no request reached
+and that the feature catalog reports as `vl-data-remote-url` at `/transform/2/from/data`, and that a third table over the
+row limit is refused naming `MaxDataRows`.

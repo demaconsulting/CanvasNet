@@ -7,7 +7,9 @@
 # sandboxed resolver that reads local data files (DataFileResolver), and the parser of delimited text and of
 # the parse conversions (DelimitedTextParser). Inline values, local CSV, TSV, DSV, and JSON files, named
 # datasets, and sequences are read; remote URLs and the other sources are empty tables that the feature
-# catalog reports, and nothing here uses the network. Each requirement here links down to the unit
+# catalog reports, and nothing here uses the network. Phase 5 adds the immutable array, object, and regular
+# expression cell values that expressions produce, the loading of a lookup source through the same per-call
+# loader, and the derived-row reservations of the transforms. Each requirement here links down to the unit
 # requirements that implement it. See docs/verification/canvas-net-vega-lite/data.md for the test-evidence
 # mapping.
 
@@ -187,9 +189,45 @@ sections:
               - CanvasNetVegaLite-Data-DataFileResolver-Cancellation
               - CanvasNetVegaLite-Data-DelimitedTextParser-Limits
               - CanvasNetVegaLite-Data-DelimitedTextParser-Cancellation
+              - CanvasNetVegaLite-Data-DataLoader-DerivedRowBudget
             tests:
               - DataLoader_Load_RowLimitFailsWithLocation
               - DataTable_Create_LimitsFailClosedWithLocation
               - DataLoader_Load_CanceledTokenStopsLoading
               - DataLoader_Load_RowLimitIsATotalAcrossTables
+              - DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall
               - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
+
+          - id: CanvasNetVegaLite-Data-CompositeValues
+            title: >-
+              The Data subsystem shall let a table cell hold, besides the scalar values, an immutable array,
+              an immutable object with its keys in insertion order (a repeated key keeping its first position
+              and its last value), or an opaque regular expression, each compared by identity and
+              sorting after every scalar, and shall build a table from cells that are already in the order of
+              its sorted field list, so that the Transforms subsystem can store the results of expressions
+              and the rows it derives without changing the scalar behavior of the loader.
+            justification: |
+              Calculated fields can be arrays and objects that later expressions index into, and derived
+              tables must be created cheaply from rows that are already laid out.
+            children:
+              - CanvasNetVegaLite-Data-DataTable-CompositeValues
+              - CanvasNetVegaLite-Data-DataTable-SortedCells
+            tests:
+              - DataValue_FromArray_CopiesElementsAndFormatsLikeJavaScript
+              - DataValue_Composites_AreEqualOnlyToThemselves
+              - DataValue_Compare_ScalarOrderIsUnchangedAndCompositesSortLast
+              - DataTable_FromSortedCells_BuildsATableAndChecksTheShape
+
+          - id: CanvasNetVegaLite-Data-LookupSources
+            title: >-
+              The Data subsystem shall load the secondary source of a lookup transform (a named dataset, a
+              local file, or inline values) through the same per-call loader as the main data, so that it
+              keeps the sandbox, the file cache, the file and byte limits, and the shared row budget of the
+              call.
+            justification: |
+              A lookup must not be a second, unbounded way to read files or to create rows.
+            children:
+              - CanvasNetVegaLite-Data-DataLoader-LookupSources
+            tests:
+              - DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall
+              - RowTransforms_Apply_LookupSourceSharesTheRowBudget

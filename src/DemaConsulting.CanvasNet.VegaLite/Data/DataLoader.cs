@@ -54,6 +54,13 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         for the call. All of them are <see cref="VegaLiteRenderException"/>s that carry the location of the offending
 ///         data. The loader runs on the calling thread and is not thread-safe.
 ///     </para>
+///     <para>
+///         <b>Transforms.</b> The loader of the call is also the context of the row transforms: the data of a lookup is
+///         loaded by <see cref="Load(SpecNode?)"/> on the same instance (so with the sandbox, the file cache, the file and
+///         byte limits and the row total of the main data), and the rows of a derived table are counted by
+///         <see cref="ReserveDerivedRows"/> before they are allocated and given back by <see cref="ReleaseRows"/> when the table
+///         they came from is no longer needed.
+///     </para>
 /// </remarks>
 internal sealed class DataLoader
 {
@@ -123,6 +130,27 @@ internal sealed class DataLoader
     ///     Gets the number of rows of the tables loaded so far.
     /// </summary>
     public long RowsLoaded => _rowsLoaded;
+
+    /// <summary>
+    ///     Counts the rows of a derived table (a transform's output) against <see cref="VegaLiteLimits.MaxDataRows"/>
+    ///     before the table is allocated, so that the loaded sources, the lookup sources and the tables of the transform
+    ///     stage share one row budget.
+    /// </summary>
+    /// <param name="rows">The number of rows about to be created.</param>
+    /// <param name="what">What the rows are, for the message.</param>
+    /// <param name="location">The location of the transform.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the rows would exceed <see cref="VegaLiteLimits.MaxDataRows"/>.</exception>
+    public void ReserveDerivedRows(double rows, string what, VegaLiteLocation location)
+    {
+        Charge(rows, what, location);
+        _rowsLoaded += (long)rows;
+    }
+
+    /// <summary>
+    ///     Gives back the rows of a table that is no longer needed (the input of a transform once its output is complete).
+    /// </summary>
+    /// <param name="rows">The number of rows released.</param>
+    public void ReleaseRows(long rows) => _rowsLoaded = Math.Max(0, _rowsLoaded - Math.Max(0, rows));
 
     /// <summary>
     ///     Loads the rows of a <c>data</c> property with no file source and no named datasets (inline values and sequences only).
@@ -210,7 +238,7 @@ internal sealed class DataLoader
     /// <param name="location">The location of the data, for errors.</param>
     /// <returns>The data value.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when a date cannot be represented.</exception>
-    private static DataValue FromObject(object? value, VegaLiteLocation location) => value switch
+    internal static DataValue FromObject(object? value, VegaLiteLocation location) => value switch
     {
         null => DataValue.Null,
         bool flag => DataValue.FromBoolean(flag),
@@ -440,7 +468,14 @@ internal sealed class DataLoader
             var record = new Dictionary<string, DataValue>(row.Count, StringComparer.Ordinal);
             foreach (var (field, value) in row)
             {
-                record[FieldPath.Escape(field)] = FromObject(value, location);
+                var cell = FromObject(value, location);
+                if (cell.IsString && cell.Text!.Length > _limits.MaxStringLength)
+                {
+                    throw new VegaLiteRenderException(
+                        $"A text in the data is longer than the limit of {_limits.MaxStringLength} characters (MaxStringLength).", location);
+                }
+
+                record[FieldPath.Escape(field)] = cell;
                 CheckFieldCount(record, location);
             }
 
@@ -803,6 +838,14 @@ internal sealed class DataLoader
 
                 break;
             case SpecNodeKind.String:
+                // The limit of the call can be lower than the one the specification was parsed with
+                if (node.StringValue!.Length > _limits.MaxStringLength)
+                {
+                    throw new VegaLiteRenderException(
+                        $"A text in the data is longer than the limit of {_limits.MaxStringLength} characters (MaxStringLength).",
+                        node.GetLocation(_sourceName));
+                }
+
                 Add(node, key, DataValue.FromString(node.StringValue), record);
                 break;
             case SpecNodeKind.Number:

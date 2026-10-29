@@ -16,7 +16,8 @@ is visible in the test; the expected lists are derived by hand from the identifi
 subset is the complement of what is reported). Constructs that are supported or silently ignored (for example the
 `tooltip` and `href` channels, an unknown channel that the parser already warns about, `bind` in a parameter) are
 asserted to produce no report, so that a feature which becomes supported in a later release has to change a test. The
-unit has no dependencies other than the parser's tree types, so no mocking or stubbing is required; the internal types
+unit's dependencies are the parser's tree types, including the compiled expressions of the tree (the catalog reports
+the unsupported constructs that they list), so no mocking or stubbing is required; the internal types
 are reached through the test assembly's `InternalsVisibleTo` access.
 
 Several scenarios are xUnit theories whose data rows cover each form (every mark type, every autosize type, every
@@ -60,14 +61,15 @@ at all.
 
 Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
-custom date format and a plain `number`, three transforms (`calculate`, `filter`, `aggregate`), an `arc` mark, a temporal
-`x` with a time unit, a
-`y` with aggregate, bin, stack, sort, and condition, a log scale with a scheme, a legend with `encode`, a `theta` and
-a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-eight reports whose `(identifier, pointer)`
-list is asserted in document order (for example `vl-data-parse-date-format` at `/data/format/parse/d`,
-`vl-encoding-stack` at `/encoding/y/stack`, and `vl-mark-geoshape` at
-`/layer/0/mark`; the local file and the plain `number` are silent), that only the schema version is a warning while
-every other report is an unsupported feature, that
+custom date format and a plain `number`, three transforms (`calculate`, `filter`, `aggregate`) in a root view that is a
+composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
+unit, a `y` with aggregate, bin, stack, sort, and condition, a log scale with a scheme, a legend with `encode`, a
+`theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-five reports whose
+`(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
+`/data/format/parse/d`, `vl-encoding-stack` at `/encoding/y/stack`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
+file, the plain `number`, the variable parameter of the root view, and the expression strings of the `calculate` and
+`filter` transforms are silent, and no `vl-expr-calculate`, `vl-expr-filter`, or `vl-param-variable` exists any more),
+that only the schema version is a warning while every other report is an unsupported feature, that
 all carry a file, line, column, and message (the schema report is at line 2, column 14), and that the supported
 `tooltip` channel is absent; that reports are sorted by position in the text and not by the order in which the
 constructs are visited (an encoding written before the mark, a nested view before the parent's later properties);
@@ -127,7 +129,8 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 
 Asserts that the encoding identifiers (`vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`,
 `-impute`, `-bandposition`) are reported only when the property changes the chart (`bin: false`, `stack: null`, a
-`null` aggregate, and an ascending sort shorthand are silent); that, as a theory over nine specifications, bars that
+`null` aggregate, and an ascending sort shorthand are silent, as are a `null` sort and an array sort, while a sort object
+that names an `encoding` is reported at the sort); that, as a theory over nine specifications, bars that
 Vega-Lite would stack by default are reported once at the measure channel and charts that it would draw unstacked
 (an explicit `stack: null`, a stack-by field equal to the dimension field, an `y2` channel, a non-bar mark, a value
 color, two quantitative channels) are not; that unsupported scale types and properties report
@@ -149,10 +152,86 @@ the scale is `null`, and never for value definitions, the data, or position chan
 `FeatureCatalogTests.FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined`,
 `FeatureCatalogTests.FeatureCatalog_Visit_AutosizeFitModesAreReported`
 
-Asserts that every transform reports `vl-transform-<name>` at its index, that expression references anywhere in the
-view's properties report `vl-expr-ref` (and `calculate` and `filter` strings report `vl-expr-calculate` and
-`vl-expr-filter`), that variable and selection parameters report `vl-param-variable` and `vl-param-selection` while
-`bind` is ignored; that a specification with `hconcat`, a nested `vconcat`, `concat`, `facet`, `spec`, `repeat`,
-`resolve`, and `projection` reports the compositions and the projection and also examines the views nested at any
-depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a theory, autosize `pad` and `none`
-(also in object form) are silent while `fit`, `fit-x`, and `fit-y` report `vl-layout-autosize-<type>` at the type.
+Asserts, on a view that is drawn, that expression references in properties that are not evaluated (a `width` that is an
+expression) report `vl-expr-ref` while the row-bound color expression of an encoding value is silent, that the
+selection parameter reports `vl-param-selection` while the variable parameter (with its `bind`, which is ignored) is
+silent, that a `filter` on a field predicate is silent while the `timeUnit` transform and the `joinaggregate` transform
+report `vl-transform-timeunit` and `vl-transform-joinaggregate` at their index, and that an expression reference in a
+mark `size` of a bar is reported at that property; that a specification with `hconcat`, a nested `vconcat`, `concat`,
+`facet`, `spec`, `repeat`, `resolve`, and `projection` reports the compositions and the projection and also examines the
+views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a theory,
+autosize `pad` and `none` (also in object form) are silent while `fit`, `fit-x`, and `fit-y` report
+`vl-layout-autosize-<type>` at the type.
+
+##### Supported Phase 5 Transforms, Parameters, And Expressions Are Silent
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`
+
+Asserts that an original specification that uses a variable parameter with a value and one with an expression and a
+`bind`, the transforms `calculate`, `filter` (an expression, and a predicate composed of `and`, `not`, `range`, `oneOf`,
+and a `param`), `fold`, `flatten`, `sample`, `pivot` with the `sum` operation, and a `lookup` in a named dataset with a
+default, and row-bound expression references in the mark color, size, opacity, and stroke width and in the color, size,
+and opacity channel values produces no reports at all, so strict mode accepts them.
+
+##### Unsupported Expression Constructs Are Reported At The Expression
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression`,
+`FeatureCatalogTests.FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier`
+
+Asserts that the constructs that the compiled expressions list are reported once each, in document order, at the string
+value of the expression (the pointer of the `expr`, `calculate`, or `filter` string, and of an expression inside a
+predicate such as `/transform/4/filter/or/0`), as unsupported features with the message form "… (at expression offset
+N)": `vl-expr-function-datetime`, `vl-expr-function-timeformat`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
+name lower-cased; the message of the `timeFormat` report names it as written); `vl-expr-view-state` for `signal` and
+`event` in one filter and an undeclared `height` while
+`width`, which the specification declares as a parameter, is silent; and `vl-expr-construct-bitwise-and` and
+`vl-expr-construct-in`. It asserts that the first report is at line 2 (the parameter's expression) and that the message
+of the view-state report names `'height'`. A second scenario calls `timeFormat`, `timeformat`, and `TIMEFORMAT` in one
+expression and asserts three reports with the one identifier `vl-expr-function-timeformat`, in order of appearance, with
+three distinct messages that name each spelling as written (so nothing is merged or lost).
+
+##### Transforms Of Later Phases, Conditions, And Selections Stay Reported
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`
+
+Asserts that a drawn view with a selection parameter reports `vl-param-selection`, then the transforms `aggregate`,
+`joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and
+`extent` as `vl-transform-<name>` (with `timeunit` in lower case) in document order, and the conditional encoding as
+`vl-encoding-condition`.
+
+##### Unsupported Parts Of Supported Transforms Are Reported
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`
+
+Asserts the reports `vl-transform-filter-param` at the `param` and at the legacy `selection` of a filter on a selection
+parameter, `vl-transform-filter-timeunit` at the `timeUnit` of a predicate, `vl-transform-filter-datetime` at a date
+object in `oneOf` and in `equal`, `vl-transform-pivot-op` at an `op` other than `sum` and `count` (and none for
+`count`), `vl-transform-lookup-param` at a lookup from a parameter, and `vl-data-remote-url` at the data object of a
+lookup whose source is a remote URL, each at the pointer of the part, in document order, together with the selection
+parameter itself.
+
+##### Nested Views Report Their Transforms And Variable Parameters
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`
+
+Asserts that, in a layer, the variable parameter of a nested view reports `vl-param-variable` and every transform of the
+nested view (a `calculate` and a `lookup`) reports `vl-transform-<name>`, because only the root view is drawn, while the
+variable parameter of the root reports nothing.
+
+##### Expression References Are Reported Only At Deferred Sites
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites`
+
+Asserts that `vl-expr-ref` is reported for an expression in a title, a width, a bar's `size`, a position channel
+`value`, and a `size` channel value of a bar (not row-bound for a bar), in document order, while the mark `fill` with an
+expression and a color channel value with an expression are silent (their functions, `toString` and `regexp`, are in the
+function table, so no construct of an evaluated site is reported either).
+
+##### Sort By A Field Is Reported Only For Unsupported Forms
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms`
+
+Asserts, as a theory of twelve sort forms, that `ascending`, an array, a sort object with an `op` of `sum`, `count`, or
+`median` and an optional field and order (also an `order` of null), are silent, and that the forms that the scale
+resolver does not compute — an `encoding`, a missing `op` with only a `field`, the operation `valid`, an unknown order,
+an unparsable field, and the shorthand `-y` — report `vl-encoding-sort`.

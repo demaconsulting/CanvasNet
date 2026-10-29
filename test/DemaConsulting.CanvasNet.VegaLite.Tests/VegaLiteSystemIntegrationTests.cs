@@ -591,11 +591,11 @@ public class VegaLiteSystemIntegrationTests
         var failing = new VegaLiteRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
         Assert.Throws<InvalidOperationException>(() => document.Render(failing, Ct));
 
-        // Assert: strict mode on a specification file stops at the first construct in the text (the calculate transform, line 12)
+        // Assert: strict mode on a specification file stops at the first construct in the text (the window transform, line 12)
         var fixture = VegaLiteDocument.Open(Path.Combine(AppContext.BaseDirectory, "Fixtures", "unsupported.vl.json"));
         var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
         var first = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => fixture.Measure(strict, Ct));
-        Assert.Equal(("vl-transform-calculate", "/transform/0", 12), (first.Feature, first.Location.Pointer, first.Location.Line));
+        Assert.Equal(("vl-transform-window", "/transform/0", 12), (first.Feature, first.Location.Pointer, first.Location.Line));
     }
 
     /// <summary>
@@ -1057,6 +1057,207 @@ public class VegaLiteSystemIntegrationTests
         Assert.DoesNotContain(features, f => f.Feature.StartsWith("vl-data", StringComparison.Ordinal));
         Assert.Equal((expected.Width, expected.Height), (actual.Width, actual.Height));
         Assert.True(expected.Pixels.AsSpan().SequenceEqual(actual.Pixels));
+    }
+
+    /// <summary>A chart whose rows go through every Phase 5 transform and a parameter-driven filter.</summary>
+    private const string TransformChartSpec = """
+        {
+          "width": 120, "height": 80,
+          "params": [ { "name": "minimum", "value": 0 }, { "name": "scale", "expr": "minimum + 2" } ],
+          "data": { "values": [ { "g": "a", "v": [1, 2, 3] }, { "g": "b", "v": [4, 5] }, { "g": "c", "v": [] } ] },
+          "transform": [
+            { "flatten": ["v"] },
+            { "calculate": "datum.v * scale", "as": "w" },
+            { "filter": "datum.w > minimum" },
+            { "lookup": "g", "from": { "data": { "values": [ { "k": "a", "m": 1 }, { "k": "b", "m": 3 } ] }, "key": "k", "fields": ["m"] } },
+            { "sample": 4 }
+          ],
+          "mark": "point",
+          "encoding": { "x": { "field": "w", "type": "quantitative" }, "y": { "field": "m", "type": "quantitative" } }
+        }
+        """;
+
+    /// <summary>
+    ///     Validates that a chart through every kind of transform measures the size it renders, renders the same bytes on every
+    ///     call and from many threads, and differs from the chart without the sample (the sample is not a no-op).
+    /// </summary>
+    /// <returns>A task that completes when the concurrent renders are done.</returns>
+    [Fact]
+    public async Task CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical()
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(TransformChartSpec);
+        var unsampled = VegaLiteDocument.Parse(TransformChartSpec.Replace("{ \"sample\": 4 }", "{ \"sample\": 99 }", StringComparison.Ordinal));
+        using var first = document.Render(cancellationToken: Ct);
+        var baseline = VegaLiteTestHelpers.Snapshot(first);
+
+        // Act
+        var measured = document.Measure(cancellationToken: Ct);
+        using var other = unsampled.Render(cancellationToken: Ct);
+        var token = Ct;
+        var concurrent = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(
+            () =>
+            {
+                using var surface = document.Render(cancellationToken: token);
+                return VegaLiteTestHelpers.Snapshot(surface);
+            },
+            token)));
+
+        // Assert
+        Assert.Equal(new VegaLiteSize(first.Width, first.Height), measured);
+        Assert.All(concurrent, snapshot => Assert.Equal(baseline, snapshot));
+        Assert.False(baseline.AsSpan().SequenceEqual(VegaLiteTestHelpers.Snapshot(other)));
+    }
+
+    /// <summary>
+    ///     Validates that an expression with a syntax error, one over the length or depth limit and a reference to an unknown
+    ///     parameter fail when the document is opened, with the location of the expression text.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened()
+    {
+        // Arrange
+        static string Spec(string expression) => "{\"data\":{\"values\":[{\"a\":1}]},\"transform\":[{\"calculate\":\"" + expression + "\",\"as\":\"b\"}],\"mark\":\"point\"}";
+        var tight = new VegaLiteOpenOptions { Limits = new VegaLiteLimits { MaxExpressionLength = 12, MaxExpressionDepth = 3 } };
+
+        // Act
+        var syntax = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(Spec("datum.a +")));
+        var assignment = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(Spec("datum.a = 1")));
+        var unknown = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(Spec("datum.a + other")));
+        var tooLong = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(Spec("datum.a + datum.a"), tight));
+        var tooDeep = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(Spec("((((1))))"), tight));
+
+        // Assert: every failure is located at the expression text and names the offset inside it
+        foreach (var ex in new[] { syntax, assignment, unknown, tooLong, tooDeep })
+        {
+            Assert.Equal("/transform/0/calculate", ex.Location.Pointer);
+            Assert.Equal(1, ex.Location.Line);
+            Assert.Contains("expression offset", ex.Message, StringComparison.Ordinal);
+        }
+
+        // Assert: a document within the limits opens
+        Assert.Equal(["point"], VegaLiteDocument.Parse(Spec("datum.a"), tight).MarkTypes);
+    }
+
+    /// <summary>
+    ///     Validates that hostile evaluation fails closed with the location of the expression: a step budget that is too small
+    ///     is a located render failure delivered after the reports found before it, and a catastrophic regular expression
+    ///     finishes.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed()
+    {
+        // Arrange: fifty rows against a budget of fifty steps, after a selection parameter that is reported first
+        var rows = "[" + string.Join(",", Enumerable.Range(0, 50).Select(i => "{\"a\":" + i + "}")) + "]";
+        var spec = "{\"params\":[{\"name\":\"s\",\"select\":\"interval\"}],\"data\":{\"values\":" + rows + "},"
+            + "\"transform\":[{\"calculate\":\"datum.a * 2 + 1\",\"as\":\"b\"}],\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"b\",\"type\":\"quantitative\"}}}";
+        var delivered = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            Limits = new VegaLiteLimits { MaxEvaluationSteps = 50 },
+            UnsupportedFeatureHandler = u => delivered.Add(u.Feature),
+        };
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => VegaLiteDocument.Parse(spec).Render(options, Ct));
+
+        // Assert: located at the expression, with the offset, after the report that came first
+        Assert.Equal("/transform/0/calculate", ex.Location.Pointer);
+        Assert.Contains("expression offset", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(["vl-param-selection"], delivered);
+
+        // Arrange: a pattern that makes a backtracking engine take exponential time on this text (forty a and a b)
+        var text = new string('a', 40) + "b";
+        var catastrophic = "{ \"data\": { \"values\": [ { \"s\": \"" + text + "\" } ] },"
+            + " \"transform\": [ { \"calculate\": \"test(regexp('(a+)+$'), datum.s)\", \"as\": \"m\" } ],"
+            + " \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"m\", \"type\": \"quantitative\" } } }";
+
+        // Act / Assert: the linear-time engine finishes and the chart renders
+        using var surface = VegaLiteDocument.Parse(catastrophic).Render(cancellationToken: Ct);
+        Assert.True(surface.Width > 0);
+    }
+
+    /// <summary>
+    ///     Validates that the derived-row limit, the sandbox and the cancellation work through the public API: a fold over the
+    ///     row limit and a lookup that escapes the folder of the specification fail with a location, and a canceled token
+    ///     delivers nothing.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed()
+    {
+        // Arrange: a fold of 3 rows by 2 fields needs 6 rows beside the 3 loaded ones; a lookup in a file outside the sandbox
+        using var directory = new DataTempDirectory();
+        directory.Write("site/chart.vl.json", """
+            { "data": { "values": [ { "k": 1, "a": 1, "b": 2 }, { "k": 2, "a": 3, "b": 4 }, { "k": 3, "a": 5, "b": 6 } ] },
+              "transform": [ { "lookup": "k", "from": { "data": { "url": "../outside.csv" }, "key": "k", "fields": ["n"] } } ],
+              "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }
+            """);
+        directory.Write("outside.csv", "k,n\n1,leak\n");
+        var fold = VegaLiteDocument.Parse("{\"data\":{\"values\":[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4},{\"a\":5,\"b\":6}]},\"transform\":[{\"fold\":[\"a\",\"b\"]}],\"mark\":\"point\"}");
+        var lookup = VegaLiteDocument.Open(directory.Combine("site/chart.vl.json"));
+        var events = 0;
+        var counting = new VegaLiteRenderOptions { WarningHandler = _ => events++, UnsupportedFeatureHandler = _ => events++ };
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var rows = Assert.Throws<VegaLiteRenderException>(() => fold.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = 8 } }, Ct));
+        var escape = Assert.Throws<VegaLiteRenderException>(() => lookup.Render(cancellationToken: Ct));
+        using var fits = fold.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = 9 } }, Ct);
+
+        // Assert: the fold names its limit and its transform; the lookup is refused by the sandbox at the url of its source
+        Assert.Contains("MaxDataRows", rows.Message, StringComparison.Ordinal);
+        Assert.Equal("/transform/0", rows.Location.Pointer);
+        Assert.Contains("outside the allowed directories", escape.Message, StringComparison.Ordinal);
+        Assert.Equal("/transform/0/from/data/url", escape.Location.Pointer);
+        Assert.True(fits.Width > 0);
+
+        // Act / Assert: cancellation throws and delivers nothing, for a document with transforms too
+        var document = VegaLiteDocument.Parse(TransformChartSpec);
+        Assert.Throws<OperationCanceledException>(() => document.Measure(counting, canceled.Token));
+        Assert.Throws<OperationCanceledException>(() => document.Render(counting, canceled.Token));
+        Assert.Equal(0, events);
+    }
+
+    /// <summary>
+    ///     Validates that parameter overrides reach the transforms through the options (a value replaces a default and the
+    ///     name of a selection parameter is accepted), and that a name the document does not declare is still refused.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms()
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(TransformChartSpec.Replace("\"params\": [", "\"params\": [ { \"name\": \"brush\", \"select\": \"interval\" },", StringComparison.Ordinal));
+        using var baseline = document.Render(cancellationToken: Ct);
+
+        // Act
+        using var overridden = document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["minimum"] = 3 } }, Ct);
+        using var selection = document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["brush"] = 1 } }, Ct);
+        var unknown = Assert.Throws<ArgumentException>(() => document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["nothing"] = 1 } }, Ct));
+
+        // Assert: minimum = 3 changes the scale and the filter, so the chart differs; naming the selection changes nothing
+        Assert.Equal(["brush", "minimum", "scale"], document.ParameterNames);
+        Assert.False(VegaLiteTestHelpers.Snapshot(baseline).AsSpan().SequenceEqual(VegaLiteTestHelpers.Snapshot(overridden)));
+        Assert.True(VegaLiteTestHelpers.Snapshot(baseline).AsSpan().SequenceEqual(VegaLiteTestHelpers.Snapshot(selection)));
+        Assert.Contains("'nothing'", unknown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the specification errors of parameters when a document is opened: a cycle, an unknown reference and a
+    ///     repeated name are located at the offending value.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened()
+    {
+        // Arrange / Act
+        var cycle = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse("{\"params\":[{\"name\":\"a\",\"expr\":\"b + 1\"},{\"name\":\"b\",\"expr\":\"a + 1\"}]}"));
+        var unknown = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse("{\"params\":[{\"name\":\"a\",\"expr\":\"c\"}]}"));
+        var repeated = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse("{\"params\":[{\"name\":\"a\"},{\"name\":\"a\"}]}"));
+
+        // Assert
+        Assert.Equal("/params/0/expr", cycle.Location.Pointer);
+        Assert.Equal("/params/0/expr", unknown.Location.Pointer);
+        Assert.Equal("/params/1/name", repeated.Location.Pointer);
     }
 
     /// <summary>

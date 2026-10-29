@@ -23,12 +23,28 @@ internal enum DataValueKind
 
     /// <summary>A string.</summary>
     String,
+
+    /// <summary>An immutable array of values (a computed expression result; see <see cref="DataValue.FromArray"/>).</summary>
+    Array,
+
+    /// <summary>An immutable object with ordered string keys (a computed expression result; see <see cref="DataObject"/>).</summary>
+    Object,
+
+    /// <summary>A regular expression object produced by an expression (an opaque, immutable payload).</summary>
+    RegExp,
 }
 
 /// <summary>
-///     One scalar value of a data row: null, boolean, number, date or string.
+///     One value of a data row: null, boolean, number, date or string, or (as the result of an expression) an
+///     immutable array, object or regular expression.
 /// </summary>
 /// <remarks>
+///     <para>
+///         The composite kinds exist for the expression engine: they hold immutable payloads, are equal only to themselves
+///         (JavaScript identity), are never produced by the data loaders, and are ordered after the scalar kinds by
+///         <see cref="Compare"/>. Their text follows JavaScript: an array is its comma-joined elements, an object is
+///         <c>[object Object]</c> and a regular expression is <c>/source/flags</c>.
+///     </para>
 ///     <para>
 ///         A date is an instant held as milliseconds since the Unix epoch in UTC (the way JavaScript's <c>Date</c>
 ///         holds it), so it is deterministic and independent of the time zone and culture of the host: its quantitative
@@ -54,23 +70,26 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>The largest date in milliseconds since the epoch: 9999-12-31T23:59:59.999Z.</summary>
     internal const double MaxDateMilliseconds = 253402300799999.0;
 
+    /// <summary>The longest text, in UTF-16 characters, that <see cref="ToText"/> builds for an array.</summary>
+    internal const int MaxUnboundedTextLength = 16_777_216;
+
     /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
 
-    /// <summary>The text of a string.</summary>
-    private readonly string? _text;
+    /// <summary>The text of a string, or the immutable payload of an array, object or regular expression.</summary>
+    private readonly object? _reference;
 
     /// <summary>
     ///     Initializes a value.
     /// </summary>
     /// <param name="kind">The kind.</param>
     /// <param name="number">The number (1 or 0 for a boolean).</param>
-    /// <param name="text">The text of a string.</param>
-    private DataValue(DataValueKind kind, double number, string? text)
+    /// <param name="reference">The text of a string or the payload of a composite value.</param>
+    private DataValue(DataValueKind kind, double number, object? reference)
     {
         Kind = kind;
         _number = number;
-        _text = text;
+        _reference = reference;
     }
 
     /// <summary>Gets the null value.</summary>
@@ -104,7 +123,174 @@ internal readonly struct DataValue : IEquatable<DataValue>
     public bool Boolean => Kind == DataValueKind.Boolean && _number != 0;
 
     /// <summary>Gets the text of a string value; null for other kinds.</summary>
-    public string? Text => _text;
+    public string? Text => _reference as string;
+
+    /// <summary>Gets the elements of an array value; empty for other kinds.</summary>
+    public ReadOnlySpan<DataValue> Elements => _reference is DataArray array ? array.Items : default;
+
+    /// <summary>Gets the object of an object value; null for other kinds.</summary>
+    public DataObject? ObjectValue => _reference as DataObject;
+
+    /// <summary>Gets the opaque payload of a regular expression value; null for other kinds.</summary>
+    public object? RegExpPayload => Kind == DataValueKind.RegExp ? _reference : null;
+
+    /// <summary>
+    ///     Determines whether this value is, or contains at any depth, a text (or an object key) longer than a limit.
+    /// </summary>
+    /// <remarks>
+    ///     This is the one check that every path by which a text from outside the table operations (a constructor of the
+    ///     expression language, a parameter, a value of the specification) enters a derived table uses. It is iterative, so
+    ///     the depth of a composite value cannot exhaust the stack, and does not allocate for a scalar. Composites are
+    ///     immutable and may be shared (<c>[x, x]</c> holds the same array twice), so every array and object is visited
+    ///     once however often it is referenced: the work is bounded by the distinct nodes, not by the paths through them.
+    /// </remarks>
+    /// <param name="maxLength">The longest text allowed, in UTF-16 characters.</param>
+    /// <param name="charge">Receives the number of elements and members scanned, to charge it as work; null to not charge.</param>
+    /// <returns>True when a text is longer than <paramref name="maxLength"/>.</returns>
+    public bool HasTextLongerThan(int maxLength, Action<long>? charge = null)
+    {
+        if (!IsString && !IsArray && !IsObject)
+        {
+            return false;
+        }
+
+        var scanned = 0L;
+        try
+        {
+            return ScanForLongText(maxLength, ref scanned);
+        }
+        finally
+        {
+            if (scanned > 0)
+            {
+                charge?.Invoke(scanned);
+            }
+        }
+    }
+
+    /// <summary>Gets a value indicating whether this value is an array.</summary>
+    public bool IsArray => Kind == DataValueKind.Array;
+
+    /// <summary>Gets a value indicating whether this value is an object.</summary>
+    public bool IsObject => Kind == DataValueKind.Object;
+
+    /// <summary>Gets a value indicating whether this value is a regular expression.</summary>
+    public bool IsRegExp => Kind == DataValueKind.RegExp;
+
+    /// <summary>
+    ///     Appends the text of this array the way JavaScript's <c>join()</c> with a comma does, stopping when it is too long.
+    /// </summary>
+    /// <remarks>
+    ///     The text of a shared array repeats the content of every reference, so it can be far larger than the value; the
+    ///     traversal is iterative and checks the length as the text grows, so it fails early and its work is bounded by the
+    ///     length it is allowed to build.
+    /// </remarks>
+    /// <param name="text">The text being built.</param>
+    /// <param name="maxLength">The longest text allowed, in UTF-16 characters.</param>
+    /// <returns>True when the whole text was appended; false when <paramref name="text"/> grew longer than <paramref name="maxLength"/>.</returns>
+    internal bool TryAppendArrayText(StringBuilder text, int maxLength)
+    {
+        var frames = new Stack<(DataValue[] Items, int Next)>();
+        frames.Push((((DataArray)_reference!).Items, 0));
+        while (frames.Count > 0)
+        {
+            var (items, next) = frames.Pop();
+            while (next < items.Length)
+            {
+                if (next > 0)
+                {
+                    text.Append(',');
+                }
+
+                var element = items[next++];
+                if (element.IsArray)
+                {
+                    // Finish the child first, then continue after it
+                    frames.Push((items, next));
+                    frames.Push((((DataArray)element._reference!).Items, 0));
+                    break;
+                }
+
+                if (!element.IsNull)
+                {
+                    text.Append(element.ToText());
+                }
+
+                if (text.Length > maxLength)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return text.Length <= maxLength;
+    }
+
+    /// <summary>
+    ///     Scans the composite value for a text longer than a limit, visiting every shared node once.
+    /// </summary>
+    /// <param name="maxLength">The longest text allowed.</param>
+    /// <param name="scanned">Accumulates the number of elements and members scanned.</param>
+    /// <returns>True when a text is longer than <paramref name="maxLength"/>.</returns>
+    private bool ScanForLongText(int maxLength, ref long scanned)
+    {
+        HashSet<object>? visited = null;
+        var pending = new Stack<DataValue>();
+        pending.Push(this);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (current.IsString)
+            {
+                if (current.Text!.Length > maxLength)
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            // A composite that was visited already holds nothing new
+            visited ??= new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (!visited.Add(current._reference!))
+            {
+                continue;
+            }
+
+            if (current.IsArray)
+            {
+                var items = ((DataArray)current._reference!).Items;
+                scanned += items.Length;
+                foreach (var element in items)
+                {
+                    if (element.IsString || element.IsArray || element.IsObject)
+                    {
+                        pending.Push(element);
+                    }
+                }
+            }
+            else
+            {
+                var members = current.ObjectValue!;
+                scanned += members.Count;
+                for (var i = 0; i < members.Count; i++)
+                {
+                    if (members.Keys[i].Length > maxLength)
+                    {
+                        return true;
+                    }
+
+                    var member = members.ValueAt(i);
+                    if (member.IsString || member.IsArray || member.IsObject)
+                    {
+                        pending.Push(member);
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     ///     Creates a boolean value.
@@ -197,7 +383,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 number = _number;
                 return true;
             case DataValueKind.String:
-                return JsNumber.TryParse(_text!, out number) && double.IsFinite(number) && _text!.AsSpan().Trim().Length > 0;
+                return JsNumber.TryParse(Text!, out number) && double.IsFinite(number) && Text!.AsSpan().Trim().Length > 0;
             default:
                 number = 0;
                 return false;
@@ -219,9 +405,73 @@ internal readonly struct DataValue : IEquatable<DataValue>
         DataValueKind.Boolean => _number != 0 ? "true" : "false",
         DataValueKind.Number => JsNumber.ToString(_number),
         DataValueKind.Date => DateTime.UnixEpoch.AddMilliseconds(_number).ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture),
-        DataValueKind.String => _text!,
+        DataValueKind.String => Text!,
+        DataValueKind.Array => ArrayText(),
+        DataValueKind.Object => "[object Object]",
+        DataValueKind.RegExp => _reference!.ToString() ?? string.Empty,
         _ => "null",
     };
+
+    /// <summary>
+    ///     Creates an array value.
+    /// </summary>
+    /// <remarks>The elements are copied, so later changes to the argument do not affect the value.</remarks>
+    /// <param name="elements">The elements.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="elements"/> is null.</exception>
+    public static DataValue FromArray(IEnumerable<DataValue> elements)
+    {
+        ArgumentNullException.ThrowIfNull(elements);
+        return new DataValue(DataValueKind.Array, 0, new DataArray(elements.ToArray()));
+    }
+
+    /// <summary>
+    ///     Creates an array value from an array that the caller never changes again.
+    /// </summary>
+    /// <param name="elements">The elements; ownership passes to the value.</param>
+    /// <returns>The value.</returns>
+    internal static DataValue FromOwnedArray(DataValue[] elements) => new(DataValueKind.Array, 0, new DataArray(elements));
+
+    /// <summary>
+    ///     Creates an object value.
+    /// </summary>
+    /// <param name="value">The immutable object.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="value"/> is null.</exception>
+    public static DataValue FromObject(DataObject value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new DataValue(DataValueKind.Object, 0, value);
+    }
+
+    /// <summary>
+    ///     Creates a regular expression value around an opaque, immutable payload.
+    /// </summary>
+    /// <param name="payload">The payload; its <c>ToString()</c> is the text of the value (for example <c>/a+/i</c>).</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is null.</exception>
+    public static DataValue FromRegExp(object payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        return new DataValue(DataValueKind.RegExp, 0, payload);
+    }
+
+    /// <summary>
+    ///     Formats an array like JavaScript's <c>Array.prototype.join()</c> with a comma.
+    /// </summary>
+    /// <remarks>
+    ///     The text of a shared array repeats its content for every reference, so the text is bounded by
+    ///     <see cref="MaxUnboundedTextLength"/> instead of growing without limit.
+    /// </remarks>
+    /// <returns>The text; null elements are empty.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the text would be longer than <see cref="MaxUnboundedTextLength"/>.</exception>
+    private string ArrayText()
+    {
+        var text = new StringBuilder();
+        return TryAppendArrayText(text, MaxUnboundedTextLength)
+            ? text.ToString()
+            : throw new InvalidOperationException($"The text of the array is longer than {MaxUnboundedTextLength} characters.");
+    }
 
     /// <summary>
     ///     Compares two values in ascending order (the order of a sorted Vega domain).
@@ -258,7 +508,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 return Math.Sign(a._number.CompareTo(b._number));
             case DataValueKind.String:
                 // JavaScript compares strings by UTF-16 code units, which is the ordinal comparison
-                return Math.Sign(string.CompareOrdinal(a._text, b._text));
+                return Math.Sign(string.CompareOrdinal(a.Text, b.Text));
             default:
                 return 0;
         }
@@ -285,7 +535,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
         Kind == other.Kind
         && Kind switch
         {
-            DataValueKind.String => string.Equals(_text, other._text, StringComparison.Ordinal),
+            DataValueKind.String => string.Equals(Text, other.Text, StringComparison.Ordinal),
+            DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => ReferenceEquals(_reference, other._reference),
             DataValueKind.Number or DataValueKind.Date => _number.CompareTo(other._number) == 0,
             DataValueKind.Boolean => Boolean == other.Boolean,
             _ => true,
@@ -297,7 +548,8 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <inheritdoc/>
     public override int GetHashCode() => Kind switch
     {
-        DataValueKind.String => HashCode.Combine(Kind, _text!.GetHashCode(StringComparison.Ordinal)),
+        DataValueKind.String => HashCode.Combine(Kind, Text!.GetHashCode(StringComparison.Ordinal)),
+        DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => HashCode.Combine(Kind, System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_reference)),
         DataValueKind.Number or DataValueKind.Date => HashCode.Combine(Kind, JsNumber.IsZero(_number) ? 0.0 : _number),
         DataValueKind.Boolean => HashCode.Combine(Kind, _number),
         _ => 0,
@@ -858,6 +1110,42 @@ internal sealed class DataTable
         }
 
         return new DataTable(fields, cells, rows.Count);
+    }
+
+    /// <summary>
+    ///     Creates a table from a finished block of cells (internal; used by the row transforms, which compute whole
+    ///     tables and must not copy them again).
+    /// </summary>
+    /// <remarks>
+    ///     The caller has already enforced the row and field limits. The fields must be unique and in ordinal order, and the
+    ///     array must hold exactly <paramref name="rowCount"/> times the number of fields cells, row by row. The table takes
+    ///     ownership of both arrays: the caller must not change them afterwards.
+    /// </remarks>
+    /// <param name="fields">The fields in ordinal order, without duplicates.</param>
+    /// <param name="cells">The cells, row by row.</param>
+    /// <param name="rowCount">The number of rows.</param>
+    /// <returns>The table.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the fields are not unique and ordered or the cell count is wrong.</exception>
+    internal static DataTable FromSortedCells(string[] fields, DataValue[] cells, int rowCount)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        ArgumentNullException.ThrowIfNull(cells);
+        ArgumentOutOfRangeException.ThrowIfNegative(rowCount);
+        for (var i = 1; i < fields.Length; i++)
+        {
+            if (string.CompareOrdinal(fields[i - 1], fields[i]) >= 0)
+            {
+                throw new ArgumentException("The fields must be unique and in ordinal order.", nameof(fields));
+            }
+        }
+
+        if ((long)rowCount * fields.Length != cells.LongLength)
+        {
+            throw new ArgumentException("The number of cells must be the number of rows times the number of fields.", nameof(cells));
+        }
+
+        return new DataTable(fields, cells, rowCount);
     }
 
     /// <summary>

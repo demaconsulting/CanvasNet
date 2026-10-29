@@ -76,10 +76,12 @@ constituent software items, specifically:
 - **CanvasNetVegaLite (System)** — A separate software system providing a Vega-Lite chart renderer that parses a
   Vega-Lite JSON specification and measures and renders the supported chart subset to a `Surface`, containing a single
   direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
-  exceptions), and seven internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
-  `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`), `Scales` (units
-  `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
-  and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
+  exceptions), and nine internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
+  `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`), `Expressions` (units
+  `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions`, the supported subset of the Vega expression
+  language), `Transforms` (unit `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
+  `pivot`, and `lookup` and the static parameters), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
+  `NumberFormat`, and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
   `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
@@ -138,8 +140,20 @@ original-work specification fixtures (including the data-file chart, its CSV fil
 provenance statement, are in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The file-backed data tests of the `Data` subsystem use the
 helpers in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs` (per-test temporary directories, an
-in-memory file set behind the file callback, and an endless stream). Only original fixtures are used: no Vega-Lite example,
-gallery chart, documentation snippet, or `vega-datasets` data set is copied.
+in-memory file set behind the file callback, and an endless stream). The units of the `Expressions` and `Transforms`
+subsystems follow the same pattern, for example the verification design
+`docs/verification/canvas-net-vega-lite/expressions/expression-parser.md` and
+`docs/verification/canvas-net-vega-lite/transforms/row-transforms.md`, the requirements
+`docs/reqstream/canvas-net-vega-lite/expressions/expression-parser.yaml` and
+`docs/reqstream/canvas-net-vega-lite/transforms/row-transforms.yaml`, the sources
+`src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser.cs` and
+`src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs`, and the tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs` and
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`; the expression tests share the helpers
+in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
+expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
+original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is
+copied.
 
 OTS items have parallel artifacts in:
 

@@ -536,6 +536,7 @@ words:
   - errorband
   - errorbar
   - feff
+  - fefe
   - floralwhite
   - forestgreen
   - gainsboro
@@ -625,6 +626,7 @@ words:
   - tickband
   - tickminstep
   - timeunit
+  - timeformat
   - topo
   - topojson
   - unbinned
@@ -639,6 +641,15 @@ words:
   - yocto
   - yotta
   - zindex
+  - acosh
+  - asinh
+  - atanh
+  - endswith
+  - gimsu
+  - indexof
+  - lastindexof
+  - startswith
+  - trunc
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

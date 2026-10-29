@@ -387,6 +387,51 @@ public class SpecParserTests
     [InlineData("{\"transform\":[3]}", "/transform/0")]
     [InlineData("{\"transform\":[{\"as\":\"x\"}]}", "/transform/0")]
     [InlineData("{\"transform\":[{\"calculate\":3,\"as\":\"x\"}]}", "/transform/0/calculate")]
+    [InlineData("{\"transform\":[{\"calculate\":\"1\"}]}", "/transform/0")]
+    [InlineData("{\"transform\":[{\"calculate\":\"1\",\"as\":\"\"}]}", "/transform/0/as")]
+    [InlineData("{\"transform\":[{\"calculate\":\"1 +\",\"as\":\"x\"}]}", "/transform/0/calculate")]
+    [InlineData("{\"transform\":[{\"calculate\":\"a b\",\"as\":\"x\"}]}", "/transform/0/calculate")]
+    [InlineData("{\"transform\":[{\"filter\":3}]}", "/transform/0/filter")]
+    [InlineData("{\"transform\":[{\"filter\":\"datum.x >\"}]}", "/transform/0/filter")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"x\"}}]}", "/transform/0/filter")]
+    [InlineData("{\"transform\":[{\"filter\":{\"equal\":1}}]}", "/transform/0/filter")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"x\",\"range\":[1]}}]}", "/transform/0/filter/range")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"x\",\"oneOf\":3}}]}", "/transform/0/filter/oneOf")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"x\",\"valid\":\"yes\"}}]}", "/transform/0/filter/valid")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"x\",\"equal\":[1]}}]}", "/transform/0/filter/equal")]
+    [InlineData("{\"transform\":[{\"filter\":{\"field\":\"a[\",\"equal\":1}}]}", "/transform/0/filter/field")]
+    [InlineData("{\"transform\":[{\"filter\":{\"and\":3}}]}", "/transform/0/filter/and")]
+    [InlineData("{\"transform\":[{\"filter\":{\"and\":[{\"field\":3,\"equal\":1}]}}]}", "/transform/0/filter/and/0/field")]
+    [InlineData("{\"transform\":[{\"filter\":{\"or\":[\"datum.x ==\"]}}]}", "/transform/0/filter/or/0")]
+    [InlineData("{\"transform\":[{\"filter\":{\"not\":4}}]}", "/transform/0/filter/not")]
+    [InlineData("{\"transform\":[{\"filter\":{\"param\":\"nope\"}}]}", "/transform/0/filter/param")]
+    [InlineData("{\"transform\":[{\"fold\":\"a\"}]}", "/transform/0/fold")]
+    [InlineData("{\"transform\":[{\"fold\":[1]}]}", "/transform/0/fold/0")]
+    [InlineData("{\"transform\":[{\"fold\":[\"a\"],\"as\":[\"k\",\"v\",\"w\"]}]}", "/transform/0/as")]
+    [InlineData("{\"transform\":[{\"flatten\":[\"a\"],\"as\":[\"x\",\"y\"]}]}", "/transform/0/as")]
+    [InlineData("{\"transform\":[{\"flatten\":[\"a\"],\"as\":[\"\"]}]}", "/transform/0/as")]
+    [InlineData("{\"transform\":[{\"sample\":-1}]}", "/transform/0/sample")]
+    [InlineData("{\"transform\":[{\"sample\":\"many\"}]}", "/transform/0/sample")]
+    [InlineData("{\"transform\":[{\"pivot\":\"k\"}]}", "/transform/0")]
+    [InlineData("{\"transform\":[{\"pivot\":\"k\",\"value\":\"v\",\"limit\":-2}]}", "/transform/0/limit")]
+    [InlineData("{\"transform\":[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":\"g\"}]}", "/transform/0/groupby")]
+    [InlineData("{\"transform\":[{\"pivot\":\"k\",\"value\":\"v\",\"op\":3}]}", "/transform/0/op")]
+    [InlineData("{\"transform\":[{\"pivot\":\"a[\",\"value\":\"v\"}]}", "/transform/0/pivot")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\"}]}", "/transform/0")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\",\"from\":{\"key\":\"a\"}}]}", "/transform/0/from")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\",\"from\":{\"data\":{\"values\":[]}}}]}", "/transform/0/from")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\",\"from\":{\"data\":{\"values\":[]},\"key\":\"a\",\"fields\":[\"x\",\"y\"]},\"as\":[\"z\"]}]}", "/transform/0/as")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\",\"from\":{\"data\":{\"values\":[]},\"key\":\"a\"},\"default\":{\"a\":1}}]}", "/transform/0/default")]
+    [InlineData("{\"transform\":[{\"lookup\":\"k\",\"from\":{\"data\":{\"url\":3},\"key\":\"a\"}}]}", "/transform/0/from/data/url")]
+    [InlineData("{\"params\":[{\"name\":\"a\",\"expr\":\"b\"},{\"name\":\"b\",\"expr\":\"a\"}]}", "/params/0/expr")]
+    [InlineData("{\"params\":[{\"name\":\"a\",\"expr\":\"a + 1\"}]}", "/params/0/expr")]
+    [InlineData("{\"params\":[{\"name\":\"a\",\"expr\":\"zz\"}]}", "/params/0/expr")]
+    [InlineData("{\"params\":[{\"name\":\"a\",\"expr\":\"1 +\"}]}", "/params/0/expr")]
+    [InlineData("{\"params\":[{\"name\":\"a\"},{\"name\":\"a\"}]}", "/params/1/name")]
+    [InlineData("{\"params\":[{\"name\":\"event\"}]}", "/params/0/name")]
+    [InlineData("{\"mark\":{\"type\":\"point\",\"color\":{\"expr\":\"1 +\"}}}", "/mark/color/expr")]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"color\":{\"value\":{\"expr\":\"(\"}}}}", "/encoding/color/value/expr")]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"opacity\":{\"value\":{\"expr\":\"unknownName\"}}}}", "/encoding/opacity/value/expr")]
     public void SpecParser_Parse_WrongTypeReportsPointer(string json, string pointer)
     {
         // Arrange / Act
@@ -819,5 +864,145 @@ public class SpecParserTests
         Assert.Equal("/a/x~1y", tree.Root["a"]!.ChildPointer("x/y"));
         Assert.Equal(0, tree.Root["a"]!.Items[0].Index);
         Assert.Equal(-1, tree.Root["a"]!.Index);
+    }
+
+    /// <summary>
+    ///     Validates that an expression syntax error is a located specification error at the text of the expression and
+    ///     names the offset inside it, in a multi-line document.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset()
+    {
+        // Arrange: the broken expression is on line 4; a parameter reference to an unknown name is on line 8
+        const string json = "{\n  \"data\": { \"values\": [] },\n  \"transform\": [\n    { \"calculate\": \"datum.a + * 2\", \"as\": \"b\" }\n  ],\n  \"params\": [\n    { \"name\": \"p\", \"value\": 1 },\n    { \"name\": \"q\", \"expr\": \"p + missing\" }\n  ]\n}";
+
+        // Act
+        var syntax = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "e.vl.json"));
+        var unknown = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json.Replace("datum.a + * 2", "datum.a + 2", StringComparison.Ordinal), "e.vl.json"));
+
+        // Assert: the position is that of the string value, the message names the offset in the text of the expression
+        Assert.Equal(("e.vl.json", "/transform/0/calculate", 4, 20), (syntax.Location.File, syntax.Location.Pointer, syntax.Location.Line, syntax.Location.Column));
+        Assert.Contains("expression offset 10", syntax.Message, StringComparison.Ordinal);
+        Assert.StartsWith("e.vl.json:4:20 /transform/0/calculate: ", syntax.Message, StringComparison.Ordinal);
+        Assert.Equal(("/params/1/expr", 8), (unknown.Location.Pointer, unknown.Location.Line));
+        Assert.Contains("'missing'", unknown.Message, StringComparison.Ordinal);
+        Assert.Contains("expression offset 4", unknown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the parser compiles the expressions of the supported sites once (the tree hands the compiled
+    ///     expression to the stage that needs it) and leaves the expressions of the deferred sites alone.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly()
+    {
+        // Arrange: a calculate, a string filter, an expression inside a predicate, a parameter, a mark paint and a color value,
+        // against a title, a width, a bar size and an x value, which are not row-bound sites
+        const string json = """
+            {
+              "title": { "text": { "expr": "'t'" } }, "width": { "expr": "w" },
+              "params": [ { "name": "p", "value": 1 }, { "name": "q", "expr": "p * 2" } ],
+              "transform": [
+                { "calculate": "datum.a + p", "as": "b" },
+                { "filter": "datum.b > q" },
+                { "filter": { "or": [ "datum.a === 1", { "field": "a", "valid": true } ] } }
+              ],
+              "mark": { "type": "bar", "fill": { "expr": "datum.a > 1 ? 'red' : 'blue'" }, "size": { "expr": "3" } },
+              "encoding": { "color": { "value": { "expr": "'green'" } }, "x": { "value": { "expr": "10" } } }
+            }
+            """;
+
+        // Act
+        var tree = SpecParser.Parse(json);
+        var root = tree.Root;
+
+        // Assert: the sites are compiled and found by their string node
+        Assert.NotNull(tree.Expressions.Get(root["params"]!.Items[1]["expr"]));
+        Assert.Equal("datum.a + p", tree.Expressions.Get(root["transform"]!.Items[0]["calculate"])!.Source);
+        Assert.NotNull(tree.Expressions.Get(root["transform"]!.Items[1]["filter"]));
+        Assert.NotNull(tree.Expressions.Get(root["transform"]!.Items[2]["filter"]!["or"]!.Items[0]));
+        Assert.NotNull(tree.Expressions.GetReference(root["mark"]!["fill"]));
+        Assert.NotNull(tree.Expressions.GetReference(root["encoding"]!["color"]!["value"]));
+
+        // Assert: the deferred sites (and the bar size, which is not a symbol area) are not compiled
+        Assert.Null(tree.Expressions.GetReference(root["title"]!["text"]));
+        Assert.Null(tree.Expressions.GetReference(root["width"]));
+        Assert.Null(tree.Expressions.GetReference(root["mark"]!["size"]));
+        Assert.Null(tree.Expressions.GetReference(root["encoding"]!["x"]!["value"]));
+        Assert.Equal(6, tree.Expressions.Count);
+        Assert.Null(tree.Expressions.Get(null));
+        Assert.Null(tree.Expressions.GetReference(null));
+    }
+
+    /// <summary>
+    ///     Validates that the supported forms of every Phase 5 transform and of the parameters are accepted without a warning.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_Phase5TransformsAndParametersAreAccepted()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [
+                { "name": "limit", "value": 3, "bind": { "input": "range" } },
+                { "name": "twice", "expr": "limit * 2" },
+                { "name": "brush", "select": "interval" },
+                { "name": "empty" }
+              ],
+              "data": { "values": [ { "a": 1, "b": [1, 2], "c": "x" } ] },
+              "transform": [
+                { "calculate": "datum.a * twice + width", "as": "d" },
+                { "filter": "datum.d > limit" },
+                { "filter": { "field": "a", "range": [1, null] } },
+                { "filter": { "field": "a", "oneOf": [1, 2], "timeUnit": "year" } },
+                { "filter": { "field": "a", "equal": { "year": 2020 } } },
+                { "filter": { "param": "limit" } },
+                { "filter": { "param": "brush", "empty": false } },
+                { "filter": { "selection": "brush" } },
+                { "filter": { "and": [ { "not": { "field": "a", "lt": 0 } }, "datum.a < 9" ] } },
+                { "fold": ["a", "d"], "as": ["key"] },
+                { "flatten": ["b"], "as": ["e"] },
+                { "sample": 5 },
+                { "pivot": "key", "value": "value", "groupby": ["c"], "limit": 4, "op": "count" },
+                { "lookup": "c", "from": { "data": { "values": [ { "k": "x", "v": 1 } ] }, "key": "k", "fields": ["v"] }, "as": "w", "default": null },
+                { "lookup": "c", "from": { "param": "brush" } },
+                { "aggregate": [ { "op": "count", "as": "n" } ] }
+              ],
+              "mark": "point"
+            }
+            """;
+
+        // Act
+        var tree = SpecParser.Parse(json);
+
+        // Assert: every site compiled, no warning (the viewing signal width is accepted in a text)
+        Assert.Empty(tree.Warnings);
+        Assert.Equal(["limit", "twice", "brush", "empty"], SpecMetadata.Read(tree).ParameterNames);
+        Assert.Equal(4, tree.Expressions.Count);
+    }
+
+    /// <summary>
+    ///     Validates that parameters are ordered dependencies first and then by declaration, and that a cycle (or a
+    ///     dependency on one) is left unresolved.
+    /// </summary>
+    [Fact]
+    public void ParameterGraph_Sort_OrdersDependenciesFirstThenDeclarationOrder()
+    {
+        // Arrange / Act: 0 depends on 2, 1 on nothing, 2 on 1, 3 on 0 and 0 again
+        var ordered = ParameterGraph.Sort([[2], [], [1], [0, 0]]);
+        var cyclic = ParameterGraph.Sort([[], [2], [1], [1]]);
+        var self = ParameterGraph.Sort([[0]]);
+        var none = ParameterGraph.Sort([]);
+
+        // Assert
+        Assert.Equal([1, 2, 0, 3], ordered.Order);
+        Assert.Equal(-1, ordered.FirstUnresolved);
+        Assert.Equal([0], cyclic.Order);
+        Assert.Equal(1, cyclic.FirstUnresolved);
+        Assert.Empty(self.Order);
+        Assert.Equal(0, self.FirstUnresolved);
+        Assert.Empty(none.Order);
+        Assert.Equal(-1, none.FirstUnresolved);
+        Assert.Throws<ArgumentNullException>(() => ParameterGraph.Sort(null!));
     }
 }

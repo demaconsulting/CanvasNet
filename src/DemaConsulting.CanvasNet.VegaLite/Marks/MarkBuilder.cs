@@ -1,8 +1,10 @@
 // Portions derived from Vega-Lite (BSD-3-Clause); see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
@@ -43,9 +45,14 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///     </para>
 ///     <para>
 ///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>
-///         (Vega-Lite also clips for interval-selection scales, which are not supported). Mark properties that are expressions,
-///         <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; <c>x2</c>, <c>y2</c> and the offset channels are
-///         reported by the feature catalog and ignored here. The class is stateless between calls and safe for concurrent use.
+///         (Vega-Lite also clips for interval-selection scales, which are not supported). Row-bound expressions
+///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
+///         paint properties of the mark definition (<c>color</c>, <c>fill</c>, <c>stroke</c>, <c>opacity</c>, <c>strokeWidth</c>, and
+///         <c>size</c> of a symbol) and for the constant <c>value</c> of a color, fill, stroke or opacity channel (and of a size
+///         channel of a symbol); a result of the wrong kind leaves the default in place. Other mark properties that are expressions,
+///         conditional encodings, <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; <c>x2</c>, <c>y2</c> and the
+///         offset channels are reported by the feature catalog and ignored here. The class is stateless between calls and safe for
+///         concurrent use.
 ///     </para>
 /// </remarks>
 internal sealed class MarkBuilder
@@ -71,6 +78,9 @@ internal sealed class MarkBuilder
     /// <summary>The source name used in locations.</summary>
     private readonly string? _sourceName;
 
+    /// <summary>The compiled expressions and the evaluator of the call, or null when there are none.</summary>
+    private readonly RowExpressions? _expressions;
+
     /// <summary>
     ///     Initializes a mark builder.
     /// </summary>
@@ -78,13 +88,15 @@ internal sealed class MarkBuilder
     /// <param name="limits">The limits (<see cref="VegaLiteLimits.MaxSceneItems"/>); the defaults when null.</param>
     /// <param name="budget">The budget of scene items shared with the other builders of the chart; a new one from the limits when null.</param>
     /// <param name="sourceName">The source name for locations, or null.</param>
+    /// <param name="expressions">The compiled expressions and the evaluator of the call, which evaluate the row-bound <c>{"expr": ...}</c> values of the paint properties; null leaves such values unevaluated.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
-    public MarkBuilder(ResolvedConfig config, VegaLiteLimits? limits = null, SceneBudget? budget = null, string? sourceName = null)
+    public MarkBuilder(ResolvedConfig config, VegaLiteLimits? limits = null, SceneBudget? budget = null, string? sourceName = null, RowExpressions? expressions = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         _config = config;
         _budget = budget ?? new SceneBudget((limits ?? VegaLiteLimits.Default).MaxSceneItems);
         _sourceName = sourceName;
+        _expressions = expressions;
     }
 
     /// <summary>
@@ -149,10 +161,12 @@ internal sealed class MarkBuilder
         /// <param name="scale">The resolved scale, or null.</param>
         /// <param name="model">The scale model, or null.</param>
         /// <param name="table">The data.</param>
-        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table)
+        /// <param name="valueExpression">The compiled <c>{"expr": ...}</c> of the constant <c>value</c> of the channel, or null.</param>
+        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null)
         {
             Scale = scale;
             Model = model;
+            ValueExpression = valueExpression;
             FieldIndex = scale?.FieldPath is { } path ? table.FindField(path) : -1;
             Datum = node["datum"] switch
             {
@@ -178,6 +192,9 @@ internal sealed class MarkBuilder
 
         /// <summary>Gets the constant <c>value</c> of the channel, or null.</summary>
         public SpecNode? Value { get; }
+
+        /// <summary>Gets the compiled expression of a constant <c>value</c> given as <c>{"expr": ...}</c>, or null.</summary>
+        public CompiledExpression? ValueExpression { get; }
 
         /// <summary>
         ///     Reads the value of the channel for a row.
@@ -259,6 +276,21 @@ internal sealed class MarkBuilder
         /// <summary>The default opacity.</summary>
         private double _opacity = 1;
 
+        /// <summary>The expression that gives the fill of each row (the <c>fill</c> property, or the <c>color</c> of a filled mark), or null.</summary>
+        private CompiledExpression? _fillExpression;
+
+        /// <summary>The expression that gives the stroke of each row (the <c>stroke</c> property, or the <c>color</c> of an unfilled mark), or null.</summary>
+        private CompiledExpression? _strokeExpression;
+
+        /// <summary>The expression that gives the opacity of each row, or null.</summary>
+        private CompiledExpression? _opacityExpression;
+
+        /// <summary>The expression that gives the stroke width of each row, or null.</summary>
+        private CompiledExpression? _strokeWidthExpression;
+
+        /// <summary>The expression that gives the symbol size of each row, or null.</summary>
+        private CompiledExpression? _sizeExpression;
+
         /// <summary>
         ///     Initializes a run.
         /// </summary>
@@ -295,7 +327,12 @@ internal sealed class MarkBuilder
                 {
                     var scale = scales[name];
                     var extent = name == "x" ? width : height;
-                    _channels[name] = new Channel(node, scale, scale?.CreateModel(name is "x" or "y" ? extent : 0), table);
+                    _channels[name] = new Channel(
+                        node,
+                        scale,
+                        scale?.CreateModel(name is "x" or "y" ? extent : 0),
+                        table,
+                        owner._expressions?.Compiled.GetReference(node["value"]));
                 }
             }
 
@@ -405,6 +442,13 @@ internal sealed class MarkBuilder
             _fillChannel = Get("fill") ?? (filled ? colorChannel : null);
             _strokeChannel = Get("stroke") ?? (filled ? null : colorChannel);
 
+            // A row-bound expression of the mark definition follows the same precedence: fill (or stroke) wins over color
+            _fillExpression = DefExpression(Def("fill") is not null || !filled ? "fill" : "color");
+            _strokeExpression = DefExpression(Def("stroke") is not null || filled ? "stroke" : "color");
+            _opacityExpression = DefExpression("opacity");
+            _strokeWidthExpression = DefExpression("strokeWidth");
+            _sizeExpression = DefExpression("size");
+
             // Opacity: the definition, else the reduced default of point-like marks that nothing configures
             if (Def("opacity")?.AsNumber() is { } opacity)
             {
@@ -429,8 +473,8 @@ internal sealed class MarkBuilder
         /// <returns><see langword="false"/> when the row is invalid (its opacity value is not a number).</returns>
         private bool TryPaint(int row, double? strokeWidth, out Paint paint)
         {
-            var fill = ColorOf(_fillChannel, row) ?? _fill;
-            var stroke = ColorOf(_strokeChannel, row) ?? _stroke;
+            var fill = ColorOf(_fillChannel, row) ?? ExpressionColor(_fillExpression, row) ?? _fill;
+            var stroke = ColorOf(_strokeChannel, row) ?? ExpressionColor(_strokeExpression, row) ?? _stroke;
             var opacity = _opacity;
             if (Get("opacity") is { } channel)
             {
@@ -442,9 +486,57 @@ internal sealed class MarkBuilder
 
                 opacity = encoded;
             }
+            else if (ExpressionNumber(_opacityExpression, row) is { } computed)
+            {
+                opacity = computed;
+            }
 
+            strokeWidth = ExpressionNumber(_strokeWidthExpression, row) ?? strokeWidth;
             paint = new Paint(fill, stroke, strokeWidth, opacity);
             return true;
+        }
+
+        /// <summary>
+        ///     Reads a property of the mark definition that is an <c>{"expr": ...}</c> reference the parser compiled.
+        /// </summary>
+        /// <param name="name">The property.</param>
+        /// <returns>The compiled expression, or null when the definition has no such expression.</returns>
+        private CompiledExpression? DefExpression(string name) =>
+            _def?[name] is { IsObject: true } reference ? _owner._expressions?.Compiled.GetReference(reference) : null;
+
+        /// <summary>
+        ///     Evaluates a row-bound expression for a row.
+        /// </summary>
+        /// <param name="expression">The compiled expression.</param>
+        /// <param name="row">The row, which is the <c>datum</c> of the expression.</param>
+        /// <returns>The value.</returns>
+        private DataValue Evaluate(CompiledExpression expression, int row) =>
+            _owner._expressions!.Evaluator.Evaluate(expression, _table, row);
+
+        /// <summary>
+        ///     Evaluates an expression that gives a color.
+        /// </summary>
+        /// <param name="expression">The compiled expression, or null.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The text of the result; null when there is no expression or the result is not a text, so that the default applies.</returns>
+        private string? ExpressionColor(CompiledExpression? expression, int row) =>
+            expression is null ? null : Evaluate(expression, row).Text;
+
+        /// <summary>
+        ///     Evaluates an expression that gives a number.
+        /// </summary>
+        /// <param name="expression">The compiled expression, or null.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The result; null when there is no expression or the result is not a finite number, so that the default applies.</returns>
+        private double? ExpressionNumber(CompiledExpression? expression, int row)
+        {
+            if (expression is null)
+            {
+                return null;
+            }
+
+            var value = Evaluate(expression, row);
+            return value.IsNumber && double.IsFinite(value.Number) ? value.Number : null;
         }
 
         /// <summary>
@@ -458,6 +550,11 @@ internal sealed class MarkBuilder
             if (channel is null)
             {
                 return null;
+            }
+
+            if (channel.ValueExpression is { } expression)
+            {
+                return ExpressionColor(expression, row);
             }
 
             if (channel.Value is { IsString: true } value)
@@ -476,6 +573,11 @@ internal sealed class MarkBuilder
         /// <returns>The number, or null when the row has no valid value.</returns>
         private double? Encoded(Channel channel, int row)
         {
+            if (channel.ValueExpression is { } expression)
+            {
+                return ExpressionNumber(expression, row);
+            }
+
             if (channel.Model is { } model)
             {
                 return model.Kind == ScaleKind.Ordinal ? null : model.Map(channel.Read(_table, row));
@@ -883,7 +985,7 @@ internal sealed class MarkBuilder
             for (var row = 0; row < _table.RowCount; row++)
             {
                 Batch(row);
-                var size = sizeChannel is null ? defaultSize : Encoded(sizeChannel, row);
+                var size = sizeChannel is null ? ExpressionNumber(_sizeExpression, row) ?? defaultSize : Encoded(sizeChannel, row);
                 if (size is not { } area || PointPosition(x, _width, row) is not { } px || PointPosition(y, _height, row) is not { } py || !TryPaint(row, strokeWidth, out var paint))
                 {
                     continue;

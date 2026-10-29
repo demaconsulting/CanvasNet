@@ -18,7 +18,8 @@ metadata is read from the tree, that a wrong value fails at its pointer, that pa
 merged into one document-ordered, once-per-call delivery, and that rendering resolves the configuration.
 
 No mocking or stubbing is used: the subsystem depends only on the core types `VegaLiteLocation`, `VegaLiteLimits`, and
-`VegaLiteSpecException` of the root namespace and on the BCL `System.Text.Json` reader. The subsystem is internal, so
+`VegaLiteSpecException` of the root namespace, on the real `ExpressionParser` unit of the `Expressions` subsystem
+(which compiles the expressions of the tree), and on the BCL `System.Text.Json` reader. The subsystem is internal, so
 its tests reach it through the test assembly's `InternalsVisibleTo` access. Specifications in these tests are
 original, small, and written for the test; no Vega-Lite example specification is used.
 
@@ -75,3 +76,23 @@ scenario in the three unit verification documents passes without error or unexpe
   oversized source fail in the parser with a typed exception before the catalog or the resolver run, and for a
   specification that parses, the catalog reports every composition and examines the views nested in it, with their
   full pointers.
+- **Expressions, Transforms, And Parameters Fail Fast At Open, Unsupported Parts Are Reported**:
+  `SpecParserTests.SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset`,
+  `SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`,
+  `SpecParserTests.SpecParser_Parse_Phase5TransformsAndParametersAreAccepted`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites`,
+  `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder` — the
+  parser compiles each expression of a supported site once and hands the compiled expressions to the stages that need
+  them, so the errors of an expression (a syntax error, a length or nesting over the limit, an unknown parameter, a
+  parameter cycle) and the wrong shape of a supported transform are `VegaLiteSpecException` errors at the offending
+  value when the document is opened, with the position of the string and the offset inside it, while the catalog reads
+  the same compiled expressions and reports what they list but the engine does not run (`vl-expr-function-<name>`,
+  `vl-expr-view-state`, `vl-expr-construct-<name>`) at the expression text, the parts of the supported transforms that
+  are not computed (`vl-transform-filter-param`, `-filter-timeunit`, `-filter-datetime`, `-pivot-op`, and
+  `-lookup-param`), the transforms of nested views and later phases, and a supported specification of Phase 5
+  constructs has no report; the parse warnings and the reports are delivered together in document order.

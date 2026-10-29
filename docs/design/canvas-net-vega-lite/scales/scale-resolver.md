@@ -59,14 +59,24 @@ is ignored for color, size, and opacity.
   or a fixed size takes its size from `step` (20 pixels by default), which is what `DiscreteWidth` and `DiscreteHeight`
   report so that the layout can size the view. An explicit numeric range keeps all its entries for a linear scale (`reverse`
   flips the whole array, as Vega does); a band or point scale uses the first two entries, as d3's `scaleBand` does.
+- **Sort by the aggregate of a field.** A `sort` object with an `op` of `count`, `sum`, `mean`, `average`, `median`, `min`,
+  or `max`, an optional `field` (a valid field path; the field of the channel when absent), and an optional `order`
+  (`ascending` or `descending`) orders a discrete domain by that aggregate over the rows of each category in the
+  **transformed** table (so a calculated, flattened, or looked-up field can be the sort field). `count` counts the rows,
+  the other operations read the valid numbers of the sort field; a category without a valid number has no value and sorts
+  first (except `sum`, which is 0, and `count`); categories with the same value keep the order of first appearance, so the
+  sort is stable and independent of the culture. `IsSupportedFieldSort` is shared with the `FeatureCatalog`, so
+  the report and the sort agree.
 - **Orientation.** `InferOrient` follows Vega-Lite: no orientation for point, circle, square, and rect marks; a bar is
   horizontal when only x is a measure and vertical when only y is, a tick the other way round, and a rule is vertical
   with only x and horizontal with only y; an explicit `orient` of the mark wins where Vega-Lite lets it.
 
 **Deviations** (also listed in _CanvasNetVegaLite System Design_): values of different kinds in one discrete domain
 are ordered by kind; a scheme other than `tableau10`, and the ordinal range of an ordinal color field, fall back to
-`tableau10` with `ColorFallback` set; `scale.domain` forms other than an array are ignored; `sort` by a field is
-ignored (the catalog reports it); a `sort` array puts values missing from it first. A `sort` array is read once into a
+`tableau10` with `ColorFallback` set; `scale.domain` forms other than an array are ignored; a sort by another encoding
+channel, by an operation other than the
+seven below, or as a shorthand is ignored (the catalog reports it); a `sort` array puts values missing from it first. A
+`sort` array is read once into a
 dictionary from each listed value to its first position (a value listed twice counts at its first position), so
 ordering a domain costs one lookup per value rather than a search of the list per value.
 
@@ -83,6 +93,10 @@ ordering a domain costs one lookup per value rather than a search of the list pe
   then `nice` (after the padding, as Vega does), and builds a linear, band, point, or ordinal `ScaleModel`; a non-finite
   domain after nice keeps the padded domain.
 - `ResolvedScale.NaturalExtent` - `step * BandSpace(count, inner, outer)`, the size a step-driven discrete scale needs.
+- `IsSupportedFieldSort(sort)` (static) - whether a `sort` object is a sort by the aggregate of a field that the resolver
+  can compute (see _Inference rules_); `SortByField` groups the rows of the table by category in one pass (polling the token
+  every 1,024 rows), computes the aggregate of each group (`count`, `sum`, `mean`, `average`, `median`, `min`, `max`), and
+  orders the categories by it with a stable sort.
 
 **Preconditions and postconditions**: the view was validated by `SpecParser`; on return every present, supported channel
 has a resolved scale, and the result is immutable.
@@ -107,7 +121,8 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 
 #### Callers
 
-`VegaLiteDocument` calls `Resolve` once per render. `AxisBuilder` and `MarkBuilder` read the `ResolvedScale` (field path,
+`VegaLiteDocument` calls `Resolve` once per render, over the table that the row transforms produced. `FeatureCatalog` calls
+`IsSupportedFieldSort`. `AxisBuilder` and `MarkBuilder` read the `ResolvedScale` (field path,
 kind, domain, padding) and the models built from it. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs` call the resolver directly through
 `InternalsVisibleTo`.

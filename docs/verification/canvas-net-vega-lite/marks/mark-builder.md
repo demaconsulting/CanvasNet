@@ -13,7 +13,10 @@ The unit is verified through the shared helper `ChartTestHelpers.Marks`, which r
 `ConfigResolver`, `DataLoader`, and `ScaleResolver` for an original specification and calls the builder for a data
 rectangle of a chosen size. The assertions are on the scene items (positions, sizes, fills, strokes, stroke widths,
 opacities, shapes, angles, corner radii). No mocking or stubbing is used; the collaborators are real because the unit's
-contract is how the table, the scales, and the configuration combine into items. The internal types are reached through
+contract is how the table, the scales, and the configuration combine into items. The expression-reference scenario
+builds the `RowExpressions` (the compiled expressions of the tree and a real `ExpressionEvaluator` with its own parameter
+dictionary) by hand and passes them to the builder, because `ChartTestHelpers.Marks` builds the builder without them.
+The internal types are reached through
 the test assembly's `InternalsVisibleTo` access.
 
 The expected values are derived by hand from the band, point, and linear scale formulas and the Vega-Lite mark rules,
@@ -119,3 +122,16 @@ Asserts that a point mark over five rows, three of which have no valid x, create
 of three exactly three times (the marks group and the two symbols), without failing, and that a budget of two fails at the
 second symbol, at `/mark`, after the marks group was charged first. Every mark item is charged before it is created; the
 exact boundary of a whole chart is asserted by the system tests of the scene item limit.
+
+##### Row-Bound Expression References Are Evaluated Per Row
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_RowBoundExpressionReferencesAreEvaluatedPerRow`
+
+Asserts, for a point mark over the rows `q = 2` and `q = 5` whose definition has `fill` of
+`datum.q > 3 ? 'red' : 7`, `opacity` of `datum.q > 3 ? 0.25 : 'x'`, and `strokeWidth` of `datum.q`, and whose `size`
+channel value is `datum.q * 10`, built by a builder that was given the compiled expressions of the tree and an
+evaluator, that the first item keeps the default fill (`#4c78a8`, because the expression gave a number and not a color
+text) and the default opacity 0.7 (because the expression gave text and not a number) while the second has the fill
+`red` and the opacity 0.25, that the stroke widths are 2 and 5, and that the sizes are 20 and 50; and that the builder
+without the expressions leaves every reference unevaluated (the opacity stays 0.7 and no fill is red), so a result of
+the wrong kind never changes the mark and a missing evaluator never changes the previous behavior.

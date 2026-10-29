@@ -322,4 +322,40 @@ public class MarkBuilderTests
         Assert.Throws<ArgumentNullException>(() => builder.Build(null!, parts.Table, parts.Scales, 1, 1, TestContext.Current.CancellationToken));
         Assert.Throws<ArgumentNullException>(() => new MarkBuilder(null!));
     }
+
+    /// <summary>
+    ///     Validates that the row-bound expression references of the mark are evaluated per row when the builder has the compiled
+    ///     expressions and the evaluator, that a result of the wrong kind keeps the default, and that without them the references
+    ///     are left unevaluated (the mark keeps its defaults).
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_RowBoundExpressionReferencesAreEvaluatedPerRow()
+    {
+        // Arrange: the fill is red above 3, a text that is not a color value stays text; the opacity is 0.25 above 3 and a text
+        // (not a number) below; the stroke width is the row value; the size channel value is the row value times 10
+        const string mark = "{ \"type\": \"point\", \"fill\": { \"expr\": \"datum.q > 3 ? 'red' : 7\" }, \"opacity\": { \"expr\": \"datum.q > 3 ? 0.25 : 'x'\" }, \"strokeWidth\": { \"expr\": \"datum.q\" } }";
+        const string encoding = "{ \"x\": { \"field\": \"q\", \"type\": \"quantitative\" }, \"size\": { \"value\": { \"expr\": \"datum.q * 10\" } } }";
+        var json = Spec(mark, encoding, "[ { \"q\": 2 }, { \"q\": 5 } ]");
+        var parts = ChartTestHelpers.Parts(json);
+        var values = new Dictionary<string, DemaConsulting.CanvasNet.VegaLite.Data.DataValue>();
+        var evaluator = new DemaConsulting.CanvasNet.VegaLite.Expressions.ExpressionEvaluator(null, TestContext.Current.CancellationToken, values);
+        var expressions = new DemaConsulting.CanvasNet.VegaLite.Transforms.RowExpressions(parts.Tree.Expressions, evaluator);
+
+        // Act
+        var evaluated = new MarkBuilder(parts.Config, expressions: expressions).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken);
+        var plain = new MarkBuilder(parts.Config).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken);
+        var items = ChartTestHelpers.Of<SceneSymbol>(evaluated, "mark-point");
+        var defaults = ChartTestHelpers.Of<SceneSymbol>(plain, "mark-point");
+
+        // Assert: row 0 keeps the default fill (the expression gave a number) and the default opacity (0.7 of a point), row 1 has its values
+        Assert.Equal(2, items.Count);
+        Assert.Equal(["#4c78a8", "red"], [items[0].Fill is null ? "#4c78a8" : items[0].Fill, items[1].Fill]);
+        Assert.Equal([0.7, 0.25], R(items.Select(i => i.Opacity)));
+        Assert.Equal([2.0, 5.0], R(items.Select(i => i.StrokeWidth ?? double.NaN)));
+        Assert.Equal([20.0, 50.0], R(items.Select(i => i.Size)));
+
+        // Assert: without the evaluator the references change nothing (the size falls back to the area of a point, 30)
+        Assert.All(defaults, d => Assert.Equal(0.7, d.Opacity));
+        Assert.All(defaults, d => Assert.NotEqual("red", d.Fill));
+    }
 }

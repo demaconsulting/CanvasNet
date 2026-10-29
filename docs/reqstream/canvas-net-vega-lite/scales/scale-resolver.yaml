@@ -53,6 +53,22 @@ sections:
                   - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
                   - ScaleResolver_Resolve_PiecewiseDomainAndRangeFollowD3
 
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-SortByField
+                title: >-
+                  The ScaleResolver unit shall order the discrete domain of a channel whose sort is an object
+                  with an op of count, sum, mean, average, median, min, or max, an optional field (the channel
+                  field by default), and an optional order (ascending by default) by that aggregate computed
+                  over the rows of the transformed table for each category, keeping categories with equal
+                  values in the order of first appearance (a stable sort), giving a category without a valid
+                  number the first position (except for sum and count, where it counts as 0), and leaving
+                  every other form of sort to the existing rules and to the feature catalog.
+                justification: |
+                  Sorting a category axis by a value is common in charts built from transformed data, and
+                  the order must be deterministic and independent of the culture.
+                tests:
+                  - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
+                  - ScaleResolver_Resolve_SortByFieldIsStableForTies
+
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Ranges
                 title: >-
                   The ScaleResolver unit shall derive the range, padding, and step of each scale: the data

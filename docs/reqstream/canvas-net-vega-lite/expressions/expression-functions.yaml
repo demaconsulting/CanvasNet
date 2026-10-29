@@ -1,0 +1,121 @@
+---
+# Software Unit Requirements for ExpressionFunctions
+#
+# These requirements describe the design-level behavior of the ExpressionFunctions unit of the Expressions
+# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the closed table of the 57 pure
+# functions that an expression may call (math, text and array, type and conversion, and regular expression
+# functions), the per-evaluation context that charges their work, and the translation of a JavaScript regular
+# expression into a bounded .NET one. The unit comprises ExpressionFunctions.cs, ExpressionFunctions.Text.cs,
+# ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctionContext.cs, and
+# ExpressionRegex.cs. See docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Expressions Requirements
+        sections:
+          - title: ExpressionFunctions Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Whitelist
+                title: >-
+                  The ExpressionFunctions unit shall expose exactly the whitelisted functions - abs, acos,
+                  acosh, asin, asinh, atan, atan2, atanh, ceil, clamp, cos, cosh, exp, floor, log, log10, max,
+                  min, pow, round, sign, sin, sinh, sqrt, tan, tanh, trunc, lower, upper, trim, substring,
+                  slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join, pad,
+                  length, isArray, isBoolean, isDate, isFinite, isNaN, isNumber, isObject, isRegExp, isString,
+                  isValid, toBoolean, toNumber, toString, regexp, and test - with no random, clock, reflection,
+                  file, or network function, and shall refuse to invoke a name outside the table.
+                justification: |
+                  A closed, enumerable table is what makes an expression engine safe to run on untrusted
+                  specifications, and the absence of a random source is what keeps the output reproducible.
+                tests:
+                  - ExpressionFunctions_Names_AreExactlyTheWhitelist
+                  - ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
+                title: >-
+                  The ExpressionFunctions unit shall give the math functions the JavaScript results for
+                  exact values and special cases (NaN, signed zero, infinities, and the clamp of a value to a
+                  range), keeping negative zero where JavaScript does, and values within the host math
+                  library's precision for the transcendental functions.
+                justification: |
+                  Calculated fields feed scales and marks; the numeric behavior must match the Vega functions
+                  that the author tested against.
+                tests:
+                  - ExpressionFunctions_Math_ExactValuesAndSpecialCases
+                  - ExpressionFunctions_Math_KeepsNegativeZero
+                  - ExpressionFunctions_Math_TranscendentalFunctionsMatchReferenceValues
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TextAndArrays
+                title: >-
+                  The ExpressionFunctions unit shall give the text and array functions (lower, upper, trim,
+                  substring, slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join,
+                  pad, and length) the JavaScript and Vega results on strings and arrays with the invariant
+                  culture, including the empty and null inputs and the full case mappings of lower and upper
+                  (the sharp s, the ligatures, and the final sigma), and shall bound every produced string by the
+                  string-length limit.
+                justification: |
+                  Text is the most common thing a calculate transform builds; its results must not depend on
+                  the culture of the host and its size must not be unbounded.
+                tests:
+                  - ExpressionFunctions_Text_FollowJavaScriptAndVega
+                  - ExpressionFunctions_Array_SliceSearchAndMembership
+                  - ExpressionFunctions_Replace_FollowsJavaScript
+                  - ExpressionFunctions_Split_FollowsJavaScript
+                  - ExpressionFunctions_Split_EmptyInputs
+                  - ExpressionFunctions_Split_EmptyRegexAndTextSplitBetweenCodeUnits
+                  - ExpressionFunctions_Upper_AppliesFullCaseMappings
+                  - ExpressionFunctions_Lower_AppliesFullCaseMappingsAndFinalSigma
+                  - ExpressionFunctions_CaseConversion_IsCultureInvariantAndBounded
+                  - ExpressionFunctions_StringResults_AreBoundedByMaxStringLength
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TypesAndConversions
+                title: >-
+                  The ExpressionFunctions unit shall give the type predicates (isArray, isBoolean, isDate,
+                  isFinite, isNaN, isNumber, isObject, isRegExp, isString, and isValid) and the conversions
+                  (toBoolean, toNumber, and toString) the Vega results, with isNaN and isFinite not coercing
+                  their argument and toBoolean, toNumber, and toString giving null for null and for the empty
+                  string.
+                justification: |
+                  Filters and calculations depend on telling valid values from missing ones; the conversions
+                  must agree with Vega so the same specification selects the same rows.
+                tests:
+                  - ExpressionFunctions_Types_PredicatesFollowVega
+                  - ExpressionFunctions_Conversions_MapNullAndEmptyToNull
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-RegexSafety
+                title: >-
+                  The ExpressionFunctions unit shall translate a JavaScript regular expression (the flags g,
+                  i, m, and s, rejecting u, v, y, and d, which the engine cannot honor; the pattern length at most
+                  1,024 characters) into a .NET one that uses the
+                  linear-time non-backtracking engine with the invariant culture, falling back for the
+                  patterns that engine rejects (look-around and back-references) to the backtracking engine
+                  with a 100 millisecond limit that fails closed with a located error, shall fail an invalid
+                  pattern or an over-long pattern with a located VegaLiteRenderException, shall cache at most
+                  64 compiled expressions per evaluation, and shall charge the steps and the string size of
+                  its work to the evaluation, observing the cancellation token.
+                justification: |
+                  A regular expression supplied by a specification is the classic denial-of-service vector;
+                  both the engine and the size of the work must be bounded without relying on the specification
+                  being well behaved.
+                tests:
+                  - ExpressionFunctions_Regex_TestAndFlags
+                  - ExpressionFunctions_Regex_CatastrophicPatternsAreSafe
+                  - ExpressionFunctions_Regex_BacktrackingFallbackFailsClosed
+                  - ExpressionFunctions_Regex_InvalidPatternIsLocatedRenderError
+                  - ExpressionFunctions_Regex_PatternLengthIsBounded
+                  - ExpressionFunctionContext_StepsAndCharges_AreExactAndCancelable
+                  - ExpressionFunctionContext_StringLimitAndRegexCache_Work
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Determinism
+                title: >-
+                  The ExpressionFunctions unit shall give identical results for identical arguments on
+                  repeated calls, independent of the current culture and time zone, and shall never return
+                  a value that depends on a clock or a random source.
+                justification: |
+                  Reproducibility is a system contract; a function with hidden state would make the same
+                  specification render differently.
+                tests:
+                  - ExpressionFunctions_Repeated_ResultsAreIdentical
+                  - ExpressionFunctions_Names_AreExactlyTheWhitelist

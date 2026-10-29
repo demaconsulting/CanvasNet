@@ -102,7 +102,8 @@ sections:
           - id: CanvasNetVegaLite-VegaLiteDocument-InlineChartPipeline
             title: >-
               The VegaLiteDocument unit shall render a single view with a supported mark by loading its
-              data (inline, a file, a named dataset, or a sequence), resolving the configuration and
+              data (inline, a file, a named dataset, or a sequence), running the row transforms of the view
+              on it, resolving the configuration and
               scales, building the
               axes, marks, and title,
               sizing the canvas around them with the view layout, and painting the resulting scene,
@@ -152,6 +153,7 @@ sections:
               feature and place that caused it.
             tests:
               - CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature
+              - CanvasNetVegaLite_SystemIntegration_Strict_DeliversTheReportsBeforeThrowing
               - VegaLiteReportSink_Strict_ThrowsAtFirstUnsupportedFeatureAfterRecordingIt
               - VegaLiteDocument_Render_StrictModeIgnoresWarningsAndThrowsAtTheFirstUnsupportedFeature
 
@@ -265,6 +267,45 @@ sections:
             tests:
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
               - CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-TransformPipeline
+            title: >-
+              The VegaLiteDocument unit shall, for each measure or render call, build the static parameter
+              environment of the drawn view (the specification's values and expressions, replaced by the
+              Parameters render option), run the row transforms of the view in their written order on the
+              loaded table with the loader, the limits, and the cancellation token of the call, one
+              evaluator and one evaluation-step budget shared by the parameters, the transforms, and the
+              row-bound mark values, pass the transformed table to the scales and the marks, charge the scene
+              budget only after the transforms, and deliver the warnings of the loader, the lookup sources, and
+              the transforms, in that order, after the reports of the specification and also when a later
+              stage fails.
+            justification: |
+              The place of the transforms in the pipeline decides what every later stage sees; one budget per
+              call keeps hostile expressions bounded, and a fixed delivery order keeps diagnostics testable.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
+              - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
+              - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
+              - CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms
+              - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-ExpressionErrors
+            title: >-
+              The VegaLiteDocument unit shall, when a document is opened, fail with a VegaLiteSpecException
+              located at the offending value (and naming the offset inside an expression) for an expression
+              syntax error or limit, an undeclared parameter reference, an invalid parameter definition, a
+              parameter cycle, and a malformed transform, in lenient and strict mode alike, shall report
+              the constructs of an expression that are not executed as unsupported features, and shall fail
+              a measure or render with a VegaLiteRenderException located at the expression or transform when
+              evaluation exceeds a budget or a limit.
+            justification: |
+              The stage that detects a problem decides the exception that reports it: problems of the text
+              belong to the specification, and problems that depend on the data belong to the render.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
+              - CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened
+              - CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed
+              - CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode
 
           - id: CanvasNetVegaLite-VegaLiteDocument-NoNetwork
             title: >-

@@ -1,5 +1,6 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
@@ -59,17 +60,19 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-scale-color-ramp</c></term><description>the <c>type</c> of a <c>color</c>, <c>fill</c> or <c>stroke</c> channel that has a <c>field</c> and is quantitative (a continuous color scale is not drawn; the default mark color is used).</description></item>
-///         <item><term><c>vl-encoding-aggregate</c>, <c>-bin</c>, <c>-timeunit</c>, <c>-stack</c>, <c>-sort</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel. <c>bin</c> is reported unless it is false or null; <c>stack</c> unless it is false or null (an implicit stack of bars is reported at the measure channel); <c>sort</c> only for a channel shorthand (such as <c>"-y"</c>) or an object (sort by another field), not for ascending, descending, null or an array of values.</description></item>
+///         <item><term><c>vl-encoding-aggregate</c>, <c>-bin</c>, <c>-timeunit</c>, <c>-stack</c>, <c>-sort</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel. <c>bin</c> is reported unless it is false or null; <c>stack</c> unless it is false or null (an implicit stack of bars is reported at the measure channel); <c>sort</c> only for a channel shorthand (such as <c>"-y"</c>) or an object that is not a supported sort by field (an object with an <c>op</c> of count, sum, mean, average, median, min or max, an optional <c>field</c> and an optional <c>order</c>), not for ascending, descending, null or an array of values.</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it names <c>tableau10</c> (compared without regard to case, as the scale resolver does) or the scale has an explicit color <c>range</c>, which overrides it.</description></item>
 ///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>.</description></item>
-///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-calculate</c>, <c>vl-expr-filter</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value (anywhere in a view's title, size, padding, background, view, mark or encoding), the expression of a calculate transform, a filter given as a string, and <c>axis.labelExpr</c>.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c>; the name is the transform's property (<c>calculate</c>, <c>filter</c>, <c>timeunit</c>, ...).</description></item>
+///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
+///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the date, format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>aggregate</c>, <c>bin</c>, <c>density</c>, <c>extent</c>, <c>impute</c>, <c>joinaggregate</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>stack</c>, <c>timeunit</c>, <c>window</c>), and any transform of a nested view of a composition, which is not drawn. <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c> of the drawn view are computed and not reported.</description></item>
+///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used) and a lookup in the data of a parameter (not applied).</description></item>
 ///         <item><term><c>vl-composition-layer</c>, <c>-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too.</description></item>
-///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every entry of <c>params</c> (a selection has <c>select</c>); the legacy top-level <c>selection</c> reports <c>vl-param-selection</c>. <c>bind</c> is ignored.</description></item>
+///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
 ///         <item><term><c>vl-layout-autosize-&lt;type&gt;</c></term><description><c>autosize</c> types other than pad and none (fit, fit-x, fit-y).</description></item>
 ///     </list>
@@ -270,10 +273,10 @@ internal static class FeatureCatalog
                         VisitEncoding(view, property);
                         break;
                     case "transform":
-                        VisitTransforms(property);
+                        VisitTransforms(property, SpecParser.IsDrawnView(_tree.Root, view));
                         break;
                     case "params":
-                        VisitParams(property);
+                        VisitParams(property, ReferenceEquals(view, _tree.Root));
                         break;
                     case "selection":
                         Unsupported("vl-param-selection", "Selections are not supported yet; the static default state is not applied.", property);
@@ -570,7 +573,7 @@ internal static class FeatureCatalog
         /// <returns><see langword="true"/> for an object or a channel shorthand; false for ascending, descending, null and an array of values.</returns>
         private static bool IsSortByField(SpecNode sort) => sort.Kind switch
         {
-            SpecNodeKind.Object => true,
+            SpecNodeKind.Object => !ScaleResolver.IsSupportedFieldSort(sort),
             SpecNodeKind.String => sort.StringValue is not ("ascending" or "descending"),
             _ => false,
         };
@@ -746,8 +749,16 @@ internal static class FeatureCatalog
         /// <summary>
         ///     Visits the entries of <c>transform</c>.
         /// </summary>
+        /// <remarks>
+        ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup) are reported only
+        ///     for the parts they do not support: expression constructs, filter predicates on time units, selection
+        ///     parameters or date objects, a pivot operation other than sum and count, and a lookup in the data of a parameter.
+        ///     A transform of a view that is not drawn (a nested view of a composition) is never applied and is reported as
+        ///     <c>vl-transform-&lt;name&gt;</c>, like every transform of a later phase.
+        /// </remarks>
         /// <param name="transforms">The array.</param>
-        private void VisitTransforms(SpecNode transforms)
+        /// <param name="drawn">Whether the view that owns the transforms is the view the renderer draws.</param>
+        private void VisitTransforms(SpecNode transforms, bool drawn)
         {
             foreach (var entry in transforms.Items)
             {
@@ -757,23 +768,187 @@ internal static class FeatureCatalog
                     continue;
                 }
 
-                Unsupported(Id("transform", operation.Name!), $"The '{operation.Name}' transform is not supported yet.", entry);
-                if (operation.Name == "calculate" && operation.IsString)
+                var name = operation.Name!;
+                if (!drawn || !SpecParser.IsSupportedTransform(name))
                 {
-                    Unsupported("vl-expr-calculate", "Expressions are not supported yet.", operation);
+                    Unsupported(Id("transform", name), $"The '{name}' transform is not supported yet.", entry);
+                    continue;
                 }
-                else if (operation.Name == "filter" && operation.IsString)
+
+                switch (name)
                 {
-                    Unsupported("vl-expr-filter", "Filter expressions are not supported yet.", operation);
+                    case "calculate":
+                        ReportConstructs(operation);
+                        break;
+                    case "filter":
+                        VisitPredicate(operation);
+                        break;
+                    case "pivot":
+                        if (entry["op"] is { IsString: true } op && op.StringValue is not ("sum" or "count"))
+                        {
+                            Unsupported("vl-transform-pivot-op", $"The pivot operation '{op.StringValue}' is not supported yet; sum is used.", op);
+                        }
+
+                        break;
+                    case "lookup":
+                        VisitLookupSource(entry["from"]!);
+                        break;
+                    default:
+                        break;
                 }
             }
         }
 
         /// <summary>
+        ///     Visits the source of a <c>lookup</c> transform.
+        /// </summary>
+        /// <param name="from">The <c>from</c> object.</param>
+        private void VisitLookupSource(SpecNode from)
+        {
+            if (from["param"] is { } parameter)
+            {
+                Unsupported("vl-transform-lookup-param", "A lookup in the data of a parameter is not supported yet; the transform is not applied.", parameter);
+            }
+            else if (from["data"] is { } data)
+            {
+                VisitData(data);
+            }
+        }
+
+        /// <summary>
+        ///     Visits a filter: an expression text or a predicate, including the predicates of a composition.
+        /// </summary>
+        /// <remarks>
+        ///     The walk uses an explicit stack, so the nesting of a composition cannot overflow the call stack.
+        /// </remarks>
+        /// <param name="filter">The <c>filter</c> value.</param>
+        private void VisitPredicate(SpecNode filter)
+        {
+            var pending = new Stack<SpecNode>();
+            pending.Push(filter);
+            while (pending.Count > 0)
+            {
+                var predicate = pending.Pop();
+                if (predicate.IsString)
+                {
+                    ReportConstructs(predicate);
+                    continue;
+                }
+
+                if (!predicate.IsObject)
+                {
+                    continue;
+                }
+
+                var composed = predicate["and"] ?? predicate["or"];
+                var named = predicate["param"] ?? predicate["selection"];
+                if (composed is { IsArray: true })
+                {
+                    for (var i = composed.Items.Count - 1; i >= 0; i--)
+                    {
+                        pending.Push(composed.Items[i]);
+                    }
+                }
+                else if (predicate["not"] is { } negated)
+                {
+                    pending.Push(negated);
+                }
+                else if (named is not null)
+                {
+                    VisitParameterPredicate(named);
+                }
+                else
+                {
+                    VisitFieldPredicate(predicate);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Visits a predicate that names a parameter: only a variable parameter can be evaluated.
+        /// </summary>
+        /// <param name="reference">The parameter name value.</param>
+        private void VisitParameterPredicate(SpecNode reference)
+        {
+            var declaration = reference.IsString ? SpecParser.FindParameter(reference, reference.StringValue!) : null;
+            if (reference.Name == "selection" || declaration is null || declaration["select"] is not null)
+            {
+                Unsupported("vl-transform-filter-param", "A filter on a selection is not supported yet; every row passes.", reference);
+            }
+        }
+
+        /// <summary>
+        ///     Visits a field predicate: time units and date objects are not supported.
+        /// </summary>
+        /// <param name="predicate">The predicate object.</param>
+        private void VisitFieldPredicate(SpecNode predicate)
+        {
+            if (predicate["timeUnit"] is { } timeUnit && !timeUnit.IsNull)
+            {
+                Unsupported("vl-transform-filter-timeunit", "A time unit in a filter predicate is not supported yet; it is ignored.", timeUnit);
+            }
+
+            foreach (var comparison in new[] { "equal", "lt", "lte", "gt", "gte", "range", "oneOf" }.Select(name => predicate[name]).OfType<SpecNode>())
+            {
+                var date = comparison.IsObject ? comparison : comparison.Items.FirstOrDefault(i => i.IsObject);
+                if (date is not null)
+                {
+                    Unsupported("vl-transform-filter-datetime", "A date object in a filter predicate is not supported yet; the predicate is ignored.", date);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Reports the constructs of an expression that the engine parses but does not execute.
+        /// </summary>
+        /// <param name="text">The string node that holds the expression text.</param>
+        private void ReportConstructs(SpecNode text)
+        {
+            if (_tree.Expressions.Get(text) is not { } expression)
+            {
+                return;
+            }
+
+            var findings = new List<(int Offset, string Id, string Message)>();
+            foreach (var construct in expression.UnsupportedConstructs)
+            {
+                findings.Add((construct.Offset, construct.Identifier, DescribeConstruct(construct)));
+            }
+
+            foreach (var reference in expression.ParameterReferences.Where(r => SpecParser.IsViewSignal(r.Name) && !SpecParser.IsParameterDeclared(text, r.Name)))
+            {
+                findings.Add((
+                    reference.Offset,
+                    "vl-expr-view-state",
+                    $"The view signal '{reference.Name}' is not available in expressions (at expression offset {reference.Offset}); it evaluates to null."));
+            }
+
+            foreach (var (_, id, message) in findings.OrderBy(f => f.Offset))
+            {
+                Unsupported(id, message, text);
+            }
+        }
+
+        /// <summary>
+        ///     Describes an unsupported expression construct.
+        /// </summary>
+        /// <param name="construct">The construct.</param>
+        /// <returns>The description, with the offset in the expression text.</returns>
+        private static string DescribeConstruct(ExpressionConstruct construct) => construct.Kind switch
+        {
+            ExpressionConstructKind.Function =>
+                $"The expression function '{construct.Name}' is not supported yet (at expression offset {construct.Offset}); it evaluates to null.",
+            ExpressionConstructKind.ViewState =>
+                $"View state ('{construct.Name}') is not available in expressions (at expression offset {construct.Offset}); it evaluates to null.",
+            _ => $"The expression construct '{construct.Name}' is not supported yet (at expression offset {construct.Offset}); it evaluates to null.",
+        };
+
+        /// <summary>
         ///     Visits the entries of <c>params</c>.
         /// </summary>
         /// <param name="parameters">The array.</param>
-        private void VisitParams(SpecNode parameters)
+        /// <param name="isRoot">Whether the view that owns the parameters is the root of the specification.</param>
+        private void VisitParams(SpecNode parameters, bool isRoot)
         {
             foreach (var parameter in parameters.Items)
             {
@@ -781,9 +956,13 @@ internal static class FeatureCatalog
                 {
                     Unsupported("vl-param-selection", "Selection parameters are not supported yet.", parameter);
                 }
-                else
+                else if (!isRoot)
                 {
-                    Unsupported("vl-param-variable", "Variable parameters are not supported yet.", parameter);
+                    Unsupported("vl-param-variable", "Variable parameters of a nested view are not supported yet.", parameter);
+                }
+                else if (parameter["expr"] is { IsString: true } expression)
+                {
+                    ReportConstructs(expression);
                 }
             }
         }
@@ -814,9 +993,19 @@ internal static class FeatureCatalog
             while (pending.Count > 0)
             {
                 var node = pending.Pop();
-                if (node.IsObject && node["expr"] is { IsString: true })
+                if (node.IsObject && node["expr"] is { IsString: true } text)
                 {
-                    Unsupported("vl-expr-ref", "Expression references are not supported yet.", node);
+                    // An expression of a supported site (compiled by the parser) is reported only for what it cannot do;
+                    // anywhere else the reference is not evaluated
+                    if (_tree.Expressions.Get(text) is not null)
+                    {
+                        ReportConstructs(text);
+                    }
+                    else
+                    {
+                        Unsupported("vl-expr-ref", "Expression references are not supported here yet.", node);
+                    }
+
                     continue;
                 }
 

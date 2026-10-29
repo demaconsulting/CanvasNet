@@ -54,6 +54,21 @@ sections:
                 tests:
                   - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
 
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ExpressionValues
+                title: >-
+                  The MarkBuilder unit shall, when it is given the compiled expressions and an evaluator,
+                  evaluate each expression reference of the mark color, fill, stroke, opacity, strokeWidth,
+                  and size (point, circle, and square) and of the value of the color, fill, stroke, opacity,
+                  and size (point, circle, and square) channels once per row with the row as the datum, use a
+                  text result as a color and a finite number as an opacity, a width, or a size, keep the
+                  default for a result of any other kind, and draw the row exactly as before when no
+                  expression is given.
+                justification: |
+                  Row-bound values make a calculated field drive the look of a mark; a wrong result must never
+                  produce an invalid scene item.
+                tests:
+                  - MarkBuilder_Build_RowBoundExpressionReferencesAreEvaluatedPerRow
+
               - id: CanvasNetVegaLite-Marks-MarkBuilder-Limits
                 title: >-
                   The MarkBuilder unit shall fail with a located VegaLiteRenderException when the number of scene items

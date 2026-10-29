@@ -1,0 +1,214 @@
+---
+# Software Unit Requirements for RowTransforms
+#
+# These requirements describe the design-level behavior of the RowTransforms unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the eager, immutable executor that turns the
+# table the data loader produced into the table that the scales and marks read, by the transforms calculate,
+# filter, fold, flatten, sample, pivot, and lookup in the order of the specification, together with the static
+# parameter environment that its expressions read (ParameterEnvironment). The unit comprises RowTransforms.cs,
+# RowTransforms.Predicates.cs, RowTransforms.Shape.cs, RowTransforms.Lookup.cs, RowSampler.cs, TableLayout.cs
+# (the output layout and the field reader), ParameterEnvironment.cs, and TransformContext.cs. It uses the
+# Expressions subsystem for expressions, the Data subsystem for tables and lookup sources, and the compiled
+# expressions that the SpecParser unit built. See docs/verification/canvas-net-vega-lite/transforms/row-transforms.md
+# for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: RowTransforms Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Pipeline
+                title: >-
+                  The RowTransforms unit shall apply the transforms of the specification one after the other
+                  in their written order, each reading an immutable table and producing a new one, shall
+                  return the input table itself when there is no transform, shall reject null arguments,
+                  and shall skip, without executing it, a transform that a later phase implements (the
+                  feature catalog reports it).
+                justification: |
+                  Transforms are order dependent and the later stages must never see a table change; a
+                  transform that is not implemented must not be approximated.
+                tests:
+                  - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
+                  - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Calculate
+                title: >-
+                  The RowTransforms unit shall evaluate the expression of a calculate transform once per row
+                  with the row as the datum and add or replace the field named by as (a replaced field also
+                  replaces the fields nested below it), storing a scalar, array, or object result, taking the
+                  name literally (a dot in it is part of the name), and storing null for a regular expression
+                  result.
+                justification: |
+                  Calculated fields are the most common way to derive a value that a chart needs, and the
+                  field name given by an author must mean what they wrote.
+                tests:
+                  - RowTransforms_Apply_CalculateAddsAndReplacesFields
+                  - RowTransforms_Apply_CalculateStoresCompositeValuesAndLiteralNames
+                  - RowTransforms_Apply_CalculateOfARegularExpressionWarnsAndStoresNull
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Filter
+                title: >-
+                  The RowTransforms unit shall keep the rows for which the expression of a filter transform is
+                  truthy by JavaScript rules, or for which its predicate holds - equal, lt, lte, gt, gte,
+                  range (inclusive, a null bound open, reversed bounds swapped), oneOf, and valid (not null
+                  and not NaN) - composed recursively with and, or, and not, in the original row order, and
+                  shall release the rows it drops from the row budget.
+                justification: |
+                  Filtering decides which rows are drawn; the truthiness and comparison rules must be those
+                  of Vega so the same specification keeps the same rows.
+                tests:
+                  - RowTransforms_Apply_FilterExpressionKeepsTruthyRows
+                  - RowTransforms_Apply_FilterPredicatesAndCompositions
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Parameters
+                title: >-
+                  The RowTransforms unit shall build the static parameter environment of the call - the
+                  value or the expression of each variable parameter of the drawn view, evaluated once in an
+                  order that puts every dependency first and otherwise follows the declaration, with the
+                  caller's render parameter replacing the whole definition of a parameter (its expression
+                  is then not evaluated), refusing a text of a parameter value that is longer than the string limit
+                  - and shall read a variable parameter in a filter predicate as its truthiness.
+                justification: |
+                  Static parameters let a host change a chart without editing its text; their evaluation
+                  order and the precedence of an override must be defined.
+                tests:
+                  - RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness
+                  - RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden
+                  - RowTransforms_Apply_LongParameterChainsAreOrderedByDependency
+                  - RowTransforms_Apply_ParameterErrorsAreLocatedSpecificationErrors
+                  - RowTransforms_Apply_ParameterTextLongerThanMaxStringLength_IsLocatedRenderError
+                  - RowTransforms_Apply_StaticParameterTextLongerThanRenderLimit_IsLocatedRenderError
+                  - RowTransforms_Apply_CalculateOfLongTextFieldIsLocatedRenderError
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Fold
+                title: >-
+                  The RowTransforms unit shall turn each row into one row per folded field, in field order,
+                  with the field name as written in the key field (key by default) and the cell, or null for
+                  a field the row lacks, in the value field (value by default), keeping the other fields and
+                  the folded ones.
+                justification: |
+                  Fold is how wide data becomes the long form that a color or facet encoding needs; its
+                  order and null behavior must be predictable.
+                tests:
+                  - RowTransforms_Apply_FoldProducesKeyAndValueRows
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Flatten
+                title: >-
+                  The RowTransforms unit shall expand the array-valued fields of a flatten transform into one
+                  row per element, rebuilding an array from its flattened cells, treating a scalar as one
+                  element, a null, empty, or missing field as none, expanding several fields in parallel with
+                  null padding, dropping a row whose fields are all empty, and naming the outputs by as or by
+                  the canonical field path.
+                justification: |
+                  Nested array data is common in JSON files, and a deterministic expansion that does not
+                  create an unbounded number of rows is needed to draw it.
+                tests:
+                  - RowTransforms_Apply_FlattenExpandsArraysAndScalars
+                  - RowTransforms_Apply_FlattenExpandsSeveralFieldsInParallel
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Pivot
+                title: >-
+                  The RowTransforms unit shall group the rows by the groupby fields in first-seen order,
+                  turn the distinct texts of the pivot field into columns in ordinal order (keeping the first
+                  limit of them), fill each cell with the sum (the default) or the count of the group, with 0
+                  for a missing combination, output only the group fields and the pivot columns, and bound
+                  the number of output columns by the field limit (applied after the limit truncation, so a
+                  pivot with many distinct values and a small limit is not rejected) and the text of a pivot
+                  value by the string limit.
+                justification: |
+                  Pivot reshapes long data into the columns that scales read; its grouping, ordering, and
+                  default must be defined and its output bounded.
+                tests:
+                  - RowTransforms_Apply_PivotSumsValuesPerGroup
+                  - RowTransforms_Apply_PivotCountsAndFallsBackToSum
+                  - RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit
+                  - RowTransforms_Apply_PivotLimitIsAppliedBeforeTheFieldBound
+                  - RowTransforms_Apply_PivotWithoutLimitIsStillBoundedByTheFieldLimit
+                  - RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Lookup
+                title: >-
+                  The RowTransforms unit shall add to each row the values of the first row of the secondary
+                  source whose key field equals the row's lookup field (compared by text, so 1 matches "1",
+                  with null and composite values never matching), copying the fields named by fields into as
+                  (or the whole row as one object, default name data, when fields is absent) and giving the
+                  default value (null by default) when there is no match, loading the secondary source
+                  through the loader of the call (a named dataset, an inline value list, or a local file),
+                  and skipping a lookup whose source is a parameter.
+                justification: |
+                  Lookup joins a second table into the chart data; the first-match rule and the shared loader
+                  make the result deterministic and keep the file sandbox in force.
+                tests:
+                  - RowTransforms_Apply_LookupCopiesFieldsOfTheFirstMatch
+                  - RowTransforms_Apply_LookupDefaultNamesTextKeysAndWholeRows
+                  - RowTransforms_Apply_LookupInNamedDatasetsAndParamSourceIsSkipped
+                  - RowTransforms_Apply_LookupInFilesUsesTheSandboxAndTheFileCache
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Sample
+                title: >-
+                  The RowTransforms unit shall sample at most the requested number of rows with a
+                  deterministic reservoir (algorithm R) seeded by the FNV-1a 64-bit hash of the UTF-8 JSON
+                  pointer of the transform and driven by SplitMix64, returning the selected rows in their
+                  source order and the whole table when the size is at least the row count, with no
+                  dependence on a clock, a process-random source, or a thread.
+                justification: |
+                  A sampled chart must be reproducible; a seed derived from the specification alone gives the
+                  same rows on every machine and call.
+                tests:
+                  - RowSampler_Select_MatchesTheHandComputedReservoir
+                  - RowTransforms_Apply_SampleUsesThePointerAsSeed
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Limits
+                title: >-
+                  The RowTransforms unit shall fail with a VegaLiteRenderException located at the transform
+                  (or at the expression, or at the lookup source) when a transform would create more rows than
+                  the row limit allows (reserving the output of a fold or flatten while the input is still
+                  counted and before it allocates, counting a lookup source as any other source, and
+                  releasing the rows of an input that a transform drops), more fields than the field limit,
+                  more cells than the table cell bound, a string longer than the string limit, or when the
+                  evaluation-step budget of the call is exhausted.
+                justification: |
+                  Transforms can multiply the data of a chart; every resource they create must be bounded
+                  before it is allocated, and the failure must point at the transform that caused it.
+                tests:
+                  - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
+                  - RowTransforms_Apply_FlattenOutputIsBoundedByTheRowLimitAndFiltersReleaseRows
+                  - RowTransforms_Apply_LookupSourceSharesTheRowBudget
+                  - RowTransforms_Apply_FieldStringAndStepLimitsAreLocatedFailures
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Cancellation
+                title: >-
+                  The RowTransforms unit shall observe the cancellation token at the start of every
+                  transform, at least every 1,024 rows, and in every expression evaluation, and stop with an
+                  OperationCanceledException without delivering a partial table.
+                justification: |
+                  Transforming a large table can take noticeable time, and callers must be able to abandon it.
+                tests:
+                  - RowTransforms_Apply_CanceledTokenStopsTheTransforms
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Warnings
+                title: >-
+                  The RowTransforms unit shall expose, as located warnings and without failing the render,
+                  a calculate that produced a regular expression value (vl-expr-runtime, once per transform
+                  with the count and the first row) and a pivot that skipped rows with a null pivot value,
+                  cut the columns at limit, or had a pivot value that replaces a group field (vl-transform-runtime),
+                  in the order loader warnings, lookup-source warnings, transform warnings.
+                justification: |
+                  A transform that quietly dropped data would produce a plausible but different chart; the
+                  author must be told, without losing the chart.
+                tests:
+                  - RowTransforms_Apply_CalculateOfARegularExpressionWarnsAndStoresNull
+                  - RowTransforms_Apply_PivotLimitAndNullValuesAreWarnings
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-Determinism
+                title: >-
+                  The RowTransforms unit shall give the same table for the same input, specification, and
+                  parameters on repeated calls and from several threads, independent of the culture, time
+                  zone, and platform.
+                justification: |
+                  Reproducibility is a system contract and a compiled specification is shared by concurrent
+                  renders.
+                tests:
+                  - RowTransforms_Apply_SampleIsIdenticalWhenRepeatedAndConcurrent

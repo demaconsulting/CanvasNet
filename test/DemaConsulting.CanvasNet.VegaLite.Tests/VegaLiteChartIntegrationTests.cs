@@ -184,7 +184,7 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that an unsupported mark, transform, expression and aggregate are each reported once with the pointer, line and
+    ///     Validates that an unsupported mark, transform and aggregate are each reported once with the pointer, line and
     ///     column of the construct, in document order, and that the chart is still rendered without them.
     /// </summary>
     [Fact]
@@ -201,10 +201,9 @@ public class VegaLiteChartIntegrationTests
         // Assert: exactly one report per construct with its stable identifier, pointer and one-based line and column of its value
         Assert.Equal(
             [
-                ("vl-transform-calculate", "/transform/0", 12, 5),
-                ("vl-expr-calculate", "/transform/0/calculate", 12, 20),
+                ("vl-transform-window", "/transform/0", 12, 5),
                 ("vl-mark-line", "/mark", 14, 11),
-                ("vl-encoding-aggregate", "/encoding/y/aggregate", 17, 69),
+                ("vl-encoding-aggregate", "/encoding/y/aggregate", 17, 68),
             ],
             reports.Select(r => (r.Feature, r.Location.Pointer, r.Location.Line, r.Location.Column)));
         Assert.All(reports, r => Assert.EndsWith("unsupported.vl.json", r.Location.File, StringComparison.Ordinal));
@@ -600,5 +599,335 @@ public class VegaLiteChartIntegrationTests
         var barRight = (int)Math.Floor(5 + Math.Ceiling(7 + LabelWidth("100") + 4 + 11) + (step * 0.95) - 1);
         Assert.Equal(Blue, surface[barLeft, 27 + 190]);
         Assert.Equal(Blue, surface[barRight, 27 + 190]);
+    }
+
+    /// <summary>The red of the third category of the default palette (#e45756).</summary>
+    private static readonly Rgba32 Red3 = new(0xe4, 0x57, 0x56, 255);
+
+    /// <summary>The orange of the second category of the default palette (#f58518).</summary>
+    private static readonly Rgba32 Orange2 = new(0xf5, 0x85, 0x18, 255);
+
+    /// <summary>The mark of the dot charts: an opaque filled circle of area 200 (a radius of about 7.98 pixels).</summary>
+    private const string DotMark = "{\"type\":\"point\",\"filled\":true,\"opacity\":1,\"size\":200}";
+
+    /// <summary>The scale of a position channel of the dot charts: a domain of 0 to 10 over 100 pixels, no nice rounding and no axis.</summary>
+    private const string Measure = "\"type\":\"quantitative\",\"axis\":null,\"scale\":{\"domain\":[0,10],\"nice\":false,\"zero\":false}";
+
+    /// <summary>
+    ///     Builds a 100 by 100 chart without padding, axes and title, so that the data position (x, y) of a dot with the scale
+    ///     domain 0 to 10 is the pixel (10 x, 100 - 10 y) and every dot center can be checked by one pixel.
+    /// </summary>
+    /// <param name="rows">The JSON array of rows.</param>
+    /// <param name="transforms">The JSON array of transforms.</param>
+    /// <param name="encoding">The encoding members.</param>
+    /// <param name="mark">The mark.</param>
+    /// <param name="extra">Extra top-level members, each followed by a comma, or empty.</param>
+    /// <returns>The specification text.</returns>
+    private static string Dots(string rows, string transforms, string encoding, string mark = DotMark, string extra = "") =>
+        "{" + extra + "\"width\":100,\"height\":100,\"padding\":0,\"data\":{\"values\":" + rows + "},\"transform\":" + transforms
+        + ",\"mark\":" + mark + ",\"encoding\":{" + encoding + "}}";
+
+    /// <summary>
+    ///     Renders a chart and checks the 100 by 100 size.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="options">The render options, or null.</param>
+    /// <returns>The surface; the caller disposes it.</returns>
+    private static Surface RenderDots(string json, VegaLiteRenderOptions? options = null)
+    {
+        var surface = VegaLiteDocument.Parse(json).Render(options, Ct);
+        Assert.Equal((100, 100), (surface.Width, surface.Height));
+        return surface;
+    }
+
+    /// <summary>
+    ///     Validates that a calculate and a filter decide which dots are drawn: the calculated field is scaled, the dots of the
+    ///     filtered rows are absent and the others sit at the pixel positions the scales give.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots()
+    {
+        // Arrange: x = 1 to 5, y = 2 x; the filter keeps 4 < y < 10, that is x = 3 and 4 with y = 6 and 8
+        var rows = "[{\"x\":1},{\"x\":2},{\"x\":3},{\"x\":4},{\"x\":5}]";
+        var json = Dots(
+            rows,
+            "[{\"calculate\":\"datum.x * 2\",\"as\":\"y\"},{\"filter\":\"datum.y > 4 && datum.y < 10\"}]",
+            "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"y\"," + Measure + "}");
+
+        // Act
+        using var surface = RenderDots(json);
+
+        // Assert: the kept dots are at (30, 40) and (40, 20); the dots of x = 1, 2 and 5 are not drawn
+        Assert.Equal(Blue, surface[30, 40]);
+        Assert.Equal(Blue, surface[40, 20]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[10, 80]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[20, 60]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[50, 4]);
+    }
+
+    /// <summary>
+    ///     Validates fold and flatten: the folded fields become key and value rows (a nominal key gives point positions at
+    ///     25 and 75 of 100 pixels) and the arrays become one row per element.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows()
+    {
+        // Arrange: a point scale of two categories over 100 pixels with padding 0.5 has a step of 50, so a is at 25 and b at 75
+        var key = "\"y\":{\"field\":\"key\",\"type\":\"nominal\",\"axis\":null}";
+        var folded = Dots("[{\"id\":\"r\",\"a\":2,\"b\":6}]", "[{\"fold\":[\"a\",\"b\"]}]", "\"x\":{\"field\":\"value\"," + Measure + "}," + key);
+        var flattened = Dots(
+            "[{\"k\":\"p\",\"v\":[1,3]},{\"k\":\"q\",\"v\":[5]}]",
+            "[{\"flatten\":[\"v\"]}]",
+            "\"x\":{\"field\":\"v\"," + Measure + "},\"y\":{\"field\":\"k\",\"type\":\"nominal\",\"axis\":null}");
+
+        // Act
+        using var fold = RenderDots(folded);
+        using var flatten = RenderDots(flattened);
+
+        // Assert: (a, 2) and (b, 6) only
+        Assert.Equal(Blue, fold[20, 25]);
+        Assert.Equal(Blue, fold[60, 75]);
+        Assert.Equal(VegaLiteTestHelpers.White, fold[60, 25]);
+        Assert.Equal(VegaLiteTestHelpers.White, fold[20, 75]);
+
+        // Assert: (p, 1), (p, 3) and (q, 5) only
+        Assert.Equal(Blue, flatten[10, 25]);
+        Assert.Equal(Blue, flatten[30, 25]);
+        Assert.Equal(Blue, flatten[50, 75]);
+        Assert.Equal(VegaLiteTestHelpers.White, flatten[10, 75]);
+        Assert.Equal(VegaLiteTestHelpers.White, flatten[30, 75]);
+        Assert.Equal(VegaLiteTestHelpers.White, flatten[50, 25]);
+    }
+
+    /// <summary>
+    ///     Validates pivot (the columns of the pivoted values, zero for a missing combination) and lookup (the fields of the
+    ///     first matching row of a second inline source) as the source of the scaled fields.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields()
+    {
+        // Arrange: u has s = 2 and t = 4, w has s = 6 and no t, which pivots to 0
+        var pivot = Dots(
+            "[{\"g\":\"u\",\"k\":\"s\",\"v\":2},{\"g\":\"u\",\"k\":\"t\",\"v\":4},{\"g\":\"w\",\"k\":\"s\",\"v\":6}]",
+            "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]",
+            "\"x\":{\"field\":\"s\"," + Measure + "},\"y\":{\"field\":\"t\"," + Measure + "}");
+        var lookup = Dots(
+            "[{\"id\":1,\"v\":2},{\"id\":2,\"v\":5}]",
+            "[{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":[{\"k\":1,\"w\":8},{\"k\":2,\"w\":3},{\"k\":1,\"w\":9}]},\"key\":\"k\",\"fields\":[\"w\"]}}]",
+            "\"x\":{\"field\":\"v\"," + Measure + "},\"y\":{\"field\":\"w\"," + Measure + "}");
+
+        // Act
+        using var pivoted = RenderDots(pivot);
+        using var looked = RenderDots(lookup);
+
+        // Assert: (2, 4) -> (20, 60), and (6, 0) -> (60, 100), of which the upper half is inside the chart
+        Assert.Equal(Blue, pivoted[20, 60]);
+        Assert.Equal(Blue, pivoted[60, 94]);
+        Assert.Equal(VegaLiteTestHelpers.White, pivoted[60, 60]);
+
+        // Assert: the first match wins, so (2, 8) -> (20, 20) and (5, 3) -> (50, 70); the later row for k = 1 (w = 9) is not used
+        Assert.Equal(Blue, looked[20, 20]);
+        Assert.Equal(Blue, looked[50, 70]);
+        Assert.Equal(VegaLiteTestHelpers.White, looked[20, 10]);
+    }
+
+    /// <summary>
+    ///     Validates the deterministic sample (the dots of the rows 2, 3, 6 and 9 for the pointer of the first transform), and
+    ///     the stable sort of a discrete channel by an aggregate of a field (ascending and descending).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic()
+    {
+        // Arrange: ten rows (i, i) on the diagonal and a sample of four, which the hand-computed reservoir puts at 2, 3, 6 and 9
+        var rows = "[" + string.Join(",", Enumerable.Range(0, 10).Select(i => "{\"i\":" + i + "}")) + "]";
+        var sample = Dots(rows, "[{\"sample\":4}]", "\"x\":{\"field\":\"i\"," + Measure + "},\"y\":{\"field\":\"i\"," + Measure + "}");
+
+        // Arrange: the categories a (2 + 3), b (10) and c (1) of a point scale of three positions (16.67, 50 and 83.33 pixels), each
+        // in its palette color (a blue, b orange, c red), sorted by the sum of w
+        const string Weighted = "[{\"k\":\"a\",\"w\":2},{\"k\":\"b\",\"w\":10},{\"k\":\"a\",\"w\":3},{\"k\":\"c\",\"w\":1}]";
+        string Sorted(string order) => Dots(
+            Weighted,
+            "[]",
+            "\"x\":{\"field\":\"k\",\"type\":\"nominal\",\"axis\":null,\"sort\":{\"op\":\"sum\",\"field\":\"w\"" + order + "}},\"y\":{\"value\":50},"
+            + "\"color\":{\"field\":\"k\",\"type\":\"nominal\",\"legend\":null}");
+
+        // Act
+        using var sampled = RenderDots(sample);
+        using var again = RenderDots(sample);
+        using var ascending = RenderDots(Sorted(string.Empty));
+        using var descending = RenderDots(Sorted(",\"order\":\"descending\""));
+
+        // Assert: the dots (i, i) of the sample are at (10 i, 100 - 10 i) and the others are not drawn
+        foreach (var i in new[] { 2, 3, 6, 9 })
+        {
+            Assert.Equal(Blue, sampled[10 * i, 100 - (10 * i)]);
+        }
+
+        foreach (var i in new[] { 1, 4, 5, 7, 8 })
+        {
+            Assert.Equal(VegaLiteTestHelpers.White, sampled[10 * i, 100 - (10 * i)]);
+        }
+
+        Assert.Equal(VegaLiteTestHelpers.Snapshot(sampled), VegaLiteTestHelpers.Snapshot(again));
+
+        // Assert: ascending by the sums 1, 5 and 10 puts c, a, b from left to right; descending reverses them
+        Assert.Equal(Red3, ascending[17, 50]);
+        Assert.Equal(Blue, ascending[50, 50]);
+        Assert.Equal(Orange2, ascending[83, 50]);
+        Assert.Equal(Orange2, descending[17, 50]);
+        Assert.Equal(Blue, descending[50, 50]);
+        Assert.Equal(Red3, descending[83, 50]);
+    }
+
+    /// <summary>
+    ///     Validates the static parameters through the public API: the default value, a parameter that is an expression of
+    ///     another, the override of the caller (of a value and of an expression), and a filter on a variable parameter.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam()
+    {
+        // Arrange: x = 1 to 5 with y = x; the filter keeps x greater than cut + 1 (cut is 3 by default, so x = 5)
+        const string Params = "\"params\":[{\"name\":\"limit\",\"expr\":\"cut + 1\"},{\"name\":\"cut\",\"value\":3},{\"name\":\"show\",\"value\":true}],";
+        var rows = "[{\"x\":1},{\"x\":2},{\"x\":3},{\"x\":4},{\"x\":5}]";
+        var encoding = "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"x\"," + Measure + "}";
+        var json = Dots(rows, "[{\"filter\":\"datum.x > limit\"},{\"filter\":{\"param\":\"show\"}}]", encoding, extra: Params);
+        var document = VegaLiteDocument.Parse(json);
+
+        // Act
+        using var byDefault = document.Render(new VegaLiteRenderOptions(), Ct);
+        using var lowered = document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["cut"] = 1 } }, Ct);
+        using var replaced = document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["limit"] = 3 } }, Ct);
+        using var hidden = document.Render(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["show"] = false } }, Ct);
+
+        // Assert: by default only x = 5 is drawn, at (50, 50)
+        Assert.Equal(Blue, byDefault[50, 50]);
+        Assert.Equal(VegaLiteTestHelpers.White, byDefault[40, 60]);
+
+        // Assert: cut = 1 makes the limit 2, so x = 3, 4 and 5 are drawn; limit = 3 replaces the expression, so x = 4 and 5
+        Assert.Equal(Blue, lowered[30, 70]);
+        Assert.Equal(VegaLiteTestHelpers.White, lowered[20, 80]);
+        Assert.Equal(Blue, replaced[40, 60]);
+        Assert.Equal(VegaLiteTestHelpers.White, replaced[30, 70]);
+
+        // Assert: show = false filters every row, so nothing but the white background remains inside the chart
+        Assert.True(VegaLiteTestHelpers.RegionIs(hidden, 5, 5, 95, 95, VegaLiteTestHelpers.White));
+        Assert.Equal(["limit", "cut", "show"], document.ParameterNames);
+    }
+
+    /// <summary>
+    ///     Validates the row-bound expression references of the mark: the paint properties of the mark definition (fill and
+    ///     opacity) and the values of the color and size channels are evaluated against the transformed row of each dot.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow()
+    {
+        // Arrange: dots at (2, 2) and (5, 5); the fill is blue up to x = 3 and red above, half transparent for the first
+        var rows = "[{\"x\":2},{\"x\":5}]";
+        var encoding = "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"x\"," + Measure + "}";
+        var paint = Dots(
+            rows,
+            "[]",
+            encoding,
+            "{\"type\":\"point\",\"filled\":true,\"size\":200,\"fill\":{\"expr\":\"datum.x > 3 ? 'red' : 'blue'\"},\"opacity\":{\"expr\":\"datum.x > 3 ? 1 : 0.5\"}}");
+
+        // Arrange: the same rows with the color and the size given by channel values; the size is 100 x, so radius 5.6 and 12.6
+        var channels = Dots(
+            rows,
+            "[{\"calculate\":\"datum.x * 100\",\"as\":\"area\"}]",
+            encoding + ",\"color\":{\"value\":{\"expr\":\"datum.x > 3 ? '#00ff00' : '#0000ff'\"}},\"size\":{\"value\":{\"expr\":\"datum.area\"}}");
+
+        // Act
+        using var painted = RenderDots(paint);
+        using var valued = RenderDots(channels, null);
+
+        // Assert: blue at half opacity over white is (127.5, 127.5, 255); red is opaque
+        AssertPixel(painted, 20, 80, 127.5, 127.5, 255, 2);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), painted[50, 50]);
+
+        // Assert: the channel values give blue and green, and the areas 200 and 500: the circle at (20, 80) ends before 10 pixels,
+        // and the one at (50, 50) still covers a pixel 10 pixels from its center
+        Assert.Equal(new Rgba32(0, 0, 255, 255), valued[20, 80]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), valued[50, 50]);
+        Assert.Equal(VegaLiteTestHelpers.White, valued[30, 80]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), valued[60, 50]);
+    }
+
+    /// <summary>
+    ///     Validates the diagnostics of expressions: an unsupported function is reported at the expression text, a regular
+    ///     expression result is a runtime warning delivered after the reports of the specification, and strict mode stops at the
+    ///     first report with nothing after it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode()
+    {
+        // Arrange: line 3 calls a function of a later phase, line 4 stores a regular expression
+        const string Json = """
+            { "data": { "values": [ { "a": 1 } ] },
+              "transform": [ { "calculate": "datetime(2020, 1, 1)", "as": "d" },
+                             { "calculate": "regexp('a')", "as": "r" } ],
+              "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }
+            """;
+        var document = VegaLiteDocument.Parse(Json);
+        var log = new List<string>();
+        var lenient = new VegaLiteRenderOptions
+        {
+            WarningHandler = w => log.Add($"W {w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)]} {w.Location.Pointer} {w.Location.Line}:{w.Location.Column}"),
+            UnsupportedFeatureHandler = u => log.Add($"U {u.Feature} {u.Location.Pointer} {u.Location.Line}:{u.Location.Column}"),
+        };
+
+        // Act
+        using var surface = document.Render(lenient, Ct);
+        var lenientLog = log.ToList();
+        log.Clear();
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, WarningHandler = lenient.WarningHandler, UnsupportedFeatureHandler = lenient.UnsupportedFeatureHandler };
+        var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(strict, Ct));
+
+        // Assert: the chart renders without the unsupported call; the report is at the string value of the expression, and the
+        // warning of the data stage follows it
+        Assert.Equal(
+            ["U vl-expr-function-datetime /transform/0/calculate 2:33", "W vl-expr-runtime /transform/1/calculate 3:33"],
+            lenientLog);
+
+        // Assert: strict mode throws for the first report, delivers only it, and the warning that comes later is never delivered
+        Assert.Equal(("vl-expr-function-datetime", "/transform/0/calculate"), (ex.Feature, ex.Location.Pointer));
+        Assert.Equal(["U vl-expr-function-datetime /transform/0/calculate 2:33"], log);
+    }
+
+    /// <summary>
+    ///     Validates that the features that Phase 5 does not support are still reported and never silently executed:
+    ///     conditional encodings, selection parameters, the transforms of later phases and the date and format functions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported()
+    {
+        // Arrange
+        const string Json = """
+            { "params": [ { "name": "sel", "select": "interval" } ],
+              "data": { "values": [ { "a": 1, "d": "2020-01-01" } ] },
+              "transform": [
+                { "aggregate": [ { "op": "count", "as": "n" } ] },
+                { "window": [ { "op": "rank", "as": "r" } ] },
+                { "bin": true, "field": "a", "as": "b" },
+                { "stack": "a", "as": ["s0", "s1"] },
+                { "timeUnit": "year", "field": "d", "as": "y" },
+                { "calculate": "timeFormat(now(), '%Y') + format(1, ',')", "as": "t" }
+              ],
+              "mark": "point",
+              "encoding": { "x": { "field": "a", "type": "quantitative", "condition": { "param": "sel", "value": 1 } } } }
+            """;
+        var reported = new List<string>();
+        var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
+
+        // Act
+        using var surface = VegaLiteDocument.Parse(Json).Render(options, Ct);
+
+        // Assert: each one is reported once, in document order, and the chart is still drawn
+        Assert.Equal(
+            [
+                "vl-param-selection", "vl-transform-aggregate", "vl-transform-window", "vl-transform-bin", "vl-transform-stack",
+                "vl-transform-timeunit", "vl-expr-function-timeformat", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
+            ],
+            reported);
+        Assert.True(surface.Width > 0);
     }
 }

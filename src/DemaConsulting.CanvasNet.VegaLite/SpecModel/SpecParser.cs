@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -52,6 +53,9 @@ internal sealed partial class SpecParser
 
     /// <summary>The warnings found so far, in order.</summary>
     private readonly List<FeatureReport> _warnings = [];
+
+    /// <summary>The expressions compiled so far, by the string node that holds the text.</summary>
+    private readonly Dictionary<SpecNode, CompiledExpression> _expressions = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>The frames of the open containers while reading, kept for the pointers of errors and warnings.</summary>
     private Frame?[] _frames = [];
@@ -240,7 +244,7 @@ internal sealed partial class SpecParser
 
         // The shape checks run on the finished tree so that every error carries the pointer of the offending value
         Validate(root);
-        return new SpecTree(root, _file, _warnings.AsReadOnly());
+        return new SpecTree(root, _file, _warnings.AsReadOnly(), new SpecExpressions(_expressions));
     }
 
     /// <summary>

@@ -44,7 +44,10 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     <para>
 ///         Rendering supports a limited subset of the language: constructs that the renderer does not
 ///         support (the documented supported subset) are reported with stable <c>vl-*</c> identifiers (see
-///         <see cref="VegaLiteUnsupportedFeature"/>), never skipped silently; supported constructs are not reported.
+///         <see cref="VegaLiteUnsupportedFeature"/>), never skipped silently; supported constructs are not reported. The
+///         expressions of the supported sites (static parameters, <c>calculate</c> and <c>filter</c> transforms, row-bound
+///         mark values) are compiled when the document is opened, so an expression with a syntax error, a parameter cycle or a
+///         reference to a parameter that does not exist is a <see cref="VegaLiteSpecException"/> at that point.
 ///     </para>
 /// </remarks>
 public sealed partial class VegaLiteDocument

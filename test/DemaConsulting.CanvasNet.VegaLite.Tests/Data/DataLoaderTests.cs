@@ -552,6 +552,52 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates that a text of a dataset that the caller supplied is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>
+    ///     like a text read from a file, so a long caller text never reaches an expression.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError()
+    {
+        // Arrange: one text at the limit and one over it
+        var tree = Spec("{\"name\":\"d\"}");
+        var limits = new VegaLiteLimits { MaxStringLength = 8 };
+        IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>> Dataset(string text) =>
+            new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+            {
+                ["d"] = new List<IReadOnlyDictionary<string, object?>> { new Dictionary<string, object?> { ["s"] = text } },
+            };
+
+        // Act
+        var atLimit = CreateLoader(tree, limits: limits, caller: Dataset(new string('x', 8))).Load(tree.Root["data"]);
+        var exception = Assert.Throws<VegaLiteRenderException>(
+            () => CreateLoader(tree, limits: limits, caller: Dataset(new string('x', 9))).Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Equal(8, atLimit.GetValue(0, "s").Text!.Length);
+        Assert.Contains("the limit of 8 characters (MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SpecName, exception.Location.File);
+    }
+
+    /// <summary>
+    ///     Validates that a text of an inline dataset is checked against the limit of the call, which can be lower than the
+    ///     limit the specification was parsed with.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_InlineTextLongerThanCallLimit_IsLocatedRenderError()
+    {
+        // Arrange: parsed under the default limit, loaded under a limit of 8
+        var tree = Spec("{\"values\":[{\"s\":\"012345678\"}]}");
+        var limits = new VegaLiteLimits { MaxStringLength = 8 };
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => CreateLoader(tree, limits: limits).Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Contains("the limit of 8 characters (MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SpecName, exception.Location.File);
+    }
+
+    /// <summary>
     ///     Validates that the largest values of the .NET date types (the usual "no end" sentinels) are clamped to the
     ///     largest supported date and never fail, whatever their kind.
     /// </summary>
@@ -1022,5 +1068,88 @@ public class DataLoaderTests
         Assert.Equal("/data/url", tooMany.Location.Pointer);
         Assert.Equal(1, tooMany.Location.Line);
         Assert.Contains("more than once", repeated.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the rows of a derived table (the output of a transform) are counted in the same budget as the loaded
+    ///     tables before they are allocated, that a refused reservation is not counted, and that released rows make room again.
+    /// </summary>
+    [Fact]
+    public void DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall()
+    {
+        // Arrange: three loaded rows against a limit of ten
+        var tree = Spec("{\"values\":[{\"a\":1},{\"a\":2},{\"a\":3}]}");
+        var loader = new DataLoader(SpecName, new VegaLiteLimits { MaxDataRows = 10 }, cancellationToken: Ct);
+        loader.Load(tree.Root["data"]);
+        var where = tree.Root["data"]!.GetLocation(SpecName);
+
+        // Act
+        loader.ReserveDerivedRows(5, "fold transform output", where);
+        var refused = Assert.Throws<VegaLiteRenderException>(() => loader.ReserveDerivedRows(3, "fold transform output", where));
+
+        // Assert: five derived rows fit, three more do not, and the failure counted nothing
+        Assert.Equal(8, loader.RowsLoaded);
+        Assert.Contains("The fold transform output has 3 rows; with the 8 rows read before", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 10 (MaxDataRows)", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(where, refused.Location);
+
+        // Act / Assert: released rows are free again, a negative release is ignored and the count never goes below zero
+        loader.ReleaseRows(5);
+        Assert.Equal(3, loader.RowsLoaded);
+        loader.ReleaseRows(-4);
+        Assert.Equal(3, loader.RowsLoaded);
+        loader.ReleaseRows(100);
+        Assert.Equal(0, loader.RowsLoaded);
+        Assert.Equal(3, loader.Load(tree.Root["data"]).RowCount);
+
+        // Assert: a count that cannot be an exact row count is described, not printed
+        Assert.Contains("an unrepresentable number of", Assert.Throws<VegaLiteRenderException>(() => loader.ReserveDerivedRows(double.PositiveInfinity, "x", where)).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a second data source of the same call (the source of a lookup) uses the file cache, the sandbox and the
+    ///     row budget of the loader, and that a remote source stays an empty table that the feature catalog reports.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall()
+    {
+        // Arrange: the main data and the source of a lookup name the same file; another lookup names a file outside the sandbox
+        var files = new VirtualDataFiles().With("names.csv", "k,n\n1,one\n2,two\n");
+        const string Json = """
+            {
+              "data": { "url": "names.csv" },
+              "transform": [
+                { "lookup": "k", "from": { "data": { "url": "names.csv" }, "key": "k", "fields": ["n"] } },
+                { "lookup": "k", "from": { "data": { "url": "../secret.csv" }, "key": "k", "fields": ["n"] } },
+                { "lookup": "k", "from": { "data": { "url": "https://example.com/n.csv" }, "key": "k", "fields": ["n"] } }
+              ],
+              "mark": "point"
+            }
+            """;
+        var tree = SpecParser.Parse(Json, SpecName);
+        var loader = CreateLoader(tree, Virtual(files), new VegaLiteLimits { MaxDataFiles = 1, MaxDataRows = 4 });
+        var transforms = tree.Root["transform"]!.Items;
+
+        // Act
+        var main = loader.Load(tree.Root["data"]);
+        var secondary = loader.Load(transforms[0]["from"]!["data"]);
+        var escape = Assert.Throws<VegaLiteRenderException>(() => loader.Load(transforms[1]["from"]!["data"]));
+        var remote = loader.Load(transforms[2]["from"]!["data"]);
+
+        // Assert: one file read, one file counted, four rows counted in total; the escape is a located failure at the lookup's url
+        Assert.Equal((2, 2), (main.RowCount, secondary.RowCount));
+        Assert.Equal(["names.csv"], files.Requests);
+        Assert.Equal(4, loader.RowsLoaded);
+        Assert.Contains("outside the allowed directories", escape.Message, StringComparison.Ordinal);
+        Assert.Equal("/transform/1/from/data/url", escape.Location.Pointer);
+
+        // Assert: a remote source is empty, never asked for, and reported by the catalog at its data object
+        Assert.Equal(0, remote.RowCount);
+        Assert.DoesNotContain("https://example.com/n.csv", files.Requests);
+        Assert.Contains(FeatureCatalog.Visit(tree), r => r.Id == "vl-data-remote-url" && r.Location.Pointer == "/transform/2/from/data");
+
+        // Assert: a third table over the limit of four rows is refused
+        var extra = Assert.Throws<VegaLiteRenderException>(() => loader.Load(tree.Root["data"]));
+        Assert.Contains("MaxDataRows", extra.Message, StringComparison.Ordinal);
     }
 }

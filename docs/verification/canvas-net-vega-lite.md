@@ -14,13 +14,14 @@ in-memory text, streams, and the fixture files with `VegaLiteDocument.Parse` and
 `VegaLiteRenderException`, the events delivered to the warning and unsupported-feature handlers (their stable
 `vl-*` identifiers, JSON pointers, and one-based line and column), the `VegaLiteSize` returned by `Measure`, the
 pixels of the rendered `Surface`, and the exception types thrown for invalid arguments and hostile input. No
-mocking or stubbing is used. The subsystem tier (see the _SpecModel_, _Data_, _Scales_, _Guides_, _Layout_,
-_Marks_, and _Scenegraph_ Subsystem Verification Designs under `canvas-net-vega-lite/`) verifies the units of each
-internal subsystem working together, and the unit tier verifies each unit in isolation (see the _VegaLiteDocument
-Unit Verification Design_ and the unit verification designs under `canvas-net-vega-lite/spec-model/`,
-`canvas-net-vega-lite/data/`, `canvas-net-vega-lite/scales/`, `canvas-net-vega-lite/guides/`,
-`canvas-net-vega-lite/layout/`, `canvas-net-vega-lite/marks/`, and `canvas-net-vega-lite/scenegraph/`), including
-the internal types made visible to the test assembly through `InternalsVisibleTo`.
+mocking or stubbing is used. The subsystem tier (see the _SpecModel_, _Data_, _Expressions_, _Transforms_, _Scales_,
+_Guides_, _Layout_, _Marks_, and _Scenegraph_ Subsystem Verification Designs under `canvas-net-vega-lite/`) verifies the
+units of each internal subsystem working together, and the unit tier verifies each unit in isolation (see the
+_VegaLiteDocument Unit Verification Design_ and the unit verification designs under `canvas-net-vega-lite/spec-model/`,
+`canvas-net-vega-lite/data/`, `canvas-net-vega-lite/expressions/`, `canvas-net-vega-lite/transforms/`,
+`canvas-net-vega-lite/scales/`, `canvas-net-vega-lite/guides/`, `canvas-net-vega-lite/layout/`,
+`canvas-net-vega-lite/marks/`, and `canvas-net-vega-lite/scenegraph/`), including the internal types made visible to the
+test assembly through `InternalsVisibleTo`.
 
 The open and parse scenarios assert on what a document reports about its source: that the three entry points
 (string, stream, and path) agree, including the rendered pixels; that schema versions 5 and 6 are both read with
@@ -44,13 +45,27 @@ container-sized chart is laid out again for the container width; and a caller co
 specification's own configuration.
 
 The safety scenarios assert on what the system does with hostile or unsupported input: constructs that cannot be
-drawn yet (marks, channels, transforms, expressions, compositions, remote data) are reported once each, in
-document order, on the calling thread, with their stable identifier and location, while the supported part of the
-chart is still drawn; strict mode stops at the first unsupported feature after delivering it; remote data is
-reported and never fetched or resolved; every resource limit fails closed with a located exception; cancellation
-is honored before any event is delivered; and repeated and concurrent renders of one immutable document are
+drawn yet (marks, channels, the transforms and expression constructs of later phases, compositions, remote data) are
+reported once each, in document order, on the calling thread, with their stable identifier and location, while the
+supported part of the chart is still drawn; strict mode stops at the first unsupported feature after delivering it;
+remote data is reported and never fetched or resolved; every resource limit fails closed with a located exception;
+cancellation is honored before any event is delivered; and repeated and concurrent renders of one immutable document are
 byte-identical. The font scenario proves that, by default, only the bundled Liberation fonts are used, whatever
 fonts the machine has installed.
+
+The expression, transform, and parameter scenarios assert on what the system computes from the `transform` array and
+the `params` of the drawn view, and how it fails: the row transforms `calculate`, `filter`, `fold`, `flatten`,
+`sample`, `pivot`, and `lookup` decide which dots are drawn and where, on 100 by 100 pixel charts whose positions are
+derived by hand from a scale domain of 0 to 10; the static parameters, their defaults, their dependencies, and the
+caller's overrides reach the transforms and the row-bound mark values; the expressions of the mark properties and the
+color and size values are evaluated against the transformed row of each mark; the constructs that the engine does not
+run (unknown functions, view state, bitwise operators, selections, and the transforms of later phases) are reported
+at the text of the expression or the transform, never executed, and in strict mode stop the render at the first one;
+an expression with a syntax error, one over the length or nesting limit, an unknown parameter, and an invalid
+parameter definition fail when the document is opened with the location of the offending text and the offset inside
+it; hostile evaluation (a step budget that is too small, a catastrophic regular expression, a fold over the row limit,
+a lookup that leaves the sandbox) fails closed with a located exception or finishes safely; and a chart through every
+kind of transform measures the size it renders and renders the same bytes on every call and from many threads.
 
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
@@ -88,12 +103,12 @@ documented in `Fixtures/README.md` beside them.
 - **Time zone and culture**: Output does not depend on the machine's time zone or culture. The default time zone
   of the render options is UTC, and number formatting uses fixed English separators and the Unicode minus sign
 - **Threads**: The determinism scenario renders one document from sixteen concurrent tasks and compares each
-  result with a single-threaded baseline; the handler-thread scenario records the managed thread on which each
-  handler ran and compares it with the caller's
+  result with a single-threaded baseline, and the transforms scenario does the same from twelve tasks; the
+  handler-thread scenario records the managed thread on which each handler ran and compares it with the caller's
 - **Isolation**: Each test method builds its own sources, options, and streams; no shared mutable state between
   tests. The path-based scenarios read the checked-in fixture files; the tests that need a file of their own (the
-  path entry point and the font directory scenarios) create it in a uniquely named per-test temporary folder and
-  delete the folder when they finish
+  path entry point, the font directory, and the lookup sandbox scenarios) create it in a uniquely named per-test
+  temporary folder and delete the folder when they finish
 
 ## External Interface Simulation
 
@@ -240,10 +255,12 @@ Renders a document with a schema version 4 declaration (a warning first) and a l
 an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-version`, `vl-composition-layer`,
 `vl-mark-arc`), that each is delivered once, in document order, to the right handler, on the calling thread
 (the recorded managed thread identifiers all equal the caller's), and that a supported `bar` mark in the same
-document is silent. Renders `unsupported.vl.json` (a `line` mark, a `calculate` transform, and an aggregate) and
-asserts exactly one report per construct with its stable identifier, JSON pointer, and one-based line and column
-of the value, and that the line mark is not drawn, so no data, scale, or axis work is done for it and the view is
-empty with the default size.
+document is silent. Renders `unsupported.vl.json` (a `window` transform, a `line` mark, and an aggregate) and
+asserts exactly one report per construct, in document order, with its stable identifier, JSON pointer, and one-based
+line and column of the value (`vl-transform-window` at `/transform/0`, line 12, column 5; `vl-mark-line` at `/mark`,
+line 14, column 11; and `vl-encoding-aggregate` at `/encoding/y/aggregate`, line 17, column 68), each in the file
+`unsupported.vl.json`, and that the line mark is not drawn, so no data, scale, or axis work is done for it and the view
+is empty with the default size.
 
 ### Strict Mode: Throws At The First Unsupported Feature
 
@@ -253,7 +270,8 @@ Renders a single view with an unsupported mark first and an unsupported channel 
 `ThrowOnUnsupportedFeature` and asserts a `VegaLiteUnsupportedFeatureException` for the first feature only, with
 its location, that the handler saw exactly that report, that a handler that fails while the failure is being
 reported does not hide it, that after a successful render a failing handler propagates, and that on
-`unsupported.vl.json` strict mode stops at the first construct in the text (the `calculate` transform on line 12).
+`unsupported.vl.json` strict mode stops at the first construct in the text (the `window` transform, `vl-transform-window`
+at `/transform/0` on line 12).
 
 ### Data: Remote URLs Are Reported And Never Fetched
 
@@ -352,6 +370,141 @@ Renders a chart from a three-row file with a scene limit of one, which would fai
 limit of two and a byte limit of five fail with `MaxDataRows` and `MaxDataBytes` named and located at `/data/url`, so the
 data is read first, and that only the chart whose data fits fails with `MaxSceneItems`.
 
+### Transforms: Filter And Calculate Select The Drawn Dots
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots`
+
+Renders a 100 by 100 chart without padding, axes, or title (the scale domain 0 to 10 over 100 pixels, so a data
+position (x, y) is the pixel (10 x, 100 - 10 y)) from five rows `x = 1` to `5` through the transforms
+`calculate: datum.x * 2 as y` and `filter: datum.y > 4 && datum.y < 10`. Asserts that the dots of the two kept rows
+(x = 3 with y = 6 and x = 4 with y = 8) are the mark color at (30, 40) and (40, 20) and that the positions of the three
+dropped rows are the white background, so the calculated field is scaled and the filter decides which marks exist.
+
+### Transforms: Fold And Flatten Reshape The Rows
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows`
+
+Renders a fold of the fields `a` and `b` of one row (a nominal `key` on y, which is a point scale of two categories at
+25 and 75 pixels, and the `value` on x) and a flatten of the array field `v` of two rows. Asserts that only the dots
+`(a, 2)` and `(b, 6)` are drawn for the fold, at (20, 25) and (60, 75), and only the dots `(p, 1)`, `(p, 3)`, and
+`(q, 5)` for the flatten, at (10, 25), (30, 25), and (50, 75), with the other category positions blank.
+
+### Transforms: Pivot And Lookup Build The Scaled Fields
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields`
+
+Renders a pivot of three rows (`u` has `s` = 2 and `t` = 4, `w` has `s` = 6 and no `t`) and a lookup of two rows in a
+second inline source whose key 1 appears twice. Asserts that the pivoted columns are the scaled fields (the dots at
+(20, 60) for u and at (60, 100) for w, where the missing combination pivots to 0 and only the upper half of that dot
+lies inside the chart) and that the lookup takes the first matching row (the dots at (20, 20) for the value 8, never
+for the later 9, and at (50, 70)).
+
+### Transforms: Sample And Sort Are Deterministic
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic`
+
+Renders a sample of four of ten rows on the diagonal and a discrete channel whose `sort` is the `sum` of a field.
+Asserts that the sample is exactly the rows 2, 3, 6, and 9 (the hand-computed reservoir seeded by the pointer
+`/transform/0`) and that a second render is byte-identical, and that the categories `a` (2 + 3), `b` (10), and `c` (1)
+on a point scale of three positions (17, 50, and 83 pixels) are drawn in the order c, a, b ascending and b, a, c
+descending, each in its palette color.
+
+### Parameters: Defaults, Overrides, And Filter By Parameter
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`
+
+Renders one document whose parameters are `limit` (the expression `cut + 1`, declared before the parameter it reads),
+`cut` (the value 3), and `show` (the value `true`) with the filters `datum.x > limit` and `{ "param": "show" }`.
+Asserts that by default only the row x = 5 is drawn, that a caller's `cut` of 1 draws x = 3, 4, and 5, that a caller's
+`limit` of 3 replaces the expression and draws x = 4 and 5, that a caller's `show` of `false` leaves nothing but the
+background inside the chart, and that `ParameterNames` lists the three names in declaration order.
+
+### Parameters: Overrides Reach The Transforms
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`
+
+Renders the chart of the last scenario of this group (a flatten, a calculate with a parameter, a filter, a lookup, and
+a sample) with a selection parameter added. Asserts that a caller's value for `minimum` changes the picture, that
+naming the selection parameter in the options changes nothing (the bytes are identical to the baseline), and that a name
+the document does not declare throws an `ArgumentException` that names it.
+
+### Parameters: Invalid Definitions Fail When The Document Is Opened
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened`
+
+Parses documents whose parameters form a cycle, refer to a name that is not declared, or repeat a name. Asserts that
+each is a `VegaLiteSpecException` at the offending value (`/params/0/expr`, `/params/0/expr`, and `/params/1/name`)
+before any render.
+
+### Expressions: Row-Bound Mark Values Are Evaluated Per Row
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow`
+
+Renders two dots at (2, 2) and (5, 5) with a mark `fill` of `datum.x > 3 ? 'red' : 'blue'` and an `opacity` of
+`datum.x > 3 ? 1 : 0.5`, and the same dots with a `color` value of `datum.x > 3 ? '#00ff00' : '#0000ff'` and a `size`
+value of `datum.area` where `area` is calculated as `datum.x * 100`. Asserts that the first dot is blue at half
+opacity over white, `(127.5, 127.5, 255)`, and the second opaque red; that the channel values give opaque blue and
+green; and that the sizes 200 and 500 are the areas of the circles (the smaller circle has ended 10 pixels from its
+center while the larger still covers a pixel there).
+
+### Diagnostics: Expression Reports And Strict Mode
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`
+
+Renders a document whose first calculate calls `datetime(...)` (a function of a later phase) and whose second stores
+`regexp('a')` (a value that has no cell form). Asserts that the chart renders and that the events are, in order,
+the unsupported feature `vl-expr-function-datetime` at `/transform/0/calculate`, line 2, column 33, the string value of
+the expression, and then the warning `vl-expr-runtime` at `/transform/1/calculate`, line 3, column 33 (the warning of the
+transform stage follows the reports of the specification); and that strict mode throws
+`VegaLiteUnsupportedFeatureException` for the first report, delivers only that report, and never delivers the warning
+that would have come later.
+
+### Deferred: Features Of Later Phases Are Still Reported
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
+
+Renders a document with a selection parameter, the transforms `aggregate`, `window`, `bin`, `stack`, and `timeUnit`,
+a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is reported
+once, in document order (`vl-param-selection`, `vl-transform-aggregate`, `vl-transform-window`, `vl-transform-bin`,
+`vl-transform-stack`, `vl-transform-timeunit`, `vl-expr-function-timeformat`, `vl-expr-function-now`,
+`vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that the chart is still
+drawn.
+
+### Expressions: Errors And Limits Fail When The Document Is Opened
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened`
+
+Parses a calculate with a syntax error (`datum.a +`), an assignment (`datum.a = 1`), a reference to an unknown parameter
+(`other`), a text over a `MaxExpressionLength` of 12, and a nesting over a `MaxExpressionDepth` of 3. Asserts that each
+is a `VegaLiteSpecException` located at `/transform/0/calculate`, line 1, whose message names the offset inside the
+expression, and that a document within the limits opens.
+
+### Expressions: Hostile Evaluation Fails Closed
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed`
+
+Renders fifty rows through `datum.a * 2 + 1` with a `MaxEvaluationSteps` of 50 after a selection parameter. Asserts a
+`VegaLiteRenderException` located at `/transform/0/calculate` that names the offset, after the report that came first
+(`vl-param-selection`) was delivered. Renders a document that tests the catastrophic pattern `(a+)+$` against forty
+letters and a `b` and asserts that the linear-time engine finishes and the chart renders.
+
+### Transforms: Limits, Sandbox, And Cancellation Fail Closed
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`
+
+Renders a fold of three rows by two fields and a lookup whose source file is outside the folder of the specification.
+Asserts that the fold needs `MaxDataRows` 9 (8 fails with the limit named, at `/transform/0`), that the lookup is refused
+with "outside the allowed directories" at `/transform/0/from/data/url`, and that a canceled token makes `Measure` and
+`Render` of a document with transforms throw `OperationCanceledException` with no event delivered.
+
+### Transforms: Measure Equals Render And Renders Are Byte-Identical
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical`
+
+Renders a chart through a flatten, a calculate and a filter that read parameters, a lookup in an inline source, and a
+sample. Asserts that `Measure` equals the size of the surface, that twelve concurrent renders have the bytes of the
+baseline, and that the chart whose sample takes every row differs from it (the sample is not a no-op).
+
 ### Limits: Oversized Source And Excessive Depth Fail Closed
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed`
@@ -449,4 +602,6 @@ Any unexpected exception, wrong exception type (in particular a `VegaLiteSpecExc
 `InvalidDataException` is documented, or the reverse), wrong location, wrong reported identifier, a measured size
 that differs from the rendered size, a pixel outside its analytic tolerance, output that differs between
 repeated or concurrent renders, an empty chart for a local data file that cannot be used, a request that reaches the
-file callback for remote data, or any read outside the sandbox constitutes a failure.
+file callback for remote data, a dot that a transform or a parameter should have placed (or removed) at another pixel,
+an expression construct that is executed although it is reported as unsupported, a hostile expression or transform that
+does not fail closed with the location of its text, or any read outside the sandbox constitutes a failure.

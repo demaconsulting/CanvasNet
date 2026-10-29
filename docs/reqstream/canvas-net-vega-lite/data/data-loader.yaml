@@ -168,7 +168,7 @@ sections:
                   the row limit, counted as a total across every table that one loader creates and checked
                   before any row is converted, and located at the offending leaf when a row or the union
                   of fields exceeds the field limit, and shall enforce the string-length limit on JSON
-                  values.
+                  values and on the texts of the datasets that the caller supplies.
                 justification: |
                   Bounded loading keeps hostile data from exhausting memory, a total keeps several tables
                   from each fitting while together exceeding the budget, and a located failure tells the
@@ -177,7 +177,33 @@ sections:
                   - DataLoader_Load_RowLimitFailsWithLocation
                   - DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf
                   - DataLoader_Load_RowLimitIsATotalAcrossTables
+                  - DataLoader_Load_CallerTextLongerThanMaxStringLength_IsLocatedRenderError
                   - DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl
+
+              - id: CanvasNetVegaLite-Data-DataLoader-DerivedRowBudget
+                title: >-
+                  The DataLoader unit shall let a transform reserve the rows of a table it is about to create
+                  (ReserveDerivedRows) against the same row budget that counts the loaded rows, failing with
+                  a VegaLiteRenderException located at the transform before the rows are allocated
+                  when the total would exceed the row limit, and release the rows of a table that is no longer
+                  needed (ReleaseRows), so that the peak of input and output rows of a transform is what the
+                  limit bounds.
+                justification: |
+                  A fold or a flatten can create many times the rows it reads; the budget of the call must
+                  cover the derived tables too, and a dropped input must stop counting.
+                tests:
+                  - DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall
+
+              - id: CanvasNetVegaLite-Data-DataLoader-LookupSources
+                title: >-
+                  The DataLoader unit shall load the secondary source of a lookup transform with the same Load
+                  method, sandbox, per-call file cache, file and byte limits, and row budget as the main data of
+                  the view, locating a failure at the lookup source.
+                justification: |
+                  A lookup source is untrusted data like any other; it must not escape the limits and the
+                  sandbox that bound the main data.
+                tests:
+                  - DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall
 
               - id: CanvasNetVegaLite-Data-DataLoader-Cancellation
                 title: >-

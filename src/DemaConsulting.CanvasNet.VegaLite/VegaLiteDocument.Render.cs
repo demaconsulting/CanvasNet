@@ -1,12 +1,14 @@
 // Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding come from the configuration; see third-party/README.md
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Layout;
 using DemaConsulting.CanvasNet.VegaLite.Marks;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
 
@@ -16,11 +18,14 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// <remarks>
 ///     Pipeline: the specification model reports the constructs that it recognizes but cannot draw; for a single view
 ///     with a mark the data (inline rows, a local file, a named dataset or a sequence) is loaded first, under the limits and
-///     the sandbox of this call, the scales are resolved, the axes, the marks and the title are built, the view
+///     the sandbox of this call, then the static parameters are evaluated and the row transforms (calculate, filter, fold,
+///     flatten, sample, pivot, lookup) run in the order of the specification, the scales are resolved over the transformed rows,
+///     the axes, the marks and the title are built, the view
 ///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A composition
 ///     (layer, concat, facet, repeat) is not drawn yet: only its title and background are. The private pipeline
 ///     methods at the end of this file are the seam that later stages extend; the public methods, their validation order and
-///     their event delivery are the stable contract.
+///     their event delivery are the stable contract. The findings of the data stage (parse failures, then the warnings of a
+///     lookup source and of the transforms) are delivered after the reports of the specification.
 /// </remarks>
 public sealed partial class VegaLiteDocument
 {
@@ -289,6 +294,7 @@ public sealed partial class VegaLiteDocument
         var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
         DataTable? table = null;
         IReadOnlyList<FeatureReport> dataWarnings = [];
+        RowExpressions? expressions = null;
         var markNode = root["mark"];
         var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
         var drawsData = !isComposition && root["layer"] is null && MarkBuilder.IsSupported(markType);
@@ -299,10 +305,33 @@ public sealed partial class VegaLiteDocument
             // define, so a data failure never depends on what a later stage would have done
             var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken);
             table = loader.Load(root["data"]);
-            dataWarnings = loader.Warnings;
 
             // Recorded as soon as the data is loaded, so a later failure of the build can still deliver them
-            dataWarningSink?.AddRange(dataWarnings);
+            var reported = loader.Warnings.Count;
+            dataWarningSink?.AddRange(loader.Warnings);
+
+            // The parameters are evaluated once, then the row transforms run in the order of the specification, on the
+            // loaded rows and before any scale exists; they share the loader (row budget, sandbox) and the evaluator (steps)
+            var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+            var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters);
+            expressions = new RowExpressions(_tree.Expressions, evaluator);
+            var transformWarnings = new List<FeatureReport>();
+            try
+            {
+                ParameterEnvironment.Populate(_tree, options.Parameters, parameters, evaluator);
+                table = RowTransforms.Apply(
+                    table,
+                    root["transform"],
+                    new TransformContext(_tree, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings));
+            }
+            finally
+            {
+                // Findings of a lookup source come before those of the transforms; on a failure they are still delivered
+                dataWarningSink?.AddRange(loader.Warnings.Skip(reported));
+                dataWarningSink?.AddRange(transformWarnings);
+            }
+
+            dataWarnings = [.. loader.Warnings, .. transformWarnings];
         }
 
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
@@ -321,7 +350,7 @@ public sealed partial class VegaLiteDocument
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget), cancellationToken) with { DataWarnings = dataWarnings };
+        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget, expressions), cancellationToken) with { DataWarnings = dataWarnings };
     }
 
     /// <summary>
@@ -367,7 +396,7 @@ public sealed partial class VegaLiteDocument
         content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
 
         // The marks group and each mark are charged by the mark builder before they are created
-        var marks = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName)
+        var marks = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName, inputs.Expressions)
             .Build(_tree.Root, inputs.Table, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
         content.Add(marks);
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
@@ -530,6 +559,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="Measurer">The text measurer.</param>
     /// <param name="Limits">The limits.</param>
     /// <param name="Budget">The budget of scene items the chart is charged to, which already holds the root, view and title items.</param>
+    /// <param name="Expressions">The compiled expressions and the evaluator of the call, for the row-bound values of the marks; null when there are none.</param>
     private sealed record ChartInputs(
         ViewLayoutRequest Request,
         TitleBlock? Title,
@@ -538,5 +568,6 @@ public sealed partial class VegaLiteDocument
         ResolvedConfig Config,
         TextMeasurer Measurer,
         VegaLiteLimits Limits,
-        SceneBudget Budget);
+        SceneBudget Budget,
+        RowExpressions? Expressions);
 }

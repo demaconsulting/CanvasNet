@@ -4,7 +4,9 @@
 # These requirements describe the design-level behavior of the SpecParser unit of the SpecModel subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded UTF-8 JSON reader that builds
 # the immutable SpecNode tree with positions, the structural validation and unknown-property warnings in the
-# partial file SpecParser.Validation.cs, and the SpecMetadata reader. See
+# partial file SpecParser.Validation.cs, the compilation of expressions and the validation of parameters and
+# transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), and the
+# SpecMetadata reader. See
 # docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
 
 sections:
@@ -97,6 +99,60 @@ sections:
                   - SpecParser_Parse_DuplicateKeyLastWinsAndWarns
                   - SpecParser_Parse_UnknownPropertiesWarnOnceAndValidKeysNeverWarn
                   - SpecParser_Parse_ValidTopLevelNamesDoNotWarn
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Expressions
+                title: >-
+                  The SpecParser unit shall compile, when the specification is parsed, the text of every
+                  expression that the renderer evaluates - the expression of a calculate transform, a filter
+                  given as text, and the expr reference of a mark property or channel value of the drawn view
+                  - with the expression parser, expose the compiled expressions by the string node that holds
+                  them (SpecExpressions), throw a VegaLiteSpecException located at that string (the pointer,
+                  line, and column of the value, and the offset inside the text in the message) for a syntax
+                  error or a limit, throw one for an expression that names an identifier that is not a
+                  declared parameter (the declared parameters of the view, including selection parameters,
+                  and the names width, height, padding, autosize, background, and cursor being allowed), and
+                  compile nothing for a site that the renderer does not evaluate.
+                justification: |
+                  A mistake in an expression must be found when the specification is opened, with its
+                  location, and the renderer must evaluate only the text that it compiled and checked.
+                tests:
+                  - SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset
+                  - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
+                  - SpecParser_Parse_WrongTypeReportsPointer
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Parameters
+                title: >-
+                  The SpecParser unit shall validate the parameters of every view with a located
+                  VegaLiteSpecException - a name that is repeated in one view or reserved (datum,
+                  event, item, parent), a definition whose value and expr are not of the documented forms, and
+                  a variable parameter whose expression depends on itself directly or through other
+                  parameters (located at the expression of the lowest declared parameter that is on or depends
+                  on the cycle) - and shall expose the dependency graph so that the parameters can be
+                  evaluated with every dependency first, in declaration order otherwise.
+                justification: |
+                  A parameter cycle or a duplicate name has no meaning and must stop the renderer with the
+                  location of the mistake; a deterministic order makes the parameter values well defined.
+                tests:
+                  - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
+                  - ParameterGraph_Sort_OrdersDependenciesFirstThenDeclarationOrder
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Transforms
+                title: >-
+                  The SpecParser unit shall validate the shape of the supported transforms of every view
+                  (calculate, filter and its predicates, fold, flatten, sample, pivot, and lookup, with their
+                  required and optional properties, field lists, names, and counts) and of the predicates
+                  that compose them with a located VegaLiteSpecException at the first wrong value in document
+                  order, shall require that a predicate param names a declared parameter, and shall accept
+                  every documented valid form, leaving the transforms of later phases to the feature catalog.
+                justification: |
+                  The transform stage reads these properties as given; a malformed one must stop the renderer
+                  with its location before any data is read.
+                tests:
+                  - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
