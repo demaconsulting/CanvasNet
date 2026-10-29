@@ -199,12 +199,19 @@ internal sealed partial class ExpressionEvaluator
     /// </summary>
     /// <param name="a">The left value.</param>
     /// <param name="b">The right value.</param>
+    /// <param name="context">The evaluation to charge the comparison of two texts to; null to not charge.</param>
     /// <returns>True when the values have the same kind and value; NaN is not equal to itself, zero equals negative zero, composites compare by identity.</returns>
-    internal static bool StrictEquals(DataValue a, DataValue b)
+    internal static bool StrictEquals(DataValue a, DataValue b, ExpressionFunctionContext? context = null)
     {
         if (a.Kind != b.Kind)
         {
             return false;
+        }
+
+        if (a.IsString)
+        {
+            // Comparing two texts walks at most the shorter one (the same charge as the relational comparison)
+            context?.ChargeSize(Math.Min(a.Text!.Length, b.Text!.Length));
         }
 
         return a.Kind == DataValueKind.Number ? NumbersEqual(a.Number, b.Number) : a.Equals(b);
@@ -233,7 +240,7 @@ internal sealed partial class ExpressionEvaluator
         {
             if (a.Kind == b.Kind)
             {
-                return StrictEquals(a, b);
+                return StrictEquals(a, b, context);
             }
 
             if (a.IsNull || b.IsNull)

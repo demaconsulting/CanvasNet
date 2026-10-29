@@ -62,7 +62,13 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
   composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a variable
   parameter (every row passes or none). A predicate on a selection parameter or a `selection` keeps every row; a `timeUnit`
   of a predicate is ignored; a predicate that contains a date object is ignored (the row passes); all three are reported
-  by the catalog.
+  by the catalog. A predicate is charged to the evaluation step budget of the call, through the context of the evaluator
+  that the expressions share: every tested field costs one step; a comparison of two texts (`equal`, `oneOf`, and the
+  ordering operators alike) charges the shorter length per 64 characters; the members of `oneOf` are charged once per row
+  per 64 members, so `and`, `or`, and `oneOf` cannot multiply the size of the specification by the number of rows for
+  free; and reading a field that the table stores flattened (an array or an object rebuilt from its fields) charges four
+  units per field below it, as the evaluator does for a datum. A step or string limit that a predicate exceeds is a
+  `VegaLiteRenderException` located at the `filter` value.
 - **`fold`** - an array of field names and an optional `as` of one or two names (`key` and `value` by default): every row
   becomes one row per folded field, in the order of the rows and then of the fields, with the field name as written in
   `as[0]` and the cell in `as[1]` (null for a field the table lacks). The folded fields stay in the rows.
@@ -154,7 +160,8 @@ list holds the findings of this run, or an exception was thrown.
 Everything that depends on the data and exceeds a limit is a `VegaLiteRenderException` located at the construct that caused
 it: `MaxDataRows` (checked **before** the output is allocated, also for a lookup source; located at the transform entry),
 `MaxFieldCount` and the 2^25 cell bound (the transform entry), `MaxStringLength` and the evaluation step budget (the expression
-string), a failing regular expression (the expression string), and a lookup source that the sandbox or the file layer refuses
+string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup source
+that the sandbox or the file layer refuses
 (the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped, and
 the warnings of a canceled call are not delivered. Recoverable findings are warnings: `vl-expr-runtime` and
 `vl-transform-runtime`, located at the expression string or the transform entry. A malformed transform is not an error of

@@ -115,6 +115,26 @@ to compare with matches every row (both are reported by the catalog); that a fil
 row or none depending on its truthiness (`true` keeps 3 rows, an override of `false` or `0` keeps none) while a filter
 on a selection parameter, by `param` or by the legacy `selection`, keeps every row.
 
+##### Filter Predicates Are Charged To The Step Budget
+
+**Tests**: `RowTransformsTests.RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget`,
+`RowTransformsTests.RowTransforms_Apply_FilterSmallPredicatesStayWithinASmallStepBudget`,
+`RowTransformsTests.RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow`,
+`RowTransformsTests.RowTransforms_Apply_FilterCompositeFieldReadsAreCharged`,
+`RowTransformsTests.RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure`
+
+The step counts are derived by hand from the rule of one step per 64 characters or members. As a theory over `lt`, `lte`,
+`gt`, `gte`, `range`, `equal`, and `oneOf`, a 10,000-character value compared with an equal one costs 156 steps (10,000
+divided by 64, rounded down) on top of the step of the field test: the filter keeps the expected rows (0 for `lt` and
+`gt`, 1 for the others) under a budget of 1,000, and fails under a budget of 100 at `/transform/0/filter` with the text
+`VegaLiteLimits.MaxEvaluationSteps`. A composed filter of three small predicates over four rows passes under a budget of
+100. A `oneOf` of 10,000 members costs 156 steps for one row, and 40 `valid` parts of an `and` (or 40 failing parts of an
+`or`) over five rows cost 200 steps: each passes under a budget of 10,000 and fails, located at the filter, under 100. A
+field `tags` of 300 elements is stored as 300 fields, so rebuilding it costs 1,200 units, 18 steps: a budget of 100
+passes and a budget of 10 fails at the filter. Last, an array of three 10-character texts (32 characters as text) compared
+with `lt: 5` under a `MaxStringLength` of 25 fails at `/transform/1/filter` with the text
+`the limit of 25 characters (VegaLiteLimits.MaxStringLength)` instead of an unlocated internal exception.
+
 ##### Parameters Are Evaluated In Dependency Order
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden`,

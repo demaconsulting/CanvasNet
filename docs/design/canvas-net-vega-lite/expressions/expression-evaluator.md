@@ -79,7 +79,8 @@ object, and regular expression. The value model has **one null for both `null` a
 size of its input charges one more step per 64 characters or elements. The operators charge the same way through the
 evaluator's context: reading a string as a number (unary `+` and `-`, `-`, `*`, `/`, `%`, the relational operators, loose
 equality, and the numeric form of `+`) charges its length, converting an array to a primitive charges the length of the
-text it builds, an ordinal comparison of two strings charges the shorter length, and the check of the result charges the
+text it builds, an ordinal comparison of two strings and a strict (in)equality of two strings charge the shorter length,
+and the check of the result charges the
 elements and members of every distinct composite it scans (a composite that is shared is scanned once). The text of an
 array is built with the length checked as it grows, so a shared array that would repeat its content past
 `MaxStringLength` fails early. The budget is `MaxEvaluationSteps`, **shared by all
@@ -100,9 +101,10 @@ fails with `N - 1`. `StepsUsed` reports the total.
   in the evaluator, so neither the length nor the nesting of an expression can overflow the call stack.
 - `IsTruthy`, `ToNumber`, `ToJsString`, `StrictEquals`, `LooseEquals`, `NumbersEqual`, and `RelationalLess` - the static
   coercion helpers, reused by the filter predicates of the `Transforms` subsystem so that a predicate and an expression
-  agree on equality and ordering. `ToNumber`, `ToPrimitive`, `ToJsString`, `LooseEquals`, and `RelationalLess` take an
-  optional `ExpressionFunctionContext` to charge their work to; the evaluator always passes its own, the predicates pass
-  none.
+  agree on equality and ordering. `ToNumber`, `ToPrimitive`, `ToJsString`, `StrictEquals`, `LooseEquals`, and
+  `RelationalLess` take an optional `ExpressionFunctionContext` to charge their work to; the evaluator always passes its
+  own, and the filter predicates pass the same context (exposed to the unit by the internal `Context` property), so a
+  predicate and an expression are charged alike.
 
 **Preconditions and postconditions**: the expression was compiled with limits compatible with the evaluator's (the same
 `VegaLiteLimits` instance in the pipeline); on return the result is a value or an exception was thrown; the step counter

@@ -78,7 +78,9 @@ sections:
                 title: >-
                   The ExpressionEvaluator unit shall run each program as an iterative loop that charges one
                   step per executed instruction (jumps included) and one more step per 64 characters or
-                  elements of the work of a size-proportional function, shall share one step budget (the
+                  elements of the work of a size-proportional function or operator (the conversion of a
+                  long text and the comparison of two long texts, relational or strict), shall share one
+                  step budget (the
                   evaluation-step limit) between every evaluation of the evaluator so that the budget of a
                   call is exact (a program of N instructions passes with a limit of N and fails with N - 1),
                   shall enforce the string-length limit on concatenation, and shall evaluate a very large
@@ -90,6 +92,8 @@ sections:
                 tests:
                   - ExpressionEvaluator_Evaluate_StepBudget_AccumulatesAcrossEvaluations
                   - ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged
+                  - ExpressionEvaluator_Evaluate_StrictEqualityOfLongStringsConsumesSteps
+                  - ExpressionEvaluator_StrictEquals_StringsAreChargedByTheShorterLength
                   - ExpressionEvaluator_Evaluate_LargeProgramsAndReusedStack_AreCorrect
 
               - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-RuntimeFailures

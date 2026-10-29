@@ -54,13 +54,23 @@ sections:
                   truthy by JavaScript rules, or for which its predicate holds - equal, lt, lte, gt, gte,
                   range (inclusive, a null bound open, reversed bounds swapped), oneOf, and valid (not null
                   and not NaN) - composed recursively with and, or, and not, in the original row order, and
-                  shall release the rows it drops from the row budget.
+                  shall release the rows it drops from the row budget, charging the work of a predicate to
+                  the evaluation-step budget of the call (one step per tested field, one step per 64
+                  characters of a compared text, per 64 members of oneOf, and per 64 fields rebuilt for a
+                  composite field value) and reporting a limit that a predicate exceeds as a failure located
+                  at the filter.
                 justification: |
                   Filtering decides which rows are drawn; the truthiness and comparison rules must be those
-                  of Vega so the same specification keeps the same rows.
+                  of Vega so the same specification keeps the same rows, and the work of a predicate must be
+                  bounded like the work of the equivalent expression.
                 tests:
                   - RowTransforms_Apply_FilterExpressionKeepsTruthyRows
                   - RowTransforms_Apply_FilterPredicatesAndCompositions
+                  - RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget
+                  - RowTransforms_Apply_FilterSmallPredicatesStayWithinASmallStepBudget
+                  - RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow
+                  - RowTransforms_Apply_FilterCompositeFieldReadsAreCharged
+                  - RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Parameters
                 title: >-
@@ -177,6 +187,8 @@ sections:
                   - RowTransforms_Apply_FlattenOutputIsBoundedByTheRowLimitAndFiltersReleaseRows
                   - RowTransforms_Apply_LookupSourceSharesTheRowBudget
                   - RowTransforms_Apply_FieldStringAndStepLimitsAreLocatedFailures
+                  - RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget
+                  - RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Cancellation
                 title: >-

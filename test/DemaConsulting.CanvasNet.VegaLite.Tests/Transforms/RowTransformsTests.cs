@@ -200,6 +200,138 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that comparing a field with a long string is charged to the step budget for every comparison operator
+    ///     of a predicate, so a filter cannot do unbounded work that the equivalent expression would be stopped for.
+    /// </summary>
+    /// <param name="comparison">The comparison operator of the predicate.</param>
+    /// <param name="expectedRows">The number of rows kept when the budget is large enough.</param>
+    [Theory]
+    [InlineData("lt", 0)]
+    [InlineData("lte", 1)]
+    [InlineData("gt", 0)]
+    [InlineData("gte", 1)]
+    [InlineData("range", 1)]
+    [InlineData("equal", 1)]
+    [InlineData("oneOf", 1)]
+    public void RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget(string comparison, int expectedRows)
+    {
+        // Arrange: a 10,000 character value compared with an equal one costs 156 steps; the filter itself is a few steps
+        var text = "\"" + new string('a', 10_000) + "\"";
+        var operand = comparison switch
+        {
+            "range" => "[" + text + "," + text + "]",
+            "oneOf" => "[" + text + "]",
+            _ => text,
+        };
+        var json = Spec("[{\"s\":" + text + "}]", "[{\"filter\":{\"field\":\"s\",\"" + comparison + "\":" + operand + "}}]");
+
+        // Act
+        var kept = Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 1_000 });
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 100 }));
+
+        // Assert: the comparison fits a generous budget, and fails with the located step limit under a small one
+        Assert.Equal(expectedRows, kept.RowCount);
+        Assert.Equal("/transform/0/filter", exception.Location.Pointer);
+        Assert.Contains("VegaLiteLimits.MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a filter of small values still works within a small step budget.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_FilterSmallPredicatesStayWithinASmallStepBudget()
+    {
+        // Arrange: four rows and a composed predicate cost a few steps per row
+        var json = Spec(
+            "[{\"x\":1,\"s\":\"a\"},{\"x\":2,\"s\":\"b\"},{\"x\":3,\"s\":\"c\"},{\"x\":null,\"s\":\"d\"}]",
+            "[{\"filter\":{\"and\":[{\"field\":\"x\",\"gte\":2},{\"field\":\"s\",\"oneOf\":[\"b\",\"c\"]},{\"field\":\"s\",\"lt\":\"z\"}]}}]");
+
+        // Act
+        var table = Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 100 });
+
+        // Assert
+        Assert.Equal(["2|b", "3|c"], Rows(table, "x", "s"));
+    }
+
+    /// <summary>
+    ///     Validates that the members of <c>oneOf</c> and the parts of <c>and</c> and <c>or</c> are charged for every row,
+    ///     so a specification cannot multiply its size by the number of rows for free.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow()
+    {
+        // Arrange: a oneOf of 10,000 members costs 156 steps for one row; 40 parts over five rows cost 200 steps
+        var members = "[" + string.Join(",", Enumerable.Range(0, 10_000)) + "]";
+        var oneOf = Spec("[{\"x\":5}]", "[{\"filter\":{\"field\":\"x\",\"oneOf\":" + members + "}}]");
+        var rows = "[{\"x\":1},{\"x\":2},{\"x\":3},{\"x\":4},{\"x\":5}]";
+        var valid = string.Join(",", Enumerable.Repeat("{\"field\":\"x\",\"valid\":true}", 40));
+        var invalid = string.Join(",", Enumerable.Repeat("{\"field\":\"x\",\"valid\":false}", 40));
+        var all = Spec(rows, "[{\"filter\":{\"and\":[" + valid + "]}}]");
+        var any = Spec(rows, "[{\"filter\":{\"or\":[" + invalid + "]}}]");
+        var small = new VegaLiteLimits { MaxEvaluationSteps = 100 };
+        var large = new VegaLiteLimits { MaxEvaluationSteps = 10_000 };
+
+        // Act
+        var oneOfKept = Run(oneOf, out _, large);
+        var oneOfEx = Assert.Throws<VegaLiteRenderException>(() => Run(oneOf, out _, small));
+        var allKept = Run(all, out _, large);
+        var allEx = Assert.Throws<VegaLiteRenderException>(() => Run(all, out _, small));
+        var anyKept = Run(any, out _, large);
+        var anyEx = Assert.Throws<VegaLiteRenderException>(() => Run(any, out _, small));
+
+        // Assert
+        Assert.Equal(1, oneOfKept.RowCount);
+        Assert.Equal(5, allKept.RowCount);
+        Assert.Equal(0, anyKept.RowCount);
+        foreach (var exception in new[] { oneOfEx, allEx, anyEx })
+        {
+            Assert.Equal("/transform/0/filter", exception.Location.Pointer);
+            Assert.Contains("VegaLiteLimits.MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that reading a field that is stored flattened (an array rebuilt from its elements) is charged for
+    ///     every row, as the evaluator charges the fields of a datum.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_FilterCompositeFieldReadsAreCharged()
+    {
+        // Arrange: an array of 300 elements is stored as 300 fields; rebuilding it costs 18 steps per row
+        var elements = string.Join(",", Enumerable.Range(0, 300));
+        var json = Spec("[{\"tags\":[" + elements + "]}]", "[{\"filter\":{\"field\":\"tags\",\"valid\":true}}]");
+
+        // Act
+        var kept = Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 100 });
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 10 }));
+
+        // Assert
+        Assert.Equal(1, kept.RowCount);
+        Assert.Equal("/transform/0/filter", exception.Location.Pointer);
+        Assert.Contains("VegaLiteLimits.MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that comparing an array field whose text is longer than the string limit is a located failure of the
+    ///     filter, not an escaped internal exception.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure()
+    {
+        // Arrange: three elements of ten characters are 32 characters as text, which is longer than the limit of 25
+        var json = Spec(
+            "[{\"tags\":[\"0123456789\",\"0123456789\",\"0123456789\"]}]",
+            "[{\"calculate\":\"1\",\"as\":\"n\"},{\"filter\":{\"field\":\"tags\",\"lt\":5}}]");
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, out _, new VegaLiteLimits { MaxStringLength = 25 }));
+
+        // Assert
+        Assert.Equal("/transform/1/filter", exception.Location.Pointer);
+        Assert.Contains("the limit of 25 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a filter on a variable parameter keeps every row or none, that the caller's value replaces the
     ///     static default, and that a selection parameter keeps every row.
     /// </summary>

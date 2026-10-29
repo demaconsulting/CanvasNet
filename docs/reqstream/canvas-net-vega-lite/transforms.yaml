@@ -127,6 +127,7 @@ sections:
             tests:
               - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
               - RowTransforms_Apply_CanceledTokenStopsTheTransforms
+              - RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
 
           - id: CanvasNetVegaLite-Transforms-Determinism

@@ -799,6 +799,63 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the strict equality operators charge the comparison of two long strings to the step budget, like
+    ///     the relational operators do.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("datum.s === datum.t")]
+    [InlineData("datum.s !== datum.t")]
+    [InlineData("datum.s === datum.s")]
+    public void ExpressionEvaluator_Evaluate_StrictEqualityOfLongStringsConsumesSteps(string text)
+    {
+        // Arrange: two 12,800 character strings cost 200 steps to compare; the program has a handful of instructions
+        var datum = Obj(("s", DataValue.FromString(new string('1', 12_800))), ("t", DataValue.FromString(new string('1', 12_800))));
+        var compiled = Compile(text);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        evaluator.Evaluate(compiled, datum);
+        var exception = Assert.Throws<VegaLiteRenderException>(() => new ExpressionEvaluator(Steps(50), CancellationToken.None).Evaluate(compiled, datum));
+
+        // Assert
+        Assert.True(evaluator.StepsUsed >= compiled.InstructionCount + 200, $"'{text}' used {evaluator.StepsUsed} steps");
+        Assert.Contains("MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that strict equality charges the shorter length of two strings and nothing for other kinds, and that
+    ///     it does not charge without a context.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_StrictEquals_StringsAreChargedByTheShorterLength()
+    {
+        // Arrange
+        var context = new ExpressionFunctionContext(Steps(1_000), CancellationToken.None);
+        var long12800 = DataValue.FromString(new string('1', 12_800));
+        var long6400 = DataValue.FromString(new string('1', 6_400));
+
+        // Act
+        var shortResult = ExpressionEvaluator.StrictEquals(long12800, DataValue.FromString("ab"), context);
+        var afterShort = context.Steps;
+        var differentLengths = ExpressionEvaluator.StrictEquals(long12800, long6400, context);
+        var afterLong = context.Steps;
+        var kinds = ExpressionEvaluator.StrictEquals(long12800, DataValue.FromNumber(1), context);
+        var numbers = ExpressionEvaluator.StrictEquals(DataValue.FromNumber(1), DataValue.FromNumber(1), context);
+        var uncharged = ExpressionEvaluator.StrictEquals(long12800, long12800);
+
+        // Assert: two characters are free, 6,400 are 100 steps, and kinds and numbers are not charged
+        Assert.False(shortResult);
+        Assert.Equal(0, afterShort);
+        Assert.False(differentLengths);
+        Assert.Equal(100, afterLong);
+        Assert.False(kinds);
+        Assert.True(numbers);
+        Assert.Equal(100, context.Steps);
+        Assert.True(uncharged);
+    }
+
+    /// <summary>
     ///     Validates that a shared array (a directed acyclic graph: <c>[x, x]</c> chained 40 times) is checked once per
     ///     node, so evaluating it finishes at once, and that converting it to text fails at the string limit instead of
     ///     building its 2^40 repeated elements.

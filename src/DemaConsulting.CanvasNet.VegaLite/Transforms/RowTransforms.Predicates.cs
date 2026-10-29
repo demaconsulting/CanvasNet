@@ -73,12 +73,27 @@ internal sealed partial class RowTransforms
     /// <summary>
     ///     A predicate on the value of a field.
     /// </summary>
+    /// <remarks>
+    ///     Every test counts one step of the evaluation budget, plus the size-proportional work of the field read and of
+    ///     the comparison, so a predicate is charged like the equivalent expression.
+    /// </remarks>
     /// <param name="Reader">The reader of the field.</param>
     /// <param name="Check">The condition on the value.</param>
-    private sealed class FieldPredicate(FieldReader Reader, Func<DataValue, bool> Check) : IRowPredicate
+    /// <param name="Context">The evaluation state that the work is charged to.</param>
+    /// <param name="FanOut">The number of comparisons a test makes (the members of <c>oneOf</c>), charged once per row.</param>
+    private sealed class FieldPredicate(FieldReader Reader, Func<DataValue, bool> Check, ExpressionFunctionContext Context, long FanOut = 0) : IRowPredicate
     {
         /// <inheritdoc/>
-        public bool Test(DataTable table, int row) => Check(Reader.Read(row));
+        public bool Test(DataTable table, int row)
+        {
+            Context.Step();
+            if (FanOut > 0)
+            {
+                Context.ChargeSize(FanOut);
+            }
+
+            return Check(Reader.Read(row, Context));
+        }
     }
 
     /// <summary>
@@ -150,31 +165,32 @@ internal sealed partial class RowTransforms
 
         var reader = new FieldReader(table, node["field"]!.StringValue);
         var maxLength = _context.Limits.MaxStringLength;
+        var charge = _context.Evaluator.Context;
         switch (comparison.Name)
         {
             case "equal":
                 var equal = SpecValues.ToDataValue(comparison);
-                return new FieldPredicate(reader, a => ExpressionEvaluator.StrictEquals(a, equal));
+                return new FieldPredicate(reader, a => ExpressionEvaluator.StrictEquals(a, equal, charge), charge);
             case "lt":
                 var lt = SpecValues.ToDataValue(comparison);
-                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(a, lt, maxLength) == 1);
+                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(a, lt, maxLength, charge) == 1, charge);
             case "lte":
                 var lte = SpecValues.ToDataValue(comparison);
-                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(lte, a, maxLength) == 0);
+                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(lte, a, maxLength, charge) == 0, charge);
             case "gt":
                 var gt = SpecValues.ToDataValue(comparison);
-                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(gt, a, maxLength) == 1);
+                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(gt, a, maxLength, charge) == 1, charge);
             case "gte":
                 var gte = SpecValues.ToDataValue(comparison);
-                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(a, gte, maxLength) == 0);
+                return new FieldPredicate(reader, a => ExpressionEvaluator.RelationalLess(a, gte, maxLength, charge) == 0, charge);
             case "range":
-                return BuildRange(reader, comparison, maxLength);
+                return BuildRange(reader, comparison, maxLength, charge);
             case "oneOf":
                 var members = comparison.Items.Select(SpecValues.ToDataValue).ToArray();
-                return new FieldPredicate(reader, a => members.Any(m => ExpressionEvaluator.StrictEquals(a, m)));
+                return new FieldPredicate(reader, a => members.Any(m => ExpressionEvaluator.StrictEquals(a, m, charge)), charge, members.Length);
             default:
                 var wanted = comparison.BoolValue;
-                return new FieldPredicate(reader, a => IsValid(a) == wanted);
+                return new FieldPredicate(reader, a => IsValid(a) == wanted, charge);
         }
     }
 
@@ -184,12 +200,13 @@ internal sealed partial class RowTransforms
     /// <param name="reader">The reader of the field.</param>
     /// <param name="range">The array of the two endpoints.</param>
     /// <param name="maxLength">The longest text that an array is converted to in a comparison.</param>
+    /// <param name="charge">The evaluation state that the comparisons are charged to.</param>
     /// <returns>The predicate.</returns>
-    private static FieldPredicate BuildRange(FieldReader reader, SpecNode range, int maxLength)
+    private static FieldPredicate BuildRange(FieldReader reader, SpecNode range, int maxLength, ExpressionFunctionContext charge)
     {
         var low = SpecValues.ToDataValue(range.Items[0]);
         var high = SpecValues.ToDataValue(range.Items[1]);
-        if (!low.IsNull && !high.IsNull && ExpressionEvaluator.RelationalLess(high, low, maxLength) == 1)
+        if (!low.IsNull && !high.IsNull && ExpressionEvaluator.RelationalLess(high, low, maxLength, charge) == 1)
         {
             (low, high) = (high, low);
         }
@@ -198,8 +215,9 @@ internal sealed partial class RowTransforms
         var upper = high;
         return new FieldPredicate(
             reader,
-            a => (lower.IsNull || ExpressionEvaluator.RelationalLess(a, lower, maxLength) == 0)
-                && (upper.IsNull || ExpressionEvaluator.RelationalLess(upper, a, maxLength) == 0));
+            a => (lower.IsNull || ExpressionEvaluator.RelationalLess(a, lower, maxLength, charge) == 0)
+                && (upper.IsNull || ExpressionEvaluator.RelationalLess(upper, a, maxLength, charge) == 0),
+            charge);
     }
 
     /// <summary>
