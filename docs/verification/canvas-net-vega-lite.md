@@ -466,7 +466,7 @@ that would have come later.
 Renders a document with a selection parameter, the transforms `aggregate`, `window`, `bin`, `stack`, and `timeUnit`,
 a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is reported
 once, in document order (`vl-param-selection`, `vl-transform-aggregate`, `vl-transform-window`, `vl-transform-bin`,
-`vl-transform-stack`, `vl-transform-timeunit`, `vl-expr-function-timeFormat`, `vl-expr-function-now`,
+`vl-transform-stack`, `vl-transform-timeunit`, `vl-expr-function-timeformat`, `vl-expr-function-now`,
 `vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that the chart is still
 drawn.
 

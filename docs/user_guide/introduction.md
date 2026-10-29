@@ -4426,8 +4426,9 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
 A construct that Vega-Lite defines but the package cannot draw is reported as a `VegaLiteUnsupportedFeature` with a
 stable, lower-case `Feature` identifier of the form `vl-<area>-<detail>`, a message, and the `VegaLiteLocation` of the
 construct, and the rest of the chart is still drawn. A name taken from the specification is lower-cased without
-separators (`timeUnit` gives `timeunit`); the one exception is the name of an unsupported expression function, which keeps
-its case (`vl-expr-function-timeFormat`) so that it can be found in the text. The identifiers are part of the documented
+separators (`timeUnit` gives `timeunit`), and so is the name of an unsupported expression function
+(`timeFormat` gives `vl-expr-function-timeformat`); the message keeps the function name as written, so that it can be
+found in the text. The identifiers are part of the documented
 behavior of the package and are
 never renamed once released. A **warning** (`VegaLiteDiagnostic`) is a questionable construct that still renders: its
 message starts with its `vl-*` identifier and a colon. Reports are delivered once, in document order, on the calling
@@ -4457,7 +4458,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-format-type-custom` | Unsupported | `axis.formatType` |
 | `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, size, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, or square, an encoding `value` other than that of color, fill, stroke, opacity, or the size of a symbol, and every such value in a view that is not drawn. The value is not used |
 | `vl-expr-label` | Unsupported | `axis.labelExpr` |
-| `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 57 supported ones, once per call, with `<name>` **as written** (case kept: `vl-expr-function-timeFormat`). The call evaluates to null |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 57 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-timeformat` for `timeFormat`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
@@ -5770,7 +5771,7 @@ try
 }
 catch (VegaLiteUnsupportedFeatureException ex)
 {
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-expr-function-timeFormat /transform/0/calculate
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-expr-function-timeformat /transform/0/calculate
 }
 
 // 4. A mistake in an expression is found when the document is opened, with the location of the text and the offset

@@ -236,6 +236,20 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates that the identifier of an unsupported function is lower case while the name keeps its spelling.
+    /// </summary>
+    [Fact]
+    public void ExpressionParser_Parse_MixedCaseFunction_HasLowerCaseIdentifierAndOriginalName()
+    {
+        // Arrange / Act
+        var compiled = Compile("timeFormat(1, 'x') + TIMEFORMAT(2, 'y')");
+
+        // Assert
+        Assert.Equal(["timeFormat", "TIMEFORMAT"], compiled.UnsupportedConstructs.Select(c => c.Name).ToArray());
+        Assert.All(compiled.UnsupportedConstructs, c => Assert.Equal("vl-expr-function-timeformat", c.Identifier));
+    }
+
+    /// <summary>
     ///     Validates that the remaining deferred operators are recognized by name.
     /// </summary>
     /// <param name="text">The expression text.</param>

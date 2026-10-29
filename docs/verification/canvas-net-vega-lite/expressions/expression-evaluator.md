@@ -45,8 +45,10 @@ Unit tests reside in `ExpressionEvaluatorTests.cs` within the `DemaConsulting.Ca
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Isolation**: Each test compiles and evaluates its own texts with its own evaluator (an evaluator is one call and
-  one thread). The culture scenario switches the current culture of the test thread to each of eight cultures
-  (invariant, `en-US`, `de-DE`, `fr-FR`, `tr-TR`, `ar-SA`, `ja-JP`, and `sv-SE`) and restores it afterwards; the
+  one thread). The culture scenario runs its body on a dedicated worker thread whose own culture (and UI culture) is set
+  to each of eight cultures (invariant, `en-US`, `de-DE`, `fr-FR`, `tr-TR`, `ar-SA`, `ja-JP`, and `sv-SE`), so the culture
+  of the test thread and the process defaults are never changed (an exception of the body is rethrown on the test thread
+  with its original stack, and a dedicated scenario asserts the isolation); the
   concurrency scenario runs eight parallel iterations, each with its own evaluator and datum, over one shared compiled
   expression
 
@@ -183,14 +185,18 @@ never wrapped in a render exception.
 ##### Culture, Repetition, And Concurrency
 
 **Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_UnderAnyCulture_IsInvariant`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_CultureHelper_IsolatesTheCultureOnAWorkerThread`,
 `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_Repeated_IsDeterministic`,
 `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_Concurrent_IsDeterministic`
 
-Asserts, under each of the eight cultures, that fifteen expressions (decimal separators, exponents, number to text,
+Asserts, under each of the eight cultures (applied to a dedicated worker thread, never to the test thread), that fifteen
+expressions (decimal separators, exponents, number to text,
 case mapping with the Turkish dotted and dotless i, ordering of `'ä' < 'z'`, `pad`, a case-insensitive regular
 expression, `split`, and `substring`) give the same results as under the invariant culture and the documented values
 (`1.5`, `0.3333333333333333`, `1e+21`, `-1234567.891`, `21.5`, `ABC I|xyz i`, `lt`, `ge`, `2`, `1.5,2.25`, `0007.5`,
-and `true`); that two hundred evaluations of one compiled expression give one result (`9aB2`); and that eight threads,
+and `true`); that the culture helper changes the cultures of its worker thread only, leaving those of the test thread
+unchanged, and rethrows an exception of the body; that two hundred evaluations of one compiled expression give one
+result (`9aB2`); and that eight threads,
 each with its own evaluator, give eight hundred identical results (`f0 b072`) from one shared compiled expression.
 
 ##### Large Programs And A Reused Stack

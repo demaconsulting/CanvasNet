@@ -823,7 +823,7 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-expr-function-datetime", "/params/0/expr"),
-                ("vl-expr-function-timeFormat", "/transform/0/calculate"),
+                ("vl-expr-function-timeformat", "/transform/0/calculate"),
                 ("vl-expr-view-state", "/transform/1/filter"),
                 ("vl-expr-view-state", "/transform/1/filter"),
                 ("vl-expr-construct-bitwise-and", "/transform/2/calculate"),
@@ -837,8 +837,40 @@ public class FeatureCatalogTests
         Assert.Contains("(at expression offset 0)", reports[0].Message, StringComparison.Ordinal);
         Assert.Contains("'height'", reports[6].Message, StringComparison.Ordinal);
 
+        // Assert: the identifier is lower case while the message keeps the function name as written
+        Assert.Contains("'timeFormat'", reports[1].Message, StringComparison.Ordinal);
+
         // Assert: the location is that of the string value, so the first report is at line 2 (the parameter) and a strict render stops there
         Assert.Equal(2, reports[0].Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that differently-cased spellings of one unlisted function share the lower-case identifier, and that
+    ///     every call is still reported once, in order of appearance, with the spelling as written in the message.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier()
+    {
+        // Arrange
+        const string json = """
+            {
+              "data": { "values": [ { "a": 1 } ] },
+              "transform": [ { "calculate": "timeFormat(datum.d, '%Y') + timeformat(datum.d, '%Y') + TIMEFORMAT(datum.d, '%Y')", "as": "y" } ],
+              "mark": "point",
+              "encoding": { "x": { "field": "a", "type": "quantitative" } }
+            }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
+
+        // Assert: three reports with one identifier and distinct messages, in offset order
+        Assert.Equal(3, reports.Count);
+        Assert.All(reports, r => Assert.Equal("vl-expr-function-timeformat", r.Id));
+        Assert.Contains("'timeFormat'", reports[0].Message, StringComparison.Ordinal);
+        Assert.Contains("'timeformat'", reports[1].Message, StringComparison.Ordinal);
+        Assert.Contains("'TIMEFORMAT'", reports[2].Message, StringComparison.Ordinal);
+        Assert.Equal(3, reports.Select(r => r.Message).Distinct(StringComparer.Ordinal).Count());
     }
 
     /// <summary>

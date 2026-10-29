@@ -118,7 +118,8 @@ Asserts, as theories, that `upper` applies the full mappings of JavaScript that 
 Greek letters with an iota subscript, and the dotless i giving `I`) and the plain letters and the empty text unchanged;
 that `lower` gives `i` and a combining dot for the capital I with a dot above and the final sigma exactly where
 JavaScript does (after a letter and not before one, ignoring a soft hyphen and the punctuation inside a word); that the
-results are the same under the Turkish and the invariant culture; and that a result that is longer than its input is
+results are the same under the Turkish (set on a dedicated worker thread) and the invariant culture; and that a result
+that is longer than its input is
 refused when it passes `MaxStringLength` (two sharp s give four characters under a limit of 4, three give six).
 
 ##### Arrays: Slice, Search, And Membership

@@ -137,7 +137,8 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report, at the string value of the expression and with the
                   offset inside the text in the message, each call of a function outside the whitelist as
-                  vl-expr-function-name (the name as written), each use of view state (signal, event, item,
+                  vl-expr-function-name (the name lower-cased, and as written in the message), each use of
+                  view state (signal, event, item,
                   and an undeclared width, height, padding, autosize, background, or cursor) as
                   vl-expr-view-state, and each deferred operator as vl-expr-construct-name, and shall report
                   an expression reference at a site that the renderer does not evaluate (the title, the
@@ -149,6 +150,7 @@ sections:
                   chart; each must be reported by an identifier that names exactly what was not run.
                 tests:
                   - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
+                  - FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier
                   - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts

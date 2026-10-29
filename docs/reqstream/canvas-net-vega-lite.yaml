@@ -601,7 +601,7 @@ sections:
           The library shall fail closed when a specification is opened with a VegaLiteSpecException located
           at the offending value and naming the offset inside the expression for an expression syntax error,
           an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
-          report as unsupported features, with the stable identifiers vl-expr-function-name,
+          report as unsupported features, with the stable identifiers vl-expr-function-name (the name lower-cased),
           vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
           shall keep reporting the transforms, parameters, conditional encodings, and functions of later
           phases; and shall let strict mode abort at the first such report.

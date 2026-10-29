@@ -38,8 +38,10 @@ an area and a name taken from the specification, lower-cased with the invariant 
 
 **Identifiers.** The areas are `schema`, `data`, `mark`, `channel`, `type`, `scale`, `encoding`, `guide`, `format`,
 `expr`, `transform`, `composition`, `param`, `projection`, and `layout`; the table in the system design lists every
-identifier with its trigger. The name of an expression function keeps its case in `vl-expr-function-<name>`, unlike the
-other names taken from the specification. The identifiers `vl-expr-calculate`,
+identifier with its trigger. The name of an expression function is lower-cased with the invariant culture in
+`vl-expr-function-<name>` like the
+other names taken from the specification (the message keeps the function name as written, so `timeFormat` and
+`timeformat` share one identifier and keep distinct messages). The identifiers `vl-expr-calculate`,
 `vl-expr-filter`, and (for the drawn view) the
 `vl-transform-` identifiers of the supported transforms are retired: those constructs are supported and absent from the
 result. The warnings `vl-duplicate-key` and `vl-unknown-property` are produced by `SpecParser`, and the render-time

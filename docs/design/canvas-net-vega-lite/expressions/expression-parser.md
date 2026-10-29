@@ -60,7 +60,8 @@ that holds it (JSON pointer, line, and column), the postfix `Program` (an array 
 `ExpressionOpcode`, an operand, an argument count, and the expression offset of the construct), the `ExpressionTables`
 (constants, member and field names, and the functions the program calls), the `Depth` (the deepest nesting), the
 `InstructionCount`, `ReferencesDatum`, the largest stack height, `UnsupportedConstructs`, and `ParameterReferences`.
-`ExpressionConstruct` is `(Kind, Name, Offset)` with the stable `Identifier` (`vl-expr-function-<name>`,
+`ExpressionConstruct` is `(Kind, Name, Offset)` with the stable `Identifier` (`vl-expr-function-<name>` with the function
+name lower-cased by the invariant culture, while `Name` keeps the spelling of the text,
 `vl-expr-view-state`, or `vl-expr-construct-<name>`, with the deferred names `bitwise-or`, `bitwise-xor`, `bitwise-and`,
 `shift-left`, `shift-right`, `shift-right-unsigned`, and `in`); `ExpressionReference` is
 `(Name, Offset)` with one entry per

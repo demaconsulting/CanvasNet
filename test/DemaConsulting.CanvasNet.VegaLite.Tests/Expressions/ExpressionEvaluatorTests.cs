@@ -830,6 +830,29 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the culture helper applies the culture to a dedicated worker thread only: the cultures of the
+    ///     calling thread are untouched and an exception of the callback is rethrown with its type.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_CultureHelper_IsolatesTheCultureOnAWorkerThread()
+    {
+        // Arrange
+        var callerCulture = CultureInfo.CurrentCulture;
+        var callerUiCulture = CultureInfo.CurrentUICulture;
+        var callerThread = Environment.CurrentManagedThreadId;
+
+        // Act
+        var inside = UnderCulture("tr-TR", () => (Thread: Environment.CurrentManagedThreadId, Culture: CultureInfo.CurrentCulture, Ui: CultureInfo.CurrentUICulture));
+
+        // Assert: the worker ran on another thread with the same culture for both properties (the invariant one without culture data)
+        Assert.NotEqual(callerThread, inside.Thread);
+        Assert.Equal(inside.Culture.Name, inside.Ui.Name);
+        Assert.Same(callerCulture, CultureInfo.CurrentCulture);
+        Assert.Same(callerUiCulture, CultureInfo.CurrentUICulture);
+        Assert.Throws<InvalidOperationException>(() => UnderCulture<int>("tr-TR", () => throw new InvalidOperationException("boom")));
+    }
+
+    /// <summary>
     ///     Validates that evaluating the same compiled expression repeatedly gives identical results.
     /// </summary>
     [Fact]

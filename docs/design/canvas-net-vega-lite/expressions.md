@@ -66,7 +66,8 @@ and the call stack of the parser is bounded by the limit and never by the length
 
 **What parses but does not run.** Three groups of constructs are valid text that the renderer deliberately does not
 execute, so that they can be reported by stable identifier instead of failing the document: a call of a function outside
-the table (`vl-expr-function-<name>`, the name as written), view state (`signal`, `event`, `item`, and a view signal
+the table (`vl-expr-function-<name>`, the name lower-cased; the construct and the message keep it as written), view
+state (`signal`, `event`, `item`, and a view signal
 such as `width` that no parameter declares: `vl-expr-view-state`), and the deferred operators (the bitwise operators, the
 shifts, and `in`: `vl-expr-construct-<name>`). The parser collects them in order of appearance; the evaluator gives null
 for each; the `FeatureCatalog` reports them at the string value of the expression, and strict mode throws at the first

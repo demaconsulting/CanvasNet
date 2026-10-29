@@ -925,7 +925,7 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(
             [
                 "vl-param-selection", "vl-transform-aggregate", "vl-transform-window", "vl-transform-bin", "vl-transform-stack",
-                "vl-transform-timeunit", "vl-expr-function-timeFormat", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
+                "vl-transform-timeunit", "vl-expr-function-timeformat", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
             ],
             reported);
         Assert.True(surface.Width > 0);

@@ -625,6 +625,7 @@ words:
   - tickband
   - tickminstep
   - timeunit
+  - timeformat
   - topo
   - topojson
   - unbinned

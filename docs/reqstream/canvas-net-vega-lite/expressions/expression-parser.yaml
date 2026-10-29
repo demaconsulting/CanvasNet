@@ -55,7 +55,8 @@ sections:
                 title: >-
                   The ExpressionParser unit shall collect, in order of appearance and with the offset of each,
                   the constructs that are parsed but not executed - a call of a function outside the whitelist
-                  (vl-expr-function-name), view state (signal, event, and item, as vl-expr-view-state), and the
+                  (vl-expr-function-name, the name lower-cased), view state (signal, event, and item, as
+                  vl-expr-view-state), and the
                   deferred operators (the bitwise and shift operators and in, as vl-expr-construct-name) - and
                   shall reject as a syntax error the constructs that Vega expressions do not have or that
                   could reach the host: assignment, method calls, new, function expressions, arrow functions,
@@ -65,6 +66,7 @@ sections:
                   never run, while syntax that could execute arbitrary host behavior must not be accepted.
                 tests:
                   - ExpressionParser_Parse_UnsupportedConstructs_AreCollectedInOrder
+                  - ExpressionParser_Parse_MixedCaseFunction_HasLowerCaseIdentifierAndOriginalName
                   - ExpressionParser_Parse_DeferredOperators_AreNamed
                   - ExpressionParser_Parse_MalformedExpression_ReportsFirstProblemAndOffset
 

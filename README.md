@@ -162,7 +162,8 @@ for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart
 title, and schema version without drawing it. The library implements a defined subset of the language (one view with
 inline, local-file, named, or generated data; the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
 `lookup` transforms with a subset of the expression language and static parameters; bar, rect, point, circle, square,
-rule, and tick marks; x, y, color, size, and opacity encodings), draws only the bundled fonts, and never reads the
+rule, and tick marks; x, y, color, fill, stroke, size, and opacity encodings), draws only the bundled fonts, and never
+reads the
 network; a chart's CSV, TSV, DSV, or JSON data
 file
 is read from the folder of its specification and below it only (there is no data-folder option, and a missing file is a

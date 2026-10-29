@@ -116,10 +116,12 @@ runs constitutes a failure.
 - **Determinism And Culture Independence**:
   `ExpressionParserTests.ExpressionParser_Parse_RepeatedAndConcurrent_GivesIdenticalResults`,
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_UnderAnyCulture_IsInvariant`,
+  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_CultureHelper_IsolatesTheCultureOnAWorkerThread`,
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_Concurrent_IsDeterministic`,
   `ExpressionFunctionsTests.ExpressionFunctions_Repeated_ResultsAreIdentical` — one compiled expression shared by
   threads, each with its own evaluator, gives eight hundred identical results, the results under eight cultures
-  (including Turkish and Arabic) are those of the invariant culture, and a function that would need a clock or a random
+  (set on dedicated worker threads, never on the test thread; including Turkish and Arabic) are those of the invariant
+  culture, and a function that would need a clock or a random
   source is not in the table.
 - **Cancellation**:
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_CanceledBeforeStart_ThrowsOperationCanceled`,

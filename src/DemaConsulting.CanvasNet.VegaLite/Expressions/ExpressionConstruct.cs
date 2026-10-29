@@ -32,9 +32,14 @@ internal readonly record struct ExpressionConstruct(ExpressionConstructKind Kind
     ///     Gets the stable identifier of the construct: <c>vl-expr-function-{name}</c>, <c>vl-expr-view-state</c> or
     ///     <c>vl-expr-construct-{name}</c>.
     /// </summary>
+    /// <remarks>
+    ///     The identifier is lower case, as every <c>vl-*</c> identifier is: the function name is lower-cased with the
+    ///     invariant culture (so <c>timeFormat</c> and <c>timeformat</c> share <c>vl-expr-function-timeformat</c>). The
+    ///     <see cref="Name"/> keeps the spelling of the text, and the report message names that spelling.
+    /// </remarks>
     public string Identifier => Kind switch
     {
-        ExpressionConstructKind.Function => "vl-expr-function-" + Name,
+        ExpressionConstructKind.Function => "vl-expr-function-" + Name.ToLowerInvariant(),
         ExpressionConstructKind.ViewState => "vl-expr-view-state",
         _ => "vl-expr-construct-" + Name,
     };

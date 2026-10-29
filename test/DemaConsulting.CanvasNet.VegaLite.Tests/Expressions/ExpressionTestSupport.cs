@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 
@@ -82,38 +83,46 @@ internal static class ExpressionTestSupport
     public static VegaLiteLimits Steps(long steps) => new() { MaxEvaluationSteps = steps };
 
     /// <summary>
-    ///     Runs an action with the current culture set to a named culture and restores the previous cultures afterwards.
+    ///     Runs an action on a dedicated thread whose culture is a named culture. The cultures of the calling (test)
+    ///     thread, and the process-wide default cultures, are never changed.
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="cultureName">The culture name; the empty text selects the invariant culture.</param>
     /// <param name="action">The action.</param>
-    /// <returns>The result of the action.</returns>
+    /// <returns>The result of the action; an exception of the action is rethrown with its original stack.</returns>
     public static T UnderCulture<T>(string cultureName, Func<T> action)
     {
-        var previous = CultureInfo.CurrentCulture;
-        var previousUi = CultureInfo.CurrentUICulture;
+        // A host without culture data (invariant globalization) cannot create the named culture; the invariant one is used then
+        CultureInfo culture;
         try
         {
-            // A host without culture data (invariant globalization) cannot create the named culture; the invariant one is used then
-            CultureInfo culture;
+            culture = CultureInfo.GetCultureInfo(cultureName);
+        }
+        catch (CultureNotFoundException)
+        {
+            culture = CultureInfo.InvariantCulture;
+        }
+
+        T result = default!;
+        ExceptionDispatchInfo? failure = null;
+        var worker = new Thread(() =>
+        {
             try
             {
-                culture = CultureInfo.GetCultureInfo(cultureName);
+                // The cultures belong to this worker thread only
+                Thread.CurrentThread.CurrentCulture = culture;
+                Thread.CurrentThread.CurrentUICulture = culture;
+                result = action();
             }
-            catch (CultureNotFoundException)
+            catch (Exception ex)
             {
-                culture = CultureInfo.InvariantCulture;
+                failure = ExceptionDispatchInfo.Capture(ex);
             }
-
-            CultureInfo.CurrentCulture = culture;
-            CultureInfo.CurrentUICulture = culture;
-            return action();
-        }
-        finally
-        {
-            CultureInfo.CurrentCulture = previous;
-            CultureInfo.CurrentUICulture = previousUi;
-        }
+        });
+        worker.Start();
+        worker.Join();
+        failure?.Throw();
+        return result;
     }
 
     /// <summary>

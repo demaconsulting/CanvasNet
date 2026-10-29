@@ -549,8 +549,8 @@ construct.
 
 The **stable report identifiers** are part of the public contract of the package and are listed in the XML
 documentation of the internal `FeatureCatalog` type. Identifiers are lower case, of the form `vl-<area>-<detail>`; a
-name taken from the specification is lower-cased without separators (`timeUnit` gives `timeunit`), except the name of an
-expression function, which keeps its case (`vl-expr-function-timeFormat`):
+name taken from the specification is lower-cased without separators (`timeUnit` gives `timeunit`), and so is the name
+of an expression function (`timeFormat` gives `vl-expr-function-timeformat`; the message keeps the name as written):
 
 <!-- markdownlint-disable MD013 -->
 | Identifier | Kind | Reported at, and when |
@@ -575,7 +575,7 @@ expression function, which keeps its case (`vl-expr-function-timeFormat`):
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-format-type-custom` | Unsupported | `axis.formatType` |
 | `vl-expr-ref`, `vl-expr-label` | Unsupported | An `{"expr": ...}` value that the renderer does not evaluate (in a title, size, padding, background, view, a mark property other than the row-bound paint properties, or an encoding other than the `value` of a color, fill, stroke, opacity, or symbol size channel), and `axis.labelExpr` |
-| `vl-expr-function-<name>` | Unsupported | The expression text of a supported site, for a call of a function outside the table of 57 (the name as written, case kept, for example `vl-expr-function-timeFormat`) |
+| `vl-expr-function-<name>` | Unsupported | The expression text of a supported site, for a call of a function outside the table of 57 (the name lower-cased with the invariant culture, the message keeps it as written, for example `vl-expr-function-timeformat` for `timeFormat`) |
 | `vl-expr-view-state` | Unsupported | The expression text of a supported site, for `signal`, `event`, `item`, or a view signal (`width`, `height`, `padding`, `autosize`, `background`, `cursor`) that no parameter declares |
 | `vl-expr-construct-<name>` | Unsupported | The expression text of a supported site, for a deferred operator: `bitwise-and`, `bitwise-or`, `bitwise-xor`, `shift-left`, `shift-right`, `shift-right-unsigned`, or `in` |
 | `vl-expr-runtime` | Warning | A `calculate` expression, at render time, when it produced a regular expression, which cannot be stored in a field (null is stored; one report per transform with the count and the first row) |

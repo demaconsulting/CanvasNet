@@ -175,16 +175,20 @@ and opacity channel values produces no reports at all, so strict mode accepts th
 
 ##### Unsupported Expression Constructs Are Reported At The Expression
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression`
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression`,
+`FeatureCatalogTests.FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier`
 
 Asserts that the constructs that the compiled expressions list are reported once each, in document order, at the string
 value of the expression (the pointer of the `expr`, `calculate`, or `filter` string, and of an expression inside a
 predicate such as `/transform/4/filter/or/0`), as unsupported features with the message form "… (at expression offset
-N)": `vl-expr-function-datetime`, `vl-expr-function-timeFormat`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
-name as written); `vl-expr-view-state` for `signal` and `event` in one filter and an undeclared `height` while
+N)": `vl-expr-function-datetime`, `vl-expr-function-timeformat`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
+name lower-cased; the message of the `timeFormat` report names it as written); `vl-expr-view-state` for `signal` and
+`event` in one filter and an undeclared `height` while
 `width`, which the specification declares as a parameter, is silent; and `vl-expr-construct-bitwise-and` and
 `vl-expr-construct-in`. It asserts that the first report is at line 2 (the parameter's expression) and that the message
-of the view-state report names `'height'`.
+of the view-state report names `'height'`. A second scenario calls `timeFormat`, `timeformat`, and `TIMEFORMAT` in one
+expression and asserts three reports with the one identifier `vl-expr-function-timeformat`, in order of appearance, with
+three distinct messages that name each spelling as written (so nothing is merged or lost).
 
 ##### Transforms Of Later Phases, Conditions, And Selections Stay Reported
 
