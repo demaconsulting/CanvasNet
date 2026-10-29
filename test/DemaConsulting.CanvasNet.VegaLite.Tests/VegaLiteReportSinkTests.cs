@@ -73,7 +73,8 @@ public class VegaLiteReportSinkTests
     }
 
     /// <summary>
-    ///     Validates that strict mode records the report and then throws, even when the buffer is full.
+    ///     Validates that strict mode records the report and then throws, even when the buffer is full, so that the report is
+    ///     delivered to the handler before the exception is seen.
     /// </summary>
     [Fact]
     public void VegaLiteReportSink_Strict_ThrowsAtFirstUnsupportedFeatureAfterRecordingIt()
@@ -85,12 +86,12 @@ public class VegaLiteReportSinkTests
 
         // Act
         var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => sink.Unsupported("vl-mark-arc", "no arcs", Where));
-        sink.Deliver(null, u => delivered.Add(u.Feature));
+        sink.Deliver(w => delivered.Add(w.Message), u => delivered.Add(u.Feature));
 
-        // Assert
+        // Assert: the warning that filled the buffer, then the feature that the exception is about, each once
         Assert.Equal("vl-mark-arc", ex.Feature);
         Assert.Equal(Where, ex.Location);
-        Assert.Empty(delivered);
+        Assert.Equal(["fills the buffer", "vl-mark-arc"], delivered);
     }
 
     /// <summary>

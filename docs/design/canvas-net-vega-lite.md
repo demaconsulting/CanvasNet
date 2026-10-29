@@ -220,7 +220,7 @@ input:
   | `MaxFieldCount` | 1,024 | `DataTable`, `DataLoader` | `VegaLiteRenderException` |
   | `MaxScaleDomainSize` | 100,000 values | `ScaleResolver` | `VegaLiteRenderException` |
   | `MaxTicks` | 1,000 per axis | `Ticks`, `AxisBuilder` | `VegaLiteRenderException` (also for categories) |
-  | `MaxSceneItems` | 2,000,000 | `MarkBuilder`, `SceneBudget`, `VegaLiteDocument` | `VegaLiteRenderException`, counted in 1,024-row batches before memory is spent |
+  | `MaxSceneItems` | 2,000,000 | `MarkBuilder`, `SceneBudget`, `VegaLiteDocument` | `VegaLiteRenderException`, counted as each item is created, before it is kept |
   | `MaxDiagnostics` | 1,000 | `VegaLiteReportSink` | Further reports collapse into one `vl-diagnostics-suppressed` notice; strict mode is unaffected |
   | `MaxDataFiles`, `MaxDataBytes`, `MaxViews`, `MaxCompositionDepth`, `MaxExpressionLength`, `MaxExpressionDepth`, `MaxEvaluationSteps` | 64, 64 MiB, 1,000, 16 (1 to 64), 4,096, 64 (1 to 256), 50,000,000 | Reserved for the data-file, composition, and expression phases | Not yet enforced: the corresponding constructs are reported as unsupported |
   <!-- markdownlint-enable MD013 -->
@@ -293,7 +293,8 @@ input:
    composition or an unsupported mark). Otherwise the chart is built: the axes are built for the current data
    rectangle, their extents measured, and the layout re-measured, at most three times, until the data rectangle is
    stable (it is stable at once for fixed sizes); the `MarkBuilder` then builds the marks once for the final rectangle,
-   the item budget being charged for the axes and counted per batch of rows; and `ViewLayout.Build` assembles the
+   the item budget being charged for the axes and for each mark item as it is created; and `ViewLayout.Build`
+   assembles the
    scene (root, view group, grids, axes behind the marks, the marks group, axes in front, title) and the natural
    size. When this fails with a specification or render error, the reports found so far are still delivered before
    the error is rethrown.

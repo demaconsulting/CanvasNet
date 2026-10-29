@@ -307,6 +307,23 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the scene budget counts what is created: thousands of rows that draw nothing fit a small budget.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_RowsThatDrawNothingCostNoBudget()
+    {
+        // Arrange: 5000 rows whose x is null, so no mark exists; the axis and the marks group need far fewer than 100 items
+        var rows = string.Join(',', Enumerable.Range(0, 5000).Select(_ => "{\"v\":null}"));
+        var document = VegaLiteDocument.Parse("{\"mark\":\"point\",\"data\":{\"values\":[" + rows + "]},\"encoding\":{\"x\":{\"field\":\"v\",\"type\":\"quantitative\"}}}");
+
+        // Act
+        using var surface = document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 100 } }, Ct);
+
+        // Assert
+        Assert.True(surface.Width > 0);
+    }
+
+    /// <summary>
     ///     Validates that a caller configuration changes the drawn chart: a zero tick size removes the tick marks.
     /// </summary>
     [Fact]

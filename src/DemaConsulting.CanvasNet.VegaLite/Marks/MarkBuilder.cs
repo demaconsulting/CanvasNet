@@ -707,18 +707,27 @@ internal sealed class MarkBuilder
         }
 
         /// <summary>
-        ///     Reports a batch of rows to the budget and the cancellation token.
+        ///     Checks the cancellation token once per batch of rows.
         /// </summary>
-        /// <param name="row">The row that starts a batch.</param>
+        /// <param name="row">The row that is about to be processed.</param>
         private void Batch(int row)
         {
-            if (row % BatchSize != 0)
+            if (row % BatchSize == 0)
             {
-                return;
+                _cancellationToken.ThrowIfCancellationRequested();
             }
+        }
 
-            _cancellationToken.ThrowIfCancellationRequested();
-            _owner._budget.Add(Math.Min(BatchSize, _table.RowCount - row), _location);
+        /// <summary>
+        ///     Counts one item against the scene budget and adds it, so the budget counts exactly the items that exist (a
+        ///     row that draws nothing costs nothing) and fails before the item that passes the limit is kept.
+        /// </summary>
+        /// <param name="items">The items of the mark.</param>
+        /// <param name="item">The new item.</param>
+        private void Emit(List<SceneItem> items, SceneItem item)
+        {
+            _owner._budget.Add(1, _location);
+            items.Add(item);
         }
 
         /// <summary>
@@ -745,7 +754,7 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
-                items.Add(Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius }, paint));
+                Emit(items, Style(new SceneRect("mark-" + _type, xs.Start, ys.Start, xs.Length, ys.Length) { CornerRadius = radius }, paint));
             }
 
             return items;
@@ -788,7 +797,7 @@ internal sealed class MarkBuilder
 
                 if (rect is not null)
                 {
-                    items.Add(Style(rect, paint));
+                    Emit(items, Style(rect, paint));
                 }
             }
 
@@ -844,7 +853,7 @@ internal sealed class MarkBuilder
 
                 if (rule is not null)
                 {
-                    items.Add(Style(rule, paint));
+                    Emit(items, Style(rule, paint));
                 }
             }
 
@@ -879,7 +888,7 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
-                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = shape, Size = area, Angle = angle }, paint));
+                Emit(items, Style(new SceneSymbol("mark-" + _type, px, py) { Shape = shape, Size = area, Angle = angle }, paint));
             }
 
             return items;

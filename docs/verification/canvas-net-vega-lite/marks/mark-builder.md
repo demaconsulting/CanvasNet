@@ -110,3 +110,10 @@ size value is not a number is dropped.
 Asserts that more items than a `MaxSceneItems` of 3 throw `VegaLiteRenderException` at `/mark` naming the limit; that a
 canceled token throws `OperationCanceledException`; that a `line` mark gives an empty group and `IsSupported` is true for
 `tick` and false for `line` and null; that a rule without x and y draws nothing; and that null arguments are rejected.
+
+##### Budget Counts Only The Items Created
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated`
+
+Asserts that a point mark over five rows, three of which have no valid x, creates two items and charges a shared budget
+of two exactly twice, without failing.

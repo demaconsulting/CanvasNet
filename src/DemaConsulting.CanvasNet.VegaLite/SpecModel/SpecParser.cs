@@ -279,8 +279,13 @@ internal sealed partial class SpecParser
         }
         while (root is null && reader.Read());
 
-        // Reading past the closing brace makes the reader reject any trailing content
-        reader.Read();
+        // Anything after the root object but whitespace is an error: the reader throws for malformed trailing text, and a
+        // further token (a second value) is rejected here, at its position
+        if (reader.Read())
+        {
+            throw Fail("Unexpected content after the end of the specification; a Vega-Lite specification is a single JSON object.", string.Empty, reader.TokenStartIndex);
+        }
+
         return root!;
     }
 

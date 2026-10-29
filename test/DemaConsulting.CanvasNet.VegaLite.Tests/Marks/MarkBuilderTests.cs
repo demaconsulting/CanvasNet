@@ -261,6 +261,28 @@ public class MarkBuilderTests
     }
 
     /// <summary>
+    ///     Validates that the budget counts the items that are created: rows that draw nothing cost nothing, and the marks group
+    ///     and the axes are counted without an item too many.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated()
+    {
+        // Arrange: five rows of which three have no valid x, so only two symbols exist
+        var parts = ChartTestHelpers.Parts(Spec(
+            "\"point\"",
+            "{ \"x\": { \"field\": \"q\", \"type\": \"quantitative\" } }",
+            "[ { \"q\": 1 }, { \"q\": null }, { \"q\": 2 }, { \"q\": \"n/a\" }, { \"q\": \"none\" } ]"));
+        var budget = new SceneBudget(2);
+
+        // Act
+        var group = new MarkBuilder(parts.Config, budget: budget).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken);
+
+        // Assert: two items fit a budget of two, and exactly two were counted
+        Assert.Equal(2, group.Children.Count);
+        Assert.Equal(2, budget.Count);
+    }
+
+    /// <summary>
     ///     Validates the limits, cancellation and the marks that are not drawn.
     /// </summary>
     [Fact]

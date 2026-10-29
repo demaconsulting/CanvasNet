@@ -87,7 +87,8 @@ The parser is fail-fast: the first problem aborts the parse with one exception a
 longer than `MaxSourceLength` is an `InvalidDataException` (no location is meaningful). Everything else is a
 `VegaLiteSpecException` with the source name, pointer, line, and column of the offending construct: malformed JSON (the
 first problem), invalid UTF-8, nesting deeper than `MaxJsonDepth` (at the crossing), a string longer than
-`MaxStringLength`, a number outside the double range, a root that is not an object, a `$schema` naming plain Vega, and a
+`MaxStringLength`, a number outside the double range, a root that is not an object, any content after the root object other
+than whitespace (a second value is rejected at its own position), a `$schema` naming plain Vega, and a
 known property of the wrong type or value (the first in document order). A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
 

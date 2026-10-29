@@ -5,9 +5,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///     limit (<see cref="VegaLiteLimits.MaxSceneItems"/>).
 /// </summary>
 /// <remarks>
-///     The budget is what keeps a hostile or simply huge data set from allocating an unbounded scene: marks are counted
-///     in batches while they are built, so the failure happens before the memory is spent. An instance belongs to one
-///     render and is not thread-safe.
+///     The budget is what keeps a hostile or simply huge data set from allocating an unbounded scene: every item is
+///     counted when it is created (a row that draws nothing costs nothing), so the failure happens before the memory is
+///     spent. The count saturates at <see cref="long.MaxValue"/>. An instance belongs to one render and is not
+///     thread-safe.
 /// </remarks>
 internal sealed class SceneBudget
 {
@@ -27,14 +28,15 @@ internal sealed class SceneBudget
     public long Count { get; private set; }
 
     /// <summary>
-    ///     Counts items that are about to be created.
+    ///     Counts items that are about to be created; the count saturates instead of overflowing.
     /// </summary>
     /// <param name="items">The number of items; 0 or more.</param>
     /// <param name="location">The location of the construct that creates them, for the failure.</param>
     /// <exception cref="VegaLiteRenderException">Thrown, with <paramref name="location"/>, when the total passes the limit.</exception>
     public void Add(long items, VegaLiteLocation location)
     {
-        Count += Math.Max(0, items);
+        var add = Math.Max(0, items);
+        Count = add > long.MaxValue - Count ? long.MaxValue : Count + add;
         if (Count > _max)
         {
             throw new VegaLiteRenderException(

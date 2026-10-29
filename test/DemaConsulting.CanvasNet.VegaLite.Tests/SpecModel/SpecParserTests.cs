@@ -165,6 +165,9 @@ public class SpecParserTests
     [InlineData("\"text\"")]
     [InlineData("{} x")]
     [InlineData("{}{}")]
+    [InlineData("{} {}")]
+    [InlineData("{}1")]
+    [InlineData("{}\n[]")]
     [InlineData("{\"a\": 1,}")]
     [InlineData("{\"a\": // c\n 1}")]
     [InlineData("{\"a\": \"unterminated}")]
@@ -176,6 +179,26 @@ public class SpecParserTests
         // Assert
         Assert.True(ex.Location.Line >= 1);
         Assert.True(ex.Location.Column >= 1);
+    }
+
+    /// <summary>
+    ///     Validates that a second JSON value after the specification is rejected at its own position, and that trailing
+    ///     whitespace is fine.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_TrailingValueIsRejectedAtItsLocationButWhitespaceIsAccepted()
+    {
+        // Arrange / Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse("{}\n  {}", "t.json"));
+        var spaced = SpecParser.Parse("{}  ");
+        var lines = SpecParser.Parse("{}\r\n\r\n");
+
+        // Assert: the second value starts at line 2, column 3 of the named source
+        Assert.Equal(2, ex.Location.Line);
+        Assert.Equal(3, ex.Location.Column);
+        Assert.Equal("t.json", ex.Location.File);
+        Assert.NotNull(spaced.Root);
+        Assert.NotNull(lines.Root);
     }
 
     /// <summary>

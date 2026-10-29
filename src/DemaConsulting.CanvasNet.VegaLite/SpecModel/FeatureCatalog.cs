@@ -1,4 +1,5 @@
 using System.Globalization;
+using DemaConsulting.CanvasNet.VegaLite.Scales;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -62,7 +63,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-scale-color-ramp</c></term><description>the <c>type</c> of a <c>color</c>, <c>fill</c> or <c>stroke</c> channel that has a <c>field</c> and is quantitative (a continuous color scale is not drawn; the default mark color is used).</description></item>
 ///         <item><term><c>vl-encoding-aggregate</c>, <c>-bin</c>, <c>-timeunit</c>, <c>-stack</c>, <c>-sort</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel. <c>bin</c> is reported unless it is false or null; <c>stack</c> unless it is false or null (an implicit stack of bars is reported at the measure channel); <c>sort</c> only for a channel shorthand (such as <c>"-y"</c>) or an object (sort by another field), not for ascending, descending, null or an array of values.</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
-///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it is <c>tableau10</c>.</description></item>
+///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it names <c>tableau10</c> (compared without regard to case, as the scale resolver does) or the scale has an explicit color <c>range</c>, which overrides it.</description></item>
 ///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
@@ -578,9 +579,12 @@ internal static class FeatureCatalog
                 }
                 else if (name == "scheme")
                 {
-                    // Only the default categorical palette is available; any other scheme falls back to it
+                    // Only the default categorical palette is available (the lookup the scale resolver uses, so the two agree on
+                    // the name's case); any other scheme falls back to it. An explicit color range overrides a scheme, so a scheme
+                    // next to one is never applied and is not reported
                     var scheme = property.IsString ? property.StringValue : property["name"]?.AsString();
-                    if (!string.Equals(scheme, "tableau10", StringComparison.Ordinal))
+                    var hasRange = scale["range"] is { IsArray: true, Items.Count: > 0 } range && range.Items.All(i => i.IsString);
+                    if (!hasRange && !ColorSchemes.TryGetScheme(scheme, out _))
                     {
                         Unsupported(Id("scale-property", name), $"The color scheme '{scheme}' is not available; tableau10 is used instead.", property);
                     }

@@ -87,7 +87,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   is unknown; the standard parameterless, message, and message-plus-inner-exception constructors leave the location
   unknown. `VegaLiteSpecException` derives from `FormatException` because `InvalidDataException` is sealed.
 - **`VegaLiteReportSink`** (internal sealed class) - the buffer of one call: recorded warnings and unsupported
-  features in order, de-duplicated by value, capped at `MaxDiagnostics`, with the strict-mode switch.
+  features in order, de-duplicated by value, capped at `MaxDiagnostics`, with the strict-mode switch (strict mode always
+  records the first unsupported feature, even beyond the cap, so the handler receives it before the exception is thrown).
 
 ### Key Methods
 

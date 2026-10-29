@@ -15,7 +15,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         Identical reports (same message and location) are recorded once. At most
 ///         <see cref="VegaLiteLimits.MaxDiagnostics"/> reports are kept; the first one beyond the cap is replaced by a
 ///         single <c>vl-diagnostics-suppressed</c> notice and the rest are dropped, so a hostile specification cannot
-///         grow the buffer without bound. Strict mode is unaffected by the cap: the first unsupported feature throws.
+///         grow the buffer without bound. Strict mode is unaffected by the cap: the first unsupported feature is always
+///         recorded, so it is delivered to the handler before the exception that it causes is thrown.
 ///         An instance is used by one call on one thread.
 ///     </para>
 /// </remarks>
@@ -81,7 +82,8 @@ internal sealed class VegaLiteReportSink
         var report = new VegaLiteUnsupportedFeature(feature, message, location);
         if (_seenUnsupported.Add(report))
         {
-            Add((null, report));
+            // Strict mode delivers the report that it throws for, even when the buffer is full of earlier reports
+            Add((null, report), force: _throwOnUnsupported);
         }
 
         // Strict mode must stop at the first report even when the buffer is full
@@ -135,9 +137,10 @@ internal sealed class VegaLiteReportSink
     ///     Adds a report, applying the cap.
     /// </summary>
     /// <param name="report">The report.</param>
-    private void Add((VegaLiteDiagnostic?, VegaLiteUnsupportedFeature?) report)
+    /// <param name="force">Whether to keep the report beyond the cap (the report that strict mode throws for).</param>
+    private void Add((VegaLiteDiagnostic?, VegaLiteUnsupportedFeature?) report, bool force = false)
     {
-        if (_events.Count < _maxReports)
+        if (force || _events.Count < _maxReports)
         {
             _events.Add(report);
             return;

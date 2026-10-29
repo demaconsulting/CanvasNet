@@ -29,7 +29,9 @@ construct (the value; for an unknown property or a duplicate key, the key), and 
 point, circle, square, rule, tick), the supported channels (x, y, color, fill, stroke, size, opacity), the ignored
 channels (tooltip, href, description, key), the geographic channels, the legend channels, the supported scale types
 (linear, band, point, ordinal), the supported scale properties (type, domain, range, zero, nice, padding, reverse,
-paddingInner, paddingOuter, align, round, clamp, scheme), the unsupported axis properties, the scopes in which an
+paddingInner, paddingOuter, align, round, clamp, scheme; `scheme` is reported unless it names `tableau10`, compared
+without regard to case like the scale resolver, or the scale has an explicit color `range` that overrides it), the
+unsupported axis properties, the scopes in which an
 expression value is looked for, the composition properties, and the delimited text formats. An identifier is built from
 an area and a name taken from the specification, lower-cased with the invariant culture and without separators
 (`timeUnit` gives `timeunit`).

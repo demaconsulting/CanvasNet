@@ -46,6 +46,7 @@ their band or value; a rule is a full-width or full-height line, or a stem from 
 from `ScaleResolver.InferOrient`. A row with an invalid value on a continuous channel is not drawn (Vega-Lite 6 `filter`
 behavior), and a value outside an explicit discrete domain is not drawn.
 
-**Bounded.** The item budget is charged in batches of 1,024 rows before the items are created, so a huge or hostile data
-set fails with a located `VegaLiteRenderException` before memory is spent, and the cancellation token is polled in the same
-batches. Marks are clipped to the data rectangle only when the mark definition says `"clip": true`.
+**Bounded.** The item budget is charged for each item as it is created (a row that draws nothing costs nothing), so a
+huge or hostile data set fails with a located `VegaLiteRenderException` before more memory is spent, and the
+cancellation token is polled every 1,024 rows. Marks are clipped to the data rectangle only when the mark definition
+says `"clip": true`.

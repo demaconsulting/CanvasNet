@@ -332,10 +332,14 @@ public sealed partial class VegaLiteDocument
 
         var location = _tree.Root["encoding"]?.GetLocation(sourceName) ?? default;
         var content = new List<SceneItem>(axes.Count * 2 + 1);
+        // Count what the axes created: their items plus their groups (the grid group exists only when there are grid lines)
         foreach (var axis in axes)
         {
-            budget.Add(axis.ItemCount + 2, location);
+            budget.Add(axis.ItemCount + (axis.Grid is null ? 1 : 2), location);
         }
+
+        // The marks group, then one item per mark that is drawn
+        budget.Add(1, location);
 
         // Vega-Lite draws the grids first, then the axes that are behind the marks, the marks, and last the axes in front of them
         content.AddRange(axes.Where(a => a.Grid is not null).Select(a => (SceneItem)a.Grid!));

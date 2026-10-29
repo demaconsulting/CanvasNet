@@ -61,8 +61,9 @@ the drawing order; the empty bounds contain nothing.
   always yields the same sequence.
 - `SceneBounds.Union`, `Translate`, and `Rotate` - the arithmetic that layout uses to grow the bounds of a view; the empty
   box stays empty; sine and cosine are snapped near 0 and 1 so that quarter turns are exact.
-- `SceneBudget.Add(items, location)` - adds a non-negative count and throws a `VegaLiteRenderException` carrying the
-  location when the total passes the maximum (`MaxSceneItems`).
+- `SceneBudget.Add(items, location)` - adds a non-negative count (the total saturates at the largest `long` instead of
+  overflowing) and throws a `VegaLiteRenderException` carrying the location when the total passes the maximum
+  (`MaxSceneItems`). The chart counts the axis groups and their items, the marks group, and each mark item as it is created.
 
 **Preconditions and postconditions**: scene sizes are finite and not negative; the budget maximum is at least 1.
 

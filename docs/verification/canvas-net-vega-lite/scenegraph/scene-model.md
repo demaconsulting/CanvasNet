@@ -89,4 +89,8 @@ under translation and rotation, and that it is the identity of the union.
 The budget (`SceneBudget`) is an internal helper that counts the scene items a builder creates against
 `MaxSceneItems`; it has no behavior of its own beyond that counting, so it is verified through its users: a mark builder
 with a limit of 3 fails with a `VegaLiteRenderException` that names the limit and points at the mark, and a document with
-more rows than the budget allows fails with the same exception, with the reports found before the failure delivered.
+more rows than the budget allows fails with the same exception, with the reports found before the failure delivered, while
+rows that draw nothing cost nothing (`CanvasNetVegaLite_SystemIntegration_Limits_RowsThatDrawNothingCostNoBudget`).
+`SceneBudgetTests` also verifies the exact count (the limit itself is allowed) and that the count saturates at the largest
+`long` rather than wrapping around (`SceneBudget_Add_CountsExactlyAndFailsBeyondTheLimit`,
+`SceneBudget_Add_SaturatesInsteadOfOverflowing`).

@@ -598,6 +598,38 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that strict mode delivers, once and in order, the warnings found before the first unsupported feature and that
+    ///     feature itself (even when the diagnostics cap is already reached) to the handlers before it throws, for measuring and
+    ///     for both render overloads.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Strict_DeliversTheReportsBeforeThrowing()
+    {
+        // Arrange: a version warning, then an unsupported mark and a second unsupported channel; the cap of one is already full
+        var document = VegaLiteDocument.Parse(
+            "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"mark\":\"arc\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
+        var log = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            ThrowOnUnsupportedFeature = true,
+            Limits = new VegaLiteLimits { MaxDiagnostics = 1 },
+            WarningHandler = w => log.Add("W " + w.Message[..17]),
+            UnsupportedFeatureHandler = u => log.Add($"U {u.Feature} {u.Location.Pointer}"),
+        };
+
+        // Act / Assert: every entry point throws for the first feature after delivering exactly [warning, feature]
+        string[] expected = ["W vl-schema-version", "U vl-mark-arc /mark"];
+        Assert.Equal("vl-mark-arc", Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(options, Ct)).Feature);
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(64, 64, options, Ct));
+        Assert.Equal(expected, log);
+        log.Clear();
+        Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Measure(options, Ct));
+        Assert.Equal(expected, log);
+    }
+
+    /// <summary>
     ///     Validates that remote data is reported and never fetched or resolved, and that empty inline data warns.
     /// </summary>
     [Fact]

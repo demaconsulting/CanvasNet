@@ -57,10 +57,12 @@ sections:
               - id: CanvasNetVegaLite-Marks-MarkBuilder-Limits
                 title: >-
                   The MarkBuilder unit shall fail with a located VegaLiteRenderException when the number
-                  of scene items would exceed the scene-item limit, counted in batches before the memory
-                  is spent, shall stop with an OperationCanceledException when the cancellation token is
-                  canceled, and shall build nothing for a mark type it does not support.
+                  of scene items would exceed the scene-item limit, counting each item as it is created
+                  (a row that draws nothing costs nothing), shall stop with an OperationCanceledException
+                  when the cancellation token is canceled, and shall build nothing for a mark type it does
+                  not support.
                 justification: |
                   Marks scale with the data, so their number and their time must be bounded.
                 tests:
                   - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
+                  - MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated

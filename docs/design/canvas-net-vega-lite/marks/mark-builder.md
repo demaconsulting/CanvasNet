@@ -58,8 +58,9 @@ definition are honored. Explicit mark properties win over style, `config.<mark>`
 
 - `IsSupported(string? markType)` (static) - true for the seven drawn mark types.
 - `Build(view, table, scales, width, height, token)` - reads the mark type (a string or the `type` of a mark definition);
-  returns an empty `marks` group for an unsupported type; otherwise builds the rows of the table in batches of
-  1,024 (charging the item budget and polling the token per batch), creating bar and rect items, symbol items, rule items,
+  returns an empty `marks` group for an unsupported type; otherwise builds the rows of the table (polling the token every
+  1,024 rows and charging the item budget one item at a time as each item is created, so a row that draws nothing costs
+  nothing), creating bar and rect items, symbol items, rule items,
   and tick items with resolved geometry and paint, and returns the group, clipped to the data rectangle only when the
   mark definition says `"clip": true`.
 - Row filtering - a row whose value for a continuous channel (`x`, `y`, `size`, or `opacity` on a linear scale) is null,
@@ -71,8 +72,9 @@ item per visible mark in row order (deterministic), and the budget has been char
 
 #### Error Handling
 
-Exceeding `MaxSceneItems` is a `VegaLiteRenderException` located at the mark, thrown before the items of the batch are
-created (the `SceneBudget` carries the failure). A canceled token is an `OperationCanceledException`. A null configuration,
+Exceeding `MaxSceneItems` is a `VegaLiteRenderException` located at the mark, thrown as soon as the item that passes
+the limit would be created (the `SceneBudget` carries the failure). A canceled token is an
+`OperationCanceledException`. A null configuration,
 view, table, or scales argument is `ArgumentNullException` (not converted). Invalid data is not an error: affected rows
 are dropped as described above. A mark type that is not drawn yields an empty group, because the feature catalog has already
 reported it. The unit performs no I/O.

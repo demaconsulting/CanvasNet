@@ -516,6 +516,31 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
+    ///     Validates that the scheme report agrees with the scale resolver: the name is matched without regard to case, an
+    ///     explicit color range overrides the scheme (so nothing is reported), and each report is made once with its pointer.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_SchemeReportAgreesWithTheResolver()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "nominal", "scale": { "scheme": "Tableau10" }, "legend": null },
+              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "blues", "range": ["red", "blue"] }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "BLUES" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
+
+        // Assert: only the unavailable scheme without a range is reported
+        var report = Assert.Single(reports);
+        Assert.Equal(("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"), (report.Id, report.Location.Pointer));
+        Assert.Contains("'BLUES'", report.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the axis rules: guide encodes, expressions and custom formats, and the listed unsupported properties.
     /// </summary>
     [Fact]
