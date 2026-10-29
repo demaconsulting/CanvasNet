@@ -4,8 +4,9 @@ using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 namespace DemaConsulting.CanvasNet.VegaLite.Tests.Data;
 
 /// <summary>
-///     Tests of the inline data loader: the rows it reads, the sources it never reads, and its limits. Where the feature
-///     catalog is responsible for a report, the test also checks the report through <see cref="VegaLiteDocument"/>.
+///     Tests of the data loader: the rows it reads from inline values, local CSV, TSV, DSV and JSON files, named datasets
+///     and sequences, the sources it only reports, and its limits. Where the feature catalog is responsible for a report,
+///     the test also checks the report through <see cref="VegaLiteDocument"/>.
 /// </summary>
 public class DataLoaderTests
 {
@@ -171,27 +172,33 @@ public class DataLoaderTests
     }
 
     /// <summary>
-    ///     Validates that every other kind of source is an empty table and is reported by the catalog.
+    ///     Validates that the sources that are only reported (text and object values, geographic generators, remote data) are
+    ///     empty tables and are reported by the catalog.
     /// </summary>
     [Theory]
-    [InlineData("""{"url":"rows.json"}""", "vl-data-file")]
-    [InlineData("""{"name":"table"}""", "vl-data-named")]
-    [InlineData("""{"sequence":{"start":0,"stop":3}}""", "vl-data-sequence")]
     [InlineData("""{"values":"a,b\n1,2"}""", "vl-data-values-text")]
+    [InlineData("""{"values":{"type":"Topology"}}""", "vl-data-geo")]
+    [InlineData("""{"sphere":true}""", "vl-data-geo")]
+    [InlineData("""{"url":"rows.topojson","format":{"type":"topojson"}}""", "vl-data-geo")]
     [InlineData("""{"url":"\\\\server\\share\\rows.json"}""", "vl-data-remote-url")]
+    [InlineData("""{"url":"https://example.org/rows.csv"}""", "vl-data-remote-url")]
+    [InlineData("""{"url":"/etc/hosts"}""", "vl-data-remote-url")]
     public void DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog(string dataJson, string expectedFeature)
     {
-        // Arrange
+        // Arrange: a document with a resolver callback that must never be asked (nothing here may touch a file)
         var json = "{\"data\":" + dataJson + ",\"mark\":\"point\"}";
         var tree = SpecParser.Parse(json);
+        var asked = new List<string>();
+        var open = new VegaLiteOpenOptions { FileResolver = path => { asked.Add(path); return null; } };
 
         // Act
-        var table = DataLoader.Load(tree.Root["data"], null, null, Ct);
+        var table = new DataLoader(null, null, open, cancellationToken: Ct).Load(tree.Root["data"]);
         var features = FeatureCatalog.Visit(tree).Select(r => r.Id).ToList();
 
         // Assert
         Assert.Same(DataTable.Empty, table);
         Assert.Contains(expectedFeature, features);
+        Assert.Empty(asked);
     }
 
     /// <summary>
@@ -272,5 +279,427 @@ public class DataLoaderTests
         Assert.Equal(20_000, table.RowCount);
         Assert.Equal("c19999", table.GetValue(19_999, "k").Text);
         Assert.Equal(19_999, table.GetValue(19_999, "v").Number);
+    }
+
+    /// <summary>The location the tests build for virtual files.</summary>
+    private const string SpecName = "spec.vl.json";
+
+    /// <summary>
+    ///     Creates a loader over a specification tree with open options and optional datasets.
+    /// </summary>
+    /// <param name="tree">The specification.</param>
+    /// <param name="open">The open options, or null for none.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <param name="caller">The caller's datasets, or null.</param>
+    /// <returns>The loader.</returns>
+    private static DataLoader CreateLoader(
+        SpecTree tree,
+        VegaLiteOpenOptions? open = null,
+        VegaLiteLimits? limits = null,
+        IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>? caller = null) =>
+        new(tree.SourceName, limits, open, tree.Root["datasets"], caller, Ct);
+
+    /// <summary>
+    ///     Parses a view with the given <c>data</c> object text.
+    /// </summary>
+    /// <param name="dataJson">The text of the <c>data</c> object.</param>
+    /// <param name="extra">Extra top-level members (such as <c>datasets</c>), starting with a comma, or empty.</param>
+    /// <returns>The tree.</returns>
+    private static SpecTree Spec(string dataJson, string extra = "") =>
+        SpecParser.Parse("{\"data\":" + dataJson + ",\"mark\":\"point\"" + extra + "}", SpecName);
+
+    /// <summary>
+    ///     Creates open options over a virtual file set.
+    /// </summary>
+    /// <param name="files">The files.</param>
+    /// <returns>The options.</returns>
+    private static VegaLiteOpenOptions Virtual(VirtualDataFiles files) => new() { FileResolver = files.Resolve };
+
+    /// <summary>
+    ///     Loads the <c>data</c> object of a view with a fresh loader.
+    /// </summary>
+    /// <param name="dataJson">The text of the <c>data</c> object.</param>
+    /// <param name="open">The open options, or null for none.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <returns>The table.</returns>
+    private static DataTable LoadData(string dataJson, VegaLiteOpenOptions? open = null, VegaLiteLimits? limits = null)
+    {
+        var tree = Spec(dataJson);
+        return CreateLoader(tree, open, limits).Load(tree.Root["data"]);
+    }
+
+    /// <summary>
+    ///     Validates that a relative <c>url</c> is read from the base directory, with the format taken from
+    ///     <c>format.type</c> or else from the extension, and that the cells are typed by per-column inference.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_LocalCsvUrlUsesRelativeFile()
+    {
+        // Arrange: a CSV with a quoted comma, a TSV, a semicolon DSV and a CSV whose extension is misleading
+        using var directory = new DataTempDirectory();
+        directory.Write("sub/t.csv", "k,v,ok,day\r\n\"a,x\",1,true,2024-01-01\r\nb,2.5,false,2024-01-02\r\n");
+        directory.Write("t.tsv", "k\tv\na\t7\n");
+        directory.Write("t.txt", "k;v\na;8\n");
+        directory.Write("really.json", "k,v\na,9\n");
+        var open = new VegaLiteOpenOptions { BaseDirectory = directory.Path };
+
+        // Act
+        var csv = LoadData("{\"url\":\"sub/t.csv\"}", open);
+        var tsv = LoadData("{\"url\":\"t.tsv\"}", open);
+        var dsv = LoadData("{\"url\":\"t.txt\",\"format\":{\"type\":\"dsv\",\"delimiter\":\";\"}}", open);
+        var typed = LoadData("{\"url\":\"really.json\",\"format\":{\"type\":\"csv\"}}", open);
+
+        // Assert: the CSV has typed columns
+        Assert.Equal(2, csv.RowCount);
+        Assert.Equal(["day", "k", "ok", "v"], csv.Fields);
+        Assert.Equal("a,x", csv.GetValue(0, "k").Text);
+        Assert.Equal(2.5, csv.GetValue(1, "v").Number);
+        Assert.True(csv.GetValue(0, "ok").Boolean);
+        Assert.Equal(DataValueKind.Date, csv.GetValue(1, "day").Kind);
+        Assert.Equal("2024-01-02T00:00:00.000Z", csv.GetValue(1, "day").ToText());
+
+        // Assert: the extension chooses TSV, a DSV names its delimiter, and format.type beats the extension
+        Assert.Equal(7, tsv.GetValue(0, "v").Number);
+        Assert.Equal(8, dsv.GetValue(0, "v").Number);
+        Assert.Equal(9, typed.GetValue(0, "v").Number);
+    }
+
+    /// <summary>
+    ///     Validates the format guessed from the extension of a path.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <param name="expected">The format type.</param>
+    [Theory]
+    [InlineData("a.csv", "csv")]
+    [InlineData("dir/A.CSV", "csv")]
+    [InlineData("a.tsv", "tsv")]
+    [InlineData("a.TSV", "tsv")]
+    [InlineData("a.json", "json")]
+    [InlineData("a.txt", "json")]
+    [InlineData("a", "json")]
+    [InlineData("data.csv/rows", "json")]
+    public void DataLoader_InferFormatType_UsesTheExtension(string path, string expected)
+    {
+        // Arrange / Act
+        var type = DataLoader.InferFormatType(path);
+
+        // Assert
+        Assert.Equal(expected, type);
+    }
+
+    /// <summary>
+    ///     Validates the format properties of JSON data files: a dotted property path selects the rows (also through an
+    ///     array index and from the fixture file), explicit parse maps convert strings, and JSON types are otherwise kept.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_JsonPropertyAndExplicitParseAreApplied()
+    {
+        // Arrange: a nested document with strings that the parse map turns into a number, a date and a boolean
+        var files = new VirtualDataFiles()
+            .With("nested.json", """{"a":[{"rows":[{"n":"5","d":"2024-01-02","b":"true","keep":"7","k":1}]}]}""")
+            .With("plain.json", """[{"x":1},{"x":"2"}]""");
+        var fixtures = new VegaLiteOpenOptions { BaseDirectory = Path.Combine(AppContext.BaseDirectory, "Fixtures") };
+
+        // Act
+        var parsed = LoadData(
+            """{"url":"nested.json","format":{"property":"a[0].rows","parse":{"n":"number","d":"date","b":"boolean"}}}""", Virtual(files));
+        var plain = LoadData("""{"url":"plain.json"}""", Virtual(files));
+        var fixture = LoadData("""{"url":"data-values.json","format":{"property":"report.rows"}}""", fixtures);
+
+        // Assert: the mapped fields have the requested types; the others keep the JSON type
+        Assert.Equal(5, parsed.GetValue(0, "n").Number);
+        Assert.Equal(DataValueKind.Date, parsed.GetValue(0, "d").Kind);
+        Assert.True(parsed.GetValue(0, "b").Boolean);
+        Assert.Equal("7", parsed.GetValue(0, "keep").Text);
+        Assert.Equal(1, parsed.GetValue(0, "k").Number);
+
+        // Assert: JSON is not inferred by default (a string stays a string); a number stays a number
+        Assert.Equal(DataValueKind.Number, plain.GetValue(0, "x").Kind);
+        Assert.Equal("2", plain.GetValue(1, "x").Text);
+
+        // Assert: the fixture's rows are found under report.rows
+        Assert.Equal(4, fixture.RowCount);
+        Assert.Equal(91, fixture.GetValue(3, "crates").Number);
+    }
+
+    /// <summary>
+    ///     Validates that data files that are not usable are located failures: malformed JSON, a document that is not an
+    ///     array, a missing property, a number outside the double range and too deep nesting.
+    /// </summary>
+    /// <param name="content">The content of the file.</param>
+    /// <param name="format">The text of the format object.</param>
+    /// <param name="expected">Part of the expected message.</param>
+    [Theory]
+    [InlineData("""[{"a":1},""", "{}", "is not valid JSON")]
+    [InlineData("""{"rows":[]}""", "{}", "must be an array of rows")]
+    [InlineData("""{"rows":[]}""", """{"property":"nope"}""", "has no property 'nope'")]
+    [InlineData("""{"rows":[]}""", """{"property":"rows[3]"}""", "has no property 'rows[3]'")]
+    [InlineData("""{"rows":{}}""", """{"property":"rows"}""", "must be an array of rows")]
+    [InlineData("""{"rows":[]}""", """{"property":"rows[unclosed"}""", "is not a valid field path")]
+    [InlineData("""[{"a":1e999}]""", "{}", "outside the range of a double")]
+    [InlineData("""[[[[[[[[[[1]]]]]]]]]]""", "{}", "nested deeper")]
+    public void DataLoader_Load_UnusableJsonFileIsALocatedFailure(string content, string format, string expected)
+    {
+        // Arrange
+        var files = new VirtualDataFiles().With("d.json", content);
+        var tree = Spec("{\"url\":\"d.json\",\"format\":" + format + "}");
+        var loader = new DataLoader(tree.SourceName, new VegaLiteLimits { MaxJsonDepth = 5 }, Virtual(files), cancellationToken: Ct);
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => loader.Load(tree.Root["data"]));
+
+        // Assert: the failure points at the url value in the specification
+        Assert.Contains(expected, ex.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", ex.Location.Pointer);
+        Assert.Equal(SpecName, ex.Location.File);
+    }
+
+    /// <summary>
+    ///     Validates that named datasets come from the caller first and else from the top-level <c>datasets</c> of the
+    ///     specification, that the caller's values keep their kinds (dates in UTC), and that a dataset of the
+    ///     specification that is not an array is empty (the catalog reports it).
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_NamedDatasetsUseCallerPrecedence()
+    {
+        // Arrange: "both" is defined by the specification and by the caller, "spec" and "text" only by the specification
+        var tree = Spec(
+            "{\"name\":\"both\"}",
+            ",\"datasets\":{\"both\":[{\"v\":1}],\"spec\":[{\"s\":\"x\"},{\"s\":\"y\"}],\"text\":\"a,b\"}");
+        var caller = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+        {
+            ["both"] = new List<IReadOnlyDictionary<string, object?>>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["int"] = 3,
+                    ["long"] = 4L,
+                    ["decimal"] = 2.5m,
+                    ["text"] = "t",
+                    ["flag"] = true,
+                    ["nothing"] = null,
+                    ["unspecified"] = new DateTime(2024, 3, 5, 0, 0, 0, DateTimeKind.Unspecified),
+                    ["utc"] = new DateTime(2024, 3, 5, 12, 0, 0, DateTimeKind.Utc),
+                    ["offset"] = new DateTimeOffset(2024, 3, 5, 12, 0, 0, TimeSpan.FromHours(2)),
+                    ["a.b"] = 1,
+                },
+            },
+        };
+
+        // Act
+        var both = CreateLoader(tree, caller: caller).Load(tree.Root["data"]);
+        var specOnly = CreateLoader(tree).Load(Spec("{\"name\":\"spec\"}").Root["data"]);
+        var text = CreateLoader(tree).Load(Spec("{\"name\":\"text\"}").Root["data"]);
+
+        // Assert: the caller's dataset replaces the specification's one of the same name (the field v is gone)
+        Assert.Equal(1, both.RowCount);
+        Assert.DoesNotContain("v", both.Fields);
+        Assert.Equal(3, both.GetValue(0, "int").Number);
+        Assert.Equal(4, both.GetValue(0, "long").Number);
+        Assert.Equal(2.5, both.GetValue(0, "decimal").Number);
+        Assert.Equal("t", both.GetValue(0, "text").Text);
+        Assert.True(both.GetValue(0, "flag").Boolean);
+        Assert.True(both.GetValue(0, "nothing").IsNull);
+        Assert.Equal("2024-03-05T00:00:00.000Z", both.GetValue(0, "unspecified").ToText());
+        Assert.Equal("2024-03-05T12:00:00.000Z", both.GetValue(0, "utc").ToText());
+        Assert.Equal("2024-03-05T10:00:00.000Z", both.GetValue(0, "offset").ToText());
+        Assert.Equal(1, both.GetValue(0, "a\\.b").Number);
+
+        // Assert: without a caller dataset the specification's is used; a text dataset is empty
+        Assert.Equal(["x", "y"], specOnly.Column(0).Select(v => v.Text));
+        Assert.Same(DataTable.Empty, text);
+    }
+
+    /// <summary>
+    ///     Validates that a named dataset that nobody defines is a located failure and not an empty chart, in lenient and
+    ///     strict mode alike.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_MissingNamedDataIsHardFailure()
+    {
+        // Arrange
+        const string json = """{"data":{"name":"nobody"},"mark":"point"}""";
+        var tree = SpecParser.Parse(json, SpecName);
+
+        // Act
+        var direct = Assert.Throws<VegaLiteRenderException>(() => CreateLoader(tree).Load(tree.Root["data"]));
+        var document = VegaLiteDocument.Parse(json);
+        var lenient = Assert.Throws<VegaLiteRenderException>(() => document.Render(cancellationToken: Ct));
+        var strict = Assert.Throws<VegaLiteRenderException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+
+        // Assert: the failure names the dataset and where to define it, and points at the name
+        Assert.Contains("The named data 'nobody' is not defined", direct.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/name", direct.Location.Pointer);
+        Assert.Equal("/data/name", lenient.Location.Pointer);
+        Assert.Equal("/data/name", strict.Location.Pointer);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence runs from the start up to, but not including, the stop, with the default step and field
+    ///     and with a custom step, negative step and field, and that an empty direction gives an empty table.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceUsesExclusiveStopAndAs()
+    {
+        // Arrange / Act
+        var basic = DataLoader.Load(Spec("{\"sequence\":{\"start\":0,\"stop\":3}}").Root["data"], null, null, Ct);
+        var named = DataLoader.Load(Spec("{\"sequence\":{\"start\":1,\"stop\":2,\"step\":0.25,\"as\":\"x.y\"}}").Root["data"], null, null, Ct);
+        var down = DataLoader.Load(Spec("{\"sequence\":{\"start\":5,\"stop\":1,\"step\":-2}}").Root["data"], null, null, Ct);
+        var wrongWay = DataLoader.Load(Spec("{\"sequence\":{\"start\":0,\"stop\":3,\"step\":-1}}").Root["data"], null, null, Ct);
+        var drift = DataLoader.Load(Spec("{\"sequence\":{\"start\":0,\"stop\":1,\"step\":0.1}}").Root["data"], null, null, Ct);
+
+        // Assert: start inclusive, stop exclusive, in the field "data"
+        Assert.Equal(["data"], basic.Fields);
+        Assert.Equal([0.0, 1.0, 2.0], basic.Column(0).Select(v => v.Number));
+
+        // Assert: a custom step and field name (the dot needs the escape to address it)
+        Assert.Equal(["x\\.y"], named.Fields);
+        Assert.Equal([1.0, 1.25, 1.5, 1.75], named.Column(0).Select(v => v.Number));
+
+        // Assert: a negative step counts down and also excludes the stop; a step in the wrong direction is empty
+        Assert.Equal([5.0, 3.0], down.Column(0).Select(v => v.Number));
+        Assert.Equal(0, wrongWay.RowCount);
+
+        // Assert: every value is start + index * step (not accumulated), so there are ten values and no drift
+        Assert.Equal(10, drift.RowCount);
+        Assert.Equal(0 + (3 * 0.1), drift.GetValue(3, 0).Number);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence is checked against the row limit arithmetically, before any row is allocated.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation()
+    {
+        // Arrange: a sequence that would need far more memory than any machine has if it were allocated
+        var huge = Spec("{\"sequence\":{\"start\":0,\"stop\":1e15}}");
+        var small = Spec("{\"sequence\":{\"start\":0,\"stop\":4}}");
+
+        // Act
+        var hugeEx = Assert.Throws<VegaLiteRenderException>(() => DataLoader.Load(huge.Root["data"], SpecName, null, Ct));
+        var smallEx = Assert.Throws<VegaLiteRenderException>(() => DataLoader.Load(small.Root["data"], SpecName, new VegaLiteLimits { MaxDataRows = 3 }, Ct));
+
+        // Assert: refused with the limit named, at the sequence; exactly the limit is accepted
+        Assert.Contains("the limit of 1000000 (MaxDataRows)", hugeEx.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/sequence", hugeEx.Location.Pointer);
+        Assert.Contains("generated sequence has 4 rows", smallEx.Message, StringComparison.Ordinal);
+        Assert.Equal(4, DataLoader.Load(small.Root["data"], SpecName, new VegaLiteLimits { MaxDataRows = 4 }, Ct).RowCount);
+    }
+
+    /// <summary>
+    ///     Validates that the row limit is a total across the tables of one call: the first table fits, a second that
+    ///     would pass the total is refused, and the counter reports what was read.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_RowLimitIsATotalAcrossTables()
+    {
+        // Arrange: two tables of three rows each against a limit of five
+        var tree = Spec("{\"values\":[{\"a\":1},{\"a\":2},{\"a\":3}]}");
+        var loader = new DataLoader(SpecName, new VegaLiteLimits { MaxDataRows = 5 }, cancellationToken: Ct);
+
+        // Act
+        var first = loader.Load(tree.Root["data"]);
+        var ex = Assert.Throws<VegaLiteRenderException>(() => loader.Load(tree.Root["data"]));
+
+        // Assert
+        Assert.Equal(3, first.RowCount);
+        Assert.Equal(3, loader.RowsLoaded);
+        Assert.Contains("with the 3 rows read before", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 5 (MaxDataRows)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a local file that cannot be found is a located failure, that a document without any file source
+    ///     fails the same way, and that neither is an empty dataset.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_MissingLocalFileIsHardFailure()
+    {
+        // Arrange
+        var tree = Spec("{\"url\":\"missing.csv\"}");
+        var files = new VirtualDataFiles();
+
+        // Act
+        var missing = Assert.Throws<VegaLiteRenderException>(() => CreateLoader(tree, Virtual(files)).Load(tree.Root["data"]));
+        var noSource = Assert.Throws<VegaLiteRenderException>(() => DataLoader.Load(tree.Root["data"], SpecName, null, Ct));
+
+        // Assert
+        Assert.Contains("'missing.csv' was not found", missing.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", missing.Location.Pointer);
+        Assert.Contains("no base directory, data path or file resolver", noSource.Message, StringComparison.Ordinal);
+        Assert.Equal(["missing.csv"], files.Requests);
+    }
+
+    /// <summary>
+    ///     Validates that a file is read once per call however often the chart names it, and that two names for one file
+    ///     count as one file for the file limit.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_FileIsReadOnceWhenNamedAgain()
+    {
+        // Arrange
+        var files = new VirtualDataFiles().With("a.csv", "x\n1\n2\n");
+        var tree = Spec("{\"url\":\"a.csv\"}");
+        var loader = CreateLoader(tree, Virtual(files), new VegaLiteLimits { MaxDataFiles = 1 });
+
+        // Act
+        var first = loader.Load(tree.Root["data"]);
+        var second = loader.Load(tree.Root["data"]);
+
+        // Assert: both tables have the rows, the callback saw one request, and the file limit of one was enough
+        Assert.Equal(2, first.RowCount);
+        Assert.Equal(2, second.RowCount);
+        Assert.Equal(["a.csv"], files.Requests);
+        Assert.Equal(4, loader.RowsLoaded);
+    }
+
+    /// <summary>
+    ///     Validates that values that an explicit parse cannot read are reported as one warning per field, with the
+    ///     location of the data, and are null in the table.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_ParseFailuresAreCollectedAsWarnings()
+    {
+        // Arrange
+        var files = new VirtualDataFiles().With("d.csv", "n,m\n1,x\nbad,2\nworse,3\n");
+        var tree = Spec("{\"url\":\"d.csv\",\"format\":{\"parse\":{\"n\":\"number\"}}}");
+        var loader = CreateLoader(tree, Virtual(files));
+
+        // Act
+        var table = loader.Load(tree.Root["data"]);
+
+        // Assert: one warning for the field n, none for the field that was not named; the bad cells are null
+        var warning = Assert.Single(loader.Warnings);
+        Assert.Equal("vl-data-parse-failed", warning.Id);
+        Assert.Equal(FeatureReportKind.Warning, warning.Kind);
+        Assert.Equal("/data", warning.Location.Pointer);
+        Assert.Contains("2 value(s) of the field 'n'", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(DataValueKind.Number, table.GetValue(0, "n").Kind);
+        Assert.True(table.GetValue(1, "n").IsNull);
+        Assert.Equal("x", table.GetValue(0, "m").Text);
+    }
+
+    /// <summary>
+    ///     Validates that the data of a view is loaded before the scales: a chart whose file is missing fails with the
+    ///     location of the <c>url</c>, so a limit or an error never depends on later stages.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl()
+    {
+        // Arrange: a CSV with three rows against a limit of two, and one with a repeated column
+        var files = new VirtualDataFiles().With("rows.csv", "a\n1\n2\n3\n").With("dup.csv", "a,a\n1,2\n");
+        var rows = Spec("{\"url\":\"rows.csv\"}");
+        var dup = Spec("{\"url\":\"dup.csv\"}");
+
+        // Act
+        var tooMany = Assert.Throws<VegaLiteRenderException>(
+            () => CreateLoader(rows, Virtual(files), new VegaLiteLimits { MaxDataRows = 2 }).Load(rows.Root["data"]));
+        var repeated = Assert.Throws<VegaLiteRenderException>(() => CreateLoader(dup, Virtual(files)).Load(dup.Root["data"]));
+
+        // Assert
+        Assert.Contains("MaxDataRows", tooMany.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/url", tooMany.Location.Pointer);
+        Assert.Equal(1, tooMany.Location.Line);
+        Assert.Contains("more than once", repeated.Message, StringComparison.Ordinal);
     }
 }

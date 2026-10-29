@@ -1,4 +1,5 @@
 using System.Globalization;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
@@ -36,7 +37,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <see cref="SpecTree"/> only (no data, no files, no network) and returns one report per construct, in
 ///         document order (sorted by line and column; reports at the same position keep the order they were found in).
 ///         Reports about supported constructs are never produced: a supported mark, channel, scale type or data source
-///         is simply absent from the result. Strict mode of the document throws at the first
+///         (inline rows, a relative local CSV, TSV, DSV or JSON file, a named dataset, a sequence, <c>format.parse</c>
+///         and <c>format.property</c>) is simply absent from the result. Remote data is the only kind of file source that is reported, because it is
+///         never fetched; a local file that cannot be read is not a feature of the specification and fails the render instead. Strict mode of the document throws at the first
 ///         <see cref="FeatureReportKind.UnsupportedFeature"/>. The catalog is stateless and thread-safe.
 ///     </para>
 ///     <para>
@@ -48,15 +51,10 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <listheader><term>Identifier</term><description>Reported at, and when</description></listheader>
 ///         <item><term><c>vl-schema-version</c> (warning)</term><description><c>$schema</c>, when the major version is not 5 or 6 or the URL names no Vega-Lite version; the text is interpreted with the version 6 defaults.</description></item>
 ///         <item><term><c>vl-data-empty</c> (warning)</term><description>the <c>data</c> object, when it has an empty <c>values</c> array or no source at all.</description></item>
-///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched.</description></item>
-///         <item><term><c>vl-data-file</c></term><description>the <c>data</c> object, when <c>url</c> is a relative local path.</description></item>
-///         <item><term><c>vl-data-named</c></term><description>the <c>data</c> object that has only a <c>name</c> (a named data set).</description></item>
-///         <item><term><c>vl-data-sequence</c></term><description>the <c>sequence</c> generator.</description></item>
-///         <item><term><c>vl-data-parse</c></term><description><c>format.parse</c> (when not null).</description></item>
-///         <item><term><c>vl-data-format-csv</c>, <c>-tsv</c>, <c>-dsv</c></term><description><c>format.type</c> naming a delimited text format.</description></item>
-///         <item><term><c>vl-data-property</c></term><description><c>format.property</c>.</description></item>
-///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> given as a text instead of an array of rows.</description></item>
-///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> given as an object.</description></item>
+///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
+///         <item><term><c>vl-data-parse-date-format</c></term><description>an entry of <c>format.parse</c> that names a date with a custom format (<c>date:'%d/%m/%Y'</c>, <c>utc:'...'</c>); the field is left as read.</description></item>
+///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
+///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
@@ -77,7 +75,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///     </list>
 ///     <para>
 ///         The warnings <c>vl-duplicate-key</c> and <c>vl-unknown-property</c> are produced by <see cref="SpecParser"/>
-///         and are available in <see cref="SpecTree.Warnings"/>.
+///         and are available in <see cref="SpecTree.Warnings"/>. The warning <c>vl-data-parse-failed</c> is not part of the
+///         catalog: it needs the data, so the data stage produces it while a chart is measured or rendered (values that an
+///         explicit <c>format.parse</c> conversion could not read, one warning per field).
 ///     </para>
 /// </remarks>
 internal static class FeatureCatalog
@@ -123,9 +123,6 @@ internal static class FeatureCatalog
 
     /// <summary>The composition properties, each reported as <c>vl-composition-&lt;name&gt;</c>.</summary>
     private static readonly HashSet<string> CompositionProperties = ["layer", "concat", "hconcat", "vconcat", "facet", "repeat"];
-
-    /// <summary>The delimited text formats of <c>format.type</c>.</summary>
-    private static readonly HashSet<string> DelimitedFormats = ["csv", "tsv", "dsv"];
 
     /// <summary>
     ///     Lists the recognized-but-unsupported constructs of a specification.
@@ -315,10 +312,12 @@ internal static class FeatureCatalog
             }
 
             // The source is chosen by precedence, not by the order of the keys: inline values first, then a url, a
-            // sequence generator, a name, and the geographic generators
+            // sequence generator, a name, and the geographic generators. Local files, sequences and named datasets are
+            // supported and not reported
             var values = data["values"];
             var url = data["url"];
             var sequence = data["sequence"];
+            var name = data["name"];
             var geo = data["sphere"] ?? data["graticule"];
             if (values is not null)
             {
@@ -328,19 +327,15 @@ internal static class FeatureCatalog
             {
                 VisitUrl(data, url);
             }
-            else if (sequence is not null)
+            else if (sequence is null && name is not null)
             {
-                Unsupported("vl-data-sequence", "Generated sequence data is not supported yet.", sequence);
+                VisitNamedData(data, name);
             }
-            else if (data["name"] is not null)
-            {
-                Unsupported("vl-data-named", "Named data sets are not supported yet.", data);
-            }
-            else if (geo is not null)
+            else if (sequence is null && geo is not null)
             {
                 Unsupported("vl-data-geo", "Geographic data generators (sphere, graticule) are not supported.", geo);
             }
-            else
+            else if (sequence is null)
             {
                 Warn("vl-data-empty", "The data definition has no source (values, url, name or sequence); the chart is empty.", data);
             }
@@ -348,6 +343,31 @@ internal static class FeatureCatalog
             if (data["format"] is { IsObject: true } format)
             {
                 VisitFormat(format);
+            }
+        }
+
+        /// <summary>
+        ///     Visits a named data set: a top-level dataset that is not an array of rows is not read.
+        /// </summary>
+        /// <param name="data">The data object.</param>
+        /// <param name="name">The <c>name</c> value.</param>
+        private void VisitNamedData(SpecNode data, SpecNode name)
+        {
+            if (!name.IsString || _tree.Root["datasets"]?[name.StringValue!] is not { } dataset)
+            {
+                return;
+            }
+
+            switch (dataset.Kind)
+            {
+                case SpecNodeKind.String:
+                    Unsupported("vl-data-values-text", "A dataset given as text is not read; write it as an array of objects.", data);
+                    break;
+                case SpecNodeKind.Object:
+                    Unsupported("vl-data-geo", "A dataset given as an object (GeoJSON or TopoJSON) is not supported.", data);
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -364,7 +384,7 @@ internal static class FeatureCatalog
                     Warn("vl-data-empty", "The inline data has no rows; the chart is empty.", data);
                     break;
                 case SpecNodeKind.String:
-                    Unsupported("vl-data-values-text", "Inline data given as text is not read yet; write it as an array of objects.", values);
+                    Unsupported("vl-data-values-text", "Inline data given as text is not read; write it as an array of objects, or put it in a file next to the specification.", values);
                     break;
                 case SpecNodeKind.Object:
                     Unsupported("vl-data-geo", "Inline data given as an object (GeoJSON or TopoJSON) is not supported.", values);
@@ -381,16 +401,13 @@ internal static class FeatureCatalog
         /// <param name="url">The <c>url</c> value.</param>
         private void VisitUrl(SpecNode data, SpecNode url)
         {
+            // A relative local path is supported (a file that cannot be read fails the render); only remote data is reported
             if (url.IsString && IsSchemeBearingUrl(url.StringValue!))
             {
                 Unsupported(
                     "vl-data-remote-url",
                     "Remote data is never fetched; download the file next to the specification and refer to it by a relative path. The dataset is treated as empty.",
                     data);
-            }
-            else
-            {
-                Unsupported("vl-data-file", "Data files are not supported yet; use inline values.", data);
             }
         }
 
@@ -400,27 +417,24 @@ internal static class FeatureCatalog
         /// <param name="format">The format object.</param>
         private void VisitFormat(SpecNode format)
         {
-            if (format["parse"] is { IsNull: false } parse)
+            // Custom date formats are the one part of format.parse that is recognized and not applied
+            if (format["parse"] is { IsObject: true } parse)
             {
-                Unsupported("vl-data-parse", "Parsing of data fields (format.parse) is not supported yet.", parse);
-            }
-
-            if (format["type"] is { IsString: true } type)
-            {
-                var kind = type.StringValue!;
-                if (DelimitedFormats.Contains(kind))
+                foreach (var entry in parse.Properties)
                 {
-                    Unsupported(Id("data-format", kind), $"The '{kind}' data format is not supported yet.", type);
-                }
-                else if (kind == "topojson")
-                {
-                    Unsupported("vl-data-geo", "The topojson data format is not supported.", type);
+                    if (entry.IsString && ParseDirectives.TryClassify(entry.StringValue!, out var parseType) && parseType == ParseType.CustomDate)
+                    {
+                        Unsupported(
+                            "vl-data-parse-date-format",
+                            $"The date format {entry.StringValue} of the field '{entry.Name}' is not supported; the field is left as read (use ISO 8601 dates and 'date').",
+                            entry);
+                    }
                 }
             }
 
-            if (format["property"] is { } property)
+            if (format["type"] is { IsString: true } type && type.StringValue == "topojson")
             {
-                Unsupported("vl-data-property", "Reading data from a property of a JSON document (format.property) is not supported yet.", property);
+                Unsupported("vl-data-geo", "The topojson data format is not supported.", type);
             }
         }
 

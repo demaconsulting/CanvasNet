@@ -15,7 +15,14 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         <see cref="MarkTypes"/>, <see cref="DataReferences"/>, <see cref="ParameterNames"/>), so tools can list
 ///         what a chart needs before they render it. Opening never evaluates anything, never touches another file and
 ///         never uses the network. <see cref="Measure(VegaLiteRenderOptions?, CancellationToken)"/> and the
-///         <c>Render</c> methods produce the image under the rules of <see cref="VegaLiteRenderOptions"/>.
+///         <c>Render</c> methods produce the image under the rules of <see cref="VegaLiteRenderOptions"/>; they are
+///         the only calls that read data: inline rows, named datasets and sequences need no I/O, and a <c>data.url</c>
+///         that is a relative local path is read from the sandbox that <see cref="VegaLiteOpenOptions"/> defines (the
+///         folder of an opened file, <see cref="VegaLiteOpenOptions.BaseDirectory"/>,
+///         <see cref="VegaLiteOpenOptions.DataPaths"/>, or the <see cref="VegaLiteOpenOptions.FileResolver"/> callback,
+///         which replaces the file system). A data file that is missing, blocked by the sandbox or invalid is a
+///         <see cref="VegaLiteRenderException"/>, never an empty chart; a URL with a scheme or an absolute path is never
+///         fetched or opened and is reported as <c>vl-data-remote-url</c>.
 ///     </para>
 ///     <para>
 ///         Opening is fail-fast and fail-closed: the first problem throws a <see cref="VegaLiteSpecException"/> with
@@ -131,7 +138,7 @@ public sealed partial class VegaLiteDocument
 
     /// <summary>
     ///     Gets the effective options, with the base directory and source name resolved (internal; consumed by the
-    ///     data stage).
+    ///     data stage of every measure and render).
     /// </summary>
     internal VegaLiteOpenOptions Options { get; }
 

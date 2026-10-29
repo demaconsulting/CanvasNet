@@ -16,7 +16,7 @@ public class VegaLiteChartIntegrationTests
 
     /// <summary>The names of the fixture specifications.</summary>
     private static readonly string[] FixtureNames =
-        ["bar-inline.vl.json", "point-inline.vl.json", "rule-tick-inline.vl.json", "titles-config.vl.json", "unsupported.vl.json"];
+        ["bar-inline.vl.json", "point-inline.vl.json", "rule-tick-inline.vl.json", "titles-config.vl.json", "unsupported.vl.json", "data-files.vl.json"];
 
     /// <summary>The default color of a mark.</summary>
     private static readonly Rgba32 Blue = new(0x4c, 0x78, 0xa8, 255);
@@ -239,6 +239,35 @@ public class VegaLiteChartIntegrationTests
 
         // Assert: the fixtures have different natural sizes, so the sizes do depend on the chart
         Assert.Equal(new VegaLiteSize(289, 264), OpenFixture("bar-inline.vl.json").Measure(cancellationToken: Ct));
+
+        // Assert: a chart whose rows come from a file beside the specification has the size of the inline chart
+        Assert.Equal(new VegaLiteSize(289, 264), OpenFixture("data-files.vl.json").Measure(cancellationToken: Ct));
+    }
+
+    /// <summary>
+    ///     Validates that a chart drawn from a CSV file beside its specification is pixel-identical to the same chart with
+    ///     inline rows, and that the JSON fixture with nested rows draws the same bars through a data path and
+    ///     <c>format.property</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Render_FileBackedChartsMatchTheInlineChart()
+    {
+        // Arrange: the inline fixture is the reference; the JSON document is read with a property path and a data path
+        using var reference = OpenFixture("bar-inline.vl.json").Render(cancellationToken: Ct);
+        var fromJson = Fixture("data-files.vl.json").Replace(
+            "\"data\": { \"url\": \"data-files.csv\" }",
+            "\"data\": { \"url\": \"data-values.json\", \"format\": { \"property\": \"report.rows\" } }",
+            StringComparison.Ordinal);
+
+        // Act
+        using var fromCsv = OpenFixture("data-files.vl.json").Render(cancellationToken: Ct);
+        using var viaProperty = VegaLiteDocument
+            .Parse(fromJson, new VegaLiteOpenOptions { DataPaths = [Path.Combine(AppContext.BaseDirectory, "Fixtures")] })
+            .Render(cancellationToken: Ct);
+
+        // Assert
+        Assert.Equal(VegaLiteTestHelpers.Snapshot(reference), VegaLiteTestHelpers.Snapshot(fromCsv));
+        Assert.Equal(VegaLiteTestHelpers.Snapshot(reference), VegaLiteTestHelpers.Snapshot(viaProperty));
     }
 
     /// <summary>

@@ -117,6 +117,10 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum number of data files one rendering may read; 64 by default.
     /// </summary>
+    /// <remarks>
+    ///     Counted per measure or render call: each distinct file that is found counts once however often the chart
+    ///     refers to it, a file that does not exist does not count, and the file that would exceed the limit is not read.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxDataFiles
     {
@@ -127,6 +131,10 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum size in bytes of one data file; 67,108,864 (64 MiB) by default.
     /// </summary>
+    /// <remarks>
+    ///     The bytes are counted as they are read (from a file or from a resolver callback's stream), and reading stops one
+    ///     chunk past the limit, so a stream that never ends cannot exhaust memory. A file of exactly this size is accepted.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxDataBytes
     {
@@ -137,6 +145,10 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum number of data rows, in total across all tables of one rendering; 1,000,000 by default.
     /// </summary>
+    /// <remarks>
+    ///     Counted per measure or render call across inline values, files, named datasets and sequences; the rows are
+    ///     counted before they are allocated.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxDataRows
     {

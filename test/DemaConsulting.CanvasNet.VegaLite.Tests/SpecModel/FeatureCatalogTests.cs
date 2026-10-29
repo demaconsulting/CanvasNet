@@ -34,7 +34,7 @@ public class FeatureCatalogTests
                 { "name": "s", "select": "interval" }
               ],
               "projection": { "type": "mercator" },
-              "data": { "url": "sales.csv", "format": { "type": "csv", "parse": { "d": "date" }, "property": "rows" } },
+              "data": { "url": "sales.csv", "format": { "type": "csv", "parse": { "d": "date:'%d/%m/%Y'", "n": "number" } } },
               "transform": [
                 { "calculate": "datum.a * 2", "as": "b" },
                 { "filter": "datum.b > 1" },
@@ -65,10 +65,7 @@ public class FeatureCatalogTests
                 ("vl-param-variable", "/params/0"),
                 ("vl-param-selection", "/params/1"),
                 ("vl-projection", "/projection"),
-                ("vl-data-file", "/data"),
-                ("vl-data-format-csv", "/data/format/type"),
-                ("vl-data-parse", "/data/format/parse"),
-                ("vl-data-property", "/data/format/property"),
+                ("vl-data-parse-date-format", "/data/format/parse/d"),
                 ("vl-transform-calculate", "/transform/0"),
                 ("vl-expr-calculate", "/transform/0/calculate"),
                 ("vl-transform-filter", "/transform/1"),
@@ -136,11 +133,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that remote data (every scheme-bearing form) reports <c>vl-data-remote-url</c> at the data object and
-    ///     a relative local path reports <c>vl-data-file</c>.
+    ///     Validates that remote data (every scheme-bearing form) reports <c>vl-data-remote-url</c> at the data object
+    ///     and that a relative local path reports nothing.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl()
+    public void FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl()
     {
         // Arrange: every scheme the contract names, a UNC path and a drive letter, then local relative paths
         string[] remote =
@@ -164,11 +161,61 @@ public class FeatureCatalogTests
         Assert.All(remoteReports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.Contains("never fetched", remoteReports[0].Message, StringComparison.Ordinal);
 
-        // Assert: local relative urls are a different, deferred feature
-        var fileReports = reports.Where(r => r.Id == "vl-data-file").ToList();
+        // Assert: local relative urls are supported and report nothing (only the composition itself is reported besides the remote urls)
+        Assert.All(reports, r => Assert.True(r.Id is "vl-data-remote-url" or "vl-composition-layer", r.Id));
+    }
+
+    /// <summary>
+    ///     Validates that relative local urls, the file formats, parse maps, JSON properties, named datasets and sequences
+    ///     are supported and report nothing, so that strict mode accepts them.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported()
+    {
+        // Arrange: each supported Phase 4 source form in its own layer
+        const string json = """
+            { "layer": [
+              { "data": { "url": "a.csv" } },
+              { "data": { "url": "dir/a.tsv", "format": { "type": "tsv" } } },
+              { "data": { "url": "a.txt", "format": { "type": "dsv", "delimiter": ";" } } },
+              { "data": { "url": "a.json", "format": { "type": "json", "property": "rows.items", "parse": { "d": "date", "n": "number", "b": "boolean", "s": "string" } } } },
+              { "data": { "url": "a.csv", "format": { "parse": "auto" } } },
+              { "data": { "url": "a.csv", "format": { "parse": null } } },
+              { "data": { "name": "t" } },
+              { "data": { "sequence": { "start": 0, "stop": 3, "step": 1, "as": "x" } } }
+            ] }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id != "vl-composition-layer").ToList();
+
+        // Assert
+        Assert.Empty(reports);
+    }
+
+    /// <summary>
+    ///     Validates that a custom date format of a parse map reports <c>vl-data-parse-date-format</c> at the entry (it
+    ///     is not applied) and that plain <c>date</c> does not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier()
+    {
+        // Arrange
+        const string json = """
+            { "data": { "url": "a.csv", "format": { "parse": {
+              "a": "date", "b": "date:'%d/%m/%Y'", "c": "utc:'%Y%m%d'", "d": "number"
+            } } } }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json, "dates.json"));
+
+        // Assert
         Assert.Equal(
-            Enumerable.Range(remote.Length, local.Length).Select(i => $"/layer/{i}/data"),
-            fileReports.Select(r => r.Location.Pointer));
+            [("vl-data-parse-date-format", "/data/format/parse/b"), ("vl-data-parse-date-format", "/data/format/parse/c")],
+            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.All(reports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+        Assert.All(reports, r => Assert.Equal("dates.json", r.Location.File));
     }
 
     /// <summary>
@@ -357,14 +404,16 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the data reports: empty or sourceless inline data warns, and each deferred source kind has its own identifier.
+    ///     Validates the data reports: empty or sourceless inline data warns, text and object data have their own identifiers,
+    ///     and the supported sources (files, named datasets, sequences) are not reported.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers()
     {
         // Arrange: one data object per layer
         const string json = """
-            { "layer": [
+            { "datasets": { "txt": "a,b\n1,2", "geo": { "type": "Topology" }, "rows": [ {"a":1} ] },
+              "layer": [
               { "data": { "values": [] } },
               { "data": { "values": [ {"a":1} ] } },
               { "data": { "format": {} } },
@@ -375,7 +424,10 @@ public class FeatureCatalogTests
               { "data": { "values": { "type": "Topology" } } },
               { "data": { "sphere": true } },
               { "data": { "values": [ {"a":1} ], "format": { "type": "topojson" } } },
-              { "data": null }
+              { "data": null },
+              { "data": { "name": "txt" } },
+              { "data": { "name": "geo" } },
+              { "data": { "name": "rows" } }
             ] }
             """;
 
@@ -387,12 +439,12 @@ public class FeatureCatalogTests
             [
                 ("vl-data-empty", "/layer/0/data", FeatureReportKind.Warning),
                 ("vl-data-empty", "/layer/2/data", FeatureReportKind.Warning),
-                ("vl-data-named", "/layer/3/data", FeatureReportKind.UnsupportedFeature),
-                ("vl-data-sequence", "/layer/5/data/sequence", FeatureReportKind.UnsupportedFeature),
                 ("vl-data-values-text", "/layer/6/data/values", FeatureReportKind.UnsupportedFeature),
                 ("vl-data-geo", "/layer/7/data/values", FeatureReportKind.UnsupportedFeature),
                 ("vl-data-geo", "/layer/8/data/sphere", FeatureReportKind.UnsupportedFeature),
                 ("vl-data-geo", "/layer/9/data/format/type", FeatureReportKind.UnsupportedFeature),
+                ("vl-data-values-text", "/layer/11/data", FeatureReportKind.UnsupportedFeature),
+                ("vl-data-geo", "/layer/12/data", FeatureReportKind.UnsupportedFeature),
             ],
             reports.Select(r => (r.Id, r.Location.Pointer, r.Kind)));
     }

@@ -15,7 +15,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </content>
 /// <remarks>
 ///     Pipeline: the specification model reports the constructs that it recognizes but cannot draw; for a single view
-///     with a mark the inline data is loaded, the scales are resolved, the axes, the marks and the title are built, the view
+///     with a mark the data (inline rows, a local file, a named dataset or a sequence) is loaded first, under the limits and
+///     the sandbox of this call, the scales are resolved, the axes, the marks and the title are built, the view
 ///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A composition
 ///     (layer, concat, facet, repeat) is not drawn yet: only its title and background are. The private pipeline
 ///     methods at the end of this file are the seam that later stages extend; the public methods, their validation order and
@@ -283,22 +284,28 @@ public sealed partial class VegaLiteDocument
         var measurer = new TextMeasurer(options.EffectiveFonts);
         var root = _tree.Root;
 
+        // A composition has no single title position; layers share one. Only single views have a data rectangle drawn so far
+        var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
+        DataTable? table = null;
+        IReadOnlyList<FeatureReport> dataWarnings = [];
+        var markNode = root["mark"];
+        var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
+        var drawsData = !isComposition && root["layer"] is null && MarkBuilder.IsSupported(markType);
+        if (drawsData)
+        {
+            // The data is read first, before any scene item is charged and before any scale exists: one loader (so one file
+            // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
+            // define, so a data failure never depends on what a later stage would have done
+            var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken);
+            table = loader.Load(root["data"]);
+            dataWarnings = loader.Warnings;
+        }
+
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
         // has, then the title, the axes (per pass), the marks group and the marks
         var budget = new SceneBudget(options.Limits.MaxSceneItems);
         budget.Add(2, root.GetLocation(_tree.SourceName));
-
-        // A composition has no single title position; layers share one. Only single views have a data rectangle drawn so far
-        var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
-        DataTable? table = null;
-        ResolvedScales? scales = null;
-        var markNode = root["mark"];
-        var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
-        if (!isComposition && root["layer"] is null && MarkBuilder.IsSupported(markType))
-        {
-            table = DataLoader.Load(root["data"], _tree.SourceName, options.Limits, cancellationToken);
-            scales = ScaleResolver.Resolve(root, table, config, _tree.SourceName, options.Limits, cancellationToken);
-        }
+        var scales = table is null ? null : ScaleResolver.Resolve(root, table, config, _tree.SourceName, options.Limits, cancellationToken);
 
         var hints = new ViewSizeHints(scales?.DiscreteWidth, scales?.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
@@ -310,7 +317,7 @@ public sealed partial class VegaLiteDocument
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget), cancellationToken);
+        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget), cancellationToken) with { DataWarnings = dataWarnings };
     }
 
     /// <summary>
@@ -466,6 +473,13 @@ public sealed partial class VegaLiteDocument
     {
         cancellationToken.ThrowIfCancellationRequested();
         RecordReports(sink, cancellationToken);
+
+        // The data stage's own findings follow those of the specification text
+        foreach (var warning in plan.DataWarnings ?? [])
+        {
+            sink.Warn($"{warning.Id}: {warning.Message}", warning.Location);
+        }
+
         return plan;
     }
 
@@ -491,7 +505,8 @@ public sealed partial class VegaLiteDocument
     /// <param name="Size">The natural size of the chart in pixels at a scale of one.</param>
     /// <param name="Scene">The scene: the canvas, its background and everything drawn on it.</param>
     /// <param name="Measurer">The text measurer with the fonts of this render.</param>
-    private readonly record struct ChartPlan(VegaLiteSize Size, Scene Scene, TextMeasurer Measurer);
+    /// <param name="DataWarnings">The warnings the data stage found (values that could not be converted), delivered after the reports of the specification; null for none.</param>
+    private readonly record struct ChartPlan(VegaLiteSize Size, Scene Scene, TextMeasurer Measurer, IReadOnlyList<FeatureReport>? DataWarnings = null);
 
     /// <summary>
     ///     What the data, scale, axis and mark stages of one view share.

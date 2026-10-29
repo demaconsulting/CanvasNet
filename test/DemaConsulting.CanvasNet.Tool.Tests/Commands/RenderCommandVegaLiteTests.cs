@@ -247,5 +247,55 @@ public class RenderCommandVegaLiteTests
         // Assert
         Assert.Contains("Vega-Lite", usage);
         Assert.Contains("canvasnet render chart.vl.json", usage);
+
+        // Assert: the help says where chart data comes from, and that there is no option for another folder
+        Assert.Contains("folder of the specification", usage);
+        Assert.Contains("no data-folder option", usage);
+        Assert.Contains("nothing is read from the", usage);
+    }
+
+    /// <summary>
+    ///     Test that <c>render</c> reads the data file of a chart from the folder of the specification (not the current
+    ///     directory) and writes the same picture as the chart with inline rows, that a missing file is a
+    ///     <c>vega-lite-error</c> that writes nothing, that remote data is only a diagnostic (an error with
+    ///     <c>--strict</c>), and that there is no option for another data folder.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder()
+    {
+        // Arrange: a specification and its CSV in a sub folder, the inline chart as the reference, and two broken charts
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "charts/bars.vl.json", FixtureFactory.TwoBarFileChart);
+        FixtureFactory.WriteText(directory.Path, "charts/bars.csv", FixtureFactory.TwoBarCsv);
+        var inline = FixtureFactory.WriteText(directory.Path, "inline.vl.json", FixtureFactory.TwoBarChart);
+        var missing = FixtureFactory.WriteText(directory.Path, "charts/missing.vl.json", FixtureFactory.TwoBarFileChart.Replace("bars.csv", "gone.csv", StringComparison.Ordinal));
+        var remote = FixtureFactory.WriteText(directory.Path, "charts/remote.vl.json", FixtureFactory.TwoBarFileChart.Replace("bars.csv", "http://example.invalid/bars.csv", StringComparison.Ordinal));
+
+        // Act
+        Run(false, input, "-o", directory.Combine("file.png"));
+        Run(false, inline, "-o", directory.Combine("inline.png"));
+        var notFound = RunFailing(missing, "-o", directory.Combine("missing.png"));
+        var stdOut = Run(true, remote, "-o", directory.Combine("remote.png"));
+        var strict = RunFailing(remote, "--strict", "-o", directory.Combine("strict.png"));
+        var dataDir = RunFailing(input, "--data-dir", directory.Path, "-o", directory.Combine("dir.png"));
+
+        // Assert: the chart of the file is the chart of the rows, byte for byte
+        Assert.Equal(File.ReadAllBytes(directory.Combine("inline.png")), File.ReadAllBytes(directory.Combine("file.png")));
+
+        // Assert: a missing file is an error of the chart, on one line, and nothing is written
+        Assert.Equal(ErrorCodes.VegaLiteError, notFound.Code);
+        Assert.Contains("was not found", notFound.Message);
+        Assert.DoesNotContain('\n', notFound.Message);
+        Assert.False(File.Exists(directory.Combine("missing.png")));
+
+        // Assert: remote data is a diagnostic and an empty chart; strict makes it an error and writes nothing
+        using var document = JsonDocument.Parse(stdOut);
+        var codes = document.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString());
+        Assert.Contains("vl-data-remote-url", codes);
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+        Assert.False(File.Exists(directory.Combine("strict.png")));
+
+        // Assert: this phase adds no option for another data folder
+        Assert.Equal(ErrorCodes.UsageError, dataDir.Code);
     }
 }

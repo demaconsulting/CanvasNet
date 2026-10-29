@@ -57,6 +57,76 @@ public class DataTableTests
     }
 
     /// <summary>
+    ///     Validates the date value: it is held as UTC milliseconds since the epoch, reads as that number where a number is
+    ///     wanted, formats as ISO 8601 with the invariant culture, sorts between numbers and strings, and is never equal to
+    ///     the number or the text it looks like.
+    /// </summary>
+    [Fact]
+    public void DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms()
+    {
+        // Arrange: 2024-03-05T00:00:00Z, the epoch, a time before the epoch, and the same instant from a local and a UTC DateTime
+        var march = DataValue.FromDate(1_709_596_800_000);
+        var epoch = DataValue.FromDate(0);
+        var before = DataValue.FromDate(-86_400_500);
+        var utc = DataValue.FromDateTime(new DateTime(2024, 3, 5, 0, 0, 0, DateTimeKind.Utc));
+        var unspecified = DataValue.FromDateTime(new DateTime(2024, 3, 5, 0, 0, 0, DateTimeKind.Unspecified));
+        var local = DataValue.FromDateTime(new DateTime(2024, 3, 5, 0, 0, 0, DateTimeKind.Utc).ToLocalTime());
+        var previous = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+        string[] text;
+        try
+        {
+            text = [march.ToText(), epoch.ToText(), before.ToText(), march.ToString()];
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+
+        // Assert: the kind and the milliseconds, with no dependence on the time zone of the host
+        Assert.Equal(DataValueKind.Date, march.Kind);
+        Assert.True(march.IsDate);
+        Assert.False(march.IsNumber);
+        Assert.Equal(1_709_596_800_000, march.Milliseconds);
+        Assert.Equal(0, march.Number);
+        Assert.Equal(march, utc);
+        Assert.Equal(march, unspecified);
+        Assert.Equal(march, local);
+
+        // Assert: the quantitative value is the number of milliseconds
+        Assert.True(march.TryGetQuantitative(out var number));
+        Assert.Equal(1_709_596_800_000, number);
+        Assert.True(before.TryGetQuantitative(out var negative));
+        Assert.Equal(-86_400_500, negative);
+
+        // Assert: the text is the ISO 8601 form in UTC whatever the culture is
+        Assert.Equal(["2024-03-05T00:00:00.000Z", "1970-01-01T00:00:00.000Z", "1969-12-30T23:59:59.500Z", "2024-03-05T00:00:00.000Z"], text);
+
+        // Assert: a date is equal only to the same instant (not to the number or text of it), zero equals zero, and hashing agrees
+        Assert.NotEqual(march, DataValue.FromNumber(1_709_596_800_000));
+        Assert.NotEqual(march, DataValue.FromString("2024-03-05T00:00:00.000Z"));
+        Assert.Equal(DataValue.FromDate(0), DataValue.FromDate(-0.0));
+        Assert.Equal(march.GetHashCode(), utc.GetHashCode());
+        Assert.Equal(epoch.GetHashCode(), DataValue.FromDate(-0.0).GetHashCode());
+
+        // Assert: dates sort by instant, after numbers and before strings (the order of the kinds), and null sorts first
+        Assert.True(DataValue.Compare(before, epoch) < 0);
+        Assert.True(DataValue.Compare(march, epoch) > 0);
+        Assert.Equal(0, DataValue.Compare(march, utc));
+        Assert.True(DataValue.Compare(DataValue.FromNumber(1e300), epoch) < 0);
+        Assert.True(DataValue.Compare(march, DataValue.FromString("a")) < 0);
+        Assert.True(DataValue.Compare(DataValue.Null, epoch) < 0);
+
+        // Assert: a date outside the years 1 to 9999, or not finite, is refused
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataValue.FromDate(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataValue.FromDate(double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataValue.FromDate(-62_135_596_800_001));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataValue.FromDate(253_402_300_800_000));
+        Assert.Equal("0001-01-01T00:00:00.000Z", DataValue.FromDate(-62_135_596_800_000).ToText());
+        Assert.Equal("9999-12-31T23:59:59.999Z", DataValue.FromDate(253_402_300_799_999).ToText());
+    }
+
+    /// <summary>
     ///     Validates that a table can be built from per-row dictionaries with differing keys.
     /// </summary>
     [Fact]
