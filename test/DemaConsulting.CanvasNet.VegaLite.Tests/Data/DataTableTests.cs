@@ -395,4 +395,39 @@ public class DataTableTests
         Assert.Equal("ff", JsNumber.ToRadix(255, 16));
         Assert.Equal("20000000000000", JsNumber.ToRadix(9007199254740992, 16));
     }
+
+    /// <summary>
+    ///     Validates that a table built from a finished block of cells (the way the row transforms build their results) holds
+    ///     the cells row by row, composite values included, and that the shape of the arguments is checked.
+    /// </summary>
+    [Fact]
+    public void DataTable_FromSortedCells_BuildsATableAndChecksTheShape()
+    {
+        // Arrange: two rows of the fields a and b, the second cell of the first row an array
+        DataValue[] cells =
+        [
+            DataValue.FromNumber(1), DataValue.FromArray([DataValue.FromString("x"), DataValue.FromNumber(2)]),
+            DataValue.FromNumber(3), DataValue.Null,
+        ];
+
+        // Act
+        var table = DataTable.FromSortedCells(["a", "b"], cells, 2);
+        var empty = DataTable.FromSortedCells([], [], 3);
+
+        // Assert
+        Assert.Equal((2, 2), (table.RowCount, table.FieldCount));
+        Assert.Equal(3, table.GetValue(1, "a").Number);
+        Assert.True(table.GetValue(0, "b").IsArray);
+        Assert.Equal("x,2", table.GetValue(0, "b").ToText());
+        Assert.True(table.GetValue(1, "b").IsNull);
+        Assert.Equal((3, 0), (empty.RowCount, empty.FieldCount));
+
+        // Assert: unordered, repeated or miscounted arguments are refused
+        Assert.Throws<ArgumentException>(() => DataTable.FromSortedCells(["b", "a"], cells, 2));
+        Assert.Throws<ArgumentException>(() => DataTable.FromSortedCells(["a", "a"], cells, 2));
+        Assert.Throws<ArgumentException>(() => DataTable.FromSortedCells(["a", "b"], cells, 3));
+        Assert.Throws<ArgumentNullException>(() => DataTable.FromSortedCells(null!, cells, 2));
+        Assert.Throws<ArgumentNullException>(() => DataTable.FromSortedCells(["a", "b"], null!, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataTable.FromSortedCells(["a", "b"], cells, -1));
+    }
 }

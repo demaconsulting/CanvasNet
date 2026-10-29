@@ -10,7 +10,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 /// </summary>
 /// <remarks>
 ///     The namespace is internal to the package: the public surface is <c>VegaLiteDocument</c>. Every type is
-///     immutable once built and safe for concurrent use, performs no I/O and never touches the network.
+///     immutable once built and safe for concurrent use, performs no I/O and never touches the network. The specification
+///     parser also compiles the expressions of the supported sites (static parameters, <c>calculate</c> and <c>filter</c>
+///     transforms and row-bound mark values) once, when the document is opened, and validates the shape of the supported
+///     transforms and parameters (<c>SpecExpressions</c>, <c>ParameterGraph</c>); the catalog reports what is left out.
 /// </remarks>
 internal static class NamespaceDoc
 {

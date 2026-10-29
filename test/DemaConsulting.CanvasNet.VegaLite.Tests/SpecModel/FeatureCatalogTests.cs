@@ -62,14 +62,11 @@ public class FeatureCatalogTests
                 ("vl-schema-version", "/$schema"),
                 ("vl-expr-ref", "/title/text"),
                 ("vl-layout-autosize-fit", "/autosize"),
-                ("vl-param-variable", "/params/0"),
                 ("vl-param-selection", "/params/1"),
                 ("vl-projection", "/projection"),
                 ("vl-data-parse-date-format", "/data/format/parse/d"),
                 ("vl-transform-calculate", "/transform/0"),
-                ("vl-expr-calculate", "/transform/0/calculate"),
                 ("vl-transform-filter", "/transform/1"),
-                ("vl-expr-filter", "/transform/1/filter"),
                 ("vl-transform-aggregate", "/transform/2"),
                 ("vl-mark-arc", "/mark"),
                 ("vl-type-temporal", "/encoding/x/type"),
@@ -461,7 +458,7 @@ public class FeatureCatalogTests
               "x": { "field": "a", "type": "quantitative", "bin": false, "stack": false, "sort": "ascending" },
               "y": { "field": "a", "type": "quantitative", "bin": null, "stack": null, "sort": null, "aggregate": null, "timeUnit": null, "impute": null },
               "color": { "field": "a", "type": "ordinal", "sort": [ "b", "a" ], "legend": null, "bin": "binned", "stack": true, "sort2": 1 },
-              "size": { "field": "a", "type": "nominal", "sort": { "op": "min", "field": "b" }, "impute": { "value": 0 }, "bandPosition": 0.5, "legend": null }
+              "size": { "field": "a", "type": "nominal", "sort": { "encoding": "x", "order": "descending" }, "impute": { "value": 0 }, "bandPosition": 0.5, "legend": null }
             } }
             """;
 
@@ -675,17 +672,14 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the filter object has no expression of its own; bind is ignored
+        // Assert: the filter object, the variable parameter (bind is ignored) and the row-bound color expression are supported
         Assert.Equal(
             [
                 ("vl-expr-ref", "/width"),
-                ("vl-param-variable", "/params/0"),
                 ("vl-param-selection", "/params/1"),
-                ("vl-transform-filter", "/transform/0"),
                 ("vl-transform-timeunit", "/transform/1"),
                 ("vl-transform-joinaggregate", "/transform/2"),
                 ("vl-expr-ref", "/mark/size"),
-                ("vl-expr-ref", "/encoding/color/value"),
             ],
             ids);
     }
@@ -761,5 +755,271 @@ public class FeatureCatalogTests
         Assert.Equal(
             [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-arc", "/layer/0/mark"), ("vl-mark-text", "/mark")],
             ids);
+    }
+
+    /// <summary>
+    ///     Validates that the Phase 5 transforms, the variable parameters and the row-bound expressions of the drawn view are
+    ///     supported: a specification that uses all of them has no reports.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [ { "name": "k", "value": 2 }, { "name": "kk", "expr": "k * 2", "bind": { "input": "range" } } ],
+              "data": { "values": [ { "a": 1, "b": [1, 2], "c": "x" } ] },
+              "transform": [
+                { "calculate": "datum.a * kk + abs(-1)", "as": "d" },
+                { "filter": "datum.d > k && isValid(datum.a)" },
+                { "filter": { "and": [ { "field": "a", "range": [0, 9] }, { "not": { "field": "a", "oneOf": [3, 4] } }, { "param": "k" } ] } },
+                { "fold": ["a", "d"] },
+                { "flatten": ["b"] },
+                { "sample": 5 },
+                { "pivot": "key", "value": "value", "groupby": ["c"], "op": "sum" },
+                { "lookup": "c", "from": { "data": { "name": "other" }, "key": "k", "fields": ["v"] }, "default": 0 }
+              ],
+              "datasets": { "other": [ { "k": "x", "v": 1 } ] },
+              "mark": { "type": "point", "color": { "expr": "datum.a > 1 ? 'red' : 'blue'" }, "size": { "expr": "30 + k" }, "opacity": { "expr": "0.5" }, "strokeWidth": { "expr": "k" } },
+              "encoding": { "color": { "value": { "expr": "'green'" } }, "size": { "value": { "expr": "k * 10" } }, "opacity": { "value": { "expr": "0.7" } } }
+            }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>
+    ///     Validates that the constructs of a supported expression that the engine does not execute are reported at the
+    ///     expression text with stable identifiers: unlisted functions, view state, deferred operators and view signals.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [ { "name": "p", "expr": "datetime(2020, 1, 1)" }, { "name": "width", "value": 3 } ],
+              "data": { "values": [ { "a": 1 } ] },
+              "transform": [
+                { "calculate": "timeFormat(datum.d, '%Y')", "as": "y" },
+                { "filter": "signal('a') || event.x" },
+                { "calculate": "datum.a & 3 in datum.b", "as": "z" },
+                { "calculate": "height / 2 + width", "as": "w" },
+                { "filter": { "or": [ "rgb(1, 2, 3)", { "field": "a", "equal": 1 } ] } }
+              ],
+              "mark": "point",
+              "encoding": { "color": { "value": { "expr": "format(datum.a, '.1f')" } } }
+            }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
+
+        // Assert: one report per construct, at the expression text, in document order (width is a declared parameter here)
+        Assert.Equal(
+            [
+                ("vl-expr-function-datetime", "/params/0/expr"),
+                ("vl-expr-function-timeFormat", "/transform/0/calculate"),
+                ("vl-expr-view-state", "/transform/1/filter"),
+                ("vl-expr-view-state", "/transform/1/filter"),
+                ("vl-expr-construct-bitwise-and", "/transform/2/calculate"),
+                ("vl-expr-construct-in", "/transform/2/calculate"),
+                ("vl-expr-view-state", "/transform/3/calculate"),
+                ("vl-expr-function-rgb", "/transform/4/filter/or/0"),
+                ("vl-expr-function-format", "/encoding/color/value/expr"),
+            ],
+            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.All(reports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+        Assert.Contains("(at expression offset 0)", reports[0].Message, StringComparison.Ordinal);
+        Assert.Contains("'height'", reports[6].Message, StringComparison.Ordinal);
+
+        // Assert: the location is that of the string value, so the first report is at line 2 (the parameter) and a strict render stops there
+        Assert.Equal(2, reports[0].Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that the transforms of a later phase, conditional encodings and selection parameters are still reported.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [ { "name": "s", "select": "interval" } ],
+              "data": { "values": [ { "a": 1 } ] },
+              "transform": [
+                { "aggregate": [ { "op": "count", "as": "n" } ] },
+                { "joinaggregate": [ { "op": "sum", "field": "v", "as": "t" } ] },
+                { "window": [ { "op": "rank", "as": "r" } ] },
+                { "bin": true, "field": "x", "as": "b" },
+                { "stack": "v", "as": ["a", "b"] },
+                { "impute": "v", "key": "k" },
+                { "timeUnit": "year", "field": "d", "as": "y" },
+                { "regression": "y", "on": "x" },
+                { "loess": "y", "on": "x" },
+                { "density": "x" },
+                { "quantile": "x" },
+                { "extent": "x", "param": "e" }
+              ],
+              "mark": "point",
+              "encoding": { "color": { "condition": { "param": "s", "value": "red" }, "value": "gray" } }
+            }
+            """;
+
+        // Act
+        var ids = Visit(json).Select(r => r.Id);
+
+        // Assert
+        Assert.Equal(
+            [
+                "vl-param-selection", "vl-transform-aggregate", "vl-transform-joinaggregate", "vl-transform-window", "vl-transform-bin",
+                "vl-transform-stack", "vl-transform-impute", "vl-transform-timeunit", "vl-transform-regression", "vl-transform-loess",
+                "vl-transform-density", "vl-transform-quantile", "vl-transform-extent", "vl-encoding-condition",
+            ],
+            ids);
+    }
+
+    /// <summary>
+    ///     Validates the parts of the supported transforms that are not supported: a selection in a filter, a time unit or a
+    ///     date object in a predicate, a pivot operation, a lookup in a parameter and a remote lookup source.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [ { "name": "brush", "select": "interval" } ],
+              "data": { "values": [ { "a": 1 } ] },
+              "transform": [
+                { "filter": { "param": "brush" } },
+                { "filter": { "selection": "brush" } },
+                { "filter": { "field": "x", "equal": 1, "timeUnit": "year" } },
+                { "filter": { "field": "x", "oneOf": [ { "year": 2020 } ] } },
+                { "filter": { "field": "x", "equal": { "year": 2020 } } },
+                { "pivot": "k", "value": "v", "op": "mean" },
+                { "pivot": "k", "value": "v", "op": "count" },
+                { "lookup": "k", "from": { "param": "brush" } },
+                { "lookup": "k", "from": { "data": { "url": "https://example.com/a.csv" }, "key": "a", "fields": ["b"] } }
+              ],
+              "mark": "point"
+            }
+            """;
+
+        // Act
+        var reports = Visit(json);
+
+        // Assert
+        Assert.Equal(
+            [
+                ("vl-param-selection", "/params/0"),
+                ("vl-transform-filter-param", "/transform/0/filter/param"),
+                ("vl-transform-filter-param", "/transform/1/filter/selection"),
+                ("vl-transform-filter-timeunit", "/transform/2/filter/timeUnit"),
+                ("vl-transform-filter-datetime", "/transform/3/filter/oneOf/0"),
+                ("vl-transform-filter-datetime", "/transform/4/filter/equal"),
+                ("vl-transform-pivot-op", "/transform/5/op"),
+                ("vl-transform-lookup-param", "/transform/7/from/param"),
+                ("vl-data-remote-url", "/transform/8/from/data"),
+            ],
+            reports);
+    }
+
+    /// <summary>
+    ///     Validates that the transforms and the variable parameters of a nested view are reported (the view is not drawn),
+    ///     while the variable parameters of the root are not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [ { "name": "r", "value": 2 } ],
+              "layer": [
+                { "params": [ { "name": "v", "value": 1 } ], "transform": [ { "calculate": "1", "as": "x" }, { "lookup": "k", "from": { "param": "r" } } ], "mark": "point" }
+              ]
+            }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Equal(
+            [
+                ("vl-composition-layer", "/layer"),
+                ("vl-param-variable", "/layer/0/params/0"),
+                ("vl-transform-calculate", "/layer/0/transform/0"),
+                ("vl-transform-lookup", "/layer/0/transform/1"),
+            ],
+            ids);
+    }
+
+    /// <summary>
+    ///     Validates that the row-bound sites of an expression reference are evaluated and the others are still reported as
+    ///     <c>vl-expr-ref</c>, with the constructs of an evaluated site reported at its expression.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites()
+    {
+        // Arrange: a symbol size and a color value are row-bound; a bar's size, a position value and the title are not
+        const string json = """
+            {
+              "title": { "text": { "expr": "'t'" } },
+              "width": { "expr": "200" },
+              "mark": { "type": "bar", "size": { "expr": "3" }, "fill": { "expr": "toString(datum.a)" } },
+              "encoding": { "color": { "value": { "expr": "regexp('a')" } }, "x": { "value": { "expr": "10" } }, "size": { "value": { "expr": "1" } } }
+            }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Equal(
+            [
+                ("vl-expr-ref", "/title/text"),
+                ("vl-expr-ref", "/width"),
+                ("vl-expr-ref", "/mark/size"),
+                ("vl-expr-ref", "/encoding/x/value"),
+                ("vl-expr-ref", "/encoding/size/value"),
+            ],
+            ids);
+    }
+
+    /// <summary>
+    ///     Validates which <c>sort</c> forms of a channel are reported: only the forms the scale resolver cannot compute.
+    /// </summary>
+    /// <param name="sort">The text of the <c>sort</c> value.</param>
+    /// <param name="reported">Whether <c>vl-encoding-sort</c> is expected.</param>
+    [Theory]
+    [InlineData("\"ascending\"", false)]
+    [InlineData("[\"b\", \"a\"]", false)]
+    [InlineData("{\"op\":\"sum\",\"field\":\"v\"}", false)]
+    [InlineData("{\"op\":\"count\"}", false)]
+    [InlineData("{\"op\":\"median\",\"field\":\"v\",\"order\":\"descending\"}", false)]
+    [InlineData("{\"op\":\"sum\",\"field\":\"v\",\"order\":null}", false)]
+    [InlineData("{\"op\":\"sum\",\"encoding\":\"y\"}", true)]
+    [InlineData("{\"field\":\"v\"}", true)]
+    [InlineData("{\"op\":\"valid\",\"field\":\"v\"}", true)]
+    [InlineData("{\"op\":\"sum\",\"order\":\"sideways\"}", true)]
+    [InlineData("{\"op\":\"sum\",\"field\":\"a[\"}", true)]
+    [InlineData("\"-y\"", true)]
+    public void FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms(string sort, bool reported)
+    {
+        // Arrange
+        var json = "{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\",\"sort\":" + sort + "},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"}}}";
+
+        // Act
+        var ids = Visit(json).Select(r => r.Id).ToList();
+
+        // Assert
+        Assert.Equal(reported ? new[] { "vl-encoding-sort" } : [], ids);
     }
 }

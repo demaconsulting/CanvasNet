@@ -968,6 +968,42 @@ internal sealed class DataTable
     }
 
     /// <summary>
+    ///     Creates a table from a finished block of cells (internal; used by the row transforms, which compute whole
+    ///     tables and must not copy them again).
+    /// </summary>
+    /// <remarks>
+    ///     The caller has already enforced the row and field limits. The fields must be unique and in ordinal order, and the
+    ///     array must hold exactly <paramref name="rowCount"/> times the number of fields cells, row by row. The table takes
+    ///     ownership of both arrays: the caller must not change them afterwards.
+    /// </remarks>
+    /// <param name="fields">The fields in ordinal order, without duplicates.</param>
+    /// <param name="cells">The cells, row by row.</param>
+    /// <param name="rowCount">The number of rows.</param>
+    /// <returns>The table.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an array is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the fields are not unique and ordered or the cell count is wrong.</exception>
+    internal static DataTable FromSortedCells(string[] fields, DataValue[] cells, int rowCount)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        ArgumentNullException.ThrowIfNull(cells);
+        ArgumentOutOfRangeException.ThrowIfNegative(rowCount);
+        for (var i = 1; i < fields.Length; i++)
+        {
+            if (string.CompareOrdinal(fields[i - 1], fields[i]) >= 0)
+            {
+                throw new ArgumentException("The fields must be unique and in ordinal order.", nameof(fields));
+            }
+        }
+
+        if ((long)rowCount * fields.Length != cells.LongLength)
+        {
+            throw new ArgumentException("The number of cells must be the number of rows times the number of fields.", nameof(cells));
+        }
+
+        return new DataTable(fields, cells, rowCount);
+    }
+
+    /// <summary>
     ///     Finds a field by its canonical name.
     /// </summary>
     /// <param name="canonicalName">The canonical path text.</param>

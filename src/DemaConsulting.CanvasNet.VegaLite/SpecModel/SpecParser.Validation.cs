@@ -178,6 +178,8 @@ internal sealed partial class SpecParser
     /// <exception cref="VegaLiteSpecException">Thrown for the first known property with a wrong type or value.</exception>
     private void Validate(SpecNode root)
     {
+        _root = root;
+
         // Each work item is a view and the index of the next property to check, so that a nested view is checked
         // exactly where its composition property sits in the text
         var pending = new Stack<(SpecNode View, int Next)>();
@@ -528,6 +530,7 @@ internal sealed partial class SpecParser
                     WarnUnknown(property, "a mark definition");
                 }
 
+                CompileMarkExpressions(node, type.StringValue!);
                 return;
             default:
                 throw Error(node, "The mark must be a string or an object.");
@@ -621,6 +624,8 @@ internal sealed partial class SpecParser
         {
             CheckObject(legend, LegendRules);
         }
+
+        CompileChannelExpression(definition);
     }
 
     /// <summary>
@@ -653,6 +658,8 @@ internal sealed partial class SpecParser
                 throw Error(expr, "The expr of a parameter must be a string.");
             }
         }
+
+        ValidateParameterSemantics(node);
     }
 
     /// <summary>
@@ -684,6 +691,8 @@ internal sealed partial class SpecParser
             {
                 throw Error(operation, "The calculate of a transform must be an expression string.");
             }
+
+            ValidateTransformEntry(entry, operation);
         }
     }
 

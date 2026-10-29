@@ -146,8 +146,10 @@ public sealed class VegaLiteLimits
     ///     Gets the maximum number of data rows, in total across all tables of one rendering; 1,000,000 by default.
     /// </summary>
     /// <remarks>
-    ///     Counted per measure or render call across inline values, files, named datasets and sequences; the rows are
-    ///     counted before they are allocated.
+    ///     Counted per measure or render call across inline values, files, named datasets, sequences and lookup sources; the
+    ///     rows are counted before they are allocated. The rows of a table that a transform derives count as well: a transform
+    ///     that can produce more rows than it reads (<c>fold</c>, <c>flatten</c>) reserves its output in this budget while its
+    ///     input still counts, and the rows a filter, sample or pivot drops are given back.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxDataRows
@@ -157,7 +159,8 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of distinct fields in one data table; 1,024 by default.
+    ///     Gets the maximum number of distinct fields in one data table, including the tables that the row transforms
+    ///     derive (calculated, folded, flattened, pivoted and looked-up fields); 1,024 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxFieldCount
@@ -221,6 +224,10 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum length of one expression in UTF-16 characters; 4,096 by default.
     /// </summary>
+    /// <remarks>
+    ///     Checked when the document is opened, for every expression the renderer compiles (a longer one is a
+    ///     <see cref="VegaLiteSpecException"/> located at the expression).
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxExpressionLength
     {
@@ -231,6 +238,10 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum nesting depth of one expression; 64 by default.
     /// </summary>
+    /// <remarks>
+    ///     Checked when the document is opened, as the nesting of groups, brackets, call arguments, array and object
+    ///     literals, conditional branches and unary operands (a deeper one is a <see cref="VegaLiteSpecException"/>).
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is outside 1 to 256.</exception>
     public int MaxExpressionDepth
     {
@@ -241,6 +252,11 @@ public sealed class VegaLiteLimits
     /// <summary>
     ///     Gets the maximum number of expression evaluation steps in one rendering; 50,000,000 by default.
     /// </summary>
+    /// <remarks>
+    ///     One step is one executed instruction of a compiled expression (plus a step per 64 characters or elements of the
+    ///     work of a function). The budget is shared by the parameters, the transforms and the row-bound mark values of one
+    ///     measure or render call; exhausting it is a <see cref="VegaLiteRenderException"/> located at the expression.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxEvaluationSteps
     {

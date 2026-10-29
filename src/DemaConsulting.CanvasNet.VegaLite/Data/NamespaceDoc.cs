@@ -12,8 +12,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     bounded; remote data (a URL with a scheme or an absolute path) is never opened and yields an empty table that the
 ///     feature catalog reports. Inline rows, local CSV, TSV, DSV and JSON files, named datasets and generated sequences
 ///     are read, with <c>format.parse</c> conversions and per-column type inference for delimited text. The table types are immutable and
-///     safe for concurrent use once built; a loader and a resolver serve one call on one thread. All text formatting is
-///     culture invariant and all dates are UTC.
+///     safe for concurrent use once built; a loader and a resolver serve one call on one thread. The loader of a call is
+///     also the context of the row transforms: a lookup loads its source through it (same sandbox, file cache and limits) and
+///     the rows of derived tables are reserved in its row budget. A value can also be an immutable array or object, the
+///     result of an expression. All text formatting is culture invariant and all dates are UTC.
 /// </remarks>
 internal static class NamespaceDoc
 {

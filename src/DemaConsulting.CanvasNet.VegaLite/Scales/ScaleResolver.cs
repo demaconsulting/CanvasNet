@@ -328,6 +328,9 @@ internal static class ScaleResolver
     /// <summary>The marks whose discrete positions are bands, so that the mark fits into the band.</summary>
     private static readonly HashSet<string> BandMarks = ["rect", "bar", "image", "rule", "tick"];
 
+    /// <summary>The aggregate operations of a sort by field.</summary>
+    private static readonly HashSet<string> SortOperations = ["count", "sum", "mean", "average", "median", "min", "max"];
+
     /// <summary>The ratio of the step that a point-like mark's largest size may span (Vega-Lite's MAX_SIZE_RANGE_STEP_RATIO).</summary>
     private const double MaxSizeRangeStepRatio = 0.95;
 
@@ -1197,9 +1200,182 @@ internal static class ScaleResolver
         }
 
         var descending = sort?.AsString() == "descending";
+        if (sort is { IsObject: true } && IsSupportedFieldSort(sort))
+        {
+            return SortByField(domain, sort, input, context);
+        }
+
         return descending
             ? [.. domain.OrderBy(v => v, Comparer<DataValue>.Create((x, y) => DataValue.Compare(y, x)))]
             : [.. domain.OrderBy(v => v, Comparer<DataValue>.Create(DataValue.Compare))];
+    }
+
+    /// <summary>
+    ///     Determines whether a <c>sort</c> object is a sort by the aggregate of a field that the resolver can compute.
+    /// </summary>
+    /// <remarks>
+    ///     Supported is an object with an <c>op</c> of <c>count</c>, <c>sum</c>, <c>mean</c>, <c>average</c>, <c>median</c>,
+    ///     <c>min</c> or <c>max</c>, an optional <c>field</c> (a valid field path; the field of the channel when absent) and an
+    ///     optional <c>order</c> (<c>ascending</c> or <c>descending</c>). A sort by another encoding channel (<c>encoding</c>) or
+    ///     by any other operation is not supported; the feature catalog reports it as <c>vl-encoding-sort</c>.
+    /// </remarks>
+    /// <param name="sort">The <c>sort</c> value.</param>
+    /// <returns><see langword="true"/> for a supported sort by field.</returns>
+    public static bool IsSupportedFieldSort(SpecNode sort)
+    {
+        if (!sort.IsObject || sort["encoding"] is not null || sort["op"] is not { IsString: true } op || !SortOperations.Contains(op.StringValue!))
+        {
+            return false;
+        }
+
+        var field = sort["field"];
+        var fieldOk = field is null || (field.IsString && FieldPath.Canonicalize(field.StringValue) is not null);
+        var order = sort["order"];
+        var orderOk = order is null || order.IsNull || (order.IsString && order.StringValue is "ascending" or "descending");
+        return fieldOk && orderOk;
+    }
+
+    /// <summary>
+    ///     Orders a discrete domain by an aggregate of a field over the rows of each category.
+    /// </summary>
+    /// <remarks>
+    ///     The aggregate of a category is computed over the rows of the (transformed) table that have it: <c>count</c> counts the
+    ///     rows, the other operations read the valid numbers of the sort field (a category without one has no value, which sorts
+    ///     first, except <c>sum</c> which is zero). Categories with the same aggregate keep the order of first appearance, so the
+    ///     sort is stable and does not depend on the culture.
+    /// </remarks>
+    /// <param name="domain">The categories in order of first appearance.</param>
+    /// <param name="sort">The supported <c>sort</c> object.</param>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
+    /// <returns>The categories in the requested order.</returns>
+    private static List<DataValue> SortByField(List<DataValue> domain, SpecNode sort, CommonInputs input, Context context)
+    {
+        var operation = sort["op"]!.StringValue!;
+        var descending = sort["order"]?.AsString() == "descending";
+        var table = context.Table;
+        var keyField = input.FieldPath is null ? -1 : table.FindField(input.FieldPath);
+        var valuePath = sort["field"]?.AsString() ?? input.FieldPath;
+        var valueField = valuePath is null ? -1 : table.FindField(valuePath);
+        if (keyField < 0)
+        {
+            return domain;
+        }
+
+        var groups = new Dictionary<DataValue, SortGroup>();
+        foreach (var category in domain)
+        {
+            groups[category] = new SortGroup(operation == "median");
+        }
+
+        for (var row = 0; row < table.RowCount; row++)
+        {
+            if (row % CancellationInterval == 0)
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+            }
+
+            if (groups.TryGetValue(table.GetValue(row, keyField), out var group))
+            {
+                group.Rows++;
+                if (valueField >= 0 && table.GetValue(row, valueField).TryGetQuantitative(out var number))
+                {
+                    group.Add(number);
+                }
+            }
+        }
+
+        var keys = domain.ToDictionary(category => category, category => groups[category].Result(operation));
+        var comparer = descending
+            ? Comparer<DataValue>.Create((x, y) => DataValue.Compare(y, x))
+            : Comparer<DataValue>.Create(DataValue.Compare);
+        return [.. domain.OrderBy(category => keys[category], comparer)];
+    }
+
+    /// <summary>
+    ///     The numbers of one category collected for a sort by an aggregate.
+    /// </summary>
+    private sealed class SortGroup
+    {
+        /// <summary>The numbers, kept only when the median is needed.</summary>
+        private readonly List<double>? _numbers;
+
+        /// <summary>The number of valid numbers.</summary>
+        private long _count;
+
+        /// <summary>The sum of the numbers.</summary>
+        private double _sum;
+
+        /// <summary>The smallest number.</summary>
+        private double _min = double.PositiveInfinity;
+
+        /// <summary>The largest number.</summary>
+        private double _max = double.NegativeInfinity;
+
+        /// <summary>
+        ///     Initializes a group.
+        /// </summary>
+        /// <param name="keepNumbers">Whether the numbers must be kept (for the median).</param>
+        public SortGroup(bool keepNumbers) => _numbers = keepNumbers ? [] : null;
+
+        /// <summary>Gets or sets the number of rows of the category.</summary>
+        public long Rows { get; set; }
+
+        /// <summary>
+        ///     Adds one valid number.
+        /// </summary>
+        /// <param name="number">The number.</param>
+        public void Add(double number)
+        {
+            _count++;
+            _sum += number;
+            _min = Math.Min(_min, number);
+            _max = Math.Max(_max, number);
+            _numbers?.Add(number);
+        }
+
+        /// <summary>
+        ///     Computes the aggregate.
+        /// </summary>
+        /// <param name="operation">The operation.</param>
+        /// <returns>The aggregate; null when the category has no valid number (except for count and sum).</returns>
+        public DataValue Result(string operation)
+        {
+            switch (operation)
+            {
+                case "count":
+                    return DataValue.FromNumber(Rows);
+                case "sum":
+                    return DataValue.FromNumber(_sum);
+                default:
+                    break;
+            }
+
+            if (_count == 0)
+            {
+                return DataValue.Null;
+            }
+
+            return operation switch
+            {
+                "min" => DataValue.FromNumber(_min),
+                "max" => DataValue.FromNumber(_max),
+                "median" => DataValue.FromNumber(Median(_numbers!)),
+                _ => DataValue.FromNumber(_sum / _count),
+            };
+        }
+
+        /// <summary>
+        ///     Computes the median of numbers.
+        /// </summary>
+        /// <param name="numbers">The numbers (sorted in place).</param>
+        /// <returns>The middle value, or the mean of the two middle values.</returns>
+        private static double Median(List<double> numbers)
+        {
+            numbers.Sort();
+            var middle = numbers.Count / 2;
+            return numbers.Count % 2 == 1 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
+        }
     }
 
     /// <summary>
