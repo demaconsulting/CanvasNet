@@ -70,6 +70,9 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>The largest date in milliseconds since the epoch: 9999-12-31T23:59:59.999Z.</summary>
     internal const double MaxDateMilliseconds = 253402300799999.0;
 
+    /// <summary>The longest text, in UTF-16 characters, that <see cref="ToText"/> builds for an array.</summary>
+    internal const int MaxUnboundedTextLength = 16_777_216;
+
     /// <summary>The numeric payload of a number or a date (or 1/0 of a boolean).</summary>
     private readonly double _number;
 
@@ -137,17 +140,101 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <remarks>
     ///     This is the one check that every path by which a text from outside the table operations (a constructor of the
     ///     expression language, a parameter, a value of the specification) enters a derived table uses. It is iterative, so
-    ///     the depth of a composite value cannot exhaust the stack, and does not allocate for a scalar.
+    ///     the depth of a composite value cannot exhaust the stack, and does not allocate for a scalar. Composites are
+    ///     immutable and may be shared (<c>[x, x]</c> holds the same array twice), so every array and object is visited
+    ///     once however often it is referenced: the work is bounded by the distinct nodes, not by the paths through them.
     /// </remarks>
     /// <param name="maxLength">The longest text allowed, in UTF-16 characters.</param>
+    /// <param name="charge">Receives the number of elements and members scanned, to charge it as work; null to not charge.</param>
     /// <returns>True when a text is longer than <paramref name="maxLength"/>.</returns>
-    public bool HasTextLongerThan(int maxLength)
+    public bool HasTextLongerThan(int maxLength, Action<long>? charge = null)
     {
         if (!IsString && !IsArray && !IsObject)
         {
             return false;
         }
 
+        var scanned = 0L;
+        try
+        {
+            return ScanForLongText(maxLength, ref scanned);
+        }
+        finally
+        {
+            if (scanned > 0)
+            {
+                charge?.Invoke(scanned);
+            }
+        }
+    }
+
+    /// <summary>Gets a value indicating whether this value is an array.</summary>
+    public bool IsArray => Kind == DataValueKind.Array;
+
+    /// <summary>Gets a value indicating whether this value is an object.</summary>
+    public bool IsObject => Kind == DataValueKind.Object;
+
+    /// <summary>Gets a value indicating whether this value is a regular expression.</summary>
+    public bool IsRegExp => Kind == DataValueKind.RegExp;
+
+    /// <summary>
+    ///     Appends the text of this array the way JavaScript's <c>join()</c> with a comma does, stopping when it is too long.
+    /// </summary>
+    /// <remarks>
+    ///     The text of a shared array repeats the content of every reference, so it can be far larger than the value; the
+    ///     traversal is iterative and checks the length as the text grows, so it fails early and its work is bounded by the
+    ///     length it is allowed to build.
+    /// </remarks>
+    /// <param name="text">The text being built.</param>
+    /// <param name="maxLength">The longest text allowed, in UTF-16 characters.</param>
+    /// <returns>True when the whole text was appended; false when <paramref name="text"/> grew longer than <paramref name="maxLength"/>.</returns>
+    internal bool TryAppendArrayText(StringBuilder text, int maxLength)
+    {
+        var frames = new Stack<(DataValue[] Items, int Next)>();
+        frames.Push((((DataArray)_reference!).Items, 0));
+        while (frames.Count > 0)
+        {
+            var (items, next) = frames.Pop();
+            while (next < items.Length)
+            {
+                if (next > 0)
+                {
+                    text.Append(',');
+                }
+
+                var element = items[next++];
+                if (element.IsArray)
+                {
+                    // Finish the child first, then continue after it
+                    frames.Push((items, next));
+                    frames.Push((((DataArray)element._reference!).Items, 0));
+                    break;
+                }
+
+                if (!element.IsNull)
+                {
+                    text.Append(element.ToText());
+                }
+
+                if (text.Length > maxLength)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return text.Length <= maxLength;
+    }
+
+    /// <summary>
+    ///     Scans the composite value for a text longer than a limit, visiting every shared node once.
+    /// </summary>
+    /// <param name="maxLength">The longest text allowed.</param>
+    /// <param name="scanned">Accumulates the number of elements and members scanned.</param>
+    /// <returns>True when a text is longer than <paramref name="maxLength"/>.</returns>
+    private bool ScanForLongText(int maxLength, ref long scanned)
+    {
+        HashSet<object>? visited = null;
         var pending = new Stack<DataValue>();
         pending.Push(this);
         while (pending.Count > 0)
@@ -159,10 +246,22 @@ internal readonly struct DataValue : IEquatable<DataValue>
                 {
                     return true;
                 }
+
+                continue;
             }
-            else if (current.IsArray)
+
+            // A composite that was visited already holds nothing new
+            visited ??= new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (!visited.Add(current._reference!))
             {
-                foreach (var element in current.Elements)
+                continue;
+            }
+
+            if (current.IsArray)
+            {
+                var items = ((DataArray)current._reference!).Items;
+                scanned += items.Length;
+                foreach (var element in items)
                 {
                     if (element.IsString || element.IsArray || element.IsObject)
                     {
@@ -170,9 +269,10 @@ internal readonly struct DataValue : IEquatable<DataValue>
                     }
                 }
             }
-            else if (current.IsObject)
+            else
             {
                 var members = current.ObjectValue!;
+                scanned += members.Count;
                 for (var i = 0; i < members.Count; i++)
                 {
                     if (members.Keys[i].Length > maxLength)
@@ -191,15 +291,6 @@ internal readonly struct DataValue : IEquatable<DataValue>
 
         return false;
     }
-
-    /// <summary>Gets a value indicating whether this value is an array.</summary>
-    public bool IsArray => Kind == DataValueKind.Array;
-
-    /// <summary>Gets a value indicating whether this value is an object.</summary>
-    public bool IsObject => Kind == DataValueKind.Object;
-
-    /// <summary>Gets a value indicating whether this value is a regular expression.</summary>
-    public bool IsRegExp => Kind == DataValueKind.RegExp;
 
     /// <summary>
     ///     Creates a boolean value.
@@ -315,7 +406,7 @@ internal readonly struct DataValue : IEquatable<DataValue>
         DataValueKind.Number => JsNumber.ToString(_number),
         DataValueKind.Date => DateTime.UnixEpoch.AddMilliseconds(_number).ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture),
         DataValueKind.String => Text!,
-        DataValueKind.Array => ArrayText(Elements),
+        DataValueKind.Array => ArrayText(),
         DataValueKind.Object => "[object Object]",
         DataValueKind.RegExp => _reference!.ToString() ?? string.Empty,
         _ => "null",
@@ -368,25 +459,18 @@ internal readonly struct DataValue : IEquatable<DataValue>
     /// <summary>
     ///     Formats an array like JavaScript's <c>Array.prototype.join()</c> with a comma.
     /// </summary>
-    /// <param name="elements">The elements.</param>
+    /// <remarks>
+    ///     The text of a shared array repeats its content for every reference, so the text is bounded by
+    ///     <see cref="MaxUnboundedTextLength"/> instead of growing without limit.
+    /// </remarks>
     /// <returns>The text; null elements are empty.</returns>
-    private static string ArrayText(ReadOnlySpan<DataValue> elements)
+    /// <exception cref="InvalidOperationException">Thrown when the text would be longer than <see cref="MaxUnboundedTextLength"/>.</exception>
+    private string ArrayText()
     {
         var text = new StringBuilder();
-        for (var i = 0; i < elements.Length; i++)
-        {
-            if (i > 0)
-            {
-                text.Append(',');
-            }
-
-            if (!elements[i].IsNull)
-            {
-                text.Append(elements[i].ToText());
-            }
-        }
-
-        return text.ToString();
+        return TryAppendArrayText(text, MaxUnboundedTextLength)
+            ? text.ToString()
+            : throw new InvalidOperationException($"The text of the array is longer than {MaxUnboundedTextLength} characters.");
     }
 
     /// <summary>

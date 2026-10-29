@@ -860,6 +860,43 @@ public class ExpressionFunctionsTests
     }
 
     /// <summary>
+    ///     Validates that a replacement text is charged for every match of a regular expression, even when its patterns
+    ///     expand to nothing, so a short input with many (empty) matches cannot read a long replacement unbounded.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_Replace_ChargesTheReplacementForEveryMatch()
+    {
+        // Arrange: '(x)?' matches empty at all 2,001 positions of the input and '$1' (an unmatched group) expands to nothing,
+        // so the output stays the input while every match reads the 50,000 characters of the replacement
+        const string Text = "replace(pad('', 2000, 'a'), regexp('(x)?', 'g'), pad('', 25000, '$1'))";
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Eval(Text, Steps(5_000)));
+        var evaluator = new ExpressionEvaluator(Steps(10_000_000), CancellationToken.None);
+        var value = evaluator.Evaluate(Compile(Text, Steps(10_000_000)));
+
+        // Assert: the small budget fails with the step error; the large one succeeds and was charged for every match
+        Assert.Contains("MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(new string('a', 2_000), value.Text);
+        Assert.True(evaluator.StepsUsed > 2_000 * 390L);
+    }
+
+    /// <summary>
+    ///     Validates that a replacement pattern such as <c>$`</c> fails at the string limit as it grows instead of
+    ///     appending the whole text for every pattern.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_Replace_FailsEarlyWhenAReplacementPatternGrowsTheTextPastTheLimit()
+    {
+        // Arrange: every "$`" appends the 400 characters before the match, so the third one passes the limit of 1,000 characters
+        var text = "replace(pad('', 400, 'a') + 'b', 'b', pad('', 10, '$`'))";
+
+        // Act / Assert
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Eval(text, new VegaLiteLimits { MaxStringLength = 1_000 }));
+        Assert.Contains("MaxStringLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the functions whose work is proportional to the length of their input charge it to the step
     ///     budget before converting: one step for every 64 characters, nothing for a short text.
     /// </summary>

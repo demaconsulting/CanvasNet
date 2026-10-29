@@ -203,6 +203,16 @@ at 21, and, on the context directly, that a length of 5 passes a limit of 5 and 
 flags give the same cached regular expression while other flags give another, that the flag text is normalized
 (`ig` is `gi`), and that the cache holds many different patterns without failing.
 
+##### Replace Charges The Replacement For Every Match
+
+**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Replace_ChargesTheReplacementForEveryMatch`,
+`ExpressionFunctionsTests.ExpressionFunctions_Replace_FailsEarlyWhenAReplacementPatternGrowsTheTextPastTheLimit`
+
+Asserts that `replace` of a 2,000-character text by `/(x)?/g` (2,001 empty matches) with a 50,000-character
+replacement of `$1` patterns that expand to nothing fails with the `MaxEvaluationSteps` error under a budget of 5,000
+steps, while under a large budget it returns the text unchanged and has been charged at least 390 steps for each match;
+and that a replacement of `` $` `` patterns fails with the `MaxStringLength` error as soon as the text passes the limit.
+
 ##### Steps, Charges, And Determinism
 
 **Tests**: `ExpressionFunctionsTests.ExpressionFunctionContext_StepsAndCharges_AreExactAndCancelable`,

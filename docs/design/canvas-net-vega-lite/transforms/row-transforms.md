@@ -92,7 +92,10 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
   key **the first row wins** (a deliberate deviation from Vega, which keeps the last). With
   `fields`, field `i` is copied to
   `as[i]` (default the canonical name of the field); without `fields`, the whole matching row goes into the one field `as`
-  (`data` by default) as an object. A row without a match gets `default` (a JSON scalar; null by default). `from.param`
+  (`data` by default) as an object. An array or object that a field copies is rebuilt from the flattened fields of the
+  secondary row **once per secondary row and copied field** and shared (composites are immutable) by every output row
+  that matches that row, so the memory of the copied values is bounded by the secondary rows and fields and not by the
+  output rows. A row without a match gets `default` (a JSON scalar; null by default). `from.param`
   (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`).
 
 **`RowSampler`.** `RowSampler.Select(count, size, pointer, token)` is a pure function of the

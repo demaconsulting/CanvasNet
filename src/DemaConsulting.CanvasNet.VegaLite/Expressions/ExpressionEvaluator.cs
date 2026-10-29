@@ -63,6 +63,8 @@ internal sealed partial class ExpressionEvaluator
     /// <summary>The per-evaluation context shared with the functions.</summary>
     private readonly ExpressionFunctionContext _context;
 
+    /// <summary>The charge of the context as a delegate, created once.</summary>
+    private readonly Action<long> _charge;
     /// <summary>The parameter values by name, or null when there are none.</summary>
     private readonly IReadOnlyDictionary<string, DataValue>? _parameters;
 
@@ -99,6 +101,7 @@ internal sealed partial class ExpressionEvaluator
         IReadOnlyDictionary<string, DataValue>? parameters = null)
     {
         _context = new ExpressionFunctionContext(limits, cancellationToken);
+        _charge = _context.ChargeSize;
         _parameters = parameters;
     }
 
@@ -231,9 +234,10 @@ internal sealed partial class ExpressionEvaluator
             }
 
             // A text that is the result as it is (a parameter, a field, a literal) never went through a function that checks it,
-            // and neither does a text inside an array or object literal, which is checked here at any depth
+            // and neither does a text inside an array or object literal, which is checked here at any depth; every shared
+            // composite is visited once and the elements scanned are charged
             var result = stack[0];
-            if (result.HasTextLongerThan(_context.MaxStringLength))
+            if (result.HasTextLongerThan(_context.MaxStringLength, _charge))
             {
                 throw new ExpressionRuntimeException(
                     $"The expression produced a string longer than the limit of {_context.MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
@@ -371,10 +375,10 @@ internal sealed partial class ExpressionEvaluator
         switch (op)
         {
             case ExpressionOpcode.Negate:
-                stack[sp - 1] = DataValue.FromNumber(-ToNumber(stack[sp - 1]));
+                stack[sp - 1] = DataValue.FromNumber(-ToNumber(stack[sp - 1], _context));
                 return sp;
             case ExpressionOpcode.Plus:
-                stack[sp - 1] = DataValue.FromNumber(ToNumber(stack[sp - 1]));
+                stack[sp - 1] = DataValue.FromNumber(ToNumber(stack[sp - 1], _context));
                 return sp;
             case ExpressionOpcode.Not:
                 stack[sp - 1] = DataValue.FromBoolean(!IsTruthy(stack[sp - 1]));
@@ -387,18 +391,18 @@ internal sealed partial class ExpressionEvaluator
         stack[sp - 1] = op switch
         {
             ExpressionOpcode.Add => Add(left, right),
-            ExpressionOpcode.Subtract => DataValue.FromNumber(ToNumber(left) - ToNumber(right)),
-            ExpressionOpcode.Multiply => DataValue.FromNumber(ToNumber(left) * ToNumber(right)),
-            ExpressionOpcode.Divide => DataValue.FromNumber(ToNumber(left) / ToNumber(right)),
-            ExpressionOpcode.Modulo => DataValue.FromNumber(ToNumber(left) % ToNumber(right)),
+            ExpressionOpcode.Subtract => DataValue.FromNumber(ToNumber(left, _context) - ToNumber(right, _context)),
+            ExpressionOpcode.Multiply => DataValue.FromNumber(ToNumber(left, _context) * ToNumber(right, _context)),
+            ExpressionOpcode.Divide => DataValue.FromNumber(ToNumber(left, _context) / ToNumber(right, _context)),
+            ExpressionOpcode.Modulo => DataValue.FromNumber(ToNumber(left, _context) % ToNumber(right, _context)),
             ExpressionOpcode.StrictEqual => DataValue.FromBoolean(StrictEquals(left, right)),
             ExpressionOpcode.StrictNotEqual => DataValue.FromBoolean(!StrictEquals(left, right)),
-            ExpressionOpcode.LooseEqual => DataValue.FromBoolean(LooseEquals(left, right, limit)),
-            ExpressionOpcode.LooseNotEqual => DataValue.FromBoolean(!LooseEquals(left, right, limit)),
-            ExpressionOpcode.Less => DataValue.FromBoolean(RelationalLess(left, right, limit) == 1),
-            ExpressionOpcode.Greater => DataValue.FromBoolean(RelationalLess(right, left, limit) == 1),
-            ExpressionOpcode.LessEqual => DataValue.FromBoolean(RelationalLess(right, left, limit) == 0),
-            ExpressionOpcode.GreaterEqual => DataValue.FromBoolean(RelationalLess(left, right, limit) == 0),
+            ExpressionOpcode.LooseEqual => DataValue.FromBoolean(LooseEquals(left, right, limit, _context)),
+            ExpressionOpcode.LooseNotEqual => DataValue.FromBoolean(!LooseEquals(left, right, limit, _context)),
+            ExpressionOpcode.Less => DataValue.FromBoolean(RelationalLess(left, right, limit, _context) == 1),
+            ExpressionOpcode.Greater => DataValue.FromBoolean(RelationalLess(right, left, limit, _context) == 1),
+            ExpressionOpcode.LessEqual => DataValue.FromBoolean(RelationalLess(right, left, limit, _context) == 0),
+            ExpressionOpcode.GreaterEqual => DataValue.FromBoolean(RelationalLess(left, right, limit, _context) == 0),
             _ => throw new InvalidOperationException($"Unexpected opcode {op}."),
         };
         return sp;
@@ -418,11 +422,11 @@ internal sealed partial class ExpressionEvaluator
         }
 
         var limit = _context.MaxStringLength;
-        var a = ToPrimitive(left, false, limit);
-        var b = ToPrimitive(right, false, limit);
+        var a = ToPrimitive(left, false, limit, _context);
+        var b = ToPrimitive(right, false, limit, _context);
         if (!a.IsString && !b.IsString)
         {
-            return DataValue.FromNumber(ToNumber(a) + ToNumber(b));
+            return DataValue.FromNumber(ToNumber(a, _context) + ToNumber(b, _context));
         }
 
         var first = ToJsString(a, limit);

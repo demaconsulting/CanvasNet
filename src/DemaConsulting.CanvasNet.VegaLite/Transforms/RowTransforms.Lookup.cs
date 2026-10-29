@@ -84,7 +84,7 @@ internal sealed partial class RowTransforms
         var cells = layout.Allocate(input.RowCount);
         var width = layout.Fields.Length;
         var primary = new FieldReader(input, operation.StringValue);
-        var wholeRows = new Dictionary<int, DataValue>();
+        var rebuilt = new Dictionary<(int Row, int Field), DataValue>();
         for (var row = 0; row < input.RowCount; row++)
         {
             Tick(row);
@@ -100,7 +100,7 @@ internal sealed partial class RowTransforms
                 }
                 else
                 {
-                    value = wholeRow ? WholeRow(readers[0], matched, wholeRows) : readers[j].Read(matched);
+                    value = Rebuilt(readers[wholeRow ? 0 : j], matched, j, rebuilt);
                 }
 
                 cells[((long)row * width) + layout.Added[j]] = value;
@@ -119,18 +119,24 @@ internal sealed partial class RowTransforms
         value.IsString || value.IsNumber || value.IsBoolean || value.IsDate ? value.ToText() : null;
 
     /// <summary>
-    ///     Gets the whole secondary row as an object, rebuilding every row once.
+    ///     Gets a field (or the whole row) of a secondary row, rebuilding an array or object from the flattened fields
+    ///     once per row and field.
     /// </summary>
-    /// <param name="reader">The reader of the whole row.</param>
+    /// <remarks>
+    ///     The rebuilt composite is immutable, so every output row that matches the same secondary row shares the one
+    ///     instance: the memory of the copied values is bounded by the secondary rows and fields, not by the output rows.
+    /// </remarks>
+    /// <param name="reader">The reader of the field or of the whole row.</param>
     /// <param name="row">The secondary row.</param>
-    /// <param name="cache">The rows rebuilt so far.</param>
-    /// <returns>The object.</returns>
-    private static DataValue WholeRow(FieldReader reader, int row, Dictionary<int, DataValue> cache)
+    /// <param name="field">The position of the copied field.</param>
+    /// <param name="cache">The values rebuilt so far.</param>
+    /// <returns>The value.</returns>
+    private static DataValue Rebuilt(FieldReader reader, int row, int field, Dictionary<(int Row, int Field), DataValue> cache)
     {
-        if (!cache.TryGetValue(row, out var value))
+        if (!cache.TryGetValue((row, field), out var value))
         {
             value = reader.Read(row);
-            cache[row] = value;
+            cache[(row, field)] = value;
         }
 
         return value;

@@ -159,6 +159,23 @@ evaluation of a three-step program and the second fails while a new evaluator st
 640-character text costs the instructions plus exactly 10 steps (one per 64 characters) and fails under a budget of 5,
 so a hostile expression cannot do unbounded work with few instructions.
 
+##### Operators Charge The Size Of What They Convert
+
+**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_OperatorsOnLongStrings_ChargeProportionalSteps`
+
+Asserts, as a theory of thirteen expressions (unary `+` and `-`, `-`, `*`, `/`, `%`, `<`, `>=`, `==`, `!=`, a string
+compared with itself, and an array holding the string under `+` and `==`), that an operator which reads a 12,800-character
+string charges at least 200 steps beyond the instructions, and that a budget of 50 steps fails with the located
+`MaxEvaluationSteps` error.
+
+##### Shared Arrays Are Checked Once Per Node And Their Text Is Bounded
+
+**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SharedArrays_AreCheckedOncePerNodeAndTheirTextIsBounded`
+
+Asserts, on a datum holding a chain of 40 `[x, x]` arrays (2^40 paths), that `[datum.a, datum.a]` is evaluated at once
+(the result check visits every node once), and that `'' + datum.a`, `toString(datum.a)`, and `datum.a == 1` fail with the
+located `MaxStringLength` error instead of building the repeated text.
+
 ##### String Limit
 
 **Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StringLimit_IsEnforcedOnConcatenation`,

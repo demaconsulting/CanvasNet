@@ -60,8 +60,9 @@ an optional argument that is null counts as not supplied. The 57 functions are:
 
 **`ExpressionFunctionContext`** is the per-evaluation state: the step counter and budget (`MaxEvaluationSteps`), `Step()`
 (one step per instruction; the step that exceeds the budget is the reported one), `ChargeSize(n)` (one extra step for every
-64 characters or elements of size-proportional work, such as searching, splitting, replacing,
-matching, padding, joining, and
+64 characters or elements of size-proportional work, such as searching, splitting, replacing (a regular-expression
+`replace` also charges the length of the replacement for every match, and checks the length of the result at every
+replacement pattern), matching, padding, joining, and
 materializing a datum), `ThrowIfCanceled()`, `CheckStringLength` (`MaxStringLength`), and
 `GetRegex(source, flags)` with a
 cache of at most 64 compiled expressions that is cleared when full. The cancellation token is polled whenever the step

@@ -51,7 +51,14 @@ number, a date (its milliseconds), a boolean (1 or 0), or a numeric string (trim
 string, NaN, and infinity. `ToText()` is JavaScript's `String(value)`: null is `"null"`, 1 is `"1"`,
 0.5 is `"0.5"`, 1e21 is `"1e+21"`, negative zero is `"0"`, and a date is its ISO 8601 form in UTC with milliseconds
 (`2024-03-05T00:00:00.000Z`, like `toISOString()`); an array is its elements joined by commas (`[1,2]` is `"1,2"`), an
-object is `"[object Object]"`, and a regular expression is `/source/flags`. `Compare(a, b)` orders values ascending as Vega's
+object is `"[object Object]"`, and a regular expression is `/source/flags`. Composites are immutable and may be shared
+(`[x, x]` holds the same array twice), so the text of an array repeats the content of every reference and can be
+exponentially larger than the value: `TryAppendArrayText` builds it iteratively and stops as soon as it passes a limit,
+and `ToText()` of an array is bounded by `MaxUnboundedTextLength` (16,777,216 characters; an
+`InvalidOperationException` beyond). `HasTextLongerThan(maxLength, charge)` scans a composite iteratively and visits
+every distinct array and object **once** (a visited set by reference), so a shared graph costs its nodes and not its
+paths; it reports the number of elements and members scanned to the optional `charge` callback, which the expression
+evaluator routes to its step budget. `Compare(a, b)` orders values ascending as Vega's
 comparator does, with a fixed kind order (null, boolean, number, date, string, then array, object,
 and regular expression, which
 sort last and compare equal within a kind) so that the order is total (a documented

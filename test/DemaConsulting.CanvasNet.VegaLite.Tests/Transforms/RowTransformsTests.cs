@@ -458,6 +458,71 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that a lookup shares the array that it rebuilds from the flattened fields of a secondary row among all
+    ///     the output rows that match that row (the value is immutable), instead of rebuilding it for every output row, so the
+    ///     memory is bounded by the secondary rows and fields.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_LookupSharesRebuiltCompositesAmongOutputRows()
+    {
+        // Arrange: one secondary row with an array of 500 elements and an object, looked up by 3,000 output rows
+        var array = "[" + string.Join(",", Enumerable.Range(0, 500)) + "]";
+        var secondary = "[{\"k\":1,\"arr\":" + array + ",\"obj\":{\"x\":[1,2],\"y\":\"t\"}},{\"k\":2,\"arr\":[7]}]";
+        var primary = "[" + string.Join(",", Enumerable.Range(0, 3_000).Select(i => "{\"id\":" + (1 + (i % 2)) + "}")) + "]";
+        var fieldsJson = "[{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":" + secondary + "},\"key\":\"k\",\"fields\":[\"arr\",\"arr\",\"obj\"]},\"as\":[\"a\",\"b\",\"o\"]},"
+            + "{\"lookup\":\"id\",\"from\":{\"data\":{\"values\":" + secondary + "},\"key\":\"k\"},\"as\":\"whole\"}]";
+
+        // Act
+        var table = Run(Spec(primary, fieldsJson));
+
+        // Assert: every row that matches the first secondary row holds the same instance for each field, and a field copied
+        // twice is a separate value per output field
+        var first = table.GetValue(0, "a");
+        Assert.True(first.IsArray);
+        Assert.Equal(500, first.Elements.Length);
+        for (var row = 2; row < table.RowCount; row += 2)
+        {
+            Assert.True(first.Equals(table.GetValue(row, "a")));
+            Assert.True(table.GetValue(0, "o").Equals(table.GetValue(row, "o")));
+            Assert.True(table.GetValue(0, "whole").Equals(table.GetValue(row, "whole")));
+        }
+
+        Assert.False(first.Equals(table.GetValue(0, "b")));
+        Assert.True(table.GetValue(0, "b").Equals(table.GetValue(2, "b")));
+        Assert.True(table.GetValue(1, "a").IsArray);
+        Assert.Equal(1, table.GetValue(1, "a").Elements.Length);
+        Assert.True(table.GetValue(1, "a").Equals(table.GetValue(3, "a")));
+    }
+
+    /// <summary>
+    ///     Validates that a field computed as a shared array (<c>[datum.a, datum.a]</c> chained 40 times, a directed acyclic
+    ///     graph with 2^40 paths) is accepted at once by the calculate transform, and that converting it to text fails with
+    ///     the string limit instead of building the repeated content.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_CalculateOfSharedArraysIsBoundedByNodesAndStringLimit()
+    {
+        // Arrange: a1 = [a0, a0], a2 = [a1, a1], ... a40
+        var chain = string.Join(",", Enumerable.Range(1, 40).Select(i => "{\"calculate\":\"[datum.a" + (i - 1) + ", datum.a" + (i - 1) + "]\",\"as\":\"a" + i + "\"}"));
+        var rows = "[{\"a0\":\"x\"},{\"a0\":\"y\"}]";
+        var succeeds = Spec(rows, "[" + chain + "]");
+        var asText = Spec(rows, "[" + chain + ",{\"calculate\":\"'' + datum.a40\",\"as\":\"t\"}]");
+        var asFunction = Spec(rows, "[" + chain + ",{\"calculate\":\"toString(datum.a40)\",\"as\":\"t\"}]");
+
+        // Act
+        var table = Run(succeeds);
+        var textEx = Assert.Throws<VegaLiteRenderException>(() => Run(asText));
+        var functionEx = Assert.Throws<VegaLiteRenderException>(() => Run(asFunction));
+
+        // Assert
+        Assert.Equal(2, table.RowCount);
+        Assert.True(table.GetValue(0, "a40").IsArray);
+        Assert.Contains("MaxStringLength", textEx.Message, StringComparison.Ordinal);
+        Assert.Equal("/transform/40/calculate", textEx.Location.Pointer);
+        Assert.Contains("MaxStringLength", functionEx.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that repeated and concurrent runs select identical rows, whatever the degree of parallelism.
     /// </summary>
     [Fact]

@@ -53,17 +53,30 @@ internal sealed partial class ExpressionEvaluator
     ///     Converts a value to a number the way JavaScript's unary plus does.
     /// </summary>
     /// <param name="value">The value.</param>
+    /// <param name="context">The evaluation to charge the work of reading a text to; null to not charge.</param>
     /// <returns>The number; NaN when the value has no numeric meaning.</returns>
-    internal static double ToNumber(DataValue value) => value.Kind switch
+    internal static double ToNumber(DataValue value, ExpressionFunctionContext? context = null) => value.Kind switch
     {
         DataValueKind.Null => 0,
         DataValueKind.Boolean => value.Boolean ? 1 : 0,
         DataValueKind.Number => value.Number,
         DataValueKind.Date => value.Milliseconds,
-        DataValueKind.String => ToNumber(value.Text!),
-        DataValueKind.Array => ArrayToNumber(value.Elements),
+        DataValueKind.String => ToNumber(value.Text!, context),
+        DataValueKind.Array => ArrayToNumber(value.Elements, context),
         _ => double.NaN,
     };
+
+    /// <summary>
+    ///     Converts text to a number the way JavaScript's <c>Number(text)</c> does, charging the work of reading it.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="context">The evaluation to charge to; null to not charge.</param>
+    /// <returns>The number.</returns>
+    private static double ToNumber(string text, ExpressionFunctionContext? context)
+    {
+        context?.ChargeSize(text.Length);
+        return ToNumber(text);
+    }
 
     /// <summary>
     ///     Converts text to a number the way JavaScript's <c>Number(text)</c> does.
@@ -129,12 +142,13 @@ internal sealed partial class ExpressionEvaluator
     /// <param name="value">The value.</param>
     /// <param name="preferNumber">True for the number hint (relational comparison), false for no hint (addition, loose equality).</param>
     /// <param name="maxLength">The longest text allowed for an array.</param>
+    /// <param name="context">The evaluation to charge the conversion to; null to not charge.</param>
     /// <returns>The primitive.</returns>
     /// <exception cref="ExpressionRuntimeException">Thrown when the text of an array would be longer than <paramref name="maxLength"/>.</exception>
-    internal static DataValue ToPrimitive(DataValue value, bool preferNumber, int maxLength) => value.Kind switch
+    internal static DataValue ToPrimitive(DataValue value, bool preferNumber, int maxLength, ExpressionFunctionContext? context = null) => value.Kind switch
     {
-        DataValueKind.Date => preferNumber ? DataValue.FromNumber(value.Milliseconds) : DataValue.FromString(ToJsString(value, maxLength)),
-        DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => DataValue.FromString(ToJsString(value, maxLength)),
+        DataValueKind.Date => preferNumber ? DataValue.FromNumber(value.Milliseconds) : DataValue.FromString(ToJsString(value, maxLength, context)),
+        DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => DataValue.FromString(ToJsString(value, maxLength, context)),
         _ => value,
     };
 
@@ -143,9 +157,10 @@ internal sealed partial class ExpressionEvaluator
     /// </summary>
     /// <param name="value">The value.</param>
     /// <param name="maxLength">The longest text allowed.</param>
+    /// <param name="context">The evaluation to charge the text that is built to; null to not charge.</param>
     /// <returns>The text.</returns>
     /// <exception cref="ExpressionRuntimeException">Thrown when the text would be longer than <paramref name="maxLength"/>.</exception>
-    internal static string ToJsString(DataValue value, int maxLength)
+    internal static string ToJsString(DataValue value, int maxLength, ExpressionFunctionContext? context = null)
     {
         if (value.IsString)
         {
@@ -166,8 +181,16 @@ internal sealed partial class ExpressionEvaluator
                     $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
         }
 
+        // The text of an array repeats the content of every reference to a shared element, so the text is checked as it
+        // grows (failing early) and the characters built are charged
         var text = new StringBuilder();
-        AppendArrayText(text, value.Elements, maxLength);
+        if (!value.TryAppendArrayText(text, maxLength))
+        {
+            throw new ExpressionRuntimeException(
+                $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
+        }
+
+        context?.ChargeSize(text.Length);
         return text.ToString();
     }
 
@@ -201,8 +224,9 @@ internal sealed partial class ExpressionEvaluator
     /// <param name="a">The left value.</param>
     /// <param name="b">The right value.</param>
     /// <param name="maxLength">The longest text allowed when an array is converted to text.</param>
+    /// <param name="context">The evaluation to charge the conversions to; null to not charge.</param>
     /// <returns>True when the values are loosely equal.</returns>
-    internal static bool LooseEquals(DataValue a, DataValue b, int maxLength)
+    internal static bool LooseEquals(DataValue a, DataValue b, int maxLength, ExpressionFunctionContext? context = null)
     {
         // Each round either decides or converts one side toward a primitive, so a few rounds always finish
         for (var round = 0; round < 4; round++)
@@ -226,18 +250,18 @@ internal sealed partial class ExpressionEvaluator
 
             if (IsNumberOrString(a) && IsNumberOrString(b))
             {
-                return NumbersEqual(ToNumber(a), ToNumber(b));
+                return NumbersEqual(ToNumber(a, context), ToNumber(b, context));
             }
 
             if (IsNumberOrString(b) && !IsNumberOrString(a))
             {
-                a = ToPrimitive(a, false, maxLength);
+                a = ToPrimitive(a, false, maxLength, context);
                 continue;
             }
 
             if (IsNumberOrString(a) && !IsNumberOrString(b))
             {
-                b = ToPrimitive(b, false, maxLength);
+                b = ToPrimitive(b, false, maxLength, context);
                 continue;
             }
 
@@ -253,18 +277,20 @@ internal sealed partial class ExpressionEvaluator
     /// <param name="a">The left value.</param>
     /// <param name="b">The right value.</param>
     /// <param name="maxLength">The longest text allowed when an array is converted to text.</param>
+    /// <param name="context">The evaluation to charge the conversions to; null to not charge.</param>
     /// <returns>1 when <paramref name="a"/> is less than <paramref name="b"/>, 0 when it is not, and -1 when the comparison is undefined (a NaN is involved).</returns>
-    internal static int RelationalLess(DataValue a, DataValue b, int maxLength)
+    internal static int RelationalLess(DataValue a, DataValue b, int maxLength, ExpressionFunctionContext? context = null)
     {
-        var left = ToPrimitive(a, true, maxLength);
-        var right = ToPrimitive(b, true, maxLength);
+        var left = ToPrimitive(a, true, maxLength, context);
+        var right = ToPrimitive(b, true, maxLength, context);
         if (left.IsString && right.IsString)
         {
+            context?.ChargeSize(Math.Min(left.Text!.Length, right.Text!.Length));
             return string.CompareOrdinal(left.Text, right.Text) < 0 ? 1 : 0;
         }
 
-        var x = ToNumber(left);
-        var y = ToNumber(right);
+        var x = ToNumber(left, context);
+        var y = ToNumber(right, context);
         if (double.IsNaN(x) || double.IsNaN(y))
         {
             return -1;
@@ -305,8 +331,9 @@ internal sealed partial class ExpressionEvaluator
     ///     Converts an array to a number through its text, as JavaScript does.
     /// </summary>
     /// <param name="elements">The elements.</param>
+    /// <param name="context">The evaluation to charge the reading of a text to; null to not charge.</param>
     /// <returns>Zero for an empty array, the number of a single element, otherwise NaN.</returns>
-    private static double ArrayToNumber(ReadOnlySpan<DataValue> elements)
+    private static double ArrayToNumber(ReadOnlySpan<DataValue> elements, ExpressionFunctionContext? context)
     {
         if (elements.Length == 0)
         {
@@ -324,42 +351,10 @@ internal sealed partial class ExpressionEvaluator
         {
             DataValueKind.Null => 0,
             DataValueKind.Number => element.Number == 0 ? 0 : element.Number,
-            DataValueKind.String => ToNumber(element.Text!),
-            DataValueKind.Array => ArrayToNumber(element.Elements),
+            DataValueKind.String => ToNumber(element.Text!, context),
+            DataValueKind.Array => ArrayToNumber(element.Elements, context),
             _ => double.NaN,
         };
-    }
-
-    /// <summary>
-    ///     Appends the comma-joined text of array elements, checking the length as it grows.
-    /// </summary>
-    /// <param name="text">The text being built.</param>
-    /// <param name="elements">The elements.</param>
-    /// <param name="maxLength">The longest text allowed.</param>
-    private static void AppendArrayText(StringBuilder text, ReadOnlySpan<DataValue> elements, int maxLength)
-    {
-        for (var i = 0; i < elements.Length; i++)
-        {
-            if (i > 0)
-            {
-                text.Append(',');
-            }
-
-            if (elements[i].IsArray)
-            {
-                AppendArrayText(text, elements[i].Elements, maxLength);
-            }
-            else if (!elements[i].IsNull)
-            {
-                text.Append(elements[i].ToText());
-            }
-
-            if (text.Length > maxLength)
-            {
-                throw new ExpressionRuntimeException(
-                    $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
-            }
-        }
     }
 
     /// <summary>

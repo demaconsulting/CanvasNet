@@ -112,7 +112,8 @@ internal static partial class ExpressionFunctions
             }
 
             result.Append(input, 0, index);
-            ExpandReplacement(result, replacement, input, index, search.Length, null);
+            context.ChargeSize(replacement.Length);
+            ExpandReplacement(result, replacement, input, index, search.Length, null, context);
             result.Append(input, index + search.Length, input.Length - index - search.Length);
             context.CheckStringLength(result.Length);
             return DataValue.FromString(result.ToString());
@@ -125,9 +126,10 @@ internal static partial class ExpressionFunctions
             var match = regex.Regex.Match(input);
             while (match.Success)
             {
-                context.ChargeSize(64);
+                // Expanding the replacement reads all of it for every match, even when its patterns expand to nothing
+                context.ChargeSize(64L + replacement.Length);
                 result.Append(input, last, match.Index - last);
-                ExpandReplacement(result, replacement, input, match.Index, match.Length, match);
+                ExpandReplacement(result, replacement, input, match.Index, match.Length, match, context);
                 context.CheckStringLength(result.Length);
                 last = match.Index + match.Length;
                 if (!regex.IsGlobal)
@@ -283,7 +285,9 @@ internal static partial class ExpressionFunctions
     /// <param name="index">The position of the match.</param>
     /// <param name="length">The length of the match.</param>
     /// <param name="match">The regular expression match, or null for a text pattern (which has no groups).</param>
-    private static void ExpandReplacement(StringBuilder result, string replacement, string input, int index, int length, Match? match)
+    /// <param name="context">The context, which checks the length of the text as it grows.</param>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the text grows longer than the string limit.</exception>
+    private static void ExpandReplacement(StringBuilder result, string replacement, string input, int index, int length, Match? match, ExpressionFunctionContext context)
     {
         var i = 0;
         while (i < replacement.Length)
@@ -316,6 +320,8 @@ internal static partial class ExpressionFunctions
                     break;
             }
 
+            // A pattern such as $` can append the whole string, so the growth is checked at every pattern
+            context.CheckStringLength(result.Length);
             i += consumed;
         }
     }

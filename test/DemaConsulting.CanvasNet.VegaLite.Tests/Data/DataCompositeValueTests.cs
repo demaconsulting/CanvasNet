@@ -167,6 +167,42 @@ public class DataCompositeValueTests
     }
 
     /// <summary>
+    ///     Validates that a shared composite (a directed acyclic graph such as <c>[x, x]</c> repeated 40 times) is scanned
+    ///     once per node by the text limit check, that the scan charges the elements it scanned, and that the text of such
+    ///     an array is refused at the limit instead of being built.
+    /// </summary>
+    [Fact]
+    public void DataValue_SharedComposites_AreScannedOncePerNodeAndTheirTextIsBounded()
+    {
+        // Arrange: 40 levels of [x, x] would have 2^40 paths; the mixed graph alternates arrays and objects
+        var leaf = DataValue.FromString(new string('a', 50));
+        var node = leaf;
+        var mixed = leaf;
+        for (var level = 0; level < 40; level++)
+        {
+            node = DataValue.FromArray([node, node]);
+            mixed = level % 2 == 0
+                ? DataValue.FromArray([mixed, mixed])
+                : DataValue.FromObject(DataObject.Create([new KeyValuePair<string, DataValue>("p", mixed), new KeyValuePair<string, DataValue>("q", mixed)]));
+        }
+
+        long scanned = 0;
+
+        // Act
+        var tooLong = mixed.HasTextLongerThan(49, n => scanned += n);
+        var fits = mixed.HasTextLongerThan(50);
+        var arrayFits = node.HasTextLongerThan(50);
+
+        // Assert: the long text is found, none is longer than 50, and the scan did a small amount of work
+        Assert.True(tooLong);
+        Assert.False(fits);
+        Assert.False(arrayFits);
+        Assert.InRange(scanned, 1, 1_000);
+        Assert.Throws<InvalidOperationException>(() => node.ToText());
+        Assert.False(node.TryAppendArrayText(new System.Text.StringBuilder(), 1_000));
+    }
+
+    /// <summary>
     ///     A payload with a fixed text form.
     /// </summary>
     /// <param name="text">The text.</param>

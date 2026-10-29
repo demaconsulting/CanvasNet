@@ -193,6 +193,16 @@ lookups of one file read it once and need a file limit of only one, that `../out
 "outside the allowed directories" at `/transform/0/from/data/url`, and that a source of three rows beside three main
 rows needs `MaxDataRows` 6 (5 fails at `/transform/0/from/data/values`).
 
+##### Lookup Shares Rebuilt Composites, Calculated Shared Arrays Are Bounded
+
+**Tests**: `RowTransformsTests.RowTransforms_Apply_LookupSharesRebuiltCompositesAmongOutputRows`,
+`RowTransformsTests.RowTransforms_Apply_CalculateOfSharedArraysIsBoundedByNodesAndStringLimit`
+
+Asserts that 3,000 output rows matching a secondary row with a 500-element array and an object hold the same array,
+object, and whole-row instance for each copied field (reference identity) while a field copied twice has a separate
+value per output field; and that a chain of 40 calculates of `[datum.aN, datum.aN]` completes, while a following
+`'' + datum.a40` or `toString(datum.a40)` fails at `/transform/40/calculate` naming `MaxStringLength`.
+
 ##### Derived Tables Are Bounded Before They Are Allocated
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit`,

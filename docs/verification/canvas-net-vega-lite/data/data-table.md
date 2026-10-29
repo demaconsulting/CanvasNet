@@ -142,6 +142,15 @@ and its elements in order, has the JavaScript text of `Array.prototype.toString`
 text for an empty array; nested arrays flattened by their text), can hold composites, rejects a null input with an
 `ArgumentNullException`, and that a scalar has no elements, no object payload, and no regular-expression payload.
 
+##### Shared Composites Are Scanned Once Per Node And Their Text Is Bounded
+
+**Tests**: `DataCompositeValueTests.DataValue_SharedComposites_AreScannedOncePerNodeAndTheirTextIsBounded`
+
+Asserts, on chains of 40 `[x, x]` arrays and of alternating arrays and objects (2^40 paths), that the text limit check
+finds a 50-character text for a limit of 49 and none for 50 with a scan of at most 1,000 elements and members, and that
+the text of the array chain is refused (`InvalidOperationException` from `ToText`, `false` from `TryAppendArrayText`)
+instead of being built.
+
 ##### Composites Are Equal Only To Themselves
 
 **Tests**: `DataCompositeValueTests.DataValue_Composites_AreEqualOnlyToThemselves`

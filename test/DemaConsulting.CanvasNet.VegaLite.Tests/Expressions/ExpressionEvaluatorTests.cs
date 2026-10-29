@@ -764,6 +764,72 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the operators that convert a long string (or an array holding one) to a number or primitive
+    ///     charge work proportional to its length, as <c>toNumber</c> and the concatenation do.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("+datum.s")]
+    [InlineData("-datum.s")]
+    [InlineData("datum.s - 1")]
+    [InlineData("1 * datum.s")]
+    [InlineData("datum.s / 1")]
+    [InlineData("datum.s % 7")]
+    [InlineData("datum.s < 1")]
+    [InlineData("datum.s >= 1")]
+    [InlineData("datum.s == 1")]
+    [InlineData("datum.s != 1")]
+    [InlineData("datum.s < datum.s")]
+    [InlineData("+[datum.s]")]
+    [InlineData("[datum.s] == 1")]
+    public void ExpressionEvaluator_Evaluate_OperatorsOnLongStrings_ChargeProportionalSteps(string text)
+    {
+        // Arrange: a 12,800 character string costs 200 steps to read; the program itself is under ten instructions
+        var datum = Obj(("s", DataValue.FromString(new string('1', 12_800))));
+        var compiled = Compile(text);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        evaluator.Evaluate(compiled, datum);
+        var exception = Assert.Throws<VegaLiteRenderException>(() => new ExpressionEvaluator(Steps(50), CancellationToken.None).Evaluate(compiled, datum));
+
+        // Assert: the size was charged on top of the instructions, and a small budget fails with the step error
+        Assert.True(evaluator.StepsUsed >= compiled.InstructionCount + 200, $"'{text}' used {evaluator.StepsUsed} steps");
+        Assert.Contains("MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a shared array (a directed acyclic graph: <c>[x, x]</c> chained 40 times) is checked once per
+    ///     node, so evaluating it finishes at once, and that converting it to text fails at the string limit instead of
+    ///     building its 2^40 repeated elements.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_SharedArrays_AreCheckedOncePerNodeAndTheirTextIsBounded()
+    {
+        // Arrange: the datum holds a chain of 40 [x, x] arrays
+        var node = DataValue.FromString("ab");
+        for (var level = 0; level < 40; level++)
+        {
+            node = DataValue.FromArray([node, node]);
+        }
+
+        var datum = Obj(("a", node));
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        var same = evaluator.Evaluate(Compile("[datum.a, datum.a]"), datum);
+        var asText = Assert.Throws<VegaLiteRenderException>(() => evaluator.Evaluate(Compile("'' + datum.a"), datum));
+        var asTextFunction = Assert.Throws<VegaLiteRenderException>(() => evaluator.Evaluate(Compile("toString(datum.a)"), datum));
+        var compared = Assert.Throws<VegaLiteRenderException>(() => evaluator.Evaluate(Compile("datum.a == 1"), datum));
+
+        // Assert
+        Assert.True(same.IsArray);
+        Assert.Contains("MaxStringLength", asText.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxStringLength", asTextFunction.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxStringLength", compared.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the string limit on concatenation: a result of exactly the limit is accepted, one more is a located
     ///     render error.
     /// </summary>

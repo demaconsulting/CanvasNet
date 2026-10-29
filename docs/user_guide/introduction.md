@@ -4238,7 +4238,7 @@ runs, instead of being accepted and ignored.
 | ----- | ------- | ------- | ------- |
 | `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`) | `VegaLiteSpecException` (the offset is the limit) |
 | `MaxExpressionDepth` | 64 (at most 256) | When the document is opened | `VegaLiteSpecException`; the nesting of parentheses, brackets, call arguments, array and object literals, conditional branches, and unary operators counts, a long chain such as `a + b + c + ...` does not |
-| `MaxEvaluationSteps` | 50,000,000 | At every instruction; **one budget per call** shared by the parameters, the transforms, and the row-bound mark values | `VegaLiteRenderException` located at the expression, with the offset of the instruction that ran out. A step is one executed instruction, plus one per 64 characters or elements of the work of a function such as `split` or `replace` |
+| `MaxEvaluationSteps` | 50,000,000 | At every instruction; **one budget per call** shared by the parameters, the transforms, and the row-bound mark values | `VegaLiteRenderException` located at the expression, with the offset of the instruction that ran out. A step is one executed instruction, plus one per 64 characters or elements of the work of a function such as `split` or `replace`, or of an operator that reads a long string or array as a number or text |
 | `MaxStringLength` | 1,048,576 | For every text an expression builds (`+`, `join`, `pad`, `replace`, ...) | `VegaLiteRenderException` |
 <!-- markdownlint-enable MD013 -->
 
