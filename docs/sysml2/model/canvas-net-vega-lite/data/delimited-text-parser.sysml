@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def DelimitedTextParser {
+        doc /* The internal static DelimitedTextParser with ParseDirectives, ParseFailures, and the DelimitedOptions and DelimitedResult records: it reads delimiter-separated text (CSV with a comma, TSV with a tab, DSV with the single character a format names) into rows of typed values. The first record is the header (names stored as canonical field names); a quoted field may hold delimiters, line breaks, and doubled quotes; line feed, carriage return plus line feed, and lone carriage return end a record; empty lines, a missing final line end, and a leading byte-order mark are accepted; a short row has null in the missing fields and extra entries are ignored; malformed quoting, a repeated or too many header names, an over-long text, and more rows than the budget are located VegaLiteRenderExceptions. ParseDirectives applies the parse property of a data format: inference per column by default for delimited text (boolean, then number, then ISO 8601 date, only when every non-empty text of the column fits, an empty cell null in a typed column, dates in UTC), no conversion for JSON unless auto or named fields, null keeps the data as read, and an explicit map converts named fields to number, boolean, date, or string, making a value that cannot be converted null and counting it in ParseFailures (one vl-data-parse-failed warning per field and type); custom date formats are recognized and not applied (reported by the FeatureCatalog as vl-data-parse-date-format). Its delimiter rule and parse-entry classification are shared with SpecParser and FeatureCatalog. Cancellation is polled every 1,024 records. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.VegaLite/Data/DelimitedTextParser.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DelimitedTextParserTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-vega-lite/data/delimited-text-parser.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/data/delimited-text-parser.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/data/delimited-text-parser.yaml */
+    }
+}

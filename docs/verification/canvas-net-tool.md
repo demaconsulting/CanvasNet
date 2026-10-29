@@ -310,6 +310,16 @@ described as `vega-lite` (found by its `$schema`); a chart with an unsupported m
 and writes no output; a malformed chart returns exit code 1 with a `vega-lite-error` message and document and writes no
 output; and a plain Vega specification saved as `.json` returns exit code 1 with an `unsupported-format` message.
 
+**RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder** (the end-to-end evidence for the local chart data of
+the system requirement, run in-process through the real command, loader, and library): a chart whose rows are in a CSV
+file in a sub folder beside its specification renders, whatever the current directory is, to the same PNG bytes as the
+chart with the rows inline; a chart that names a missing file returns exit code 1 with a one-line `vega-lite-error`
+("was not found") and writes no output; a chart with a remote URL renders with exit code 0 and the `vl-data-remote-url`
+diagnostic in the JSON result (nothing is fetched), and with `--strict` returns an `unsupported-feature` error and writes
+no output; and `--data-dir` is a `usage-error`, because this release has no option for another data folder. The
+self-validation suite is unchanged at fifteen tests: no self-test was added for chart data, and the existing
+`CanvasNetTool_RenderVegaLite` self-test still renders an inline chart.
+
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`
 true, RMSE 0, SSIM 1, PSNR null); exit code 0.

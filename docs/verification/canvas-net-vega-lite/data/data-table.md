@@ -3,7 +3,7 @@
 This document describes the unit-level verification strategy for the `DataTable` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: the internal sealed `DataTable` class (`Create`, `FromRecords`,
 `Empty`, field lookup, and the typed cell accessors), and the supporting types of its file — `DataValue` and
-`DataValueKind` (the scalar value model: null, boolean, number, string), `JsNumber` (JavaScript number-to-string,
+`DataValueKind` (the scalar value model: null, boolean, number, date, string), `JsNumber` (JavaScript number-to-string,
 rounding, and radix conversion), and `FieldPath` (Vega-Lite field path parsing and canonical names).
 
 #### Verification Approach
@@ -23,8 +23,9 @@ zero is `0`, `0.000001` is `0.000001` but `0.0000001` is `1e-7`, `12345678901234
 is `1e+21`, `0.1 + 0.2` is `0.30000000000000004`, `1 / 3` is `0.3333333333333333`, the smallest subnormal is `5e-324`,
 and `NaN`, `Infinity`, and `-Infinity` are spelled out. The test runs under a `de-DE` current culture, which has a
 decimal comma and a different minus sign, to prove that the output does not depend on the culture. The ordering rule
-(null, then boolean, then number with `NaN` first, then string in ordinal order, so `"B"` sorts before `"b"` and `9`
-before `10`) and the rounding rule (`Math.round` rounds half-way cases toward positive infinity, so `2.5` is `3` and
+(null, then boolean, then number with `NaN` first, then date, then string in ordinal order, so `"B"` sorts before `"b"`
+and `9` before `10`) and the rounding rule (`Math.round` rounds half-way cases toward positive infinity, so `2.5`
+is `3` and
 `-2.5` is `-2`, and `0.49999999999999994` is `0`) are likewise stated from the language rules.
 
 Unit tests reside in `DataTableTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data`
@@ -91,6 +92,20 @@ Asserts the twenty hand-derived number-to-text pairs described above, through bo
 `DataValue.ToText`, under a culture with a decimal comma; that `Math.round` semantics hold (half toward positive
 infinity, negative zero kept for `-0.3`, NaN unchanged); and that radix conversion of exact integers is right,
 including above 2^53 (`9007199254740992` in base 16 is `20000000000000`).
+
+##### Date Values
+
+**Tests**: `DataTableTests.DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms`
+
+Asserts, with hand-derived instants (2024-03-05T00:00:00Z is 1,709,596,800,000 milliseconds, the epoch, and a time
+before the epoch), that a date is created from milliseconds or from a `DateTime` of kind UTC, unspecified (taken as
+UTC), or local (converted to UTC) with the same result whatever the host time zone is; that its kind is `Date`, not
+`Number`; that its quantitative reading is its milliseconds; that its text is the ISO 8601 form with milliseconds and a
+trailing `Z` under a `de-DE` current culture; that a date equals only the same instant (not the number of
+milliseconds, and not the text), zero equals negative zero, and equal dates have equal hash codes; that dates sort by
+instant after numbers and before strings with null first; and that an instant that is not finite or is outside the years
+1 to 9999 is refused with `ArgumentOutOfRangeException`, while the first and the last representable millisecond are
+accepted and print as `0001-01-01T00:00:00.000Z` and `9999-12-31T23:59:59.999Z`.
 
 ##### Scalar Value Text, Ordering, Equality, And Quantitative Reading
 

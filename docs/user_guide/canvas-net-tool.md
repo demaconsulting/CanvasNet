@@ -220,7 +220,9 @@ it, which is cheap even for a large file.
 - A **Vega-Lite chart** reports the size it is laid out at (its natural size, the size it is drawn at by default), 4
   channels with transparency, and what its specification declares: the mark types, the data sources (inline, a URL, a
   named data set, or a generated sequence, with the row count when the text gives it), the names of its parameters, its
-  title, and its schema version. Describing a chart opens no data file and uses no network.
+  title, and its schema version. To report the laid-out size the chart is measured, which reads its local data files from
+  the folder of the specification (see _Vega-Lite Charts_ below; a missing file is a `vega-lite-error`) and uses no
+  network.
 
 <!-- markdownlint-disable MD013 -->
 ```text
@@ -453,8 +455,23 @@ chart has one page, so `--page` beyond 1 is `page-out-of-range`.
 The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
 `--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are in
 UTC, only the fonts bundled with the tool are used (so the lettering does not depend on the installed fonts), and nothing
-is read from the network. The data of a chart comes from the specification itself (`data.values`); a data file, a remote
-`url`, and other data sources the library cannot read yet are reported as unsupported features, never fetched.
+is read from the network.
+
+**Data files.** A chart's rows can be inline (`data.values`), generated (`data.sequence`), or in a file next to the
+specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read from the **folder of the
+specification and below it**, whatever the current directory is, so a chart and its data can be moved together. The format
+is chosen by `format.type` or else by the extension (`.csv`, `.tsv`; anything else is JSON), as in Vega-Lite, and the
+files are read as UTF-8 text. The tool has **no option to name another data folder** (there is no `--data-dir`; such an
+option is a `usage-error`), and the library's extra data paths and named datasets are not available from the command
+line: keep the data in or below the folder of the specification. A path that leaves that folder (`../secret.csv`),
+an absolute path, and a file reached through a symbolic link or junction inside that folder are refused. A local data
+file that is missing, refused, not valid UTF-8, or not valid JSON or CSV is a `vega-lite-error` that names the file, line,
+and column of the `url` (also with `--strict`), never an empty chart. A `url` with a scheme (`https:`), a drive letter,
+or an absolute path is **never fetched or opened**: it is reported as the diagnostic `vl-data-remote-url` and the
+chart is
+drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it reads
+the same data files. See _Vega-Lite Data_ in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the type
+inference, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
 
 The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
 channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result, with the stable `vl-*`
@@ -466,13 +483,15 @@ A specification that is not valid JSON, has a property of the wrong type, is nes
 a string longer than the parser allows, or is plain Vega named like a chart is a
 `vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example data
 that does not fit the encoding). A chart that exceeds a limit of the library while it is laid out or drawn (too many
-data rows, scene items, or ticks) fails with `budget-exceeded`; a specification file longer than the library reads
+data rows, data files, or data bytes, scene items, or ticks) fails with `budget-exceeded`; a specification file
+longer than the library reads
 (4,194,304 characters) is `corrupt-input`, as an overlong OpenSCAD model is; and a chart that lays out larger
 than 8192 pixels on a side is `size-limit` (nothing else is).
 
 ```bash
 canvasnet info chart.vl.json --json
 canvasnet render chart.vl.json -o chart.png
+canvasnet render charts/stalls.vl.json -o stalls.png   # reads charts/stalls.csv (the url "stalls.csv") beside the specification
 canvasnet render chart.vl.json --scale 2 --background "#f4f4f4" -o chart-large.png --json
 canvasnet render chart.vl.json --strict -o chart.png
 ```
@@ -1101,8 +1120,8 @@ and hint may be improved at any time.
 | `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
-| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn | The message has the file, line, column, and JSON pointer |
-| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library while it is laid out or drawn (data rows, ticks, scene items) | Raise the limit (a model) or simplify the model or chart |
+| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file that is missing, outside the folder of the specification, or not valid | The message has the file, line, column, and JSON pointer |
+| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
 
@@ -1122,6 +1141,7 @@ and hint may be improved at any time.
 | Size of an OpenSCAD model | 800 by 800 pixels | The size options |
 | Size of a Vega-Lite chart | The size its specification lays out | The size options |
 | Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
+| Data files of a chart | Read from the folder of the specification and below it; no network | Not adjustable (no data-folder option) |
 | SCAD view and projection | `iso`, orthographic | `--view`, `--azimuth`, `--elevation`, `--projection perspective` |
 | SCAD default surface color | Gray | `--default-color` |
 | Maximum triangles of a model | 5,000,000 | `--max-triangles` |
@@ -1371,7 +1391,9 @@ pictures side by side.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.
 - **Charts.** A static picture of one chart: no interaction (selections and bindings are reported as unsupported
-  features), no network (a remote `url` is never fetched), no options to change parameters or data from the command line,
+  features), no network (a remote `url` is never fetched), data only inline, generated, or in files in or below the folder
+  of the specification (no option to name another data folder, to supply named datasets, or to change parameters or data
+  from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported

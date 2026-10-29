@@ -2,9 +2,11 @@
 # Software Unit Requirements for DataLoader
 #
 # These requirements describe the design-level behavior of the DataLoader unit of the Data subsystem (internal
-# namespace DemaConsulting.CanvasNet.VegaLite.Data): the loader that reads the inline values of a view into a
-# DataTable in one bounded pass. It never opens a file or uses the network; the catalog reports the sources it
-# does not read. See docs/verification/canvas-net-vega-lite/data/data-loader.md for the test-evidence mapping.
+# namespace DemaConsulting.CanvasNet.VegaLite.Data): the loader that chooses the source of a view (inline values,
+# a local file, a named dataset, or a sequence) and reads it into a DataTable in one bounded pass, using the
+# DataFileResolver and DelimitedTextParser units. It never uses the network and never hands a remote URL to a
+# resolver; the catalog reports the sources it does not read. See
+# docs/verification/canvas-net-vega-lite/data/data-loader.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -31,29 +33,104 @@ sections:
               - id: CanvasNetVegaLite-Data-DataLoader-EmptyAndRemote
                 title: >-
                   The DataLoader unit shall return an empty table, without opening, resolving, or
-                  fetching anything, for a missing data object, an empty values array, a URL (remote or
-                  local), a named dataset, a sequence, and text values, leaving their report to the
-                  feature catalog.
+                  fetching anything, for a missing data object, an empty values array, a remote URL (one
+                  with a scheme, or an absolute, rooted, drive, or network path), text or object values,
+                  and a geographic source, leaving their report to the feature catalog.
                 justification: |
-                  Sources that are not supported must never be fetched, and the chart must still render so
-                  that the report can explain the empty result.
+                  Sources that are not supported must never be fetched or resolved, and the chart must
+                  still render so that the report can explain the empty result.
                 tests:
                   - DataLoader_Load_MissingDataGivesAnEmptyTable
                   - DataLoader_Load_EmptyValuesReportsVlDataEmpty
                   - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl
                   - DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog
 
+              - id: CanvasNetVegaLite-Data-DataLoader-LocalFiles
+                title: >-
+                  The DataLoader unit shall read a relative local url through the file resolver as JSON, CSV,
+                  TSV, or DSV, taking the format from format.type and otherwise from the extension (.csv
+                  and .tsv in any case, anything else JSON), using the single-character delimiter of a DSV
+                  format, selecting the rows of a JSON file by a dotted format.property path (also through
+                  an array index), reading each distinct file once per call, and keeping the JSON types of
+                  a JSON file.
+                justification: |
+                  Local files are the data source of most real charts; the format rules must be the ones
+                  Vega-Lite documents so that a specification means the same thing in both.
+                tests:
+                  - DataLoader_Load_LocalCsvUrlUsesRelativeFile
+                  - DataLoader_InferFormatType_UsesTheExtension
+                  - DataLoader_Load_JsonPropertyAndExplicitParseAreApplied
+                  - DataLoader_Load_FileIsReadOnceWhenNamedAgain
+
+              - id: CanvasNetVegaLite-Data-DataLoader-NamedDatasets
+                title: >-
+                  The DataLoader unit shall read a data name from the datasets that the caller supplied
+                  first and from the top-level datasets of the specification second, so that the caller's
+                  dataset wins, keeping the kinds of the caller's values (a date in UTC) and treating a
+                  specification dataset that is not an array of rows as empty for the catalog to report.
+                justification: |
+                  Hosts supply data without editing the specification, and the precedence must be defined.
+                tests:
+                  - DataLoader_Load_NamedDatasetsUseCallerPrecedence
+
+              - id: CanvasNetVegaLite-Data-DataLoader-Sequences
+                title: >-
+                  The DataLoader unit shall generate a sequence of numbers from start up to, but not
+                  including, stop in steps of step (1 by default, negative allowed) in the field named by
+                  as (data by default), computing each value from its index, giving no rows for a
+                  direction that never reaches stop, and checking the row count against the row limit
+                  arithmetically before any row is allocated.
+                justification: |
+                  Generated sequences are a data source with no input to bound, so the length must be
+                  checked before the memory is spent.
+                tests:
+                  - DataLoader_Load_SequenceUsesExclusiveStopAndAs
+                  - DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation
+
+              - id: CanvasNetVegaLite-Data-DataLoader-ParseFailures
+                title: >-
+                  The DataLoader unit shall apply the format.parse conversions to every source, make a
+                  value that an explicit conversion cannot read null, and expose one warning with the
+                  stable identifier vl-data-parse-failed per field and type, located at the data object,
+                  that names the count and the first failing row and text.
+                justification: |
+                  A value that cannot be converted must be visible to the author without stopping the
+                  chart.
+                tests:
+                  - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
+
+              - id: CanvasNetVegaLite-Data-DataLoader-HardFailures
+                title: >-
+                  The DataLoader unit shall fail with a VegaLiteRenderException located at the data url
+                  or name, in lenient and strict mode alike and never with an empty table, when
+                  a local file is missing or cannot be used, when a file is not valid JSON, is not an
+                  array of rows, lacks the format.property, holds a number outside the range of a double,
+                  or is nested too deeply, and when a data name is defined by nobody.
+                justification: |
+                  A broken data file or dataset reference is a deployment error; an empty chart would
+                  hide it, so only remote data, which is never read, is reported and left empty.
+                tests:
+                  - DataLoader_Load_MissingLocalFileIsHardFailure
+                  - DataLoader_Load_UnusableJsonFileIsALocatedFailure
+                  - DataLoader_Load_MissingNamedDataIsHardFailure
+
               - id: CanvasNetVegaLite-Data-DataLoader-Limits
                 title: >-
-                  The DataLoader unit shall fail with a VegaLiteRenderException located at /data/values
-                  when the number of rows exceeds the row limit, checked before any row is converted, and
-                  located at the offending leaf when a row or the union of fields exceeds the field limit.
+                  The DataLoader unit shall fail with a VegaLiteRenderException located at the offending
+                  data (the values array, the data url, or the generated sequence) when the number of rows exceeds
+                  the row limit, counted as a total across every table that one loader creates and checked
+                  before any row is converted, and located at the offending leaf when a row or the union
+                  of fields exceeds the field limit, and shall enforce the string-length limit on JSON
+                  values.
                 justification: |
-                  Bounded loading keeps hostile data from exhausting memory, and a located failure tells
-                  the author which data to shrink.
+                  Bounded loading keeps hostile data from exhausting memory, a total keeps several tables
+                  from each fitting while together exceeding the budget, and a located failure tells the
+                  author which data to shrink.
                 tests:
                   - DataLoader_Load_RowLimitFailsWithLocation
                   - DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf
+                  - DataLoader_Load_RowLimitIsATotalAcrossTables
+                  - DataLoader_Load_DelimitedLimitsAndFailuresCarryTheLocationOfTheUrl
 
               - id: CanvasNetVegaLite-Data-DataLoader-Cancellation
                 title: >-

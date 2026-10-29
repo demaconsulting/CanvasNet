@@ -45,8 +45,8 @@ sections:
                   The DataTable unit shall give each value a JavaScript-compatible text form (including
                   the shortest round-trip number text and exponent form) that does not depend on the
                   culture, shall read a value as a quantitative number only when it is a finite number,
-                  a boolean, or a numeric string, and shall order and compare values by a total order
-                  with null before boolean before number before string.
+                  a date, a boolean, or a numeric string, and shall order and compare values by a total
+                  order with null before boolean before number before date before string.
                 justification: |
                   Category labels and domain order must be identical on every machine and match what
                   Vega-Lite users expect from the same data.
@@ -54,6 +54,21 @@ sections:
                   - JsNumber_ToString_MatchesJavaScriptNumberFormatting
                   - JsNumber_RoundAndRadix_FollowJavaScript
                   - DataValue_TextOrderingEqualityAndQuantitativeReading_FollowTheDocumentedRules
+
+              - id: CanvasNetVegaLite-Data-DataTable-DateValues
+                title: >-
+                  The DataTable unit shall hold a date as an instant in UTC in milliseconds since the
+                  epoch, created from milliseconds or from a DateTime (a local time converted to UTC and an
+                  unspecified time taken as UTC), independent of the host time zone and culture, with the
+                  years 1 to 9999 as its range (rejecting any other instant), shall give it the ISO 8601
+                  text form with milliseconds and a trailing Z, the milliseconds as its quantitative
+                  reading, equality by instant with zero equal to negative zero, and a position between
+                  numbers and strings in the total order.
+                justification: |
+                  Dates parsed from data files must mean the same instant on every machine and must scale
+                  and sort predictably; the later time phase builds on this representation.
+                tests:
+                  - DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms
 
               - id: CanvasNetVegaLite-Data-DataTable-Limits
                 title: >-

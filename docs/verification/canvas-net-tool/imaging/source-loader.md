@@ -16,8 +16,10 @@ built from its header. The documents are written by the test project (`FixtureFa
 with `System.IO.Compression`, each with a few filled rectangles and no text so that the pixels do not depend on
 installed fonts; variants add an EMF picture, an unsupported shape, an unsupported geometry row, malformed content,
 an unsupported encryption handler, and a broken part. Charts are JSON text written by the tests
-(`FixtureFactory.VegaLite.cs`) with inline data, no URL, and no
-custom font; one original chart is a fixture file (`baskets.vl.json`). The other fixture files are an original SVG
+(`FixtureFactory.VegaLite.cs`) with inline data and no custom font, plus a two-bar chart whose rows are in a CSV file
+(`TwoBarFileChart` and `TwoBarCsv`, written beside the specification in a temporary folder, so that the chart facts, the
+sandbox, and the data errors are verified with real files); one original chart is a fixture file
+(`baskets.vl.json`). The other fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
 repository's own codec fixtures (see `Fixtures/README.md`). Expected pixels come from the codecs and document
@@ -68,6 +70,11 @@ N/A - standard test environment; the tests need no network and write only to tem
   the SCAD parser is a `scad-error`) is `vega-lite-error`, an exceeded limit of the library while the chart is laid out
   or drawn `budget-exceeded`, a specification file longer than the limit of the library `corrupt-input` (as an overlong
   model is), and a chart larger than 8192 pixels `size-limit` (no other failure to measure is `size-limit`).
+- A chart whose rows are in a local file (CSV, TSV, or JSON named by a relative `url`) is measured and drawn from the
+  folder of its specification and below it only (never the current directory, and no network), exactly like the same
+  chart with inline rows; a local file that is missing, outside that folder, or not valid text is a `vega-lite-error` in
+  lenient and strict mode alike (never an empty chart); remote data is only a diagnostic (an `unsupported-feature` error
+  with strict mode) and is never fetched; and a data limit of the library (rows or bytes) is `budget-exceeded`.
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
@@ -165,6 +172,25 @@ scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budg
 exception as
 its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") without a hint; this pins the texts of the
 library that the mapping recognizes.
+
+**SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder**: a chart whose rows are in `bars.csv` in a sub folder beside
+its specification (the current directory being another folder) is probed and loaded from its path; it has the same natural
+size and the same pixels as the same chart with inline rows, no diagnostic, and the chart facts name the data as a `url`
+reference to `bars.csv`.
+
+**SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError**: charts that name a missing file, a file beside the
+folder of
+the specification (`../secret.csv`, which exists), and a file of invalid UTF-8 are each a `vega-lite-error` ("Vega-Lite
+render error: ...", "was not found", "outside the allowed directories", "is not valid UTF-8") on one line, keeping the
+library's `VegaLiteRenderException` as the cause, whether the chart is probed, loaded, or loaded in strict mode (never an
+empty chart); and a chart with an `https` URL loads with only the `vl-data-remote-url` diagnostic, nothing fetched, while
+strict mode makes it an `unsupported-feature` error naming the feature.
+
+**SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded**: real failures of the library for a file-backed chart opened
+from its path, with a row limit of 1, a byte limit of 3, and no data folder at all (a chart parsed from a string), are
+mapped by `MapVegaLiteRender`: the row and byte limits are `budget-exceeded` that name the limit (`MaxDataRows` and
+`MaxDataBytes`) and keep the exception as the cause, and the chart without a data folder is a `vega-lite-error` ("no base
+directory, data path or file resolver"); this pins the texts of the library that the mapping recognizes.
 
 **SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput**: a chart one character over the limit of the library is
 `corrupt-input` naming the limit, as for a model (the parity with SCAD that the design keeps on purpose).

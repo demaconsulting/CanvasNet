@@ -59,12 +59,15 @@ at all.
 `FeatureCatalogTests.FeatureCatalog_Visit_MarkReportCarriesLineAndColumn`
 
 Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
-`fit`, a variable and a selection parameter, a projection, file data with a `csv` format, a `parse`, and a
-`property`, three transforms (`calculate`, `filter`, `aggregate`), an `arc` mark, a temporal `x` with a time unit, a
+`fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
+custom date format and a plain `number`, three transforms (`calculate`, `filter`, `aggregate`), an `arc` mark, a temporal
+`x` with a time unit, a
 `y` with aggregate, bin, stack, sort, and condition, a log scale with a scheme, a legend with `encode`, a `theta` and
-a `latitude` channel, and a layer with a `geoshape` yields exactly thirty-one reports whose `(identifier, pointer)`
-list is asserted in document order (for example `vl-encoding-stack` at `/encoding/y/stack` and `vl-mark-geoshape` at
-`/layer/0/mark`), that only the schema version is a warning while every other report is an unsupported feature, that
+a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-eight reports whose `(identifier, pointer)`
+list is asserted in document order (for example `vl-data-parse-date-format` at `/data/format/parse/d`,
+`vl-encoding-stack` at `/encoding/y/stack`, and `vl-mark-geoshape` at
+`/layer/0/mark`; the local file and the plain `number` are silent), that only the schema version is a warning while
+every other report is an unsupported feature, that
 all carry a file, line, column, and message (the schema report is at line 2, column 14), and that the supported
 `tooltip` channel is absent; that reports are sorted by position in the text and not by the order in which the
 constructs are visited (an encoding written before the mark, a nested view before the parent's later properties);
@@ -85,19 +88,27 @@ again by the catalog (the parser warns about it once).
 
 ##### Data
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl`,
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl`,
 `FeatureCatalogTests.FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls`,
+`FeatureCatalogTests.FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier`,
 `FeatureCatalogTests.FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers`
 
-Asserts that remote data reports `vl-data-remote-url` at the data object and a relative local path reports
-`vl-data-file`; that, as a theory, `http`, upper-case `HTTPS`, `file` (`file:///`, `file:/`, and `FILE://`), `data`,
+Asserts that remote data (every scheme-bearing form) reports `vl-data-remote-url` at the data object, never as a
+warning, and that a relative local path reports nothing; that, as a theory, `http`, upper-case `HTTPS`, `file`
+(`file:///`, `file:/`, and `FILE://`), `data`,
 `javascript`, and `ftp` URLs, a drive letter path (`C:\`, `C:name`, and `d:/`), a protocol-relative path, a Unix absolute
 path (`/etc/hosts`), a backslash-rooted path, a UNC path, and a URL with leading blanks are scheme-bearing on every host
-operating system, while `a.csv`, `data/a.csv`, `../a.csv`, `a b.csv`, the empty string, and `1:2.csv` are not; and that
-empty or sourceless inline data
-warns with `vl-data-empty` while each deferred source kind has its own identifier (`vl-data-named`,
-`vl-data-sequence`, `vl-data-parse`, `vl-data-format-csv`, `vl-data-property`, `vl-data-values-text`, and the geographic
-forms).
+operating system, while `a.csv`, `data/a.csv`, `../a.csv`, `a b.csv`, the empty string, and `1:2.csv` are not; that
+relative local urls, the csv, tsv, dsv, and json format types (with a delimiter, a `property` path, and `parse` maps of
+`date`, `number`, `boolean`, and `string`, `"auto"`, and `null`), a named dataset, and a sequence are supported and
+report nothing, so that strict mode accepts them; that a custom date format of a parse map (`date:'...'`, `utc:'...'`)
+reports `vl-data-parse-date-format` at its entry while plain `date` does not; and that empty or sourceless inline data
+warns with `vl-data-empty` while the recognized sources that are not read have their own identifiers
+(`vl-data-values-text` for text values or a referenced text dataset, and `vl-data-geo` for object values, `sphere`, a
+`topojson` format, or a referenced object dataset) and a referenced array dataset is silent. The retired
+identifiers (`vl-data-file`, `vl-data-named`, `vl-data-sequence`, `vl-data-parse`, `vl-data-format-<type>`, and
+`vl-data-property`) are not produced for any of these.
 
 ##### Schema Version
 

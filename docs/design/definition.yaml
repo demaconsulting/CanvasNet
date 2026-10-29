@@ -91,6 +91,8 @@ input-files:
   - docs/design/canvas-net-vega-lite/data.md
   - docs/design/canvas-net-vega-lite/data/data-table.md
   - docs/design/canvas-net-vega-lite/data/data-loader.md
+  - docs/design/canvas-net-vega-lite/data/data-file-resolver.md
+  - docs/design/canvas-net-vega-lite/data/delimited-text-parser.md
   - docs/design/canvas-net-vega-lite/scales.md
   - docs/design/canvas-net-vega-lite/scales/scale-model.md
   - docs/design/canvas-net-vega-lite/scales/scale-resolver.md

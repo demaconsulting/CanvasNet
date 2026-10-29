@@ -235,8 +235,11 @@ software items, specifically:
   `SpecParser` (UTF-8 JSON into an immutable tree with JSON pointers and line and column under size and depth
   limits, structural validation, and duplicate and unknown key warnings), `FeatureCatalog` (the stable `vl-*` reports
   of every recognized-but-unsupported construct), and `ConfigResolver` (the Vega and Vega-Lite default configuration
-  merged with the configuration of the specification and of the caller). The `Data` subsystem has two units:
-  `DataTable` (typed values and tables) and `DataLoader` (inline rows under data limits). The `Scales` subsystem has
+  merged with the configuration of the specification and of the caller). The `Data` subsystem has four units:
+  `DataTable` (typed values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named
+  dataset, or a sequence - under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local
+  data files, or through the caller's callback), and `DelimitedTextParser` (CSV, TSV, and DSV, the `parse`
+  conversions, and the per-column type inference). The `Scales` subsystem has
   five units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
   number formatter), and `ColorSchemes` (the `tableau10` palette). The `Guides` subsystem has three units:
@@ -245,8 +248,9 @@ software items, specifically:
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
-  and `CssColor` (CSS color parsing). Compositions, transforms, expressions, parameters, legends, time, and local
-  data files are deferred and reported with stable identifiers — see _CanvasNetVegaLite System Design_
+  and `CssColor` (CSS color parsing). Compositions, transforms, expressions, parameters, legends, and time
+  are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
+  sequences are supported; remote data is never fetched) — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
   `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
   subsystems through their public API, and must never reference `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`,
@@ -428,8 +432,9 @@ and is distributed as its own NuGet package. It is a static renderer for the pub
 that parses, describes, measures, and renders charts, derived with attribution from Vega, Vega-Lite, and d3 (the
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
-`SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable` and
-`DataLoader` units, its internal `Scales` subsystem holds the `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
+`SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable`,
+`DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Scales` subsystem holds the
+`ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
 and `ColorSchemes` units, its internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
 units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
@@ -1086,7 +1091,10 @@ src/DemaConsulting.CanvasNet.VegaLite/
 ├── Data/                          — Data subsystem (internal)
 │   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
-│   └── DataLoader.cs              — DataLoader: inline rows under the data limits
+│   ├── DataLoader.cs              — DataLoader: inline rows, files, named datasets, and sequences
+│   ├── DataFileResolver.cs        — DataFileResolver: sandboxed bounded reads, cache, strict UTF-8, and data-file limits
+│   ├── DataFileResolver.Paths.cs  — DataFileResolver: path rules, candidates, root confinement, and the link walk
+│   └── DelimitedTextParser.cs     — DelimitedTextParser: CSV, TSV, and DSV, parse directives, and type inference
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
 │   ├── ScaleModel.cs              — ScaleModel: linear, band, point, and ordinal mappings
@@ -1205,7 +1213,17 @@ subsystem: requirements `docs/reqstream/canvas-net-vega-lite/layout/view-layout.
 `docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml`. The direct unit `VegaLiteDocument` has no
 subsystem folder (`docs/design/canvas-net-vega-lite/vega-lite-document.md`), the system itself is
 `docs/design/canvas-net-vega-lite.md` with `docs/sysml2/model/canvas-net-vega-lite.sysml`, and the original chart
-fixtures and their provenance record are in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The attribution
+fixtures (including the data-file chart, its CSV, and the nested JSON rows) and their provenance record are in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The two units added to the `Data` subsystem for local data
+files follow the same pattern: for `DataFileResolver`, requirements
+`docs/reqstream/canvas-net-vega-lite/data/data-file-resolver.yaml`, design
+`docs/design/canvas-net-vega-lite/data/data-file-resolver.md`, verification
+`docs/verification/canvas-net-vega-lite/data/data-file-resolver.md`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver.cs` (with `DataFileResolver.Paths.cs`), tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with the
+helpers in `DataTestSupport.cs`), and SysML2 model
+`docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml`; for `DelimitedTextParser`, the same paths with
+`delimited-text-parser`, `DelimitedTextParser.cs`, and `DelimitedTextParserTests.cs`. The attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

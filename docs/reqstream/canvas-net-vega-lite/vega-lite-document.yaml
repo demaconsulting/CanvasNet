@@ -8,7 +8,9 @@
 # VegaLiteSize, VegaLiteDataReference), the three exceptions, and the internal report sink that delivers
 # warnings and unsupported-feature reports. The unit orchestrates the pipeline implemented by the subsystems.
 # Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.VegaLite.Tests project; see
-# docs/verification/canvas-net-vega-lite/vega-lite-document.md for the test-evidence mapping.
+# docs/verification/canvas-net-vega-lite/vega-lite-document.md for the test-evidence mapping. The data options
+# (BaseDirectory, DataPaths, FileResolver, Datasets, and the data limits) are active: the unit reads data files
+# only while it measures or renders and never uses the network.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -100,7 +102,9 @@ sections:
           - id: CanvasNetVegaLite-VegaLiteDocument-InlineChartPipeline
             title: >-
               The VegaLiteDocument unit shall render a single view with a supported mark by loading its
-              inline data, resolving the configuration and scales, building the axes, marks, and title,
+              data (inline, a file, a named dataset, or a sequence), resolving the configuration and
+              scales, building the
+              axes, marks, and title,
               sizing the canvas around them with the view layout, and painting the resulting scene,
               while a composition or a view with an unsupported mark shall draw only its title and
               background without producing misleading axes.
@@ -180,7 +184,8 @@ sections:
               The VegaLiteDocument unit shall provide VegaLiteLimits with documented defaults, a shared default
               instance, validation that every limit is positive and not above its ceiling, and shall enforce the limits
               (the scene-item limit counts every item of the scene, groups included, before the item is created, so a
-              limit of N allows exactly N items) and observe the cancellation token so that an exceeded limit fails
+              limit of N allows exactly N items; the data limits of rows, fields, files, and bytes apply per call and
+              before any scene item is charged) and observe the cancellation token so that an exceeded limit fails
               closed with a located exception and a canceled token stops Measure and both Render overloads with an
               unwrapped OperationCanceledException.
             justification: |
@@ -200,6 +205,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt
               - CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem
               - CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept
+              - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
               - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Determinism
@@ -225,11 +231,47 @@ sections:
               - VegaLiteRenderOptions_Defaults_AreDocumented
               - VegaLiteRenderOptions_ValidValues_AreStored
 
+          - id: CanvasNetVegaLite-VegaLiteDocument-DataSources
+            title: >-
+              The VegaLiteDocument unit shall read data only while it measures or renders (opening a
+              document never reads a data file), using one loader per call that gets the effective open
+              options (the folder of an opened file unless a base directory is set, the data paths, and
+              the file callback), the caller's Datasets option, and the top-level datasets of the
+              specification; shall load the data before any scale or scene item exists, so that a data
+              failure or a data limit never depends on the scene-item limit; shall read the files again on
+              every call; and shall deliver the data warnings of a call after the reports of the
+              specification, on the calling thread, before the call returns.
+            justification: |
+              Reading at render time keeps a document a cheap immutable value, one loader per call gives
+              a file cache and a row budget that cannot leak between calls, and loading first makes the
+              failures independent of later stages.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
+              - CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender
+              - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
+              - CanvasNetVegaLite_SystemIntegration_Data_EachCallReadsTheFileAgain
+              - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-DataErrors
+            title: >-
+              The VegaLiteDocument unit shall fail a measure or render with a VegaLiteRenderException that
+              carries the location of the data url or name, in lenient and strict mode alike, when a local
+              data file is missing, outside the sandbox, a link, not valid UTF-8, or no file source is
+              configured for a document opened from a string or a stream, and when a data name is defined
+              by nobody, while a remote URL is only reported.
+            justification: |
+              A chart with broken data must not render as if the data were empty, and a caller needs to
+              tell a data failure from a specification error.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
+              - CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile
+
           - id: CanvasNetVegaLite-VegaLiteDocument-NoNetwork
             title: >-
               The VegaLiteDocument unit shall open and render using only managed code and the public
-              CanvasNet APIs, without network access, and shall treat a remote URL in a
-              specification as empty data that is reported, never fetched.
+              CanvasNet APIs, without network access, and shall treat a remote URL in a specification
+              (one with a scheme, or an absolute, rooted, drive, or network path) as empty data that is
+              reported, never fetched, opened, or given to the file callback.
             justification: |
               Following URLs found in untrusted specifications would be a request-forgery vector and
               would make the output depend on the network.

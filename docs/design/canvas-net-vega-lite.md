@@ -22,8 +22,11 @@ The first delivery (the first pull request, phases 1 to 3 of the roadmap) render
 the marks `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, the channels `x`, `y`, `color`/`fill`/
 `stroke`, `size`, and `opacity`, linear, band, and point scales, axes with d3-style tick selection and number
 formatting, titles with subtitles, the Vega-Lite default theme and configuration, and a view layout with padding and
-`autosize` of `pad` or `none`. Compositions, transforms, expressions, parameters, legends, time, and local data files
-are later phases.
+`autosize` of `pad` or `none`. Phase 4 adds the **data sources** of that single view: **local CSV, TSV, DSV, and JSON
+files** read from a sandbox (the folder of the specification, extra data directories, or a caller callback), **named
+datasets** (the top-level `datasets` of the specification and the caller's `Datasets` option), **generated
+sequences**, `format.parse` conversions and per-column type inference, and `format.property`. Remote URLs are still
+never fetched. Compositions, transforms, expressions, parameters, legends, and time are later phases.
 
 `CanvasNetVegaLite` consists of one direct unit and seven internal subsystems:
 
@@ -44,8 +47,11 @@ are later phases.
   specification, and the caller's configuration. See _SpecModel Subsystem Design_
   (`canvas-net-vega-lite/spec-model.md`).
 - **Data** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Data`, folder `Data/`): rows into
-  memory, with two units. `DataTable` is the immutable typed value and table model. `DataLoader` reads inline
-  `values` under the data limits. See _Data Subsystem Design_ (`canvas-net-vega-lite/data.md`).
+  memory, with four units. `DataTable` is the immutable typed value and table model. `DataLoader` chooses the source
+  of a view (inline `values`, a local file, a named dataset, or a sequence) and builds the table under the data
+  limits. `DataFileResolver` finds and reads local data files inside the sandbox. `DelimitedTextParser` reads CSV,
+  TSV, and DSV text and applies the `parse` conversions and the type inference. See _Data Subsystem Design_
+  (`canvas-net-vega-lite/data.md`).
 - **Scales** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Scales`, folder `Scales/`): the numeric
   heart, with five units. `ScaleModel` maps values to pixels (linear, band, point, ordinal). `ScaleResolver` infers
   scale types, domains, ranges, and paddings from the specification. `Ticks` is the d3-array tick algorithm.
@@ -73,9 +79,16 @@ names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteData`, `VegaLit
 because the `CanvasNet` model package is shared by every system of the repository and `SceneModel` and `SceneGraph`
 already name items of `CanvasNetRender3D`.
 
-Dependencies inside the system are one-directional at the unit level. `VegaLiteDocument` calls every subsystem.
-`SpecParser` has no dependency on another unit; `FeatureCatalog` and `ConfigResolver` read its `SpecTree` and
-`SpecNode` types. `DataLoader` reads `SpecNode` and builds `DataTable`. `ScaleResolver` reads the `SpecNode` tree, the
+Dependencies inside the system are one-directional at the unit level, apart from three shared static rules.
+`VegaLiteDocument` calls every subsystem. `SpecParser` and `FeatureCatalog` use two stateless rules of the data units
+so that the text of a specification, its report, and its loading agree by construction: the validation of a
+delimiter (`DelimitedTextParser.IsValidDelimiter`) and the classification of a `format.parse` entry
+(`ParseDirectives.TryClassify`, in the `DelimitedTextParser` unit), and `DataLoader` uses the one definition of a
+remote URL (`FeatureCatalog.IsSchemeBearingUrl`). `FeatureCatalog` and `ConfigResolver` read the `SpecTree` and
+`SpecNode` types of `SpecParser`. `DataLoader` reads `SpecNode`, asks `DataFileResolver` for the text of a data file,
+hands delimited text to `DelimitedTextParser`, and builds `DataTable`; `DataFileResolver` depends only on the public
+option, limit, and exception types, and `DelimitedTextParser` on those and the value type of `DataTable` (and the
+`SpecNode` of the `format` object), never on `DataLoader`. `ScaleResolver` reads the `SpecNode` tree, the
 `DataTable`, and the `ResolvedConfig`, and builds `ScaleModel` instances, using `Ticks` and `ColorSchemes`;
 `NumberFormat` and `Ticks` depend on nothing else in the system. `SceneModel` depends on nothing else.
 `TextMeasurer` reads the `SceneModel` text and bounds types; `ScenePainter` calls `TextMeasurer` and `CssColor`.
@@ -101,12 +114,15 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Veg
   `Surface` of exactly that size with the chart scaled uniformly to fit and centered. The caller owns and disposes
   every returned `Surface`.
 - **`VegaLiteOpenOptions`** (sealed, init-only, validated): `BaseDirectory`, `DataPaths`, `FileResolver`,
-  `SourceName`, and `Limits`. Parsing consumes `SourceName` and `Limits`; the other three define the file sandbox of
-  the later data-file phase and are stored but not yet consumed (local files report `vl-data-file`).
+  `SourceName`, and `Limits`. Parsing consumes `SourceName` and `Limits`; `BaseDirectory` (the folder of a file opened
+  by path unless set), `DataPaths` (extra data directories, searched in order after the base directory), and
+  `FileResolver` (a callback that supplies the bytes of a normalized logical path and replaces the file system
+  entirely) define the file sandbox that `Measure` and `Render` use for a local `data.url`.
 - **`VegaLiteRenderOptions`** (sealed, init-only, validated): `Scale` (finite, greater than zero, at most
   `Surface.MaxDimension`), `Background` (an `Rgba32` that replaces the specification and configuration background),
   `Config` (a Vega-Lite configuration as JSON object text, merged over the defaults and the specification's
-  `config`), `Parameters` and `Datasets` (copied and validated; reserved for the parameter and data phases),
+  `config`), `Parameters` (copied and validated; reserved for the parameter phase) and `Datasets` (named row tables
+  that replace a top-level dataset of the same name; copied and validated),
   `TimeZone` (`null` is UTC; reserved for the time phase), `ContainerWidth` and `ContainerHeight` (the size of a
   `"container"` chart; 400 by 300 by default), `Fonts`, `Limits`, the handlers `WarningHandler` and
   `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`.
@@ -134,20 +150,23 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Veg
 | `VegaLiteDocument.Open(string, ...)` | Inbound | File path | Non-null and not empty or whitespace; read as UTF-8 with byte-order-mark detection; a missing file or directory surfaces the natural .NET exception; the source name defaults to the path |
 | `VegaLiteDocument.Open(Stream, ...)` | Inbound | Readable stream | Non-null and readable; read from the current position as UTF-8; left open; reading stops one 8 KiB chunk past the size limit |
 | `VegaLiteOpenOptions` and `VegaLiteRenderOptions` properties | Inbound | Text, numbers, lists, dictionaries, delegates, `Rgba32` | Each value is validated when initialized, so an instance is always valid and immutable; collections are copied and exposed read-only |
+| `VegaLiteOpenOptions.FileResolver` | Outbound (a callback the library invokes) and inbound (the stream it returns) | `Func<string, Stream?>`: a normalized logical path in, a readable UTF-8 stream or `null` out | Called only by `Measure` and `Render`, on the calling thread, at most once per candidate path per call, never for a remote URL; the library disposes the stream and reads at most `MaxDataBytes`; the file system is never touched while it is set |
+| Local data files (`data.url`) | Inbound | UTF-8 CSV, TSV, DSV, or JSON text in a file under the base directory or a data path | Relative paths only; confined to the roots; no symbolic link or junction below a root; at most `MaxDataFiles` files and `MaxDataBytes` bytes each; read only by `Measure` and `Render`; never from the network |
 | `VegaLiteDocument` properties | Outbound | Text, numbers, read-only lists | Describe the text only: no data is loaded, no file is opened, nothing is evaluated |
 | `VegaLiteDocument.Measure(...)` | Inbound and outbound | `VegaLiteRenderOptions`, a `CancellationToken`; a `VegaLiteSize` | Same checks, reports, and order as `Render`, nothing is drawn; always equals the size `Render` produces |
 | `VegaLiteDocument.Render(...)` (natural size) | Inbound and outbound | `VegaLiteRenderOptions`, a `CancellationToken`; a `Surface` | Natural size times `Scale`, rounded half away from zero, each side from 1 to `Surface.MaxDimension`, validated before any report is delivered; caller owns the surface; byte-identical output for identical input |
 | `VegaLiteDocument.Render(int, int, ...)` (exact size) | Inbound and outbound | Width, height, options, a token; a `Surface` | Width and height from 1 to `Surface.MaxDimension`, validated first; the natural chart is scaled uniformly to fit and centered, margins take the background; `Scale` is not used |
 | `VegaLiteRenderOptions.WarningHandler`, `UnsupportedFeatureHandler` | Outbound | Delegates receiving `VegaLiteDiagnostic` and `VegaLiteUnsupportedFeature` | Called once per distinct report, in document order, on the calling thread, after the work finished and before the method returns or throws |
 | `VegaLiteSpecException` | Outbound | Exception with `Location` | Thrown for malformed JSON, nesting deeper than `MaxJsonDepth`, a known property of the wrong type or value, a string longer than `MaxStringLength`, plain Vega, and, at render time, an invalid axis orientation, axis format, or scale domain or range |
-| `VegaLiteRenderException` | Outbound | Exception with `Location` | Thrown when a data, scale, axis, or scene limit is exceeded (`MaxDataRows`, `MaxFieldCount`, `MaxScaleDomainSize`, `MaxTicks`, `MaxSceneItems`) |
+| `VegaLiteRenderException` | Outbound | Exception with `Location` | Thrown when a data, scale, axis, or scene limit is exceeded (`MaxDataRows`, `MaxFieldCount`, `MaxDataFiles`, `MaxDataBytes`, `MaxScaleDomainSize`, `MaxTicks`, `MaxSceneItems`) and when local data cannot be used: no file source for a local `url`, a path the sandbox refuses, a link, a missing or unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined named dataset, or an invalid sequence; the location is the `url`, `name`, or `sequence` that caused it |
 | `VegaLiteUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set, at the first unsupported feature in document order; the report is delivered to the handler first |
 | `ArgumentOutOfRangeException`, `ArgumentException` | Outbound | Exception | Thrown for an invalid option value when it is set, for a scaled or explicit size outside 1 to `Surface.MaxDimension`, and for a `Parameters` name the document does not declare |
 | `OperationCanceledException` | Outbound | Exception | Thrown, never wrapped, when the token is canceled before or during the work |
 | `InvalidDataException` | Outbound | Exception | Thrown, not as a `VegaLiteSpecException`, when the source exceeds `MaxSourceLength` (no location is meaningful) |
 <!-- markdownlint-enable MD013 -->
 
-Opening a document never loads data, never opens another file, and never uses the network. The types of the
+Opening a document never loads data, never opens another file, and never uses the network; only `Measure` and
+`Render` read data, and only from the sandbox described in _Risk Control Measures_. The types of the
 subsystems are internal and visible only to the test assembly through `InternalsVisibleTo`. See the unit and
 subsystem design documents for the complete constructor, property, and exception detail of every type.
 
@@ -216,15 +235,20 @@ input:
   | `MaxSourceLength` | 4,194,304 characters | `VegaLiteDocument`, `SpecParser` | `InvalidDataException` |
   | `MaxJsonDepth` | 64 (1 to 256) | `SpecParser` | `VegaLiteSpecException` at the crossing |
   | `MaxStringLength` | 1,048,576 characters | `SpecParser` | `VegaLiteSpecException` |
-  | `MaxDataRows` | 1,000,000 (total) | `DataTable`, `DataLoader` | `VegaLiteRenderException` before any row is converted |
-  | `MaxFieldCount` | 1,024 | `DataTable`, `DataLoader` | `VegaLiteRenderException` |
+  | `MaxDataRows` | 1,000,000 (total per call) | `DataTable`, `DataLoader`, `DelimitedTextParser` | `VegaLiteRenderException` before any row is converted or allocated (also for a sequence) |
+  | `MaxFieldCount` | 1,024 | `DataTable`, `DataLoader`, `DelimitedTextParser` | `VegaLiteRenderException` |
+  | `MaxDataFiles` | 64 (distinct files per call) | `DataFileResolver` | `VegaLiteRenderException`; the file that would exceed the limit is not read |
+  | `MaxDataBytes` | 64 MiB (per file) | `DataFileResolver` | `VegaLiteRenderException`; reading stops one chunk past the limit, so an endless stream cannot exhaust memory |
   | `MaxScaleDomainSize` | 100,000 values | `ScaleResolver` | `VegaLiteRenderException` |
   | `MaxTicks` | 1,000 per axis | `Ticks`, `AxisBuilder` | `VegaLiteRenderException` (also for categories) |
   | `MaxSceneItems` | 2,000,000 | `MarkBuilder`, `SceneBudget`, `VegaLiteDocument` | `VegaLiteRenderException`, counted as each item is created, before it is kept |
   | `MaxDiagnostics` | 1,000 | `VegaLiteReportSink` | Further reports collapse into one `vl-diagnostics-suppressed` notice; strict mode is unaffected |
-  | `MaxDataFiles`, `MaxDataBytes`, `MaxViews`, `MaxCompositionDepth`, `MaxExpressionLength`, `MaxExpressionDepth`, `MaxEvaluationSteps` | 64, 64 MiB, 1,000, 16 (1 to 64), 4,096, 64 (1 to 256), 50,000,000 | Reserved for the data-file, composition, and expression phases | Not yet enforced: the corresponding constructs are reported as unsupported |
+  | `MaxViews`, `MaxCompositionDepth`, `MaxExpressionLength`, `MaxExpressionDepth`, `MaxEvaluationSteps` | 1,000, 16 (1 to 64), 4,096, 64 (1 to 256), 50,000,000 | Reserved for the composition and expression phases | Not yet enforced: the corresponding constructs are reported as unsupported |
   <!-- markdownlint-enable MD013 -->
 
+- **Data loaded before the scene budget.** The data stage runs before any scene item is charged and before any scale
+  exists, so a data failure or a data limit never depends on `MaxSceneItems`; the marks that the loaded rows produce
+  are then charged to the scene budget as before.
 - **Pixel budget.** The size of the surface is bounded by `Surface.MaxDimension` on each side: the scale and the
   explicit width and height are validated before any pixel memory is allocated, and a clip layer in the painter is only
   as large as the clip's pixel box.
@@ -241,11 +265,20 @@ input:
   the chart outside the surface limits as an `ArgumentOutOfRangeException` for the parameter `options`. The CanvasNetTool
   maps them to `vega-lite-error`, `corrupt-input` (as for an overlong SCAD model), `budget-exceeded`, and `size-limit`
   respectively; no other argument failure is a size or a usage problem.
-- **No file or network access.** Parsing and rendering read only the text they are given. A data `url` is never
-  opened or fetched: a URL with a scheme, a drive letter, an absolute path, or a network path reports
-  `vl-data-remote-url`, and any other
-  `url` reports `vl-data-file`; both use an empty dataset. No code in the specification is ever executed: expressions,
-  transforms, and parameters are reported, not evaluated.
+- **Sandboxed local data, no network.** Opening reads only the text it is given. A data `url` is read only by
+  `Measure` and `Render`, and only when it is a relative local path: a URL with a scheme, a drive letter, an absolute
+  path, or a network path reports `vl-data-remote-url`, is **never fetched and never handed to the file resolver or
+  the callback**, and uses an empty dataset (strict mode throws). A relative path is confined to a root (the base
+  directory, then each data path, in order) by normalizing `.` and `..` and refusing a path that leaves its root;
+  rooted, drive, UNC, colon, empty, and control-character paths are refused outright; every component below a root
+  is checked before the file is opened and a symbolic link or junction is refused, and the check fails closed when
+  it cannot answer. With a `FileResolver` callback no file-system access happens at all. A file is read as bytes under
+  `MaxDataBytes` and decoded as strict UTF-8, and each call reads each distinct file at most once. A local file that
+  cannot be used is a `VegaLiteRenderException`, in lenient and strict mode alike, never an empty dataset. The
+  residual risk is a concurrent writer that replaces a checked path with a link before it is opened; the resolver
+  does not defend against it, and a deployment that renders files an attacker can modify must not share the
+  directory with them. No code in the specification is ever executed: expressions, transforms, and parameters are
+  reported, not evaluated.
 - **Cancellation.** A `CancellationToken` is honored before any work, in the data and scale stages, per tick of an
   axis, per 1,024 rows of the marks, and while painting. The exception is never wrapped.
 - **Buffered, ordered event delivery.** Warnings and unsupported-feature reports are recorded in a sink while the work
@@ -284,10 +317,15 @@ input:
 **Measure and render path (`Measure`, `Render(options)`):**
 
 1. **Choose options**: the given options, or the defaults.
-2. **Prepare the chart** (pure, delivers nothing): `ConfigResolver` merges the defaults, the specification's `config`,
-   and the caller's `Config`; a `TextMeasurer` is created for the font options. When the root is a single view
-   (no `layer`, `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`) with a supported mark, `DataLoader` reads the
-   inline rows and `ScaleResolver` infers the scales. `ViewLayout` resolves the view request (size, padding,
+2. **Prepare the chart** (reads only the data files and delivers nothing): `ConfigResolver` merges the defaults, the
+   specification's `config`, and the caller's `Config`; a `TextMeasurer` is created for the font options. When the
+   root is a single view (no `layer`, `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`) with a supported mark, one
+   `DataLoader` serves the call (with its own file cache, file count, and row budget) and reads the data first,
+   before any scene item is charged: inline rows, the local file named by a relative `url` (through
+   `DataFileResolver`, then `DelimitedTextParser` for CSV, TSV, or DSV, or `JsonDocument` for JSON), a named dataset
+   (the caller's `Datasets` first, then the top-level `datasets`), or a generated sequence; the `parse` conversions
+   are applied, and the values that an explicit conversion could not read are collected as `vl-data-parse-failed`
+   warnings. `ScaleResolver` then infers the scales. `ViewLayout` resolves the view request (size, padding,
    autosize, background, view style) with the discrete-step hints of the scales; `TitleBuilder` builds the title. If
    there is no drawable single view the layout is computed around the title alone (an empty view, as for a
    composition or an unsupported mark). Otherwise the chart is built: the axes are built for the current data
@@ -301,7 +339,8 @@ input:
 3. **Validate**: the natural size times the scale is validated (each side from 1 to `Surface.MaxDimension`), then the
    `Parameters` names, then the token.
 4. **Record**: the reports of the document (warnings, then catalog reports, in document order) are recorded in the
-   `VegaLiteReportSink`, which de-duplicates, caps, and, in strict mode, throws at the first unsupported feature.
+   `VegaLiteReportSink`, which de-duplicates, caps, and, in strict mode, throws at the first unsupported feature;
+   the data warnings of this call (`vl-data-parse-failed`) follow them.
 5. **Paint** (`Render` only): `ScenePainter` fills the background and draws the scene onto a new `Surface` of the
    scaled size.
 6. **Deliver**: the sink replays its reports to the caller's handlers in order on the calling thread; on a failure the
@@ -406,16 +445,17 @@ The obligations of the licenses are met as follows:
 
 ### Supported And Deferred Features
 
-This table is the exact boundary of the **first delivery**. The renderer does not imply general Vega-Lite support: a
-recognized construct outside the table is reported with the identifier shown, never skipped silently, and strict mode
-throws at the first report. The reports carry the RFC 6901 pointer and the one-based line and column of the construct.
+This table is the exact boundary of the **delivered phases** (1 to 4). The renderer does not imply general Vega-Lite
+support: a recognized construct outside the table is reported with the identifier shown, never skipped silently, and
+strict mode throws at the first report. The reports carry the RFC 6901 pointer and the one-based line and column of the
+construct.
 
 <!-- markdownlint-disable MD013 -->
 | Area | Supported | Reported (identifier) when outside the supported subset |
 | ---- | --------- | ------------------------------------------------------- |
 | Schema | `$schema` of Vega-Lite version 5 or 6, interpreted with the version 6 defaults; no `$schema` | Another major version, or a URL naming no Vega-Lite version: warning `vl-schema-version` (still rendered with the version 6 defaults); a malformed value is a `VegaLiteSpecException`; plain Vega is rejected |
 | Views | One single view | `layer`, `concat`, `hconcat`, `vconcat`, `facet`, `repeat`: `vl-composition-<name>` (only the title, background, and empty view are drawn; nested views are examined too); `projection`: `vl-projection` |
-| Data | Inline `data.values`: an array of objects (one row per object, nested values flattened to path fields) or of primitives (one row `{data: value}`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, empty dataset); other `url`: `vl-data-file`; `name` only: `vl-data-named`; `sequence`: `vl-data-sequence`; `format.parse`: `vl-data-parse`; `format.type` csv, tsv, or dsv: `vl-data-format-csv`, `-tsv`, `-dsv`; `format.property`: `vl-data-property`; `values` as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` as an object: `vl-data-geo` |
+| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields, or of primitives, one row `{data: value}`); a **relative local `data.url`** read as JSON (the default), CSV, TSV, or DSV (`format.type`, else the extension `.csv` or `.tsv`, else JSON; DSV uses `format.delimiter`, a comma when omitted); `format.property` (a dotted path to the array of rows in a JSON file); `format.parse` as `"auto"`, `null`, or a field map of `number`, `boolean`, `date`, and `string`, with Vega-style per-column inference for delimited text and ISO 8601 dates in UTC; **named datasets** (`data.name` found in the caller's `Datasets`, then in the top-level `datasets` arrays); `data.sequence` (`start`, exclusive `stop`, `step`, `as`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, never given to a resolver, empty dataset); a custom `parse` date format (`date:'%Y'`, `utc:'%Y'`): `vl-data-parse-date-format` (the field is left as read); `values` (or a referenced dataset) as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` (or a referenced dataset) as an object: `vl-data-geo`. Not a report but a `VegaLiteRenderException`: a local file that is missing, refused by the sandbox, a link, invalid UTF-8, invalid JSON or delimited text, or over a limit; an undefined `name`; a sequence with a zero or non-finite step. Values that an explicit `parse` could not convert become null and give the warning `vl-data-parse-failed` |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick` (a mark given as a string or as a definition object with `type`) | Every other recognized mark type: `vl-mark-<type>`; the chart is drawn without marks and without axes |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity` as `field`, literal `value`, or literal `datum` where the channel permits; `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report | Every other recognized channel: `vl-channel-<name>`; `longitude`, `latitude`, `longitude2`, `latitude2`: `vl-channel-geo` |
 | Field types | `quantitative`, `nominal`, `ordinal` | `temporal`: `vl-type-temporal`; `geojson`: `vl-type-geojson` |
@@ -441,15 +481,11 @@ name taken from the specification is lower-cased without separators (`timeUnit` 
 | ---------- | ---- | --------------------- |
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
-| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path |
-| `vl-data-file` | Unsupported | The `data` object, when `url` is a relative local path |
-| `vl-data-named` | Unsupported | The `data` object that has only a `name` |
-| `vl-data-sequence` | Unsupported | `data/sequence` |
-| `vl-data-parse` | Unsupported | `data/format/parse`, when not null |
-| `vl-data-format-csv`, `vl-data-format-tsv`, `vl-data-format-dsv` | Unsupported | `data/format/type` naming a delimited text format |
-| `vl-data-property` | Unsupported | `data/format/property` |
-| `vl-data-values-text` | Unsupported | `data/values` given as a string |
-| `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` given as an object |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path; a relative local path is supported and not reported |
+| `vl-data-parse-date-format` | Unsupported | The `format.parse` entry that names a date with a custom format (`date:'%d/%m/%Y'`, `utc:'...'`) |
+| `vl-data-parse-failed` | Warning | The `data` object, at render time only (it needs the data): one per field and type, when an explicit `parse` could not convert some values; those values are null |
+| `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
+| `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick |
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored) |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
@@ -473,11 +509,15 @@ name taken from the specification is lower-cased without separators (`timeUnit` 
 | `vl-diagnostics-suppressed` | Warning | The first report beyond `MaxDiagnostics` |
 <!-- markdownlint-enable MD013 -->
 
-**Deferred phases.** The roadmap that follows the first delivery adds, each in its own pull request with the full
+**Retired identifiers.** The identifiers `vl-data-file`, `vl-data-named`, `vl-data-sequence`, `vl-data-parse`,
+`vl-data-format-csv`, `vl-data-format-tsv`, `vl-data-format-dsv`, and `vl-data-property` were reported before phase 4;
+the constructs they named are now supported, so they are no longer produced. They are never reused for another meaning.
+
+**Deferred phases.** The roadmap that follows the delivered phases adds, each in its own pull request with the full
 companion artifacts, the following capabilities; until then the constructs are reported with the identifiers above:
 
-- **Data files**: local CSV, TSV, DSV, and JSON files from a sandbox (the document folder, `DataPaths`, or a
-  `FileResolver`), `parse` and type inference, `sequence`, and `datasets`; remote URLs stay reported
+- **Data formats still deferred**: custom `parse` time formats (`date:'%fmt'`, with the time phase), data given as text
+  in `values`, and the geographic formats; remote URLs are never fetched and stay reported
 - **Expressions and row transforms**: the Vega expression language (a closed, bounded interpreter), `calculate`,
   `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`
 - **Aggregation**: `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, and `count`
@@ -521,6 +561,26 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
    as a circle; fills are flattened at a tolerance of 0.02 pixel so that small circles stay round.
 9. **Number formatting**: the d3 `en-US` locale with the minus sign U+2212, culture-invariant; widths above 1,000 are
    clamped as a denial-of-service guard.
+10. **Data format by extension**: without `format.type` a `url` ending in `.csv` or `.tsv` (any case) is delimited text
+    and everything else is JSON, as in Vega-Lite; `format.type` always wins. `format.header` and `format.property` on
+    delimited data, and `format.delimiter` on CSV and TSV, are ignored, and a DSV without a delimiter uses a comma.
+11. **Inference per column**: delimited text is converted by the type of its whole column (boolean, then number, then
+    ISO 8601 date, only when every non-empty text of the column fits; otherwise the column stays text), as Vega's
+    `parse: "auto"` does, never per cell. Numbers are finite invariant integers, decimals, and exponents (no hex,
+    no thousands separators, no `NaN` or infinity); a date without a zone is UTC, so the result never depends on the
+    host. Custom `date:'%fmt'` parsing is not implemented (`vl-data-parse-date-format`).
+12. **Failed conversions**: a value that an explicit `parse` cannot convert becomes null, with a
+    `vl-data-parse-failed` warning for the field, instead of NaN or an invalid date; an empty text becomes null.
+13. **Local files are hard errors**: a data file that cannot be used fails the render with a located
+    `VegaLiteRenderException` in lenient mode too, because an empty chart would hide a broken deployment; only remote
+    data, which is never fetched, is reported and empty.
+14. **Links**: a symbolic link or junction below a root is refused (a link target is never followed), whatever it
+    points to; a link at or above the root, which the caller chose, is trusted, and other reparse points that redirect
+    nothing (for example the placeholders of a synchronized folder) are not links in this sense.
+15. **Zero sequence step**: a `sequence` with a step of zero is not a specification error (the metadata reports an
+    unknown length) and fails the render with a located `VegaLiteRenderException` instead.
+16. **Provenance of the data rules**: the format, parse, and inference behavior follows the public Vega and Vega-Lite
+    documentation of data loading; the parsers are original code and no upstream source, dataset, or example was copied.
 
 ### Determinism And Immutability
 
@@ -548,12 +608,16 @@ own scope, and everything not yet implemented is reported with a stable identifi
    (`ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`), the `Guides` unit `AxisBuilder`, the
    `Marks` unit `MarkBuilder`, the end-to-end pipeline, the first ported d3 and Vega algorithms, and the extension of
    the attribution record.
-3. **Phase 3 - Tool wiring (delivered with this pull request).** The `canvasnet` tool recognizes `.vl.json` and `.vl`
+3. **Phase 3 - Tool wiring (delivered).** The `canvasnet` tool recognizes `.vl.json` and `.vl`
    files and `$schema`-identified JSON, probes and renders Vega-Lite charts, reports the chart facts, and maps the
    library exceptions to its stable error codes; the tool package bundles the assembly and the license texts. The
    tool's own design, verification, and requirements are documented in the `CanvasNetTool` artifacts.
-4. **Phase 4 - Data files (planned).** The data-file sandbox, delimited text parsing, `parse` and inference,
-   `sequence`, and `datasets`.
+4. **Phase 4 - Data files (delivered with this pull request).** The `Data` units `DataFileResolver` (the sandboxed,
+   bounded, cached reading of local data files and of the caller's callback) and `DelimitedTextParser` (CSV, TSV, and
+   DSV, `parse`, and per-column inference), the extended `DataLoader` (files, `format.property`, named datasets,
+   `sequence`) and `DataTable` (a date value), the active `BaseDirectory`, `DataPaths`, `FileResolver`, `Datasets`,
+   `MaxDataFiles`, and `MaxDataBytes` options, the retired and new `vl-data-*` identifiers, the data folder behavior of
+   the `canvasnet` tool, and the original data fixtures.
 5. **Phase 5 - Expressions and row transforms (planned).**
 6. **Phase 6 - Aggregation (planned).**
 7. **Phase 7 - Legends and mark-property channels (planned).**

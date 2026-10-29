@@ -9,11 +9,12 @@
 # CanvasNetVegaLite is an independent software system distributed as its own NuGet package. It reads a
 # Vega-Lite specification and renders a static, deterministic chart onto a CanvasNet Surface using only
 # managed code and the public CanvasNet APIs: there is no JavaScript runtime, no network access, and no
-# dependency on any Vega or d3 package. Version 1 supports a deliberately small, documented subset - a single
-# view with inline data, the marks bar, rect, point, circle, square, rule, and tick, linear, band, and point
-# scales, axes, and titles - and reports every recognized construct outside that subset with a stable vl-*
-# identifier instead of skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And
-# Deferred Features). The tick generation and number formatting are ports of the d3-array and d3-format
+# dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view
+# whose data is inline, a local CSV, TSV, DSV, or JSON file read from a sandbox, a named dataset, or a generated
+# sequence, the marks bar, rect, point, circle, square, rule, and tick, linear, band, and point scales, axes, and
+# titles - and reports every recognized construct outside that subset with a stable vl-* identifier instead of
+# skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
+# never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
 # algorithms; the default configuration, view layout, and text layout follow Vega-Lite and Vega behavior.
 # Both are attributed in the package's third-party notices (src/DemaConsulting.CanvasNet.VegaLite/third-party).
 #
@@ -190,14 +191,14 @@ sections:
 
       - id: CanvasNetVegaLite-InlineData
         title: >-
-          The library shall read data only from inline values: a missing or empty values array shall
-          render an empty chart with the stable vl-data-empty warning, and every other data source -
-          a URL, a named dataset, a sequence, text values, or a data format - shall load as an empty
-          table and be reported with its own stable vl-data-* identifier.
+          The library shall report a data source it recognizes but does not read - a missing or empty
+          values array (the stable vl-data-empty warning, an empty chart), text or GeoJSON values, and the
+          geographic generators - as an empty table with its own stable vl-data-* identifier, never as an
+          unexplained empty chart.
         tags: [system]
         justification: |
-          The first delivery has no data-file, named-dataset, or parsing support; the consumer must be
-          told when a chart's data was not used instead of receiving an unexplained empty chart.
+          The consumer must be told when a chart's data was not used instead of receiving an unexplained
+          empty chart.
         children:
           - CanvasNetVegaLite-Data-EmptyAndRemote
         tests:
@@ -205,12 +206,104 @@ sections:
           - DataLoader_Load_EmptyValuesReportsVlDataEmpty
           - DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog
 
+      - id: CanvasNetVegaLite-DataFiles
+        title: >-
+          The library shall draw a chart whose data url is a relative local path from the CSV, TSV, DSV,
+          or JSON file it names - found in the folder of an opened specification, the base directory,
+          the data paths, or through the caller's file callback, and read as the format that format.type
+          or else the file extension names, with an optional property path to the rows - so that the
+          chart is pixel-identical to the same rows written inline, reading the files only while
+          measuring or rendering, and failing with a located VegaLiteRenderException when a document with
+          no folder, base directory, data path, or callback names a local file.
+        tags: [system]
+        justification: |
+          Real charts keep their data in files; the library must read them predictably from where the
+          specification lives, without a hidden dependency on the working directory.
+        children:
+          - CanvasNetVegaLite-Data-LocalFiles
+          - CanvasNetVegaLite-VegaLiteDocument-DataSources
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
+          - CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile
+          - CanvasNetVegaLite_SystemIntegration_Render_FileBackedChartsMatchTheInlineChart
+
+      - id: CanvasNetVegaLite-DataParsing
+        title: >-
+          The library shall type the values of a data file the way Vega does - inferring the type of
+          each column of delimited text as a whole by default, converting the fields that format.parse
+          names to number, boolean, date, or string, and reading ISO 8601 dates in UTC independently of
+          the host - shall make a value that an explicit conversion cannot read null with a located
+          vl-data-parse-failed warning per field, and shall report a custom date format as the
+          unsupported vl-data-parse-date-format while leaving the field as read.
+        tags: [system]
+        justification: |
+          Scales, sorting, and labels depend on the type of a value, and the same file must draw the same
+          chart on every machine; a conversion that fails must be visible.
+        children:
+          - CanvasNetVegaLite-Data-Parsing
+          - CanvasNetVegaLite-SpecModel-FeatureReporting
+          - CanvasNetVegaLite-SpecModel-StructuralValidation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
+          - CanvasNetVegaLite_SystemIntegration_Render_FileBackedChartsMatchTheInlineChart
+          - FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier
+
+      - id: CanvasNetVegaLite-NamedDataAndSequences
+        title: >-
+          The library shall draw a chart whose data is a named dataset - taken from the caller's Datasets
+          option first and the top-level datasets of the specification second - or a generated sequence
+          (start, exclusive stop, step, and field name), without any report, and shall fail with a located
+          VegaLiteRenderException when a data name is defined by nobody.
+        tags: [system]
+        justification: |
+          Hosts supply data without editing the specification, and generated data needs no file at all.
+        children:
+          - CanvasNetVegaLite-Data-NamedAndSequence
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender
+          - DataLoader_Load_MissingNamedDataIsHardFailure
+
+      - id: CanvasNetVegaLite-DataSandbox
+        title: >-
+          The library shall confine the reading of data files to the base directory, the data paths, or
+          the caller's callback: it shall refuse an absolute, rooted, drive, UNC, empty, colon, or
+          control-character path and a path that leaves its root, shall refuse a file reached through a
+          symbolic link or junction below a root, shall never touch the file system while the callback is
+          set, and shall treat a failure to decide as a refusal.
+        tags: [system, security]
+        justification: |
+          A specification may come from an untrusted source; a data url must never become a way to read
+          arbitrary files of the host.
+        children:
+          - CanvasNetVegaLite-Data-Sandbox
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
+          - CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder
+          - DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen
+
+      - id: CanvasNetVegaLite-DataErrors
+        title: >-
+          The library shall fail with a VegaLiteRenderException located at the data url or name, in
+          lenient and strict mode alike, when a local data file is missing, refused by the sandbox,
+          unreadable, not valid UTF-8, or not valid data, and shall never render such a chart as an empty
+          one.
+        tags: [system]
+        justification: |
+          A broken data reference is a deployment error; only remote data, which is never read, is
+          reported and left empty.
+        children:
+          - CanvasNetVegaLite-Data-HardErrors
+          - CanvasNetVegaLite-VegaLiteDocument-DataErrors
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
+          - CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile
+
       - id: CanvasNetVegaLite-NoNetwork
         title: >-
-          The library shall never use the network or read a file named by a specification: a remote URL
-          in the data of a specification shall be reported with the stable vl-data-remote-url identifier
-          as an unsupported feature, the data shall be treated as empty, and the URL shall never be
-          fetched.
+          The library shall never use the network: a remote URL in the data of a specification - one with
+          a scheme, or an absolute, rooted, drive, or network path - shall be reported with the stable
+          vl-data-remote-url identifier as an unsupported feature, the data shall be treated as empty, and
+          the URL shall never be fetched, opened, or given to the file callback.
         tags: [system]
         justification: |
           A renderer that follows URLs in untrusted specifications would be a request-forgery vector that
@@ -219,7 +312,7 @@ sections:
           - CanvasNetVegaLite-VegaLiteDocument-NoNetwork
         tests:
           - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
-          - FeatureCatalog_Visit_RemoteDataReportsVlDataRemoteUrl
+          - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
 
       - id: CanvasNetVegaLite-Diagnostics
         title: >-
@@ -273,10 +366,10 @@ sections:
       - id: CanvasNetVegaLite-LimitsCancellation
         title: >-
           The library shall bound every resource a specification can consume - source length, JSON
-          nesting, data rows and fields, scale domain size, ticks, scene items, and reports - and shall
-          fail closed with a located exception when a limit is exceeded, accepting exactly the limit,
-          and shall observe a cancellation token before and during measuring and rendering by stopping
-          with an unwrapped OperationCanceledException.
+          nesting, data rows, fields, files, and bytes, scale domain size, ticks, scene items, and
+          reports - and shall fail closed with a located exception when a limit is exceeded, accepting
+          exactly the limit, and shall observe a cancellation token before and during measuring and
+          rendering by stopping with an unwrapped OperationCanceledException.
         tags: [system]
         justification: |
           Rendering untrusted specifications must not be able to exhaust memory or time, and callers need
@@ -289,6 +382,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
           - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
+          - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
           - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
 
       - id: CanvasNetVegaLite-Determinism

@@ -3842,7 +3842,7 @@ public sealed partial class VegaLiteDocument
   deeply, or has a known property of the wrong type or value. Plain **Vega** specifications (a `$schema` under
   `vega.github.io/schema/vega/`) are rejected. `Open(string)` names the source by the path; `Open(Stream)` reads from
   the current position and leaves the stream open. Opening never loads data, never opens another file, and never uses
-  the network.
+  the network; only `Measure` and `Render` read data, and only as described in *Vega-Lite Data*.
 - The descriptive properties (`SchemaUrl`, `SchemaMajorVersion`, `Title`, `MarkTypes`, `DataReferences`,
   `ParameterNames`) describe the text only: nothing is loaded or evaluated, so they are cheap and safe to read for a
   file you do not trust. A `VegaLiteDataReference` records the `Kind` of a data source as written (`Inline`, `Url`,
@@ -3866,7 +3866,10 @@ public sealed partial class VegaLiteDocument
   invalid value that can only be found while laying out (for example an unknown axis orientation or a malformed d3
   format).
 - `VegaLiteRenderException`: Thrown, with the location of the construct, when the data, scale, axis, or scene cannot
-  be built or a limit of `VegaLiteLimits` is exceeded.
+  be built or a limit of `VegaLiteLimits` is exceeded. A local data file that is missing, refused by the sandbox,
+  behind a link, not valid UTF-8, or not valid JSON or delimited text, a `data.name` that nobody defines, and a
+  document with no place to look for a local data file are all this exception, in lenient and strict mode alike (see
+  *Vega-Lite Data*).
 - `VegaLiteUnsupportedFeatureException`: Thrown at the first unsupported feature when
   `ThrowOnUnsupportedFeature` is set (see *Vega-Lite Unsupported Features and Strict Mode*).
 - `OperationCanceledException`: Thrown, never wrapped, when the token is canceled before or during the work.
@@ -3888,7 +3891,9 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | ------------------------------ | ------- | ------- |
 | `SourceName` | `null` (the path for `Open(string)`) | The name shown in locations and messages |
 | `Limits` | `null` (`VegaLiteLimits.Default`) | The resource limits of parsing (the source length and the JSON depth) |
-| `BaseDirectory`, `DataPaths`, `FileResolver` | none | The file sandbox of the data-file support that is planned for a later release; they are accepted and stored today but **not yet used** (a local data file is reported as `vl-data-file`) |
+| `BaseDirectory` | `null` (the folder of the file for `Open(string)`) | The folder that a relative data `url` is looked up in first. A document opened from a string or a stream has none unless you set it. The current directory is never used |
+| `DataPaths` | empty | More folders that a relative data `url` is looked up in, in order, after `BaseDirectory`; copied when set |
+| `FileResolver` | `null` | A `Func<string, Stream?>` callback that replaces the file system: it receives a normalized logical path (forward slashes, no leading slash) and returns a readable stream of UTF-8 text, or `null` when the file does not exist. When it is set the file system is never touched. The library disposes the stream |
 <!-- markdownlint-enable MD013 -->
 
 <!-- markdownlint-disable MD013 -->
@@ -3900,7 +3905,8 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"` |
 | `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
 | `TimeZone` | `null` (UTC) | Accepted and reserved for the time support that is planned for a later release; there is no time scale yet |
-| `Parameters`, `Datasets` | `null` | Caller-supplied parameter values and named data sets, validated and copied when set; accepted and reserved for the parameter and data support that is planned for a later release (they have no effect today). Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
+| `Parameters` | `null` | Caller-supplied parameter values, validated and copied when set; accepted and reserved for the parameter support that is planned for a later release (they have no effect today). Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
+| `Datasets` | `null` | Named tables of rows for a `data.name`, copied when set; a caller dataset **replaces** a dataset of the same name in the specification's top-level `datasets`. Each row is a dictionary of field name to a value that is `null`, `bool`, `string`, a finite number, a `DateTime` (UTC; an unspecified kind is taken as UTC), or a `DateTimeOffset` (see *Vega-Lite Data*) |
 | `Limits` | `VegaLiteLimits.Default` | The resource limits of the call (see below) |
 | `WarningHandler` | `null` | Receives each `VegaLiteDiagnostic` (a warning); `null` drops them |
 | `UnsupportedFeatureHandler` | `null` | Receives each `VegaLiteUnsupportedFeature`; `null` drops them |
@@ -3918,7 +3924,120 @@ located `VegaLiteRenderException` instead of exhausting memory. `MaxSceneItems` 
 included (the root and view groups, the title and its texts, each axis with its grid, ticks, labels, domain and title,
 the marks group, and each mark), and an item is counted before it is created, so a limit of N allows a chart of exactly
 N items and fails on the next one; tick labels that are dropped because they overlap are not items and cost nothing. The
-expression and data-file limits belong to features that are planned for later releases and are not reached today.
+data limits apply to each `Measure` or `Render` call: `MaxDataRows` is a **total** across every table that the call
+creates (inline rows, files, datasets, and sequences), `MaxDataFiles` counts the distinct files read, `MaxDataBytes` is
+the size of each file, and `MaxFieldCount` is the number of fields of a row (the columns of a file). The data is read
+and checked before any scene item is counted. The expression limits belong to features that are planned for later
+releases and are not reached today.
+
+### Vega-Lite Data
+
+A chart's rows can come from five sources. The source is chosen by precedence, not by the order of the keys: inline
+`values`, then `url`, then `sequence`, then `name`. Everything is read while a chart is **measured or rendered**;
+opening a document never reads a data file.
+
+<!-- markdownlint-disable MD013 -->
+| Source | Written as | Notes |
+| ------ | ---------- | ----- |
+| Inline rows | `"data": {"values": [{...}, ...]}` | An array of objects (one row each) or of primitives (one row `{"data": value}`); nested objects and arrays are flattened to fields named by their path (`a.b`, `p.r.0`) |
+| A local file | `"data": {"url": "rows.csv"}` | A **relative** path only; see *Data files* and *The sandbox* below |
+| A named dataset | `"data": {"name": "rows"}` | The caller's `VegaLiteRenderOptions.Datasets` first, then the top-level `datasets` of the specification; the caller wins. A name that nobody defines is an error |
+| A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). A step of zero fails the render |
+<!-- markdownlint-enable MD013 -->
+
+**Data files.** The format is `format.type` (`json`, `csv`, `tsv`, or `dsv`) when it is given; otherwise a path ending in
+`.csv` or `.tsv` (in any case) is CSV or TSV, and **everything else is JSON**, as in Vega-Lite. A DSV names its
+delimiter with `format.delimiter` (one character, a comma when omitted). `format.header` is ignored: the first line of
+delimited text is always the header.
+
+- *JSON*: the file must be an array of rows (primitives become `{"data": value}` rows), or an object whose rows are
+  selected by `format.property`, a dotted path such as `"report.rows"` (or `"a[0].rows"`). JSON values keep their JSON
+  types.
+- *Delimited text (CSV, TSV, DSV)*: UTF-8 with or without a byte-order mark; lines end at LF, CRLF, or a lone CR; empty
+  lines are skipped. A field is plain (a quote inside it is an ordinary character) or quoted with `"` (it may hold
+  delimiters and line breaks, and `""` is one quote). Text after a closing quote, or a quote that is never closed, is
+  an error. A row with **fewer** entries than the header has `null` in the missing fields, and **extra** entries are
+  ignored. Repeated header names, and more columns than `MaxFieldCount`, are errors. A header such as `a.b` is
+  addressed in an encoding as `a\.b`, like a JSON key that contains a dot.
+
+**Types: `format.parse`.** Delimited text is read as text and then converted, as in Vega: by default each **column**
+gets one type (`parse: "auto"`). JSON files, inline rows, and datasets keep their JSON types unless you ask.
+
+- `"parse": "auto"` (the default for delimited text) looks at the whole column and picks, in this order, **boolean**
+  when every non-empty value is `true` or `false` (any case), **number** when every non-empty value is a number
+  (`12`, `-2.5`, `+4`, `.5`, `1e3`, `007`), **date** when every non-empty value is an ISO 8601 date or date-time, and
+  otherwise leaves the column as text. One value that does not fit keeps the **whole** column text. An empty value is
+  `null` in a typed column. (On JSON data `"auto"` applies the same rule to columns that hold text.)
+- `"parse": null` keeps every value as read (text stays text).
+- `"parse": {"price": "number", "ok": "boolean", "day": "date", "id": "string"}` converts only the named fields (the
+  keys are field paths): `number` reads a finite number (a boolean is 1 or 0, a date is its milliseconds since the
+  epoch); `boolean` reads `true` or `false` (any case) or `1` or `0`, and a number is true unless it is zero; `date` reads
+  an ISO 8601 text, or a number as milliseconds since the epoch; `string` is the text of the value (a number as
+  JavaScript would write it, a date as `2024-03-05T00:00:00.000Z`). An empty value is `null` (except for `string`).
+- A value that an explicit conversion **cannot read becomes `null`**, never a made-up number or date, and the chart is
+  drawn: one warning `vl-data-parse-failed` per field and type tells the author how many values were affected and the
+  first one (`3 value(s) of the field 'n' could not be read as number and are null (the first is in row 2: 'abc')`).
+- ISO 8601 dates are `yyyy-MM-dd` (midnight UTC), and `yyyy-MM-ddTHH:mm`, `...:ss`, and `...:ss.fff` (up to seven digits
+  of fraction), each with an optional `Z` or `+HH:mm` offset. A date-time **without** a zone is taken as UTC, so a
+  chart never depends on the time zone of the machine. A date is an instant: its numeric value is the milliseconds since
+  1970-01-01T00:00:00Z, and its text is `yyyy-MM-ddTHH:mm:ss.fffZ`.
+
+*Where this differs from Vega.* The inference and conversion rules follow Vega's by column, with these deliberate
+differences: a number is a finite decimal or exponent number (hexadecimal, thousands separators, `NaN`, and infinities
+are not numbers, where JavaScript's conversion would accept some of them); a date is ISO 8601 only and always UTC
+(Vega accepts any text that JavaScript's `Date.parse` reads, in more formats, and reads a date-time without a zone as
+local time); and a custom time format (`"parse": {"d": "date:'%d/%m/%Y'"}`, also `utc:'...'`) is **recognized and not
+applied**: the field is left as read and `vl-data-parse-date-format` is reported (an error in strict mode), because
+time formatting arrives with the time support. Convert such a column to ISO 8601 in the file, or supply it as a date in
+`Datasets`. There are no time scales yet, so where a quantitative value is needed a date reads as its number of
+milliseconds, and as a
+category it reads as its ISO text.
+
+**Named datasets from code.** `VegaLiteRenderOptions.Datasets` maps a name to a list of rows, each row a dictionary
+from field name to a value (`null`, `bool`, `string`, a finite number, a `DateTime`, or a `DateTimeOffset`; a
+`DateTime` of unspecified kind is taken as UTC, so the result does not depend on the host). A name in `Datasets`
+replaces a dataset of the same name in the specification. This is the way to chart data that you hold in memory without
+writing a file. The same `format.parse` rules apply to a named dataset.
+
+**The sandbox.** A relative `url` is looked for in the **base directory** first (the folder of a file opened with
+`Open(path)`, or `VegaLiteOpenOptions.BaseDirectory`) and then in each `DataPaths` folder, in order; the first file
+that exists wins. The rules are the same on every platform:
+
+- Only **relative** paths are read. A path that is empty, starts with a slash, has a drive letter or a colon, is a UNC
+  or network path, or contains a control character is refused. `.` and `..` are resolved, and a path that would leave
+  its folder (for example `../secret.csv`) is refused even if the file exists. A backslash is the same as a slash.
+- A **symbolic link or junction** inside a folder is never followed, whatever it points to: a file that is a link, or
+  that lies below a directory that is a link, is refused before it is opened. The folder you name is trusted, including
+  when you reach it through a link; to use linked content, name the real folder as a data path. A hard link cannot be
+  recognized, and a file that is replaced by a link after it was checked (a race with a writer) is not noticed, so point
+  `BaseDirectory` and `DataPaths` only at folders that untrusted parties cannot write to.
+- With a **`FileResolver`** callback the file system is never touched: the callback is called on the calling thread
+  with the normalized logical path (first as written, then once per valid `DataPaths` entry used as a prefix), at most
+  once per path and call, and returns a stream (disposed by the library) or `null`. It is never called for a remote URL.
+- A document parsed from a string or opened from a stream has **no folder**: a local `url` then needs
+  `BaseDirectory`, `DataPaths`, or a `FileResolver`, or the render fails.
+- A file is read as UTF-8 (a byte-order mark is removed); text that is not valid UTF-8, including UTF-16, is an error and
+  is never repaired. Each file is read **once per call**, however often the chart names it, and again by the next call.
+
+**Remote URLs.** A `url` with a scheme (`https:`, `file:`, `data:`, ...), a drive letter, an absolute path, or a network
+path is never fetched, never opened, and never passed to a `FileResolver`: it is reported as `vl-data-remote-url`, and
+the chart is drawn with an empty dataset (strict mode throws `VegaLiteUnsupportedFeatureException`).
+
+**Errors.** A local file that cannot be used is **not** an empty chart. These fail the render with a
+`VegaLiteRenderException` located at the `url` (or `name`) in the specification, in lenient and strict mode alike: no
+place to look, a path the sandbox refuses, a link, a missing file (also a directory with that name), a file that cannot
+be read, text that is not UTF-8, JSON that is invalid, nested too deeply, or not an array, a missing `format.property`,
+malformed delimited text, a name that nobody defines, a sequence with a zero step, and any data limit.
+`MaxDataFiles` (64 distinct files per call), `MaxDataBytes` (64 MiB per file; reading stops one chunk past the limit,
+so a
+stream that never ends cannot exhaust memory), `MaxDataRows` (1,000,000 rows in total per call, checked before the rows
+are allocated, also for a sequence), `MaxFieldCount`, and `MaxStringLength` (a text longer than this) name themselves in
+the message. Data is read before the scene is built, so a data failure never depends on `MaxSceneItems`.
+
+**What is not read.** Geographic data (`topojson`, `sphere`, `graticule`, GeoJSON values), `values` given as text, and
+remote URLs are reported (`vl-data-geo`, `vl-data-values-text`, `vl-data-remote-url`) and give an empty dataset; the
+transforms that could reshape data (`calculate`, `filter`, `aggregate`, and the others) are not available yet and are
+reported (`vl-transform-<name>`).
 
 ### Supported Vega-Lite Subset
 
@@ -3932,7 +4051,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | ---- | --------- |
 | Schema | A `$schema` of Vega-Lite version 5 or 6, interpreted with the **version 6 defaults** (not the version 5 defaults, for example a view is 300 by 300 pixels by default); no `$schema` at all |
 | Views | One single view. `layer`, `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are reported, and only the title, the background, and the empty view are drawn |
-| Data | Inline `data.values`: an array of objects (one row per object, nested values flattened to path fields such as `a.b`) or of primitives (one row `{"data": value}`) |
+| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a relative local `data.url` read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
 | Field types | `quantitative`, `nominal`, and `ordinal` |
@@ -3972,8 +4091,9 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   (`vl-type-temporal`, `vl-encoding-timeunit`). The `TimeZone` option is accepted and reserved; it is UTC when `null`,
   so the output will not depend on the local zone of the machine when time support arrives.
 - **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, an absolute path, or a
-  network path is
-  reported as `vl-data-remote-url` and is **never fetched**; the chart is drawn with an empty dataset.
+  network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your `FileResolver`**;
+  the chart is drawn with an empty dataset (strict mode throws). Download such a file next to the specification and
+  refer to it by a relative path.
 
 ### Vega-Lite Unsupported Features and Strict Mode
 
@@ -3990,15 +4110,11 @@ thread, after the work finished and before the method returns or throws.
 | ---------- | ---- | --------------------- |
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version (the chart is rendered with the version 6 defaults) |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
-| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path (never fetched; empty dataset) |
-| `vl-data-file` | Unsupported | The `data` object, when `url` is a relative local path |
-| `vl-data-named` | Unsupported | The `data` object that has only a `name` |
-| `vl-data-sequence` | Unsupported | `data/sequence` |
-| `vl-data-parse` | Unsupported | `data/format/parse`, when not null |
-| `vl-data-format-csv`, `vl-data-format-tsv`, `vl-data-format-dsv` | Unsupported | `data/format/type` naming a delimited text format |
-| `vl-data-property` | Unsupported | `data/format/property` |
-| `vl-data-values-text` | Unsupported | `data/values` given as a string |
-| `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` given as an object |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path (never fetched; empty dataset). A relative local path is supported and is not reported |
+| `vl-data-parse-date-format` | Unsupported | The `format.parse` entry that names a date with a custom format (`date:'%d/%m/%Y'`, `utc:'...'`); the field is left as read |
+| `vl-data-parse-failed` | Warning | The `data` object, at render time: values that an explicit `format.parse` conversion could not read (one warning per field and type; those values are `null`) |
+| `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
+| `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick; the chart is drawn without marks and without axes |
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored) |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
@@ -4025,7 +4141,11 @@ thread, after the work finished and before the method returns or throws.
 Pass handlers to receive the reports as they are delivered, or set `ThrowOnUnsupportedFeature` to refuse an
 approximate chart: the first unsupported feature, after the earlier reports were delivered to the handlers, is thrown
 as a `VegaLiteUnsupportedFeatureException` that carries the `Feature` and the `Location`. See Examples 30 and 31.
-Planned later releases add, among other things, data files, expressions and row transforms, aggregation and binning,
+The identifiers `vl-data-file`, `vl-data-named`, `vl-data-sequence`, `vl-data-parse`, `vl-data-format-csv`,
+`vl-data-format-tsv`, `vl-data-format-dsv`, and `vl-data-property` were reported by earlier releases and are no longer
+produced, because local files, named data, sequences, `parse`, the delimited formats, and `format.property` are now
+supported (see *Vega-Lite Data*); a build that matched one of them should stop doing so.
+Planned later releases add, among other things, expressions and row transforms, aggregation and binning,
 legends and further color schemes and scale types, time scales, line-like marks, layers, composition, and parameters;
 until then the constructs are reported with the identifiers above. Geographic constructs (`projection`, `geoshape`,
 `longitude` and `latitude`, topojson) are not planned and remain reported.
@@ -5153,6 +5273,79 @@ catch (VegaLiteRenderException ex)
 {
     // A limit was exceeded or the data cannot be drawn; the location names the construct
     Console.WriteLine($"{ex.Location}: {ex.Message}");
+}
+```
+
+## Example 32: Vega-Lite Charts from Data Files, Named Datasets, and Sequences
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// 1. A chart whose rows are in a CSV file next to the specification. Opening it by path makes its folder the base
+//    directory, so "stalls.csv" is read from there (never from the current directory) when the chart is rendered.
+//    stalls.csv:   stall,crates,fresh        chart.vl.json: "data": { "url": "stalls.csv" }, "mark": "bar", ...
+//                  North,28,true
+//                  South,55,false
+var fromFile = VegaLiteDocument.Open("charts/chart.vl.json");
+using var picture = fromFile.Render();
+PngCodec.Save(picture, "from-file.png");
+
+// 2. The same text parsed from a string has no folder: say where its data lives, or serve it yourself
+var text = File.ReadAllText("charts/chart.vl.json");
+var inFolder = VegaLiteDocument.Parse(
+    text,
+    new VegaLiteOpenOptions { BaseDirectory = "charts", DataPaths = ["shared-data"] });
+var inMemory = VegaLiteDocument.Parse(
+    text,
+    new VegaLiteOpenOptions
+    {
+        // The callback replaces the file system: it gets normalized logical paths and returns UTF-8 text (or null)
+        FileResolver = path => path == "stalls.csv"
+            ? new MemoryStream("stall,crates\nNorth,28\nSouth,55\n"u8.ToArray())
+            : null,
+    });
+
+// 3. Rows that you hold in memory, for a chart that says "data": { "name": "stalls" }
+var rows = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>
+{
+    ["stalls"] =
+    [
+        new Dictionary<string, object?> { ["stall"] = "North", ["crates"] = 28 },
+        new Dictionary<string, object?> { ["stall"] = "South", ["crates"] = 55 },
+    ],
+};
+var named = VegaLiteDocument.Parse("""
+    {
+      "data": { "name": "stalls" },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "stall", "type": "nominal" },
+        "y": { "field": "crates", "type": "quantitative" }
+      }
+    }
+    """);
+using var fromMemory = named.Render(new VegaLiteRenderOptions { Datasets = rows });
+
+// 4. A generated sequence needs no data at all: x = 0, 1, 2 (the stop is not included)
+var sequence = VegaLiteDocument.Parse("""
+    {
+      "data": { "sequence": { "start": 0, "stop": 3, "as": "x" } },
+      "mark": "point",
+      "encoding": { "x": { "field": "x", "type": "quantitative" } }
+    }
+    """);
+using var dots = sequence.Render();
+
+// 5. A local file that cannot be used is an error, not an empty chart; a remote URL is reported and never fetched
+try
+{
+    using var broken = VegaLiteDocument.Parse(text, new VegaLiteOpenOptions { BaseDirectory = "elsewhere" }).Render();
+}
+catch (VegaLiteRenderException ex)
+{
+    Console.WriteLine($"{ex.Location}: {ex.Message}"); // names the url and says that the file was not found
 }
 ```
 

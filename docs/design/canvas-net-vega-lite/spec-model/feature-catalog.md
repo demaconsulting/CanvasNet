@@ -32,7 +32,7 @@ channels (tooltip, href, description, key), the geographic channels, the legend 
 paddingInner, paddingOuter, align, round, clamp, scheme; `scheme` is reported unless it names `tableau10`, compared
 without regard to case like the scale resolver, or the scale has an explicit color `range` that overrides it), the
 unsupported axis properties, the scopes in which an
-expression value is looked for, the composition properties, and the delimited text formats. An identifier is built from
+expression value is looked for, and the composition properties. An identifier is built from
 an area and a name taken from the specification, lower-cased with the invariant culture and without separators
 (`timeUnit` gives `timeunit`).
 
@@ -53,8 +53,14 @@ identifier with its trigger. The warnings `vl-duplicate-key` and `vl-unknown-pro
   (`vl-expr-ref`).
 - `VisitData` chooses the source by precedence (inline `values`, then `url`, then `sequence`, then `name`, then the
   geographic generators), not by key order. An empty `values` array or a `data` object without a source warns
-  `vl-data-empty`; a `url` is classified with `IsSchemeBearingUrl` as `vl-data-remote-url` or `vl-data-file`; the
-  `format` properties report `vl-data-parse`, `vl-data-format-<type>`, and `vl-data-property`.
+  `vl-data-empty`; a `url` is classified with `IsSchemeBearingUrl` and only remote data is reported
+  (`vl-data-remote-url`; a relative local path is supported and not reported); a `name` whose top-level dataset is
+  text or an object is reported as `vl-data-values-text` or `vl-data-geo` (`VisitNamedData`); inline `values` given as
+  text or as an object are reported the same way; and `VisitFormat` reports only a `format.parse` entry that names a
+  custom date format (`vl-data-parse-date-format`, recognized with `ParseDirectives.TryClassify`) and a `topojson`
+  format type (`vl-data-geo`). Sequences, named datasets, the csv, tsv, dsv, and json formats, parse maps, and
+  `format.property` are supported and are not reported. The retired identifiers `vl-data-file`, `vl-data-named`,
+  `vl-data-sequence`, `vl-data-parse`, `vl-data-format-<type>`, and `vl-data-property` are no longer produced.
 - `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set. `VisitEncoding` reports the
   channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-temporal`,
   `vl-type-geojson`), the encoding properties (`vl-encoding-<name>`, applying the rules for `bin`, `stack`, and `sort`
@@ -86,6 +92,8 @@ here: the document records the reports in a sink, which throws at the first unsu
 
 - **`SpecTree`**, **`SpecNode`**, and **`SpecParser`** - the tree and the parser's helpers (`ParseSchemaMajorVersion`,
   `IsChannelName`, `FindTransformOperation`), in the `SpecParser` unit
+- **`ParseDirectives`** - the classification of a `format.parse` entry, in the `DelimitedTextParser` unit of the `Data`
+  subsystem, so that the report and the loading agree on what a custom date format is
 - **`VegaLiteLocation`** - the public location type of the `VegaLiteDocument` unit
 - **.NET base class library** - `System.Globalization` (invariant-culture formatting of messages)
 

@@ -46,6 +46,7 @@ sections:
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetTool-Imaging-SourceLoader-VegaLiteData
           - CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetTool-Imaging-SourceLoader-Sizing
           - CanvasNetTool-Imaging-SourceLoader-Background

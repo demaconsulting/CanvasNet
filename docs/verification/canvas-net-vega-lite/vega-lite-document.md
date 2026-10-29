@@ -36,7 +36,8 @@ options: handlers that record the events they receive, tiny limits, and scales. 
 that are derived by hand from the Vega layout constants (a 13 pixel bold title, a 4 pixel offset, a 3 pixel subtitle
 padding, and 5 pixels of padding), and the tests assert that `Measure` reports exactly the size of the surface that
 `Render` produces. The system-level behavior of the entry points (string, stream, and path agreement, limits,
-cancellation, determinism) is verified in the _CanvasNetVegaLite System Verification Design_.
+cancellation, determinism) is verified in the _CanvasNetVegaLite System Verification Design_, which also holds the
+data scenarios that this unit's requirements cite.
 
 Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the same file, the font options),
 `VegaLiteRenderOptionsTests.cs`, `VegaLiteLimitsTests.cs`, `VegaLiteLocationTests.cs`,
@@ -48,7 +49,8 @@ Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the internal subsystems are exercised for real
-- **Files**: None are read or written by the unit-level tests of this unit
+- **Files**: None are read or written by the option and record scenarios of this unit; the data scenarios (see _Data
+  Options_) use real files in per-test temporary directories and the fixtures, and never the network
 - **Threads**: The layout scenario that proves determinism renders from eight concurrent tasks and compares each
   result with a baseline; all other scenarios run on the test thread
 - **Isolation**: Each test constructs its own sources, options, and handlers
@@ -209,6 +211,31 @@ and `autosize: none` gives 110 by 110 whatever sticks out); that the title ink l
 centered on it; that an explicit size equals rendering at the matching scale and is centered; and that a titled view
 renders byte-identical pictures from several threads and under different font options (the installed fonts have no
 influence).
+
+#### Data Options: Files, Datasets, Errors, And No Network
+
+**Tests**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_EachCallReadsTheFileAgain`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched`
+
+The public option contracts of the data stage are verified through the public API, because the unit's job here is to
+create one loader per call and to hand it the effective open options, the caller's datasets, and the limits; the units
+behind it are verified under their own designs. Asserts that a document opened by path reads its relative file from the
+file's folder and that the base directory, a data path, and a callback find the same file for a document without a folder
+(all drawing the inline chart's pixels); that a document from a string or a stream with no file source fails every
+`Measure` and `Render`, lenient or strict, with a located `VegaLiteRenderException`; that a missing file, a path
+outside the
+sandbox, and invalid UTF-8 are located failures in both modes; that the caller's datasets, the specification's datasets,
+and sequences render without a report; that the data warnings follow the specification's reports; that each call reads the
+file again; that a data limit fails before the scene limit; and that a remote URL is reported, never fetched, and never
+given to the callback. The pure option contracts (the validation and copying of `BaseDirectory`, `DataPaths`,
+`FileResolver`, and `Datasets`, and the default and ceilings of `MaxDataFiles` and `MaxDataBytes`) are the scenarios
+_Open Options_, _Render Options: Parameters And Datasets Are Copied And Validated_, and _Limits_ above.
 
 #### Time Zone: Default And Stored Value
 

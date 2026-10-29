@@ -50,6 +50,17 @@ definitions) are the generous union of every variant in the Vega-Lite 6 schema, 
 top-level `selection` and the channel key `band` are accepted too. Validation never walks inline data rows: a `values`
 array is checked for being an array and no more.
 
+**Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data stage
+reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
+break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a
+`parse` object must be a string that is `number`, `boolean`, `date`, `string`, or a custom date format
+(`date:'%fmt'` or `utc:'%fmt'`, which is valid here and reported by the feature catalog because it is not applied);
+`property` must be a string; a `sequence` needs numeric `start` and `stop`, a numeric `step` (zero is **not** rejected
+here, because the metadata reports an unknown length for it and the data stage fails the render with a located error
+instead), and a non-empty `as`. A top-level `datasets` object may hold arrays, text, and objects (the catalog reports
+the last two when a `data.name` refers to them). Both rules use the static helpers `DelimitedTextParser.IsValidDelimiter`
+and `ParseDirectives.TryClassify` of the `Data` subsystem, so that validation, the catalog, and the loader agree.
+
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
 an error; a duplicate key keeps the last value at the position of the first occurrence.
@@ -98,6 +109,8 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteSpecException`** - the public types of the
   `VegaLiteDocument` unit
 - **`FeatureReport`** - the report record of the `FeatureCatalog` unit, used for the parser's own warnings
+- **`DelimitedTextParser.IsValidDelimiter`** and **`ParseDirectives.TryClassify`** - the delimiter and `parse` entry
+  rules of the `DelimitedTextParser` unit of the `Data` subsystem, used by the data format validation
 - **.NET base class library** - `System.Text.Json` (`Utf8JsonReader`), `System.Text` (`UTF8Encoding`), and
   `System.Globalization` (invariant-culture parsing of the schema version)
 
