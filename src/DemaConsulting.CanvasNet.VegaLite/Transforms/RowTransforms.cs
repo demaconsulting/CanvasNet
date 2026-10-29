@@ -42,7 +42,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///             <b>sample</b> keeps at most <c>sample</c> rows (<see cref="RowSampler"/>: reservoir sampling seeded from the JSON
 ///             pointer of the transform, deterministic and in source order). <b>pivot</b> groups the rows by <c>groupby</c> and
 ///             turns the values of the <c>pivot</c> field into columns (named by their text, in ordinal order, at most
-///             <c>limit</c> of them when given) holding the sum of <c>value</c> per group (<c>op</c> sum, the default) or the
+///             <c>limit</c> of them when given, applied before the field bound, which only checks the columns kept) holding the sum of <c>value</c> per group (<c>op</c> sum, the default) or the
 ///             number of rows (<c>count</c>); a combination without rows is 0; rows whose pivot value is null are skipped with the
 ///             warning <c>vl-transform-runtime</c>; the result has the group fields and the pivot columns only.
 ///         </description></item>

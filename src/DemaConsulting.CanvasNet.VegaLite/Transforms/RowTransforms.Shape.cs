@@ -189,7 +189,8 @@ internal sealed partial class RowTransforms
         var textOf = new string?[input.RowCount];
         var groups = new Dictionary<GroupKey, int>();
         var groupValues = new List<DataValue[]>();
-        var texts = new HashSet<string>(StringComparer.Ordinal);
+        var texts = new SortedSet<string>(StringComparer.Ordinal);
+        var cut = false;
         var skipped = new RowFinding();
         for (var row = 0; row < input.RowCount; row++)
         {
@@ -222,7 +223,24 @@ internal sealed partial class RowTransforms
                 throw new VegaLiteRenderException($"The pivot field '{pivotPath}' has a value whose text is too long: {ex.Message}", location);
             }
 
-            if (texts.Add(textOf[row]!) && texts.Count + groupNames.Length > _context.Limits.MaxFieldCount)
+            // The working set keeps only the columns that can still be in the output: with a limit, the smallest `limit` texts
+            // (a text that sorts after them is counted as cut and dropped); without one, every text. The field bound applies to
+            // this set, so it rejects a pivot only when the columns that would be output are too many, and the set never
+            // grows beyond that bound plus one.
+            var text = textOf[row]!;
+            if (limit > 0 && texts.Count >= limit && !texts.Contains(text))
+            {
+                if (string.CompareOrdinal(text, texts.Max) > 0)
+                {
+                    cut = true;
+                    continue;
+                }
+
+                texts.Remove(texts.Max!);
+                cut = true;
+            }
+
+            if (texts.Add(text) && texts.Count + groupNames.Length > _context.Limits.MaxFieldCount)
             {
                 throw new VegaLiteRenderException(
                     $"The pivot produces more than {_context.Limits.MaxFieldCount} fields, more than the limit of {_context.Limits.MaxFieldCount} (VegaLiteLimits.MaxFieldCount).", location);
@@ -235,14 +253,13 @@ internal sealed partial class RowTransforms
         }
 
         // The columns: the pivot values in ordinal order, at most the limit
-        var columns = texts.Order(StringComparer.Ordinal).ToList();
-        if (limit > 0 && columns.Count > limit)
+        var columns = texts.ToList();
+        if (cut)
         {
             Warn(
                 "vl-transform-runtime",
-                string.Create(CultureInfo.InvariantCulture, $"The pivot field '{pivotPath}' has {columns.Count} distinct values; only the first {limit} in ordinal order are pivoted."),
+                string.Create(CultureInfo.InvariantCulture, $"The pivot field '{pivotPath}' has more than {limit} distinct values; only the first {limit} in ordinal order are pivoted."),
                 location);
-            columns = columns.Take((int)limit).ToList();
         }
 
         var columnNames = columns.Select(TableLayout.Canonical).ToArray();

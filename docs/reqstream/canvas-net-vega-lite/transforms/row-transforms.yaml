@@ -114,7 +114,9 @@ sections:
                   turn the distinct texts of the pivot field into columns in ordinal order (keeping the first
                   limit of them), fill each cell with the sum (the default) or the count of the group, with 0
                   for a missing combination, output only the group fields and the pivot columns, and bound
-                  the number of columns by the field limit and the text of a pivot value by the string limit.
+                  the number of output columns by the field limit (applied after the limit truncation, so a
+                  pivot with many distinct values and a small limit is not rejected) and the text of a pivot
+                  value by the string limit.
                 justification: |
                   Pivot reshapes long data into the columns that scales read; its grouping, ordering, and
                   default must be defined and its output bounded.
@@ -122,6 +124,8 @@ sections:
                   - RowTransforms_Apply_PivotSumsValuesPerGroup
                   - RowTransforms_Apply_PivotCountsAndFallsBackToSum
                   - RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit
+                  - RowTransforms_Apply_PivotLimitIsAppliedBeforeTheFieldBound
+                  - RowTransforms_Apply_PivotWithoutLimitIsStillBoundedByTheFieldLimit
                   - RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Lookup

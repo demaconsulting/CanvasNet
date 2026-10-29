@@ -74,8 +74,14 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
 - **`pivot`** - the pivot field, `value`, optional `groupby`, `limit`, and `op`. Rows are grouped by the `groupby`
   values in first-seen order; the columns are the distinct pivot values as text (the JavaScript text of
   `ExpressionEvaluator.ToJsString`, bounded by `MaxStringLength`: a longer text, such as that of an array value, is a
-  located failure before the column is created) in ordinal order, at most `limit` of them (the first ones) when given; a
-  cell is the sum of the valid quantitative `value`s of the group (booleans and numeric text count as numbers) for `op`
+  located failure before the column is created) in ordinal order, at most `limit` of them (the first ones) when given. The
+  `limit` is applied **before** the field bound: while the rows are read, only the smallest `limit` distinct texts are kept
+  (a larger one is counted as cut and dropped), so the working set never exceeds `limit` texts, and `MaxFieldCount` is
+  enforced on the columns that would be output (the group fields plus the kept texts). A pivot with many distinct values
+  and a small `limit` therefore succeeds with exactly `limit` columns; a located failure is raised only when the kept
+  columns would exceed the bound, that is for a pivot without a `limit` (the safety net), or with a `limit` above the
+  bound, and more distinct values than the bound allows. A cell is the sum of the valid quantitative `value`s of the group
+  (booleans and numeric text count as numbers) for `op`
   `sum` (the default) or the number of rows for `count`; a combination without rows is 0. The result has only the group
   fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a pivot
   value that equals a group field name each give one `vl-transform-runtime` warning. An `op` other than `sum` and

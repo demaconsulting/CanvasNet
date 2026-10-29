@@ -4375,10 +4375,13 @@ derives count against `MaxDataRows` (a `fold` or `flatten` needs room for the in
 `filter`, `sample`, or `pivot` gives the rows it drops back), the lookup source counts like any data source (and a
 local file in it is read under the same sandbox, file count, and size limits), the fields against `MaxFieldCount`, and a
 derived table may hold at most 2^25 (33,554,432) cells, rows times fields. The counts are checked **before** the memory
-is allocated, and a failure is a `VegaLiteRenderException` located at the transform. A `pivot` that would produce more
-than `MaxFieldCount` fields fails the same way. Recoverable findings of a pivot are warnings (`vl-transform-runtime`):
-rows whose pivot value is `null` are skipped, the columns beyond `limit` are cut, and a pivot value that has the name of
-a `groupby` field replaces that field. Cancellation is checked between the transforms and every 1,024 rows.
+is allocated, and a failure is a `VegaLiteRenderException` located at the transform. A `pivot` that would output more
+than `MaxFieldCount` fields fails the same way; the check counts the columns **after** `limit` keeps the first `limit`
+distinct values in ordinal order, so a pivot with many distinct values and a small `limit` succeeds, and only a pivot
+without a `limit` (or with one above the bound) and more distinct values than the bound allows fails. Recoverable
+findings of a pivot are warnings (`vl-transform-runtime`): rows whose pivot value is `null` are skipped, the columns
+beyond `limit` are cut, and a pivot value that has the name of a `groupby` field replaces that field. Cancellation is
+checked between the transforms and every 1,024 rows.
 
 Examples:
 

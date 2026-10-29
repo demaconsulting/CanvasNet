@@ -556,6 +556,54 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that the pivot limit is applied before the field bound: many distinct values with a small limit give
+    ///     exactly the first values in ordinal order, even when the distinct values alone would exceed the field limit.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_PivotLimitIsAppliedBeforeTheFieldBound()
+    {
+        // Arrange: one group field, 50 distinct pivot values (in descending order, so the kept ones arrive last) and a field
+        // limit of 10 that the 50 values alone would exceed
+        var rows = string.Join(",", Enumerable.Range(0, 50).Select(i => $"{{\"g\":1,\"k\":\"k{49 - i:D2}\",\"v\":{i}}}"));
+        var json = Spec($"[{rows}]", "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"],\"limit\":3}]");
+
+        // Act
+        var table = Run(json, out var warnings, new VegaLiteLimits { MaxFieldCount = 10 });
+
+        // Assert: exactly three columns, the first in ordinal order, and one warning for the cut
+        Assert.Equal(["g", "k00", "k01", "k02"], table.Fields);
+        Assert.Equal(["1|49|48|47"], Rows(table, "g", "k00", "k01", "k02"));
+        var warning = Assert.Single(warnings);
+        Assert.Equal(("vl-transform-runtime", "/transform/0"), (warning.Id, warning.Location.Pointer));
+        Assert.Contains("only the first 3 in ordinal order", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the field bound still stops a pivot without a limit, or with a limit above the bound, and that a
+    ///     limit that is not reached does not hide it.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_PivotWithoutLimitIsStillBoundedByTheFieldLimit()
+    {
+        // Arrange: 50 distinct values against a field limit of 10
+        var rows = string.Join(",", Enumerable.Range(0, 50).Select(i => $"{{\"g\":1,\"k\":\"k{i:D2}\",\"v\":1}}"));
+        var unlimited = Spec($"[{rows}]", "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]");
+        var tooHigh = Spec($"[{rows}]", "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"],\"limit\":40}]");
+        var limits = new VegaLiteLimits { MaxFieldCount = 10 };
+
+        // Act
+        var first = Assert.Throws<VegaLiteRenderException>(() => Run(unlimited, out _, limits));
+        var second = Assert.Throws<VegaLiteRenderException>(() => Run(tooHigh, out _, limits));
+
+        // Assert
+        Assert.All([first, second], ex =>
+        {
+            Assert.Equal("/transform/0", ex.Location.Pointer);
+            Assert.Contains("MaxFieldCount", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
     ///     Validates that a text of a parameter that comes from outside the evaluation (the value of the caller or a value of
     ///     the specification under a lower limit) is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, so it cannot be
     ///     stored by <c>calculate</c> or returned by <c>toString</c>.
