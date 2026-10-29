@@ -128,9 +128,19 @@ internal sealed partial class ExpressionParser
     /// <returns><see langword="true"/> when a <c>/</c> after the token starts a regular expression.</returns>
     private static bool RegExpAllowedAfter(ExpressionToken previous) => previous.Kind switch
     {
-        ExpressionTokenKind.Number or ExpressionTokenKind.String or ExpressionTokenKind.Identifier or ExpressionTokenKind.RegExp => false,
+        ExpressionTokenKind.Identifier => RegExpKeywords.Contains(previous.Text),
+        ExpressionTokenKind.Number or ExpressionTokenKind.String or ExpressionTokenKind.RegExp => false,
         ExpressionTokenKind.Punctuator => previous.Text is not (")" or "]" or "}"),
         _ => true,
+    };
+
+    /// <summary>
+    ///     The keywords after which an operand follows, so a <c>/</c> starts a regular expression (the deferred <c>in</c> and
+    ///     <c>instanceof</c> operators, the prefix operators and the statement keywords); other identifiers end an operand.
+    /// </summary>
+    private static readonly HashSet<string> RegExpKeywords = new(StringComparer.Ordinal)
+    {
+        "in", "instanceof", "typeof", "void", "delete", "new", "return", "case", "throw", "else", "do", "yield", "await",
     };
 
     /// <summary>

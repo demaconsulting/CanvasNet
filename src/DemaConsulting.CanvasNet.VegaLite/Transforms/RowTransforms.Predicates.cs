@@ -135,6 +135,12 @@ internal sealed partial class RowTransforms
     /// <returns>The predicate; one that always holds for a comparison with a date object, which is not supported.</returns>
     private IRowPredicate BuildFieldPredicate(SpecNode node, DataTable table)
     {
+        if (node["timeUnit"] is { IsNull: false })
+        {
+            // A time unit is not supported yet (the catalog reports it); the documented fallback ignores the predicate, so every row passes
+            return new ConstantPredicate(true);
+        }
+
         var comparison = PredicateOperators.Select(name => node[name]).FirstOrDefault(n => n is not null);
         if (comparison is null || comparison.IsObject || comparison.Items.Any(i => i.IsObject))
         {

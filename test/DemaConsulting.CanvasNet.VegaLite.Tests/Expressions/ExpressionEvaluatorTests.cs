@@ -536,6 +536,31 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that every conversion to text is bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, not only a
+    ///     string or an array: a number, a boolean and a regular expression converted to text longer than the limit fail even
+    ///     when the text is only measured.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("length(toString(123))")]
+    [InlineData("length(toString(true))")]
+    [InlineData("length(toString(/abc/))")]
+    [InlineData("length(123 + '')")]
+    public void ExpressionEvaluator_Evaluate_ConversionLongerThanLimit_IsRenderError(string text)
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxStringLength = 2 };
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Eval(text, limits));
+        var fits = Eval("length(toString(12))", limits);
+
+        // Assert
+        Assert.Contains("the limit of 2 characters (VegaLiteLimits.MaxStringLength)", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(2, fits.Number);
+    }
+
+    /// <summary>
     ///     Validates that a table row and an out-of-range row are checked.
     /// </summary>
     [Fact]

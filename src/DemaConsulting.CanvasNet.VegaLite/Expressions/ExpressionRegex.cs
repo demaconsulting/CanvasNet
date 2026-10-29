@@ -18,10 +18,14 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///     </para>
 ///     <para>
 ///         The JavaScript pattern is translated in a small number of places where .NET and JavaScript differ for the
-///         common cases: <c>\d</c>, <c>\D</c>, <c>\w</c> and <c>\W</c> are the ASCII classes, <c>$</c> without the
+///         common cases: <c>\d</c>, <c>\D</c>, <c>\w</c> and <c>\W</c> are the ASCII classes (also inside a character class,
+///         negated or not), <c>\s</c> and <c>\S</c> are the JavaScript white space, <c>$</c> without the
 ///         <c>m</c> flag matches only at the very end of the text, and <c>[^]</c> and <c>[]</c> have their JavaScript
 ///         meaning. The flags <c>g</c>, <c>i</c>, <c>m</c> and <c>s</c> are accepted; <c>g</c> is only
-///         observable through <see cref="IsGlobal"/> (<c>replace</c> replaces every match). The flags <c>u</c>, <c>v</c>, <c>y</c>`n///         and <c>d</c> are rejected: the engine matches UTF-16 code units and has no sticky matching or match indices, so`n///         accepting them would silently change a result (<c>/./u</c> matches a surrogate pair as one character in JavaScript).`n///         The object is immutable and
+///         observable through <see cref="IsGlobal"/> (<c>replace</c> replaces every match). The flags <c>u</c>, <c>v</c>, <c>y</c>
+///         and <c>d</c> are rejected: the engine matches UTF-16 code units and has no sticky matching or match indices, so
+///         accepting them would silently change a result (<c>/./u</c> matches a surrogate pair as one character in JavaScript).
+///         The object is immutable and
 ///         safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -195,23 +199,49 @@ internal sealed class ExpressionRegex
     /// <param name="inClass">Whether the escape is inside a character class.</param>
     private static void AppendEscape(StringBuilder text, char escaped, bool inClass)
     {
-        switch (escaped)
+        // A negated shorthand inside a class is written as the ranges of its complement, which a class can hold whether it is
+        // negated or not (.NET has no nested negation); outside a class it is a class of its own
+        var items = escaped switch
         {
-            case 'd':
-                text.Append(inClass ? "0-9" : "[0-9]");
-                break;
-            case 'w':
-                text.Append(inClass ? "a-zA-Z0-9_" : "[a-zA-Z0-9_]");
-                break;
-            case 'D' when !inClass:
-                text.Append("[^0-9]");
-                break;
-            case 'W' when !inClass:
-                text.Append("[^a-zA-Z0-9_]");
-                break;
-            default:
-                text.Append('\\').Append(escaped);
-                break;
+            'd' => DigitItems,
+            'D' => NonDigitItems,
+            'w' => WordItems,
+            'W' => NonWordItems,
+            's' => SpaceItems,
+            'S' => NonSpaceItems,
+            _ => null,
+        };
+        if (items is null)
+        {
+            text.Append('\\').Append(escaped);
+        }
+        else if (inClass)
+        {
+            text.Append(items);
+        }
+        else
+        {
+            text.Append('[').Append(items).Append(']');
         }
     }
+
+    /// <summary>The items of the class of the ASCII digits.</summary>
+    private const string DigitItems = "0-9";
+
+    /// <summary>The items of the class of everything but the ASCII digits (UTF-16 code units).</summary>
+    private const string NonDigitItems = "\\u0000-\\u002F\\u003A-\\uFFFF";
+
+    /// <summary>The items of the class of the ASCII word characters.</summary>
+    private const string WordItems = "a-zA-Z0-9_";
+
+    /// <summary>The items of the class of everything but the ASCII word characters (UTF-16 code units).</summary>
+    private const string NonWordItems = "\\u0000-\\u002F\\u003A-\\u0040\\u005B-\\u005E\\u0060\\u007B-\\uFFFF";
+
+    /// <summary>The items of the class of the JavaScript white space and line terminators (not the .NET set, which has U+0085).</summary>
+    private const string SpaceItems = "\\u0009-\\u000D\\u0020\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF";
+
+    /// <summary>The items of the class of everything but the JavaScript white space (UTF-16 code units).</summary>
+    private const string NonSpaceItems =
+        "\\u0000-\\u0008\\u000E-\\u001F\\u0021-\\u009F\\u00A1-\\u167F\\u1681-\\u1FFF\\u200B-\\u2027\\u202A-\\u202E\\u2030-\\u205E"
+        + "\\u2060-\\u2FFF\\u3001-\\uFEFE\\uFF00-\\uFFFF";
 }

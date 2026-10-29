@@ -39,7 +39,8 @@ may differ from a browser in the last bit; every exactly representable point (`c
 compared exactly.
 
 The regular-expression scenarios prove three properties. The translation is correct for the supported subset (the
-classes `\d \D \w \W` are ASCII only, `$` without the `m` flag matches only at the end of the text, `[^]` matches any
+classes `\d \D \w \W` (also inside a character class) are ASCII only, `\s \S` are the JavaScript white space, `$`
+without the `m` flag matches only at the end of the text, `[^]` matches any
 character and `[]` nothing, the flags `g i m s` are honored, and look-ahead and back-references work through the
 backtracking fallback). The engine is safe: the linear-time `NonBacktracking` engine runs every pattern it can, so
 catastrophic patterns finish on 50,000 characters, and a pattern it rejects (look-around or a back-reference) runs on

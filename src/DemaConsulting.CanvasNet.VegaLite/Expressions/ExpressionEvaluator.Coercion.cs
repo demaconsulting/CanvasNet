@@ -133,9 +133,8 @@ internal sealed partial class ExpressionEvaluator
     /// <exception cref="ExpressionRuntimeException">Thrown when the text of an array would be longer than <paramref name="maxLength"/>.</exception>
     internal static DataValue ToPrimitive(DataValue value, bool preferNumber, int maxLength) => value.Kind switch
     {
-        DataValueKind.Date => preferNumber ? DataValue.FromNumber(value.Milliseconds) : DataValue.FromString(value.ToText()),
-        DataValueKind.Array => DataValue.FromString(ToJsString(value, maxLength)),
-        DataValueKind.Object or DataValueKind.RegExp => DataValue.FromString(value.ToText()),
+        DataValueKind.Date => preferNumber ? DataValue.FromNumber(value.Milliseconds) : DataValue.FromString(ToJsString(value, maxLength)),
+        DataValueKind.Array or DataValueKind.Object or DataValueKind.RegExp => DataValue.FromString(ToJsString(value, maxLength)),
         _ => value,
     };
 
@@ -159,7 +158,12 @@ internal sealed partial class ExpressionEvaluator
 
         if (!value.IsArray)
         {
-            return value.ToText();
+            // Every conversion result is measured: a number, date, object or regular expression text can exceed a small limit
+            var converted = value.ToText();
+            return converted.Length <= maxLength
+                ? converted
+                : throw new ExpressionRuntimeException(
+                    $"The expression produced a string longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).");
         }
 
         var text = new StringBuilder();

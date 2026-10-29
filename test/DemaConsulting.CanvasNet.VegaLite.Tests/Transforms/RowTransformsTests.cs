@@ -183,7 +183,9 @@ public class RowTransformsTests
     [InlineData("{\"or\":[{\"field\":\"x\",\"equal\":1},\"datum.x === 3\"]}", "1,3")]
     [InlineData("{\"not\":{\"field\":\"x\",\"valid\":true}}", "null")]
     [InlineData("{\"not\":{\"or\":[{\"field\":\"x\",\"equal\":1},{\"field\":\"x\",\"equal\":2}]}}", "3,null")]
-    [InlineData("{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}", "2")]
+    [InlineData("{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}", "1,2,3,null")]
+    [InlineData("{\"not\":{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}}", "")]
+    [InlineData("{\"and\":[{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"},{\"field\":\"x\",\"gt\":1}]}", "2,3")]
     [InlineData("{\"field\":\"x\",\"equal\":{\"year\":2020}}", "1,2,3,null")]
     public void RowTransforms_Apply_FilterPredicatesAndCompositions(string predicate, string expected)
     {
@@ -799,6 +801,36 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that filter and sample build their result through the table layout of the other transforms: the layout
+    ///     of a selection keeps every field of the input and refuses, before it allocates, a result of more than the cell
+    ///     bound, reporting the location of the transform.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_FilterAndSampleRouteThroughTheCellBound()
+    {
+        // Arrange: the layout a selection uses (no added fields), over a table of one field
+        var table = DataTable.Create(["a"], [[DataValue.FromNumber(1)]]);
+        var location = new VegaLiteLocation(null, "/transform/0/filter", 1, 1);
+        var layout = new TableLayout(table, [], keepInput: true, VegaLiteLimits.Default, location);
+
+        // Act
+        var atBound = layout.Allocate(0);
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => layout.Allocate(TableLayout.MaxCells + 1));
+        var filtered = Run(Spec(Numbers, "[{\"filter\":\"datum.a > 1\"}]"));
+        var sampled = Run(Spec(Numbers, "[{\"sample\":2}]"));
+
+        // Assert: refused before allocation, with the location; the results keep every field
+        Assert.Empty(atBound);
+        Assert.Equal(["a"], layout.Fields);
+        Assert.Equal("/transform/0/filter", tooMany.Location.Pointer);
+        Assert.Contains("cells", tooMany.Message, StringComparison.Ordinal);
+        Assert.Equal(["a", "b"], filtered.Fields);
+        Assert.Equal(2, filtered.RowCount);
+        Assert.Equal(["a", "b"], sampled.Fields);
+        Assert.Equal(2, sampled.RowCount);
+    }
+
+    /// <summary>
     ///     Validates that the transforms stop on a canceled token before and between transforms and every batch of rows, and
     ///     that an evaluation under a canceled token throws.
     /// </summary>
@@ -909,5 +941,34 @@ public class RowTransformsTests
         Assert.True(ScaleResolver.IsSupportedFieldSort(SpecParser.Parse("{\"s\":{\"op\":\"sum\"}}").Root["s"]!));
         Assert.False(ScaleResolver.IsSupportedFieldSort(SpecParser.Parse("{\"s\":{\"op\":\"sum\",\"order\":\"up\"}}").Root["s"]!));
         Assert.False(ScaleResolver.IsSupportedFieldSort(SpecParser.Parse("{\"s\":\"x\"}").Root["s"]!));
+    }
+
+    /// <summary>
+    ///     Validates that a category without a valid value (a null aggregate) sorts first in both directions for the
+    ///     operations that have no value for an empty category, and that only the values reverse.
+    /// </summary>
+    /// <param name="operation">The aggregate operation.</param>
+    [Theory]
+    [InlineData("mean")]
+    [InlineData("average")]
+    [InlineData("median")]
+    [InlineData("min")]
+    [InlineData("max")]
+    public void ScaleResolver_Resolve_SortByFieldPutsCategoriesWithoutValuesFirstInBothDirections(string operation)
+    {
+        // Arrange: m has no valid number; z has 1 and a has 3
+        const string Data = "[{\"k\":\"z\",\"w\":1},{\"k\":\"m\",\"w\":null},{\"k\":\"a\",\"w\":3}]";
+        string Domain(string order)
+        {
+            var tree = SpecParser.Parse("{\"data\":{\"values\":" + Data + "},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\",\"sort\":{\"op\":\"" + operation + "\",\"field\":\"w\"" + order + "}}}}");
+            var table = DataLoader.Load(tree.Root["data"], null, null, Ct);
+            var scales = ScaleResolver.Resolve(tree.Root, table, ConfigResolver.Resolve(tree, null), null, null, Ct);
+            return string.Join(",", scales["x"]!.DiscreteDomain.Select(v => v.ToText()));
+        }
+
+        // Act / Assert: the null aggregate is first, then the values ascend or descend
+        Assert.Equal("m,z,a", Domain(string.Empty));
+        Assert.Equal("m,z,a", Domain(",\"order\":\"ascending\""));
+        Assert.Equal("m,a,z", Domain(",\"order\":\"descending\""));
     }
 }

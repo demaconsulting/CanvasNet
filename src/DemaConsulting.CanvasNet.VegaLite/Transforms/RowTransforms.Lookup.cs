@@ -27,7 +27,7 @@ internal sealed partial class RowTransforms
         }
 
         var rows = RowSampler.Select(input.RowCount, size, entry.Pointer, Cancellation);
-        return SelectRows(input, rows);
+        return SelectRows(input, rows, Locate(entry));
     }
 
     /// <summary>

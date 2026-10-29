@@ -1286,9 +1286,9 @@ internal static class ScaleResolver
         }
 
         var keys = domain.ToDictionary(category => category, category => groups[category].Result(operation));
-        var comparer = descending
-            ? Comparer<DataValue>.Create((x, y) => DataValue.Compare(y, x))
-            : Comparer<DataValue>.Create(DataValue.Compare);
+        // A category without a value (null) sorts first in either direction; only the comparison of values reverses
+        var comparer = Comparer<DataValue>.Create((x, y) =>
+            x.IsNull || y.IsNull || !descending ? DataValue.Compare(x, y) : DataValue.Compare(y, x));
         return [.. domain.OrderBy(category => keys[category], comparer)];
     }
 

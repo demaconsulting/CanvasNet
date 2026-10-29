@@ -4220,8 +4220,9 @@ The functions of the date and time, formatting (`format`, `timeFormat`, ...), co
 available by design: an expression has no clock and no random source.
 
 **Regular expressions** are JavaScript regular expressions run by the .NET engine, so a few details follow .NET: `\d`,
-`\D`, `\w`, and `\W` are ASCII classes, `$` without the `m` flag matches only at the very end, `[^]` matches any
-character, `[]` matches nothing, and `.`, `\s`, and the numbering of mixed named and unnamed groups follow .NET. The
+`\D`, `\w`, and `\W` are ASCII classes (also inside a character class), `\s` and `\S` are the JavaScript white space,
+`$` without the `m` flag matches only at the very end, `[^]` matches any
+character, `[]` matches nothing, and `.` and the numbering of mixed named and unnamed groups follow .NET. The
 linear-time matching engine is used (so a pattern cannot cause catastrophic backtracking); look-around and
 back-references need the backtracking engine and are stopped after 100 ms, which fails the render with a located error.
 A pattern is at most 1,024 characters; an invalid pattern in a literal is an error when the document is opened, and one

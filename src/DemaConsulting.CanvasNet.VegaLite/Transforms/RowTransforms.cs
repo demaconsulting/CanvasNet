@@ -261,7 +261,7 @@ internal sealed partial class RowTransforms
             }
         }
 
-        return SelectRows(input, kept);
+        return SelectRows(input, kept, Locate(filter));
     }
 
     /// <summary>
@@ -269,23 +269,26 @@ internal sealed partial class RowTransforms
     /// </summary>
     /// <param name="input">The input table.</param>
     /// <param name="rows">The rows to keep, in the order they have in the new table.</param>
+    /// <param name="location">The location reported when the table would exceed the cell limit.</param>
     /// <returns>The new table; the input itself when every row is kept in order.</returns>
-    private DataTable SelectRows(DataTable input, IReadOnlyList<int> rows)
+    /// <exception cref="VegaLiteRenderException">Thrown when the table would have more than <see cref="TableLayout.MaxCells"/> cells.</exception>
+    private DataTable SelectRows(DataTable input, IReadOnlyList<int> rows, VegaLiteLocation location)
     {
         if (rows.Count == input.RowCount)
         {
             return input;
         }
 
-        var fields = input.FieldCount;
-        var cells = new DataValue[(long)rows.Count * fields];
+        // The layout keeps every input field; its allocation checks the cell limit before anything is allocated
+        var layout = new TableLayout(input, [], keepInput: true, _context.Limits, location);
+        var cells = layout.Allocate(rows.Count);
         for (var i = 0; i < rows.Count; i++)
         {
             Tick(i);
-            input.GetRow(rows[i]).CopyTo(cells.AsSpan(i * fields, fields));
+            layout.CopyRow(input, rows[i], cells, i);
         }
 
         _context.Loader.ReleaseRows(input.RowCount - rows.Count);
-        return DataTable.FromSortedCells([.. input.Fields], cells, rows.Count);
+        return layout.Build(cells, rows.Count);
     }
 }

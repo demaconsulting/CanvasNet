@@ -250,6 +250,24 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates that a regular expression literal after the deferred <c>in</c> operator is a literal, not a division, so
+    ///     the expression is collected as the deferred construct instead of failing to parse.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("a in /x/")]
+    [InlineData("'k' in /x/g")]
+    [InlineData("a in /x/ && b")]
+    public void ExpressionParser_Parse_RegExpAfterIn_IsALiteral(string text)
+    {
+        // Arrange / Act
+        var compiled = Compile(text);
+
+        // Assert
+        Assert.Contains(compiled.UnsupportedConstructs, c => c.Identifier == "vl-expr-construct-in");
+    }
+
+    /// <summary>
     ///     Validates that the remaining deferred operators are recognized by name.
     /// </summary>
     /// <param name="text">The expression text.</param>

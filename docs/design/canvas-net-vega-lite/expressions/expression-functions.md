@@ -71,7 +71,8 @@ counter crosses a multiple of 1,024.
 implements them. The accepted flags are `g`, `i`, `m`, and `s` (a repeated or unknown flag is an error, and so are `u`,
 `v`, `y`, and `d`, which the UTF-16 engine cannot honor, so no pattern silently matches differently from JavaScript; `g`
 makes `replace` replace every match). The pattern is at most 1,024 characters. The translation makes the common cases
-match JavaScript: `\d`, `\D`, `\w`, and `\W` are the ASCII classes, `$` without the `m` flag matches only at the end of
+match JavaScript: `\d`, `\D`, `\w`, and `\W` are the ASCII classes (also inside a character class, negated or not),
+`\s` and `\S` are the JavaScript white space, `$` without the `m` flag matches only at the end of
 the text, and `[^]` and `[]` have their JavaScript meaning. The `Regex` is built with `RegexOptions.NonBacktracking |
 CultureInvariant`, which matches in time linear in the input, with a 5 second timeout as a backstop; a pattern that
 engine rejects (look-around, back-references, atomic groups) falls back to the backtracking engine with a **100
