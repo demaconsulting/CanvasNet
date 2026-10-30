@@ -1,3 +1,4 @@
+// Portions derived from Vega-Lite (BSD-3-Clause): the order of the implicit transforms; see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;

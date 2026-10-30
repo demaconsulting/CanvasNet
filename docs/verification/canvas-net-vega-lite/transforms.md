@@ -1,26 +1,35 @@
 ## Transforms Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Transforms` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Transforms`). In this release the subsystem contains a single unit, `RowTransforms`,
-which executes the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
-`lookup`) over an immutable `DataTable`, evaluates the static parameters of the root view, and samples
-deterministically; the transforms of later phases (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`,
-`timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent`) are added to this subsystem by later releases.
+`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains three units: `RowTransforms`, which executes
+the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`) over an
+immutable `DataTable`, evaluates the static parameters of the root view, and samples deterministically;
+`AggregateTransforms`, which executes the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
+and `impute`) with their measure, bin, stack, and sort internals; and `EncodingPlan`, which plans and runs the implicit
+bin, aggregate, and stack that the encoding of the drawn view asks for. The transforms of later phases (`timeUnit`,
+`regression`, `loess`, `density`, `quantile`, and `extent`) are added to this subsystem by later releases.
 
 ### Verification Approach
 
-The `Transforms` subsystem has one unit, so its unit verification (see the _RowTransforms Unit Verification Design_
-under `transforms/`) is complete for the subsystem's own behavior and there are no unit-to-unit interactions inside
-the subsystem to verify. The subsystem-level scenarios verify the unit working with the units that feed it and consume
-its output: the real `SpecParser` compiles the expressions of the transforms and the parameters and validates the shape
-of every transform at the time the document is opened; the real `DataLoader` supplies the source table, the sources of
-the lookups, the file cache, the sandbox, and the one row budget of the call (the transforms reserve and release rows
-through it); the real `ExpressionEvaluator` runs the expressions under the one step budget of the call; the real
-`ScaleResolver`, `MarkBuilder`, `ViewLayout`, and `ScenePainter` use the transformed table, so the scenarios assert on
-the pixels of a chart whose rows were filtered, calculated, reshaped, looked up, sampled, or sorted; and the real
-`FeatureCatalog` reports the parts that are not supported. The system-level scenarios use charts of 100 by 100 pixels
-without padding, axes, and title, in which the position of every mark is derived by hand from a scale domain of 0 to 10,
-so a dot is found by one pixel.
+The unit verification (see the _RowTransforms_, _AggregateTransforms_, and _EncodingPlan Unit Verification Designs_
+under `transforms/`) is complete for each unit's own behavior. The subsystem-level scenarios verify the units working
+together and with the units that feed them and consume their output. `RowTransforms` dispatches the six grouped
+transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a window whose rank
+drives a following filter; the grouped transforms run as one pipeline under other cultures), and `EncodingPlan` runs the
+bin, aggregate, and stack engines of `AggregateTransforms` over the table that the explicit transforms produced. The
+subsystem-level scenarios also verify the units working with the units around them: the real `SpecParser` compiles the
+expressions of the transforms and the parameters and validates the shape of every transform and of the aggregate, bin,
+stack, and sort properties of an encoding at the time the document is opened; the real `DataLoader` supplies the source
+table, the sources of the lookups, the file cache, the sandbox, and the one row budget of the call (the transforms and the
+implicit stage reserve and release rows through it); the real `ExpressionEvaluator` runs the expressions under the one
+step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`, `MarkBuilder`, `AxisBuilder`,
+`ViewLayout`, and `ScenePainter` use the transformed and the Raw table, so the scenarios assert on the pixels of a chart
+whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated, binned, or stacked; and the real
+`FeatureCatalog` reports the parts that are not supported. The system-level scenarios of the explicit transforms use
+charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand from
+a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios of the implicit pipeline use the fixtures
+`aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and `window-cumulative`, in which the bars are derived by
+hand from the scale formulas.
 
 No mocking or stubbing is used. The subsystem is internal, so its tests reach it through the test assembly's
 `InternalsVisibleTo` access. The subsystem reads files only through the sandbox of the data loader and never reads the
@@ -39,8 +48,9 @@ network.
 ### Acceptance Criteria
 
 The `Transforms` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the unit verification document passes without error or unexpected exception. Any row that is kept, dropped,
-reordered, or computed differently from the hand-derived expectation, a different sample for the same data and
+scenario in the unit verification documents passes without error or unexpected exception. Any row that is kept, dropped,
+reordered, or computed differently from the hand-derived expectation, a group, bin, or stack range that differs from
+the hand-derived one, a different sample for the same data and
 pointer, a pixel outside its analytic position, a limit that does not fail closed with the location of the transform,
 a read outside the sandbox, a measured size that differs from the rendered size, or a render that is not byte-identical
 to the baseline constitutes a failure.
@@ -74,6 +84,29 @@ to the baseline constitutes a failure.
   diagonal draws exactly the rows 2, 3, 6, and 9 (the hand-computed reservoir for the pointer `/transform/0`) on two
   renders with identical pixels, and a discrete channel sorted by the `sum` of a field puts the categories with sums 1,
   5, and 10 in that order from left to right, and in the reverse order when descending.
+- **Aggregate Bars, Histogram, And Stacked Layers Are Computed From The Encoding**:
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal`,
+  `EncodingTransformsTests.EncodingTransforms_Apply_AggregatesPerCategoryInFirstSeenOrder`,
+  `EncodingTransformsTests.EncodingTransforms_Apply_BinsAndCountsAHistogram`,
+  `EncodingTransformsTests.EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY` — the sums per region of five
+  rows (north 7, south 6, east 2) become three bars with the categories sorted and the y domain 0 to 7; twelve weights
+  binned with the step 5 give the counts 3, 2, 3, 1, 1, 1, 1 over the bins 0 to 35, and the stacked bars put the layers
+  washers (0, 5), nuts (5, 7), and bolts (7, 10) for north with the axis reaching the total 10.
+- **Grouped Transforms Compose With The Others**:
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars`,
+  `AggregateTransformsWindowTests.AggregateTransforms_Window_ComposesWithFilter`,
+  `AggregateTransformsImputeTests.AggregateTransforms_GroupedTransforms_AreDeterministicAndCultureInvariant` — a window
+  running total of 4, 3, 5, and 2 gives the bars 4, 7, 12, and 14 on the domain 0 to 14, the rank of a window drives a
+  following filter, and a pipeline of grouped transforms gives the same table on a second run and under other cultures.
+- **Aggregation Limits And Cancellation Fail Closed**:
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply`,
+  `EncodingTransformsTests.EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget`,
+  `AggregateTransformsTests.AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure`,
+  `AggregateTransformsImputeTests.AggregateTransforms_Impute_OutputRowsAreBoundedByTheRowBudget` — the five rows and the
+  three groups of the aggregate bars need `MaxDataRows` 8 (7 fails at `/encoding/y` naming the limit), the groups of an
+  aggregate transform count the same way, an impute of six rows over three needs 9, and a canceled token stops the render.
 - **Parameters: Defaults, Overrides, And Filter By Parameter**:
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`,
@@ -114,10 +147,16 @@ to the baseline constitutes a failure.
 - **Unsupported Parts Are Reported And Never Executed**:
   `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`,
   `RowTransformsTests.RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped`,
-  `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the transforms
-  of later phases, the selection parameters, the conditional encodings, and the parts of the supported transforms that are
-  not computed (a selection or a time unit in a filter, a pivot operation other than `sum` and `count`, a lookup in a
-  parameter) are reported once each in document order, are skipped by the executor, and the chart is still drawn.
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
+  `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
+  transforms of the drawn view are computed and not reported, while the transforms of later phases (`timeUnit`,
+  `regression`, `loess`, `density`, `quantile`, and `extent`), every transform of a nested view, the selection
+  parameters, the conditional encodings, and the parts of the supported transforms that are not computed (a selection
+  or a time unit in a filter, a pivot operation other than `sum` and `count`, a lookup in a parameter, a bin extent that
+  is a parameter) are reported once each in document order, are skipped by the executor, and the chart is still drawn;
+  a time unit next to the aggregate of the fixture is the one report, which strict mode turns into an exception.

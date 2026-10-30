@@ -20,12 +20,14 @@ The subsystem's namespace documentation is in `Marks/NamespaceDoc.cs`. Its behav
 ### Interfaces
 
 **Exposed** (internal only): `MarkBuilder.IsSupported(string?)`, which tells whether a mark type is drawn, and
-`new MarkBuilder(ResolvedConfig, VegaLiteLimits?, SceneBudget?, string?).Build(SpecNode view, DataTable, ResolvedScales,
-double width, double height, CancellationToken)`, which returns a `SceneGroup` (role `marks`) in the coordinates of
-the data rectangle.
+`new MarkBuilder(ResolvedConfig, VegaLiteLimits?, SceneBudget?, string?, RowExpressions?).Build(SpecNode view, DataTable,
+ResolvedScales, double width, double height, CancellationToken)`, which returns a `SceneGroup` (role `marks`) in the
+coordinates of the data rectangle; the table is the **Main** table of the implicit pipeline (the fields that the scales
+name).
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the `Data`
-subsystem; `ResolvedScales`, `ResolvedScale`, and `ScaleModel` from the `Scales` subsystem; `SceneGroup`, `SceneRect`,
+subsystem; `ResolvedScales`, `ResolvedScale`, and `ScaleModel` from the `Scales` subsystem; `RowExpressions` and `BinKind`
+from the `Transforms` subsystem; `SceneGroup`, `SceneRect`,
 `SceneRule`, `SceneSymbol`, `SceneClip`, and `SceneBudget` from the `Scenegraph` subsystem; and the public `VegaLiteLimits`,
 `VegaLiteLocation`, and `VegaLiteRenderException` of the `VegaLiteDocument` unit.
 
@@ -41,12 +43,15 @@ visible mark. The scene items carry resolved geometry and CSS color strings, so 
 without pixels.
 
 **Vega-Lite's rules.** Bars, rectangles, and ticks on a discrete position fill the band; on a continuous position they are
-centered on the value with default thickness; the measure axis runs from the value to 0; symbols sit at the center of
-their band or value; a rule is a full-width or full-height line, or a stem from the value to zero. Orientation comes
+centered on the value with default thickness; the measure axis runs from the value to 0 (or, for a stacked channel and a
+secondary channel `x2` or `y2`, from the first to the second end); symbols sit at the center of
+their band or value (the upper end of a stack, the middle of a bin); a rule is a full-width or full-height line, a stem
+from
+the value to zero, or a range; a bar or rect on a binned channel spans its bin. Orientation comes
 from `ScaleResolver.InferOrient`. A row with an invalid value on a continuous channel is not drawn (Vega-Lite 6 `filter`
 behavior), and a value outside an explicit discrete domain is not drawn.
 
 **Bounded.** The item budget is charged for each item as it is created (a row that draws nothing costs nothing), so a
 huge or hostile data set fails with a located `VegaLiteRenderException` before more memory is spent, and the
-cancellation token is polled every 1,024 rows. Marks are clipped to the data rectangle only when the mark definition
-says `"clip": true`.
+cancellation token is polled every 1,024 rows. Marks are clipped to the data rectangle when the mark definition
+says `"clip": true` and, unless it says `"clip": false`, when the `x` or `y` scale has an explicit domain array.

@@ -96,3 +96,21 @@ scenario in the three unit verification documents passes without error or unexpe
   are not computed (`vl-transform-filter-param`, `-filter-timeunit`, `-filter-datetime`, `-pivot-op`, and
   `-lookup-param`), the transforms of nested views and later phases, and a supported specification of Phase 5
   constructs has no report; the parse warnings and the reports are delivered together in document order.
+- **Aggregating Transforms And Encoding Properties Are Validated And Reported By What Is Computed**:
+  `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
+  `SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
+  `SpecParserAggregatesTests.SpecParser_Parse_ValidAggregatingTransformsAreAccepted`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
+  `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder` — the
+  parser validates the shape of the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` transforms and
+  of the `aggregate`, `bin`, `stack`, and `sort` properties of a channel, so a wrong operation name, field, `as`, or
+  parameter is a located `VegaLiteSpecException` when the document is opened, while the catalog no longer reports the
+  features that the renderer computes for the drawn view (the aggregating transforms, the encoding aggregate, bin, stack,
+  and sort, secondary position channels of a range, and the `order` of a stack) and still reports the transforms of
+  nested views, the remaining parts (a bin extent that is a parameter, a bin on a channel other than `x` and `y`, a stack
+  on a non-linear scale, an `order` without a stack, and a secondary channel that a mark cannot draw), and the transforms
+  of later phases; the document-level test now uses a `regression` transform as its example of an unsupported transform.

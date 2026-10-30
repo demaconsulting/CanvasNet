@@ -8,9 +8,10 @@ the internal types of its files: `RowSampler` (the deterministic sample), `Table
 layout of a derived table, its cell bound, and the rebuilding of arrays and objects from the flattened fields),
 `ParameterEnvironment` and `SpecValues` (the evaluation of the static parameters of the root view and the conversion of
 a JSON value to a `DataValue`), and `TransformContext` and `RowExpressions` (the per-call context that carries the tree,
-the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The transforms of later
-phases (`aggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, and the others) are skipped by the executor and are
-reported by the feature catalog.
+the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The executor also dispatches
+the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the `AggregateTransforms`
+unit, which has its own verification design; the transforms of later phases (`timeUnit`, `regression`, `loess`,
+`density`, `quantile`, and `extent`) are skipped by the executor and are reported by the feature catalog.
 
 #### Verification Approach
 
@@ -244,18 +245,23 @@ of more cells than the internal bound of 2^25 is refused before it is allocated,
 
 Asserts that the transforms throw `OperationCanceledException` under a canceled token (and give 4,999 rows of the 5,000
 under a live one: the filter keeps `a + 1 > 1`); that a table without transforms is returned as the same instance, that
-a null table or context is an `ArgumentNullException`; and that an `aggregate` among the transforms is skipped (only the
+a null table or context is an `ArgumentNullException`; and that a `regression` among the transforms is skipped (only the
 later calculate ran: the fields are `a, b, z` and the three rows are intact).
 
 ##### Sort By A Field Of The Transformed Rows
 
 **Tests**: `RowTransformsTests.ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows`,
-`RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`
+`RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`,
+`RowTransformsTests.ScaleResolver_Resolve_SortByFieldPutsCategoriesWithoutValuesFirstInBothDirections`
 
 Asserts, as a theory of ten sort forms over a table made by a calculate transform (the weights of the categories
 `a`, `b`, and `c` above), that the domain follows `sum`, `count`, `max`, `min` (descending), `mean`, `average`
-(descending), and `median`, that the order option reverses it, that an operation outside the supported seven
-(`valid`) and the `encoding` form keep the ascending default, and, in the second test, that categories with equal
-aggregates keep their order of first appearance in both directions (`z, m, a` ascending and descending, so the data
-order and not the alphabet decides among ties), and that `IsSupportedFieldSort` accepts an object with an operation of
-the supported seven and refuses an invalid order and the shorthand text form.
+(descending), `median`, and `valid` (the numbers of valid values 2, 1, and 1 give `b, c, a`, the tie in the order of first
+appearance), that the order option reverses it, and that the `encoding` form with no channel to resolve keeps the
+ascending default; in the second test, that categories with equal aggregates keep their order of first appearance in
+both directions (`z, m, a` ascending and descending, so the data order and not the alphabet decides among ties), and
+that `IsSupportedFieldSort` accepts an object with an orderable operation and refuses an invalid order and the shorthand
+text form; and, in the third test, that for `mean`, `average`, `median`, `min`, and `max` a category without a valid
+value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The sort
+by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
+Verification Design_.

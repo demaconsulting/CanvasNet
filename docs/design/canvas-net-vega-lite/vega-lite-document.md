@@ -84,7 +84,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   throws `ArgumentOutOfRangeException` when set. The defaults and the stage that enforces each are listed in
   _CanvasNetVegaLite System Design_. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
   `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the row
-  transforms derive.
+  and aggregating transforms and the implicit pipeline derive; since phase 6 `MaxEvaluationSteps` also bounds the work of
+  the aggregating transforms and `MaxScaleDomainSize` the number of bins. No limit was added.
 - **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
   in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
   `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.
@@ -143,8 +144,13 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   caller's `Datasets`, the limits, and the token), loads the data **before** the scene budget is created and before the
   scales are resolved, and then, on the same loader: creates one `ExpressionEvaluator` for the call (the limits, the
   token, and the dictionary of parameter values), calls `ParameterEnvironment.Populate` (the static parameters, with the
-  caller's `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext`; the transformed
-  table is what the scales and the marks read, and the `RowExpressions` (the compiled
+  caller's `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext` (which also
+  runs the aggregating transforms); it then creates the `EncodingPlan` of the view (`EncodingPlan.Create`, a pure function
+  of the specification and the configuration) and runs `EncodingTransforms.Apply` on the same context, which performs the
+  implicit bin, aggregate, and stack of the encoding in Vega-Lite's order and returns the `EncodingData` (the **Raw** and
+  **Main** tables and the bins). The scales are resolved from the plan and the data (a sort by an aggregate and an
+  `unaggregated` domain read Raw, everything else Main), and the marks draw Main, so the field names, the titles, and the
+  tables agree by construction; the `RowExpressions` (the compiled
   expressions and the evaluator) go to
   `MarkBuilder`. The findings of the data stage are kept in the plan in this order: the loader's warnings
   (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the transforms ran),
@@ -194,8 +200,9 @@ throws after a successful call propagates its exception (the surface is disposed
   delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`, `DataFileResolver`,
   `DelimitedTextParser`
 - **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary)
-- **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms`, `TransformContext`, and `RowExpressions`
-- **`Scales` subsystem** - `ScaleResolver`, `ResolvedScales`
+- **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms` (which dispatches to `AggregateTransforms`),
+  `EncodingPlan`, `EncodingTransforms`, `EncodingData`, `TransformContext`, and `RowExpressions`
+- **`Scales` subsystem** - `ScaleResolver` (the pipeline entry that takes the plan and the data), `ResolvedScales`
 - **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records
 - **`Marks` subsystem** - `MarkBuilder`

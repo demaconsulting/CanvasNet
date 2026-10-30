@@ -2,7 +2,7 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises six source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises seven source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
@@ -12,6 +12,8 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 - `SpecParser.Transforms.cs` - the third part of `SpecParser`: the compilation of expressions, the semantic validation of
   variable parameters, transforms, and predicates, the helpers that the catalog and the transforms share, and
   `ParameterGraph` (the dependency order of parameters)
+- `SpecParser.Aggregates.cs` - the fourth part of `SpecParser`: the validation of the aggregating transforms and of the
+  `aggregate`, `bin`, `stack`, and `sort` properties of a channel definition, and the sort helpers that the catalog shares
 - `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
@@ -99,7 +101,40 @@ be what its author meant, and well-formed constructs that the renderer does not 
   with either a `param` text or a `data` object (validated like any `data`), a `key` field
   path, optional `fields`, and an
   `as` and `default` that fit them (a `default` is a scalar). Predicate nesting is bounded by `MaxJsonDepth`, so the
-  recursive check cannot exhaust the stack. A transform of a later phase is accepted without a shape check.
+  recursive check cannot exhaust the stack. A transform that the renderer does not compute (`timeUnit`, `regression`,
+  `loess`, `density`, `quantile`, `extent`) is accepted without a shape check.
+
+**Aggregation rules (phase 6, `SpecParser.Aggregates.cs`).** The same fail-fast rule applies to the six aggregating
+transforms and to the encoding properties that aggregate, bin, stack, and sort; each error is located at the offending
+value:
+
+- **`aggregate` and `joinaggregate`** are arrays of `{op, field, as}` objects with an `op` of the operation registry of
+  `AggregateMeasures` (an unknown operation is a schema violation, not an unsupported-feature report), a `field`
+  that is a
+  valid field path (required by every operation but `count`), a non-empty text `as`, and, for `exponential` and
+  `exponentialb`, a `param` greater than 0 and at most 1; `groupby` is an array of field paths.
+- **`window`** is the same with the window-only operations added, a `param` that is an integer of at least 1 for `ntile`,
+  `lag`, `lead`, and `nth_value` (required for `ntile` and `nth_value`), a `sort` array of `{field, order}`, a `frame` of
+  two entries that are each an integer or null, and a boolean `ignorePeers`.
+- **`bin`** is true or an object of parameters and needs a `field`; `as` is a non-empty text or two of them. The parameters
+  (`ValidateBinParameters`, shared with the `bin` of a channel definition) are `maxbins` of at least 2, `step` greater
+  than 0, `steps` (1 to 1,024 numbers greater than 0), `minstep` not negative, `divide` (1 to 16 numbers greater than 0),
+  `base` greater than 1, a numeric `anchor`, boolean `nice` and `binned`, and an `extent` that is two
+  ascending numbers or
+  an object with a `param` (recognized and reported by the catalog).
+- **`stack`** names the field and has an optional `groupby`, an `offset` of `zero`, `center`, or `normalize`, a `sort`
+  array, and an `as` of one or two names. **`impute`** needs a `key` and has an optional `groupby`, a `method` of `value`,
+  `mean`, `median`, `max`, or `min`, a scalar `value`, a `frame`, and `keyvals` that is an array of scalars or a sequence
+  `{start, stop, step}` with a numeric `stop` and a `step` other than 0.
+- **Channel definitions** (`ValidateAggregationProperties`, called from `ValidateChannelDefinition`, so also for the `x2`,
+  `y2`, and `order` definitions): `aggregate` is an operation name, or an object with exactly one of `argmax`, `argmin`
+  (a field path), `exponential`, or `exponentialb` (a number greater than 0 and at most 1; a bare `argmax` or `argmin`
+  text is an error because it needs its field); `bin` is true, false, null, `"binned"`, or an object of parameters;
+  `stack` is `zero`, `center`, `normalize`, true, false, or null; `sort` is `ascending`, `descending`, null, an array of
+  values, a channel shorthand (`"y"` or `"-y"` with a channel of `x y color fill stroke strokeWidth size shape fillOpacity
+  strokeOpacity opacity text`), or an object `{field, op, order}` (the `op` any aggregate operation but `argmin` and
+  `argmax`) or `{encoding, order}` (the two forms cannot be mixed); the `sort` of an `order` channel is `ascending` or
+  `descending` only.
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -130,10 +165,14 @@ an error; a duplicate key keeps the last value at the position of the first occu
   in the tree's expression map. `ValidateParameterSemantics`, `ValidateTransformEntry`, `ValidateFilter`, `ValidatePredicate`,
   `ValidatePivot`, `ValidateLookup`, `CompileMarkExpressions`, and `CompileChannelExpression`
   apply the rules above from the
-  validation pass. The static helpers `IsSupportedTransform(name)`, `IsDrawnView(root, view)`, `IsViewSignal(name)`,
+  validation pass; `ValidateAggregateTransform`, `ValidateWindowTransform`, `ValidateBinTransform`,
+  `ValidateStackTransform`, `ValidateImputeTransform`, and `ValidateAggregationProperties` (`SpecParser.Aggregates.cs`)
+  apply the phase 6 rules. The static helpers `IsSupportedTransform(name)` (now true for the six aggregating transforms
+  too), `IsDrawnView(root, view)`, `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
-  array, so a reference costs one lookup.
+  array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`, and
+  `IsSortChannel(name)` are shared with the catalog and the scale resolver in the same way.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
   ordered (a cycle), or -1; the same
@@ -172,11 +211,16 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
 - **`ExpressionParser`**, **`CompiledExpression`**, and **`ExpressionConstruct`** - the compilation of the text of an
   expression and the constructs it collects (the `Expressions` subsystem), and **`FieldPath`** of the `Data` subsystem
   (the validation of field names)
+- **`AggregateMeasures`**, **`AggregateOp`**, and **`WindowOp`** - the registry of the operation names, which operation
+  needs a field or a parameter, and which can order categories (the `Transforms` subsystem), so that validation, reports,
+  and execution agree on what an operation is
 - **.NET base class library** - `System.Text.Json` (`Utf8JsonReader`), `System.Text` (`UTF8Encoding`), and
   `System.Globalization` (invariant-culture parsing of the schema version)
 
 The unit does not depend on the other two units for behavior; `FeatureCatalog` and `ConfigResolver` depend on the tree.
 The dependency on the `Expressions` subsystem is one-directional: `Expressions` never reads the tree.
+The dependency on the
+operation registry of the `Transforms` subsystem is a read of a static table of names, not of the transforms themselves.
 
 #### Callers
 

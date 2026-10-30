@@ -1,3 +1,4 @@
+// Portions derived from Vega (BSD-3-Clause): the grouping and the aggregate transforms; see third-party/README.md
 using System.Text;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;

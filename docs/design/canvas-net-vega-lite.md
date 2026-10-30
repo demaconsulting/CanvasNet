@@ -33,7 +33,12 @@ language (57 pure functions, no reflection, no clock, no random source), the **s
 `sample`, `pivot`, and `lookup` transforms, which run between the data loader and the
 scales; a sort by the aggregate of a
 field and the row-bound `{"expr": ...}` paint values of the marks are evaluated against the transformed rows.
-Compositions, the other transforms, conditional encodings, selection parameters, legends, and time are later phases.
+Phase 6 adds **aggregation**: the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` transforms
+(every Vega-Lite 6 aggregate operation, with a deterministic bootstrap for `ci0` and `ci1`), and the **implicit pipeline
+of the encoding** - the `aggregate`, `bin`, `stack`, and `sort` properties of a channel (a bar chart now stacks by default,
+as Vega-Lite does), the secondary channels `x2` and `y2` of bars, rects, and rules, the stacked, binned, and ranged
+geometry of the marks, and the derived titles, tick counts, and domains of binned and stacked axes. Compositions, the other
+transforms, conditional encodings, selection parameters, legends, and time are later phases.
 
 `CanvasNetVegaLite` consists of one direct unit and nine internal subsystems:
 
@@ -67,13 +72,17 @@ Compositions, the other transforms, conditional encodings, selection parameters,
   bounded pass into an immutable postfix program. `ExpressionEvaluator` runs it with JavaScript coercion under a step
   budget. `ExpressionFunctions` is the closed table of 57 pure functions with the regular expression translation. See
   _Expressions Subsystem Design_ (`canvas-net-vega-lite/expressions.md`).
-- **Transforms** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Transforms`, folder `Transforms/`): the
-  `RowTransforms` unit, which computes the static parameter environment and applies the row transforms (`calculate`,
-  `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`) to the loaded table. See _Transforms Subsystem Design_
+- **Transforms** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Transforms`, folder `Transforms/`): three
+  units. `RowTransforms` computes the static parameter environment and applies the row transforms (`calculate`,
+  `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`) to the loaded table. `AggregateTransforms` computes the
+  aggregating transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`) and holds the operations,
+  the bin algorithm, and the stack rules. `EncodingPlan` plans and runs the implicit bin, aggregate, and stack of a view's
+  encoding and names the fields and titles every channel reads. See _Transforms Subsystem Design_
   (`canvas-net-vega-lite/transforms.md`).
 - **Scales** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Scales`, folder `Scales/`): the numeric
   heart, with five units. `ScaleModel` maps values to pixels (linear, band, point, ordinal). `ScaleResolver` infers
-  scale types, domains, ranges, and paddings from the specification. `Ticks` is the d3-array tick algorithm.
+  scale types, domains, ranges, and paddings from the specification and the order of discrete domains. `Ticks` is the
+  d3-array tick algorithm.
   `NumberFormat` is the d3-format number formatter. `ColorSchemes` holds the `tableau10` category palette. See
   _Scales Subsystem Design_ (`canvas-net-vega-lite/scales.md`).
 - **Guides** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Guides`, folder `Guides/`): text and
@@ -117,8 +126,17 @@ only: `ExpressionParser` depends on `ExpressionFunctions` (to decide whether a c
 `ExpressionParser` to compile every expression of a supported site when a document is opened, and `FeatureCatalog` reads
 the constructs that the compiled expressions collected. `RowTransforms` reads the `SpecTree` and its compiled
 expressions, evaluates them with the `ExpressionEvaluator`, and builds `DataTable` instances through the `DataLoader` of
-the call (which owns the row budget and loads the sources of a lookup); `ScaleResolver` and `MarkBuilder` then read the
-transformed table, and `MarkBuilder` evaluates the row-bound paint expressions with the same evaluator. `Expressions` never
+the call (which owns the row budget and loads the sources of a lookup), and hands the aggregating transforms to
+`AggregateTransforms`, which builds its tables the same way and charges its work to the step budget of the evaluator.
+`EncodingPlan` reads the `SpecNode` tree and the `ResolvedConfig` (and `ScaleResolver.InferOrient`, `StackRules`) and
+`EncodingTransforms` runs it with the engines of `AggregateTransforms`; `ScaleResolver` then reads the plan and the Raw
+and
+Main tables (and uses the accumulators of `AggregateTransforms` to sort a discrete domain by an aggregate), and
+`MarkBuilder` reads the Main table and the scales and evaluates the row-bound paint expressions with the same evaluator.
+`SpecParser` and `FeatureCatalog` read the static operation registry (`AggregateMeasures`) and `StackRules` of the
+`Transforms` subsystem, so that validation, reports, and execution agree; `Scales` and `Transforms` therefore refer to each
+other at the unit level (`EncodingPlan` uses `ScaleResolver.InferOrient`; `ScaleResolver` uses `EncodingPlan`), as the
+orientation rule is one function used by both. `Expressions` never
 refers to `Transforms`, and `Data` never refers to `Expressions` or `Transforms`. `SceneModel` depends on nothing else.
 `TextMeasurer` reads the `SceneModel` text and bounds types; `ScenePainter` calls `TextMeasurer` and `CssColor`.
 `TitleBuilder` and `AxisBuilder` build `SceneModel` items using `TextMeasurer`, and `AxisBuilder` also uses
@@ -268,18 +286,18 @@ input:
   | ----- | ------- | ----------- | -------------------- |
   | `MaxSourceLength` | 4,194,304 characters | `VegaLiteDocument`, `SpecParser` | `InvalidDataException` |
   | `MaxJsonDepth` | 64 (1 to 256) | `SpecParser` | `VegaLiteSpecException` at the crossing |
-  | `MaxStringLength` | 1,048,576 characters | `SpecParser`, `ExpressionEvaluator`, `RowTransforms` | `VegaLiteSpecException` (specification text); `VegaLiteRenderException` for a string an expression or a transform would produce |
-  | `MaxDataRows` | 1,000,000 (total per call) | `DataTable`, `DataLoader`, `DelimitedTextParser`, `RowTransforms` | `VegaLiteRenderException` before any row is converted or allocated (also for a sequence, a lookup source, and the output of a fold or flatten) |
-  | `MaxFieldCount` | 1,024 | `DataTable`, `DataLoader`, `DelimitedTextParser`, `RowTransforms` | `VegaLiteRenderException` (also for the fields a transform adds) |
+  | `MaxStringLength` | 1,048,576 characters | `SpecParser`, `ExpressionEvaluator`, `RowTransforms`, `AggregateTransforms` | `VegaLiteSpecException` (specification text); `VegaLiteRenderException` for a string an expression or a transform would produce (also a group value, a `distinct` key, and a name or value that a transform copies) |
+  | `MaxDataRows` | 1,000,000 (total per call) | `DataTable`, `DataLoader`, `DelimitedTextParser`, `RowTransforms`, `AggregateTransforms`, `EncodingTransforms` | `VegaLiteRenderException` before any row is converted or allocated (also for a sequence, a lookup source, the output of a fold or flatten, the groups of an aggregate, the rows of an impute, and the `keyvals` of an impute) |
+  | `MaxFieldCount` | 1,024 | `DataTable`, `DataLoader`, `DelimitedTextParser`, `RowTransforms`, `AggregateTransforms` | `VegaLiteRenderException` (also for the fields a transform adds) |
   | `MaxDataFiles` | 64 (distinct files per call) | `DataFileResolver` | `VegaLiteRenderException`; the file that would exceed the limit is not read |
   | `MaxDataBytes` | 64 MiB (per file) | `DataFileResolver` | `VegaLiteRenderException`; reading stops one chunk past the limit, so an endless stream cannot exhaust memory |
-  | `MaxScaleDomainSize` | 100,000 values | `ScaleResolver` | `VegaLiteRenderException` |
+  | `MaxScaleDomainSize` | 100,000 values | `ScaleResolver`, `BinAlgorithm` | `VegaLiteRenderException` (also for the number of bins of a `bin`, and for the categories of a sort by an aggregate) |
   | `MaxTicks` | 1,000 per axis | `Ticks`, `AxisBuilder` | `VegaLiteRenderException` (also for categories) |
   | `MaxSceneItems` | 2,000,000 | `MarkBuilder`, `SceneBudget`, `VegaLiteDocument` | `VegaLiteRenderException`, counted as each item is created, before it is kept |
   | `MaxDiagnostics` | 1,000 | `VegaLiteReportSink` | Further reports collapse into one `vl-diagnostics-suppressed` notice; strict mode is unaffected |
   | `MaxExpressionLength` | 4,096 characters | `ExpressionParser` (when the document is opened) | `VegaLiteSpecException` located at the expression, offset in the message; checked before tokenizing |
   | `MaxExpressionDepth` | 64 (1 to 256) | `ExpressionParser` (when the document is opened) | `VegaLiteSpecException`; counts nesting (groups, brackets, arguments, literals, branches, unary operands), not length |
-  | `MaxEvaluationSteps` | 50,000,000 (total per call) | `ExpressionEvaluator`, `ExpressionFunctionContext` | `VegaLiteRenderException` located at the expression; one step per executed instruction plus one per 64 characters or elements of function work, shared by the parameters, the transforms, and the mark values of the call |
+  | `MaxEvaluationSteps` | 50,000,000 (total per call) | `ExpressionEvaluator`, `ExpressionFunctionContext`, `WorkMeter` | `VegaLiteRenderException` located at the expression or the transform; one step per executed instruction plus one per 64 characters or elements of function work, shared by the parameters, the transforms (also the comparisons of a filter predicate and the rows, sorts, window frames, and bootstrap resamples of the aggregating transforms), the implicit pipeline, the sort of a scale, and the mark values of the call |
   | `MaxViews`, `MaxCompositionDepth` | 1,000, 16 (1 to 64) | Reserved for the composition phase | Not yet enforced: the corresponding constructs are reported as unsupported |
   <!-- markdownlint-enable MD013 -->
 
@@ -329,12 +347,20 @@ input:
   characters. A result is a pure function of the datum and the parameters, so it is deterministic and culture-independent.
 - **Bounded transforms.** Every derived table is bounded before it is allocated by the shared
   row budget (`MaxDataRows`, with
-  the peak of an input and an output counted for fold and flatten), `MaxFieldCount`, and 2^25 cells; a lookup source
+    the peak of an input and an output counted for fold, flatten, aggregate, and impute), `MaxFieldCount`, and 2^25 cells
+    (which also bound the per-group state and the values that an aggregate operation keeps); the number of bins is bounded
+    by
+    `MaxScaleDomainSize`; the work of every row, sort, window frame, and bootstrap is charged to `MaxEvaluationSteps`,
+    so a
+    hostile specification fails closed and located; a lookup source
   goes through the same sandboxed loader and file cache as the main data; `sample` is seeded from the JSON pointer, never
-  from a clock; and the transforms of a later phase are skipped and reported, never approximated.
-- **Cancellation.** A `CancellationToken` is honored before any work, in the data and transform stages (at the start of
-  every transform and at least every 1,024 rows), in every expression evaluation (at the start and every 1,024 steps), in
-  the scale stage, per tick of an
+  from a clock, and so is the bootstrap of the confidence interval (`ci0`, `ci1`); and the transforms that
+  the renderer does
+  not compute are skipped and reported, never approximated.
+  - **Cancellation.** A `CancellationToken` is honored before any work, in the data and transform stages (at the start of
+    every transform and at least every 1,024 rows, also inside the sorts, the bootstrap, and the implicit pipeline), in
+    every expression evaluation (at the start and every 1,024 steps), in
+    the scale stage, per tick of an
   axis, per 1,024 rows of the marks, and while painting. The exception is never wrapped.
 - **Buffered, ordered event delivery.** Warnings and unsupported-feature reports are recorded in a sink while the work
   runs and delivered to the caller's handlers afterwards, in document order, once, on the calling thread only (also
@@ -385,16 +411,22 @@ input:
    are applied, and the values that an explicit conversion could not read are collected as `vl-data-parse-failed`
    warnings. The **static parameters** are then evaluated once in dependency order (the
    caller's `Parameters` replacing a
-   definition), and the **row transforms** of the view run in the written order (`RowTransforms`: calculate, filter,
-   fold, flatten, sample, pivot, and lookup, whose source is read by the same `DataLoader`), each producing a new table
+   definition), and the **transforms** of the view run in the written order (`RowTransforms`: calculate, filter,
+   fold, flatten, sample, pivot, and lookup, whose source is read by the same `DataLoader`; and, through
+   `AggregateTransforms`, aggregate, joinaggregate, window, bin, stack, and impute), each producing a new table
    within the shared row budget; the findings they can recover from are collected as `vl-expr-runtime` and
-   `vl-transform-runtime` warnings. `ScaleResolver` then infers the scales over the **transformed** table (a sort by
-   the aggregate of a field reads it too). `ViewLayout` resolves the view request (size, padding,
+   `vl-transform-runtime` warnings. `EncodingPlan` then plans the **implicit pipeline** of the encoding (the field names,
+   titles, bins, aggregate, and stack) and `EncodingTransforms` runs it in Vega-Lite's order: the bins of the binned
+   fields, the **Raw** table, the aggregate of the aggregating channels, the stack, and the **Main** table.
+   `ScaleResolver` then infers the scales from the plan over those tables (a domain reads Main; a sort by an
+   aggregate and a
+   `scale.domain` of `unaggregated` read Raw). `ViewLayout` resolves the view request (size, padding,
    autosize, background, view style) with the discrete-step hints of the scales; `TitleBuilder` builds the title. If
    there is no drawable single view the layout is computed around the title alone (an empty view, as for a
    composition or an unsupported mark). Otherwise the chart is built: the axes are built for the current data
    rectangle, their extents measured, and the layout re-measured, at most three times, until the data rectangle is
    stable (it is stable at once for fixed sizes); the `MarkBuilder` then builds the marks once for the final rectangle
+   from the Main table
    (evaluating the row-bound paint expressions for each row with the evaluator of the call),
    the item budget being charged for the axes and for each mark item as it is created; and `ViewLayout.Build`
    assembles the
@@ -487,19 +519,23 @@ The ported material, its licenses, and the units that contain it are:
 <!-- markdownlint-disable MD013 -->
 | Upstream project | License | Units that contain ported material | What is ported |
 | ---------------- | ------- | ---------------------------------- | -------------- |
-| Vega-Lite | BSD-3-Clause | `ConfigResolver`, `ScaleResolver`, `ColorSchemes`, `AxisBuilder`, `MarkBuilder` | Default configuration values (background, padding, view size, step, mark, bar, rect, tick, rule, scale, header, and spacing configuration), the `tableau10` default category colors, the precedence of mark, view, title, and style properties, the scale inference rules (type by field type, channel, and mark; domain order; zero, nice, padding, and reverse rules; default size and opacity ranges; step sizing), the default axis tick count and axis defaults and rules, and the inferred orientation, band size, opacity, color, and invalid-data rules of the supported marks |
-| Vega | BSD-3-Clause | `ConfigResolver`, `ViewLayout`, `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `SceneModel`, `ScenePainter`, `Ticks`, `ScaleModel`, `ScaleResolver` | Default Vega configuration values, the guide, group, and mark styles, the title and axis layout constants and offsets, the axis geometry (tick and label positions, band offset, rounding, half-pixel translate, extent clamping, label overlap removal), the tick-count rules, the `bandspace` rule, the text baseline offsets and line-height and truncation rules, the group stroke offset, the symbol shape geometry, and the view-layout rules for `autosize` and title placement |
-| d3-array | ISC | `Ticks` | The `ticks`, `tickIncrement`, and `tickStep` algorithms |
+| Vega-Lite | BSD-3-Clause | `ConfigResolver`, `ScaleResolver`, `ColorSchemes`, `AxisBuilder`, `MarkBuilder`, `EncodingPlan`, `EncodingTransforms`, `AggregateTransforms`, `StackRules` | Default configuration values (background, padding, view size, step, mark, bar, rect, tick, rule, scale, header, and spacing configuration), the `tableau10` default category colors, the precedence of mark, view, title, and style properties, the scale inference rules (type by field type, channel, and mark; domain order; zero, nice, padding, and reverse rules; default size and opacity ranges; step sizing), the default axis tick count and axis defaults and rules, and the inferred orientation, band size, opacity, color, and invalid-data rules of the supported marks; and, since phase 6, the compile rules that turn an encoding into transforms (the order bin, aggregate, stack; the group-by and stack-by fields; which marks stack, in which direction and with which default offset; the derived field names and default titles), the domain rules of stacked, binned, and aggregated fields, the geometry of a binned bar or rect, and the tick count of a binned axis |
+| Vega | BSD-3-Clause | `ConfigResolver`, `ViewLayout`, `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `SceneModel`, `ScenePainter`, `Ticks`, `ScaleModel`, `ScaleResolver`, `BinAlgorithm`, `AggregateMeasures`, `AggregateTransforms`, `StackRules` | Default Vega configuration values, the guide, group, and mark styles, the title and axis layout constants and offsets, the axis geometry (tick and label positions, band offset, rounding, half-pixel translate, extent clamping, label overlap removal), the tick-count rules, the `bandspace` rule, the text baseline offsets and line-height and truncation rules, the group stroke offset, the symbol shape geometry, and the view-layout rules for `autosize` and title placement; and, since phase 6, the bin algorithm and the assignment rules of the `bin` transform, the semantics of the aggregate operations, and the behavior rules of the `window`, `stack`, and `impute` transforms |
+| d3-array | ISC | `Ticks`, `AggregateMeasures` | The `ticks`, `tickIncrement`, and `tickStep` algorithms, and the `quantileSorted` interpolation (the R-7 method) behind the median, the quartiles, and the bootstrap interval |
 | d3-format | ISC | `NumberFormat` | The format specifier grammar and the `format`, `formatPrefix`, `precisionFixed`, `precisionPrefix`, and `precisionRound` behavior for the numeric types |
 | d3-scale | ISC | `ScaleModel`, `Ticks`, `NumberFormat` | The arithmetic of the linear, band, and point scales, the linear `nice` method, and the precision rule of `tickFormat` |
 | d3-scale-chromatic | ISC | `ColorSchemes` | Only the ten `tableau10` colors; no ColorBrewer scheme is used |
 <!-- markdownlint-enable MD013 -->
 
-The `Expressions` and `Transforms` subsystems port **nothing**: they are original code written from the public documentation
+The `Expressions` subsystem and the `RowTransforms` unit (with `RowSampler`, `TableLayout`, and `ParameterEnvironment`)
+port **nothing**: they are original code written from the public documentation
 of the Vega expression language, the Vega-Lite transforms and parameters, and ECMAScript, so they have no row in the table
 and carry no `Portions derived from` header; the `sample` transform is built from the published FNV-1a and SplitMix64
-descriptions and the classic reservoir algorithm. `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` records
-this.
+descriptions and the classic reservoir algorithm. The `AggregateTransforms` and `EncodingPlan` units re-implement
+the rules named in the table from their public description (the bin algorithm is a port of the Vega `bin`), carry the
+`Portions derived from` header where they contain ported logic, and use the same published FNV-1a and SplitMix64
+descriptions for the deterministic bootstrap. `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` records
+this, with the upstream files that were read.
 
 The obligations of the licenses are met as follows:
 
@@ -519,7 +555,7 @@ The obligations of the licenses are met as follows:
 
 ### Supported And Deferred Features
 
-This table is the exact boundary of the **delivered phases** (1 to 5). The renderer does not imply general Vega-Lite
+This table is the exact boundary of the **delivered phases** (1 to 6). The renderer does not imply general Vega-Lite
 support: a recognized construct outside the table is reported with the identifier shown, never skipped silently, and
 strict mode throws at the first report. The reports carry the RFC 6901 pointer and the one-based line and column of the
 construct.
@@ -531,17 +567,17 @@ construct.
 | Views | One single view | `layer`, `concat`, `hconcat`, `vconcat`, `facet`, `repeat`: `vl-composition-<name>` (only the title, background, and empty view are drawn; nested views are examined too); `projection`: `vl-projection` |
 | Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields, or of primitives, one row `{data: value}`); a **relative local `data.url`** read as JSON (the default), CSV, TSV, or DSV (`format.type`, else the extension `.csv` or `.tsv`, else JSON; DSV uses `format.delimiter`, a comma when omitted); `format.property` (a dotted path to the array of rows in a JSON file); `format.parse` as `"auto"` (explicit per-column inference, never the default), `null`, or a field map of `number`, `boolean`, `date`, and `string` (named fields only; delimited text keeps its cells as strings otherwise), with ISO 8601 dates in UTC; **named datasets** (`data.name` found in the caller's `Datasets`, then in the top-level `datasets` arrays); `data.sequence` (`start`, exclusive `stop`, `step`, `as`) | A missing or empty `values` array or a `data` object without a source: warning `vl-data-empty` (empty chart); `url` with a scheme, drive letter, absolute path, or network path: `vl-data-remote-url` (never fetched, never given to a resolver, empty dataset); a custom `parse` date format (`date:'%Y'`, `utc:'%Y'`): `vl-data-parse-date-format` (the field is left as read); `values` (or a referenced dataset) as text: `vl-data-values-text`; `sphere`, `graticule`, topojson, or `values` (or a referenced dataset) as an object: `vl-data-geo`. Not a report but a `VegaLiteRenderException`: a local file that is missing, refused by the sandbox, a link, a directory in place of a file, unreadable (an open failure, or a failing callback or stream), invalid UTF-8, invalid JSON or delimited text, or over a limit; an undefined `name`; a sequence with a missing or non-finite `start` or `stop` or a zero, non-finite, or non-numeric `step`. Values that an explicit `parse` could not convert become null and give the warning `vl-data-parse-failed` |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick` (a mark given as a string or as a definition object with `type`) | Every other recognized mark type: `vl-mark-<type>`; the chart is drawn without marks and without axes |
-| Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity` as `field`, literal `value`, or literal `datum` where the channel permits; `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report | Every other recognized channel: `vl-channel-<name>`; `longitude`, `latitude`, `longitude2`, `latitude2`: `vl-channel-geo` |
+| Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity` as `field`, literal `value`, or literal `datum` where the channel permits; `x2` and `y2` (the range of a `bar`, `rect`, or `rule` that has the channel they extend; a field, a datum, or a pixel `value`); `order` when it orders a stack; `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report | Every other recognized channel: `vl-channel-<name>`; `x2` and `y2` of another mark or without their primary channel: `vl-channel-x2`, `vl-channel-y2`; `order` that orders no stack: `vl-channel-order`; `longitude`, `latitude`, `longitude2`, `latitude2`: `vl-channel-geo` |
 | Field types | `quantitative`, `nominal`, `ordinal` | `temporal`: `vl-type-temporal`; `geojson`: `vl-type-geojson` |
-| Encoding properties | `field`, `type`, `value` (a constant, or `{"expr": ...}` for color, fill, stroke, opacity, and the size of a symbol mark), `datum`, `title`, `scale`, `axis`, `legend` (as null only), `sort` (ascending, descending, null, an array of values, or an object with `op` count, sum, mean, average, median, min, or max, an optional `field`, and an optional `order`), `bin` and `stack` (as false or null only) | `aggregate`, `bin`, `timeUnit`, `stack` (an implicit bar stack is reported at the measure channel), `sort` by an encoding channel, by another operation, or as a shorthand such as `"-y"`, `condition`, `impute`, `bandPosition`: `vl-encoding-<name>`; a quantitative color field: `vl-scale-color-ramp` |
-| Scales | Types linear, band, point, and ordinal; the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` of value `tableau10` | Every other scale type: `vl-scale-<type>`; every other scale property, and a scheme other than `tableau10`: `vl-scale-property-<name>`; an unknown scale type value is a `VegaLiteSpecException` |
+| Encoding properties | `field`, `type`, `value` (a constant, or `{"expr": ...}` for color, fill, stroke, opacity, and the size of a symbol mark), `datum`, `title`, `scale`, `axis`, `legend` (as null only), `aggregate` (every operation, with `argmax` and `argmin` as `{"argmax": field}` and the exponential operations as `{"exponential": r}`; a count needs no field), `bin` on `x` and `y` (true, an object of `maxbins`, `step`, `steps`, `minstep`, `divide`, `base`, `anchor`, `nice`, and a numeric `extent`, or `"binned"` with `x2` or a `step`), `stack` (`zero`, `center`, `normalize`, true, false, null; a bar stacks by default and the other supported marks only with an explicit `stack`), and `sort` (ascending, descending, null, an array of values, a channel shorthand such as `"-y"`, `{"encoding", "order"}`, or an object with any aggregate `op` but `argmin`, `argmax`, `values`, and the exponential ones, an optional `field`, and an optional `order`) | `timeUnit`, `condition`, `impute` of a channel, `bandPosition`: `vl-encoding-<name>`; `bin` of a channel other than `x` and `y`: `vl-encoding-bin`; a `bin` whose `extent` is a parameter: `vl-encoding-bin-extent-param` (the extent of the data is used); an explicit `stack` on a scale that is not linear: `vl-encoding-stack-nonlinear`; a `sort` that is not applied: `vl-encoding-sort`; a quantitative color field: `vl-scale-color-ramp` |
+| Scales | Types linear, band, point, and ordinal; the properties `type`, `domain` (an array, or `"unaggregated"` for a channel that aggregates with `mean`, `median`, `q1`, `q3`, `min`, or `max`), `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` of value `tableau10`; the domain of a stacked, ranged, or binned field | Every other scale type: `vl-scale-<type>`; every other scale property, and a scheme other than `tableau10`: `vl-scale-property-<name>`; an unknown scale type value is a `VegaLiteSpecException` |
 | Axes | Grid, ticks, labels, domain, title, orient, offset, minimum and maximum extent, `tickCount`, `tickMinStep`, `values`, d3 `format`, `labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`, the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, `zindex`, and the configuration precedence of Vega-Lite | `axis.encode`: `vl-guide-encode`; `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY`: `vl-guide-axis-<name>`; `formatType`: `vl-format-type-custom`; `labelExpr`: `vl-expr-label` |
 | Legends | None | A color, fill, stroke, size, or opacity channel driven by a field, unless `legend` or `scale` is null: `vl-guide-legend`; `legend.encode`: `vl-guide-encode` |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, `dy` | `{"expr": ...}`: `vl-expr-ref` |
 | Layout | `width` and `height` as numbers, `{step}`, or `"container"` (the container size is an option); `padding` as a number or object; `autosize` of `pad` or `none` (with `contains`); `background`; the `view` configuration (size, fill, stroke) | `autosize` of `fit`, `fit-x`, `fit-y`: `vl-layout-autosize-<type>` (laid out as `pad`); `{"expr": ...}` in a size, padding, background, or view: `vl-expr-ref` |
 | Configuration | Vega-Lite 6 and Vega defaults, the specification's `config`, and the caller's `Config`, merged in that order; the `style` mechanism; the default categorical palette is `tableau10` | N/A (unknown keys are ignored) |
 | Expressions | A closed subset of the Vega expression language in the supported sites: literals (null, booleans, numbers, strings, regular expressions, arrays, objects) and the constants `PI`, `E`, `NaN`, `Infinity`; `datum`, `datum.x`, `datum['a b']`, member and index access; the unary `+ - !`, the arithmetic, comparison, and equality operators, the short-circuit logical and-or operators, and `?:`; 57 whitelisted pure functions (math, text and array, type and conversion, regular expressions); parameter references. Supported sites: the `expr` of a variable parameter, `calculate`, a string `filter`, and the `{"expr": ...}` paint values of the drawn view (mark `color`, `fill`, `stroke`, `opacity`, `strokeWidth`, and the `size` of a symbol mark; the encoding `value` of `color`, `fill`, `stroke`, `opacity`, and the size of a symbol mark) | A function outside the table (date, time, format, color, geographic, scale, statistical, and data-flow functions): `vl-expr-function-<name>`; `signal`, `event`, `item`, and an undeclared `width`, `height`, `padding`, `autosize`, `background`, or `cursor`: `vl-expr-view-state`; the bitwise (including the unary `~`) and shift operators and `in`: `vl-expr-construct-<name>` (each evaluates to null, at the expression string with the offset in the message); an `{"expr": ...}` anywhere else (title, size, padding, background, view, other mark properties, other encoding values): `vl-expr-ref`; `axis.labelExpr`: `vl-expr-label`. A syntax error, an over-long or over-deep expression, or a reference to an undeclared parameter is a `VegaLiteSpecException` when the document is opened |
-| Transforms | `calculate`, `filter` (an expression or the predicates `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`, and `valid`, composed with `and`, `or`, and `not`, and `param` of a variable parameter), `fold`, `flatten`, `sample`, `pivot` (`sum` and `count`), and `lookup` (inline, named, or local-file data, by `from.key`, `fields`, `as`, and `default`), of the drawn view, in the written order | `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`: `vl-transform-<name>` (the transform is skipped); every transform of a nested view of a composition: `vl-transform-<name>`; parts of a supported transform: `vl-transform-filter-param` (a selection predicate passes every row), `vl-transform-filter-timeunit` (ignored), `vl-transform-filter-datetime` (the predicate is ignored), `vl-transform-pivot-op` (sum is used), `vl-transform-lookup-param` (not applied); recoverable findings at render time: warnings `vl-expr-runtime` and `vl-transform-runtime` |
+| Transforms | `calculate`, `filter` (an expression or the predicates `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`, and `valid`, composed with `and`, `or`, and `not`, and `param` of a variable parameter), `fold`, `flatten`, `sample`, `pivot` (`sum` and `count`), `lookup` (inline, named, or local-file data, by `from.key`, `fields`, `as`, and `default`), `aggregate` and `joinaggregate` (every operation: `count`, `valid`, `missing`, `distinct`, `sum`, `product`, `mean`, `average`, `variance`, `variancep`, `stdev`, `stdevp`, `stderr`, `median`, `q1`, `q3`, `ci0`, `ci1`, `min`, `max`, `argmin`, `argmax`, `values`, `exponential`, and `exponentialb`), `window` (`row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `ntile`, `lag`, `lead`, `first_value`, `last_value`, `nth_value`, `prev_value`, `next_value`, and every aggregate operation over a `frame`, with `sort`, `groupby`, and `ignorePeers`), `bin` (the Vega bin algorithm with its parameters), `stack` (`zero`, `center`, `normalize`), and `impute` (`value`, `mean`, `median`, `max`, `min`, with `keyvals` and `frame`), of the drawn view, in the written order | `timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`: `vl-transform-<name>` (the transform is skipped); every transform of a nested view of a composition: `vl-transform-<name>`; parts of a supported transform: `vl-transform-filter-param` (a selection predicate passes every row), `vl-transform-filter-timeunit` (ignored), `vl-transform-filter-datetime` (the predicate is ignored), `vl-transform-pivot-op` (sum is used), `vl-transform-lookup-param` (not applied), `vl-transform-bin-extent-param` (the extent of the data is used); recoverable findings at render time: warnings `vl-expr-runtime` and `vl-transform-runtime`. An operation name that does not exist and a malformed aggregating transform are a `VegaLiteSpecException` |
 | Parameters | Variable parameters of the root view with a `value` or an `expr` (the expression wins), evaluated once per call in dependency order, overridden by `VegaLiteRenderOptions.Parameters`, read by expressions by name, and by a filter `{"param": name}`; `bind` and `empty` are ignored | Selection parameters and the legacy `selection`: `vl-param-selection`; a variable parameter of a nested view: `vl-param-variable`. A parameter cycle, a repeated or reserved name, and a reference to an undeclared parameter are a `VegaLiteSpecException` |
 | Time | None; the `TimeZone` option is accepted and reserved (UTC by default) | `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` |
 | Fonts | The bundled Liberation Sans, Serif, and Mono for generic and Arial-like families; named families through `VegaLiteFontOptions` (`UseSystemFonts` is `false` by default) | N/A (an unresolvable family falls back to the bundled sans font) |
@@ -563,11 +599,15 @@ of an expression function (`timeFormat` gives `vl-expr-function-timeformat`; the
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick |
-| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored) |
+| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored); `x2` and `y2` are accepted for a bar, rect, or rule with the channel they extend and report `vl-channel-x2` and `vl-channel-y2` otherwise; `order` is accepted when it orders a stack and reports `vl-channel-order` otherwise |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-scale-color-ramp` | Unsupported | A quantitative `color`, `fill`, or `stroke` field (the default mark color is used) |
-| `vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`bin` and `stack` unless false or null; `sort` only for a shorthand or an object that is not a supported sort by the aggregate of a field) |
+| `vl-encoding-timeunit`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (the `impute` of a channel needs the grouping fields of a path mark; the `impute` transform is supported) |
+| `vl-encoding-bin` | Unsupported | The `bin` of a channel other than `x` and `y`, unless false or null (it needs the binned scale types of a later phase) |
+| `vl-encoding-bin-extent-param`, `vl-transform-bin-extent-param` | Unsupported | A `bin` whose `extent` is a `{"param": ...}` object, in an encoding or in a transform; the extent of the data is used |
+| `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` of `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
+| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel shorthand or an `encoding` that names a channel without a field or an aggregate, or an `op` of `values` or an exponential operation |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
 | `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
@@ -579,8 +619,8 @@ of an expression function (`timeFormat` gives `vl-expr-function-timeformat`; the
 | `vl-expr-view-state` | Unsupported | The expression text of a supported site, for `signal`, `event`, `item`, or a view signal (`width`, `height`, `padding`, `autosize`, `background`, `cursor`) that no parameter declares |
 | `vl-expr-construct-<name>` | Unsupported | The expression text of a supported site, for a deferred operator: `bitwise-and`, `bitwise-or`, `bitwise-xor`, `bitwise-not`, `shift-left`, `shift-right`, `shift-right-unsigned`, or `in` |
 | `vl-expr-runtime` | Warning | A `calculate` expression, at render time, when it produced a regular expression, which cannot be stored in a field (null is stored; one report per transform with the count and the first row) |
-| `vl-transform-<name>` | Unsupported | Every entry of `transform` that is not computed: `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeunit`, `regression`, `loess`, `density`, `quantile`, `extent`, and every transform of a nested view of a composition |
-| `vl-transform-filter-param`, `-filter-timeunit`, `-filter-datetime`, `-pivot-op`, `-lookup-param` | Unsupported | The part of a computed transform that is not supported: a filter on a selection (every row passes), a `timeUnit` in a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot `op` other than sum and count (sum is used), and a lookup in the data of a parameter (not applied) |
+| `vl-transform-<name>` | Unsupported | Every entry of `transform` that is not computed: `timeunit`, `regression`, `loess`, `density`, `quantile`, `extent`, and every transform of a nested view of a composition (aggregating transforms included) |
+| `vl-transform-filter-param`, `-filter-timeunit`, `-filter-datetime`, `-pivot-op`, `-lookup-param`, `-bin-extent-param` | Unsupported | The part of a computed transform that is not supported: a filter on a selection (every row passes), a `timeUnit` in a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot `op` other than sum and count (sum is used), a lookup in the data of a parameter (not applied), and a bin extent that is a parameter (the extent of the data is used) |
 | `vl-transform-runtime` | Warning | A pivot, at render time: rows with a null pivot value skipped, columns cut at `limit`, or a pivot value that replaces a group field |
 | `vl-composition-layer`, `-concat`, `-hconcat`, `-vconcat`, `-facet`, `-repeat` | Unsupported | That property; the nested views are examined too |
 | `vl-param-variable`, `vl-param-selection` | Unsupported | Every selection parameter and the legacy top-level `selection` (`vl-param-selection`); a variable parameter of a nested view (`vl-param-variable`); the variable parameters of the root view are computed and not reported |
@@ -597,7 +637,11 @@ the constructs they named are now supported, so they are no longer produced. The
 `vl-expr-filter` were reported before phase 5 for a calculate expression and a string filter, and `vl-transform-calculate`,
 `-filter`, `-fold`, `-flatten`, `-sample`, `-pivot`, and `-lookup` for the transforms of the drawn view; those constructs
 are now supported, so these reports are no longer produced for the drawn view (the transforms of a nested view are still
-reported under their `vl-transform-<name>`). They are never reused for another meaning.
+reported under their `vl-transform-<name>`). Likewise, `vl-encoding-aggregate` and `vl-encoding-stack` (and the report
+of an
+implicit bar stack) were reported before phase 6, `vl-transform-aggregate`, `-joinaggregate`, `-window`, `-bin`, `-stack`,
+and `-impute` for the transforms of the drawn view, and `vl-encoding-bin` for every channel; those constructs are now
+supported (`vl-encoding-bin` remains for the channels other than `x` and `y`). They are never reused for another meaning.
 
 **Deferred phases.** The roadmap that follows the delivered phases adds, each in its own pull request with the full
 companion artifacts, the following capabilities; until then the constructs are reported with the identifiers above:
@@ -608,7 +652,10 @@ companion artifacts, the following capabilities; until then the constructs are r
   geographic, scale, statistical, and data-flow functions of the expression language, view state (`signal`, `event`,
   `item`), and the bitwise operators; conditional encodings (`condition`, `test`); expressions in titles, sizes, paddings,
   backgrounds, and `axis.labelExpr`; and the other transforms below
-- **Aggregation**: `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `extent`, and `count`
+- **Aggregation (delivered in phase 6, with these parts deferred)**: `bin` on the channels other than `x` and `y` and the
+  binned scale types (`bin-ordinal`, `quantize`), a bin extent given by a parameter, the encoding `impute` of a channel
+  (it needs the path marks of a later phase), `argmin` and `argmax` sorts, the stack of a non-linear scale, the `order`
+  channel as the drawing order of marks, `timeUnit` in a bin or an aggregate, and the `extent` transform
 - **Legends and mark-property channels**: legends, the remaining color schemes (with their notices), the other scale
   types (log, pow, sqrt, symlog, quantize, quantile, threshold, sequential, diverging), and the `shape`, `strokeDash`,
   `strokeWidth`, `angle`, and `fillOpacity` channels
@@ -645,7 +692,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
    domain are dropped.
 5. **Domain order**: discrete domains are ascending by Vega-Lite's default sort, with mixed value kinds ordered null,
    boolean, number, string (a total order), and values missing from a `sort` array first.
-6. **Clip**: marks are clipped only with `"clip": true`, as in Vega-Lite 6, never to the view.
+6. **Clip**: marks are clipped only with `"clip": true`, as in Vega-Lite 6, or when the `x` or `y` scale has an explicit
+   domain array (Vega-Lite's `scaleClip`, which keeps a stacked bar that starts at zero inside such a domain), never
+   otherwise to the view; `"clip": false` switches the second rule off.
 7. **Title lines**: a line feed inside title text splits the line, which Vega does not do.
 8. **Painting**: clips are composited with fractional coverage; text is filled only; an unknown symbol shape is drawn
    as a circle; fills are flattened at a tolerance of 0.02 pixel so that small circles stay round.
@@ -702,9 +751,11 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     differ from the ones a browser would pick.
 22. **Pivot is limited to sum and count**, with columns in ordinal order and a missing combination 0; another `op` is
     reported and sum is used.
-23. **Sort by field supports seven operations**: count, sum, mean, average, median, min, and max, over the transformed
-    rows, stable for ties; a category without a valid number sorts first (except for sum and count). Any other form is
-    still reported as `vl-encoding-sort`.
+23. **Sort by field supports every orderable aggregate**: any aggregate operation except `argmin`, `argmax`, `values`, and
+    the exponential ones, by field, by `op`, by channel shorthand (`"-y"`), or by `{"encoding"}`, over the **Raw** rows
+    (before the implicit aggregate, as in Vega-Lite), stable for ties; a category without a valid value (a null result,
+    also for `sum`, as in Vega) sorts first in either direction. Any other form is reported as
+    `vl-encoding-sort`.
 24. **Warnings, not silent nulls**: a calculate that produces a regular expression stores null and warns
     (`vl-expr-runtime`); a pivot that skips or cuts data warns (`vl-transform-runtime`).
 25. **Provenance of the expression and transform rules**: the semantics follow the public Vega
@@ -712,6 +763,32 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     Vega-Lite transform documentation, and ECMAScript; the engine and the transforms are original code, no upstream source,
     test, or example was copied, and the sampler is built from the published FNV-1a and SplitMix64 descriptions (see
     `third-party/README.md`).
+26. **Deterministic bootstrap**: `ci0` and `ci1` are the 2.5% and 97.5% quantiles of 1,000 bootstrap means drawn with
+    SplitMix64, seeded from the FNV-1a hash of the JSON pointer of the transform and the group (Vega draws with
+    `Math.random`); the two bounds of one field share their resamples. The result is identical on every call.
+27. **Structural group keys**: the groups of `aggregate`, `joinaggregate`, `window`, `stack`, and `impute` (and of the
+    implicit aggregate) are keyed by the structure of the values (a number and a text with the same spelling are different
+    groups; an array or an object compares by its content) and listed in order of first appearance, where Vega keys by the
+    joined text of the values and lists in the order of a JavaScript object.
+28. **Defaults of the aggregating transforms**: the `stack` transform writes `field_start` and `field_end` when it has no
+    `as` (Vega: `y0` and `y1`); the `exponential` operations use a weight of 0.5 without a `param`; an empty window frame
+    gives null for `first_value`, `last_value`, and `nth_value` (Vega reads past the partition); `cume_dist` and `ntile`
+    count the peers of the first rows of a partition (Vega under-reports them); the growth of the bin step is capped
+    (Vega can loop for ever) and a bin count above `MaxScaleDomainSize` fails.
+29. **A bar stacks by default**: as in Vega-Lite 6, rows of a bar chart that share a category are stacked from zero, not
+    overdrawn. A chart with one row per category is drawn exactly as before; because such a bar starts at 0 even when an
+    explicit domain excludes zero, the marks are clipped when the `x` or `y` domain is an explicit array (see 6).
+30. **The scope of the encoding pipeline**: `bin` is applied on `x` and `y` only; `x2` and `y2` only for `bar`, `rect`,
+    and `rule`; `order` only as the order of a stack; `scale.domain: "unaggregated"` only for `mean`, `median`, `q1`, `q3`,
+    `min`, and `max`; a datum `x2` or `y2` is mapped through the primary scale
+    and is not part of the domain; the title of a
+    count is `config.countTitle` in every `fieldTitle` mode and the name of an aggregate keeps the operation as written
+    (`average_x`); the axis of a normalized stack uses `config.normalizedNumberFormat` (`.0%` by default); the default tick
+    count of a binned axis is `ceil(size / 10)`.
+31. **Provenance of the aggregation rules**: the semantics follow the public Vega and Vega-Lite documentation and the
+    behavior of the published algorithms (see `third-party/README.md`); the units are original C# code,
+    the bin algorithm is
+    a port, and the tests use values derived by hand.
 
 ### Determinism And Immutability
 
@@ -749,7 +826,7 @@ own scope, and everything not yet implemented is reported with a stable identifi
    `sequence`) and `DataTable` (a date value), the active `BaseDirectory`, `DataPaths`, `FileResolver`, `Datasets`,
    `MaxDataFiles`, and `MaxDataBytes` options, the retired and new `vl-data-*` identifiers, the data folder behavior of
    the `canvasnet` tool, and the original data fixtures.
-5. **Phase 5 - Expressions and row transforms (delivered with this pull request).** The `Expressions` subsystem
+5. **Phase 5 - Expressions and row transforms (delivered).** The `Expressions` subsystem
    (`ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions`) and the `Transforms`
    subsystem (`RowTransforms`), the
    composite (array, object, and regular expression) values of `DataTable`, the compilation of expressions and the
@@ -758,7 +835,18 @@ own scope, and everything not yet implemented is reported with a stable identifi
    `ReleaseRows`) and the loading of lookup sources, the sort by the aggregate of a field in `ScaleResolver`, the row-bound
    paint expressions of `MarkBuilder`, the static variable parameters and the `Parameters` override, the active expression
    limits, the new `vl-expr-*` and `vl-transform-*` identifiers, and the original fixtures.
-6. **Phase 6 - Aggregation (planned).**
+6. **Phase 6 - Aggregation (delivered with this pull request).** The `Transforms` units `AggregateTransforms` (the
+   `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` transforms, every aggregate operation with the
+   deterministic bootstrap, the Vega bin algorithm, and the stack rules) and `EncodingPlan` (the implicit bin, aggregate,
+   and
+   stack of an encoding and its field names and titles), the charging of filter predicates to the step budget, the
+   validation of the aggregation properties in `SpecParser`, the plan-driven domains, the Raw and Main tables, and the sort
+   by
+   any aggregate in `ScaleResolver` (split into three files), the stacked, ranged, and binned geometry and the clipping
+   rule
+   of `MarkBuilder`, the derived titles, binned tick counts, and normalized format of `AxisBuilder`, the secondary channels
+   `x2` and `y2`, the changed and new `vl-encoding-*`, `vl-channel-*`, and `vl-transform-*` identifiers, the attribution
+   record, and the original fixtures.
 7. **Phase 7 - Legends and mark-property channels (planned).**
 8. **Phase 8 - Time (planned).**
 9. **Phase 9 - Line-like and other marks (planned).**

@@ -22,7 +22,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
 
 - **`AxisRequest`** `(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double
   DataHeight, string? MarkType)` - what the builder needs: the channel (`x` or `y`), its definition in the encoding (whose
-  `axis`, `title`, and `field` are read), its resolved scale and the model for the final data rectangle, the size of
+  `axis`, `title`, `field`, `aggregate`, and `bin` are read), its resolved scale and the model for the final data rectangle,
+  the size of
   that rectangle, and the mark type (a `rect` mark with a discrete channel draws its axis in front of the mark).
 - **`AxisTick`** `(DataValue Value, double Position, string Label)` - one tick: the domain value, its position along the
   axis (rounded like the tick mark), and its label text before truncation.
@@ -41,13 +42,17 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
 (`axisX`, `axisY`, and the `Band`, `Point`, `Discrete`, and `Quantitative` variants), then the Vega configuration (`axisBand`
 for band scales, `axisTop`, `axisBottom`, `axisLeft`, and `axisRight`, `axisX` and `axisY`, `axis`, including the Vega
 defaults), then the `guide-label` and `guide-title` styles. Rules used only when no Vega-Lite configuration names the
-property: `grid` is true for a continuous scale with a field, no bin; `labelAngle` is 270 for labels of a nominal or
+property: `grid` is true for a continuous scale with a field or an aggregate (a count has no field) and no bin
+(neither a
+binned nor a pre-binned field); `labelAngle` is 270 for labels of a nominal or
 ordinal x axis (with Vega-Lite's label alignment and baseline for the angle); `labelFlush` is true (1 pixel) for a
 quantitative x axis; `labelOverlap` is parity for non-discrete scales; `zindex` is 1 for a `rect` mark with a discrete
 channel and otherwise 0.
 
 **Honored properties** are `grid`, `ticks`, `labels`, `domain`, `title` (the axis title, then the channel title, then the
-field name; null hides it; an array gives lines), `orient` (top or bottom for x, left or right for y), `offset`,
+default title that the encoding plan gives the scale in `ResolvedScale.Title` - `Sum of x`, `Count of Records`,
+`x (binned)`, two titles of a range merged as `a, b` - then the field name; null hides it;
+an array gives lines), `orient` (top or bottom for x, left or right for y), `offset`,
 `minExtent`, `maxExtent`, `tickSize`, `tickWidth`, `tickColor`, `tickDash`, `tickDashOffset`, `tickCap`, `tickOpacity`,
 `tickRound`, `tickOffset`, `tickCount`, `tickMinStep`, `values`, `format` (d3), `labelAngle`, `labelAlign`,
 `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, the label font properties and `labelColor`, `labelOpacity`,
@@ -73,7 +78,10 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   extent clamping and title placement. The token is polled per tick.
 - Ticks (`BuildTicks`): a continuous scale uses `Ticks.AxisTicks` with Vega-Lite's count (`ceil(size / 40)`, or the number
   of `values`, or `tickCount`) and minimum step, and labels from `NumberFormat.TickFormat` (the default is `,f`; negatives
-  use the minus sign U+2212); explicit `values` follow Vega's `validTicks` (in range, in range order, thinned to the count);
+  use the minus sign U+2212); a field that the encoding bins (`BinKind.Binning`, not a pre-binned one) has the default count
+  `ceil(size / 10)` instead, so the ticks follow the bins, and the labels of a normalized stack
+  (`ResolvedScale.Stack` is `Normalize`) use `config.normalizedNumberFormat` (`.0%` when the configuration has none) unless
+  the axis gives a `format`; explicit `values` follow Vega's `validTicks` (in range, in range order, thinned to the count);
   a band or point scale has a tick for every category (or the existing `values`), labeled with JavaScript-style text of
   the value (numbers formatted with `format` when given).
 - Label overlap: Vega's parity method (every second label dropped until none overlap, taking `labelSeparation` into
@@ -97,6 +105,8 @@ The unit performs no I/O.
 
 - **`TextMeasurer`** - label and title measurement, in the `TextMeasurer` unit
 - **`ScaleModel`**, **`ResolvedScale`**, **`Ticks`**, and **`NumberFormat`** - the `Scales` subsystem
+- **`BinKind`** and **`StackOffset`** - the bin kind and the stack offset that a `ResolvedScale` carries (the `Transforms`
+  subsystem)
 - **`DataValue`** - the `Data` subsystem
 - **`SceneGroup`**, **`SceneRule`**, **`SceneText`**, **`SceneItem`**, and **`SceneBounds`** - the `SceneModel` unit
 - **`ResolvedConfig`** and **`SpecNode`** - the `SpecModel` subsystem

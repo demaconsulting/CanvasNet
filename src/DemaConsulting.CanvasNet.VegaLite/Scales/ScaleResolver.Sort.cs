@@ -1,3 +1,4 @@
+// Portions derived from Vega-Lite and Vega (BSD-3-Clause): the sort of a domain by an aggregate; see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;

@@ -45,6 +45,12 @@ rules, and not recorded from the code:
   drop 500, and give positions 0, 75, 150, 300 with the `.1f` labels `0.0`, `25.0`, `50.0`, `100.0`; `tickCount: 2` gives
   100 / 2 = 50, error 5 (from the square root of 10 up to the square root of 50), step 50, so the labels are `0`, `50`,
   `100`; a `$,.2f` format gives `$0.00` and `$100.00`.
+- Binned and normalized axes: the twelve weights of the histogram binned into 0 to 35 by 5 over 200 pixels ask for one tick
+  per ten pixels (20), which the d3 algorithm turns into the step 2, so the ticks are 0, 2, ..., 34 (eighteen) and the
+  explicit `tickCount` of 5 gives 0, 5, ..., 35 (eight); a field that is binned already keeps one tick per 40 pixels
+  (5), so the domain 0 to 30 has 0, 5, ..., 30 (seven); a normalized stack has the domain 0 to 1, so a 100 pixel axis
+  has the ticks 0, 0.5, and 1, labeled `0%`, `50%`, and `100%` by the default `.0%`, `0.0%`, `50.0%`, and `100.0%` by a
+  configured `.1%`, and `0.00`, `0.50`, and `1.00` by an explicit `.2f`.
 
 Unit tests reside in `AxisBuilderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Guides` folder; the shared helpers `ChartTestHelpers` (`Parts`, `Axis`, `Marks`, and `Of`) are in
@@ -132,6 +138,28 @@ a band scale (tick size 6).
 
 Asserts that axes are behind the marks by default (a bar chart), in front of a `rect` mark with discrete channels, in
 front with an explicit `zindex: 1`, and behind with an explicit `zindex: 0` on a `rect` chart.
+
+##### Titles And Grid Follow The Plan
+
+**Tests**: `AxisBuilderTests.AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid`
+
+Asserts that the axis title of an aggregated, binned, or counted channel is the default title of the plan (`Sum of v`,
+`v (binned)`, and `Count of Records`), that an explicit title (`Total`) still wins, and that a count (a definition
+without a field) and an aggregated measure have a grid while a binned axis has none.
+
+##### Binned Axis Asks For A Tick Per Ten Pixels
+
+**Tests**: `AxisBuilderTests.AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels`
+
+Asserts the derived tick values above: 0, 2, ..., 34 for a binned field over 200 pixels, 0, 5, ..., 35 for an explicit
+`tickCount` of 5, and 0, 5, ..., 30 for a field that is binned already.
+
+##### Normalized Stack Uses The Normalized Number Format
+
+**Tests**: `AxisBuilderTests.AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat`
+
+Asserts the derived labels above for the default, the configured, and the explicit format, that an ordinary stack has no
+percent label, and that its axis title is `n`.
 
 ##### Invalid Settings, Limits, And Cancellation
 

@@ -243,9 +243,13 @@ software items, specifically:
   conversions, and the per-column type inference). The `Expressions` subsystem has three units: `ExpressionParser` (a
   bounded compiler of the Vega expression language into an immutable postfix program), `ExpressionEvaluator` (a
   culture-invariant interpreter with JavaScript coercion under a step budget), and `ExpressionFunctions` (the closed
-  table of 57 pure functions with the safe regular expression translation). The `Transforms` subsystem has one unit,
+  table of 57 pure functions with the safe regular expression translation). The `Transforms` subsystem has three units:
   `RowTransforms` (the static parameter environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`,
-  and `lookup` transforms between the loader and the scales). The `Scales` subsystem has
+  and `lookup` transforms between the loader and the scales), `AggregateTransforms` (the `aggregate`, `joinaggregate`,
+  `window`, `bin`, `stack`, and `impute` transforms with the aggregate operations, the bin algorithm, and the stack rules),
+  and `EncodingPlan` (the implicit bin, aggregate, and stack of a view's encoding, with the field names and titles
+  that every
+  channel reads). The `Scales` subsystem has
   five units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
   number formatter), and `ColorSchemes` (the `tableau10` palette). The `Guides` subsystem has three units:
@@ -254,11 +258,13 @@ software items, specifically:
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
-  and `CssColor` (CSS color parsing). Compositions, the aggregating transforms, selection parameters, conditional
+  and `CssColor` (CSS color parsing). Compositions, selection parameters, conditional
   encodings, legends, and time
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
-  sequences, a bounded subset of the Vega expression language, static variable parameters, and the row transforms
-  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup` are supported; remote data is never fetched)
+  sequences, a bounded subset of the Vega expression language, static variable parameters, the row transforms
+  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`, the aggregating transforms `aggregate`,
+  `joinaggregate`, `window`, `bin`, `stack`, and `impute`, and the aggregate, bin, stack, and sort properties of a channel
+  are supported; remote data is never fetched)
   — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
   `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
@@ -444,7 +450,7 @@ the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.Ca
 `SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable`,
 `DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Expressions` subsystem holds the
 `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
-`RowTransforms` unit, its internal `Scales` subsystem holds the
+`RowTransforms`, `AggregateTransforms`, and `EncodingPlan` units, its internal `Scales` subsystem holds the
 `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
 and `ColorSchemes` units, its internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
 units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
@@ -1098,6 +1104,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecParser.cs              — SpecParser: entry points, single-pass reader, limits, duplicate keys
 │   ├── SpecParser.Validation.cs   — SpecParser: structural validation and unknown properties
 │   ├── SpecParser.Transforms.cs   — SpecParser: expression compilation, parameter, transform, and predicate validation
+│   ├── SpecParser.Aggregates.cs   — SpecParser: aggregating transform and aggregate, bin, stack, and sort validation
 │   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
@@ -1136,11 +1143,27 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── RowSampler.cs              — RowTransforms: deterministic reservoir sampling
 │   ├── TableLayout.cs             — RowTransforms: derived table layout, bounds, and field reader
 │   ├── ParameterEnvironment.cs    — RowTransforms: static parameter values
-│   └── TransformContext.cs        — RowTransforms: the shared context and the row expressions
+│   ├── TransformContext.cs        — RowTransforms: the shared context and the row expressions
+│   ├── AggregateTransforms.cs     — AggregateTransforms: Apply, grouping keys, and shared helpers
+│   ├── AggregateTransforms.Aggregate.cs — AggregateTransforms: aggregate, joinaggregate, and the grouping passes
+│   ├── AggregateTransforms.Bin.cs — AggregateTransforms: the bin transform
+│   ├── AggregateTransforms.Window.cs — AggregateTransforms: the window transform and engine
+│   ├── AggregateTransforms.Stack.cs — AggregateTransforms: the stack transform and engine
+│   ├── AggregateTransforms.Impute.cs — AggregateTransforms: the impute transform
+│   ├── AggregateMeasures.cs       — AggregateTransforms: operation names and the operation registry
+│   ├── AggregateMeasures.Cell.cs  — AggregateTransforms: the accumulators of the aggregate operations
+│   ├── BinAlgorithm.cs            — AggregateTransforms: the Vega bin algorithm and bin assignment
+│   ├── StackRules.cs              — AggregateTransforms: Vega-Lite's decision that a view stacks
+│   ├── WorkMeter.cs               — AggregateTransforms: step-budget charging of proportional work
+│   ├── StableSorter.cs            — AggregateTransforms: stable, cancelable merge sort
+│   ├── EncodingPlan.cs            — EncodingPlan: the plan of the implicit bin, aggregate, and stack
+│   └── EncodingTransforms.cs      — EncodingPlan: running the plan, and the Raw and Main tables
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
 │   ├── ScaleModel.cs              — ScaleModel: linear, band, point, and ordinal mappings
 │   ├── ScaleResolver.cs           — ScaleResolver: scale inference, ResolvedScales, and ResolvedScale
+│   ├── ScaleResolver.Plan.cs      — ScaleResolver: binned, stacked, ranged, and unaggregated domains
+│   ├── ScaleResolver.Sort.cs      — ScaleResolver: the order of discrete domains, including sort by an aggregate
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
 │   └── ColorSchemes.cs            — ColorSchemes: the tableau10 category palette
@@ -1278,7 +1301,18 @@ and SysML2 model `docs/sysml2/model/canvas-net-vega-lite/expressions.sysml`, and
 `transforms.md`, and `transforms.sysml` and, for its `RowTransforms` unit, `transforms/row-transforms.*`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs` (with its partial files, `RowSampler.cs`,
 `TableLayout.cs`, `ParameterEnvironment.cs`, and `TransformContext.cs`), and tests
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`. The attribution
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`. The two units added to the `Transforms`
+subsystem for aggregation follow the same pattern: for `AggregateTransforms`, requirements
+`docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml`, design
+`docs/design/canvas-net-vega-lite/transforms/aggregate-transforms.md`, verification
+`docs/verification/canvas-net-vega-lite/transforms/aggregate-transforms.md`, SysML2 model
+`docs/sysml2/model/canvas-net-vega-lite/transforms/aggregate-transforms.sysml`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Transforms/AggregateTransforms.cs` (with its partial files,
+`AggregateMeasures.cs` and `AggregateMeasures.Cell.cs`, `BinAlgorithm.cs`, `StackRules.cs`, `WorkMeter.cs`, and
+`StableSorter.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs` (with
+the window, stack, impute, and joinaggregate test files, `AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`,
+`StackRulesTests.cs`, and `StableSorterTests.cs`); for `EncodingPlan`, the same paths with `encoding-plan`,
+`EncodingPlan.cs` and `EncodingTransforms.cs`, and `EncodingPlanTests.cs` and `EncodingTransformsTests.cs`. The attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

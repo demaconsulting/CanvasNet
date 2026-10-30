@@ -13,8 +13,10 @@ five units:
 
 - **ScaleModel** - the internal `ScaleModel` and `ScaleKind`: the immutable linear, band, point, and ordinal mappings;
   see _ScaleModel Unit Design_ (`scales/scale-model.md`)
-- **ScaleResolver** - the internal static `ScaleResolver` with `ResolvedScales`, `ResolvedScale`, and `RangeEnd`: the
-  Vega-Lite inference of scale types, domains, ranges, and paddings; see _ScaleResolver Unit Design_
+- **ScaleResolver** - the internal static partial `ScaleResolver` (three files) with `ResolvedScales`, `ResolvedScale`,
+  and
+  `RangeEnd`: the Vega-Lite inference of scale types, domains (including the binned, stacked, ranged, and unaggregated
+  ones), the order of discrete domains, ranges, and paddings; see _ScaleResolver Unit Design_
   (`scales/scale-resolver.md`)
 - **Ticks** - the internal static `Ticks`: the d3-array tick algorithms, the linear `nice`, and the Vega tick-count
   rules; see _Ticks Unit Design_ (`scales/ticks.md`)
@@ -28,20 +30,26 @@ The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its beha
 
 ### Interfaces
 
-**Exposed** (internal only): `ScaleResolver.Resolve(SpecNode, DataTable, ResolvedConfig, string?, VegaLiteLimits?,
-CancellationToken)` and `ScaleResolver.InferOrient`; `ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories
+**Exposed** (internal only): `ScaleResolver.Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?,
+VegaLiteLimits?, CancellationToken)` (the pipeline entry), the convenience overload `ScaleResolver.Resolve(SpecNode,
+DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans and runs the implicit pipeline
+itself), and `ScaleResolver.InferOrient`; `ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories
 (`CreateLinear`, `CreateBand`, `CreatePoint`, `CreateOrdinal`), mappings (`Map`, `MapCenter`, `MapOrdinal`, `Invert`,
 `IndexOf`), and `BandSpace`; `Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`,
 `DefaultAxisTickMinStep`, `ResolveTickCount`, and `AxisTicks`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`,
 `ParseSpecifier`, and the precision helpers; and `ColorSchemes.Tableau10`, `TryGetScheme`, and `CategoryColor`.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the
-`Data` subsystem; and the public `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`, and
+`Data` subsystem; `EncodingPlan`, `EncodingData`, `MeasureCell`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` from the
+`Transforms` subsystem (the plan names the field every channel reads, and the accumulators order a discrete domain by an
+aggregate); and the public `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`, and
 `VegaLiteRenderException` types of the `VegaLiteDocument` unit. The .NET base class library supplies
 `System.Numerics`, `System.Text.RegularExpressions`, and `System.Globalization`.
 
-**Consumers**: `VegaLiteDocument` (`ScaleResolver.Resolve`), the `Guides` subsystem (`AxisBuilder` uses `ScaleModel`,
-`Ticks`, and `NumberFormat`), and the `Marks` subsystem (`MarkBuilder` uses the scales to position and paint marks).
+**Consumers**: `VegaLiteDocument` (`ScaleResolver.Resolve`), the `Transforms` subsystem (`EncodingPlan` uses
+`ScaleResolver.InferOrient`), the `SpecModel` subsystem (`FeatureCatalog` uses `InferOrient`), the `Guides` subsystem
+(`AxisBuilder` uses `ScaleModel`, `Ticks`, and `NumberFormat`, and reads the `ResolvedScale`), and the `Marks` subsystem
+(`MarkBuilder` uses the scales to position and paint marks).
 
 ### Design
 

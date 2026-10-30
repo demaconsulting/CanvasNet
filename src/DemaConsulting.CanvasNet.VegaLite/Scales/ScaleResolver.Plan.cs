@@ -1,3 +1,4 @@
+// Portions derived from Vega-Lite (BSD-3-Clause): the domains of stacked, binned and aggregated fields; see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;

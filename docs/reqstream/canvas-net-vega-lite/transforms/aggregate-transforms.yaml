@@ -1,0 +1,379 @@
+---
+# Software Unit Requirements for AggregateTransforms
+#
+# These requirements describe the design-level behavior of the AggregateTransforms unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the eager, immutable engine that runs the
+# transforms aggregate, joinaggregate, window, bin, stack, and impute on the table the RowTransforms unit hands it,
+# in the order of the specification. The unit comprises AggregateTransforms.cs and its partial files (Aggregate,
+# Window, Bin, Stack, and Impute), AggregateMeasures.cs and AggregateMeasures.Cell.cs (the aggregate and window
+# operation names and the per-group accumulators), BinAlgorithm.cs (the Vega bin algorithm), StackRules.cs (the
+# Vega-Lite rules that decide whether and how an encoding stacks), StableSorter.cs (the stable, cancelable sort), and
+# WorkMeter.cs (the charging of work to the evaluation-step budget). The engine is also what the EncodingPlan unit
+# runs for the implicit bin, aggregate, and stack of an encoding. The statistics, the bin algorithm, and the stack
+# rules follow Vega and Vega-Lite behavior (attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md), with the documented deliberate deviations: structural
+# first-seen group keys and a deterministic bootstrap. See
+# docs/verification/canvas-net-vega-lite/transforms/aggregate-transforms.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: AggregateTransforms Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Pipeline
+                title: >-
+                  The AggregateTransforms unit shall execute the transforms aggregate (one output row per
+                  group), joinaggregate (every row kept, in order, with the group measures added), window
+                  (every row kept, in order, with the window results added), bin (every row kept, with the
+                  start and end of its bin added), stack (every row kept, in order, with the stack start and
+                  end added), and impute (the input rows followed by one row for each missing group and key
+                  combination), each reading an immutable table and producing a new one, in the written order
+                  among the other transforms of the view, so that a later transform sees the fields that an
+                  earlier one added.
+                justification: |
+                  Aggregating, windowing, binning, stacking, and imputing are the transforms that turn raw
+                  rows into what a chart draws; they are order dependent and the later stages must never see
+                  a table change.
+                tests:
+                  - AggregateTransforms_Aggregate_CountWithoutFieldAndAsDefaults
+                  - AggregateTransforms_JoinAggregate_WritesGroupMeasuresToEveryRow
+                  - AggregateTransforms_Window_ComposesWithFilter
+                  - AggregateTransforms_Bin_KeepsRowsAndChargesWork
+                  - AggregateTransforms_Stack_ZeroOffsetStacksFromZero
+                  - AggregateTransforms_Impute_AppendsMissingKeysAfterTheInputRows
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-AggregateOps
+                title: >-
+                  The AggregateTransforms unit shall compute every aggregate operation of Vega over the rows of
+                  a group - count, valid, missing, distinct, sum, product, mean (and its alias average),
+                  variance, variancep, stdev, stdevp, stderr, median, q1, q3, ci0, ci1, min, max, argmin,
+                  argmax, values, exponential, and exponentialb - classifying a null or empty text as missing
+                  and NaN as neither missing nor valid, reading numeric text and booleans as numbers,
+                  comparing for min and max like JavaScript, giving the whole first row of a tie for argmin and
+                  argmax, interpolating the quartiles between ranks like d3, giving a null for a statistic
+                  without enough valid values, naming the output field as written or else op_field (count for a
+                  count), and rejecting a name that is not an operation.
+                justification: |
+                  Aggregate measures are the numbers that a chart shows; each must mean what it means in Vega
+                  so that the same specification draws the same values.
+                tests:
+                  - AggregateMeasures_TryParse_AcceptsEveryAggregateName
+                  - AggregateMeasures_TryParse_RejectsUnknownNames
+                  - AggregateMeasures_DefaultName_FollowsOpUnderscoreField
+                  - AggregateMeasures_Cell_MatchesTheHandDerivedStatistics
+                  - AggregateMeasures_Cell_ClassifiesValidMissingAndNaNValues
+                  - AggregateMeasures_Cell_WithoutValidValuesCountsZeroAndOtherwiseIsNull
+                  - AggregateMeasures_Cell_VarianceIsNumericallyStable
+                  - AggregateMeasures_Cell_QuartilesInterpolateBetweenRanks
+                  - AggregateMeasures_Cell_NumericTextIsReadAsANumber
+                  - AggregateMeasures_Cell_OverflowGivesInfinity
+                  - AggregateMeasures_Cell_MinAndMaxCompareLikeJavaScript
+                  - AggregateMeasures_Cell_ArgMinAndArgMaxKeepTheFirstRowOfATie
+                  - AggregateMeasures_Cell_ExponentialOperationsWeightRecentValues
+                  - AggregateMeasures_Cell_DistinctCountsTextsAndValuesKeepsEveryValue
+                  - AggregateMeasures_Quantile_InterpolatesLikeD3
+                  - AggregateTransforms_Aggregate_ComputesEveryOperation
+                  - AggregateTransforms_Aggregate_ArgOperationsReturnTheRowAndValuesTheArray
+                  - AggregateTransforms_Aggregate_ExponentialUsesTheParameter
+                  - AggregateTransforms_Aggregate_AMissingFieldIsMissingInEveryRow
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-ConfidenceIntervals
+                title: >-
+                  The AggregateTransforms unit shall compute the confidence interval bounds ci0 and ci1 of a
+                  field as the 2.5th and 97.5th percentiles of 1,000 bootstrap means, drawing the resamples
+                  from a deterministic generator that is seeded by the position of the transform in the
+                  specification and the group, so that the same specification gives the same interval on every
+                  call, thread, culture, and platform.
+                justification: |
+                  Vega draws its bootstrap resamples at random; a reproducible chart cannot, so the interval
+                  must be a function of the specification and the data alone.
+                tests:
+                  - AggregateMeasures_Cell_BootstrapCiIsDeterministicAndBounded
+                  - AggregateMeasures_Cell_BootstrapCiIgnoresTheCulture
+                  - AggregateMeasures_GroupSeed_DiffersByGroupAndIsStable
+                  - AggregateTransforms_Aggregate_BootstrapIntervalIsSeededByThePointer
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-GroupKeys
+                title: >-
+                  The AggregateTransforms unit shall form groups from the values of the groupby fields by
+                  structural equality (a number and its text differ, NaN and the two signed zeros are values of
+                  their own, and an array or object is compared by its content), shall emit the groups in the
+                  order in which they first appear, shall give one group for an empty groupby list and no row
+                  for an empty input, and shall write a group field under its own nested path before the
+                  measures.
+                justification: |
+                  Groups decide which rows are summarized together; a key that depended on text conversion or
+                  on the enumeration order of a dictionary would merge or reorder groups unpredictably.
+                tests:
+                  - AggregateTransforms_Aggregate_GroupsByStructuralKeysInFirstSeenOrder
+                  - AggregateTransforms_Aggregate_KeysAreStructuralNotTextual
+                  - AggregateTransforms_Aggregate_NaNAndSignedZeroFormOneGroupEach
+                  - AggregateTransforms_Aggregate_ArraysAndObjectsAreComparedByContent
+                  - AggregateTransforms_Aggregate_NoGroupByYieldsOneRow
+                  - AggregateTransforms_Aggregate_EmptyInputYieldsNoRows
+                  - AggregateTransforms_Aggregate_NestedGroupByPathStaysNested
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-JoinAggregate
+                title: >-
+                  The AggregateTransforms unit shall, for a joinaggregate transform, compute the measures of
+                  each group as an aggregate does and write them to every row of the group, keeping every row
+                  in its place and the row count unchanged, sharing the one result (a values array, an argmax
+                  row) between the rows of a group, and giving an empty table with the new fields for an empty
+                  input.
+                justification: |
+                  Joinaggregate adds group statistics (a total, a mean) to detail rows, for example to
+                  normalize each row by its group; the rows themselves must stay.
+                tests:
+                  - AggregateTransforms_JoinAggregate_WritesGroupMeasuresToEveryRow
+                  - AggregateTransforms_JoinAggregate_WholeTableAndNaming
+                  - AggregateTransforms_JoinAggregate_ValuesArraysAreSharedWithinAGroup
+                  - AggregateTransforms_JoinAggregate_RowMeasuresAndQuantiles
+                  - AggregateTransforms_JoinAggregate_EmptyInputGivesNoRows
+                  - AggregateTransforms_JoinAggregate_DoesNotChangeTheRowBudget
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Window
+                title: >-
+                  The AggregateTransforms unit shall, for a window transform, partition the rows by the groupby
+                  fields, order each partition stably by the sort fields (null first, then NaN, then numbers
+                  and text, reversed for descending), and compute for every row the ranking operations
+                  (row_number, rank, dense_rank, percent_rank, cume_dist, ntile), the positional operations
+                  (lag, lead, first_value, last_value, nth_value, prev_value, next_value), and any aggregate
+                  operation over its frame - offsets from the row clamped to the partition, the frame
+                  [null, 0] by default, extended to include the peers of the row (the rows that tie on the sort
+                  fields) unless ignorePeers is set, and possibly empty - keeping the rows in their input order
+                  and giving a cumulative frame the same results as recomputing it for every row.
+                justification: |
+                  Running totals, ranks, moving averages, and neighbor differences are the common window
+                  charts; their frames and ties must follow Vega so that the same specification draws the same
+                  values.
+                tests:
+                  - AggregateTransforms_Window_RankingOperationsFollowVegaOnPeers
+                  - AggregateTransforms_Window_SingleRowAndUnsortedRanks
+                  - AggregateTransforms_Window_CumeDistCountsPeersOfTheFirstRows
+                  - AggregateTransforms_Window_DefaultNamesFrameAndReplacement
+                  - AggregateTransforms_Window_FramesIncludePeersUnlessIgnored
+                  - AggregateTransforms_Window_PartitionsAreSortedSeparatelyAndOutputKeepsInputOrder
+                  - AggregateTransforms_Window_SortIsStableNullFirstAndDescendingReverses
+                  - AggregateTransforms_Window_LagAndLeadReadNeighbors
+                  - AggregateTransforms_Window_PositionalValuesReadTheFrame
+                  - AggregateTransforms_Window_PreviousAndNextValueSkipNulls
+                  - AggregateTransforms_Window_SlidingFrameAverages
+                  - AggregateTransforms_Window_FramesAreClampedAndMayBeEmpty
+                  - AggregateTransforms_Window_WholePartitionFrame
+                  - AggregateTransforms_Window_CumulativeFastPathEqualsRecomputation
+                  - AggregateTransforms_Window_ValuesFollowTheFrameAndPeersShareTheArray
+                  - AggregateTransforms_Window_AggregateOperationsOverTheWholePartition
+                  - AggregateTransforms_Window_EmptyInputGivesNoRows
+                  - AggregateMeasures_TryParseWindow_AcceptsEveryWindowName
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Bin
+                title: >-
+                  The AggregateTransforms unit shall, for a bin transform, compute the bins of the finite
+                  numeric values of its field (or of the extent given) with the bin parameters of the transform,
+                  add to every row the start of its bin and the end of its bin under the names of as (a pair,
+                  or a single name that also gives name_end, else bin0 and bin1), send a value outside an
+                  explicit extent to infinity, give null for a value that is not a finite number and for every
+                  row when there is no valid value, and fail with a located VegaLiteRenderException when the
+                  values cannot be binned or the bins are more numerous than the scale-domain limit.
+                justification: |
+                  Binning is how a histogram or a heat map turns a measure into categories; the bins must
+                  agree with Vega and an extent that cannot be binned must be reported, not drawn.
+                tests:
+                  - AggregateTransforms_Bin_AssignsBoundariesAndNullsForInvalidValues
+                  - AggregateTransforms_Bin_NamesTheOutputFields
+                  - AggregateTransforms_Bin_DefaultsToTenBinsAndHonorsMaxbinsAndStep
+                  - AggregateTransforms_Bin_ExplicitExtentSendsOutliersToInfinity
+                  - AggregateTransforms_Bin_AnchorShiftsTheBins
+                  - AggregateTransforms_Bin_NonFiniteValuesAreIgnored
+                  - AggregateTransforms_Bin_NoValidValuesGiveNulls
+                  - AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-BinAlgorithm
+                title: >-
+                  The AggregateTransforms unit shall choose the start, stop, and step of the bins of an extent
+                  with the Vega bin algorithm - the finest step of the form base to a whole power (10 by
+                  default), optionally divided by the divide factors (5 and 2 by default), that gives at most
+                  maxbins bins (20 by default), the largest allowed step below the target for an explicit
+                  steps list, an
+                  exact step when one is given, the minimum step, the nice extension of the extent to whole
+                  steps (or the extent itself without nice), the anchor shift, and a step from the magnitude
+                  of a single-valued extent - and shall assign a value to the bin that contains it (the last
+                  bin closed at its stop, a value below the start or beyond the stop to infinity), failing
+                  closed when the extent is tiny, huge, or not finite or the bin count exceeds the limit.
+                justification: |
+                  The bin boundaries are what a reader sees as the bars of a histogram, so they must match the
+                  published algorithm, and a degenerate extent must not loop or allocate without bound.
+                tests:
+                  - BinAlgorithm_Compute_MatchesHandDerivedSteps
+                  - BinAlgorithm_Compute_DefaultsToTwentyBins
+                  - BinAlgorithm_Compute_UsesAnExactStep
+                  - BinAlgorithm_Compute_ChoosesTheLargestAllowedStepBelowTheTarget
+                  - BinAlgorithm_Compute_HonorsMinStepDivideAndBase
+                  - BinAlgorithm_Compute_NiceFalseKeepsTheExtent
+                  - BinAlgorithm_Compute_MovesTheStartDownWhenToleranceRoundsAboveTheMinimum
+                  - BinAlgorithm_Compute_DegenerateExtentUsesTheMagnitude
+                  - BinAlgorithm_Compute_TinyHugeOrInvalidExtentsFail
+                  - BinAlgorithm_Compute_MoreBinsThanTheLimitFails
+                  - BinAlgorithm_Align_AnchorShiftsTheBins
+                  - BinAlgorithm_Align_RoundsTheStopUpToAWholeStep
+                  - BinAlgorithm_Resolve_AppliesTheAnchor
+                  - BinAlgorithm_Assign_PlacesValuesInBins
+                  - BinAlgorithm_Assign_ToleranceKeepsABoundaryValueInTheBinAbove
+                  - BinAlgorithm_Assign_AnchoredBinsLeaveSmallValuesBelowTheStart
+                  - BinAlgorithm_BinSettingsRead_ReadsEveryParameter
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Stack
+                title: >-
+                  The AggregateTransforms unit shall, for a stack transform, stack the values of the field
+                  within each group of the groupby fields in the order of the sort fields (the table order for
+                  ties and when there is none), starting the first row at the baseline, so that each row gets a
+                  start and an end (the names of as, else field_start and field_end) - for the offset zero by
+                  stacking the positive values upward from 0 and the negative values downward from 0
+                  separately, for normalize by scaling every group to the range 0 to 1 by the sum of its
+                  absolute values, and for center by centering every group on the widest one - reading the
+                  values like a unary plus (null as 0, numeric text as a number), keeping the rows and their
+                  order, and following IEEE arithmetic for a zero or NaN sum.
+                justification: |
+                  Stacked bars and areas are a mainstream chart; the layers of a stack must be computed the way
+                  Vega computes them so that the chart reads the same.
+                tests:
+                  - AggregateTransforms_Stack_ZeroOffsetStacksFromZero
+                  - AggregateTransforms_Stack_NegativeValuesStackSeparatelyDownwards
+                  - AggregateTransforms_Stack_NormalizeScalesEveryGroupToOne
+                  - AggregateTransforms_Stack_CenterOffsetCentersOnTheWidestGroup
+                  - AggregateTransforms_Stack_GroupsStackIndependently
+                  - AggregateTransforms_Stack_SortOrdersTheStackAndTiesKeepInputOrder
+                  - AggregateTransforms_Stack_NamesTheOutputFields
+                  - AggregateTransforms_Stack_ValuesAreReadLikeUnaryPlus
+                  - AggregateTransforms_Stack_ZeroSumsAndNaNFollowIeee
+                  - AggregateTransforms_Stack_EmptyInputGivesNoRows
+                  - AggregateTransforms_Stack_EngineStacksWithGivenNames
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-StackRules
+                title: >-
+                  The AggregateTransforms unit shall decide, by the Vega-Lite rules, whether an encoding stacks
+                  and which position channel it stacks: only a stackable mark (bar, area, and arc stack by
+                  default; the others only when stack is set), the measure channel (the aggregated one, else
+                  the one that the orientation names), the offset (zero by default for a stackable-by-default
+                  mark, zero, center, or normalize when asked, none for an explicit null or false), no stack
+                  for a range with a secondary channel or for an aggregate without a stack-by channel, and
+                  the channels that divide the stack into layers (color, detail, and the order channel, but
+                  not tooltip).
+                justification: |
+                  A bar chart stacks by default and a point chart does not; both the renderer and the feature
+                  catalog must reach the same decision from the specification alone.
+                tests:
+                  - StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields
+                  - StackRules_Decide_ReturnsNullWhenNothingIsStacked
+                  - StackRules_Decide_ListsTheStackByDefinitionsInChannelOrder
+                  - StackRules_Decide_HandlesMissingArguments
+                  - StackRules_Helpers_ClassifyDefinitionsAndSwitches
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Impute
+                title: >-
+                  The AggregateTransforms unit shall, for an impute transform, append after the input rows one
+                  row for every combination of a group (the groupby fields, one series when there are none) and
+                  a key that the group lacks - the key domain being the keyvals (a list, or a sequence of start,
+                  exclusive stop, and step) followed by the keys observed in first-seen order, each counted once
+                  - leaving the other fields of an appended row null, and fill every null value of the field
+                  with the constant value (0 by default, an explicit null kept) or with the mean, median, max,
+                  or min of the group over the frame, adding the field when no row has it.
+                justification: |
+                  A line or an area with gaps misleads; imputing the missing combinations makes the gap an
+                  explicit value, as in Vega-Lite.
+                tests:
+                  - AggregateTransforms_Impute_AppendsMissingKeysAfterTheInputRows
+                  - AggregateTransforms_Impute_KeyValuesExtendTheDomain
+                  - AggregateTransforms_Impute_WithoutGroupByThereIsOneSeries
+                  - AggregateTransforms_Impute_AddsAMissingField
+                  - AggregateTransforms_Impute_ConstantValueForms
+                  - AggregateTransforms_Impute_StatisticalMethodsUseTheGroup
+                  - AggregateTransforms_Impute_FrameIsOverTheGroupInDataOrder
+                  - AggregateTransforms_Impute_StatisticalMethodsReplaceExistingNulls
+                  - AggregateTransforms_Impute_KeysAreStructuralAndDuplicatesCountOnce
+                  - AggregateTransforms_Impute_EmptyInputGivesNoRows
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Limits
+                title: >-
+                  The AggregateTransforms unit shall fail with a VegaLiteRenderException located at the
+                  transform when a transform would create more rows than the row limit allows (reserving each
+                  group of an aggregate, and the appended rows of an impute before it allocates them, and
+                  checking the number of groups times keys before materializing them), more fields than the
+                  field limit, more cells than the table cell bound (counting the per-group measure state and the
+                  stored values of the order statistics), a text of the specification longer than the string
+                  limit, bins more numerous than the scale-domain limit, or when the evaluation-step budget of
+                  the call is exhausted, charging for the rows it reads, the values it stores, the sorting it
+                  does, the resamples it draws, and the frames it recomputes.
+                justification: |
+                  Grouping, windowing, and imputing can multiply or retain the data of a chart; every
+                  resource must be bounded before it is allocated and the failure must point at the transform
+                  that caused it.
+                tests:
+                  - AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure
+                  - AggregateTransforms_Aggregate_ReleasesTheInputRowsOnlyWhenAsked
+                  - AggregateTransforms_Aggregate_GroupStateIsBoundedByTheCellLimit
+                  - AggregateTransforms_Aggregate_ValueStateIsBoundedUpFront
+                  - AggregateTransforms_Aggregate_FieldLimitIsALocatedFailure
+                  - AggregateTransforms_Aggregate_StepBudgetExhaustionIsLocated
+                  - AggregateTransforms_Aggregate_RowWorkIsCharged
+                  - AggregateTransforms_Aggregate_LongTextsRespectMaxStringLength
+                  - AggregateTransforms_JoinAggregate_GroupStateIsBoundedByTheCellLimit
+                  - AggregateTransforms_JoinAggregate_ValueAndFieldLimitsAreLocated
+                  - AggregateTransforms_JoinAggregate_WorkIsChargedToTheStepBudget
+                  - AggregateTransforms_JoinAggregate_LongNamesRespectMaxStringLength
+                  - AggregateTransforms_Window_WideFramesAreChargedToTheStepBudget
+                  - AggregateTransforms_Window_SortingIsChargedToTheStepBudget
+                  - AggregateTransforms_Window_ValuesArraysAreBounded
+                  - AggregateTransforms_Window_ValueStateIsBoundedUpFront
+                  - AggregateTransforms_Window_FieldAndStringLimitsAreLocated
+                  - AggregateTransforms_Window_DoesNotChangeTheRowBudget
+                  - AggregateTransforms_Stack_FieldAndStringLimitsAreLocated
+                  - AggregateTransforms_Stack_WorkIsChargedToTheStepBudget
+                  - AggregateTransforms_Impute_OutputRowsAreBoundedByTheRowBudget
+                  - AggregateTransforms_Impute_GroupsTimesKeysIsBoundedBeforeAllocation
+                  - AggregateTransforms_Impute_HugeKeySequencesAreRejectedUpFront
+                  - AggregateTransforms_Impute_LongKeyListsAreRejected
+                  - AggregateTransforms_Impute_FieldAndStringLimitsAreLocated
+                  - AggregateTransforms_Impute_WorkIsChargedToTheStepBudget
+                  - AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail
+                  - AggregateTransforms_WorkMeter_PaysWholeBlocksAndCarriesTheRemainder
+                  - AggregateMeasures_Cell_WorkIsChargedToTheStepBudget
+                  - AggregateMeasures_Cell_LongTextRespectsTheStringLimit
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Determinism
+                title: >-
+                  The AggregateTransforms unit shall give the same table for the same input, specification, and
+                  parameters on repeated calls and from several threads, independent of the culture, time zone,
+                  and platform, with no clock and no random source, ordering by stable sorts (ties keep the
+                  input order) and emitting groups in first-seen order.
+                justification: |
+                  Reproducibility is a system contract, and a compiled specification is shared by concurrent
+                  renders.
+                tests:
+                  - AggregateTransforms_Apply_IsDeterministicAndCultureInvariant
+                  - AggregateTransforms_Window_IsDeterministicAndCultureInvariant
+                  - AggregateTransforms_Stack_IsDeterministicAndCultureInvariant
+                  - AggregateTransforms_GroupedTransforms_AreDeterministicAndCultureInvariant
+                  - StableSorter_Sort_OrdersAndKeepsTiesInOrder
+                  - StableSorter_Sort_SortsOnlyTheGivenRange
+                  - StableSorter_Sort_TinyRangesNeedNoComparison
+
+              - id: CanvasNetVegaLite-Transforms-AggregateTransforms-Cancellation
+                title: >-
+                  The AggregateTransforms unit shall observe the cancellation token at the start of every
+                  transform, at least every 1,024 rows, in every sort and every bootstrap resample, and stop
+                  with an OperationCanceledException without delivering a partial table.
+                justification: |
+                  Grouping and windowing a large table can take noticeable time, and callers must be able to
+                  abandon it.
+                tests:
+                  - AggregateTransforms_Aggregate_CancellationIsPolled
+                  - AggregateTransforms_JoinAggregate_CancellationIsPolled
+                  - AggregateTransforms_Window_CancellationIsPolled
+                  - AggregateTransforms_Stack_CancellationIsPolled
+                  - AggregateTransforms_Impute_CancellationIsPolled
+                  - AggregateTransforms_Bin_CancellationIsPolled
+                  - AggregateMeasures_Cell_BootstrapPollsCancellation
+                  - StableSorter_Sort_StopsOnCancellationAndPropagatesExceptions

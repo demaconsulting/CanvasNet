@@ -1,3 +1,4 @@
+// Portions derived from Vega-Lite (BSD-3-Clause): the stack decision; see third-party/README.md
 using System.Text;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 

@@ -10,7 +10,8 @@ category colors).
 
 The `Scales` subsystem is verified at two tiers. The unit tests (see the unit verification designs under `scales/`)
 verify each unit in isolation. The subsystem-level scenarios verify the units working together in the ways later stages
-use them: the resolver reads a parsed specification, its loaded table, and the resolved configuration, and produces
+use them: the resolver reads a parsed specification, its loaded table (and, for the aggregating features, the encoding
+plan and the Raw and Main tables of the implicit stage), and the resolved configuration, and produces
 `ResolvedScale` objects whose `CreateModel` builds a `ScaleModel` for the data rectangle (`ScaleResolverTests` runs this
 whole chain with the real `SpecParser`, `ConfigResolver`, `DataLoader`, and `ScaleModel`, and asserts the mapped
 positions, the domains, and the ranges); and the axis stage derives its tick values and labels from a scale model's
@@ -58,6 +59,16 @@ the five unit verification documents passes without error or unexpected exceptio
   `ScaleResolverTests.ScaleResolver_Resolve_InvalidInputsFailWithLocation` — categories are sorted ascending by
   default or follow the data order, a descending sort, or an explicit array; a domain over `MaxScaleDomainSize` and
   invalid scale properties fail with a located specification or render exception.
+- **Planned Fields, Sorts, And Domains Follow The Implicit Pipeline**:
+  `ScaleResolverPlanTests.ScaleResolver_Resolve_SortsByAnotherChannelsAggregate`,
+  `ScaleResolverPlanTests.ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd`,
+  `ScaleResolverPlanTests.ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows`,
+  `AxisBuilderTests.AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels` — the resolver reads the fields, bins, and
+  stacks that the plan derived (the Raw and the Main table) and the axis stage takes its ticks from the resulting
+  domain: categories are sorted by the sum, count, or other aggregate of another channel over the Raw rows, a
+  pre-binned field has the union of its start and end as its domain with no zero and no nice, an `unaggregated` domain
+  reads the rows before the aggregate (1 to 12 rather than the means 2 to 8), and a binned axis asks for one tick per ten
+  pixels (the ticks 0, 2, ..., 34 for the bins 0 to 35).
 - **Colors Come From The Default Palette, With A Documented Fallback**:
   `ScaleResolverTests.ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes`,
   `ColorSchemesTests.ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors` — the ordinal color scale of a nominal

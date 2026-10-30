@@ -4,8 +4,9 @@
 # These requirements describe the design-level behavior of the ScaleResolver unit of the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the Vega-Lite inference of the scale of each
 # channel of a single view from its encoding, the field types, the mark, the scale properties, the data, and
-# the configuration. See docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence
-# mapping.
+# the configuration - including the derived fields, domains, and sort orders of the implicit bin, aggregate, and
+# stack that the EncodingPlan unit plans (ScaleResolver.cs, ScaleResolver.Plan.cs, and ScaleResolver.Sort.cs). See
+# docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -44,7 +45,8 @@ sections:
                   kept), zero, nice, padding, clamp, and reverse to the end entries as Vega does, and derive a discrete
                   domain from the distinct values in ascending order, in the order of an explicit domain, or in the
                   order of a sort array (where a value listed more than once counts at its first position), with values
-                  missing from the sort array first.
+                  missing from the sort array first, reading the values of a channel from the table that the encoding
+                  stage produced.
                 justification: |
                   The domain decides which values the chart shows and where they fall.
                 tests:
@@ -55,19 +57,88 @@ sections:
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-SortByField
                 title: >-
-                  The ScaleResolver unit shall order the discrete domain of a channel whose sort is an object
-                  with an op of count, sum, mean, average, median, min, or max, an optional field (the channel
-                  field by default), and an optional order (ascending by default) by that aggregate computed
-                  over the rows of the transformed table for each category, keeping categories with equal
-                  values in the order of first appearance (a stable sort), giving a category without a valid
-                  number the first position (except for sum and count, where it counts as 0), and leaving
-                  every other form of sort to the existing rules and to the feature catalog.
+                  The ScaleResolver unit shall order the discrete domain of a channel by an aggregate of the
+                  rows before the encoding's own aggregate when its sort is an object with an op (any
+                  aggregate operation that gives a value to order by - count, valid, missing, distinct, sum,
+                  product, mean, average, the variances and deviations, median, q1, q3, ci0, ci1, min, or max),
+                  an optional field (the channel field by default), and an optional order (ascending by
+                  default), when it is the shorthand "x" or "-y" of a channel, or when it is an object with
+                  encoding and order - for another channel the aggregate of that channel (sum when it is the
+                  stacked channel, else min) - computing the aggregate for each category, keeping categories
+                  with equal values in the order of first appearance (a stable sort), giving a category
+                  without a value the first position in both directions, bounding the number of categories and
+                  charging the work to the evaluation-step budget, and leaving every other form of sort to
+                  the existing rules and to the feature catalog.
                 justification: |
-                  Sorting a category axis by a value is common in charts built from transformed data, and
-                  the order must be deterministic and independent of the culture.
+                  Sorting a category by a value is common in charts built from aggregated data, and the order
+                  must be deterministic, independent of the culture, and bounded in cost.
                 tests:
                   - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
                   - ScaleResolver_Resolve_SortByFieldIsStableForTies
+                  - ScaleResolver_Resolve_SortByFieldPutsCategoriesWithoutValuesFirstInBothDirections
+                  - ScaleResolver_Resolve_SortsByAnotherChannelsAggregate
+                  - ScaleResolver_Resolve_SortByAPlainChannelUsesMinOrSumWhenStacked
+                  - ScaleResolver_Resolve_SortsByAnOperationOfAField
+                  - ScaleResolver_Resolve_SortOfAnAggregatedViewReadsTheRawRows
+                  - ScaleResolver_Resolve_SortByAnAggregatedStackedChannelUsesTheRawSums
+                  - ScaleResolver_Resolve_UnresolvableSortsAndPlainFormsKeepTheirOrder
+                  - ScaleResolver_IsSupportedFieldSort_AcceptsOrderableOperations
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-PlanFields
+                title: >-
+                  The ScaleResolver unit shall read each channel from the field that the encoding plan names
+                  (the derived field of a bin, an aggregate, or a stack end, or the field as written), resolve
+                  a count of records without a field as a field definition, carry the second field of a range
+                  or a stack, the default title, the kind of bin, and the stack offset into the resolved
+                  scale, and leave a datum and a value without a field or a title.
+                justification: |
+                  The marks and axes draw what the scale was resolved from; the scale must therefore tell them
+                  which field and which title belong to the channel.
+                tests:
+                  - ScaleResolver_Resolve_ScalesCarryThePlanFacts
+                  - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-BinnedDomains
+                title: >-
+                  The ScaleResolver unit shall give a position channel that the encoding bins the continuous
+                  domain from the start of the first bin to the stop of the last (with no zero rule and no
+                  nice unless the scale asks for it, and an explicit domain as given), give an already binned
+                  field the extent of its start and end fields with no zero rule and no nice, and give a
+                  nominal or ordinal binned channel the discrete domain of the bin texts (start - end, formatted
+                  by the axis format or the number format, null for an invalid value) ordered by bin start
+                  and reversed for a descending sort.
+                justification: |
+                  The axis of a histogram must cover the bins, not the data, and a discrete bin axis must read
+                  in the order of the bins.
+                tests:
+                  - ScaleResolver_Resolve_BinnedScalesHaveNoNiceUnlessAsked
+                  - ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd
+                  - ScaleResolver_Resolve_OrdinalBinsSortByStartAndDescendingReverses
+                  - ScaleResolver_Resolve_OrdinalBinTextUsesTheAxisFormat
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-StackedDomains
+                title: >-
+                  The ScaleResolver unit shall give a stacked channel, and a position channel with a second
+                  field, the continuous domain that spans the extent of both fields (the start and end of the
+                  stack, or the two ends of the range), with the zero rule applied as for any bar measure, and
+                  the domain 0 to 1 for a normalized stack.
+                justification: |
+                  The axis of a stacked chart must reach the total of the stack, and the axis of a range must
+                  show both of its ends.
+                tests:
+                  - ScaleResolver_Resolve_RangeDomainIsTheUnionOfBothFields
+                  - ScaleResolver_Resolve_ScalesCarryThePlanFacts
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-UnaggregatedDomain
+                title: >-
+                  The ScaleResolver unit shall, for a scale whose domain is "unaggregated" and whose
+                  aggregate is mean, average, median, q1, q3, min, or max, derive the domain from the extent
+                  of the field in the rows before the aggregate, and use the normal domain for any other
+                  aggregate.
+                justification: |
+                  A mean with a range or a band is often shown against the spread of the data it summarizes.
+                tests:
+                  - ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Ranges
                 title: >-
@@ -99,9 +170,10 @@ sections:
                   The ScaleResolver unit shall fail with a VegaLiteSpecException carrying the pointer,
                   line, and column of the property when a scale property has an invalid value, such as a
                   linear domain with fewer than two numbers, and shall observe the data limits and the
-                  cancellation token.
+                  cancellation token, including the work of sorting a domain by an aggregate.
                 justification: |
                   An invalid scale property must stop the renderer with the location of the mistake rather
                   than produce a plausible chart.
                 tests:
                   - ScaleResolver_Resolve_InvalidInputsFailWithLocation
+                  - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable

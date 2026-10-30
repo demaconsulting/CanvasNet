@@ -5,7 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded UTF-8 JSON reader that builds
 # the immutable SpecNode tree with positions, the structural validation and unknown-property warnings in the
 # partial file SpecParser.Validation.cs, the compilation of expressions and the validation of parameters and
-# transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), and the
+# transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), the validation
+# of the aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) and of the aggregate, bin,
+# stack, and sort of an encoding in SpecParser.Aggregates.cs, and the
 # SpecMetadata reader. See
 # docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
 
@@ -153,6 +155,51 @@ sections:
                   - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
+                  - SpecParser_IsSupportedTransform_AcceptsTheAggregatingTransformsAndNotTheLaterPhases
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-AggregateTransforms
+                title: >-
+                  The SpecParser unit shall validate the shape of the transforms aggregate and joinaggregate
+                  (the list of operations with a known op, a field where the op needs one, an as, and the
+                  groupby list), window (the window operations and their parameters, the sort fields, the frame
+                  of two integers or nulls, ignorePeers, and the groupby list), bin (the field, the as pair,
+                  and the bin parameters), stack (the field, the offset, the sort, the groupby list, and the as
+                  pair), and impute (the field, the key, the keyvals list or sequence, the method, the value,
+                  the frame, and the groupby list) with a located VegaLiteSpecException at the first wrong
+                  value in document order - an operation name that does not exist, a missing field, a
+                  parameter out of range, an unusable frame - and shall accept every documented valid form and
+                  classify the aggregating transforms as supported.
+                justification: |
+                  The transform stage reads these properties as given; a malformed or unknown one must stop the
+                  renderer with its location before any data is read, and a valid form that was rejected would
+                  make correct specifications unusable.
+                tests:
+                  - SpecParser_Parse_AggregateTransformShapesArePinned
+                  - SpecParser_Parse_WindowTransformShapesArePinned
+                  - SpecParser_Parse_BinParamsAndBinTransformShapesArePinned
+                  - SpecParser_Parse_StackAndImputeTransformShapesArePinned
+                  - SpecParser_Parse_ValidAggregatingTransformsAreAccepted
+                  - SpecParser_IsSupportedTransform_AcceptsTheAggregatingTransformsAndNotTheLaterPhases
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-EncodingAggregates
+                title: >-
+                  The SpecParser unit shall validate the shape of the encoding properties aggregate, bin (a
+                  boolean, binned, or an object of bin parameters), stack, sort (a direction, a list, a channel
+                  shorthand with an optional minus, an object with op, field, and order, or an object with
+                  encoding and order), and the sort of the order channel with a located
+                  VegaLiteSpecException at the first wrong value in document order, shall accept every
+                  documented valid form, and shall tell the sorts that the
+                  renderer computes from the others.
+                justification: |
+                  The scale and mark stages read these properties as given; a malformed one must stop the
+                  renderer with its location, and the sorts that are not computed must be left to the feature
+                  catalog rather than half done.
+                tests:
+                  - SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned
+                  - SpecParser_Parse_ValidEncodingAggregateBinStackSortFormsAreAccepted
+                  - SpecParser_TryParseSortShorthand_AcceptsAChannelWithAnOptionalMinus
+                  - SpecParser_IsSupportedSort_RequiresAnOperationOrChannelTheRendererComputes
+                  - SpecParser_IsSupportedSort_RejectsNullArguments
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-

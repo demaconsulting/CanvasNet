@@ -4,8 +4,10 @@
 # These requirements describe the design-level behavior of the RowTransforms unit of the Transforms subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the eager, immutable executor that turns the
 # table the data loader produced into the table that the scales and marks read, by the transforms calculate,
-# filter, fold, flatten, sample, pivot, and lookup in the order of the specification, together with the static
-# parameter environment that its expressions read (ParameterEnvironment). The unit comprises RowTransforms.cs,
+# filter, fold, flatten, sample, pivot, and lookup in the order of the specification - and the dispatcher that
+# hands the transforms aggregate, joinaggregate, window, bin, stack, and impute to the AggregateTransforms unit
+# in that same order - together with the static parameter environment that its expressions read
+# (ParameterEnvironment). The unit comprises RowTransforms.cs,
 # RowTransforms.Predicates.cs, RowTransforms.Shape.cs, RowTransforms.Lookup.cs, RowSampler.cs, TableLayout.cs
 # (the output layout and the field reader), ParameterEnvironment.cs, and TransformContext.cs. It uses the
 # Expressions subsystem for expressions, the Data subsystem for tables and lookup sources, and the compiled
@@ -22,16 +24,18 @@ sections:
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Pipeline
                 title: >-
                   The RowTransforms unit shall apply the transforms of the specification one after the other
-                  in their written order, each reading an immutable table and producing a new one, shall
-                  return the input table itself when there is no transform, shall reject null arguments,
-                  and shall skip, without executing it, a transform that a later phase implements (the
-                  feature catalog reports it).
+                  in their written order, each reading an immutable table and producing a new one, handing the
+                  transforms aggregate, joinaggregate, window, bin, stack, and impute to the AggregateTransforms
+                  unit in that order among the others, shall return the input table itself when there is no
+                  transform, shall reject null arguments, and shall skip, without executing it, a transform
+                  that a later phase implements (the feature catalog reports it).
                 justification: |
                   Transforms are order dependent and the later stages must never see a table change; a
                   transform that is not implemented must not be approximated.
                 tests:
                   - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
                   - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+                  - AggregateTransforms_Window_ComposesWithFilter
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Calculate
                 title: >-

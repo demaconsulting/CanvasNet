@@ -61,15 +61,16 @@ at all.
 
 Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
-custom date format and a plain `number`, three transforms (`calculate`, `filter`, `aggregate`) in a root view that is a
+custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
 composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
-unit, a `y` with aggregate, bin, stack, sort, and condition, a log scale with a scheme, a legend with `encode`, a
-`theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-five reports whose
+unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin`, a log scale with a scheme, a legend with
+`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-two reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
-`/data/format/parse/d`, `vl-encoding-stack` at `/encoding/y/stack`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
-file, the plain `number`, the variable parameter of the root view, and the expression strings of the `calculate` and
-`filter` transforms are silent, and no `vl-expr-calculate`, `vl-expr-filter`, or `vl-param-variable` exists any more),
-that only the schema version is a warning while every other report is an unsupported feature, that
+`/data/format/parse/d`, `vl-encoding-bin` at `/encoding/color/bin`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
+file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
+`filter` transforms, and the `aggregate`, `bin`, `stack`, and `sort` of `y` are silent, and no `vl-expr-calculate`,
+`vl-expr-filter`, `vl-param-variable`, `vl-encoding-aggregate`, `vl-encoding-stack`, or `vl-encoding-sort` is produced for
+them), that only the schema version is a warning while every other report is an unsupported feature, that
 all carry a file, line, column, and message (the schema report is at line 2, column 14), and that the supported
 `tooltip` channel is absent; that reports are sorted by position in the text and not by the order in which the
 constructs are visited (an encoding written before the mark, a nested view before the parent's later properties);
@@ -85,7 +86,9 @@ Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `ci
 are silent and that `arc`, `area`, `image`, `line`, `text`, `trail`, `geoshape`, `boxplot`, `errorbar`, and
 `errorband` each report `vl-mark-<type>` at the mark; that every channel except `x`, `y`, `color`, `fill`, `stroke`,
 `size`, and `opacity` reports `vl-channel-<name>` (the four geographic channels sharing one identifier) while
-`tooltip`, `href`, `description`, and `key` are accepted silently; and that an unknown channel name is not reported
+`tooltip`, `href`, `description`, and `key` are accepted silently, with the exception of the secondary position channels
+and `order`, which are reported only when the mark cannot draw the range or no stack uses the order (see the encoding
+rules below), as the `x2` and `order` of a point mark show; and that an unknown channel name is not reported
 again by the catalog (the parser warns about it once).
 
 ##### Data
@@ -122,18 +125,28 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 ##### Encoding, Scale, And Axis Rules
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart`,
-`FeatureCatalogTests.FeatureCatalog_Visit_ImplicitBarStackIsReportedAtTheMeasure`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ImplicitBarStackIsNotReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack`,
+`FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
+`FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset`,
 `FeatureCatalogTests.FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes`
 
-Asserts that the encoding identifiers (`vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`,
-`-impute`, `-bandposition`) are reported only when the property changes the chart (`bin: false`, `stack: null`, a
-`null` aggregate, and an ascending sort shorthand are silent, as are a `null` sort and an array sort, while a sort object
-that names an `encoding` is reported at the sort); that, as a theory over nine specifications, bars that
-Vega-Lite would stack by default are reported once at the measure channel and charts that it would draw unstacked
-(an explicit `stack: null`, a stack-by field equal to the dimension field, an `y2` channel, a non-bar mark, a value
-color, two quantitative channels) are not; that unsupported scale types and properties report
+Asserts that the encoding identifiers that remain (`vl-encoding-bin` for a channel other than `x` and `y`,
+`vl-encoding-impute`, and `vl-encoding-bandposition`) are reported only when the property changes the chart (`bin: false`
+and `null`, `stack: false` and `null`, a `null` aggregate, an ascending sort shorthand, a `null` sort, an array sort, and
+a sort that names an `encoding` are silent, as are `timeUnit: null` and `impute: null`), and that the identifiers of the
+features that are computed (`vl-encoding-aggregate`, `vl-encoding-stack`, and the supported forms of `vl-encoding-sort`)
+are not produced; that, as a theory over five specifications, no bar chart is reported for being stacked implicitly,
+whatever its channels (a color, a horizontal bar with a detail channel, a size channel, an explicit `stack: null`, and a
+`y2` channel); that the `order` channel is accepted without a report when it orders a stack (a vertical bar, an array of
+order fields, a bar with two measures that Vega-Lite reads as vertical, a horizontal bar, and a point mark with an
+explicit `stack: true`) and reported as `vl-channel-order` otherwise (with `stack: null`, or for a point mark that does
+not stack); that a secondary position channel is silent for a `bar`, `rect`, or `rule` that has the channel it extends and
+is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
+an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack together with
+`vl-scale-log`; that unsupported scale types and properties report
 `vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not; that a color scheme other than
 `tableau10` reports `vl-scale-property-scheme` and a quantitative color field reports `vl-scale-color-ramp`; and that
 guide `encode`, `labelExpr`, `formatType`, and the listed unsupported axis properties are reported while the honored
@@ -155,8 +168,8 @@ the scale is `null`, and never for value definitions, the data, or position chan
 Asserts, on a view that is drawn, that expression references in properties that are not evaluated (a `width` that is an
 expression) report `vl-expr-ref` while the row-bound color expression of an encoding value is silent, that the
 selection parameter reports `vl-param-selection` while the variable parameter (with its `bind`, which is ignored) is
-silent, that a `filter` on a field predicate is silent while the `timeUnit` transform and the `joinaggregate` transform
-report `vl-transform-timeunit` and `vl-transform-joinaggregate` at their index, and that an expression reference in a
+silent, that a `filter` on a field predicate is silent while the `timeUnit` transform reports `vl-transform-timeunit` at
+its index (the `joinaggregate` of the same list is computed and silent), and that an expression reference in a
 mark `size` of a bar is reported at that property; that a specification with `hconcat`, a nested `vconcat`, `concat`,
 `facet`, `spec`, `repeat`, `resolve`, and `projection` reports the compositions and the projection and also examines the
 views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a theory,
@@ -171,7 +184,8 @@ Asserts that an original specification that uses a variable parameter with a val
 `bind`, the transforms `calculate`, `filter` (an expression, and a predicate composed of `and`, `not`, `range`, `oneOf`,
 and a `param`), `fold`, `flatten`, `sample`, `pivot` with the `sum` operation, and a `lookup` in a named dataset with a
 default, and row-bound expression references in the mark color, size, opacity, and stroke width and in the color, size,
-and opacity channel values produces no reports at all, so strict mode accepts them.
+and opacity channel values produces no reports at all, so strict mode accepts them. The grouped transforms are covered
+by the Phase 6 scenario below.
 
 ##### Unsupported Expression Constructs Are Reported At The Expression
 
@@ -194,10 +208,25 @@ three distinct messages that name each spelling as written (so nothing is merged
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`
 
-Asserts that a drawn view with a selection parameter reports `vl-param-selection`, then the transforms `aggregate`,
-`joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and
-`extent` as `vl-transform-<name>` (with `timeunit` in lower case) in document order, and the conditional encoding as
-`vl-encoding-condition`.
+Asserts that a drawn view with a selection parameter and the twelve transforms `aggregate`, `joinaggregate`, `window`,
+`bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports only
+`vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`timeunit`, `regression`, `loess`,
+`density`, `quantile`, and `extent`, with `timeunit` in lower case) at their indexes 6 to 11 in document order, and the
+conditional encoding as `vl-encoding-condition`, while the six aggregating transforms are computed and silent.
+
+##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
+`FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`
+
+Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear scale,
+a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports only
+`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` and `vl-encoding-bin` at `/encoding/color/bin` (the `x2`
+draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that every
+aggregating transform of a nested view, which is not drawn, is still reported by name (`vl-transform-aggregate`,
+`-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/layer/0/transform/0` to `/5`, after
+`vl-composition-layer`), while for the drawn view only the bin extent that is a parameter is reported
+(`vl-transform-bin-extent-param` at `/transform/0/bin/extent`) and an extent given as numbers is silent.
 
 ##### Unsupported Parts Of Supported Transforms Are Reported
 
@@ -231,7 +260,9 @@ function table, so no construct of an evaluated site is reported either).
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms`
 
-Asserts, as a theory of twelve sort forms, that `ascending`, an array, a sort object with an `op` of `sum`, `count`, or
-`median` and an optional field and order (also an `order` of null), are silent, and that the forms that the scale
-resolver does not compute — an `encoding`, a missing `op` with only a `field`, the operation `valid`, an unknown order,
-an unparsable field, and the shorthand `-y` — report `vl-encoding-sort`.
+Asserts, as a theory of sixteen sort forms, that `ascending`, an array, a sort object with an orderable `op` (`sum`,
+`count`, `median`, `valid`, or `q1`) and an optional field and order (also an `order` of null), a sort object with
+only a `field`, the `encoding` form that names a channel of the encoding (`y`), and the channel shorthands `-y` and `x`
+are silent, and that the forms that the scale resolver does not compute — an `encoding` that names a channel the
+encoding does not have (`color`), the operations `values` and `exponential`, and the shorthand `-color` — report
+`vl-encoding-sort`.

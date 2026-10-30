@@ -2,7 +2,7 @@
 
 ![Transforms Structure](VegaLiteTransformsView.svg)
 
-The `RowTransforms` unit is the only software unit in the `Transforms` subsystem. It comprises nine source files in the
+The `RowTransforms` unit is the first software unit in the `Transforms` subsystem. It comprises nine source files in the
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 
 - `RowTransforms.cs` - `RowTransforms` (sealed partial class): the `Apply` entry point, the run loop, `calculate`, `filter`
@@ -15,13 +15,16 @@ The `RowTransforms` unit is the only software unit in the `Transforms` subsystem
   rebuilds arrays and objects from flattened fields)
 - `ParameterEnvironment.cs` - `ParameterEnvironment` (the static parameter values) and `SpecValues` (JSON value to
   `DataValue`)
-- `TransformContext.cs` - `TransformContext` and `RowExpressions`
+- `TransformContext.cs` - `TransformContext` and `RowExpressions` (the context is shared with the
+  `AggregateTransforms` and
+  `EncodingPlan` units)
 - `NamespaceDoc.cs` - the namespace documentation of the subsystem
 
 #### Purpose
 
 `RowTransforms` produces the rows a chart draws from the rows it loaded: it applies the supported row transforms of the
-`transform` array in order and computes the values of the static variable parameters. It exists
+`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit) and computes the
+values of the static variable parameters. It exists
 so that the semantics of each
 transform (what a row, a missing value, a repeated key, or an empty array means), the
 accounting of the row budget, and the
@@ -48,7 +51,9 @@ rebuilt from `name.0`, `name.1`, ... (trailing nulls are dropped because a missi
 cell; a null cell whose elements are all null stays null) or an object rebuilt from the fields below, otherwise null. The
 rebuilding is the `FlatRowNode` tree of the data unit, which the expression evaluator shares for `datum`.
 
-**The transforms** (in the order of the `transform` array; an entry that names a transform of a later phase is skipped):
+**The transforms** (in the order of the `transform` array; an entry that names a transform that the renderer does not
+compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
+`AggregateTransforms`, which `Run` calls with the same `TransformContext`, see _AggregateTransforms_):
 
 - **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row with
   `datum` bound to the row; the result of any kind (scalar, array, object) is stored in `as`, replacing a field of that
@@ -128,7 +133,14 @@ by the evaluator. A selection parameter is skipped and an override of its name i
 `empty` are ignored.
 
 **`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for the
-row-bound paint values; `TransformContext` is the bundle of everything one run shares.
+row-bound paint values; `TransformContext` is the bundle of everything one run shares. Besides the fields it carries, it
+offers the helpers that the aggregating units use: `Locate(node)` (the location of a node of the specification),
+`Tick(row)` (the cancellation check once per 1,024 rows), and `CheckText(value, what, location)` (a located failure
+when a
+text that the specification gives a transform is longer than the `MaxStringLength` of the call, which can be lower than
+the
+limit the specification was parsed with). The evaluator exposes its `ExpressionFunctionContext` to the unit through the
+internal `Context` property, so that the predicates, the `WorkMeter`, and the accumulators charge the same step budget.
 
 **Invariants**: the output of a transform is a new table within `MaxDataRows`, `MaxFieldCount`, and 2^25 cells; the rows
 counted in the loader's budget are the rows of the tables that are alive; nothing is read from
@@ -139,8 +151,9 @@ the current culture.
 
 - `RowTransforms.Apply(input, transforms, context)` - requires a non-null input and context; returns the input itself when
   `transforms` is null, not an array, or empty; otherwise runs the entries in order: it checks the token, finds the operation
-  property of the entry (`SpecParser.FindTransformOperation`), skips entries of later phases
-  (`SpecParser.IsSupportedTransform`), and dispatches to the transform. The expressions were
+  property of the entry (`SpecParser.FindTransformOperation`), skips entries that the renderer does not compute
+  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, or to `AggregateTransforms.Apply` for the six
+  aggregating ones. The expressions were
   compiled when the document was
   opened, so no text is parsed here.
 - `Calculate`, `Filter` (with `BuildPredicate`, the predicate classes, and `SelectRows`, which builds the table of the kept
@@ -180,6 +193,7 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 - **`SpecTree`**, **`SpecNode`**, **`SpecParser`** (`FindTransformOperation`,
   `IsSupportedTransform`, `ParameterGraph`), and
   **`FeatureReport`** - the tree, the helpers, and the report record of the `SpecModel` subsystem
+- **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the `VegaLiteDocument`
   unit
 - **.NET base class library** - `System.Globalization` (invariant-culture text) and `System.Text` (the UTF-8 bytes of the
@@ -190,6 +204,7 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 `VegaLiteDocument` creates the `TransformContext`, calls `ParameterEnvironment.Populate`, then
 `RowTransforms.Apply` once per
 `Measure` or `Render` call for a single view with a supported mark, and delivers the transform warnings after the loader
-warnings; `MarkBuilder` uses `RowExpressions`. The tests in
+warnings; `EncodingTransforms` and `AggregateTransforms` share the `TransformContext`, `TableLayout`, `FieldReader`, and
+`RowSampler`; `MarkBuilder` uses `RowExpressions`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs` call `Apply`, `Populate`, and `RowSampler`
 directly through `InternalsVisibleTo`.

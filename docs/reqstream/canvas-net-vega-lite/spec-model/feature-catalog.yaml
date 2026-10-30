@@ -5,7 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the visitor that walks a parsed
 # specification and reports, with stable vl-* identifiers, every recognized construct that the renderer does
 # not draw, plus the schema-version and empty-data warnings. The supported sets are the Supported* fields of
-# the unit; a construct that becomes supported is removed from the reported set in the same change. See
+# the unit; a construct that becomes supported is removed from the reported set in the same change (Phase 6
+# removed the reports of aggregate, stack, bin on x and y, the aggregating transforms, and the secondary
+# channels of bars, rects, and rules, and added the reports of the parts of them that stay unsupported). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -18,7 +20,7 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
                 title: >-
                   The FeatureCatalog unit shall report each unsupported construct with a stable
-                  lower-case identifier built from its category and name (for example vl-transform-window
+                  lower-case identifier built from its category and name (for example vl-transform-regression
                   or vl-composition-layer, with spec names lower-cased and stripped of separators), a
                   message, and the pointer, line, and column of the construct, and shall return the
                   reports in document order.
@@ -83,18 +85,28 @@ sections:
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
                   square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
                   stroke, size, and opacity as vl-channel-name, the temporal and geographic types, and the
-                  encoding properties aggregate, bin, timeUnit, stack, sort (for the forms that are not
-                  supported), condition, impute, and
-                  bandPosition when they change the chart, including an implicit bar stack at the
-                  measure channel.
+                  encoding properties timeUnit, condition, impute, and bandPosition when they change the
+                  chart, but not the properties aggregate, stack, and sort (in its supported forms) and the
+                  bin of x and y, which the renderer draws, and no implicit bar stack; shall accept the
+                  secondary channels x2 and y2 of a bar, rect, or rule that has the channel they extend and
+                  report them (vl-channel-x2 and vl-channel-y2) for any other mark or without it; shall
+                  accept the order channel when it orders a stack and report it (vl-channel-order) otherwise;
+                  and shall report the bin of any other channel (vl-encoding-bin), a bin extent that is a
+                  parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
+                  linear (vl-encoding-stack-nonlinear).
                 justification: |
                   Marks and channels are the heart of the supported boundary; each unsupported one must be
-                  named so that the author knows exactly what was not drawn.
+                  named so that the author knows exactly what was not drawn, and one that is drawn must not
+                  be reported.
                 tests:
                   - FeatureCatalog_Visit_UnsupportedMarkReportsMarkId
                   - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
                   - FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart
-                  - FeatureCatalog_Visit_ImplicitBarStackIsReportedAtTheMeasure
+                  - FeatureCatalog_Visit_ImplicitBarStackIsNotReported
+                  - FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack
+                  - FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges
+                  - FeatureCatalog_Visit_StackOnANonLinearScaleIsReported
+                  - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
@@ -113,15 +125,15 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
-                  The FeatureCatalog unit shall report each transform of a later phase (aggregate,
-                  joinaggregate, window, bin, stack, impute, timeUnit, regression, loess, density, quantile,
-                  and extent) as vl-transform-name, every transform and every variable parameter of a nested
-                  view that is not drawn, each selection parameter (vl-param-selection), the conditional
+                  The FeatureCatalog unit shall report each transform of a later phase (timeUnit, regression,
+                  loess, density, quantile, and extent) as vl-transform-name, every transform and every
+                  variable parameter of a nested view that is not drawn (the aggregating transforms included),
+                  each selection parameter (vl-param-selection), the conditional
                   encodings (vl-encoding-condition), each projection, composition (layer, concat, hconcat,
                   vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
                   composition, shall report each construct once at its own location, and shall not report
-                  the transforms calculate, filter, fold, flatten, sample, pivot, and lookup or the variable
-                  parameters of the drawn view.
+                  the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
+                  joinaggregate, window, bin, stack, and impute or the variable parameters of the drawn view.
                 justification: |
                   A construct that changes what a chart means and that the renderer does not implement must be
                   reported rather than skipped, and one that it implements must not make every chart noisy.
@@ -130,6 +142,8 @@ sections:
                   - FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported
                   - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
                   - FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported
+                  - FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported
+                  - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
                   - FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined
                   - FeatureCatalog_Visit_AutosizeFitModesAreReported
 
@@ -159,15 +173,17 @@ sections:
                   does not execute - a filter on a selection parameter or a selection (vl-transform-filter-param),
                   a time unit or a date object in a filter predicate (vl-transform-filter-timeunit and
                   vl-transform-filter-datetime), a pivot operation other than sum and count
-                  (vl-transform-pivot-op), and a lookup from a parameter (vl-transform-lookup-param) - and a
-                  channel sort that is not ascending, descending, null, a value list, or an aggregate sort
-                  object (vl-encoding-sort), and shall not report the supported forms.
+                  (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param), and a bin
+                  transform whose extent is a parameter (vl-transform-bin-extent-param) - and a channel sort
+                  that is not ascending, descending, null, a value list, or a sort by an operation or a channel
+                  that the renderer computes (vl-encoding-sort), and shall not report the supported forms.
                 justification: |
                   A supported transform that silently ignored part of its definition would draw a plausible
                   but different chart; the ignored part must be named.
                 tests:
                   - FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported
                   - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
+                  - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
                 title: >-

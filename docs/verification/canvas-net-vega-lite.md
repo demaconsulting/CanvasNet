@@ -67,6 +67,22 @@ it; hostile evaluation (a step budget that is too small, a catastrophic regular 
 a lookup that leaves the sandbox) fails closed with a located exception or finishes safely; and a chart through every
 kind of transform measures the size it renders and renders the same bytes on every call and from many threads.
 
+The aggregation scenarios assert on what the system computes from the aggregating transforms and from the `aggregate`,
+`bin`, `stack`, and `sort` properties of an encoding, with expectations derived by hand from the scale formulas: the
+sums per category of the `aggregate-bars` fixture become three bars in first-seen order with a sorted band scale, a
+domain of 0 to 7, and Vega-Lite's default titles (`Sum of units`); the twelve weights of the `histogram` fixture are
+binned with ten bins asked for into the bins 0 to 35 by 5 and counted (3, 2, 3, 1, 1, 1, 1), and each bar fills its bin
+less a pixel of spacing and the half pixel of the axis translate (x = 1, 41, and so on, 39 pixels wide); the
+`stacked-bars` fixture stacks its layers from the bottom in descending order of the color on `y` (north: washers 0 to
+5, nuts 5 to 7, bolts 7 to 10; south: nuts 0 to 1, bolts 1 to 5), so the y axis reaches the total 10 and the layers are
+drawn between their stack bounds, with a pixel inside a lower layer in its color; the `binned-ranges` fixture draws data
+that is binned already as bars over their ranges; and the `window-cumulative` fixture draws the running total of a
+window transform (4, 7, 12, 14). The scenarios also assert that the groups count in the row budget (the five rows and
+three groups of the aggregate bars need `MaxDataRows` 8), that the marks of stacked and binned charts are counted
+exactly by the scene budget, that measuring equals rendering and renders are byte-identical for every fixture, and that
+an aggregate, bin, or stack is drawn without a report while a part that is still unsupported next to them (a time
+unit) is reported once and stops a strict render.
+
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
 file for a specification that has no folder, each giving the pixels of the chart whose rows are written inline; a
@@ -80,7 +96,8 @@ and the data limits fail before the scene limit is reached. The links of the san
 an injected link probe, and real links are additional evidence there.
 
 System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern scenarios, one per requirement
-topic) and `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios) within the
+topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios), and
+`VegaLiteAggregationIntegrationTests.cs` (the aggregation, binning, stacking, and window scenarios) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project; the shared helpers (a pixel snapshot, uniform-color and
 region checks, ink bounds, and a data-reference projection) are in `VegaLiteTestHelpers.cs`, and the data helpers
 (temporary directories and virtual file sets) in `Data/DataTestSupport.cs`. The fixtures in
@@ -93,10 +110,12 @@ documented in `Fixtures/README.md` beside them.
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
   (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
-- **Dependencies**: No external services, databases, or network access required. The eight fixture files in
+- **Dependencies**: No external services, databases, or network access required. The thirteen fixture files in
   `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/` (`bar-inline.vl.json`, `point-inline.vl.json`,
   `rule-tick-inline.vl.json`, `titles-config.vl.json`, `unsupported.vl.json`, the data-file chart `data-files.vl.json`
-  with its `data-files.csv`, and the nested JSON rows `data-values.json`, plus a provenance `README.md`) are
+  with its `data-files.csv`, the nested JSON rows `data-values.json`, and the aggregation charts
+  `aggregate-bars.vl.json`, `histogram.vl.json`, `stacked-bars.vl.json`, `binned-ranges.vl.json`, and
+  `window-cumulative.vl.json`, plus a provenance `README.md`) are
   copied to the test output directory and located relative to the test assembly
 - **Fonts**: Rendering uses the Liberation fonts bundled with the core `DemaConsulting.CanvasNet` package; no
   installed font is required, and the font scenario proves that installed fonts are not consulted by default
@@ -255,10 +274,10 @@ Renders a document with a schema version 4 declaration (a warning first) and a l
 an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-version`, `vl-composition-layer`,
 `vl-mark-arc`), that each is delivered once, in document order, to the right handler, on the calling thread
 (the recorded managed thread identifiers all equal the caller's), and that a supported `bar` mark in the same
-document is silent. Renders `unsupported.vl.json` (a `window` transform, a `line` mark, and an aggregate) and
+document is silent. Renders `unsupported.vl.json` (a `regression` transform, a `line` mark, and a `bandPosition`) and
 asserts exactly one report per construct, in document order, with its stable identifier, JSON pointer, and one-based
-line and column of the value (`vl-transform-window` at `/transform/0`, line 12, column 5; `vl-mark-line` at `/mark`,
-line 14, column 11; and `vl-encoding-aggregate` at `/encoding/y/aggregate`, line 17, column 68), each in the file
+line and column of the value (`vl-transform-regression` at `/transform/0`, line 12, column 5; `vl-mark-line` at `/mark`,
+line 14, column 11; and `vl-encoding-bandposition` at `/encoding/y/bandPosition`, line 17, column 71), each in the file
 `unsupported.vl.json`, and that the line mark is not drawn, so no data, scale, or axis work is done for it and the view
 is empty with the default size.
 
@@ -270,8 +289,8 @@ Renders a single view with an unsupported mark first and an unsupported channel 
 `ThrowOnUnsupportedFeature` and asserts a `VegaLiteUnsupportedFeatureException` for the first feature only, with
 its location, that the handler saw exactly that report, that a handler that fails while the failure is being
 reported does not hide it, that after a successful render a failing handler propagates, and that on
-`unsupported.vl.json` strict mode stops at the first construct in the text (the `window` transform, `vl-transform-window`
-at `/transform/0` on line 12).
+`unsupported.vl.json` strict mode stops at the first construct in the text (the `regression` transform,
+`vl-transform-regression` at `/transform/0` on line 12).
 
 ### Data: Remote URLs Are Reported And Never Fetched
 
@@ -463,12 +482,13 @@ that would have come later.
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
-Renders a document with a selection parameter, the transforms `aggregate`, `window`, `bin`, `stack`, and `timeUnit`,
-a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is reported
-once, in document order (`vl-param-selection`, `vl-transform-aggregate`, `vl-transform-window`, `vl-transform-bin`,
-`vl-transform-stack`, `vl-transform-timeunit`, `vl-expr-function-timeformat`, `vl-expr-function-now`,
-`vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that the chart is still
-drawn.
+Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, `quantile`, and
+`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is
+reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
+`vl-transform-density`, `vl-transform-quantile`, `vl-transform-timeunit`, `vl-expr-function-timeformat`,
+`vl-expr-function-now`, `vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that
+the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before they
+were supported are computed now and are covered by the aggregation scenarios below.
 
 ### Expressions: Errors And Limits Fail When The Document Is Opened
 
@@ -504,6 +524,79 @@ with "outside the allowed directories" at `/transform/0/from/data/url`, and that
 Renders a chart through a flatten, a calculate and a filter that read parameters, a lookup in an inline source, and a
 sample. Asserts that `Measure` equals the size of the surface, that twelve concurrent renders have the bytes of the
 baseline, and that the chart whose sample takes every row differs from it (the sample is not a no-op).
+
+### Aggregation: Sum Bars Have Hand-Derived Geometry And Titles
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles`
+
+Renders `aggregate-bars.vl.json` (five rows of three regions and a `sum` of `units` on `y`, aggregated by the encoding).
+Asserts that the sums per region (north 3 + 4 = 7, south 5 + 1 = 6, east 2) become three bars drawn in the order of first
+appearance (north, south, east) on a band scale whose categories are sorted (east, north, south), so the bars of 72 pixels
+start at 84, 164, and 4 (the bands of 80 pixels), that the y domain is 0 to 7 over 100 pixels so the heights are 100,
+600/7, and 200/7, and that the axes are titled `region` and `Sum of units`.
+
+### Binning: The Histogram Counts Every Bin
+
+**Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel`
+
+Renders `histogram.vl.json` (twelve weights from 1.5 to 31, `bin: true`, and a count). Asserts that the span 29.5 with
+ten bins asked for needs the step 5 (the first step 10 is divided by 2), so the bins are 0 to 35 by 5 with the counts
+3, 2, 3, 1, 1, 1, 1 and the y domain is 0 to 3, with bars as high as their counts; and that, over 280 pixels (8 pixels
+per unit), each bar fills its 40 pixel bin less a pixel of bin spacing (half a pixel on each side) and the half pixel by
+which Vega translates the axis, so the bars start at 1, 41, and so on and are 39 pixels wide.
+
+### Stacking: Layers Are Stacked And Drawn Between Their Bounds
+
+**Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds`
+
+Renders `stacked-bars.vl.json` (the sum of `units` per region split by the color `product`). Asserts that the five bars
+are stacked from the bottom in the order washers, nuts, bolts (descending by product on `y`): north is washers (0, 5),
+nuts (5, 7), and bolts (7, 10), south is nuts (0, 1) and bolts (1, 5), and the y axis reaches the total 10; and that
+each layer is drawn from its start to its end and not from zero: with bands of 108 pixels starting at 6 and 126 and a
+data rectangle 100 pixels high (y(v) = 100 - 10 v), a pixel inside a lower layer has that layer's color (bolts blue,
+nuts orange, washers red in the order of the sorted colors).
+
+### Pre-Binned Data: Ranges Are Bars Over Their Spans
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges`
+
+Renders `binned-ranges.vl.json` (three ranges 0 to 10, 10 to 25, and 25 to 30 with `bin: "binned"` and `x2`). Asserts
+that over 150 pixels (5 pixels per unit, no zero and no nice) the bars span 1 to 50, 51 to 125, and 126 to 150, a pixel
+of spacing taken off every pair of edges, that the merged x title names both fields, that the x axis has no grid and a
+tick every ten units, and that the pixels show the bars and the gap between two of them.
+
+### Window: The Cumulative Total Is Drawn As Bars
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars`
+
+Renders `window-cumulative.vl.json` (a `window` transform with `sum` over the frame up to the current row). Asserts the
+running totals 4, 7, 12, and 14 on the domain 0 to 14 over 140 pixels (10 pixels per unit), the four bands of 36 pixels
+that start at 2, 42, 82, and 122, and the y axis title that the specification gives.
+
+### Aggregation: Scene Budget, Measure, Determinism, And Limits
+
+**Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinnedAndStacked_SceneBudgetAndDeterminismApply`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply`
+
+Asserts that the marks of the stacked and binned charts are counted by the scene budget (the exact number of items passes
+and one fewer fails with a located failure) and that every chart renders twice to the same bytes; that, for each of the
+five aggregation fixtures, `Measure` equals the size of the rendered surface, rendering twice is byte-identical, and a
+scale of 2 doubles the size; and that the groups count in the row budget (the five rows and the three groups of the
+aggregate bars need `MaxDataRows` 8, and 7 fails with a `VegaLiteRenderException` located at `/encoding/y` that names the
+limit) and a canceled token stops the render with an `OperationCanceledException`.
+
+### Aggregation: Only The Unsupported Part Is Reported
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
+
+Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
+report, the only report being the color legend of the stacked bars (`vl-guide-legend` at `/encoding/color`, because
+legends are not drawn yet); and that adding a `timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
+once (`vl-encoding-timeunit` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render with a
+`VegaLiteUnsupportedFeatureException` for that feature.
 
 ### Limits: Oversized Source And Excessive Depth Fail Closed
 

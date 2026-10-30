@@ -57,5 +57,15 @@ the unit verification document passes without error or unexpected exception.
   column.
 - **Scene Budget And Cancellation**:
   `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks`,
+  `MarkBuilderTests.MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation`,
   `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations` — more items than `MaxSceneItems` fail with a
   `VegaLiteRenderException` at the mark's pointer before the memory is spent, and a canceled token stops the build.
+- **Stacked, Binned, And Ranged Marks Drawn Through The Whole Pipeline**:
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges`,
+  `MarkBuilderTests.MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd`,
+  `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing` — the layers of a stack are drawn from their
+  stack start to their end in their colors, the bars of a histogram fill their bins less a pixel of spacing (the bars at
+  x = 1, 41, and so on, 39 pixels wide, for the bins 0 to 35 by 5 over 280 pixels), and the bars of pre-binned data span
+  their ranges, with the geometry of the scene items equal to the pixels that the painter draws.

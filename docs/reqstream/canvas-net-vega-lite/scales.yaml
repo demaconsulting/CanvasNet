@@ -34,8 +34,9 @@ sections:
           - id: CanvasNetVegaLite-Scales-Domains
             title: >-
               The Scales subsystem shall compute scale domains from the data or from an explicit domain,
-              applying zero, nice, and sort as documented (including a sort by an aggregate of a field of the
-              transformed rows), ordering discrete values ascending by default
+              applying zero, nice, and sort as documented, reading the field that the encoding names (a
+              derived field of a bin, an aggregate, or a stack included), taking the extent of the rows
+              before the aggregate for an unaggregated domain, ordering discrete values ascending by default
               with a fixed order across value kinds, and shall fail with a located specification
               exception for an invalid scale property.
             justification: |
@@ -44,12 +45,58 @@ sections:
             children:
               - CanvasNetVegaLite-Scales-ScaleResolver-Domains
               - CanvasNetVegaLite-Scales-ScaleResolver-Validation
-              - CanvasNetVegaLite-Scales-ScaleResolver-SortByField
+              - CanvasNetVegaLite-Scales-ScaleResolver-PlanFields
+              - CanvasNetVegaLite-Scales-ScaleResolver-UnaggregatedDomain
             tests:
               - ScaleResolver_Resolve_AppliesZeroNiceDomainRangeAndPadding
               - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
-              - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
+              - ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows
               - ScaleResolver_Resolve_InvalidInputsFailWithLocation
+
+          - id: CanvasNetVegaLite-Scales-SortByAggregate
+            title: >-
+              The Scales subsystem shall order a discrete channel by an aggregate of a field of the rows
+              (a sort object with an op, the shorthand of a channel, or the encoding of a channel), keeping
+              categories with equal values in first-seen order and giving a category without a value the
+              first position, as a stable, bounded, culture-independent sort.
+            justification: |
+              A bar chart ordered by its value is the most common use of an aggregate in a chart, and the
+              order must be deterministic.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-SortByField
+            tests:
+              - ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows
+              - ScaleResolver_Resolve_SortsByAnotherChannelsAggregate
+              - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable
+
+          - id: CanvasNetVegaLite-Scales-BinnedDomains
+            title: >-
+              The Scales subsystem shall give a binned position channel the domain of its bins (the start of
+              the first to the stop of the last, or the extent of the start and end fields of already binned
+              data, without a zero rule), and a discrete binned channel the bin texts in the order of the
+              bins.
+            justification: |
+              The axis of a histogram must cover and label the bins.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-BinnedDomains
+            tests:
+              - ScaleResolver_Resolve_BinnedScalesHaveNoNiceUnlessAsked
+              - ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd
+              - ScaleResolver_Resolve_OrdinalBinsSortByStartAndDescendingReverses
+
+          - id: CanvasNetVegaLite-Scales-StackedDomains
+            title: >-
+              The Scales subsystem shall give a stacked position channel, and a channel with a second field,
+              a domain that spans both ends of its marks (the start and end of the layers, or the two ends
+              of a range), and the domain 0 to 1 for a normalized stack.
+            justification: |
+              The axis of a stacked chart must reach the total of the stack, and the axis of a range chart
+              must show both ends.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-StackedDomains
+            tests:
+              - ScaleResolver_Resolve_RangeDomainIsTheUnionOfBothFields
+              - ScaleResolver_Resolve_ScalesCarryThePlanFacts
 
           - id: CanvasNetVegaLite-Scales-Positions
             title: >-

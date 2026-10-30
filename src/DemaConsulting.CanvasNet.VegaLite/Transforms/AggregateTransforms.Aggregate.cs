@@ -1,3 +1,4 @@
+// Portions derived from Vega (BSD-3-Clause): the aggregate and joinaggregate transforms; see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;

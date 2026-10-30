@@ -21,8 +21,8 @@ the language that is implemented.
 | d3-format | 3.1.2 | ISC | Copyright 2010-2026 Mike Bostock | `NumberFormat` (`Scales/`) | The format specifier grammar and `format`, `formatPrefix`, `precisionFixed`, `precisionPrefix` and `precisionRound` for the numeric types `e f g r s % p b o d x X c n` and the empty type, with the default (en-US) locale: the sign, symbol, zero, width, grouping, precision and trim handling, the SI prefixes from yocto to yotta and the minus sign U+2212; JavaScript's `toFixed`, `toExponential` and `toPrecision` digits are reproduced from the exact decimal expansion of the double |
 | d3-scale | 4.0.2 | ISC | Copyright 2010-2021 Mike Bostock | `ScaleModel`, `Ticks`, `NumberFormat` (`Scales/`) | The arithmetic of the linear scale (normalize and interpolate, `clamp`, `round`, reversed domain and range, `invert`), the `nice` method of a linear scale (at most ten rounds until the step settles), the band and point scales (step, bandwidth, padding, alignment, rounding, reversed range) and `tickFormat` (the precision chosen from the tick step) |
 | d3-scale-chromatic | 3.1.0 | ISC | Copyright 2010-2024 Mike Bostock | `ColorSchemes` (`Scales/`) | Only the ten colors of the `tableau10` scheme, which Vega-Lite also lists as its default category palette; no ColorBrewer scheme (whose Apache-style license the package also carries) is used |
-| Vega (`vega-statistics`, `vega-transforms`) | `main` branch of the `vega` 6.4.0 line, read on 2026-10-29 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `BinAlgorithm`, `AggregateMeasures` and `AggregateTransforms` (`Transforms/`) | The bin algorithm of `vega-statistics` (the starting step `base^(round(log_base(span)) - level)`, the bounded-by-us growth of the step, the divisors, the `steps` choice, the rounding of the extent with the precision-based epsilon) and the assignment rules of the `bin` transform (the `1e-14` epsilon, the infinite bins outside the extent, the closed last bin, the anchor shift and the upper boundary formula); the semantics of the aggregate operations (the classification of missing and valid values, the incremental variance, the standard error, the exponential weighting formulas, distinct counts, min and max with the relational operators, argmin and argmax) and the default output names |
-| Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `AggregateTransforms` (`Transforms/`) | The default of ten bins for a `bin` transform without `maxbins` and `step`, and the output names of a `bin` transform given one name (`name` and `name_end`) |
+| Vega (`vega-statistics`, `vega-transforms`, `vega-encode`) | `main` branch of the `vega` 6.4.0 line, read on 2026-10-29 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `BinAlgorithm`, `AggregateMeasures`, `AggregateTransforms` and `StackRules` (`Transforms/`) | The bin algorithm of `vega-statistics` (the starting step `base^(round(log_base(span)) - level)`, the bounded-by-us growth of the step, the divisors, the `steps` choice, the rounding of the extent with the precision-based epsilon) and the assignment rules of the `bin` transform (the `1e-14` epsilon, the infinite bins outside the extent, the closed last bin, the anchor shift and the upper boundary formula); the semantics of the aggregate operations (the classification of missing and valid values, the incremental variance, the standard error, the exponential weighting formulas, distinct counts, min and max with the relational operators, argmin and argmax) and the default output names; the behavior rules of the `window` transform (the window-only operations, the default frame, the clamping of frame offsets, the widening of a frame to the peers of its rows), of the `stack` transform of `vega-encode` (separate positive and negative stacks, the `center` and `normalize` offsets) and of the `impute` transform (the missing key combinations, the appended rows, the methods over a window) |
+| Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `AggregateTransforms`, `EncodingPlan`, `EncodingTransforms` and `StackRules` (`Transforms/`), `ScaleResolver` (`Scales/`), `MarkBuilder` (`Marks/`), `AxisBuilder` (`Guides/`) | The default of ten bins for a `bin` transform without `maxbins` and `step`, and the output names of a `bin` transform given one name (`name` and `name_end`); the compile rules that turn an encoding into transforms (the order bin, aggregate, stack; the group-by and stack-by fields; which marks stack and in which direction, the default offset, the layer order and the `order` channel; the names of the derived fields such as `sum_x`, `__count`, `bin_maxbins_10_x` and `x_start`; the default titles such as `Sum of x`, `Count of Records` and `x (binned)`); the default `maxbins` of the channels; the scale domain of a stacked, binned or aggregated field (the union of start and end, no zero and no nice for a bin, the sort of a discrete domain by an aggregate over the unaggregated rows, `unaggregated`); the geometry of a binned bar or rect (the edges moved in by half the bin spacing, the minimum band size, the bin midpoint of point-like marks) and the tick count of a binned axis |
 
 ## Files read for `ConfigResolver`
 
@@ -143,8 +143,11 @@ The view size that the layout uses is the configured Vega-Lite 6 value of 300 by
 
 `BinAlgorithm` (`Transforms/`) is a C# port of the bin algorithm of Vega and carries the header
 `Portions derived from Vega (BSD-3-Clause)`; `AggregateMeasures` (`Transforms/`) re-implements the aggregate
-operations of Vega from their documented semantics and uses the quantile interpolation of d3-array. The files below
-were read from the `main` branch of the repositories; no tests, examples, comments or documentation text were copied.
+operations of Vega from their documented semantics and uses the quantile interpolation of d3-array; the window,
+stack and impute transforms (`AggregateTransforms`) follow the behavior of the Vega transforms, and `EncodingPlan`,
+`ScaleResolver`, `MarkBuilder` and `AxisBuilder` follow the compile rules of Vega-Lite named below. Rules and small
+numeric formulas were taken; no code was copied. The files below were read from the `main` branch of the repositories;
+no tests, examples, comments or documentation text were copied.
 The tests of these units use values worked out by hand from the algorithm; no upstream test or output was used.
 
 | Project | File | What was taken |
@@ -153,15 +156,26 @@ The tests of these units use values worked out by hand from the algorithm; no up
 | Vega | `packages/vega-transforms/src/Bin.js` | the assignment of a value to a bin: the stop rounded up to whole steps, the anchor shift, the infinite bins, the epsilon, the upper boundary of the bin, the default output names `bin0` and `bin1` |
 | Vega | `packages/vega-transforms/src/Aggregate.js`, `util/AggregateOps.js` | the aggregate operations and what each reads: the missing, valid and NaN classification, the running sum, product, mean and variance, the standard error, the exponential formulas, `min` and `max` by the relational operators, `argmin` and `argmax` keeping a row |
 | Vega | `packages/vega-statistics/src/quartiles.js`, `bootstrapCI.js` | the quartiles as the 0.25, 0.5 and 0.75 quantiles, the bootstrap interval (1,000 resamples of the mean, the 2.5% and 97.5% quantiles) |
+| Vega | `packages/vega-transforms/src/JoinAggregate.js`, `Window.js`, `util/WindowOps.js` | the `joinaggregate` result written to every row of a group; the window operations, the default frame, the clamped offsets and the widening to peers |
+| Vega | `packages/vega-transforms/src/Impute.js` | the key domain, the missing combinations and their order after the input rows, the methods computed over a window |
+| Vega | `packages/vega-encode/src/Stack.js` | the stacking of positive and negative values, the `center` and `normalize` offsets |
 | d3-array | `src/quantile.js` | `quantileSorted`: the R-7 interpolation, the handling of the ends |
-| Vega-Lite | `src/bin.ts` | the default number of bins (10) of a `bin` without parameters, and the output names of a `bin` transform with a single name |
+| Vega-Lite | `src/bin.ts` | the default number of bins (10) of a `bin` without parameters, the default `maxbins` of the channels, and the output names of a `bin` transform with a single name |
+| Vega-Lite | `src/stack.ts` | which marks stack, the stacked channel, the group-by and stack-by fields, the default offset and the conditions that switch a stack off |
+| Vega-Lite | `src/compile/data/parse.ts`, `bin.ts`, `aggregate.ts`, `stack.ts`, `impute.ts` | the order of the implicit transforms, the group-by and measures of the implicit aggregate, the naming of the bin fields, the order of the layers of a stack |
+| Vega-Lite | `src/channeldef.ts` | the names of derived fields (`vgField`) and the default titles of binned and aggregated fields |
+| Vega-Lite | `src/compile/scale/properties.ts`, `domain.ts` | the domain of a stacked, binned, ranged or aggregated field, the `zero` and `nice` rules for a bin, the sort of a discrete domain by an aggregate |
+| Vega-Lite | `src/compile/mark/encode/position-rect.ts` | the geometry of a bar or rect on a binned channel: the bin spacing, the minimum band size and the midpoint of a binned point |
+| Vega-Lite | `src/compile/axis/properties.ts` | the tick count of the axis of a binned field |
 
 Where this package deliberately differs from Vega: the groups of an `aggregate` are keyed by the structure of the values
 (a number and a text that spell the same are two groups) and are in the order they are first seen, not by the text of
 the values in the order of an object; the bootstrap interval is deterministic, drawn with the published SplitMix64
 generator seeded from the JSON pointer of the transform (the same generator as the `sample` transform) instead of
 `Math.random`; the growth of the bin step is bounded, the number of bins is bounded by the limit of the scale domain
-size, and an extent that no finite step can cover is an error instead of an endless loop.
+size, and an extent that no finite step can cover is an error instead of an endless loop; the groups of `joinaggregate`,
+`window`, `stack` and `impute` are keyed and ordered the same way, and the default output names of `stack` are
+`field_start` and `field_end`.
 
 ## Expression language and row transforms (nothing ported)
 
