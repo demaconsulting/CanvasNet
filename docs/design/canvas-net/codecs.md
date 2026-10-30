@@ -114,9 +114,10 @@ size or the limit applies, and the live peak (old plus new buffer while growing)
 of KB), regardless of the stream's expansion ratio. An overload reports the cumulative
 output-buffer allocation (`out long outputBytesAllocated`), which the tests assert on rather than
 on thread-wide GC counters. A stream that legally inflates to fewer bytes (a TIFF strip) yields a
-shorter view without another copy. Output of exactly `maxOutputBytes` is accepted.
-maximum .NET array length is also rejected with `InvalidDataException`. The trailing Adler-32 is
-validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
+shorter view without another copy. Output of exactly `maxOutputBytes` is accepted. A
+`maxOutputBytes` value that is negative or larger than the maximum .NET array length is rejected
+with `InvalidDataException`, as is any output that exceeds `maxOutputBytes`. The trailing Adler-32
+is validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
 FlateDecode implementation, which is bounded by a fixed global cap instead, since a PDF stream
 carries no per-stream expected size.)
 

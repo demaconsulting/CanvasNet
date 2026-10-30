@@ -22,29 +22,26 @@ internal static class ScadEvaluatorTestSupport
     /// <param name="cts">The source to cancel.</param>
     /// <param name="delay">The delay before canceling.</param>
     public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay) =>
-        CancelAfterOnDedicatedThread(cts, delay, () => true);
+        CancelAfterOnDedicatedThread(cts, delay, null);
 
     /// <summary>
-    ///     Cancels the source from a dedicated thread once a condition holds, after a further delay.
+    ///     Cancels the source from a dedicated thread once a readiness signal is set, after a further delay.
     /// </summary>
     /// <remarks>
     ///     A fixed delay alone can fire before a cold, slow runner (macOS CI) has even started evaluating; waiting for
-    ///     the condition (for example "the first echo was produced") and only then delaying keeps the test
-    ///     deterministic. The wait is bounded so a condition that never holds still cancels eventually.
+    ///     the signal (for example "the first echo was produced", set from <see cref="ScadEvaluationSink.EchoRecorded"/>)
+    ///     and only then delaying keeps the test deterministic. The signal is thread-safe, unlike polling the sink's
+    ///     buffers. The wait is bounded so a signal that is never set still cancels eventually.
     /// </remarks>
     /// <param name="cts">The source to cancel.</param>
-    /// <param name="delay">The delay, after the condition holds, before canceling.</param>
-    /// <param name="condition">The condition to wait for.</param>
-    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay, Func<bool> condition)
+    /// <param name="delay">The delay, after the signal is set, before canceling.</param>
+    /// <param name="ready">The signal to wait for, or <see langword="null"/> to cancel after the delay alone.</param>
+    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay, ManualResetEventSlim? ready)
     {
         var canceler = new Thread(() =>
         {
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
-            while (!condition() && DateTime.UtcNow < deadline)
-            {
-                Thread.Sleep(5);
-            }
-
+            // The wait is bounded and deliberately not tied to a token (the source may be disposed by then)
+            ready?.Wait(TimeSpan.FromSeconds(60), CancellationToken.None);
             Thread.Sleep(delay);
             try
             {

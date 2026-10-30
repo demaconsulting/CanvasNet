@@ -49,11 +49,14 @@ public class ScadEvaluatorCancellationTests
             Cancellation = cts.Token,
             Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
         };
-        var sink = new ScadEvaluationSink(ScadLimits.Default);
+        // Not disposed on purpose: the canceler thread may still touch it after the test returns, and a
+        // ManualResetEventSlim that never exposes its wait handle holds no unmanaged resource
+        var echoed = new ManualResetEventSlim(false);
+        var sink = new ScadEvaluationSink(ScadLimits.Default) { EchoRecorded = echoed.Set };
 
         // Cancel only once the first echo exists (a fixed delay alone can fire before a cold, slow runner has even
         // started evaluating, which made this test flaky on macOS CI), then let the endless recursion run briefly
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150), () => sink.EchoLines.Count > 0);
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150), echoed);
         var started = DateTime.UtcNow;
 
         // Act

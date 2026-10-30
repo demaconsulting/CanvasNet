@@ -77,6 +77,16 @@ internal sealed class ScadEvaluationSink
     }
 
     /// <summary>
+    ///     Gets an optional notification that is invoked, on the thread that recorded it, right after each echo line has been buffered.
+    /// </summary>
+    /// <remarks>
+    ///     This is the thread-safe way for another thread (for example a test's canceler) to learn that output exists,
+    ///     because the buffers themselves must not be read concurrently. The handler must be fast and thread-safe,
+    ///     for example setting a <see cref="System.Threading.ManualResetEventSlim"/>.
+    /// </remarks>
+    public Action? EchoRecorded { get; init; }
+
+    /// <summary>
     ///     Gets the buffered echo lines in order.
     /// </summary>
     public IReadOnlyList<string> EchoLines => _echo;
@@ -108,6 +118,7 @@ internal sealed class ScadEvaluationSink
         _echoLength += line.Length;
         _events.Add((EventKind.Echo, _echo.Count));
         _echo.Add(line);
+        EchoRecorded?.Invoke();
     }
 
     /// <summary>
