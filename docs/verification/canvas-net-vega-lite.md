@@ -558,6 +558,19 @@ each layer is drawn from its start to its end and not from zero: with bands of 1
 data rectangle 100 pixels high (y(v) = 100 - 10 v), a pixel inside a lower layer has that layer's color (bolts blue,
 nuts orange, washers red in the order of the sorted colors).
 
+### Sort By Aggregate: Bars Follow The Sort Of Their Category Axis
+
+**Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections`
+
+Renders inline bar charts of four rows (c 1, b 10, a 2, a 3, so the sums are c 1, a 5, b 10) whose category channel has
+a `sort` and whose other channel sums `w`. Asserts that `sort: "y"` on a vertical chart orders the band labels c, a, b and
+`"-y"` orders them b, a, c, with the bars (drawn in the first-seen order c, b, a) on bands of 45 pixels starting at 2.5,
+52.5, and 102.5 and as high as 10, 100, and 50 pixels over a y domain of 0 to 10 and 100 pixels; the same for `"x"` and
+`"-x"` on a horizontal chart (widths 20, 200, and 100 pixels over 200 pixels); and that a sort object with `op: "sum"`
+gives c, a, b ascending and b, a, c descending.
+
 ### Pre-Binned Data: Ranges Are Bars Over Their Spans
 
 **Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges`

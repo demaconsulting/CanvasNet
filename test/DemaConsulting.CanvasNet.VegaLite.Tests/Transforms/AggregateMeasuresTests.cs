@@ -287,10 +287,33 @@ public class AggregateMeasuresTests
         Assert.Equal(3, Measure(AggregateOp.Max, values).Number);
         Assert.Equal(3, Measure(AggregateOp.Product, values).Number);
         Assert.True(Measure(AggregateOp.Variance, values).IsNull);
-        Assert.True(Measure(AggregateOp.VarianceP, values).IsNull);
         Assert.True(Measure(AggregateOp.Stdev, values).IsNull);
-        Assert.True(Measure(AggregateOp.StdevP, values).IsNull);
         Assert.True(Measure(AggregateOp.Stderr, values).IsNull);
+
+        // The population forms need one valid value (Vega's m.valid ? ... : undefined), so a single value has no spread
+        Assert.Equal(0, Measure(AggregateOp.VarianceP, values).Number);
+        Assert.Equal(0, Measure(AggregateOp.StdevP, values).Number);
+    }
+
+    /// <summary>
+    ///     Validates that the population variance and deviation are defined from one valid value (zero) and null without one,
+    ///     while the sample forms need two.
+    /// </summary>
+    [Fact]
+    public void AggregateMeasures_Cell_PopulationSpreadOfSingleValueIsZero()
+    {
+        // Arrange
+        DataValue[] single = [Num(7)];
+        DataValue[] none = [default];
+
+        // Act / Assert
+        Assert.Equal(0, Measure(AggregateOp.VarianceP, single).Number);
+        Assert.Equal(0, Measure(AggregateOp.StdevP, single).Number);
+        Assert.True(Measure(AggregateOp.VarianceP, none).IsNull);
+        Assert.True(Measure(AggregateOp.StdevP, none).IsNull);
+        Assert.True(Measure(AggregateOp.Variance, single).IsNull);
+        Assert.True(Measure(AggregateOp.Stdev, single).IsNull);
+        Assert.True(Measure(AggregateOp.Stderr, single).IsNull);
     }
 
     /// <summary>

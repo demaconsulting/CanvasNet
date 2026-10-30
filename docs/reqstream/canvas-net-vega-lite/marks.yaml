@@ -87,13 +87,13 @@ sections:
             title: >-
               The Marks subsystem shall draw a bar, rect, or rule whose position channel has a second channel
               (x2 or y2) as a range between the two ends, including the bars over already binned data, and shall
-              clip the marks to the data rectangle when a position scale has an explicit domain.
+              clip the marks to the data rectangle only when the mark says clip true.
             justification: |
-              Ranges are written with the secondary channels, and a range that leaves an explicit domain must
-              not draw outside the view.
+              Ranges are written with the secondary channels, and Vega-Lite clips marks only on request (or for
+              an interval selection), so an explicit domain does not clip.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-SecondaryChannels
-              - CanvasNetVegaLite-Marks-MarkBuilder-DomainClip
+              - CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
             tests:
               - MarkBuilder_Build_SecondaryChannelsSpanARange
               - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField

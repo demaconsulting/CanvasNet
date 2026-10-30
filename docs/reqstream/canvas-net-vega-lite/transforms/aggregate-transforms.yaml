@@ -64,6 +64,7 @@ sections:
                   - AggregateMeasures_DefaultName_FollowsOpUnderscoreField
                   - AggregateMeasures_Cell_MatchesTheHandDerivedStatistics
                   - AggregateMeasures_Cell_ClassifiesValidMissingAndNaNValues
+                  - AggregateMeasures_Cell_PopulationSpreadOfSingleValueIsZero
                   - AggregateMeasures_Cell_WithoutValidValuesCountsZeroAndOtherwiseIsNull
                   - AggregateMeasures_Cell_VarianceIsNumericallyStable
                   - AggregateMeasures_Cell_QuartilesInterpolateBetweenRanks
@@ -318,6 +319,7 @@ sections:
                   - AggregateTransforms_Aggregate_FieldLimitIsALocatedFailure
                   - AggregateTransforms_Aggregate_StepBudgetExhaustionIsLocated
                   - AggregateTransforms_Aggregate_RowWorkIsCharged
+                  - AggregateTransforms_Aggregate_LongGroupTextIsChargedPerRow
                   - AggregateTransforms_Aggregate_LongTextsRespectMaxStringLength
                   - AggregateTransforms_JoinAggregate_GroupStateIsBoundedByTheCellLimit
                   - AggregateTransforms_JoinAggregate_ValueAndFieldLimitsAreLocated

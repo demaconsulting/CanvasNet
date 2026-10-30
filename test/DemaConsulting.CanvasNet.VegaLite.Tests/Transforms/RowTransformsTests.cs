@@ -736,6 +736,32 @@ public class RowTransformsTests
     }
 
     /// <summary>
+    ///     Validates that the pivot charges the text of the group values and of the pivot values of every row to the step budget.
+    /// </summary>
+    [Fact]
+    public void RowTransforms_Apply_PivotLongTextsAreChargedPerRow()
+    {
+        // Arrange: 200 rows with a 2,000 character group text and the same pivot text cost about 62 steps each, and a short
+        // pivot over the same rows costs almost nothing
+        var text = new string('t', 2000);
+        var rows = string.Join(",", Enumerable.Range(0, 200).Select(i => $"{{\"g\":\"{text}\",\"k\":\"{text}\",\"v\":{i}}}"));
+        var json = Spec($"[{rows}]", "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]");
+        var shortRows = string.Join(",", Enumerable.Range(0, 200).Select(i => $"{{\"g\":\"a\",\"k\":\"b\",\"v\":{i}}}"));
+        var small = Spec($"[{shortRows}]", "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]");
+
+        // Act
+        var table = Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 100_000 });
+        var ex = Assert.Throws<VegaLiteRenderException>(() => Run(json, out _, new VegaLiteLimits { MaxEvaluationSteps = 1_000 }));
+        var shortTable = Run(small, out _, new VegaLiteLimits { MaxEvaluationSteps = 1_000 });
+
+        // Assert
+        Assert.Equal(1, table.RowCount);
+        Assert.Equal("/transform/0", ex.Location.Pointer);
+        Assert.Contains("VegaLiteLimits.MaxEvaluationSteps", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, shortTable.RowCount);
+    }
+
+    /// <summary>
     ///     Validates that a pivot with more columns than the field limit allows is a located failure.
     /// </summary>
     [Fact]

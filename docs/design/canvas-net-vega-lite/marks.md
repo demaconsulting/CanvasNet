@@ -53,5 +53,5 @@ behavior), and a value outside an explicit discrete domain is not drawn.
 
 **Bounded.** The item budget is charged for each item as it is created (a row that draws nothing costs nothing), so a
 huge or hostile data set fails with a located `VegaLiteRenderException` before more memory is spent, and the
-cancellation token is polled every 1,024 rows. Marks are clipped to the data rectangle when the mark definition
-says `"clip": true` and, unless it says `"clip": false`, when the `x` or `y` scale has an explicit domain array.
+cancellation token is polled every 1,024 rows. Marks are clipped to the data rectangle only when the mark definition
+says `"clip": true`; an explicit scale domain does not clip them.

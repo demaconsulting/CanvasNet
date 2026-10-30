@@ -312,11 +312,11 @@ internal struct MeasureCell
             case AggregateOp.Variance:
                 return _valid > 1 ? DataValue.FromNumber(_b / (valid - 1)) : default;
             case AggregateOp.VarianceP:
-                return _valid > 1 ? DataValue.FromNumber(_b / valid) : default;
+                return _valid > 0 ? DataValue.FromNumber(Math.Max(0, _b) / valid) : default;
             case AggregateOp.Stdev:
                 return _valid > 1 ? DataValue.FromNumber(Math.Sqrt(_b / (valid - 1))) : default;
             case AggregateOp.StdevP:
-                return _valid > 1 ? DataValue.FromNumber(Math.Sqrt(_b / valid)) : default;
+                return _valid > 0 ? DataValue.FromNumber(Math.Sqrt(Math.Max(0, _b) / valid)) : default;
             case AggregateOp.Stderr:
                 return _valid > 1 ? DataValue.FromNumber(Math.Sqrt(_b / (valid * (valid - 1)))) : default;
             case AggregateOp.Exponential:

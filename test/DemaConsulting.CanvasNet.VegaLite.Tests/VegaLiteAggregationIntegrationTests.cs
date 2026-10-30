@@ -228,6 +228,106 @@ public class VegaLiteAggregationIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the encoding sort by the aggregate of another channel through the public API, with the shorthands <c>y</c> and <c>-y</c> on the x channel: the
+    ///     sums of w are c 1, b 10 and a 5 (in that first-seen order), so <c>y</c> orders the bands c, a, b and <c>-y</c> orders them b, a, c. The bands of a 150 px
+    ///     wide view are 45 px wide and start at 2.5, 52.5 and 102.5 (step 50, inner padding 0.1, outer 0.05); the y domain 0 to 10 is 100 px high, so the sums
+    ///     are 10, 100 and 50 px high.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand()
+    {
+        // Arrange
+        const string Template = """
+            { "width": 150, "height": 100,
+              "data": { "values": [ { "k": "c", "w": 1 }, { "k": "b", "w": 10 }, { "k": "a", "w": 2 }, { "k": "a", "w": 3 } ] },
+              "mark": "bar",
+              "encoding": { "x": { "field": "k", "type": "nominal", "sort": "SORT", "axis": { "labelAngle": 0 } },
+                            "y": { "field": "w", "type": "quantitative", "aggregate": "sum" } } }
+            """;
+
+        foreach (var (sort, order, positions) in new[]
+                 {
+                     ("y", new[] { "c", "a", "b" }, new Dictionary<string, double> { ["c"] = 2.5, ["a"] = 52.5, ["b"] = 102.5 }),
+                     ("-y", new[] { "b", "a", "c" }, new Dictionary<string, double> { ["b"] = 2.5, ["a"] = 52.5, ["c"] = 102.5 }),
+                 })
+        {
+            var document = VegaLiteDocument.Parse(Template.Replace("SORT", sort, StringComparison.Ordinal));
+
+            // Act
+            var bars = Bars(document);
+            var labels = Texts(document, "axis-label").Where(t => t is "a" or "b" or "c").ToArray();
+
+            // Assert: the bars are in the first-seen order of the groups (c, b, a) and sit on the band of their category
+            Assert.Equal(order, labels);
+            Assert.Equal([positions["c"], positions["b"], positions["a"]], bars.Select(b => b.X).ToArray());
+            Assert.Equal([10.0, 100.0, 50.0], bars.Select(b => b.Height).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+            Assert.All(bars, b => Assert.Equal(45.0, b.Width, 9));
+        }
+    }
+
+    /// <summary>
+    ///     Validates the encoding sort by the aggregate of another channel on a horizontal bar chart: the shorthands <c>x</c> and <c>-x</c> on the y channel. The sums
+    ///     are c 1, b 10 and a 5, so <c>x</c> orders the bands top to bottom c, a, b and <c>-x</c> orders them b, a, c; the bands of a 150 px high view are 45 px
+    ///     high and start at 2.5, 52.5 and 102.5, and the x domain 0 to 10 over 200 px makes the bars 20, 200 and 100 px wide.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand()
+    {
+        // Arrange
+        const string Template = """
+            { "width": 200, "height": 150,
+              "data": { "values": [ { "k": "c", "w": 1 }, { "k": "b", "w": 10 }, { "k": "a", "w": 2 }, { "k": "a", "w": 3 } ] },
+              "mark": "bar",
+              "encoding": { "y": { "field": "k", "type": "nominal", "sort": "SORT" },
+                            "x": { "field": "w", "type": "quantitative", "aggregate": "sum" } } }
+            """;
+
+        foreach (var (sort, order, positions) in new[]
+                 {
+                     ("x", new[] { "c", "a", "b" }, new Dictionary<string, double> { ["c"] = 2.5, ["a"] = 52.5, ["b"] = 102.5 }),
+                     ("-x", new[] { "b", "a", "c" }, new Dictionary<string, double> { ["b"] = 2.5, ["a"] = 52.5, ["c"] = 102.5 }),
+                 })
+        {
+            var document = VegaLiteDocument.Parse(Template.Replace("SORT", sort, StringComparison.Ordinal));
+
+            // Act
+            var bars = Bars(document);
+            var labels = Texts(document, "axis-label").Where(t => t is "a" or "b" or "c").ToArray();
+
+            // Assert
+            Assert.Equal(order, labels);
+            Assert.Equal([positions["c"], positions["b"], positions["a"]], bars.Select(b => b.Y).ToArray());
+            Assert.Equal([20.0, 200.0, 100.0], bars.Select(b => b.Width).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+            Assert.All(bars, b => Assert.Equal(45.0, b.Height, 9));
+        }
+    }
+
+    /// <summary>
+    ///     Validates the sort object with an operation through the public API: the sums of w are c 1, a 5 and b 10, so the order is c, a, b ascending and b, a, c
+    ///     descending.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections()
+    {
+        // Arrange: the same chart sorted by the sum of w ascending and descending through the sort object
+        const string Template = """
+            { "width": 150, "height": 100,
+              "data": { "values": [ { "k": "c", "w": 1 }, { "k": "b", "w": 10 }, { "k": "a", "w": 2 }, { "k": "a", "w": 3 } ] },
+              "mark": "bar",
+              "encoding": { "x": { "field": "k", "type": "nominal", "sort": { "op": "sum", "field": "w", "order": "ORDER" } },
+                            "y": { "field": "w", "type": "quantitative", "aggregate": "sum" } } }
+            """;
+
+        // Act
+        var ascending = Texts(VegaLiteDocument.Parse(Template.Replace("ORDER", "ascending", StringComparison.Ordinal)), "axis-label").Where(t => t is "a" or "b" or "c").ToArray();
+        var descending = Texts(VegaLiteDocument.Parse(Template.Replace("ORDER", "descending", StringComparison.Ordinal)), "axis-label").Where(t => t is "a" or "b" or "c").ToArray();
+
+        // Assert
+        Assert.Equal(["c", "a", "b"], ascending);
+        Assert.Equal(["b", "a", "c"], descending);
+    }
+
+    /// <summary>
     ///     Validates that the marks of stacked and binned charts are counted by the scene budget (the exact number of items passes and one fewer fails with a
     ///     located failure) and that every chart is rendered twice to the same bytes.
     /// </summary>

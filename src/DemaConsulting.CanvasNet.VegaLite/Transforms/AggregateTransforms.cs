@@ -286,6 +286,13 @@ internal sealed partial class AggregateTransforms
         {
             var value = readers[i].Read(row, context);
             values[i] = value;
+
+            // Hashing and comparing the text of a group value walks it, so it is charged like the key of a distinct count
+            if (value.IsString)
+            {
+                _meter.Add(value.Text!.Length);
+            }
+
             if (value.IsArray || value.IsObject)
             {
                 // An array or object read from a table is rebuilt for every row, so it is compared by content, not by identity

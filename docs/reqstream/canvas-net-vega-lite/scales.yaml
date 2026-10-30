@@ -97,6 +97,9 @@ sections:
             tests:
               - ScaleResolver_Resolve_RangeDomainIsTheUnionOfBothFields
               - ScaleResolver_Resolve_ScalesCarryThePlanFacts
+              - ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack
+              - ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers
+              - ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain
 
           - id: CanvasNetVegaLite-Scales-Positions
             title: >-

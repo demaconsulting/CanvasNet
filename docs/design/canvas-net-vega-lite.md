@@ -692,9 +692,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
    domain are dropped.
 5. **Domain order**: discrete domains are ascending by Vega-Lite's default sort, with mixed value kinds ordered null,
    boolean, number, string (a total order), and values missing from a `sort` array first.
-6. **Clip**: marks are clipped only with `"clip": true`, as in Vega-Lite 6, or when the `x` or `y` scale has an explicit
-   domain array (Vega-Lite's `scaleClip`, which keeps a stacked bar that starts at zero inside such a domain), never
-   otherwise to the view; `"clip": false` switches the second rule off.
+6. **Clip**: marks are clipped only with `"clip": true`, as in Vega-Lite 6, never otherwise to the view; an explicit
+   `x` or `y` scale domain does not clip (Vega-Lite's `scaleClip` is for the extent of an interval selection, which is
+   not supported).
 7. **Title lines**: a line feed inside title text splits the line, which Vega does not do.
 8. **Painting**: clips are composited with fractional coverage; text is filled only; an unknown symbol shape is drawn
    as a circle; fills are flattened at a tolerance of 0.02 pixel so that small circles stay round.
@@ -777,7 +777,7 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     (Vega can loop for ever) and a bin count above `MaxScaleDomainSize` fails.
 29. **A bar stacks by default**: as in Vega-Lite 6, rows of a bar chart that share a category are stacked from zero, not
     overdrawn. A chart with one row per category is drawn exactly as before; because such a bar starts at 0 even when an
-    explicit domain excludes zero, the marks are clipped when the `x` or `y` domain is an explicit array (see 6).
+    explicit domain excludes zero, it overflows the data rectangle as in Vega-Lite (there is no scale clip; see 6).
 30. **The scope of the encoding pipeline**: `bin` is applied on `x` and `y` only; `x2` and `y2` only for `bar`, `rect`,
     and `rule`; `order` only as the order of a stack; `scale.domain: "unaggregated"` only for `mean`, `median`, `q1`, `q3`,
     `min`, and `max`; a datum `x2` or `y2` is mapped through the primary scale

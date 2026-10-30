@@ -654,6 +654,9 @@ sections:
           - CanvasNetVegaLite-Scales-SortByAggregate
         tests:
           - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections
 
       - id: CanvasNetVegaLite-TransformLimits
         title: >-

@@ -53,9 +53,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         discrete domain is not.
 ///     </para>
 ///     <para>
-///         <b>Clipping.</b> Marks are clipped to the data rectangle when the mark definition says <c>"clip": true</c> and, unless it says
-///         <c>"clip": false</c>, when the <c>x</c> or <c>y</c> scale has an explicit domain given as an array (Vega-Lite's <c>scaleClip</c>; it also clips for
-///         interval-selection scales, which are not supported). Row-bound expressions
+///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
+///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
 ///         paint properties of the mark definition (<c>color</c>, <c>fill</c>, <c>stroke</c>, <c>opacity</c>, <c>strokeWidth</c>, and
 ///         <c>size</c> of a symbol) and for the constant <c>value</c> of a color, fill, stroke or opacity channel (and of a size
@@ -156,23 +155,13 @@ internal sealed class MarkBuilder
         _budget.Add(1, (view["mark"] ?? view).GetLocation(_sourceName));
         var run = new Run(this, type, markNode is { IsObject: true } ? markNode : null, view, table, scales, width, height, cancellationToken);
         var items = run.Build();
-        var clip = markNode?["clip"] is { IsBoolean: true } clipNode ? clipNode.BoolValue : ScaleClips(view);
+        var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true };
         return new SceneGroup("marks", 0, 0)
         {
             Children = items,
             Clip = clip ? new SceneClip(0, 0, width, height) : null,
         };
     }
-
-    /// <summary>
-    ///     Tells whether the scales of a view clip its marks: Vega-Lite clips when the domain of the x or the y scale is given as a list of values
-    ///     (<c>scaleClip</c>), because a mark such as a stacked bar that starts at zero can reach beyond that domain.
-    /// </summary>
-    /// <param name="view">The view.</param>
-    /// <returns><see langword="true"/> when the <c>scale.domain</c> of <c>x</c> or <c>y</c> is an array.</returns>
-    private static bool ScaleClips(SpecNode view) =>
-        view["encoding"] is { IsObject: true } encoding
-        && (encoding["x"]?["scale"]?["domain"] is { IsArray: true } || encoding["y"]?["scale"]?["domain"] is { IsArray: true });
 
     /// <summary>
     ///     One encoding channel of the view: its definition, its scale and how to read its values from a row.

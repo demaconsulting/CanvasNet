@@ -69,7 +69,9 @@ the canonical operation name, and `count` for a count of rows):
 - `count`, `valid`, `missing`, `distinct`, `values`.
 - `sum`, `product`, `mean`, `variance`, `variancep`, `stdev`, `stdevp`, `stderr` over the valid values, with
   Welford's update for the spread; a result that Vega leaves undefined is **null**: no valid value for `sum`,
-  `product`, and `mean`, and fewer than two for the spread. Numbers follow IEEE 754 (a sum can overflow to
+  `product`, and `mean`, and for the spread none (`variancep`, `stdevp`) or fewer than two (`variance`,
+  `stdev`, `stderr`), so a single valid value has a population variance and deviation of 0. Numbers follow IEEE 754
+  (a sum can overflow to
   infinity).
 - `median`, `q1`, `q3` - the d3 R-7 quantile (position `(n - 1) * p`, linear between ranks) of the sorted
   non-NaN numbers.
@@ -198,7 +200,7 @@ charges the `WorkMeter`; every limit message contains `the limit of` or `VegaLit
 <!-- markdownlint-disable MD013 -->
 | Transform | Row budget (`MaxDataRows`) | Cells (2^25) and field limits | Work charged to the step budget |
 | --------- | -------------------------- | ----------------------------- | ------------------------------- |
-| `aggregate` | One row reserved per group as the group appears; the whole input is released when the output is complete (peak: input plus groups) | Each new group checks `groups * (output width + 4 * measures)`; `rows * value-keeping operations` checked up front; `TableLayout` | 1 + group fields per row, measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key and per text-to-number conversion |
+| `aggregate` | One row reserved per group as the group appears; the whole input is released when the output is complete (peak: input plus groups) | Each new group checks `groups * (output width + 4 * measures)`; `rows * value-keeping operations` checked up front; `TableLayout` | 1 + group fields per row, the text length of each text group value per row (hashing it), measures per row, 1 per stored value, n log n per sort, 1,000 n per bootstrap, text length per `distinct` key and per text-to-number conversion |
 | `joinaggregate` | Unchanged (groups are not rows) | Per group `measures * (4 + 1) + group fields`; same value-state check; `TableLayout` | As `aggregate`, plus measures + 1 per output row |
 | `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
 | `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |

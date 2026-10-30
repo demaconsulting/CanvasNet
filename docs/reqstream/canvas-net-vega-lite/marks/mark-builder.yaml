@@ -73,14 +73,14 @@ sections:
                   - MarkBuilder_Build_SecondaryChannelsSpanARange
                   - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField
 
-              - id: CanvasNetVegaLite-Marks-MarkBuilder-DomainClip
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
                 title: >-
-                  The MarkBuilder unit shall clip the marks to the data rectangle when the x or y scale has an
-                  explicit array domain, unless the mark says clip false, so that a value beyond the domain
-                  never draws outside the view, and shall leave the marks of a data-derived domain unclipped.
+                  The MarkBuilder unit shall clip the marks to the data rectangle only when the mark says clip
+                  true, and shall not clip them because a scale has an explicit domain, so that a bar that
+                  starts at zero outside an explicit domain is drawn as Vega-Lite draws it.
                 justification: |
-                  A bar that runs past an explicit domain would overdraw the axis and its neighbors; Vega-Lite
-                  clips it to the view.
+                  Vega-Lite clips marks only with the mark's clip property or for the extent of an interval
+                  selection (scaleClip); an explicit domain alone does not clip.
                 tests:
                   - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
 

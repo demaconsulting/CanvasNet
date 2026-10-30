@@ -282,6 +282,64 @@ public class ScaleResolverPlanTests
     }
 
     /// <summary>
+    ///     Validates the extent of a stacked channel directly: the domain spans the start of the lowest and the end of the highest layer. The sums are north
+    ///     bolts 3, nuts 2 and washers 5 (stacked 0 to 3, 3 to 5 and 5 to 10) and south bolts 4 and nuts 1 (0 to 4, 4 to 5), so the domain is 0 to 10 - the total
+    ///     of the highest stack, neither the largest layer (5) nor the largest total of south (5).
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack()
+    {
+        // Act
+        var parts = Parts(
+            """[{"c":"north","g":"bolts","v":3},{"c":"north","g":"nuts","v":2},{"c":"north","g":"washers","v":5},{"c":"south","g":"bolts","v":4},{"c":"south","g":"nuts","v":1}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","aggregate":"sum"},"color":{"field":"g","type":"nominal"}}""");
+
+        // Assert
+        var y = parts.Scales["y"]!;
+        Assert.Equal((0, 10), (y.DomainStart, y.DomainEnd));
+        Assert.Equal("sum_v_end", y.FieldPath);
+        Assert.Equal("sum_v_start", y.Field2Path);
+    }
+
+    /// <summary>
+    ///     Validates that the stacked domain includes the negative layers, which stack downward from zero: a has +3 (0 to 3) and -4 (0 to -4), so the
+    ///     domain is -4 to 3 (d3 nice keeps it, with a step of 0.5).
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers()
+    {
+        // Act
+        var parts = Parts(
+            """[{"c":"a","g":"p","v":3},{"c":"a","g":"q","v":-4}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","aggregate":"sum"},"color":{"field":"g","type":"nominal"}}""");
+
+        // Assert
+        var y = parts.Scales["y"]!;
+        Assert.Equal((-4, 3), (y.DomainStart, y.DomainEnd));
+    }
+
+    /// <summary>
+    ///     Validates that a normalized stack has the domain 0 to 1 whatever the totals (10 and 4 here), and that a bar chart whose categories hold one row
+    ///     each is not stacked (the domain is the zero rule over the values 10 and 4, 0 to 10).
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain()
+    {
+        // Arrange
+        const string Rows = """[{"c":"a","g":"p","v":6},{"c":"a","g":"q","v":4},{"c":"b","g":"p","v":4}]""";
+
+        // Act
+        var normalized = Parts(Rows, "bar", """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","aggregate":"sum","stack":"normalize"},"color":{"field":"g","type":"nominal"}}""");
+        var single = Parts("""[{"c":"a","v":10},{"c":"b","v":4}]""", "bar", """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative"}}""");
+
+        // Assert
+        Assert.Equal((0, 1), (normalized.Scales["y"]!.DomainStart, normalized.Scales["y"]!.DomainEnd));
+        Assert.Equal((0, 10), (single.Scales["y"]!.DomainStart, single.Scales["y"]!.DomainEnd));
+    }
+
+    /// <summary>
     ///     Validates the facts a scale carries from the plan: the field and its second end, the title, the bin kind and the stack offset; a datum has neither a field nor a title.
     /// </summary>
     [Fact]

@@ -193,6 +193,7 @@ sections:
                   - RowTransforms_Apply_FieldStringAndStepLimitsAreLocatedFailures
                   - RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget
                   - RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow
+                  - RowTransforms_Apply_PivotLongTextsAreChargedPerRow
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Cancellation
                 title: >-

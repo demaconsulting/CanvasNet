@@ -555,6 +555,28 @@ public class AggregateTransformsTests
     }
 
     /// <summary>
+    ///     Validates that hashing the text of a group value is charged for every row, so many rows with a long group text exhaust a
+    ///     small budget although they have few instructions and few elements.
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_Aggregate_LongGroupTextIsChargedPerRow()
+    {
+        // Arrange: 200 rows whose group text has 2,000 characters cost 31 steps each (6,200 steps); the other work is 400 elements
+        var group = new string('g', 2000);
+        var rows = "[" + string.Join(",", Enumerable.Range(0, 200).Select(i => "{\"k\":\"" + group + "\",\"v\":" + i + "}")) + "]";
+        var json = Spec(rows, """[{"aggregate":[{"op":"count"}],"groupby":["k"]}]""");
+
+        // Act
+        var table = Run(json, new VegaLiteLimits { MaxEvaluationSteps = 100_000 });
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, new VegaLiteLimits { MaxEvaluationSteps = 1_000 }));
+
+        // Assert: a large budget groups the rows into one group, a small one fails with the limit named
+        Assert.Equal(1, table.RowCount);
+        Assert.Equal("/transform/0", exception.Location.Pointer);
+        Assert.Contains("VegaLiteLimits.MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a text of the specification longer than the string limit of the call is rejected, located at the entry:
     ///     an output name, and a group value (an array) whose structural text is too long.
     /// </summary>

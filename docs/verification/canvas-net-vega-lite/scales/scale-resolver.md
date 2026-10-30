@@ -205,13 +205,19 @@ names `MaxEvaluationSteps` under a budget of 40), that the categories are bounde
 **Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_OrdinalBinsSortByStartAndDescendingReverses`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_OrdinalBinTextUsesTheAxisFormat`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_RangeDomainIsTheUnionOfBothFields`,
+`ScaleResolverPlanTests.ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack`,
+`ScaleResolverPlanTests.ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers`,
+`ScaleResolverPlanTests.ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_BinnedScalesHaveNoNiceUnlessAsked`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows`
 
 Asserts that the text categories of an ordinal bin (the boundaries joined with an en dash) are ordered by where the bin
 starts and `descending` reverses them, and that the axis `format` (`.0%` for the bins 0 to 1 by 0.1) formats the
-boundaries; the range domain 1 to 9 with the merged title; the pre-binned domain 0 to 20 with the scale marked as binned
+boundaries; the range domain 1 to 9 with the merged title; the stacked domains read straight from the resolved scale (the
+layers 3, 2, 5 of north and 4, 1 of south give 0 to 10, the total of the highest stack; a layer of +3 and one of -4 stack
+upward and downward from zero and give -4 to 3; a normalized stack gives 0 to 1, and a chart with one row per category is
+not stacked and keeps its zero-rule domain 0 to 10); the pre-binned domain 0 to 20 with the scale marked as binned
 and no computed bins; that a binned scale has no `nice` unless asked for and an explicit domain is used as given; and
 that the `unaggregated` domain of a mean reads the Raw rows (1 to 12) while the normal domain reads the means (2 to 8) and
 a sum has no unaggregated domain.

@@ -91,8 +91,9 @@ public class MarkBuilderTests
         Assert.Equal([150.0, 0.0], R(signed.Select(b => b.Y)));
         Assert.Equal([50.0, 150.0], R(signed.Select(b => b.Height)));
 
-        // Arrange: a bar on a measure axis whose domain does not contain zero starts at the stack start 0, as Vega-Lite draws it: y(60) = 50 down to y(0) = 125,
-        // beyond the data rectangle, which the explicit domain clips
+        // Arrange: a bar on a measure axis whose domain does not contain zero starts at the stack start 0, as Vega-Lite draws it: y(60) = 50 down to y(0) = 125.
+        // That is beyond the data rectangle, and the marks are NOT clipped: Vega-Lite's scaleClip applies to interval-selection extents only, so an explicit
+        // domain does not clip (the geometry is the unclipped overflow); only an explicit "clip": true does
         const string offset = """
             { "width": 100, "height": 100,
               "data": { "values": [ { "k": "a", "n": 60 } ] },
@@ -102,7 +103,7 @@ public class MarkBuilderTests
         var shiftedMarks = ChartTestHelpers.Marks(offset, 100, 100);
         var shifted = Assert.Single(ChartTestHelpers.Of<SceneRect>(shiftedMarks, "mark-bar"));
         Assert.Equal([50.0, 75.0], R([shifted.Y, shifted.Height]));
-        Assert.Equal(new SceneClip(0, 0, 100, 100), shiftedMarks.Clip);
+        Assert.Null(shiftedMarks.Clip);
 
         // Arrange: without the stack (stack: null) the bar runs to the first domain value as before: y(20) = 100
         var unstacked = Assert.Single(ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(offset.Replace("\"type\": \"quantitative\", \"scale\"", "\"type\": \"quantitative\", \"stack\": null, \"scale\"", StringComparison.Ordinal), 100, 100), "mark-bar"));

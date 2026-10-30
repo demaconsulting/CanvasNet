@@ -78,12 +78,15 @@ to the baseline constitutes a failure.
   (20, 20) and (50, 70).
 - **Sample And Sort Are Deterministic**:
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand`,
   `RowTransformsTests.RowSampler_Select_MatchesTheHandComputedReservoir`,
   `RowTransformsTests.RowTransforms_Apply_SampleIsIdenticalWhenRepeatedAndConcurrent`,
   `RowTransformsTests.ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows` — a sample of four of ten rows on the
   diagonal draws exactly the rows 2, 3, 6, and 9 (the hand-computed reservoir for the pointer `/transform/0`) on two
   renders with identical pixels, and a discrete channel sorted by the `sum` of a field puts the categories with sums 1,
-  5, and 10 in that order from left to right, and in the reverse order when descending.
+  5, and 10 in that order from left to right, and in the reverse order when descending; and the shorthands `y` and `-y`
+  (and `x` and `-x` on a horizontal chart) order the categories of a bar chart by the sum of its other channel.
 - **Aggregate Bars, Histogram, And Stacked Layers Are Computed From The Encoding**:
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin`,

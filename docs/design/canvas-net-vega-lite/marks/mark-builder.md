@@ -102,11 +102,10 @@ offset channels are reported by the feature catalog and ignored here.
   returns an empty `marks` group for an unsupported type; otherwise builds the rows of the table (polling the token every
   1,024 rows and charging the item budget one item at a time as each item is created, so a row that draws nothing costs
   nothing), creating bar and rect items, symbol items, rule items,
-  and tick items with resolved geometry and paint, and returns the group, clipped to the data rectangle when the mark
-  definition says `"clip": true`, and, unless it says `"clip": false`, when the `x` or the `y` scale has an explicit
-  `scale.domain` array (Vega-Lite's `scaleClip`: a bar that starts at zero, as a default stack does, can reach
-  beyond such a
-  domain, and the clip keeps the overflow invisible).
+  and tick items with resolved geometry and paint, and returns the group, clipped to the data rectangle only when the mark
+  definition says `"clip": true` (an explicit `scale.domain` does not clip: Vega-Lite's `scaleClip` is for the extent of
+  an interval selection, so a bar that starts at zero, as a default stack does, can overflow such a domain, as in
+  Vega-Lite).
 - Row filtering - a row whose value for a continuous channel (`x`, `y`, `size`, or `opacity` on a linear scale) is null,
   missing, NaN, or not a number is not drawn; a null in a discrete field is the category `null` and is drawn; a value outside
   an explicit discrete domain is not drawn.

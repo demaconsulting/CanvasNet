@@ -187,7 +187,8 @@ them in source order.
 `RowTransformsTests.RowTransforms_Apply_PivotCountsAndFallsBackToSum`,
 `RowTransformsTests.RowTransforms_Apply_PivotLimitAndNullValuesAreWarnings`,
 `RowTransformsTests.RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit`,
-`RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`
+`RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`,
+`RowTransformsTests.RowTransforms_Apply_PivotLongTextsAreChargedPerRow`
 
 Asserts the derived rows above and the fields `g, x, y`; that `count` without a group gives one row `3|1` and an
 unsupported `mean` falls back to the sum; that a `limit` of 1 keeps the first pivot value in ordinal order and gives a
@@ -195,7 +196,9 @@ warning `vl-transform-runtime` at `/transform/0` ("only the first 1 in ordinal o
 is null is skipped with a second warning naming the count (1 row) and the first row index (4); and that three pivot
 columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0` naming the limit; and
 that an array pivot value is the column named by its JavaScript text (`aaaaaa,bbbbbb`, 13 characters) within the default
-limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit.
+limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit; and
+that 200 rows with 2,000-character group and pivot texts exhaust a step budget of 1,000 (located at `/transform/0`, naming
+`VegaLiteLimits.MaxEvaluationSteps`) while 200 short rows pass the same budget.
 
 ##### Lookup Copies Fields Of The First Match
 

@@ -92,6 +92,7 @@ polled in a loop or that is wrapped in another exception; or an exception of the
 `AggregateMeasuresTests.AggregateMeasures_TryParse_RejectsUnknownNames`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_MatchesTheHandDerivedStatistics`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_ClassifiesValidMissingAndNaNValues`,
+`AggregateMeasuresTests.AggregateMeasures_Cell_PopulationSpreadOfSingleValueIsZero`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_VarianceIsNumericallyStable`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_QuartilesInterpolateBetweenRanks`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_ExponentialOperationsWeightRecentValues`
@@ -99,7 +100,9 @@ polled in a loop or that is wrapped in another exception; or an exception of the
 Asserts that the 24 aggregate operation names (`average` being an alias of `mean`) and the 13 window operation names
 parse, that each canonical name is distinct and parses back, and that unknown names are refused; the statistics of the
 sample above to five decimals; that null and the empty text are missing, NaN is neither missing nor valid, `count` and
-`distinct` see every row, and the other operations see the valid values only; that the variance is stable for a large
+`distinct` see every row, and the other operations see the valid values only; that a single valid value gives a population
+variance and deviation of 0 (and none gives null) while the sample variance, deviation, and standard error need two; that
+the variance is stable for a large
 common offset; the R-7 quartiles of `[1, 2, 3, 4, 5]` (2, 3, 4), `[1, 2]` (1.25, 1.5, 1.75), and `[9, 1, 5, 3]` (2.5,
 4, 6) whatever the row order; and the exponential vectors above.
 
@@ -350,6 +353,7 @@ before any row is read.
 
 **Tests**: `AggregateTransformsTests.AggregateTransforms_Aggregate_StepBudgetExhaustionIsLocated`,
 `AggregateTransformsTests.AggregateTransforms_Aggregate_RowWorkIsCharged`,
+`AggregateTransformsTests.AggregateTransforms_Aggregate_LongGroupTextIsChargedPerRow`,
 `AggregateTransformsTests.AggregateTransforms_WorkMeter_PaysWholeBlocksAndCarriesTheRemainder`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_WorkIsChargedToTheStepBudget`,
 `AggregateMeasuresTests.AggregateMeasures_Cell_LongTextRespectsTheStringLimit`,
@@ -364,7 +368,8 @@ Asserts that the meter pays one step for every complete block of 64 elements, ca
 elements), the bootstrap (1,000 samples per value), the distinct keys, and the conversion of text to a number are
 charged, so a small budget fails located at the transform and a larger one succeeds (a rank sort of 5,000 rows costs
 5,000 x 13 / 64 = 1,015 steps and fails under 500); and that a window frame recomputed for every row is charged per frame
-row (one step per 16 rows), which the wide-frame vector above shows.
+row (one step per 16 rows), which the wide-frame vector above shows; and that hashing the text of a group value is charged
+(200 rows with a 2,000-character group text cost 31 steps each: a budget of 100,000 passes and 1,000 fails).
 
 ##### Stable Sort
 

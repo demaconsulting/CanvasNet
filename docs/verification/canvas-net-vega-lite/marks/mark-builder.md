@@ -33,8 +33,8 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
 - Negative values: a y domain of -10 to 30 over 200 pixels has y(v) = 5 (30 - v), so the bar of -10 hangs from
   y(0) = 150 to y(-10) = 200 (y 150, height 50) and the bar of 30 spans 0 to 150; a bar on a measure axis whose explicit
   domain does not contain zero starts at the stack start 0, as Vega-Lite draws it (y(60) = 50 down to y(0) = 125 for a
-  domain of 20 to 100 over 100 pixels, so y 50, height 75, clipped to the data rectangle because the domain is
-  explicit), while with `stack: null` it runs to the first domain value (y(20) = 100, so y 50, height 50).
+  domain of 20 to 100 over 100 pixels, so y 50, height 75, overflowing the data rectangle and not clipped, because only
+  `clip: true` clips), while with `stack: null` it runs to the first domain value (y(20) = 100, so y 50, height 50).
 - Continuous and absent channels: two quantitative channels give bars `continuousBandSize` (5) wide centered on x(v);
   a bar without a y channel spans the whole height; without an x channel it is centered and 0.9 of the width (x = 5,
   width 90 in 100 pixels); an explicit `size` of 20 is centered on the band (the East band is 3 to 57, its center 30,
@@ -108,8 +108,8 @@ constitutes a failure.
 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems`
 
-Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (starting at the stack start 0 and clipped
-to the data rectangle for an explicit domain, and running to the first domain value for `stack: null`), the continuous
+Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (starting at the stack start 0 and not
+clipped for an explicit domain, and running to the first domain value for `stack: null`), the continuous
 bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and the
 clip rule.
 

@@ -164,15 +164,25 @@ internal static partial class ExpressionFunctions
             var elements = first.Elements;
             var target = Arg(arguments, 1);
             context.ChargeSize(elements.Length);
+
+            // Comparing two texts walks at most the shorter one; the lengths are summed so that many short texts are charged as well
+            long compared = 0;
             for (var i = 0; i < elements.Length; i++)
             {
                 var position = last ? elements.Length - 1 - i : i;
+                if (elements[position].IsString && target.IsString)
+                {
+                    compared += Math.Min(elements[position].Text!.Length, target.Text!.Length);
+                }
+
                 if (ExpressionEvaluator.StrictEquals(elements[position], target))
                 {
+                    context.ChargeSize(compared);
                     return DataValue.FromNumber(position);
                 }
             }
 
+            context.ChargeSize(compared);
             return DataValue.FromNumber(-1);
         }
 
@@ -230,14 +240,24 @@ internal static partial class ExpressionFunctions
         {
             var target = Arg(arguments, 1);
             context.ChargeSize(first.Elements.Length);
+
+            // Two texts compare in time proportional to the shorter one; the lengths are summed so that many short texts are charged as well
+            long compared = 0;
             foreach (var element in first.Elements)
             {
+                if (element.IsString && target.IsString)
+                {
+                    compared += Math.Min(element.Text!.Length, target.Text!.Length);
+                }
+
                 if (element.Equals(target))
                 {
+                    context.ChargeSize(compared);
                     return DataValue.FromBoolean(true);
                 }
             }
 
+            context.ChargeSize(compared);
             return DataValue.FromBoolean(false);
         }
 

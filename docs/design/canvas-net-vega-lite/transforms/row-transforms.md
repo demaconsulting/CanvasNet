@@ -96,7 +96,9 @@ compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, 
   `sum` (the default) or the number of rows for `count`; a combination without rows is 0. The result has only the group
   fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a pivot
   value that equals a group field name each give one `vl-transform-runtime` warning. An `op` other than `sum` and
-  `count` is reported (`vl-transform-pivot-op`) and sum is used.
+  `count` is reported (`vl-transform-pivot-op`) and sum is used. The text of every group value and of every pivot value
+  is charged to the step budget (one step per 64 characters, located at the transform), because hashing and sorting walk
+  it.
 - **`lookup`** - the field to look up, and `from` with `data` (a data object loaded by the **loader of the call**: inline
   values, a named dataset, a local file, or a sequence), `key`, and optional `fields`; plus `as` and `default`. The secondary
   rows are indexed by the **text** of the key (so `1` matches `"1"`); null and composite keys never match; for a repeated

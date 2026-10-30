@@ -4430,7 +4430,7 @@ is neither missing nor `NaN`, and `NaN` is neither:
 | `valid`, `missing` | The number of valid values, and of missing values |
 | `distinct` | The number of distinct `String(value)` texts of the field over all rows (`null` counts as the text `null`) |
 | `sum`, `product`, `mean` (or `average`) | Over the valid values; `null` when the group has none |
-| `variance`, `variancep`, `stdev`, `stdevp` | Sample and population variance and standard deviation, computed incrementally; `null` unless the group has more than one valid value |
+| `variance`, `variancep`, `stdev`, `stdevp` | Sample and population variance and standard deviation, computed incrementally; `null` unless the group has more than one valid value (`variancep` and `stdevp` need only one and are `0` for a single value) |
 | `stderr` | The standard error of the mean, the square root of `variance / valid` |
 | `median`, `q1`, `q3` | The 0.5, 0.25, and 0.75 quantiles of the valid numbers, interpolated as in d3-array (the R-7 method: position `(n - 1) * p`) |
 | `ci0`, `ci1` | The lower and upper bound of the 95% bootstrap confidence interval of the mean (1,000 resamples; see the deviations below) |
