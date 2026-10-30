@@ -5,6 +5,7 @@ using DemaConsulting.CanvasNet.VegaLite.Layout;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 
@@ -72,7 +73,8 @@ internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBound
 ///     </para>
 ///     <para>
 ///         <b>Ticks.</b> A continuous scale uses the ported d3 tick algorithm with Vega-Lite's count (a tick for every 40
-///         pixels) and the d3 tick format; a band or point scale has a tick for each category. <c>values</c> selects the ticks
+///         pixels, one for every 10 pixels for a field that the encoding bins) and the d3 tick format (the
+///         <c>normalizedNumberFormat</c>, <c>.0%</c> by default, for a normalized stack); a band or point scale has a tick for each category. <c>values</c> selects the ticks
 ///         (kept in range order, thinned when more than the count). Labels that overlap are removed with Vega's parity method
 ///         (<c>labelOverlap: true</c> or <c>"parity"</c>, the default for continuous scales) or its greedy method.
 ///     </para>
@@ -338,6 +340,13 @@ internal sealed class AxisBuilder
         cancellationToken.ThrowIfCancellationRequested();
         var model = request.Model;
         var format = settings.Explicit("format")?.AsString() ?? settings.VlConfig("format")?.AsString();
+
+        // A normalized stack is a share of the whole: its axis shows percentages unless a format is given (Vega-Lite's normalizedNumberFormat)
+        if (format is null && request.Scale is { Kind: ScaleKind.Linear, Stack: StackOffset.Normalize })
+        {
+            format = _config.GetString("normalizedNumberFormat") ?? ".0%";
+        }
+
         var formatLocation = (axis?["format"] ?? axis ?? request.ChannelDef)?.GetLocation(_sourceName) ?? location;
         var values = axis?["values"] is { IsArray: true } valuesNode ? valuesNode.Items : null;
         var tickOffset = settings.Number("tickOffset") ?? 0;
@@ -346,7 +355,7 @@ internal sealed class AxisBuilder
         List<AxisTick> ticks;
         if (model.Kind == ScaleKind.Linear)
         {
-            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round);
+            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round, request.Scale.Bin == BinKind.Binning);
         }
         else
         {
@@ -373,11 +382,13 @@ internal sealed class AxisBuilder
     /// <param name="location">The location of the channel.</param>
     /// <param name="shift">The offset added to the scale position.</param>
     /// <param name="round">Whether tick positions are rounded.</param>
+    /// <param name="binning">Whether the field is binned by the encoding: its default tick count is one per ten pixels (Vega-Lite's <c>ceil(size / 10)</c>).</param>
     /// <returns>The ticks.</returns>
-    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round)
+    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, bool binning)
     {
         var minStep = settings.Number("tickMinStep") ?? Ticks.DefaultAxisTickMinStep(format);
-        var requested = settings.Number("tickCount") ?? (values is null ? Ticks.DefaultAxisTickCount(extent) : values.Count);
+        var defaultCount = binning ? Math.Ceiling(extent / 10) : Ticks.DefaultAxisTickCount(extent);
+        var requested = settings.Number("tickCount") ?? (values is null ? defaultCount : values.Count);
         var count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep);
         double[] positions;
         try

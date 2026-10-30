@@ -28,6 +28,11 @@ describe nothing real. They exist to give the tests small, readable charts whose
   (`aggregate: "count"`), with the bins 0 to 35 by 5 and the counts 3, 2, 3, 1, 1, 1, 1.
 - `stacked-bars.vl.json`: the sum of `units` per `region` split by `product` (a color), so that each region's
   bar is a stack of layers whose totals are 10 and 5.
+- `binned-ranges.vl.json`: three made-up age ranges that are binned already (`bin: "binned"` with the end of each range
+  in `x2`: 0 to 10, 10 to 25 and 25 to 30) and a ticket count for each, so that the bars are as wide as their ranges
+  (49, 74 and 24 pixels, a pixel of bin spacing taken off every pair of edges).
+- `window-cumulative.vl.json`: four made-up quarterly order counts, turned into a running total by a `window` transform
+  (`sum`, frame up to the current row: 4, 7, 12 and 14) and drawn as bars on an ordinal axis.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

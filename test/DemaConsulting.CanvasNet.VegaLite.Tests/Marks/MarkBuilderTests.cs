@@ -91,15 +91,22 @@ public class MarkBuilderTests
         Assert.Equal([150.0, 0.0], R(signed.Select(b => b.Y)));
         Assert.Equal([50.0, 150.0], R(signed.Select(b => b.Height)));
 
-        // Arrange: a bar on a measure axis whose domain does not contain zero runs to the first domain value (y(20) = 100)
+        // Arrange: a bar on a measure axis whose domain does not contain zero starts at the stack start 0, as Vega-Lite draws it: y(60) = 50 down to y(0) = 125,
+        // beyond the data rectangle, which the explicit domain clips
         const string offset = """
             { "width": 100, "height": 100,
               "data": { "values": [ { "k": "a", "n": 60 } ] },
               "mark": "bar",
               "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "n", "type": "quantitative", "scale": { "domain": [20, 100] } } } }
             """;
-        var shifted = Assert.Single(ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(offset, 100, 100), "mark-bar"));
-        Assert.Equal([50.0, 50.0], R([shifted.Y, shifted.Height]));
+        var shiftedMarks = ChartTestHelpers.Marks(offset, 100, 100);
+        var shifted = Assert.Single(ChartTestHelpers.Of<SceneRect>(shiftedMarks, "mark-bar"));
+        Assert.Equal([50.0, 75.0], R([shifted.Y, shifted.Height]));
+        Assert.Equal(new SceneClip(0, 0, 100, 100), shiftedMarks.Clip);
+
+        // Arrange: without the stack (stack: null) the bar runs to the first domain value as before: y(20) = 100
+        var unstacked = Assert.Single(ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(offset.Replace("\"type\": \"quantitative\", \"scale\"", "\"type\": \"quantitative\", \"stack\": null, \"scale\"", StringComparison.Ordinal), 100, 100), "mark-bar"));
+        Assert.Equal([50.0, 50.0], R([unstacked.Y, unstacked.Height]));
 
         // Arrange: two quantitative channels: the bar is 5 px (continuousBandSize) wide and centered on its x value
         var both = Spec("\"bar\"", "{ \"x\": { \"field\": \"x\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }", "[ { \"x\": 10, \"y\": 20 }, { \"x\": 30, \"y\": 40 } ]");
@@ -357,5 +364,248 @@ public class MarkBuilderTests
         // Assert: without the evaluator the references change nothing (the size falls back to the area of a point, 30)
         Assert.All(defaults, d => Assert.Equal(0.7, d.Opacity));
         Assert.All(defaults, d => Assert.NotEqual("red", d.Fill));
+    }
+
+    /// <summary>Three rows in two stacks: region a has the layers p (3) and q (5), region b only p (4).</summary>
+    private const string Layers = "[ { \"k\": \"a\", \"c\": \"p\", \"n\": 3 }, { \"k\": \"a\", \"c\": \"q\", \"n\": 5 }, { \"k\": \"b\", \"c\": \"p\", \"n\": 4 } ]";
+
+    /// <summary>The four-step bins of the rows 1, 4, 12, 18 and 25 (three bins of ten: 0 to 30).</summary>
+    private const string BinValues = "[ { \"v\": 1 }, { \"v\": 4 }, { \"v\": 12 }, { \"v\": 18 }, { \"v\": 25 } ]";
+
+    /// <summary>
+    ///     Builds a specification of a mark of a given size.
+    /// </summary>
+    /// <param name="mark">The JSON text of the mark.</param>
+    /// <param name="encoding">The JSON text of the encoding object.</param>
+    /// <param name="values">The JSON text of the data values array.</param>
+    /// <param name="width">The width of the view.</param>
+    /// <param name="height">The height of the view.</param>
+    /// <returns>The specification text.</returns>
+    private static string Sized(string mark, string encoding, string values, int width, int height) =>
+        "{ \"width\": " + width + ", \"height\": " + height + ", \"data\": { \"values\": " + values + " }, \"mark\": " + mark + ", \"encoding\": " + encoding + " }";
+
+    /// <summary>
+    ///     Gets the rectangle items of a mark.
+    /// </summary>
+    /// <param name="json">The specification.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="role">The role of the items.</param>
+    /// <returns>The rectangles in drawing order.</returns>
+    private static List<SceneRect> Rectangles(string json, double width, double height, string role = "mark-bar") =>
+        ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(json, width, height), role);
+
+    /// <summary>
+    ///     Validates that the layers of a stack are drawn from the start to the end of their stack (vertical and horizontal, zero, center and normalize),
+    ///     that <c>stack: null</c> brings back the overlapping bars from zero, and that a symbol sits at the upper end of its stack.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd()
+    {
+        // Arrange: two bands of 45 px start at 2.5 and 52.5. The stacks of a vertical bar chart are ordered by the color, descending (the first layer
+        // is the bottom one): q is 0 to 5 and p 5 to 8 in a; p is 0 to 4 in b. The y domain is 0 to 8, so y(v) = 100 - 12.5 v
+        const string color = ", \"color\": { \"field\": \"c\", \"type\": \"nominal\" }";
+        string Vertical(string stack) => Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\"" + stack + " }" + color + " }", Layers, 100, 100);
+
+        // Act
+        var zero = Rectangles(Vertical(string.Empty), 100, 100);
+
+        // Assert: the rows are in data order: a/p is the upper layer (5 to 8), a/q the lower (0 to 5), b/p the whole stack of b (0 to 4)
+        Assert.Equal([Q(2.5, 0, 45, 37.5), Q(2.5, 37.5, 45, 62.5), Q(52.5, 50, 45, 50)], zero.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: center puts the stack of b (4 of the largest 8) in the middle: 2 to 6, so y(6) = 25 and y(2) = 75; a is as before
+        var center = Rectangles(Vertical(", \"stack\": \"center\""), 100, 100);
+        Assert.Equal([Q(2.5, 0, 45, 37.5), Q(2.5, 37.5, 45, 62.5), Q(52.5, 25, 45, 50)], center.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: normalize divides by the stack total (8 and 4): a is q 0 to 0.625 and p 0.625 to 1, b is 0 to 1 over the domain 0 to 1: y(v) = 100 - 100 v
+        var normalized = Rectangles(Vertical(", \"stack\": \"normalize\""), 100, 100);
+        Assert.Equal([Q(2.5, 0, 45, 37.5), Q(2.5, 37.5, 45, 62.5), Q(52.5, 0, 45, 100)], normalized.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: without the stack every bar runs from zero and the domain is 0 to 5 (y(v) = 100 - 20 v): the bars overlap
+        var overlapping = Rectangles(Vertical(", \"stack\": null"), 100, 100);
+        Assert.Equal([Q(2.5, 40, 45, 60), Q(2.5, 0, 45, 100), Q(52.5, 20, 45, 80)], overlapping.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: a horizontal chart stacks x ascending by the color: p is 0 to 3 and q 3 to 8 in a, p is 0 to 4 in b; x(v) = 12.5 v
+        var horizontal = Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": { \"field\": \"n\", \"type\": \"quantitative\" }" + color + " }", Layers, 100, 100);
+
+        // Assert
+        Assert.Equal(
+            [Q(0, 2.5, 37.5, 45), Q(37.5, 2.5, 62.5, 45), Q(0, 52.5, 50, 45)],
+            Rectangles(horizontal, 100, 100).Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: a circle with an explicit stack sits at the upper end of its layer (x points at 25 and 75)
+        var circles = Sized("\"circle\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\", \"stack\": \"zero\" }" + color + " }", Layers, 100, 100);
+
+        // Assert: the ends 8, 5 and 4 are at y = 0, 37.5 and 50
+        var symbols = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(circles, 100, 100), "mark-circle");
+        Assert.Equal([0.0, 37.5, 50.0], R(symbols.Select(s => s.Y)));
+
+        // Assert: the result is deterministic
+        Assert.Equal(zero.Select(b => (b.X, b.Y, b.Width, b.Height)), Rectangles(Vertical(string.Empty), 100, 100).Select(b => (b.X, b.Y, b.Width, b.Height)));
+    }
+
+    /// <summary>
+    ///     Validates the geometry of bars and rectangles on a binned field: the bin from its start to its end less the bin spacing (1 for a bar, 0 for a
+    ///     rect) and shifted by the half pixel of the axis translate; the reversed scale; <c>minBandSize</c>; an explicit <c>binSpacing</c>; a size that
+    ///     centers the bar on the middle of the bin; and a bin step on a field that is binned already.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing()
+    {
+        // Arrange: the bins 0 to 30 by 10 hold 2, 2 and 1 rows. The view is 90 wide, so x(v) = 3 v and the bin edges are at 0, 30, 60 and 90.
+        // The count domain is 0 to 2 (y(v) = 100 - 50 v)
+        const string x = "{ \"field\": \"v\", \"type\": \"quantitative\", \"bin\": { \"step\": 10 } }";
+        const string count = "{ \"aggregate\": \"count\", \"type\": \"quantitative\" }";
+        string Histogram(string mark, string scale = "") =>
+            Sized(mark, "{ \"x\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": { \"step\": 10 }" + scale + " }, \"y\": " + count + " }", BinValues, 90, 100);
+
+        // Act
+        var bars = Rectangles(Histogram("\"bar\""), 90, 100);
+
+        // Assert: bin spacing 1 takes half a pixel off each edge and the translate puts back half a pixel: x = 0 + 0.5 + 0.5, width 30 - 1
+        Assert.Equal([Q(1, 0, 29, 100), Q(31, 0, 29, 100), Q(61, 50, 29, 50)], bars.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: the bin spacing of the mark: 0 (the translate stays), and 4 (two pixels off each edge)
+        var flush = Rectangles(Histogram("{ \"type\": \"bar\", \"binSpacing\": 0 }"), 90, 100);
+        Assert.Equal([0.5, 30.5, 60.5], R(flush.Select(b => b.X)));
+        Assert.Equal([30.0, 30.0, 30.0], R(flush.Select(b => b.Width)));
+        var spaced = Rectangles(Histogram("{ \"type\": \"bar\", \"binSpacing\": 4 }"), 90, 100);
+        Assert.Equal([2.5, 32.5, 62.5], R(spaced.Select(b => b.X)));
+        Assert.Equal([26.0, 26.0, 26.0], R(spaced.Select(b => b.Width)));
+
+        // Assert: a reversed scale (x(v) = 90 - 3 v) draws the same bins mirrored: the first bin (90 to 60) starts at 60 + 0.5 + 0.5
+        Assert.Equal([61.0, 31.0, 1.0], R(Rectangles(Histogram("\"bar\"", ", \"scale\": { \"reverse\": true }"), 90, 100).Select(b => b.X)));
+
+        // Assert: a size centers the bar on the middle of its bin (x(5) = 15, x(15) = 45, x(25) = 75) without spacing or translate
+        var sized = Rectangles(Histogram("{ \"type\": \"bar\", \"size\": 10 }"), 90, 100);
+        Assert.Equal([Q(10, 0, 10, 100), Q(40, 0, 10, 100), Q(70, 50, 10, 50)], sized.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: a rect on the binned field has no bin spacing: the rows are drawn one by one, each over its bin, the full height without a y channel
+        var rects = Rectangles(Sized("\"rect\"", "{ \"x\": " + x + " }", BinValues, 90, 100), 90, 100, "mark-rect");
+
+        // Assert
+        Assert.Equal([0.5, 0.5, 30.5, 30.5, 60.5], R(rects.Select(r => r.X)));
+        Assert.All(rects, r => Assert.Equal((30.0, 0.0, 100.0), (Math.Round(r.Width, 9), r.Y, r.Height)));
+
+        // Arrange: each bin is 3 px wide in a view of 9 px, thinner than the minBandSize of 5: it is widened around its middle by 1 px on each side
+        var thin = Sized("{ \"type\": \"bar\", \"minBandSize\": 5 }", "{ \"x\": " + x + ", \"y\": " + count + " }", BinValues, 9, 100);
+
+        // Assert: -1 to 4, 2 to 7, 5 to 10, all shifted by the half pixel
+        var widened = Rectangles(thin, 9, 100);
+        Assert.Equal([-0.5, 2.5, 5.5], R(widened.Select(b => b.X)));
+        Assert.Equal([5.0, 5.0, 5.0], R(widened.Select(b => b.Width)));
+
+        // Arrange: data that is binned already and has a step instead of an end field: the bins 0 to 10, 10 to 20 and 20 to 30 (the domain is 0 to 30)
+        var stepped = Sized("\"bar\"", "{ \"x\": { \"field\": \"s\", \"type\": \"quantitative\", \"bin\": { \"binned\": true, \"step\": 10 } }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\" } }", "[ { \"s\": 0, \"n\": 1 }, { \"s\": 10, \"n\": 1 }, { \"s\": 20, \"n\": 1 } ]", 90, 100);
+
+        // Assert
+        Assert.Equal([1.0, 31.0, 61.0], R(Rectangles(stepped, 90, 100).Select(b => b.X)));
+        Assert.Equal([29.0, 29.0, 29.0], R(Rectangles(stepped, 90, 100).Select(b => b.Width)));
+
+        // Assert: a circle on a binned field sits at the middle of its bin: 15, 45 and 75 (counts 2, 2 and 1 are at y = 0, 0 and 50)
+        var circles = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Histogram("\"circle\""), 90, 100), "mark-circle");
+        Assert.Equal([15.0, 45.0, 75.0], R(circles.Select(c => c.X)));
+        Assert.Equal([0.0, 0.0, 50.0], R(circles.Select(c => c.Y)));
+    }
+
+    /// <summary>
+    ///     Validates that data that is binned already (<c>bin: "binned"</c> with <c>x2</c>) is drawn over its ranges: bars with a pixel of spacing, rects
+    ///     without, circles in the middle of their ranges.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField()
+    {
+        // Arrange: the ranges 0 to 10 and 10 to 25 give the domain 0 to 25 (no zero rule, no nice), so x(v) = 4 v over 100 px: the edges are at 0, 40 and 100.
+        // The tickets (4 and 7) have the domain 0 to 7, so y(v) = 100 - 100 v / 7
+        const string values = "[ { \"s\": 0, \"e\": 10, \"n\": 4 }, { \"s\": 10, \"e\": 25, \"n\": 7 } ]";
+        const string x = "{ \"field\": \"s\", \"type\": \"quantitative\", \"bin\": \"binned\" }";
+        const string y = "{ \"field\": \"n\", \"type\": \"quantitative\" }";
+        string Spec(string mark) => Sized(mark, "{ \"x\": " + x + ", \"x2\": { \"field\": \"e\" }, \"y\": " + y + " }", values, 100, 100);
+
+        // Act
+        var bars = Rectangles(Spec("\"bar\""), 100, 100);
+        var rects = Rectangles(Spec("\"rect\""), 100, 100, "mark-rect");
+        var circles = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Spec("\"circle\""), 100, 100), "mark-circle");
+
+        // Assert
+        Assert.Equal([Q(1, 100 - (400.0 / 7), 39, 400.0 / 7), Q(41, 0, 59, 100)], bars.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+        Assert.Equal([0.5, 40.5], R(rects.Select(r => r.X)));
+        Assert.Equal([40.0, 60.0], R(rects.Select(r => r.Width)));
+        Assert.Equal([20.0, 70.0], R(circles.Select(c => c.X)));
+    }
+
+    /// <summary>
+    ///     Validates the secondary channels: a bar between two fields, between a field and a constant pixel value and a datum, and a rule along the
+    ///     range of one channel or between two points; a row with an invalid end is not drawn.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_SecondaryChannelsSpanARange()
+    {
+        // Arrange: a horizontal range bar between lo and hi: the domain 2 to 10 includes zero, so x(v) = 10 v; the bands are at 2.5 and 52.5
+        const string ranges = "[ { \"k\": \"a\", \"lo\": 2, \"hi\": 6 }, { \"k\": \"b\", \"lo\": 4, \"hi\": 10 } ]";
+        const string lo = "{ \"field\": \"lo\", \"type\": \"quantitative\" }";
+        var bars = Rectangles(Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": " + lo + ", \"x2\": { \"field\": \"hi\" } }", ranges, 100, 100), 100, 100);
+
+        // Assert
+        Assert.Equal([Q(20, 2.5, 40, 45), Q(40, 52.5, 60, 45)], bars.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: the second end is a constant pixel position (100 px, a keyword would be "width") or a datum (1 on the domain 0 to 2: 50 px)
+        const string single = "[ { \"k\": \"a\", \"lo\": 2 } ]";
+        var byValue = Rectangles(Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": " + lo + ", \"x2\": { \"value\": 50 } }", single, 100, 100), 100, 100);
+        var byDatum = Rectangles(Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": " + lo + ", \"x2\": { \"datum\": 1 } }", single, 100, 100), 100, 100);
+
+        // Assert: x(2) = 100 is one end, 50 the other
+        Assert.Equal([Q(50, 5, 50, 90)], byValue.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+        Assert.Equal([Q(50, 5, 50, 90)], byDatum.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: a row whose end is null is not drawn
+        var rows = "[ { \"k\": \"a\", \"lo\": 2, \"hi\": 6 }, { \"k\": \"b\", \"lo\": 4, \"hi\": null }, { \"k\": \"c\", \"lo\": 3, \"hi\": 8 } ]";
+        Assert.Equal(2, Rectangles(Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": " + lo + ", \"x2\": { \"field\": \"hi\" } }", rows, 100, 100), 100, 100).Count);
+
+        // Arrange: rules: with y and y2 the rule is vertical from y to y2 at the band centers (25 and 75, the rule bands have no padding): y(v) = 100 - 10 v
+        const string vertical = "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"lo\", \"type\": \"quantitative\" }, \"y2\": { \"field\": \"hi\" } }";
+        const string horizontal = "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": { \"field\": \"lo\", \"type\": \"quantitative\" }, \"x2\": { \"field\": \"hi\" } }";
+        var upright = ChartTestHelpers.Of<SceneRule>(ChartTestHelpers.Marks(Sized("\"rule\"", vertical, ranges, 100, 100), 100, 100), "mark-rule");
+        var lying = ChartTestHelpers.Of<SceneRule>(ChartTestHelpers.Marks(Sized("\"rule\"", horizontal, ranges, 100, 100), 100, 100), "mark-rule");
+
+        // Assert: from the first field to the second; with x and x2 the rule lies at the band centers from x(lo) to x(hi), x(v) = 10 v
+        Assert.Equal([Q(25, 80, 25, 40), Q(75, 60, 75, 0)], upright.Select(r => Q(r.X, r.Y, r.X2, r.Y2)));
+        Assert.Equal([Q(20, 25, 60, 25), Q(40, 75, 100, 75)], lying.Select(r => Q(r.X, r.Y, r.X2, r.Y2)));
+
+        // Arrange: a range on both channels is the segment between the points (1, 2) and (5, 8): x(v) = 20 v on 0 to 5, y(v) = 100 - 12.5 v on 0 to 8
+        const string both = "{ \"x\": { \"field\": \"a\", \"type\": \"quantitative\" }, \"x2\": { \"field\": \"b\" }, \"y\": { \"field\": \"c\", \"type\": \"quantitative\" }, \"y2\": { \"field\": \"d\" } }";
+        var segment = Assert.Single(ChartTestHelpers.Of<SceneRule>(ChartTestHelpers.Marks(Sized("\"rule\"", both, "[ { \"a\": 1, \"b\": 5, \"c\": 2, \"d\": 8 } ]", 100, 100), 100, 100), "mark-rule"));
+
+        // Assert
+        Assert.Equal(Q(20, 75, 100, 0), Q(segment.X, segment.Y, segment.X2, segment.Y2));
+    }
+
+    /// <summary>
+    ///     Validates that every mark of a stack or a bin is charged to the scene budget before it exists, that a canceled token stops the work, and that
+    ///     the fixture of a chart with one row per category is drawn as before (the bars run from zero).
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation()
+    {
+        // Arrange: three bars and the group of the marks need four scene items
+        var json = Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\" }, \"color\": { \"field\": \"c\", \"type\": \"nominal\" } }", Layers, 100, 100);
+        var parts = ChartTestHelpers.Parts(json);
+
+        // Act
+        var token = TestContext.Current.CancellationToken;
+        var exact = new MarkBuilder(parts.Config, new VegaLiteLimits { MaxSceneItems = 4 }).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, token);
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => new MarkBuilder(parts.Config, new VegaLiteLimits { MaxSceneItems = 3 }).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, token));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Assert
+        Assert.Equal(3, exact.Children.Count);
+        Assert.Contains("MaxSceneItems", tooMany.Message, StringComparison.Ordinal);
+        Assert.Throws<OperationCanceledException>(() => new MarkBuilder(parts.Config).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, canceled.Token));
+
+        // Assert: one row per category stacks to the plain bars from zero (start 0, end the value)
+        var plain = Rectangles(BarSpec, 240, 200);
+        Assert.Equal([114.0, 144.0, 90.0, 18.0], R(plain.Select(b => b.Y)));
+        Assert.Equal([86.0, 56.0, 110.0, 182.0], R(plain.Select(b => b.Height)));
     }
 }

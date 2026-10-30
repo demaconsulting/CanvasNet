@@ -57,7 +57,15 @@ internal static partial class ScaleResolver
             return ExtentOfFields(context.Data.Raw, [plan.RawField], null, context);
         }
 
-        return ExtentOfFields(context.Data.Main, [plan.FieldPath, plan.Field2Path], input.Datum, context);
+        var extent = ExtentOfFields(context.Data.Main, [plan.FieldPath, plan.Field2Path], input.Datum, context);
+
+        // A field that is binned already and has no end field gives the width of its bins as a step: the last bin ends one step after its start
+        if (plan is { Bin: BinKind.Binned, Field2Path: null } && plan.Definition["bin"]?["step"] is { IsNumber: true } step && step.NumberValue > 0)
+        {
+            return (extent.Min, extent.Max + step.NumberValue);
+        }
+
+        return extent;
     }
 
     /// <summary>

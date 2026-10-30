@@ -1,0 +1,19 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Tickets per age range",
+  "width": 150,
+  "height": 100,
+  "data": {
+    "values": [
+      { "from": 0, "to": 10, "tickets": 4 },
+      { "from": 10, "to": 25, "tickets": 7 },
+      { "from": 25, "to": 30, "tickets": 2 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "from", "type": "quantitative", "bin": "binned" },
+    "x2": { "field": "to" },
+    "y": { "field": "tickets", "type": "quantitative" }
+  }
+}

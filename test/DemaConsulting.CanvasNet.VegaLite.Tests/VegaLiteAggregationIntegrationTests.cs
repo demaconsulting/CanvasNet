@@ -1,17 +1,21 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
 /// <summary>
-///     System-level integration tests of the implicit encoding pipeline (aggregate, bin and stack from the encoding) through the public API, with the
-///     original fixtures <c>aggregate-bars.vl.json</c>, <c>histogram.vl.json</c> and <c>stacked-bars.vl.json</c>. Every number is derived by hand
-///     from the data and the scale formulas; the geometry of stacked ranges and binned bars is checked by the tests of the mark builder.
+///     System-level integration tests of the implicit encoding pipeline (aggregate, bin and stack from the encoding) and of the marks and axes that draw its result
+///     through the public API, with the original fixtures <c>aggregate-bars.vl.json</c>, <c>histogram.vl.json</c>, <c>stacked-bars.vl.json</c>,
+///     <c>binned-ranges.vl.json</c> and <c>window-cumulative.vl.json</c>. Every number is derived by hand from the data and the scale formulas.
 /// </summary>
 public class VegaLiteAggregationIntegrationTests
 {
     /// <summary>The names of the fixtures of the implicit pipeline.</summary>
-    private static readonly string[] Fixtures = ["aggregate-bars.vl.json", "histogram.vl.json", "stacked-bars.vl.json"];
+    private static readonly string[] Fixtures = ["aggregate-bars.vl.json", "histogram.vl.json", "stacked-bars.vl.json", "binned-ranges.vl.json", "window-cumulative.vl.json"];
+
+    /// <summary>The default color of a mark.</summary>
+    private static readonly Rgba32 Blue = new(0x4c, 0x78, 0xa8, 255);
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -115,6 +119,138 @@ public class VegaLiteAggregationIntegrationTests
         Assert.Equal((0, 10), (parts.Scales["y"]!.DomainStart, parts.Scales["y"]!.DomainEnd));
         Assert.Contains("10", Texts(document, "axis-label"));
         Assert.Equal(["region", "Sum of units"], Texts(document, "axis-title"));
+    }
+
+    /// <summary>
+    ///     Validates that the layers of the stacked bar chart are drawn from the start to the end of their stack, not from zero, and that a pixel inside
+    ///     a lower layer has its color: the bands of 108 px start at 6 and 126, the y domain 0 to 10 is 100 px high (y(v) = 100 - 10 v), and the layers are bolts (blue),
+    ///     nuts (orange) and washers (red) in the order of the sorted colors.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds()
+    {
+        // Arrange: north is washers 0 to 5, nuts 5 to 7, bolts 7 to 10; south is nuts 0 to 1, bolts 1 to 5
+        var document = Open("stacked-bars.vl.json");
+
+        // Act
+        var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+        var bars = scene.FindAll("mark-bar").ToList();
+        using var surface = document.Render(cancellationToken: Ct);
+
+        // Assert: the rows are in first-seen order: north/bolts, north/nuts, north/washers, south/bolts, south/nuts
+        var rects = bars.Select(b => (SceneRect)b.Item).ToList();
+        Assert.Equal([6.0, 6.0, 6.0, 126.0, 126.0], rects.Select(r => r.X).ToArray());
+        Assert.All(rects, r => Assert.Equal(108.0, r.Width, 9));
+        Assert.Equal([0.0, 30.0, 50.0, 50.0, 90.0], rects.Select(r => r.Y).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal([30.0, 20.0, 50.0, 40.0, 10.0], rects.Select(r => r.Height).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal(["#4c78a8", "#f58518", "#e45756", "#4c78a8", "#f58518"], rects.Select(r => r.Fill).ToArray());
+
+        // Assert: the layers do not overlap: the pixels at the middle of the nuts layer of north (y 40) and of the washers layer (y 75) have their own colors,
+        // and the pixel above the south stack (y 20) is the background
+        var (ox, oy) = ((int)Math.Floor(bars[0].OffsetX), (int)Math.Floor(bars[0].OffsetY));
+        Assert.Equal(new Rgba32(0xf5, 0x85, 0x18, 255), surface[ox + 60, oy + 40]);
+        Assert.Equal(new Rgba32(0xe4, 0x57, 0x56, 255), surface[ox + 60, oy + 75]);
+        Assert.Equal(Blue, surface[ox + 180, oy + 70]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[ox + 180, oy + 20]);
+    }
+
+    /// <summary>
+    ///     Validates the binned histogram bars: the bins 0 to 35 by 5 over 280 px (8 px per unit) are 40 px wide; a bar fills its bin less a pixel of
+    ///     spacing (half a pixel on each side) and the half pixel by which Vega translates the axis, so the bars start at 1, 41 and so on and are 39 wide.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel()
+    {
+        // Act
+        var document = Open("histogram.vl.json");
+        var bars = Bars(document);
+
+        // Assert
+        Assert.Equal([1.0, 41.0, 81.0, 121.0, 161.0, 201.0, 241.0], bars.Select(b => b.X).ToArray());
+        Assert.All(bars, b => Assert.Equal(39.0, b.Width, 9));
+        // Assert: the x axis asks for a tick per ten pixels (28 for 280 px): d3 makes it a step of 1 over 0 to 35 (36 ticks), and the y axis has the four ticks 0 to 3
+        Assert.Equal(36 + 4, document.BuildScene(new VegaLiteRenderOptions(), Ct).FindAll("axis-tick").Count());
+    }
+
+    /// <summary>
+    ///     Validates the data that is binned already: three ranges (0 to 10, 10 to 25 and 25 to 30) over 150 px (5 px per unit, no zero and no nice) are
+    ///     bars with a pixel of spacing (1 to 50, 51 to 125 and 126 to 150), the merged x title names both fields, the x axis has no grid and ticks every
+    ///     ten units, and the pixels show the bars and the gap between two of them.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges()
+    {
+        // Arrange: the tickets 4, 7 and 2 have the domain 0 to 7, so y(v) = 100 - 100 v / 7
+        var document = Open("binned-ranges.vl.json");
+
+        // Act
+        var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+        var bars = scene.FindAll("mark-bar").ToList();
+        var rects = bars.Select(b => (SceneRect)b.Item).ToList();
+        using var surface = document.Render(cancellationToken: Ct);
+
+        // Assert
+        Assert.Equal([1.0, 51.0, 126.0], rects.Select(r => r.X).ToArray());
+        Assert.Equal([49.0, 74.0, 24.0], rects.Select(r => r.Width).ToArray());
+        Assert.Equal([400.0 / 7, 100.0, 200.0 / 7], rects.Select(r => r.Height).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal(["from, to", "tickets"], Texts(document, "axis-title"));
+        Assert.Equal(["0", "10", "20", "30", "0", "2", "4", "6"], Texts(document, "axis-label"));
+
+        // Assert: the only grid lines are those of the four y ticks
+        Assert.Equal(4, scene.FindAll("axis-grid").Count());
+
+        // Assert: inside the first bar (x 25, y 90) is blue; in the pixel column between the first two bars (x 50, y 90) it is the background
+        var (ox, oy) = ((int)Math.Floor(bars[0].OffsetX), (int)Math.Floor(bars[0].OffsetY));
+        Assert.Equal(Blue, surface[ox + 25, oy + 90]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[ox + 50, oy + 90]);
+        Assert.Equal(Blue, surface[ox + 100, oy + 90]);
+    }
+
+    /// <summary>
+    ///     Validates the running total of a <c>window</c> transform drawn as bars: the sums 4, 7, 12 and 14 on the domain 0 to 14 over 140 px (10 px per unit),
+    ///     the four bands of 36 px that start at 2, 42, 82 and 122, and the title of the y axis that the specification gives.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars()
+    {
+        // Act
+        var document = Open("window-cumulative.vl.json");
+        var parts = ChartTestHelpers.ResolveFull(Text("window-cumulative.vl.json"));
+        var bars = Bars(document);
+
+        // Assert
+        Assert.Equal(["q1|4", "q2|7", "q3|12", "q4|14"], Transforms.AggregateTestSupport.Rows(parts.Data.Main, "quarter", "running"));
+        Assert.Equal([2.0, 42.0, 82.0, 122.0], bars.Select(b => b.X).ToArray());
+        Assert.All(bars, b => Assert.Equal(36.0, b.Width, 9));
+        Assert.Equal([40.0, 70.0, 120.0, 140.0], bars.Select(b => b.Height).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal([100.0, 70.0, 20.0, 0.0], bars.Select(b => b.Y).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal(["quarter", "Orders so far"], Texts(document, "axis-title"));
+    }
+
+    /// <summary>
+    ///     Validates that the marks of stacked and binned charts are counted by the scene budget (the exact number of items passes and one fewer fails with a
+    ///     located failure) and that every chart is rendered twice to the same bytes.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_BinnedAndStacked_SceneBudgetAndDeterminismApply()
+    {
+        foreach (var name in new[] { "histogram.vl.json", "stacked-bars.vl.json", "binned-ranges.vl.json" })
+        {
+            // Arrange
+            var document = Open(name);
+            var count = document.BuildScene(new VegaLiteRenderOptions(), Ct).CountItems();
+
+            // Act
+            using var exact = document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = count } }, Ct);
+            var tooFew = Assert.Throws<VegaLiteRenderException>(() => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = count - 1 } }, Ct));
+            using var first = document.Render(cancellationToken: Ct);
+            using var second = document.Render(cancellationToken: Ct);
+
+            // Assert
+            Assert.True(exact.Width > 0);
+            Assert.Contains("MaxSceneItems", tooFew.Message, StringComparison.Ordinal);
+            Assert.Equal(VegaLiteTestHelpers.Snapshot(first), VegaLiteTestHelpers.Snapshot(second));
+        }
     }
 
     /// <summary>
