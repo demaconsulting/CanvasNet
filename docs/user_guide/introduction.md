@@ -4066,9 +4066,8 @@ the message. Data is read before the scene is built, so a data failure never dep
 
 **What is not read.** Geographic data (`topojson`, `sphere`, `graticule`, GeoJSON values), `values` given as text, and
 remote URLs are reported (`vl-data-geo`, `vl-data-values-text`, `vl-data-remote-url`) and give an empty dataset. The
-rows that are read can be reshaped by the row transforms (see *Vega-Lite Transforms*); the transforms that aggregate,
-bin, or compute over groups of rows (`aggregate`, `window`, and the others) are not available yet and are reported
-(`vl-transform-<name>`).
+rows that are read can be reshaped by the row transforms and summarized by the aggregating, binning, and stacking
+transforms (see *Vega-Lite Transforms* and *Vega-Lite Aggregation, Binning, and Stacking*).
 
 ### Supported Vega-Lite Subset
 
@@ -4084,9 +4083,9 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Views | One single view. `layer`, `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are reported, and only the title, the background, and the empty view are drawn |
 | Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a relative local `data.url` read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
-| Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
+| Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `x2` and `y2` give the end of a range on a `bar`, `rect`, or `rule`, and `order` orders the layers of a stack (an `order` that does not order a stack is reported). `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
 | Field types | `quantitative`, `nominal`, and `ordinal` |
-| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `sort` (ascending, descending, `null`, an array of values, or an object that sorts by an aggregate of a field; see *Vega-Lite Transforms*), and `bin` and `stack` (as `false` or `null` only) |
+| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field); see *Vega-Lite Aggregation, Binning, and Stacking* |
 | Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette); a quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
 | Legends | **None**: a color, fill, stroke, size, or opacity channel driven by a field is drawn without a legend and reported (`vl-guide-legend`), unless `legend` or `scale` is `null` |
@@ -4095,7 +4094,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism |
 | Expressions | A subset of the Vega expression language with 57 functions (math, string, array, type, and regular expression), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
 | Parameters | Static **variable** parameters of the single view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture |
-| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms* |
+| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms* and *Vega-Lite Aggregation, Binning, and Stacking* |
 | Time, conditional encodings, other transforms | **None** (see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
 
@@ -4305,10 +4304,11 @@ parameter has the value that its definition gives, because a still picture has n
 The `transform` array of the view is run **in the order of the text**, once per measure or render call, on the rows
 that the data source gave and **before** the scales are built, so every scale, axis, and mark sees the transformed rows.
 Each transform is applied to the whole table that the previous one produced. An entry that names a transform that is
-not supported (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`,
-`density`, `quantile`, `extent`) is reported (`vl-transform-<name>`) and **skipped**; the later transforms still run on
-the rows without it, so the chart is only approximate. A transform of a view that is not drawn (a view inside a
-composition) is reported and never applied.
+not supported (`timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`) is reported (`vl-transform-<name>`)
+and **skipped**; the later transforms still run on the rows without it, so the chart is only approximate. A transform of
+a view that is not drawn (a view inside a composition) is reported and never applied. The aggregating transforms
+(`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) are described in *Vega-Lite Aggregation,
+Binning, and Stacking*.
 
 The shape of an entry is checked when the document is opened: an entry that is not an object, or has none of the
 transform properties, or a transform of the wrong shape (a `fold` that is not an array, a `calculate` without `as`, a
@@ -4356,16 +4356,18 @@ the `param` of a selection keeps every row (`vl-transform-filter-param`).
 | absent or `"ascending"`, `"descending"` | By the values of the channel's field |
 | `null` | In the order of first appearance in the (transformed) rows |
 | An array of values | In the order of the array; values that it does not list come first |
+| `"y"`, `"-y"` (a channel name, a leading minus for descending), or `{"encoding": "y", "order": ...}` | By the values of another channel of the same encoding: its aggregate, or `sum` when it is the stacked channel, or else `min`, of its field over the rows of each category |
 | `{"op": ..., "field": ..., "order": ...}` | By an aggregate of a field over the rows of each category |
 <!-- markdownlint-enable MD013 -->
 
-In the object form `op` is one of `count`, `sum`, `mean`, `average` (the same as `mean`), `median`, `min`, or `max`,
+In the object form `op` is any aggregate operation that gives an orderable result (every one in *Vega-Lite Aggregation,
+Binning, and Stacking* except `argmin`, `argmax`, `values`, `exponential`, and `exponentialb`) and is `min` by default,
 `field` is the field to aggregate (the channel's own field by default), and `order` is `"ascending"` (the default) or
-`"descending"`. The aggregate is computed over the rows after the transforms; only valid numbers of the field count
-(numeric text too), `count` counts the rows, and a category with no valid number sorts first in ascending order (except
-for `sum`, which is 0, and `count`). Categories with the same value keep their order of first appearance. A sort by
-another channel (`encoding`), by another `op`, or by a shorthand text such as `"-y"` is reported (`vl-encoding-sort`)
-and the default order is used.
+`"descending"`. The aggregate is computed over the rows **before** the encoding's own aggregate and stack, as Vega-Lite
+does, with the rules of the aggregate operations (only valid values of the field count, and a category with no valid
+value has a `null` result, which sorts first in either direction). Categories with the same value keep their order of
+first appearance. A sort by a channel that is not in the encoding or has no field, or by an unsupported `op`, is
+reported (`vl-encoding-sort`) and the default order is used.
 
 **Determinism and limits.** `sample` is a reservoir sample whose generator is seeded from the **JSON pointer of the
 transform** (for example `/transform/0`), so the same chart always keeps the same rows, on every machine, and two
@@ -4394,7 +4396,196 @@ Examples:
 { "sample": 100 }
 ```
 
-Example 33 draws a chart with parameters, an expression, a filter, a calculate, and a sort by a field.
+Examples 33 and 34 draw charts with parameters, expressions, filters, calculates, a sort by a field, and the
+aggregating transforms.
+
+### Vega-Lite Aggregation, Binning, and Stacking
+
+The transforms `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` compute over **groups of rows**, and
+the encoding properties `aggregate`, `bin`, and `stack` ask for the same computations without a `transform`. Both use
+one engine, so the rules below hold for both. Every one of them is deterministic and is bounded by the limits of the
+call (see *Limits* below).
+
+**Groups.** A group is the set of rows that have the same values in the `groupby` fields (one group of all rows when
+there is no `groupby`). Unlike Vega, which joins the text of the values, a group is identified by the **structure** of
+the values, so the number 1 and the text `"1"` are two groups, an array or object compares by its content, and two
+`NaN` values are the same key. The groups are in the order in which they first appear, so the rows that an
+`aggregate` outputs never depend on the order of the keys of an object. An empty input has no groups, also without a
+`groupby`.
+
+**`aggregate`.** `{"aggregate": [{"op": ..., "field": ..., "as": ...}], "groupby": [...]}` outputs **one row per group**
+with the `groupby` fields (a nested field keeps its path) followed by one field for every operation. `as` is a
+literal name; when it is absent the name is the operation, an underscore, and the field (`sum_units`, `mean_x`;
+`average` is `mean`), or just `count` for a `count` without a field. A later field of the same name replaces an earlier
+one. `joinaggregate` takes the same arguments but keeps **every row** in its place and adds the result of its group to
+each row (the `values` array and the row of an `argmin` or `argmax` are shared by the rows of a group).
+
+All 24 aggregate operations are available. A value is **missing** when it is `null` or the empty text, **valid** when it
+is neither missing nor `NaN`, and `NaN` is neither:
+
+<!-- markdownlint-disable MD013 -->
+| Operation | Result |
+| --------- | ------ |
+| `count` | The number of rows of the group (needs no `field`; every other operation does) |
+| `valid`, `missing` | The number of valid values, and of missing values |
+| `distinct` | The number of distinct `String(value)` texts of the field over all rows (`null` counts as the text `null`) |
+| `sum`, `product`, `mean` (or `average`) | Over the valid values; `null` when the group has none |
+| `variance`, `variancep`, `stdev`, `stdevp` | Sample and population variance and standard deviation, computed incrementally; `null` unless the group has more than one valid value |
+| `stderr` | The standard error of the mean, the square root of `variance / valid` |
+| `median`, `q1`, `q3` | The 0.5, 0.25, and 0.75 quantiles of the valid numbers, interpolated as in d3-array (the R-7 method: position `(n - 1) * p`) |
+| `ci0`, `ci1` | The lower and upper bound of the 95% bootstrap confidence interval of the mean (1,000 resamples; see the deviations below) |
+| `min`, `max` | The smallest and largest valid value by the relational operators of JavaScript, so texts and dates are compared as in Vega; the first wins a tie |
+| `argmin`, `argmax` | The **whole row** (an object) that holds the smallest or largest value of the field; the first wins a tie. The default name is `argmax_field` |
+| `values` | An array of the values of the field of all rows |
+| `exponential`, `exponentialb` | The exponentially weighted mean `exp * (1 - r) / (1 - r^n)` and moving average `exp * (1 - r)` with the weight `r` given by `param` (a number above 0 and at most 1; **0.5** when `param` is absent) |
+<!-- markdownlint-enable MD013 -->
+
+An operation that is not in the table, a missing `field`, or an `as` that is not a non-empty text is a
+`VegaLiteSpecException` at the offending value.
+
+**`window`.** `{"window": [{"op": ..., "field": ..., "param": ..., "as": ...}], "groupby": [...], "sort": [...],
+"frame": [start, end], "ignorePeers": false}` adds one field per operation to **every row** and keeps the rows in their
+input order. Within a group the rows are ordered by `sort` (a list of `{"field": ..., "order": ...}` with `order` of
+`"ascending"` or `"descending"`; null, `NaN`, and then numbers and text; a stable order, so rows that compare equal keep
+the order of the data). Every aggregate operation is also a window operation over the **frame**, and these 13
+operations only exist as window operations. The default name is the operation, an underscore, and the field
+(`rank`, `sum_orders`, `lag_x`):
+
+<!-- markdownlint-disable MD013 -->
+| Operation | Needs | Result for a row |
+| --------- | ----- | ---------------- |
+| `row_number` | | The position in the group, from 1 |
+| `rank`, `dense_rank` | | The position of the first row with the same sort values, counting rows (`rank`) or distinct sort values (`dense_rank`), from 1 |
+| `percent_rank` | | `(rank - 1) / (rows - 1)`; `NaN` for a group of one row, as in Vega |
+| `cume_dist` | | The share of the group up to and including the last peer of the row |
+| `ntile` | `param` | The number of the bucket, from 1 to `param`, that the row falls in |
+| `lag`, `lead` | `field`; `param` (the offset, 1 by default) | The value of the row `param` rows before or after, or `null` beyond the group |
+| `first_value`, `last_value` | `field` | The value in the first or last row of the frame; `null` for an empty frame |
+| `nth_value` | `field`, `param` | The value in row `param` (from 1) of the frame; `null` if the frame is shorter |
+| `prev_value`, `next_value` | `field` | The value of the row when it is not `null`, else the closest earlier or later value that is not `null` |
+<!-- markdownlint-enable MD013 -->
+
+The **frame** is two row offsets from the current row, either of them `null` for no limit: `[null, 0]` (the default) runs
+from the start of the group to the current row, `[null, null]` is the whole group, and `[-1, 1]` is the row, its
+predecessor, and its successor. An offset is clamped to the group, and a frame that is empty gives the empty result of
+the operation (`count` 0, `sum` `null`). When a `sort` is given and `ignorePeers` is not `true`, the ends of the frame
+are widened to include the **peers** of the rows they land on (rows with the same sort values), so a running `sum` over
+rows with equal sort values gives the same total to all of them; with `ignorePeers` set to `true` it does not. The
+parameters of `ntile`, `lag`, `lead`, and `nth_value` are integers from 1 up (`ntile` and `nth_value` need one). The
+frames that start at the beginning of the group are computed incrementally.
+
+**`bin`.** `{"bin": true | {...}, "field": ..., "as": ...}` writes the lower and the upper boundary of the bin of every
+row into two new fields and keeps all rows. The names are `bin0` and `bin1` when `as` is absent, `name` and `name_end`
+when `as` is one text, and the two names of an array of two. The bin parameters are:
+
+<!-- markdownlint-disable MD013 -->
+| Parameter | Meaning | Default |
+| --------- | ------- | ------- |
+| `maxbins` | The most bins (a number of at least 2) | 10 (the bins of an encoding on `x` and `y` also default to 10) |
+| `step` | The exact bin width (greater than 0); `maxbins` then plays no part | Computed from the extent |
+| `steps`, `minstep` | The allowed widths (an array of up to 1,024 numbers) and the smallest width; `steps` takes the largest allowed width below `span / maxbins` | None |
+| `base`, `divide` | The base of the step (greater than 1) and the divisors tried to refine a step (up to 16 numbers) | `10` and `[5, 2]` |
+| `nice` | Whether the extent is rounded out to whole steps | `true` |
+| `anchor` | A number that a bin boundary is aligned to; values below the shifted first bin go to the infinite bin | None |
+| `extent` | The `[min, max]` that decides the bins (two numbers in ascending order) | The extent of the finite numbers of the field |
+<!-- markdownlint-enable MD013 -->
+
+The step is the largest "nice" width that gives at most `maxbins` bins, found by the algorithm of Vega: over the data
+`[0, 100]` ten bins are 0 to 100 by 10 and twenty bins are by 5, and `[3.7, 98.2]` also gives 0 to 100 by 10. A value
+`v` goes to the bin that holds it, with the **upper boundary of the last bin included**; a value below the extent is
+bin `-Infinity` and a value above it `+Infinity`, and a value that is `null`, not a number, or not finite gets `null`
+in both fields. A field without a finite value gives `null` everywhere, and an extent that cannot be divided into
+finite steps, or more bins than `VegaLiteLimits.MaxScaleDomainSize` (100,000), fails the render with a located
+`VegaLiteRenderException`.
+
+**`stack`.** `{"stack": "units", "groupby": [...], "sort": [...], "offset": "zero", "as": [start, end]}` adds the
+lower and upper end of each row's segment and keeps all rows in their place. Within a group the rows are stacked in the
+order of `sort` (the table order when it is absent), and the first row sits at the bottom. The names are
+`units_start` and `units_end` by default (`as` of one text gives `name` and `name_end`, an array of two gives both); this
+differs from Vega, which writes `y0` and `y1`. The value of a row is read as a number (`null` is 0, numeric text is
+read, other text is `NaN`).
+
+<!-- markdownlint-disable MD013 -->
+| `offset` | Segments |
+| -------- | -------- |
+| `zero` (default) | Positive values stack up from 0, in order, and negative values stack down from 0 separately; `NaN` joins the positive stack and spoils its sum |
+| `center` | The absolute values are stacked and each group is centered on the middle of the group with the largest total |
+| `normalize` | The absolute values are scaled so that every group totals 1; a group that totals 0 gets `NaN` ends |
+<!-- markdownlint-enable MD013 -->
+
+**`impute`.** `{"impute": "units", "key": "week", "groupby": ["stall"], "keyvals": [...], "method": "value",
+"value": 0, "frame": [null, null]}` fills the gaps: for every group (one group without `groupby`) and every value of the
+**key domain** that the group lacks, a new row is **appended after the input rows** (the input order is kept, then the
+groups in order, then the keys in order) with the group fields, the key, and the imputed field, and `null` in every
+other field. The key domain is `keyvals` (an array, or a sequence `{"start": 0, "stop": n, "step": 1}` of
+`ceil((stop - start) / step)` numbers, bounded by `MaxDataRows` before it is created) followed by the keys seen in the
+data in order of appearance; a repeated key counts once. The `method` is `value` (the default; the imputed field takes
+`value`, which is `0` when absent and `null` when written `null`) or `mean`, `median`, `max`, or `min`, which replace
+**every** `null` of the field (the rows that already had one too) with that aggregate of the group over `frame`
+(`[null, null]`, the whole group, by default) in the order of the rows, as Vega-Lite does with a window and a formula. A
+field that no row has is added.
+
+**Encoding properties.** The same computations run from an `encoding` when a channel asks for them, in the order of
+Vega-Lite: the explicit `transform` array, then the **bins** of the encoding, then (for the scales that need the
+unaggregated rows, see `sort` and `scale.domain: "unaggregated"`) a copy of the table, then the implicit
+**aggregate**, then the **stack**, and then the marks.
+
+- **`aggregate`** on a channel definition (all 24 operations; `count` needs no `field`, and an object `{"argmax": ...}`
+  or `{"exponential": r}` is the same as the transform) turns the chart into a summary: the rows are grouped by the
+  fields of **every other** channel definition that is not itself aggregated (including `detail` and `tooltip`, the
+  field of a binned channel as its two boundaries, and every definition of an array channel), and each aggregated
+  definition becomes a measure. Without any grouping field the chart is one group, and without rows it is empty.
+- **`bin`** on an `x` or `y` definition (`true` or the parameters above; the extent as `{"param": ...}` is reported and
+  the extent of the data is used) bins the field of the channel. A quantitative channel is a continuous axis from the
+  first to the last boundary of the bins (no zero, no nice rounding of the domain), a bar or rect fills the bin less the
+  `binSpacing` (1 pixel for a bar and 0 for a rect or tick), and a point or rule sits in the middle of the bin; a bar
+  that would be thinner than `minBandSize` (0.25) is widened to it. An `ordinal` or `nominal` binned channel is
+  a band scale of the texts `start – end` (with an en dash, formatted like the axis labels). The default
+  axis of a binned channel has no grid and about one tick per 10 pixels.
+- **`"binned"`** (`bin: "binned"`) says that the data is **already** binned: the field is the start of a bin and the
+  secondary channel `x2` or `y2` its end, or `bin.step` gives the width; the domain is the extent of both. A bar, rect,
+  or rule with `x2` or `y2` is drawn as a **range** between the two values on every range channel, for any field,
+  datum, or pixel `value`; a row whose end is invalid is not drawn.
+- **`stack`** is on by default for bars (`zero`) and available with `stack: "zero"`, `"center"`, `"normalize"`, or
+  `true` (zero) for the point-like marks, ticks, and rules; `false` or `null` turns it off. The stacked channel is the
+  quantitative `x` or `y` (the aggregated one when both are), the groups are the values of the other position channel
+  (the two boundaries of a binned one), and the layers are ordered by the fields of the other channels, such as
+  `color` (descending when the stacked channel is `y`, ascending otherwise), or by the `order` channel when there is
+  one, so the first layer is at the bottom. A chart with one row per category is unchanged (the segment is from 0 to
+  the value). No stack is made when the mark has a range (`x2` or `y2`), when the stacked channel has an aggregate and
+  no other channel groups it, or for a mark that does not stack. The domain of the stacked axis is from the lowest start
+  to the highest end (0 to 1 for `normalize`, with the format `config.normalizedNumberFormat`, `.0%` by default). A
+  stack on a scale that is not linear is reported (`vl-encoding-stack-nonlinear`) and computed on the linear values.
+
+The derived fields use the names of Vega-Lite: `sum_units`, `mean_x`, `__count` for a count, `bin_maxbins_10_weight`
+and `bin_maxbins_10_weight_end` for a bin (the parameters are in the name, so two channels with the same bin share
+it), and `<field>_start` and `<field>_end` of a stack. The default **titles** follow Vega-Lite as well: `Sum of units`,
+`Q1 of units`, `Count of Records` (`config.countTitle`), `weight (binned)`, `a for max b` for an `argmax`, and the two
+titles of a range joined as `from, to`; an explicit `title` always wins, and `config.fieldTitle` selects `plain` or
+`functional` titles (`SUM(units)`).
+
+**Limits, determinism, and failures.** Every table that these transforms derive counts against `MaxDataRows` (a group
+counts as a row while it is built), the fields against `MaxFieldCount`, and the cells (rows times fields, and the
+working state of every group and operation) against the limit of 2^25 values; the work of grouping, sorting, windows,
+and the bootstrap is charged to `MaxEvaluationSteps`, text is bounded by `MaxStringLength`, and cancellation is checked
+every 1,024 rows. A bin with too many bins, a stack that is too large, or a sort of a scale over too many categories
+(`MaxScaleDomainSize`) fails the render with a `VegaLiteRenderException` located at the transform or the encoding, and
+the message names the limit. The result never depends on the machine, the culture, or the order of the keys.
+
+**Deviations from Vega and Vega-Lite.** The package differs in these documented ways:
+
+- **Group keys** are structural and the groups are in order of first appearance (see *Groups*), where Vega joins the
+  text of the values and uses the order of the keys of an object.
+- **`ci0` and `ci1`** use a **deterministic** bootstrap: a generator seeded from the JSON pointer of the entry and the
+  group, with 1,000 resamples; the same chart always gives the same interval, where Vega uses `Math.random`.
+- **`stack` names** default to `field_start` and `field_end` (Vega writes `y0` and `y1`).
+- **`exponential` and `exponentialb`** take the weight 0.5 when `param` is absent (Vega-Lite does not require one).
+- **Window frames** that are empty give `null` for the positional operations (Vega reads past the group), and
+  `cume_dist` and `ntile` count all the peers of the first rows (Vega under-counts them).
+- **Bin** growth is bounded, `bin` needs no `as` (the names are `bin0` and `bin1`), and an anchor shifts the bins
+  exactly as Vega does.
+- A `bin` on a channel other than `x` and `y`, an encoding `impute`, and a `timeUnit` are reported (see the
+  identifiers below).
 
 ### Time Zone, Fonts, and Determinism
 
@@ -4450,11 +4641,15 @@ thread, after the work finished and before the method returns or throws.
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick; the chart is drawn without marks and without axes |
-| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored) |
+| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored). `x2` and `y2` are supported on a bar, rect, or rule that has the `x` or `y` they extend, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it; `order` is supported when it orders a stack and is reported (`vl-channel-order`) otherwise, because the drawing order of marks is not implemented |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-scale-color-ramp` | Unsupported | A quantitative `color`, `fill`, or `stroke` field (the default mark color is used) |
-| `vl-encoding-aggregate`, `-bin`, `-timeunit`, `-stack`, `-sort`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`bin` and `stack` unless false or null; `sort` only for a form that is not ascending, descending, `null`, an array, or an object with a supported `op`) |
+| `vl-encoding-timeunit`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
+| `vl-encoding-bin` | Unsupported | The `bin` of a channel other than `x` and `y`, unless it is false or null (it needs the binned scale types of a later release); the channel is not binned |
+| `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
+| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate`, or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the default order is used |
+| `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
 | `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
@@ -4467,7 +4662,8 @@ thread, after the work finished and before the method returns or throws.
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
-| `vl-transform-<name>` | Unsupported | An entry of `transform` for `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeunit`, `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition) |
+| `vl-transform-<name>` | Unsupported | An entry of `transform` for `timeunit`, `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition, whatever the transform) |
+| `vl-transform-bin-extent-param` | Unsupported | A `bin` transform whose `extent` is a `{"param": ...}` object; the extent of the data is used |
 | `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |
 | `vl-transform-filter-timeunit` | Unsupported | A `timeUnit` in a filter predicate; it is ignored |
 | `vl-transform-filter-datetime` | Unsupported | A date object (`{"year": 2020}`) in a filter predicate; the predicate holds for every row |
@@ -4497,11 +4693,19 @@ reported by earlier releases and are no longer produced, because expressions, th
 parameters are now supported (see *Vega-Lite Expressions*, *Vega-Lite Transforms*, and *Vega-Lite Parameters*); a build
 that matched one of them should stop doing so. An expression that uses something that is still deferred is reported
 with the more precise identifiers above (`vl-expr-function-<name>`, `vl-expr-view-state`, `vl-expr-construct-<name>`).
-Planned later releases add, among other things, conditional encodings, aggregation and binning and the other
-transforms that compute over groups of rows, the date, time, formatting, and color functions of the expression
-language, expressions in more places, legends and further color schemes and scale types, time scales, line-like marks,
-layers, composition, and selections; until then the constructs are reported with the identifiers above. Geographic
-constructs (`projection`, `geoshape`, `longitude` and `latitude`, topojson) are not planned and remain reported.
+The identifiers `vl-encoding-aggregate`, `vl-encoding-stack`, `vl-transform-aggregate`, `-joinaggregate`, `-window`,
+`-bin`, `-stack`, and `-impute` (for the drawn view) were reported by earlier releases and are no longer produced,
+because the aggregating, binning, and stacking transforms and encodings are now supported (see *Vega-Lite Aggregation,
+Binning, and Stacking*); `vl-channel-x2` and `vl-channel-y2` are no longer produced for a bar, rect, or rule, nor
+`vl-channel-order` for an `order` that orders a stack; `vl-encoding-bin` is now produced only for a channel other than
+`x` and `y`, and `vl-encoding-sort` only for a form that cannot be applied. A build that matched one of them should stop
+doing so.
+Planned later releases add, among other things, conditional encodings, binning of the other channels, `timeUnit` and
+the other transforms (`regression`, `loess`, `density`, `quantile`, `extent`), the date, time, formatting, and color
+functions of the expression language, expressions in more places, legends and further color schemes and scale types,
+time scales, line-like marks, layers, composition, and selections; until then the constructs are reported with the
+identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`, topojson) are not
+planned and remain reported.
 
 ### Vega-Lite Third-Party Attribution
 
@@ -4511,16 +4715,19 @@ documentation, but a small number of values and algorithms were ported from the 
 file, test, example, data set, or documentation text of the upstream projects was copied:
 
 - **Vega-Lite** and **Vega** (BSD-3-Clause, Copyright (c) University of Washington Interactive Data Lab): default
-  configuration values, scale inference rules, the title, axis, and view layout constants, and the axis geometry.
+  configuration values, scale inference rules, the title, axis, and view layout constants, and the axis geometry; the
+  bin algorithm and the behavior rules of the aggregating, window, stack, and impute transforms and of the encoding
+  rules that compile to them (field names, titles, stacking, bin geometry).
 - **d3-array**, **d3-format**, **d3-scale**, and **d3-scale-chromatic** (ISC, Copyright Mike Bostock): the tick
-  algorithms, the number format grammar, the arithmetic of the linear, band, and point scales, and the ten `tableau10`
-  colors.
+  algorithms, the quantile interpolation of the aggregate operations, the number format grammar, the arithmetic of the
+  linear, band, and point scales, and the ten `tableau10` colors.
 
-The expression language and the row transforms are original code written from the public documentation of the Vega
-expression language, ECMAScript, and the Vega-Lite transforms: no value, source file, test, or example of the upstream
-projects was ported or copied for them. The functions follow the behavior that the Vega documentation describes; the
+The expression language and the row transforms (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
+`lookup`) are original code written from the public documentation of the Vega expression language, ECMAScript, and the
+Vega-Lite transforms: no value, source file, test, or example of the upstream projects was ported or copied for them.
+The functions follow the behavior that the Vega documentation describes; the
 `sample` transform does not reproduce Vega's random generator but uses published algorithms (FNV-1a, SplitMix64, and
-reservoir sampling) implemented from their public descriptions.
+reservoir sampling) implemented from their public descriptions, and so does the bootstrap of `ci0` and `ci1`.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` records what was ported, from which
@@ -5788,6 +5995,130 @@ try
 catch (VegaLiteSpecException ex)
 {
     Console.WriteLine(ex.Location.Pointer); // Output: /transform/0/calculate
+}
+```
+
+## Example 34: Vega-Lite Aggregation, Binning, and Stacking
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// 1. A histogram: the encoding bins the weights (bin) and counts the rows of every bin (aggregate). With 10 bins asked
+//    for, the extent 1.5 to 31 gets the step 5, so the bins are 0 to 35 by 5 and the counts are 3, 2, 3, 1, 1, 1, 1.
+//    The y axis is titled "Count of Records" and the x axis "weight (binned)", as in Vega-Lite.
+var histogram = VegaLiteDocument.Parse("""
+    {
+      "title": "Parcel weights",
+      "width": 280,
+      "height": 100,
+      "data": { "values": [
+        { "weight": 1.5 }, { "weight": 2.5 }, { "weight": 3 }, { "weight": 7 }, { "weight": 8.5 }, { "weight": 12 },
+        { "weight": 14 }, { "weight": 14.5 }, { "weight": 18 }, { "weight": 22 }, { "weight": 25 }, { "weight": 31 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "weight", "type": "quantitative", "bin": true },
+        "y": { "aggregate": "count", "type": "quantitative" }
+      }
+    }
+    """);
+using var histogramPicture = histogram.Render();
+PngCodec.Save(histogramPicture, "parcel-weights.png");
+
+// 2. A stacked bar chart: the y channel sums the units of every region and product (aggregate), and the bars stack
+//    (the default for a bar) in the order of the product: north is washers 0 to 5, nuts 5 to 7, and bolts 7 to 10, and
+//    south is nuts 0 to 1 and bolts 1 to 5. The y axis reaches the largest total, 10. A color legend is not implemented
+//    yet, so the lenient render reports it (vl-guide-legend); everything else is drawn.
+var shipped = VegaLiteDocument.Parse("""
+    {
+      "title": "Units shipped per region and product",
+      "width": 240,
+      "height": 100,
+      "data": { "values": [
+        { "region": "north", "product": "bolts", "units": 3 },
+        { "region": "north", "product": "nuts", "units": 2 },
+        { "region": "north", "product": "washers", "units": 5 },
+        { "region": "south", "product": "bolts", "units": 4 },
+        { "region": "south", "product": "nuts", "units": 1 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "region", "type": "nominal", "axis": { "labelAngle": 0 } },
+        "y": { "field": "units", "type": "quantitative", "aggregate": "sum" },
+        "color": { "field": "product", "type": "nominal" }
+      }
+    }
+    """);
+var reports = new List<VegaLiteUnsupportedFeature>();
+using var shippedPicture = shipped.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add });
+Console.WriteLine(string.Join(", ", reports.Select(r => r.Feature))); // Output: vl-guide-legend
+PngCodec.Save(shippedPicture, "units-shipped.png");
+
+// 3. A running total with the window transform: the default frame [null, 0] runs from the first row to the current
+//    one, so the bars are 4, 7, 12, and 14 high. Unlike an aggregate, a window keeps every row and adds a result
+//    computed over its neighbors.
+var orders = VegaLiteDocument.Parse("""
+    {
+      "title": "Cumulative orders per quarter",
+      "width": 160,
+      "height": 140,
+      "data": { "values": [
+        { "quarter": "q1", "orders": 4 }, { "quarter": "q2", "orders": 3 },
+        { "quarter": "q3", "orders": 5 }, { "quarter": "q4", "orders": 2 }
+      ] },
+      "transform": [
+        { "window": [ { "op": "sum", "field": "orders", "as": "running" } ], "frame": [null, 0] }
+      ],
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "quarter", "type": "ordinal", "axis": { "labelAngle": 0 } },
+        "y": { "field": "running", "type": "quantitative", "title": "Orders so far" }
+      }
+    }
+    """);
+using var ordersPicture = orders.Render();
+PngCodec.Save(ordersPicture, "orders-running.png");
+
+// 4. Data that is already binned: bin "binned" says that "from" is the start of a bin and x2 its end, so the three
+//    bars of different widths fill 0 to 10, 10 to 25, and 25 to 30 (less a pixel of spacing)
+var tickets = VegaLiteDocument.Parse("""
+    {
+      "title": "Tickets per age range",
+      "width": 150,
+      "height": 100,
+      "data": { "values": [
+        { "from": 0, "to": 10, "tickets": 4 },
+        { "from": 10, "to": 25, "tickets": 7 },
+        { "from": 25, "to": 30, "tickets": 2 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "from", "type": "quantitative", "bin": "binned" },
+        "x2": { "field": "to" },
+        "y": { "field": "tickets", "type": "quantitative" }
+      }
+    }
+    """);
+using var ticketsPicture = tickets.Render();
+
+// A bin or a stack that needs more than the limits allow fails the render with a located exception instead of
+// exhausting memory
+try
+{
+    using var tooMany = VegaLiteDocument.Parse("""
+        {
+          "data": { "values": [ { "x": 0 }, { "x": 1000000 } ] },
+          "transform": [ { "bin": { "step": 0.001 }, "field": "x", "as": "b" } ],
+          "mark": "point",
+          "encoding": { "x": { "field": "b", "type": "quantitative" } }
+        }
+        """).Render();
+}
+catch (VegaLiteRenderException ex)
+{
+    Console.WriteLine($"{ex.Location.Pointer}: {ex.Message}"); // names the transform and the limit that was exceeded
 }
 ```
 
