@@ -15,6 +15,10 @@ language: en
 # Project-specific technical terms and tool names
 words:
   - canvasnet
+  - davehoward
+  - extensionless
+  - Visio
+  - vsdx
   - scad
   - openscad
   - Hival

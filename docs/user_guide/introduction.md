@@ -2587,7 +2587,10 @@ and `Rgba32`) and has no knowledge of any 3D file format. Its types live in thre
 - `DemaConsulting.CanvasNet.Render3D.SceneRendering` - camera, lights, options, and the renderer
 
 Scenes can combine solids with constructive solid geometry (union, difference, and intersection of
-closed meshes) through `CsgNode`; see *Constructive Solid Geometry*.
+closed meshes) through `CsgNode`; see *Constructive Solid Geometry*. A scene can also hold translucent
+surfaces and independent overlay bodies (ghosts and highlights; see *Transparency and Overlays*), and the
+tessellation namespace builds solids by linear or rotational polygon extrusion (see *Extruder*), exact convex
+hulls (see *ConvexHull*), and Minkowski sums of convex solids (see *MinkowskiSum*).
 
 The conventions used throughout: world space is right-handed with +Z up; the camera looks down -Z
 in view space; a triangle whose vertices are counter-clockwise as seen from outside faces outward;
@@ -3473,7 +3476,10 @@ text, checked for syntax once, and can then be evaluated, built into a scene, or
 from several threads at once), each call giving the same result for the same options. The package is an
 independent, clean-room implementation of the language, not affiliated with the OpenSCAD project; it follows its
 own documented dialect (described below) and does not aim for pixel or tessellation parity with any other
-implementation.
+implementation. It parses, evaluates, and renders `.scad` models - primitives, transforms, booleans, extrusions,
+`hull`, `minkowski`, `text` (with a deterministic bundled font), `color` with alpha, the `%` ghost and `#`
+highlight modifiers, and `-D`-style variable overrides - straight to a `Surface`, and reports every unsupported
+construct instead of silently ignoring it (see *Unsupported Features and Strict Mode*).
 
 ```csharp
 public sealed partial class ScadDocument
