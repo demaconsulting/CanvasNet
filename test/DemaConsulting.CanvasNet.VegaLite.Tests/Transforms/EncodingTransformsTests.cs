@@ -299,6 +299,33 @@ public class EncodingTransformsTests
     }
 
     /// <summary>
+    ///     Validates that a discrete (ordinal) bin leaves the category of a value that is not a finite number (null, text) null: the bin text is null, not
+    ///     the text "null", so no category named "null" is made up, and the valid values keep their bin text.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_OrdinalBinOfInvalidValuesKeepsANullCategory()
+    {
+        // Act: 0 and 100 give the bins 0 to 100 by 10; null and "abc" have no bin
+        var parts = Run(
+            """[{"n":0},{"n":100},{"n":null},{"n":"abc"}]""",
+            "bar",
+            """{"x":{"field":"n","type":"ordinal","bin":true},"y":{"aggregate":"count","type":"quantitative"}}""");
+        var plain = Run(
+            """[{"n":0},{"n":100},{"n":null},{"n":"abc"}]""",
+            "point",
+            """{"x":{"field":"n","type":"ordinal","bin":true},"y":{"field":"n","type":"quantitative"}}""");
+
+        // Assert: the cell of the invalid rows is a null value, never the string "null"
+        var cells = Enumerable.Range(0, plain.Data.Main.RowCount).Select(row => plain.Data.Main.GetValue(row, "bin_maxbins_10_n_range")).ToArray();
+        Assert.Equal(["0 \u2013 10", "90 \u2013 100"], cells.Take(2).Select(v => v.ToText()).ToArray());
+        Assert.All(cells.Skip(2), v => Assert.True(v.IsNull));
+        Assert.DoesNotContain(
+            Enumerable.Range(0, parts.Data.Main.RowCount).Select(row => parts.Data.Main.GetValue(row, "bin_maxbins_10_n_range")),
+            v => v.IsString && v.Text == "null");
+        Assert.DoesNotContain(parts.Scales["x"]!.DiscreteDomain, v => v.IsString && v.Text == "null");
+    }
+
+    /// <summary>
     ///     Validates that an <c>argmax</c> definition reads the field of the row that has the largest compared value: in group a the row with t = 5 has v = 9,
     ///     in group b the only row has v = 2.
     /// </summary>
@@ -384,6 +411,31 @@ public class EncodingTransformsTests
         Assert.Equal(["b", "a"], kept.Scales["x"]!.DiscreteDomain.Select(v => v.ToText()).ToArray());
         Assert.Equal("/encoding/y", failure.Location.Pointer);
         Assert.Same(replaced.Data.Raw, replaced.Data.Main);
+    }
+
+    /// <summary>
+    ///     Validates the row budget when an aggregate and a stack run next to the rows a scale still reads: the 3 input rows stay (3), the 3 groups of the
+    ///     aggregate are added (6), and the stacked copy is counted before it is allocated (9) and then replaces the aggregated rows (back to 6). So a budget
+    ///     of 9 succeeds and a budget of 8 fails located at the stacked channel instead of allocating the copy unchecked.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_StackOfAggregateNextToRawRowsCountsTheStackedRows()
+    {
+        // Arrange: three rows, three (category, layer) groups; the sort by an operation on the field keeps the unaggregated rows (Raw)
+        const string Rows3 = """[{"c":"a","g":"x","v":1},{"c":"b","g":"x","v":2},{"c":"a","g":"y","v":3}]""";
+        const string Encoding = """{"x":{"field":"c","type":"nominal","sort":{"op":"max","field":"v"}},"y":{"field":"v","type":"quantitative","aggregate":"sum"},"color":{"field":"g","type":"nominal"}}""";
+
+        // Act
+        var kept = Run(Rows3, "bar", Encoding, new VegaLiteLimits { MaxDataRows = 9 });
+        var failure = Assert.Throws<VegaLiteRenderException>(() => Run(Rows3, "bar", Encoding, new VegaLiteLimits { MaxDataRows = 8 }));
+
+        // Assert
+        Assert.Equal(3, kept.Data.Raw.RowCount);
+        Assert.Equal(3, kept.Data.Main.RowCount);
+        Assert.Contains("sum_v_start", kept.Data.Main.Fields);
+        Assert.NotSame(kept.Data.Raw, kept.Data.Main);
+        Assert.Equal("/encoding/y", failure.Location.Pointer);
+        Assert.Contains("MaxDataRows", failure.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

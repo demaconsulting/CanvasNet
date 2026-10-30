@@ -188,13 +188,20 @@ internal sealed class EncodingTransforms
         if (plan.Stack is { } stack)
         {
             var location = _context.Locate(stack.Definition);
-            if (plan.NeedsRaw && plan.Aggregate is null)
+            if (plan.NeedsRaw)
             {
-                // The stacked copy lives next to the rows a scale still reads
+                // The stacked copy lives next to the rows a scale still reads, whether or not an aggregate came first
                 _context.Loader.ReserveDerivedRows(main.RowCount, "The stacked rows", location);
             }
 
-            main = _engine.Stack(main, stack.Field, stack.GroupBy, stack.Sort, stack.Offset, stack.StartName, stack.EndName, location);
+            var stacked = _engine.Stack(main, stack.Field, stack.GroupBy, stack.Sort, stack.Offset, stack.StartName, stack.EndName, location);
+            if (plan.NeedsRaw && plan.Aggregate is not null)
+            {
+                // The aggregated rows are replaced by the stacked copy (the unaggregated rows stay), so their count is given back
+                _context.Loader.ReleaseRows(main.RowCount);
+            }
+
+            main = stacked;
             if (!plan.NeedsRaw)
             {
                 raw = main;
@@ -266,11 +273,8 @@ internal sealed class EncodingTransforms
                             cells[offset + layout.Added[slot + 2]] = DataValue.FromString(Label(labels[b]!, formats[b]!, start, end));
                         }
                     }
-                    else if (hasRange)
-                    {
-                        cells[offset + layout.Added[slot + 2]] = DataValue.FromString("null");
-                    }
 
+                    // A value that is not a finite number keeps the default (null) cells: it has no bin, so its category stays null rather than the text "null"
                     slot += hasRange ? 3 : 2;
                 }
             }

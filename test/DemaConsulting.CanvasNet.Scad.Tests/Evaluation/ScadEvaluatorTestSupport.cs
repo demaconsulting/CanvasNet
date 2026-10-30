@@ -10,6 +10,39 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 internal static class ScadEvaluatorTestSupport
 {
     /// <summary>
+    ///     Cancels the source after a delay from a dedicated thread.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="CancellationTokenSource.CancelAfter(TimeSpan)"/> fires its timer on the thread pool. The
+    ///     evaluator blocks pool threads (every evaluation joins a dedicated thread), so with many test classes
+    ///     running in parallel on a loaded machine the pool is starved and the timer callback can be delayed by
+    ///     tens of seconds, which is what made cancellation tests exceed their bound on a loaded CI runner. A
+    ///     dedicated thread does not depend on the pool.
+    /// </remarks>
+    /// <param name="cts">The source to cancel.</param>
+    /// <param name="delay">The delay before canceling.</param>
+    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay)
+    {
+        var canceler = new Thread(() =>
+        {
+            Thread.Sleep(delay);
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The test already finished and disposed the source; nothing is left to cancel
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "ScadCancellationTestCanceler",
+        };
+        canceler.Start();
+    }
+
+    /// <summary>
     ///     Parses and evaluates source text.
     /// </summary>
     /// <param name="source">The source text.</param>
