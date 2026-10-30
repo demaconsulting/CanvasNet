@@ -104,9 +104,9 @@
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Third-party license notices of the bundled Vega-Lite library: BSD-3-Clause (Vega, Vega-Lite) and ISC (d3)
-       require the notices to be reproduced in binary distributions, so they ship as plain files in the package's
-       licenses\ folder (the library package does the same). The notice file keeps a distinct name here so it cannot
+  <!-- Third-party license notices of the bundled Vega-Lite library: BSD-3-Clause (Vega, Vega-Lite), ISC (d3), and
+       Apache-2.0 (ColorBrewer, Turbo) and the notice of cividis require the notices to be reproduced in binary
+       distributions, so they ship as plain files in the package's licenses\ folder (the library package does the same). The notice file keeps a distinct name here so it cannot
        be mistaken for the README of the tool. -->
   <ItemGroup>
     <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\LICENSE-*.txt" Pack="true" PackagePath="licenses\" />
