@@ -1398,6 +1398,38 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves the documented peak allocation bound of the shared zlib inflater: inflating a
+    ///     valid stream whose output exactly fills the declared limit allocates no more than the
+    ///     limit plus a small fixed constant (the single output array plus the inflater's own
+    ///     working memory), i.e. no growing intermediate buffer and no second output copy.
+    /// </summary>
+    [Fact]
+    public void ZlibHelper_Decompress_NearLimitValidStream_AllocationStaysWithinLimitPlusSmallConstant()
+    {
+        // Arrange: 8 MiB of pseudo-random-ish (poorly compressible but valid) data
+        const int limit = 8 * 1024 * 1024;
+        const int allowedOverhead = 256 * 1024;
+        var raw = new byte[limit];
+        new Random(12345).NextBytes(raw);
+        var zlib = ZlibHelper.Compress(raw);
+
+        // Warm up so one-time JIT/static allocations are not counted
+        _ = ZlibHelper.Decompress(ZlibHelper.Compress(new byte[64]), 64, "PNG");
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var result = ZlibHelper.Decompress(zlib, limit, "PNG");
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.Equal(limit, result.Length);
+        Assert.True(result.Span.SequenceEqual(raw));
+        Assert.True(
+            allocated <= limit + allowedOverhead,
+            $"Allocated {allocated} bytes inflating {limit} bytes (allowed {limit + allowedOverhead}).");
+    }
+
+    /// <summary>
     ///     Proves that Load rejects an <c>IDAT</c> payload that inflates to exactly one byte more
     ///     than the size implied by <c>IHDR</c> with <see cref="InvalidDataException"/>.
     /// </summary>

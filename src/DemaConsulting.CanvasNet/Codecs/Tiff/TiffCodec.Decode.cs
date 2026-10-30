@@ -317,7 +317,9 @@ public static partial class TiffCodec
         // row count <= 8192, so the product cannot overflow a long.
         var maxStripBytes = (long)layout.RowBytes * Math.Min(layout.RowsPerStrip, info.Height);
 
-        var decompressed = info.Compression switch
+        // Deflate yields a view over a single array allocated at maxStripBytes; a shorter legal
+        // (non-padded) strip is just a shorter view, never a copy.
+        Memory<byte> decompressed = info.Compression switch
         {
             TiffCompression.None => stripBytes,
             TiffCompression.PackBits => DecodePackBits(stripBytes, maxStripBytes),
@@ -327,7 +329,7 @@ public static partial class TiffCodec
         };
 
         var expectedLength = (long)layout.RowBytes * rowsInStrip;
-        if (decompressed.LongLength < expectedLength)
+        if (decompressed.Length < expectedLength)
         {
             throw new InvalidDataException(
                 "Decompressed TIFF strip data is shorter than expected (corrupt or truncated image data).");
@@ -335,7 +337,7 @@ public static partial class TiffCodec
 
         for (var row = 0; row < rowsInStrip; row++)
         {
-            var rowSpan = decompressed.AsSpan(row * layout.RowBytes, layout.RowBytes);
+            var rowSpan = decompressed.Span.Slice(row * layout.RowBytes, layout.RowBytes);
             if (info.Predictor == PredictorHorizontal)
             {
                 RemoveHorizontalPredictor(rowSpan, info.SamplesPerPixel);

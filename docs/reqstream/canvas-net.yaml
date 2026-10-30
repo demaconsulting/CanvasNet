@@ -682,6 +682,7 @@ sections:
           - CanvasNet-Codecs-DecompressionBound
         tests:
           - PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+          - ZlibHelper_Decompress_NearLimitValidStream_AllocationStaysWithinLimitPlusSmallConstant
           - TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation
 
       - id: CanvasNet-Lib-TiffGetInfo

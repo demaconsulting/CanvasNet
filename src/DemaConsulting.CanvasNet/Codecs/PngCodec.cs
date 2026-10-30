@@ -350,14 +350,14 @@ public static partial class PngCodec
         // it cannot overflow and is always below Array.MaxLength.
         var expectedRawLength = (long)(rowBytes + 1) * header.Height;
         var rawData = ZlibHelper.Decompress(idatData, expectedRawLength, "PNG");
-        if (rawData.LongLength != expectedRawLength)
+        if (rawData.Length != expectedRawLength)
         {
             throw new InvalidDataException(
                 "PNG scanline data has an unexpected length (corrupt or truncated image data).");
         }
 
         return DecodeScanlines(
-            rawData,
+            rawData.Span,
             header,
             rowBytes,
             bpp,

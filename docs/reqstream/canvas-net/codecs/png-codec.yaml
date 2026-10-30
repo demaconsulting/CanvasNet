@@ -641,6 +641,7 @@ sections:
                   IHDR, so inflation can be stopped as soon as it exceeds that size.
                 tests:
                   - PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+                  - ZlibHelper_Decompress_NearLimitValidStream_AllocationStaysWithinLimitPlusSmallConstant
                   - PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException
                   - PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels
                   - PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException

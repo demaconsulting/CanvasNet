@@ -380,6 +380,7 @@ throws `InvalidDataException` naming `IEND` as the cause, since the PNG specific
 
 **Tests**:
 `PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation`,
+`ZlibHelper_Decompress_NearLimitValidStream_AllocationStaysWithinLimitPlusSmallConstant`,
 `PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException`,
 `PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels`,
 `PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException`
@@ -390,7 +391,9 @@ Builds a PNG whose `IHDR` declares a 16x16 Truecolor image (784 expected raw byt
 less than the bomb's size (proving the output is never fully inflated). Boundary cases use a
 tiny image: an `IDAT` that inflates to one byte more than `IHDR` implies is rejected; one that
 inflates to exactly the implied size decodes to the expected pixels; one byte fewer is still
-rejected as truncated.
+rejected as truncated. A separate test calls the internal `ZlibHelper.Decompress` directly on a
+valid 8 MiB stream whose output exactly fills the limit and asserts the measured allocation is at
+most the limit plus 256 KiB (the single output array plus the inflater's fixed working memory).
 
 ##### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 

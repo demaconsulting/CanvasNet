@@ -96,11 +96,16 @@ compressed payload that would otherwise inflate to gigabytes. The caller must su
 `maxOutputBytes`, derived from the image's own declared dimensions (PNG: exactly
 `height * (1 + rowBytes)` from `IHDR`; TIFF: `rowBytes * min(RowsPerStrip, ImageLength)` per strip),
 never from an attacker-controlled length field. The helper validates the zlib header (method,
-FCHECK, no preset dictionary), then reads the DEFLATE payload in fixed 80 KB chunks, requesting at
-most one byte beyond the limit; the moment the running total exceeds `maxOutputBytes` it throws
-`InvalidDataException` without ever storing the excess, so memory use is bounded by the limit
-(itself bounded by `Surface.MaxDimension`) plus one chunk buffer regardless of the stream's
-expansion ratio. Output of exactly `maxOutputBytes` is accepted. A negative limit or one above the
+FCHECK, no preset dictionary), then allocates the output array **once, at exactly
+`maxOutputBytes`**, and inflates directly into it (`Read(buffer, total, buffer.Length - total)`);
+once the array is full it reads one further byte and throws `InvalidDataException` if any data
+remains, so the excess is never stored. There is no growing intermediate stream and no final
+`ToArray()` copy, so the peak managed allocation is `maxOutputBytes` (itself bounded by
+`Surface.MaxDimension`) plus the inflater's fixed, size-independent working memory (a few tens of
+KB), regardless of the stream's expansion ratio; this is asserted by a test that measures
+allocation on a valid near-limit stream. `Decompress` returns a `Memory<byte>` slice over that
+array, so a stream that legally inflates to fewer bytes (a TIFF strip) yields a shorter view
+without another copy. Output of exactly `maxOutputBytes` is accepted. A negative limit or one above the
 maximum .NET array length is also rejected with `InvalidDataException`. The trailing Adler-32 is
 validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
 FlateDecode implementation, which is bounded by a fixed global cap instead, since a PDF stream

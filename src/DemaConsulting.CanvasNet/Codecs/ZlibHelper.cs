@@ -22,13 +22,6 @@ internal static class ZlibHelper
     private const uint AdlerModulus = 65521;
 
     /// <summary>
-    ///     The size, in bytes, of each read chunk pulled from the inflating stream. The output
-    ///     total is checked after every chunk, so at most one chunk (and never more than one byte
-    ///     past the limit, see <see cref="Decompress"/>) is ever produced beyond the limit.
-    /// </summary>
-    private const int ChunkSize = 81920;
-
-    /// <summary>
     ///     Computes the Adler-32 checksum of a byte sequence, as used by the zlib stream format.
     /// </summary>
     /// <param name="data">The data to checksum.</param>
@@ -87,16 +80,23 @@ internal static class ZlibHelper
     /// <param name="maxOutputBytes">
     ///     The hard upper limit on the decompressed size, in bytes. Callers derive it from the
     ///     image's own declared dimensions (the most a legitimate image could need), never from an
-    ///     attacker-controlled length field. Output is read in bounded chunks and the running total
-    ///     is checked before each chunk is stored, so the memory allocated never exceeds this limit
-    ///     (plus one fixed-size chunk buffer) regardless of how far the stream would expand.
-    ///     Output of exactly this size is accepted; one byte more is rejected.
+    ///     attacker-controlled length field. The output array is allocated once at exactly this
+    ///     size and inflated into directly, never reading more than one byte past it, so the peak
+    ///     managed allocation is <paramref name="maxOutputBytes"/> plus the fixed, size-independent
+    ///     working memory of the inflater itself (no growing intermediate buffer and no output
+    ///     copy), regardless of how far the stream would expand. Output of exactly this size is
+    ///     accepted; one byte more is rejected.
     /// </param>
     /// <param name="formatName">
     ///     A short format description (for example <c>PNG</c> or <c>TIFF Deflate</c>) used in error
     ///     messages.
     /// </param>
-    /// <returns>The decompressed bytes, no more than <paramref name="maxOutputBytes"/> long.</returns>
+    /// <returns>
+    ///     A view of the decompressed bytes, no more than <paramref name="maxOutputBytes"/> long. It
+    ///     is a slice over the single output array (allocated at <paramref name="maxOutputBytes"/>
+    ///     bytes), so a stream that legally inflates to fewer bytes yields a shorter view without
+    ///     any further copy.
+    /// </returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the data is too short to be a valid zlib stream, the zlib header's
     ///     compression method is not DEFLATE, the header's FCHECK bits are invalid, the header
@@ -106,7 +106,7 @@ internal static class ZlibHelper
     ///     maximum .NET array length, or the decompressed data's Adler-32 checksum does not match
     ///     the trailer.
     /// </exception>
-    internal static byte[] Decompress(byte[] zlibData, long maxOutputBytes, string formatName)
+    internal static Memory<byte> Decompress(byte[] zlibData, long maxOutputBytes, string formatName)
     {
         if (maxOutputBytes < 0 || maxOutputBytes > Array.MaxLength)
         {
@@ -140,34 +140,35 @@ internal static class ZlibHelper
         var expectedAdler =
             ((uint)zlibData[^4] << 24) | ((uint)zlibData[^3] << 16) | ((uint)zlibData[^2] << 8) | zlibData[^1];
 
-        byte[] decompressed;
+        // The output array is allocated exactly once, at the caller's limit, and inflated into
+        // directly: there is no growing intermediate stream and no final ToArray() copy.
+        var buffer = new byte[(int)maxOutputBytes];
+        var total = 0;
         using (var input = new MemoryStream(zlibData, 2, zlibData.Length - 2 - 4, false))
         using (var deflate = new DeflateStream(input, CompressionMode.Decompress))
-        using (var output = new MemoryStream())
         {
-            var buffer = new byte[(int)Math.Min(ChunkSize, maxOutputBytes + 1)];
-            long total = 0;
             int bytesRead;
-
-            // Never request more than one byte past the limit: that single extra byte is enough
-            // to prove the stream would exceed the limit, without ever materializing the excess.
-            while ((bytesRead = deflate.Read(buffer, 0, (int)Math.Min(buffer.Length, maxOutputBytes - total + 1))) > 0)
+            while (total < buffer.Length && (bytesRead = deflate.Read(buffer, total, buffer.Length - total)) > 0)
             {
                 total += bytesRead;
-                if (total > maxOutputBytes)
+            }
+
+            // The array is full (or the limit is zero): a single further byte proves the stream
+            // would exceed the limit, without ever materializing the excess.
+            if (total == buffer.Length)
+            {
+                Span<byte> probe = stackalloc byte[1];
+                if (deflate.Read(probe) > 0)
                 {
                     throw new InvalidDataException(
                         $"Decompressed {formatName} data exceeds the expected size of {maxOutputBytes} bytes " +
                         "(corrupt image data or a decompression bomb).");
                 }
-
-                output.Write(buffer, 0, bytesRead);
             }
-
-            decompressed = output.ToArray();
         }
 
-        if (ComputeAdler32(decompressed) != expectedAdler)
+        var decompressed = new Memory<byte>(buffer, 0, total);
+        if (ComputeAdler32(decompressed.Span) != expectedAdler)
         {
             throw new InvalidDataException($"Zlib Adler-32 checksum mismatch (corrupt {formatName} data).");
         }
