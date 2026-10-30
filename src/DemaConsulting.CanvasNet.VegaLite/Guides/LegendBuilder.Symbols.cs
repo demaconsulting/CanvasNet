@@ -284,11 +284,23 @@ internal sealed partial class LegendBuilder
         // Every item is charged before it is created: a symbol and a label per entry
         c.Budget.Add(2L * entries.Count, spec.Location);
 
+        // Every symbol carries its own copy of its dash pattern, so a long pattern is an error, as it is for a mark
+        CheckDashLength(c, s.NumberArray("symbolDash")?.Count ?? 0);
+        foreach (var pattern in spec.Get("strokeDash")?.Scale?.DashRange ?? [])
+        {
+            CheckDashLength(c, pattern.Count);
+        }
+
         var looks = new List<SymbolLook>(entries.Count);
         var sizes = new double[entries.Count];
         double offset = 0;
         for (var i = 0; i < entries.Count; i++)
         {
+            if (i % CancellationInterval == 0)
+            {
+                c.Token.ThrowIfCancellationRequested();
+            }
+
             var look = LookOf(c, entries[i].Value);
             looks.Add(look);
             sizes[i] = Math.Max(Math.Ceiling(Math.Sqrt(Math.Max(0, look.Size)) + look.StrokeWidth), fontSize);
@@ -298,7 +310,8 @@ internal sealed partial class LegendBuilder
             }
         }
 
-        var columns = (int)Math.Min(int.MaxValue, Math.Max(0, s.Number("columns") ?? (spec.Vertical ? 1 : 0)));
+        // More columns than entries would only be empty columns
+        var columns = (int)Math.Min(entries.Count, Math.Max(0, s.Number("columns") ?? (spec.Vertical ? 1 : 0)));
         var symbolOffset = s.Number("symbolOffset") ?? 0;
         var labelOffset = s.Number("labelOffset") ?? 0;
         var align = s.Text("labelAlign") ?? "left";
@@ -522,6 +535,23 @@ internal sealed partial class LegendBuilder
         }
 
         return new SymbolLook(shape, size, fill, stroke, strokeWidth, opacity, mark.FillOpacity ?? 1, mark.StrokeOpacity ?? 1, dash);
+    }
+
+    /// <summary>The most entries a dash pattern of a legend symbol may have, the limit of a mark's pattern.</summary>
+    private const int MaxDashLength = 64;
+
+    /// <summary>
+    ///     Checks the length of a dash pattern against <see cref="MaxDashLength"/>.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="length">The number of entries.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the pattern is longer than the limit.</exception>
+    private static void CheckDashLength(Context c, int length)
+    {
+        if (length > MaxDashLength)
+        {
+            throw new VegaLiteRenderException($"A legend dash pattern has {length} entries, more than the limit of {MaxDashLength}.", c.Spec.Location);
+        }
     }
 
     /// <summary>

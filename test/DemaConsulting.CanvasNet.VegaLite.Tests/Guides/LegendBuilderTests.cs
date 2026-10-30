@@ -881,4 +881,46 @@ public class LegendBuilderTests
         Assert.Contains("MaxSceneItems", tooMany.Message, StringComparison.Ordinal);
         Assert.Throws<OperationCanceledException>(() => ChartTestHelpers.Legend(json, cancellationToken: cancelled.Token));
     }
+
+    /// <summary>
+    ///     Validates that a column count above the number of entries is clamped, so a huge <c>columns</c> neither allocates nor overflows.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_HugeColumnCountIsClampedToTheEntries()
+    {
+        // Arrange
+        var huge = Spec("\"color\": { " + Nominal + ", \"legend\": { \"columns\": 2147483647, \"direction\": \"horizontal\" } }");
+        var wide = Spec("\"color\": { " + Nominal + ", \"legend\": { \"columns\": 3, \"direction\": \"horizontal\" } }");
+
+        // Act
+        var clamped = ChartTestHelpers.Legend(huge);
+        var exact = ChartTestHelpers.Legend(wide);
+
+        // Assert: three entries in three columns are laid out the same as more columns than entries
+        Assert.Equal(Describe(exact), Describe(clamped));
+    }
+
+    /// <summary>
+    ///     Validates that a dash pattern longer than the limit of a mark's pattern is an error in a legend, whether it is the
+    ///     <c>symbolDash</c> of the legend or a pattern of the <c>strokeDash</c> scale.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_LongDashPatternIsAnError()
+    {
+        // Arrange
+        var pattern = string.Join(", ", Enumerable.Repeat("1", 65));
+        var symbolDash = Spec("\"color\": { " + Nominal + ", \"legend\": { \"symbolDash\": [" + pattern + "] } }");
+        var scaleDash = Spec("\"strokeDash\": { " + Nominal + ", \"scale\": { \"range\": [[" + pattern + "], [1, 1], [2, 2]] } }");
+        var ok = Spec("\"color\": { " + Nominal + ", \"legend\": { \"symbolDash\": [" + string.Join(", ", Enumerable.Repeat("1", 64)) + "] } }");
+
+        // Act
+        var first = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(symbolDash));
+        var second = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(scaleDash));
+        var legend = ChartTestHelpers.Legend(ok);
+
+        // Assert
+        Assert.Contains("limit of 64", first.Message, StringComparison.Ordinal);
+        Assert.Contains("limit of 64", second.Message, StringComparison.Ordinal);
+        Assert.All(Symbols(legend), s => Assert.Equal(64, s.StrokeDash!.Count));
+    }
 }

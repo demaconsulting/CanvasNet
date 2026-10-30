@@ -103,7 +103,7 @@ internal sealed partial class LegendBuilder
             return new GridResult([], [], SceneBounds.Empty);
         }
 
-        var columns = options.Columns > 0 ? options.Columns : n;
+        var columns = options.Columns > 0 ? Math.Min(options.Columns, n) : n;
         var rows = (int)Math.Ceiling(n / (double)columns);
         var xOffset = new double[n];
         var yOffset = new double[n];
