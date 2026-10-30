@@ -1373,6 +1373,82 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects a decompression bomb: an <c>IDAT</c> payload of only tens of
+    ///     kilobytes that would inflate to 64 MB, while the <c>IHDR</c> declares a 16x16 image
+    ///     needing only 784 bytes. The decoder must throw <see cref="InvalidDataException"/> as
+    ///     soon as the inflated output exceeds the size implied by <c>IHDR</c>, without ever
+    ///     materializing the oversized output.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation()
+    {
+        // Arrange: a 16x16 Truecolor PNG (expected raw size 16 * (1 + 48) = 784 bytes) whose
+        // IDAT holds a zlib stream of 64 MB of zeros
+        const int bombSize = 64 * 1024 * 1024;
+        var bytes = BuildPngFromZlib(16, 16, 2 /* Truecolor */, BuildZlibBomb(bombSize));
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert: the managed allocation stayed far below the size of the bomb
+        Assert.True(allocated < bombSize / 8, $"Allocated {allocated} bytes while rejecting a {bombSize}-byte bomb.");
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects an <c>IDAT</c> payload that inflates to exactly one byte more
+    ///     than the size implied by <c>IHDR</c> with <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2x2 Truecolor PNG expects 2 * (1 + 6) = 14 raw bytes; supply 15
+        var bytes = BuildPngFromZlib(2, 2, 2 /* Truecolor */, ZlibCompress(new byte[15]));
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves the boundary case: an <c>IDAT</c> payload that inflates to exactly the size
+    ///     implied by <c>IHDR</c> decodes successfully and produces the expected pixels.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels()
+    {
+        // Arrange: a 2x1 Truecolor PNG expects 1 * (1 + 6) = 7 raw bytes (filter 0 + two pixels)
+        var raw = new byte[] { 0, 10, 20, 30, 40, 50, 60 };
+        var bytes = BuildPngFromZlib(2, 1, 2 /* Truecolor */, ZlibCompress(raw));
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var surface = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(40, 50, 60, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load still rejects an <c>IDAT</c> payload that inflates to fewer bytes
+    ///     than the size implied by <c>IHDR</c> (truncated data) with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2x2 Truecolor PNG expects 14 raw bytes; supply 13
+        var bytes = BuildPngFromZlib(2, 2, 2 /* Truecolor */, ZlibCompress(new byte[13]));
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a zlib stream whose Adler-32 trailer does not match the
     ///     decompressed data, with InvalidDataException.
     /// </summary>
@@ -2542,6 +2618,42 @@ public class PngCodecTests
         var iend = BuildChunk("IEND", []);
         result.Write(iend, 0, iend.Length);
         return result.ToArray();
+    }
+
+    /// <summary>
+    ///     Builds a complete, single-IDAT PNG byte sequence from a pre-built zlib stream, for tests
+    ///     that need full control over the compressed payload (for example a decompression bomb).
+    /// </summary>
+    private static byte[] BuildPngFromZlib(int width, int height, byte colorType, byte[] zlib)
+    {
+        using var result = new MemoryStream();
+        result.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(width, height, 8, colorType, 0, 0, 0);
+        result.Write(ihdr, 0, ihdr.Length);
+        var idat = BuildChunk("IDAT", zlib);
+        result.Write(idat, 0, idat.Length);
+        var iend = BuildChunk("IEND", []);
+        result.Write(iend, 0, iend.Length);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    ///     Builds a valid zlib stream that inflates to <paramref name="uncompressedSize"/> zero
+    ///     bytes, written in 1 MB pieces so the test itself never allocates the full output.
+    /// </summary>
+    private static byte[] BuildZlibBomb(int uncompressedSize)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, true))
+        {
+            var piece = new byte[1024 * 1024];
+            for (var written = 0; written < uncompressedSize; written += piece.Length)
+            {
+                zlib.Write(piece, 0, Math.Min(piece.Length, uncompressedSize - written));
+            }
+        }
+
+        return output.ToArray();
     }
 
     /// <summary>

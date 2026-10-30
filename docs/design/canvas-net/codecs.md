@@ -83,6 +83,35 @@ frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/
 the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
 participate in its generated value equality like every other member.
 
+#### Zlib Helper (internal)
+
+`ZlibHelper` (`Codecs/ZlibHelper.cs`) is an `internal static` helper shared by `PngCodec` and
+`TiffCodec`; it is not a software unit of its own and is not part of the public API. It replaces
+two formerly copy-pasted private zlib implementations and provides Adler-32 checksum computation,
+zlib-stream compression (`Compress`), and **hard-bounded** zlib-stream decompression
+(`Decompress(byte[] zlibData, long maxOutputBytes, string formatName)`).
+
+`Decompress` exists to defend the decoders against "decompression bombs" — a tiny crafted
+compressed payload that would otherwise inflate to gigabytes. The caller must supply
+`maxOutputBytes`, derived from the image's own declared dimensions (PNG: exactly
+`height * (1 + rowBytes)` from `IHDR`; TIFF: `rowBytes * min(RowsPerStrip, ImageLength)` per strip),
+never from an attacker-controlled length field. The helper validates the zlib header (method,
+FCHECK, no preset dictionary), then reads the DEFLATE payload in fixed 80 KB chunks, requesting at
+most one byte beyond the limit; the moment the running total exceeds `maxOutputBytes` it throws
+`InvalidDataException` without ever storing the excess, so memory use is bounded by the limit
+(itself bounded by `Surface.MaxDimension`) plus one chunk buffer regardless of the stream's
+expansion ratio. Output of exactly `maxOutputBytes` is accepted. A negative limit or one above the
+maximum .NET array length is also rejected with `InvalidDataException`. The trailing Adler-32 is
+validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
+FlateDecode implementation, which is bounded by a fixed global cap instead, since a PDF stream
+carries no per-stream expected size.)
+
+The other decoders were reviewed for the same class of problem: `GifCodec`'s LZW decoder already
+writes into a buffer of exactly the Image Descriptor's declared index count and rejects any code
+that would exceed it (and the frame region is bounded by the canvas, itself bounded by
+`Surface.MaxDimension`); `Jpeg2000Codec` enforces explicit `Jpeg2000DecoderLimits`; TIFF's LZW and
+PackBits strip decoders are now bounded by the same per-strip limit as Deflate.
+
 ### Header-Only Probing (`GetInfo`)
 
 Each of the six codecs, in addition to its existing `Load` method (and, for four of the six

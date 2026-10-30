@@ -252,6 +252,25 @@ public class TiffCodecTests
     }
 
     /// <summary>
+    ///     Builds a valid zlib stream that inflates to <paramref name="uncompressedSize"/> zero
+    ///     bytes, written in 1 MB pieces so the test itself never allocates the full output.
+    /// </summary>
+    private static byte[] BuildZlibBomb(int uncompressedSize)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, true))
+        {
+            var piece = new byte[1024 * 1024];
+            for (var written = 0; written < uncompressedSize; written += piece.Length)
+            {
+                zlib.Write(piece, 0, Math.Min(piece.Length, uncompressedSize - written));
+            }
+        }
+
+        return output.ToArray();
+    }
+
+    /// <summary>
     ///     Adds the standard set of mandatory tags for an 8-bit RGB (3 samples per pixel) image,
     ///     to be combined with <see cref="TestTiffBuilder.WithStrips"/>.
     /// </summary>
@@ -1291,6 +1310,161 @@ public class TiffCodecTests
         {
             Assert.Equal(new Rgba32(row0[x * 3], row0[(x * 3) + 1], row0[(x * 3) + 2], 255), surface[x, 0]);
         }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Decompression-bomb defense (bounded strip decompression)
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    ///     Verifies that Load rejects a Deflate strip that would inflate to 64 MB when the IFD's
+    ///     dimensions need only 192 bytes, with InvalidDataException and without materializing the
+    ///     oversized output.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation()
+    {
+        // Arrange: an 8x8 RGB image (192 bytes per full strip) whose only strip is a 64 MB bomb
+        const int bombSize = 64 * 1024 * 1024;
+        var file = StandardRgbBuilder(false, 8, 8, 8, 8)
+            .WithStrips(BuildZlibBomb(bombSize))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert: the managed allocation stayed far below the size of the bomb
+        Assert.True(allocated < bombSize / 8, $"Allocated {allocated} bytes while rejecting a {bombSize}-byte bomb.");
+    }
+
+    /// <summary>
+    ///     Verifies that a huge RowsPerStrip value cannot raise the Deflate bound above what the
+    ///     image height allows: the bound is clamped to the image's own rows.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_DeflateStripWithHugeRowsPerStrip_BoundIsClampedToImageHeight()
+    {
+        // Arrange: a 4x2 RGB image (24 bytes total) declaring RowsPerStrip = 2^31 - 1, with a
+        // 64 MB bomb as its only strip
+        const int bombSize = 64 * 1024 * 1024;
+        var file = StandardRgbBuilder(false, 4, 2, 8, int.MaxValue)
+            .WithStrips(BuildZlibBomb(bombSize))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert
+        Assert.True(allocated < bombSize / 8, $"Allocated {allocated} bytes while rejecting a {bombSize}-byte bomb.");
+    }
+
+    /// <summary>
+    ///     Verifies the boundary case: Deflate strips that inflate to exactly the expected sizes
+    ///     (a full first strip and a shorter last strip) decode successfully.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_DeflateStripsInflateToExactlyExpectedSizes_DecodesExpectedPixels()
+    {
+        // Arrange: a 4x3 RGB image with RowsPerStrip 2: strip 0 holds 2 rows (24 bytes), the
+        // last strip holds the remaining 1 row (12 bytes)
+        var raw = Enumerable.Range(1, 36).Select(i => (byte)i).ToArray();
+        var file = StandardRgbBuilder(false, 4, 3, 8, 2)
+            .WithStrips(TestZlibCompress(raw[..24]), TestZlibCompress(raw[24..]))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act
+        var surface = TiffCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(1, 2, 3, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(13, 14, 15, 255), surface[0, 1]);
+        Assert.Equal(new Rgba32(25, 26, 27, 255), surface[0, 2]);
+        Assert.Equal(new Rgba32(34, 35, 36, 255), surface[3, 2]);
+    }
+
+    /// <summary>
+    ///     Verifies the documented tolerance: a last strip padded up to a full RowsPerStrip rows
+    ///     still decodes (the padding is ignored), but never beyond that bound.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_DeflateLastStripPaddedToFullRowsPerStrip_DecodesAndIgnoresPadding()
+    {
+        // Arrange: a 4x3 RGB image with RowsPerStrip 2 whose last strip is padded to 2 rows (24
+        // bytes) instead of the 1 row (12 bytes) the image needs
+        var raw = Enumerable.Range(1, 48).Select(i => (byte)i).ToArray();
+        var file = StandardRgbBuilder(false, 4, 3, 8, 2)
+            .WithStrips(TestZlibCompress(raw[..24]), TestZlibCompress(raw[24..]))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act
+        var surface = TiffCodec.Load(stream);
+
+        // Assert: the last real row is decoded from the start of the padded strip
+        Assert.Equal(new Rgba32(25, 26, 27, 255), surface[0, 2]);
+    }
+
+    /// <summary>
+    ///     Verifies that a Deflate strip inflating to one byte more than a full RowsPerStrip
+    ///     worth of rows is rejected with InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_DeflateStripInflatesOneByteBeyondFullStrip_ThrowsInvalidDataException()
+    {
+        // Arrange: a 4x3 RGB image with RowsPerStrip 2 (24 bytes per full strip); the second
+        // strip inflates to 25 bytes
+        var file = StandardRgbBuilder(false, 4, 3, 8, 2)
+            .WithStrips(TestZlibCompress(new byte[24]), TestZlibCompress(new byte[25]))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Verifies that Load rejects a PackBits strip whose runs expand far beyond the strip's
+    ///     expected size with InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_PackBitsStripExpandsBeyondExpectedSize_ThrowsInvalidDataException()
+    {
+        // Arrange: an 8x8 RGB image (192 bytes) whose strip holds 100 repeat runs of 128 bytes
+        var strip = new byte[200];
+        for (var i = 0; i < strip.Length; i += 2)
+        {
+            strip[i] = 0x81; // repeat the next byte 128 times
+        }
+
+        var file = StandardRgbBuilder(false, 8, 8, 32773, 8).WithStrips(strip).Build();
+        using var stream = new MemoryStream(file);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Verifies that Load rejects an LZW strip whose codes expand far beyond the strip's
+    ///     expected size with InvalidDataException.
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException()
+    {
+        // Arrange: a 4x4 RGB image (48 bytes) whose LZW strip decodes to 64 KB of zeros
+        var file = StandardRgbBuilder(false, 4, 4, 5, 4)
+            .WithStrips(TestEncodeLzw(new byte[64 * 1024]))
+            .Build();
+        using var stream = new MemoryStream(file);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
     }
 
     // ------------------------------------------------------------------------------------------

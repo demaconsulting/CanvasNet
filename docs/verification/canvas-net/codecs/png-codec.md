@@ -376,6 +376,22 @@ Builds a complete, valid one-pixel Truecolor PNG (`IHDR` + `IDAT` + a CRC-valid,
 throws `InvalidDataException` naming `IEND` as the cause, since the PNG specification requires
 `IEND` to be the final chunk in the datastream.
 
+##### CanvasNet-Codecs-PngCodec-LoadDecompressionBound: Load Bounds Decompressed IDAT Size to the IHDR-Implied Size
+
+**Tests**:
+`PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation`,
+`PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException`,
+`PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels`,
+`PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException`
+
+Builds a PNG whose `IHDR` declares a 16x16 Truecolor image (784 expected raw bytes) but whose
+`IDAT` is a valid zlib stream of 64 MB of zeros (a few tens of kilobytes compressed), and asserts
+`Load` throws `InvalidDataException` while `GC.GetAllocatedBytesForCurrentThread()` grows by far
+less than the bomb's size (proving the output is never fully inflated). Boundary cases use a
+tiny image: an `IDAT` that inflates to one byte more than `IHDR` implies is rejected; one that
+inflates to exactly the implied size decodes to the expected pixels; one byte fewer is still
+rejected as truncated.
+
 ##### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
 **Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 126 PngSuite files)

@@ -31,10 +31,16 @@ public static partial class TiffCodec
     /// <summary>
     ///     Decodes a PackBits (TIFF 6.0 Section 9) run-length encoded byte stream.
     /// </summary>
+    /// <param name="data">The PackBits-encoded bytes.</param>
+    /// <param name="maxOutputBytes">
+    ///     The hard upper limit on the decoded size (the most the strip's declared dimensions could
+    ///     need); a run that would push the output past it is rejected before it is written.
+    /// </param>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when a literal or repeat run's data extends past the end of <paramref name="data"/>.
+    ///     Thrown when a literal or repeat run's data extends past the end of <paramref name="data"/>,
+    ///     or the decoded output would exceed <paramref name="maxOutputBytes"/>.
     /// </exception>
-    private static byte[] DecodePackBits(byte[] data)
+    private static byte[] DecodePackBits(byte[] data, long maxOutputBytes)
     {
         using var output = new MemoryStream();
         var i = 0;
@@ -50,6 +56,7 @@ public static partial class TiffCodec
                     throw new InvalidDataException("Truncated PackBits literal run.");
                 }
 
+                CheckPackBitsOutputLimit(output.Length, count, maxOutputBytes);
                 output.Write(data, i, count);
                 i += count;
             }
@@ -61,6 +68,7 @@ public static partial class TiffCodec
                     throw new InvalidDataException("Truncated PackBits repeat run.");
                 }
 
+                CheckPackBitsOutputLimit(output.Length, count, maxOutputBytes);
                 var value = data[i];
                 i++;
                 for (var j = 0; j < count; j++)
@@ -73,6 +81,19 @@ public static partial class TiffCodec
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>
+    ///     Throws when appending <paramref name="count"/> bytes to <paramref name="length"/> bytes
+    ///     of already-decoded output would exceed <paramref name="maxOutputBytes"/>.
+    /// </summary>
+    private static void CheckPackBitsOutputLimit(long length, int count, long maxOutputBytes)
+    {
+        if (length + count > maxOutputBytes)
+        {
+            throw new InvalidDataException(
+                $"Decoded TIFF PackBits data exceeds the expected size of {maxOutputBytes} bytes.");
+        }
     }
 
     /// <summary>
@@ -230,11 +251,17 @@ public static partial class TiffCodec
     ///     exact class of bug (bit stream misalignment and
     ///     <see cref="System.IO.InvalidDataException"/> on decode, or silent corruption).
     /// </remarks>
+    /// <param name="data">The LZW-encoded bytes.</param>
+    /// <param name="maxOutputBytes">
+    ///     The hard upper limit on the decoded size (the most the strip's declared dimensions could
+    ///     need); output past it is rejected as soon as it is produced.
+    /// </param>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the stream does not begin with a Clear code, an invalid code is
-    ///     encountered, or the stream ends before an end-of-information code is read.
+    ///     encountered, the stream ends before an end-of-information code is read, or the decoded
+    ///     output would exceed <paramref name="maxOutputBytes"/>.
     /// </exception>
-    private static byte[] DecodeLzw(byte[] data)
+    private static byte[] DecodeLzw(byte[] data, long maxOutputBytes)
     {
         var reader = new LzwBitReader(data);
         using var output = new MemoryStream();
@@ -265,6 +292,12 @@ public static partial class TiffCodec
             }
 
             var entry = ResolveLzwEntry(code, table, previousEntry);
+            if (output.Length + entry.Length > maxOutputBytes)
+            {
+                throw new InvalidDataException(
+                    $"Decoded TIFF LZW data exceeds the expected size of {maxOutputBytes} bytes.");
+            }
+
             output.Write(entry, 0, entry.Length);
 
             if (previousEntry is not null)

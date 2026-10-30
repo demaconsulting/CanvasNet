@@ -382,6 +382,28 @@ reject it. Measures `GC.GetAllocatedBytesForCurrentThread()` immediately before 
 the allocated-bytes delta stays under a small bound (proving the multi-megabyte `uint[]` the count
 would otherwise require is never allocated).
 
+##### CanvasNet-Codecs-TiffCodec-LoadDecompressionBound: Load Bounds Decompressed Strip Size
+
+**Tests**:
+`TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation`,
+`TiffCodec_Load_DeflateStripWithHugeRowsPerStrip_BoundIsClampedToImageHeight`,
+`TiffCodec_Load_DeflateStripInflatesOneByteBeyondFullStrip_ThrowsInvalidDataException`,
+`TiffCodec_Load_DeflateStripsInflateToExactlyExpectedSizes_DecodesExpectedPixels`,
+`TiffCodec_Load_DeflateLastStripPaddedToFullRowsPerStrip_DecodesAndIgnoresPadding`,
+`TiffCodec_Load_PackBitsStripExpandsBeyondExpectedSize_ThrowsInvalidDataException`,
+`TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException`
+
+Hand-builds TIFF files whose only Deflate strip is a valid zlib stream of 64 MB of zeros (a few
+tens of kilobytes compressed) for an image needing only a few hundred bytes — once with a normal
+`RowsPerStrip` and once with `RowsPerStrip` set to `Int32.MaxValue` to prove the bound is clamped
+to the image height — and asserts `Load` throws `InvalidDataException`; each measures
+`GC.GetAllocatedBytesForCurrentThread()` around the call and asserts the allocated-bytes delta stays
+far below the bomb's size (proving the output is never fully inflated). A strip that inflates to
+exactly one byte beyond a full strip is rejected; strips that inflate to exactly the expected
+sizes (a full first strip and a shorter final strip) decode to the expected pixels, and a final strip
+padded up to a full `RowsPerStrip` rows is tolerated with the padding ignored. PackBits and LZW
+strips that expand beyond the same bound are likewise rejected.
+
 ##### CanvasNet-Codecs-TiffCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 
 **Tests**: `TiffCodec_GetInfo_NullStream_ThrowsArgumentNullException`,

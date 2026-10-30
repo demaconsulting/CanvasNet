@@ -141,9 +141,22 @@ is applied strictly after decompression (on load) or strictly before compression
 | DEFLATE data     | variable     | Compressed strip bytes, via `System.IO.Compression.DeflateStream` |
 | Adler-32 trailer | 4 bytes (BE) | Checksum of the decompressed strip bytes, hand-computed           |
 
-This is structurally identical to `PngCodec`'s own `IDAT` zlib wrapper, but reimplemented
-privately within `TiffCodec` (in `Tiff/TiffCodec.Utils.cs`) rather than shared, since no unit in
-CanvasNet currently shares internal helper code between codecs.
+This is structurally identical to `PngCodec`'s own `IDAT` zlib wrapper, and both codecs use the
+same internal `ZlibHelper` (see *Zlib Helper* in the Codecs subsystem design, `../codecs.md`) for
+compression, Adler-32, and decompression.
+
+**Design decision — bounded strip decompression (decompression-bomb defense)**: a legitimate strip
+holds at most `RowsPerStrip` rows of `width * samplesPerPixel` bytes. `DecodeStrip` passes
+`rowBytes * min(RowsPerStrip, ImageLength)` (in `long` arithmetic; both factors are already bounded
+by `Surface.MaxDimension`) to the decompressor as a hard output limit, for every compressed strip
+type: `ZlibHelper.Decompress` for Deflate, and the corresponding output limits in
+`DecodeLzw`/`DecodePackBits`. `RowsPerStrip` is an attacker-controlled tag value, so it is
+clamped to the image height and can never raise the limit above what the image itself could
+occupy. Decompression stops with `InvalidDataException` as soon as the output would exceed the
+limit. The limit is the full strip size, not the (possibly shorter) final-strip size, so a last
+strip that a writer padded up to a full `RowsPerStrip` rows is still tolerated — the padding is
+ignored, as before — but nothing beyond that bound is. Strips that start at or after the declared
+image height contribute no rows and are skipped without being decompressed.
 
 #### Key Methods
 
@@ -181,7 +194,8 @@ if `Predictor` is 2, and unpacks each row into the destination `Surface`'s rows 
   offset/length; an unsupported bit depth, compression, photometric interpretation, planar
   configuration, or predictor value; non-positive `ImageWidth`/`ImageLength`, or either exceeding
   `Surface.MaxDimension`; an RGB image with 4 samples per pixel lacking a correct
-  `ExtraSamples` tag; mismatched `StripOffsets`/`StripByteCounts` entry counts; strip data that
+  `ExtraSamples` tag; mismatched `StripOffsets`/`StripByteCounts` entry counts; a compressed
+  strip that decompresses to more bytes than its rows could occupy (decompression bomb); strip data that
   does not cover the declared image height; or the stream ends before all header, IFD, or strip
   data has been read
 
@@ -347,7 +361,9 @@ return type of `GetInfo` — see *Codecs Subsystem Design* (`../codecs.md`). Bey
 `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
 every one of CanvasNet's target frameworks with no new runtime NuGet dependency); PackBits,
 TIFF-flavor LZW, the horizontal-differencing predictor, and the zlib wrapper (2-byte header,
-Adler-32 trailer) are all computed by hand-rolled algorithms rather than any third-party library.
+Adler-32 trailer) are all computed by hand-rolled algorithms rather than any third-party library;
+the zlib wrapper is provided by the `Codecs` subsystem's internal `ZlibHelper`, shared with
+`PngCodec` — see *Zlib Helper* in `../codecs.md`.
 
 #### Conformance Testing
 

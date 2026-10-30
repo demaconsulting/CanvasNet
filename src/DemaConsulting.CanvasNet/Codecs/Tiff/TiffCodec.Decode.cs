@@ -301,20 +301,30 @@ public static partial class TiffCodec
         CheckBounds(file, stripOffset, stripByteCount, "strip data");
         var stripBytes = file.AsSpan(stripOffset, stripByteCount).ToArray();
 
-        var decompressed = info.Compression switch
-        {
-            TiffCompression.None => stripBytes,
-            TiffCompression.PackBits => DecodePackBits(stripBytes),
-            TiffCompression.Lzw => DecodeLzw(stripBytes),
-            TiffCompression.Deflate => ZlibDecompress(stripBytes),
-            _ => throw new InvalidDataException($"Unsupported TIFF compression {info.Compression}.")
-        };
-
+        // Strips beyond the declared image height (destinationRow already == Height) contribute
+        // no rows; skip them before decompressing anything.
         var rowsInStrip = Math.Min(layout.RowsPerStrip, info.Height - destinationRow);
         if (rowsInStrip <= 0)
         {
             return destinationRow;
         }
+
+        // Hard decompression limit for every compressed strip type (Deflate, LZW, PackBits): one
+        // full strip's worth of rows, where the row count is clamped to the image height (RowsPerStrip is an attacker-controlled tag value, so it can
+        // never raise the bound above what the image itself could occupy). A strip that is padded
+        // up to a full RowsPerStrip rows (last strip) is therefore still tolerated, but any
+        // output beyond that is rejected as a decompression bomb. RowBytes <= 8192 * 4 and the
+        // row count <= 8192, so the product cannot overflow a long.
+        var maxStripBytes = (long)layout.RowBytes * Math.Min(layout.RowsPerStrip, info.Height);
+
+        var decompressed = info.Compression switch
+        {
+            TiffCompression.None => stripBytes,
+            TiffCompression.PackBits => DecodePackBits(stripBytes, maxStripBytes),
+            TiffCompression.Lzw => DecodeLzw(stripBytes, maxStripBytes),
+            TiffCompression.Deflate => ZlibHelper.Decompress(stripBytes, maxStripBytes, "TIFF Deflate"),
+            _ => throw new InvalidDataException($"Unsupported TIFF compression {info.Compression}.")
+        };
 
         var expectedLength = (long)layout.RowBytes * rowsInStrip;
         if (decompressed.LongLength < expectedLength)

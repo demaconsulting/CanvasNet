@@ -669,6 +669,21 @@ sections:
           - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
           - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
 
+      - id: CanvasNet-Lib-DecompressionBound
+        title: >-
+          The library shall bound the decompressed size of PNG and TIFF image data to the size
+          implied by the image's declared dimensions, rejecting data that would inflate beyond it
+          with InvalidDataException without fully inflating it.
+        tags: [system]
+        justification: |
+          Callers decode untrusted images; a small crafted file must not be able to exhaust memory
+          by expanding to a vastly larger decompressed payload (a decompression bomb).
+        children:
+          - CanvasNet-Codecs-DecompressionBound
+        tests:
+          - PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+          - TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+
       - id: CanvasNet-Lib-TiffGetInfo
         title: >-
           The library shall report a TIFF's width, height, samples-per-pixel, and alpha presence

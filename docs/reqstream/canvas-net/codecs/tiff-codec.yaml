@@ -449,3 +449,23 @@ sections:
                 tests:
                   - TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation
                   - TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation
+
+              - id: CanvasNet-Codecs-TiffCodec-LoadDecompressionBound
+                title: >-
+                  The TiffCodec class shall bound the decompressed size of each compressed strip to the
+                  bytes its rows can occupy (RowsPerStrip, clamped to the image height, times the row byte
+                  width), rejecting any strip that would decompress beyond it with InvalidDataException
+                  without fully decompressing it.
+                justification: |
+                  A tiny crafted TIFF whose Deflate (or LZW/PackBits) strip expands to gigabytes (a
+                  decompression bomb) would otherwise exhaust memory; the legitimate strip size is fixed
+                  by the IFD's dimensions, and RowsPerStrip is attacker-controlled so it must never raise
+                  the bound above what the image height allows.
+                tests:
+                  - TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+                  - TiffCodec_Load_DeflateStripWithHugeRowsPerStrip_BoundIsClampedToImageHeight
+                  - TiffCodec_Load_DeflateStripInflatesOneByteBeyondFullStrip_ThrowsInvalidDataException
+                  - TiffCodec_Load_DeflateStripsInflateToExactlyExpectedSizes_DecodesExpectedPixels
+                  - TiffCodec_Load_DeflateLastStripPaddedToFullRowsPerStrip_DecodesAndIgnoresPadding
+                  - TiffCodec_Load_PackBitsStripExpandsBeyondExpectedSize_ThrowsInvalidDataException
+                  - TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException

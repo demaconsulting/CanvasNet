@@ -213,12 +213,6 @@ public static partial class PngCodec
     private const byte InterlaceAdam7 = 1;
 
     /// <summary>
-    ///     The modulus used by the Adler-32 checksum algorithm (the largest prime smaller than
-    ///     2^16, as fixed by the zlib/Adler-32 specification).
-    /// </summary>
-    private const uint AdlerModulus = 65521;
-
-    /// <summary>
     ///     The maximum size, in bytes, of a single written <c>IDAT</c> chunk's data. Larger
     ///     compressed payloads are split across multiple <c>IDAT</c> chunks rather than written
     ///     as one unbounded chunk, matching common PNG encoder practice.
@@ -303,7 +297,9 @@ public static partial class PngCodec
     ///     <c>tRNS</c> chunk has already been accepted; the <c>IDAT</c> chunks are not
     ///     consecutive; any chunk appears before the mandatory <c>IHDR</c> chunk; any chunk's
     ///     CRC-32 does not match; the decompressed scanline data
-    ///     has an unexpected length; an unsupported scanline filter type is encountered; data is
+    ///     has an unexpected length (including data that would inflate beyond the size implied by
+    ///     the <c>IHDR</c> dimensions, which is rejected without being fully inflated, so a
+    ///     decompression bomb cannot exhaust memory); an unsupported scanline filter type is encountered; data is
     ///     found in the stream after the <c>IEND</c> chunk; or the
     ///     stream ends before all header, chunk, or pixel data has been read.
     /// </exception>
@@ -347,8 +343,13 @@ public static partial class PngCodec
         var rowBytes = (header.Width * bitsPerPixel + 7) / 8;
         var bpp = Math.Max(1, (bitsPerPixel + 7) / 8);
 
-        var rawData = ZlibDecompress(idatData);
+        // The exact decompressed size a legitimate non-interlaced image can occupy is fixed by
+        // IHDR (Adam7 is rejected in ReadChunks, so no per-pass sum is needed). It is used as a
+        // hard inflate limit so a tiny crafted IDAT cannot expand into a decompression bomb. The
+        // arithmetic is widened to long: width <= Surface.MaxDimension and bitsPerPixel <= 64, so
+        // it cannot overflow and is always below Array.MaxLength.
         var expectedRawLength = (long)(rowBytes + 1) * header.Height;
+        var rawData = ZlibHelper.Decompress(idatData, expectedRawLength, "PNG");
         if (rawData.LongLength != expectedRawLength)
         {
             throw new InvalidDataException(
@@ -566,7 +567,7 @@ public static partial class PngCodec
             offset += rowBytes;
         }
 
-        var compressed = ZlibCompress(raw);
+        var compressed = ZlibHelper.Compress(raw);
 
         // Split the compressed payload across as many IDAT chunks as needed, rather than writing
         // one unbounded chunk, matching common PNG encoder practice
