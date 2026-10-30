@@ -124,6 +124,8 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/guides/text-measurer.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/marks.yaml

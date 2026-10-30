@@ -85,7 +85,8 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   a band or point scale has a tick for every category (or the existing `values`), labeled with JavaScript-style text of
   the value (numbers formatted with `format` when given).
 - Label overlap: Vega's parity method (every second label dropped until none overlap, taking `labelSeparation` into
-  account) or its greedy method; dropped labels remain in `AxisResult.Ticks`.
+  account) or its greedy method, performed by the `LabelOverlap` unit that `AxisBuilder` shares with `LegendBuilder`
+  (see _LabelOverlap Unit Design_); dropped labels remain in `AxisResult.Ticks`.
 - `GetExtents(axes, dataWidth, dataHeight)` (static) - the union of the axes' bounds with the data rectangle, as the
   `ViewExtents` (how far everything reaches beyond each side, never negative), for `ViewLayout`.
 

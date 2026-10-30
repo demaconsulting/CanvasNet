@@ -685,7 +685,7 @@ internal sealed class AxisBuilder
             }
         }
 
-        var hidden = HiddenByOverlap(layout, visible);
+        var hidden = LabelOverlap.Hidden(visible, _measurer, layout.Overlap, s.Number("labelSeparation") ?? 0, cancellationToken);
         List<SceneItem> shown = [.. items.Where(i => !hidden.Contains(i))];
         budget.Add(shown.Count, location);
         return shown;
@@ -763,137 +763,6 @@ internal sealed class AxisBuilder
         }
 
         return r <= threshold ? 1 : 0;
-    }
-
-    /// <summary>
-    ///     Finds the labels that Vega's overlap removal hides.
-    /// </summary>
-    /// <remarks>
-    ///     Only labels wider and taller than a pixel take part. With at least three labels that overlap, the method
-    ///     (parity: hide every other label; greedy: hide each label that overlaps the last visible one) repeats until nothing
-    ///     overlaps or fewer than three labels are left; the last label is then kept visible.
-    /// </remarks>
-    /// <param name="layout">The axis layout facts.</param>
-    /// <param name="labels">The labels with text, in axis order.</param>
-    /// <returns>The labels to hide.</returns>
-    private HashSet<SceneText> HiddenByOverlap(Layout layout, List<SceneText> labels)
-    {
-        var hidden = new HashSet<SceneText>();
-        if (layout.Overlap is null)
-        {
-            return hidden;
-        }
-
-        var source = labels.Where(l => HasBounds(_measurer.GetBounds(l))).ToList();
-        var separation = layout.Settings.Number("labelSeparation") ?? 0;
-        var items = source;
-        if (items.Count < 3 || !HasOverlap(items, separation))
-        {
-            return hidden;
-        }
-
-        do
-        {
-            items = layout.Overlap == "greedy" ? Greedy(items, separation, hidden) : Parity(items, hidden);
-        }
-        while (items.Count >= 3 && HasOverlap(items, separation));
-
-        if (items.Count < 3 && hidden.Contains(source[^1]))
-        {
-            if (items.Count > 1)
-            {
-                hidden.Add(items[^1]);
-            }
-
-            hidden.Remove(source[^1]);
-        }
-
-        return hidden;
-    }
-
-    /// <summary>
-    ///     Tells whether a label box is larger than a pixel in both directions (Vega skips labels without content).
-    /// </summary>
-    /// <param name="bounds">The bounds.</param>
-    /// <returns><see langword="true"/> when the label takes part in the overlap removal.</returns>
-    private static bool HasBounds(SceneBounds bounds) => bounds.Width > 1 && bounds.Height > 1;
-
-    /// <summary>
-    ///     Tells whether any two neighbors overlap, with a separation in pixels.
-    /// </summary>
-    /// <param name="items">The labels in axis order.</param>
-    /// <param name="separation">The separation.</param>
-    /// <returns><see langword="true"/> when at least one pair overlaps.</returns>
-    private bool HasOverlap(List<SceneText> items, double separation)
-    {
-        for (var i = 1; i < items.Count; i++)
-        {
-            if (Intersect(_measurer.GetBounds(items[i - 1]), _measurer.GetBounds(items[i]), separation))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Tells whether two boxes are closer than a separation (Vega's <c>intersect</c>).
-    /// </summary>
-    /// <param name="a">The first box.</param>
-    /// <param name="b">The second box.</param>
-    /// <param name="separation">The separation.</param>
-    /// <returns><see langword="true"/> when the gap between the boxes is smaller than the separation.</returns>
-    private static bool Intersect(SceneBounds a, SceneBounds b, double separation) =>
-        separation > Math.Max(Math.Max(b.X1 - a.X2, a.X1 - b.X2), Math.Max(b.Y1 - a.Y2, a.Y1 - b.Y2));
-
-    /// <summary>
-    ///     The parity method: keeps the labels at even positions and hides the others.
-    /// </summary>
-    /// <param name="items">The labels.</param>
-    /// <param name="hidden">Receives the hidden labels.</param>
-    /// <returns>The labels that stay.</returns>
-    private static List<SceneText> Parity(List<SceneText> items, HashSet<SceneText> hidden)
-    {
-        var kept = new List<SceneText>();
-        for (var i = 0; i < items.Count; i++)
-        {
-            if (i % 2 == 0)
-            {
-                kept.Add(items[i]);
-            }
-            else
-            {
-                hidden.Add(items[i]);
-            }
-        }
-
-        return kept;
-    }
-
-    /// <summary>
-    ///     The greedy method: hides every label that overlaps the last label that stays.
-    /// </summary>
-    /// <param name="items">The labels.</param>
-    /// <param name="separation">The separation in pixels.</param>
-    /// <param name="hidden">Receives the hidden labels.</param>
-    /// <returns>The labels that stay.</returns>
-    private List<SceneText> Greedy(List<SceneText> items, double separation, HashSet<SceneText> hidden)
-    {
-        var kept = new List<SceneText>();
-        foreach (var item in items)
-        {
-            if (kept.Count == 0 || !Intersect(_measurer.GetBounds(kept[^1]), _measurer.GetBounds(item), separation))
-            {
-                kept.Add(item);
-            }
-            else
-            {
-                hidden.Add(item);
-            }
-        }
-
-        return kept;
     }
 
     /// <summary>
@@ -1187,13 +1056,7 @@ internal sealed class AxisBuilder
                 return isDiscreteType ? null : "parity";
             }
 
-            return node.Kind switch
-            {
-                ConfigNodeKind.Boolean => node.BoolValue ? "parity" : null,
-                ConfigNodeKind.String when node.StringValue == "greedy" => "greedy",
-                ConfigNodeKind.String when node.StringValue == "parity" => "parity",
-                _ => null,
-            };
+            return LabelOverlap.FromSetting(node);
         }
     }
 

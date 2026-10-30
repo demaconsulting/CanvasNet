@@ -253,9 +253,11 @@ software items, specifically:
   six units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
   number formatter), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range), and
-  `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has three units:
-  `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle), and
-  `AxisBuilder` (grid, ticks, labels, domain, and title of an axis). The `Layout` subsystem has one unit,
+  `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has five units:
+  `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle),
+  `AxisBuilder` (grid, ticks, labels, domain, and title of an axis), `LabelOverlap` (parity and greedy removal of
+  overlapping labels), and `LegendBuilder` (symbol, gradient, and discrete gradient legends). The `Layout` subsystem has
+  one unit,
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
@@ -453,7 +455,7 @@ the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.Ca
 `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
 `RowTransforms`, `AggregateTransforms`, and `EncodingPlan` units, its internal `Scales` subsystem holds the
 `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal
-`Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
+`Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`
 units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
@@ -1174,7 +1176,13 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── NamespaceDoc.cs            — Guides: namespace-level XML documentation
 │   ├── TextMeasurer.cs            — TextMeasurer: font resolution, measurement, and truncation
 │   ├── TitleBuilder.cs            — TitleBuilder: title, subtitle, and TitleBlock placement
-│   └── AxisBuilder.cs             — AxisBuilder: axis grid, ticks, labels, domain, title, and extents
+│   ├── AxisBuilder.cs             — AxisBuilder: axis grid, ticks, labels, domain, title, and extents
+│   ├── LabelOverlap.cs            — LabelOverlap: parity and greedy removal of overlapping labels
+│   ├── LegendPlan.cs              — LegendBuilder: which channels have legends, their kind, orient, title, and merging
+│   ├── LegendBuilder.cs           — LegendBuilder: the legend group, title, box, and result records
+│   ├── LegendBuilder.Symbols.cs   — LegendBuilder: symbol legend entries, labels, symbols, and bounds
+│   ├── LegendBuilder.Gradient.cs  — LegendBuilder: gradient and discrete gradient legends
+│   └── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
 ├── Layout/                        — Layout subsystem (internal)
 │   ├── NamespaceDoc.cs            — Layout: namespace-level XML documentation
 │   └── ViewLayout.cs              — ViewLayout: data rectangle, padding, autosize, and scene assembly

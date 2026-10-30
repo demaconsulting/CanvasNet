@@ -88,8 +88,10 @@ transforms, conditional encodings, selection parameters, legends, and time are l
   `ColorInterpolator` interpolates colors in sRGB, HSL, CIELAB, and HCL. See
   _Scales Subsystem Design_ (`canvas-net-vega-lite/scales.md`).
 - **Guides** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Guides`, folder `Guides/`): text and
-  guide construction, with three units. `TextMeasurer` resolves fonts and measures and truncates text. `TitleBuilder`
-  builds the title and subtitle. `AxisBuilder` builds axes (grid, ticks, labels, domain, title) and their extents. See
+  guide construction, with five units. `TextMeasurer` resolves fonts and measures and truncates text. `TitleBuilder`
+  builds the title and subtitle. `AxisBuilder` builds axes (grid, ticks, labels, domain, title) and their extents.
+  `LabelOverlap` removes overlapping labels (parity and greedy) for the axes and the legends. `LegendBuilder` plans and
+  builds the symbol, gradient, and discrete gradient legends. See
   _Guides Subsystem Design_ (`canvas-net-vega-lite/guides.md`).
 - **Layout** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Layout`, folder `Layout/`): the
   `ViewLayout` unit, which computes the data rectangle, the padding, the autosize canvas, the title placement, and the
@@ -141,8 +143,10 @@ other at the unit level (`EncodingPlan` uses `ScaleResolver.InferOrient`; `Scale
 orientation rule is one function used by both. `Expressions` never
 refers to `Transforms`, and `Data` never refers to `Expressions` or `Transforms`. `SceneModel` depends on nothing else.
 `TextMeasurer` reads the `SceneModel` text and bounds types; `ScenePainter` calls `TextMeasurer` and `CssColor`.
-`TitleBuilder` and `AxisBuilder` build `SceneModel` items using `TextMeasurer`, and `AxisBuilder` also uses
-`ScaleModel`, `Ticks`, and `NumberFormat`. `ViewLayout` builds the root of the scene around the title block and the
+`TitleBuilder`, `AxisBuilder`, and `LegendBuilder` build `SceneModel` items using `TextMeasurer`; `AxisBuilder` and
+`LegendBuilder` share `LabelOverlap`, `AxisBuilder` uses `ScaleModel`, `Ticks`, and `NumberFormat`, and `LegendBuilder`
+uses `ResolvedScale`, `ScaleModel`, `Ticks`, and `NumberFormat`. `ViewLayout` builds the root of the scene around the
+title block and the
 content that the builders produced. `MarkBuilder` builds `SceneModel` items from the `DataTable` and the scales. The
 `Guides` and `Scenegraph` subsystems therefore refer to each other (the guide builders produce scene items; the painter
 needs the measurer), but no unit refers back along the same path: `SceneModel` and `SceneBounds` are leaves,

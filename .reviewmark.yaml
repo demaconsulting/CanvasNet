@@ -2453,6 +2453,44 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
+  # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-LabelOverlap
+    title: Review that CanvasNetVegaLite Guides LabelOverlap Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/label-overlap.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/label-overlap.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/label-overlap.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LabelOverlap.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LabelOverlapTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Guides-LegendBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-LegendBuilder
+    title: Review that CanvasNetVegaLite Guides LegendBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/legend-builder.md"   # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/legend-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/legend-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendPlan.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Symbols.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Gradient.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Grid.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
   # CanvasNetVegaLite-Layout Review (one per subsystem)
   - id: CanvasNetVegaLite-Layout
     title: Review that CanvasNetVegaLite Layout Subsystem Implementation is Correct

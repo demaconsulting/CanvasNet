@@ -1,0 +1,154 @@
+---
+# Software Unit Requirements for LegendBuilder
+#
+# These requirements describe the design-level behavior of the LegendBuilder unit of the Guides subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Guides): LegendPlan decides which channels get a legend, their kind,
+# orient, direction, and title and which channels share one, and LegendBuilder builds a legend as scene items -
+# symbol, gradient, or discrete gradient - and measures the box it needs. The rules follow Vega-Lite and Vega. See
+# docs/verification/canvas-net-vega-lite/guides/legend-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: LegendBuilder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Planning
+                title: >-
+                  The LegendBuilder unit shall plan a legend for each of the channels color, size, shape, fill, stroke,
+                  strokeDash, strokeWidth, and opacity, in that order, that has a scale and is driven by a field or a
+                  datum, unless its legend or scale is null or config.legend.disable is set; shall choose a gradient
+                  legend for a continuous color scale, a discrete gradient for a quantize, quantile, or threshold color
+                  scale, and a symbol legend otherwise or when legend.type is symbol; shall default the orient to right
+                  and the direction to vertical, horizontal for top and bottom; and shall title the legend with the
+                  legend title, the channel title, or the default field title.
+                justification: |
+                  These are the rules that decide what a reader sees as the key of a chart, and they must match
+                  Vega-Lite's so that a specification renders as its author expects.
+                tests:
+                  - LegendPlan_Create_ChannelsInVegaLiteOrderOneLegendPerField
+                  - LegendPlan_Create_NoLegendForNullLegendNullScaleValueOrDisabled
+                  - LegendPlan_Create_KindFollowsTheScaleAndTheTypeProperty
+                  - LegendPlan_Create_OrientAndDirectionFollowVegaLiteDefaults
+                  - LegendPlan_Create_TitleFollowsTheLegendTheChannelAndTheFieldTitle
+                  - LegendPlan_Create_MarkFactsDescribeFilledFixedPaintsAndOpacity
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Merging
+                title: >-
+                  The LegendBuilder unit shall merge the legends of channels whose domains are the same (the same
+                  field and binning, the same kind of domain, the same explicit domain and sort) into one legend
+                  whose entries come from the first channel, unless both give an orient and the two differ, and shall
+                  combine the shape, color, size, and other properties of the channels in each symbol.
+                justification: |
+                  A field that drives several channels is explained once, as Vega-Lite does.
+                tests:
+                  - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
+                  - LegendPlan_Merge_ExplicitOrientsThatDifferKeepLegendsApart
+                  - LegendBuilder_Symbol_MergedChannelsCombineTheirProperties
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Symbols
+                title: >-
+                  The LegendBuilder unit shall draw each symbol of a symbol legend with the scaled fill, stroke,
+                  shape, size, stroke width, dash, and opacity of its value, with the fixed paints and opacity of
+                  the mark for what the legend does not explain, and with the base paints of the legend
+                  configuration when a field drives the paint or the mark has none, centered in an entry of size
+                  max(ceil(sqrt(size) + strokeWidth), labelFontSize) with its label beside it.
+                justification: |
+                  The symbols are what the reader compares with the marks; they must look like the marks.
+                tests:
+                  - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
+                  - LegendBuilder_Symbol_FixedAndBasePaintsComeFromTheMarkAndTheConfiguration
+                  - LegendBuilder_Symbol_OpacityStrokeWidthAndDashChannelsShowTheirValues
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Entries
+                title: >-
+                  The LegendBuilder unit shall take the entries of a symbol legend from the domain of a discrete
+                  scale, the ticks of a continuous scale (five by default) formatted with the d3 tick format, or the
+                  classes of a discretizing scale labeled with ranges, honor values, format, and the symbol
+                  properties, drop a first value that the scale maps to zero, and limit the entries to symbolLimit
+                  with a final entry that counts the rest.
+                justification: |
+                  The entries are the content of the legend; the limit keeps a legend of a large domain readable and
+                  bounded.
+                tests:
+                  - LegendBuilder_Symbol_QuantitativeSizeUsesTheTicksOfTheScale
+                  - LegendBuilder_Symbol_SymbolLimitAddsAnEllipsisEntry
+                  - LegendBuilder_Symbol_DiscretizingScaleLabelsUseRanges
+                  - LegendBuilder_Symbol_ValuesFormatAndSymbolPropertiesApply
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Grid
+                title: >-
+                  The LegendBuilder unit shall lay the entries of a symbol legend out in a grid with Vega's
+                  alignment each, row padding 2 and column padding 10, in one column for a vertical legend and in
+                  one row for a horizontal one, filling the columns of a vertical legend with several columns from
+                  top to bottom.
+                justification: |
+                  The grid decides the size of the legend and so of the chart.
+                tests:
+                  - LegendBuilder_Symbol_ColumnsFillTopToBottomWithColumnPadding
+                  - LegendBuilder_Symbol_HorizontalDirectionLaysTheEntriesOutInOneRow
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Gradient
+                title: >-
+                  The LegendBuilder unit shall draw the legend of a continuous color scale as a bar of the gradient
+                  thickness (16) and the gradient length (the view height, or for a horizontal top or bottom legend
+                  the view width, limited to 64 to 200 and 100 to 200 pixels) filled with a linear gradient whose
+                  stops are the ends of the domain and the ticks between them for a count of 15, with labels at the
+                  ticks (a tick count of max(2, 2 * floor(length / 100)), the two ends of the domain when there are
+                  fewer than three ticks) outside the bar, overlapping labels removed.
+                justification: |
+                  The gradient legend is how a quantitative color is explained; the stop rule is Vega's.
+                tests:
+                  - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
+                  - LegendBuilder_Gradient_LengthFollowsTheDataRectangleAndDirection
+                  - LegendBuilder_Gradient_FewerThanThreeTicksUseTheEndsOfTheDomain
+                  - LegendBuilder_Gradient_ExplicitLengthThicknessTicksAndLabelProperties
+                  - LegendBuilder_Gradient_DomainWithoutSpanUsesTheUnitRamp
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-DiscreteGradient
+                title: >-
+                  The LegendBuilder unit shall draw the legend of a quantize, quantile, or threshold color scale as
+                  one band per class, each with the color of its class and the height of its share of the bar, with
+                  a label at each boundary between classes and none for the first class, widening a threshold scale
+                  by one class at each end.
+                justification: |
+                  A discretizing scale has classes, not a ramp; the bands show them as they are.
+                tests:
+                  - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
+                  - LegendBuilder_Discrete_ThresholdScaleIsWidenedByOneClassAtEachEnd
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Titles
+                title: >-
+                  The LegendBuilder unit shall place the title above the entries with the title padding, anchored at
+                  its start, middle, or end and pushed in when it reaches beyond the left padding, size the legend
+                  box as the content and the padding rounded up, report the orient, offset, and position the layout
+                  needs, and carry the fill, stroke, and corner radius of the box.
+                justification: |
+                  The title and padding decide the box that the layout places.
+                tests:
+                  - LegendBuilder_Title_PaddingAnchorAndBoxPaint
+                  - LegendBuilder_Title_NullTitleLeavesTheEntriesAtThePadding
+                  - LegendBuilder_Build_ReportsOrientOffsetAndPositionForTheLayout
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Limits
+                title: >-
+                  The LegendBuilder unit shall fail with a located VegaLiteRenderException that names the limit when
+                  the legend values are more than MaxScaleDomainSize, the ticks more than MaxTicks, a label longer
+                  than MaxStringLength, or the scene items more than MaxSceneItems, charging every item to the scene
+                  budget before it is created; shall report an invalid format as a located VegaLiteSpecException;
+                  and shall poll the cancellation token.
+                justification: |
+                  A legend is built from specification and data input that may be hostile; every allocation must be
+                  bounded before it happens.
+                tests:
+                  - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated
+                  - LegendBuilder_Build_CancellationAndInvalidFormat
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-Determinism
+                title: >-
+                  The LegendBuilder unit shall give identical scene items for repeated builds of the same legend.
+                justification: |
+                  Equal inputs must give byte-identical charts on every run.
+                tests:
+                  - LegendBuilder_Build_IsDeterministic

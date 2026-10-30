@@ -545,6 +545,28 @@ sections:
           - ScaleResolverColor_Quantize_UsesFiveSchemeColorsOverEqualIntervals
           - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
 
+      - id: CanvasNetVegaLite-Legends
+        title: >-
+          The library shall explain the color, size, shape, fill, stroke, stroke dash, stroke width, and
+          opacity channels of a chart with legends as Vega-Lite does - a symbol legend with an entry per
+          value, a color gradient for a continuous color scale, and bands for a discretizing one - merging the
+          legends of channels that share a domain, titling them like the axes, honoring the documented legend
+          properties and configuration, thinning overlapping labels, and bounding every legend by the limits
+          of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A chart with a color, size, or shape encoding cannot be read without its key, and the key must look
+          and measure as it does in Vega-Lite so that the chart around it is laid out the same.
+        children:
+          - CanvasNetVegaLite-Guides-Legends
+          - CanvasNetVegaLite-Guides-OverlapRemoval
+        tests:
+          - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
+          - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
+          - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
+          - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
+          - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

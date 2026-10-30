@@ -95,6 +95,47 @@ internal static class ChartTestHelpers
     }
 
     /// <summary>
+    ///     Plans the legends of a specification.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <returns>The planned legends.</returns>
+    public static IReadOnlyList<LegendSpec> Legends(string json, string? callerConfig = null)
+    {
+        var parts = Parts(json, callerConfig);
+        return LegendPlan.Create(parts.Tree.Root, parts.Scales, parts.Config, parts.Tree.SourceName);
+    }
+
+    /// <summary>
+    ///     Builds one legend of a specification for a data rectangle of a given size.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="index">The position of the legend among the planned legends.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <param name="budget">The scene budget, or null for one from the limits.</param>
+    /// <param name="cancellationToken">The cancellation token; the one of the test when null.</param>
+    /// <returns>The legend.</returns>
+    public static LegendResult Legend(
+        string json,
+        int index = 0,
+        double width = 300,
+        double height = 300,
+        string? callerConfig = null,
+        VegaLiteLimits? limits = null,
+        SceneBudget? budget = null,
+        CancellationToken? cancellationToken = null)
+    {
+        var parts = Parts(json, callerConfig, limits);
+        var specs = LegendPlan.Create(parts.Tree.Root, parts.Scales, parts.Config, parts.Tree.SourceName);
+        var effective = limits ?? VegaLiteLimits.Default;
+        return new LegendBuilder(new TextMeasurer(), limits, parts.Tree.SourceName)
+            .Build(specs[index], width, height, budget ?? new SceneBudget(effective.MaxSceneItems), cancellationToken ?? TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
     ///     Gets the children of a group with a role, cast to a scene item type.
     /// </summary>
     /// <typeparam name="T">The item type.</typeparam>

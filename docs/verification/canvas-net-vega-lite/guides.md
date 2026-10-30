@@ -1,9 +1,11 @@
 ## Guides Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Guides` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Guides`), containing three units: `TextMeasurer` (font resolution, text
+`DemaConsulting.CanvasNet.VegaLite.Guides`), containing five units: `TextMeasurer` (font resolution, text
 measurement, truncation, line splitting, and Vega text bounds), `TitleBuilder` (the title and subtitle scene items and
-their extent), and `AxisBuilder` (the axis grid, ticks, labels, domain, and title, and the extent they need).
+their extent), `AxisBuilder` (the axis grid, ticks, labels, domain, and title, and the extent they need), `LabelOverlap`
+(Vega's parity and greedy removal of overlapping labels), and `LegendBuilder` (which channels have legends and how they
+merge, and the symbol, gradient, and discrete gradient legends with the box each needs).
 
 ### Verification Approach
 
@@ -73,6 +75,23 @@ documented above as machine-dependent is not a failure.
   `VegaLiteDocumentLayoutTests.VegaLiteDocument_Render_TitleIsPaintedAboveThePlotAndCenteredOnIt`,
   `CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels` — the title and the axis texts leave ink
   in the bands that the title and axis extents reserve, and the padding is untouched.
+- **Overlapping Labels Of Axes And Legends Are Thinned Alike**:
+  `LabelOverlapTests.LabelOverlap_Hidden_ParityKeepsEveryOtherLabelUntilNothingOverlaps`,
+  `LabelOverlapTests.LabelOverlap_Hidden_GreedyHidesLabelsThatOverlapTheLastOneKept`,
+  `AxisBuilderTests.AxisBuilder_Build_OverlappingLabelsAreRemovedByParity` — the extracted unit hides the labels derived
+  by hand, and the axis, which now calls it, still keeps 0, 40, and 80 of 21 ticks.
+- **Legends Of A Parsed Specification**:
+  `LegendPlanTests.LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend`,
+  `LegendBuilderTests.LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn`,
+  `LegendBuilderTests.LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels`,
+  `LegendBuilderTests.LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass` — a parsed specification's scales produce
+  merged legends whose entries, labels, gradient stops, and box sizes equal the values derived by hand from Vega's legend
+  rules and the measured text widths, through the whole chain of parser, scales, ticks, number format, and measurer.
+- **Legends Fail Closed With A Location**:
+  `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,
+  `LegendBuilderTests.LegendBuilder_Build_CancellationAndInvalidFormat` — too many values, ticks, characters, or scene
+  items is a render error that names the limit and points into the specification, an invalid format a specification
+  error, and cancellation is honored.
 - **Fonts Do Not Depend On The Machine**:
   `TextMeasurerTests.TextMeasurer_Resolve_DefaultUsesBundledFonts`,
   `CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation` — layout and pixels of text are identical
