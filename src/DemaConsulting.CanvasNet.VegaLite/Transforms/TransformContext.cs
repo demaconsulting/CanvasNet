@@ -35,4 +35,51 @@ internal sealed record TransformContext(
     IReadOnlyDictionary<string, DataValue> Parameters,
     VegaLiteLimits Limits,
     CancellationToken CancellationToken,
-    List<FeatureReport> Warnings);
+    List<FeatureReport> Warnings)
+{
+    /// <summary>The number of rows between two cancellation checks.</summary>
+    private const int CancellationInterval = 1024;
+
+    /// <summary>
+    ///     Gets the location of a node of the specification.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The location.</returns>
+    public VegaLiteLocation Locate(SpecNode node) => Tree.Locate(node);
+
+    /// <summary>
+    ///     Checks the cancellation token once per batch of rows.
+    /// </summary>
+    /// <param name="row">The row that is about to be processed.</param>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled and the row starts a batch.</exception>
+    public void Tick(long row)
+    {
+        if (row % CancellationInterval == 0)
+        {
+            CancellationToken.ThrowIfCancellationRequested();
+        }
+    }
+
+    /// <summary>
+    ///     Checks that a text that the specification gives a transform, and that the transform copies into the cells of its output,
+    ///     is not longer than the limit of the call (at any depth).
+    /// </summary>
+    /// <remarks>
+    ///     The limit of the call can be lower than the one the specification was parsed with, so a text of the specification
+    ///     is not trusted to fit. The check is made once, before any output is allocated.
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    /// <param name="what">What the value is, for the message.</param>
+    /// <param name="location">The location of the transform.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when a text is longer than <see cref="VegaLiteLimits.MaxStringLength"/>.</exception>
+    public void CheckText(DataValue value, string what, VegaLiteLocation location)
+    {
+        var maxLength = Limits.MaxStringLength;
+        if (value.HasTextLongerThan(maxLength))
+        {
+            throw new VegaLiteRenderException(
+                $"{what} has a text longer than the limit of {maxLength} characters (VegaLiteLimits.MaxStringLength).",
+                location);
+        }
+    }
+}

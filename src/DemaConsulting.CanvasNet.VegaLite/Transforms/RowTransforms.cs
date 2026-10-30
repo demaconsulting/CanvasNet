@@ -7,14 +7,15 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
 ///     Applies the row transforms of a specification to the rows of a chart: <c>calculate</c>, <c>filter</c>, <c>fold</c>,
-///     <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>.
+///     <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>, and hands the aggregating transforms (<c>aggregate</c>,
+///     <c>bin</c>, ...) to <see cref="AggregateTransforms"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Execution.</b> The transforms of the <c>transform</c> array run in the order of the text, each on the table that
 ///         the previous one produced, after the data loader and before the scales. Every transform is eager and immutable: it
 ///         reads a <see cref="DataTable"/> and builds a new one (a transform that keeps every row may return its input).
-///         Entries that name a transform of a later phase are skipped here; the feature catalog reports them. The
+///         Entries that name a transform that is not supported are skipped here; the feature catalog reports them. The
 ///         expressions were compiled when the specification was parsed, so no text is parsed here.
 ///     </para>
 ///     <list type="bullet">
@@ -134,8 +135,8 @@ internal sealed partial class RowTransforms
                 "pivot" => Pivot(table, entry, operation),
                 "lookup" => Lookup(table, entry, operation),
 
-                // Validated and accepted by the specification model; the aggregating transforms compute in a later work package
-                _ => table,
+                // The aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) are the aggregate transform unit's
+                _ => AggregateTransforms.Apply(table, entry, operation, _context),
             };
         }
 

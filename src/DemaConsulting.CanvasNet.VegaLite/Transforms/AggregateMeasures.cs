@@ -1,3 +1,4 @@
+// Portions derived from Vega (BSD-3-Clause) and d3-array (ISC, Mike Bostock); see third-party/README.md
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
@@ -139,7 +140,8 @@ internal enum WindowOp
 ///     <para>
 ///         The registry is the single place that decides whether an operation name is valid. The specification parser uses it
 ///         to reject an unknown name with a located error, and the encoding rules use it to tell the operations that read a field
-///         from those that do not. It holds names and properties only: the arithmetic of the operations is not part of it.
+///         from those that do not. The arithmetic of the operations is in <see cref="MeasureCell"/> (the running state of one
+///         operation); this class also holds the quantile function that the order statistics share.
 ///     </para>
 ///     <para>
 ///         The names are those of Vega-Lite 6 (the aggregate operations) and Vega (the window operations). Names are
@@ -331,4 +333,34 @@ internal static class AggregateMeasures
     /// <returns><see langword="true"/> when the operation can be the <c>op</c> of a sort object.</returns>
     public static bool CanOrderCategories(AggregateOp op) =>
         !IsArgOp(op) && !IsExponential(op) && op != AggregateOp.Values;
+
+    /// <summary>
+    ///     Computes a quantile of numbers that are already sorted, by linear interpolation between the closest ranks (the R-7 method
+    ///     of d3's <c>quantileSorted</c>).
+    /// </summary>
+    /// <param name="sorted">The numbers in ascending order; none is NaN.</param>
+    /// <param name="p">The probability, from 0 to 1 (a value outside gives the first or last number).</param>
+    /// <returns>The quantile; NaN when there are no numbers or <paramref name="p"/> is NaN.</returns>
+    public static double Quantile(ReadOnlySpan<double> sorted, double p)
+    {
+        var n = sorted.Length;
+        if (n == 0 || double.IsNaN(p))
+        {
+            return double.NaN;
+        }
+
+        if (p <= 0 || n < 2)
+        {
+            return sorted[0];
+        }
+
+        if (p >= 1)
+        {
+            return sorted[n - 1];
+        }
+
+        var position = (n - 1) * p;
+        var lower = (int)Math.Floor(position);
+        return sorted[lower] + ((sorted[lower + 1] - sorted[lower]) * (position - lower));
+    }
 }
