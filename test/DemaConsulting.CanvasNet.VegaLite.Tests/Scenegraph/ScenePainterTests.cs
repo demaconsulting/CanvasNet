@@ -531,6 +531,255 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates the linear gradient fill: the gradient runs along the item's bounding box (left to right by
+    ///     default, bottom to top for a legend gradient), continues with its end colors beyond the stops, supports hard
+    ///     steps and several stops, and is evaluated at the pixel positions the geometry gives.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GradientFillRunsAlongTheItemBox()
+    {
+        // Arrange: a 100 by 20 rectangle from red to blue, a 20 by 100 rectangle that is black at the bottom and white at
+        // the top, a rectangle with stops at 0.25 and 0.75 (the end colors continue outside them), and a hard step
+        var scene = MakeScene(
+            240,
+            120,
+            new SceneRect("horizontal", 10, 10, 100, 20)
+            {
+                FillGradient = SceneGradient.Horizontal([new SceneGradientStop(0, "#ff0000"), new SceneGradientStop(1, "#0000ff")]),
+            },
+            new SceneRect("vertical", 120, 10, 20, 100)
+            {
+                FillGradient = SceneGradient.Vertical([new SceneGradientStop(0, "#000000"), new SceneGradientStop(1, "#ffffff")]),
+            },
+            new SceneRect("padded", 150, 10, 80, 20)
+            {
+                FillGradient = SceneGradient.Horizontal([new SceneGradientStop(0.25, "#ff0000"), new SceneGradientStop(0.75, "#0000ff")]),
+            },
+            new SceneRect("hard", 10, 50, 100, 20)
+            {
+                FillGradient = SceneGradient.Horizontal(
+                [
+                    new SceneGradientStop(0, "#ff0000"),
+                    new SceneGradientStop(0.5, "#ff0000"),
+                    new SceneGradientStop(0.5, "#0000ff"),
+                    new SceneGradientStop(1, "#0000ff"),
+                ]),
+            });
+
+        // Act
+        using var surface = PaintAtOne(scene, 240, 120);
+
+        // Assert: along the red to blue rectangle the red channel falls and the blue one rises by 2.55 a pixel; a column
+        // centered at 59.5 is 0.495 of the way: red 128.8, blue 126.2 (the sampling position allows one more step)
+        AssertNear(new Rgba32(254, 0, 1, 255), surface[10, 20], 3);
+        AssertNear(new Rgba32(129, 0, 126, 255), surface[59, 20], 3);
+        AssertNear(new Rgba32(1, 0, 254, 255), surface[109, 20], 3);
+        Assert.Equal(surface[59, 12], surface[59, 28]);
+        Assert.Equal(White, surface[9, 20]);
+        Assert.Equal(White, surface[110, 20]);
+
+        // Assert: the legend gradient is black at the bottom and white at the top, with the same grey in a row
+        AssertNear(new Rgba32(3, 3, 3, 255), surface[130, 109], 4);
+        AssertNear(new Rgba32(127, 127, 127, 255), surface[130, 59], 4);
+        AssertNear(new Rgba32(252, 252, 252, 255), surface[130, 10], 4);
+        Assert.Equal(surface[121, 60], surface[138, 60]);
+        Assert.Equal(White, surface[130, 9]);
+        Assert.Equal(White, surface[130, 110]);
+
+        // Assert: a quarter in, the first color continues (pad); a quarter before the end the last one does; the
+        // middle is half way
+        Assert.Equal(Red, surface[150, 20]);
+        Assert.Equal(Red, surface[168, 20]);
+        AssertNear(new Rgba32(128, 0, 127, 255), surface[190, 20], 4);
+        Assert.Equal(Blue, surface[212, 20]);
+        Assert.Equal(Blue, surface[229, 20]);
+
+        // Assert: a hard step is an exact change of color at the stop
+        Assert.Equal(Red, surface[10, 60]);
+        Assert.Equal(Red, surface[59, 60]);
+        Assert.Equal(Blue, surface[60, 60]);
+        Assert.Equal(Blue, surface[109, 60]);
+    }
+
+    /// <summary>
+    ///     Validates that the gradient follows the placement: a scale of two doubles the box and the gradient with it, and
+    ///     a gradient inside a translated group is positioned by the group.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GradientFollowsTheScaleAndTheEnclosingGroup()
+    {
+        // Arrange: a 50 by 10 rectangle in a group that is moved by (5, 5)
+        var gradient = SceneGradient.Horizontal([new SceneGradientStop(0, "#000000"), new SceneGradientStop(1, "#ffffff")]);
+        var scene = new Scene(
+            80,
+            30,
+            "white",
+            new SceneGroup("root", 0, 0)
+            {
+                Children = [new SceneGroup("moved", 5, 5) { Children = [new SceneRect("r", 0, 0, 50, 10) { FillGradient = gradient }] }],
+            });
+
+        // Act: at a scale of one and of two
+        using var single = new ScenePainter(new TextMeasurer()).Paint(scene, 80, 30, ScenePlacement.Uniform(1), Ct);
+        using var doubled = new ScenePainter(new TextMeasurer()).Paint(scene, 160, 60, ScenePlacement.Uniform(2), Ct);
+
+        // Assert: at a scale of one the rectangle covers columns 5 to 54; the middle column (29.5 of 5..55) is half grey
+        Assert.Equal(White, single[4, 10]);
+        AssertNear(new Rgba32(1, 1, 1, 255), single[5, 10], 3);
+        AssertNear(new Rgba32(127, 127, 127, 255), single[29, 10], 4);
+        AssertNear(new Rgba32(254, 254, 254, 255), single[54, 10], 3);
+        Assert.Equal(White, single[55, 10]);
+
+        // Assert: at a scale of two it covers columns 10 to 109 with the same gradient over twice the width
+        Assert.Equal(White, doubled[9, 20]);
+        AssertNear(new Rgba32(1, 1, 1, 255), doubled[10, 20], 3);
+        AssertNear(new Rgba32(127, 127, 127, 255), doubled[59, 20], 4);
+        AssertNear(new Rgba32(254, 254, 254, 255), doubled[109, 20], 3);
+        Assert.Equal(White, doubled[110, 20]);
+    }
+
+    /// <summary>
+    ///     Validates that the fill opacity scales the stops, that a gradient replaces the solid fill without falling back
+    ///     to it, and that an unusable gradient (no usable stop, geometry that is not finite) falls back to the solid fill.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GradientOpacityReplacementAndFallback()
+    {
+        // Arrange: a half transparent red gradient over a solid green fill, a fully transparent gradient, a gradient
+        // whose stops cannot be used, a gradient with a start that is not a number, and a stroked gradient
+        var red = SceneGradient.Horizontal([new SceneGradientStop(0, "#ff0000"), new SceneGradientStop(1, "#ff0000")]);
+        var scene = MakeScene(
+            100,
+            60,
+            new SceneRect("half", 0, 0, 20, 20) { Fill = "#00ff00", FillGradient = red, FillOpacity = 0.5 },
+            new SceneRect("clear", 30, 0, 20, 20) { Fill = "#00ff00", FillGradient = red, FillOpacity = 0 },
+            new SceneRect("unusable", 60, 0, 20, 20)
+            {
+                Fill = "#00ff00",
+                FillGradient = SceneGradient.Horizontal([new SceneGradientStop(0, "not a color"), new SceneGradientStop(double.NaN, "#ff0000")]),
+            },
+            new SceneRect("empty", 0, 30, 20, 20) { Fill = "#00ff00", FillGradient = SceneGradient.Horizontal([]) },
+            new SceneRect("infinite", 30, 30, 20, 20)
+            {
+                Fill = "#00ff00",
+                FillGradient = new SceneGradient(double.NaN, 0, 1, 0, [new SceneGradientStop(0, "#ff0000")]),
+            },
+            new SceneRect("stroked", 60, 30, 20, 20)
+            {
+                Stroke = "#000000",
+                StrokeWidth = 2,
+                FillGradient = red,
+            });
+
+        // Act
+        using var surface = PaintAtOne(scene, 100, 60);
+
+        // Assert: half transparent red over white is 255 * (1 - 128 / 255) = 127 in green and blue
+        AssertNear(new Rgba32(255, 127, 127, 255), surface[10, 10], 1);
+
+        // Assert: a fully transparent gradient draws nothing, and does not fall back to the solid fill that it replaces
+        Assert.Equal(White, surface[40, 10]);
+
+        // Assert: a gradient without a usable stop, with an empty stop list, or with a start that is not a number
+        // is ignored and the solid fill is drawn
+        Assert.Equal(Green, surface[70, 10]);
+        Assert.Equal(Green, surface[10, 40]);
+        Assert.Equal(Green, surface[40, 40]);
+
+        // Assert: the stroke is drawn over the gradient fill
+        Assert.Equal(Black, surface[60, 40]);
+        Assert.Equal(Red, surface[70, 40]);
+    }
+
+    /// <summary>
+    ///     Validates the gradient on other items: the background of a group, a symbol (whose box is its shape) and a
+    ///     polygon path, each with the box of its own geometry, and that a gradient on text is not painted.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GradientOnGroupSymbolAndPath()
+    {
+        // Arrange: a group background, a circle of size 400 (20 by 20) centered at (60, 20), a triangle path, and text
+        var ramp = SceneGradient.Horizontal([new SceneGradientStop(0, "#000000"), new SceneGradientStop(1, "#ffffff")]);
+        var scene = MakeScene(
+            100,
+            70,
+            new SceneGroup("background", 5, 5) { Width = 20, Height = 30, FillGradient = ramp },
+            new SceneSymbol("circle", 60, 20) { Size = 400, FillGradient = ramp },
+            new ScenePath("triangle", [new ScenePoint(10, 60), new ScenePoint(50, 60), new ScenePoint(30, 40)])
+            {
+                Closed = true,
+                FillGradient = SceneGradient.Vertical([new SceneGradientStop(0, "#ff0000"), new SceneGradientStop(1, "#0000ff")]),
+            },
+            new SceneText("label", 70, 60, ["I"]) { FontSize = 20, FillGradient = ramp });
+
+        // Act
+        using var surface = PaintAtOne(scene, 100, 70);
+
+        // Assert: the group background is black at its left edge and white at its right edge
+        AssertNear(new Rgba32(6, 6, 6, 255), surface[5, 20], 5);
+        AssertNear(new Rgba32(249, 249, 249, 255), surface[24, 20], 5);
+        Assert.Equal(White, surface[25, 20]);
+
+        // Assert: the circle spans x from 50 to 70, so a column left of its center is dark, one right of it is light, the
+        // corner of its box is outside the circle, and the column at its center (center 60.5, 0.525 of the way) is 134
+        var left = surface[53, 20];
+        var right = surface[67, 20];
+        Assert.True(left.R < 70 && right.R > 185, $"The circle gradient runs left to right: {left} and {right}.");
+        AssertNear(new Rgba32(134, 134, 134, 255), surface[60, 20], 4);
+        Assert.Equal(White, surface[50, 10]);
+
+        // Assert: the vertical gradient of the triangle (y from 40 to 60) starts at the bottom of its box (red) and ends
+        // at the top (blue)
+        var bottom = surface[30, 58];
+        var apex = surface[30, 43];
+        Assert.True(bottom.R > 200 && bottom.B < 60, $"The bottom of the triangle is red: {bottom}.");
+        Assert.True(apex.B > 150 && apex.R < 100, $"The top of the triangle is blue: {apex}.");
+
+        // Assert: text is not filled with a gradient (it has no solid fill here), so nothing is drawn
+        Assert.Equal(0, CountPixelsOutsideWhite(surface, 66, 40, 99, 69));
+    }
+
+    /// <summary>
+    ///     Validates that painting a gradient is deterministic: the same scene and placement give the same pixels, also
+    ///     from several threads.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GradientIsDeterministic()
+    {
+        // Arrange
+        var scene = MakeScene(
+            60,
+            40,
+            new SceneRect("r", 3.3, 4.7, 50.4, 30.2)
+            {
+                FillGradient = new SceneGradient(
+                    0.1,
+                    0.9,
+                    0.8,
+                    0.2,
+                    [new SceneGradientStop(0, "#1b9e77"), new SceneGradientStop(0.4, "rgba(217, 95, 2, 0.8)"), new SceneGradientStop(1, "#7570b3")]),
+                CornerRadius = 4,
+            });
+        using var first = PaintAtOne(scene, 60, 40);
+
+        // Act: paint again and from several threads
+        using var second = PaintAtOne(scene, 60, 40);
+        var parallel = new Surface[4];
+        Parallel.For(0, parallel.Length, i => parallel[i] = PaintAtOne(scene, 60, 40));
+
+        // Assert
+        Assert.True(Same(first, second));
+        foreach (var other in parallel)
+        {
+            Assert.True(Same(first, other));
+            other.Dispose();
+        }
+
+        // Assert: something was drawn, and the colors vary
+        Assert.NotEqual(first[10, 30], first[50, 8]);
+    }
+
+    /// <summary>
     ///     Validates the argument checks and cancellation of the painter.
     /// </summary>
     [Fact]
@@ -591,5 +840,69 @@ public class ScenePainterTests
         }
 
         return count;
+    }
+
+    /// <summary>
+    ///     Asserts that a pixel equals a color within a tolerance per channel.
+    /// </summary>
+    /// <param name="expected">The expected color.</param>
+    /// <param name="actual">The pixel.</param>
+    /// <param name="tolerance">The allowed difference of each channel.</param>
+    private static void AssertNear(Rgba32 expected, Rgba32 actual, int tolerance)
+    {
+        Assert.InRange(actual.R, expected.R - tolerance, expected.R + tolerance);
+        Assert.InRange(actual.G, expected.G - tolerance, expected.G + tolerance);
+        Assert.InRange(actual.B, expected.B - tolerance, expected.B + tolerance);
+        Assert.InRange(actual.A, expected.A - tolerance, expected.A + tolerance);
+    }
+
+    /// <summary>
+    ///     Counts the pixels of a region of a surface that are not white.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="left">The first column.</param>
+    /// <param name="top">The first row.</param>
+    /// <param name="right">The last column.</param>
+    /// <param name="bottom">The last row.</param>
+    /// <returns>The number of pixels that are not opaque white.</returns>
+    private static int CountPixelsOutsideWhite(Surface surface, int left, int top, int right, int bottom)
+    {
+        var count = 0;
+        for (var y = top; y <= bottom; y++)
+        {
+            for (var x = left; x <= right; x++)
+            {
+                if (surface[x, y] != White)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    ///     Compares two surfaces of the same size pixel by pixel.
+    /// </summary>
+    /// <param name="a">One surface.</param>
+    /// <param name="b">The other surface.</param>
+    /// <returns><see langword="true"/> when the sizes and all pixels are equal.</returns>
+    private static bool Same(Surface a, Surface b)
+    {
+        if (a.Width != b.Width || a.Height != b.Height)
+        {
+            return false;
+        }
+
+        for (var y = 0; y < a.Height; y++)
+        {
+            if (!a.GetRowSpan(y).SequenceEqual(b.GetRowSpan(y)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

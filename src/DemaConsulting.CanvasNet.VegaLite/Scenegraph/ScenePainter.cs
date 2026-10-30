@@ -57,6 +57,16 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         transparent draws nothing.
 ///     </para>
 ///     <para>
+///         <b>Gradient fills.</b> An item with a <see cref="SceneGradient"/> is filled with the core
+///         <see cref="LinearGradient"/> (pad spread) instead of its solid fill. The start and end of the gradient are
+///         fractions of the bounding box of the item's path, mapped to surface pixels with the same matrix as the path;
+///         the fill opacity scales the alpha of every stop. A gradient with no usable stop, or with geometry that is not
+///         finite, is ignored and the solid fill is drawn. Group backgrounds, rectangles, paths and symbols can use a
+///         gradient; text and strokes cannot. The core evaluates the gradient per pixel, so the cost is that of a solid
+///         fill of the same area plus a constant per pixel and the number of stops is bounded by
+///         <see cref="SceneGradient.MaxStops"/>.
+///     </para>
+///     <para>
 ///         <b>Transform.</b> The core library has no scale and no clip, so this unit does both itself: every path is
 ///         transformed by the placement (uniform scale, then translation, plus the translations of the enclosing groups)
 ///         before it is filled, and text is drawn at the scaled font size. Rotation applies to text and symbols. A group
@@ -373,7 +383,7 @@ internal sealed class ScenePainter
     private static void PaintGroupBackground(SceneGroup group, Context local)
     {
         var hasStroke = !CssColor.IsNone(group.Stroke);
-        if ((CssColor.IsNone(group.Fill) && !hasStroke) || group.Opacity <= 0)
+        if ((CssColor.IsNone(group.Fill) && group.FillGradient is null && !hasStroke) || group.Opacity <= 0)
         {
             return;
         }
@@ -553,12 +563,78 @@ internal sealed class ScenePainter
             return;
         }
 
-        if (CssColor.TryResolvePaint(item.Fill, item.FillOpacity * item.Opacity, out var fill))
+        if (!TryFillWithGradient(path, item, context, transform)
+            && CssColor.TryResolvePaint(item.Fill, item.FillOpacity * item.Opacity, out var fill))
         {
             PathFiller.Fill(context.Target, path.Transform(transform), fill, FillRule.NonZero, FlattenTolerance);
         }
 
         StrokeOnly(path, item, context, transform);
+    }
+
+    /// <summary>
+    ///     Fills a path with the gradient of an item, when it has a usable one.
+    /// </summary>
+    /// <remarks>
+    ///     The start and end of the gradient are fractions of the bounding box of the path in the item's own units, mapped
+    ///     to surface pixels with the same matrix as the path. The opacity of the fill (<c>FillOpacity * Opacity</c>)
+    ///     multiplies the alpha of every stop. A stop whose color cannot be parsed or whose offset is not a number is
+    ///     skipped, an offset outside 0 to 1 is clamped, and the spread is pad. A gradient with no usable stop or with
+    ///     geometry that is not finite is not drawn and the solid fill is used instead; a fully transparent fill draws
+    ///     nothing.
+    /// </remarks>
+    /// <param name="path">The path in the item's own units.</param>
+    /// <param name="item">The item whose gradient applies.</param>
+    /// <param name="context">The context of the enclosing group.</param>
+    /// <param name="transform">The matrix from the path's units to surface pixels.</param>
+    /// <returns><see langword="true"/> when the gradient took the place of the solid fill (even if nothing was visible);
+    /// <see langword="false"/> when the item has no usable gradient.</returns>
+    private static bool TryFillWithGradient(Path path, SceneItem item, Context context, Matrix3x2 transform)
+    {
+        var gradient = item.FillGradient;
+        if (gradient is null || !IsFinite(gradient.X1, gradient.Y1, gradient.X2, gradient.Y2))
+        {
+            return false;
+        }
+
+        // The stops: the alpha of each color is scaled by the fill opacity, and unusable stops are dropped
+        var opacity = item.FillOpacity * item.Opacity;
+        var stops = new List<GradientStop>(gradient.Stops.Count);
+        foreach (var stop in gradient.Stops)
+        {
+            if (double.IsNaN(stop.Offset) || !CssColor.TryParse(stop.Color, out var color))
+            {
+                continue;
+            }
+
+            stops.Add(new GradientStop((float)Math.Clamp(stop.Offset, 0, 1), CssColor.WithOpacity(color, opacity)));
+        }
+
+        var bounds = path.GetBounds(FlattenTolerance);
+        if (stops.Count == 0 || bounds.IsEmpty)
+        {
+            return false;
+        }
+
+        // The gradient vector in the item's units (a fraction of its bounding box), then in surface pixels
+        var start = Vector2.Transform(
+            new Vector2((float)(bounds.X + (gradient.X1 * bounds.Width)), (float)(bounds.Y + (gradient.Y1 * bounds.Height))),
+            transform);
+        var end = Vector2.Transform(
+            new Vector2((float)(bounds.X + (gradient.X2 * bounds.Width)), (float)(bounds.Y + (gradient.Y2 * bounds.Height))),
+            transform);
+        if (!float.IsFinite(start.X) || !float.IsFinite(start.Y) || !float.IsFinite(end.X) || !float.IsFinite(end.Y))
+        {
+            return false;
+        }
+
+        if (!(opacity > 0))
+        {
+            return true;
+        }
+
+        PathFiller.Fill(context.Target, path.Transform(transform), new LinearGradient(start, end, stops), FillRule.NonZero, FlattenTolerance);
+        return true;
     }
 
     /// <summary>

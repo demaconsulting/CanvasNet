@@ -25,10 +25,12 @@ sections:
             children:
               - CanvasNetVegaLite-Scenegraph-SceneModel-Structure
               - CanvasNetVegaLite-Scenegraph-SceneModel-Defaults
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Gradient
               - CanvasNetVegaLite-Scenegraph-SceneModel-Bounds
             tests:
               - SceneModel_Create_GroupsAndItemsPreservesDeterministicOrder
               - SceneModel_Create_ListsAreCopiedAndReadOnly
+              - SceneModel_Gradient_DefaultsCopiesAndLimits
               - SceneBounds_UnionTranslateAndRotate_AreExact
 
           - id: CanvasNetVegaLite-Scenegraph-Painting
@@ -42,12 +44,14 @@ sections:
               deterministic.
             children:
               - CanvasNetVegaLite-Scenegraph-ScenePainter-FillStroke
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Gradient
               - CanvasNetVegaLite-Scenegraph-ScenePainter-ClipScale
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Text
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Arguments
             tests:
               - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
+              - ScenePainter_Paint_GradientFillRunsAlongTheItemBox
               - ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels
               - ScenePainter_Paint_TextUsesBaselineRotationAndScale
 

@@ -43,6 +43,8 @@ internal readonly record struct SceneEntry(SceneItem Item, double OffsetX, doubl
 ///         paint". They are parsed by <see cref="CssColor"/> when the scene is painted, so a test can assert the exact
 ///         string a mark received. Opacities multiply: the fill is drawn with <c>FillOpacity * Opacity</c> and the stroke
 ///         with <c>StrokeOpacity * Opacity</c>. A stroke without a <see cref="StrokeWidth"/> is one pixel wide, as in Vega.
+///         A fill can also be a <see cref="SceneGradient"/> (<see cref="FillGradient"/>), which takes the place of the
+///         solid fill.
 ///     </para>
 ///     <para>
 ///         <b>Order and roles.</b> The children of a group are drawn in list order (later items cover earlier ones), and
@@ -72,6 +74,12 @@ internal abstract record SceneItem
 
     /// <summary>Gets the fill paint as a CSS color, or <see langword="null"/> for no fill.</summary>
     public string? Fill { get; init; }
+
+    /// <summary>
+    ///     Gets the gradient that fills the item, or <see langword="null"/> for a solid <see cref="Fill"/>; when it is set
+    ///     (and can be drawn) it replaces <see cref="Fill"/>.
+    /// </summary>
+    public SceneGradient? FillGradient { get; init; }
 
     /// <summary>Gets the stroke paint as a CSS color, or <see langword="null"/> for no stroke.</summary>
     public string? Stroke { get; init; }
@@ -103,6 +111,97 @@ internal abstract record SceneItem
 
     /// <summary>Gets the line join of the stroke: <c>miter</c> (default), <c>round</c> or <c>bevel</c>.</summary>
     public string? StrokeJoin { get; init; }
+}
+
+/// <summary>
+///     A color stop of a <see cref="SceneGradient"/>.
+/// </summary>
+/// <param name="Offset">The position along the gradient from 0 (its start) to 1 (its end); a value outside 0 to 1 is clamped and one that is not a number makes the stop unusable when the scene is painted.</param>
+/// <param name="Color">The color as a CSS color string; an unparseable color makes the stop unusable when the scene is painted.</param>
+internal readonly record struct SceneGradientStop(double Offset, string Color);
+
+/// <summary>
+///     A linear gradient paint for the fill of an item.
+/// </summary>
+/// <remarks>
+///     <para>
+///         As in Vega's gradient object (<c>{gradient: "linear", x1, y1, x2, y2, stops}</c>), the start and end of the
+///         gradient are fractions of the bounding box of the item: <c>(0, 0)</c> is the top-left corner and <c>(1, 1)</c>
+///         the bottom-right one, and the defaults <c>(0, 0)</c> to <c>(1, 0)</c> run from left to right. The vertical
+///         legend gradient of Vega runs from <c>(0, 1)</c> to <c>(0, 0)</c>, so that the largest value is at the top.
+///         Outside the segment the end colors continue (the pad spread of a canvas gradient). The bounding box is the
+///         geometry of the item without its stroke (Vega uses the bounds with the stroke; a legend gradient has no stroke
+///         by default, so the two agree there).
+///     </para>
+///     <para>
+///         The gradient is immutable; its stop list is copied when it is created. A scene builder bounds the number of
+///         stops (<see cref="MaxStops"/> at most; a gradient of the scene builders has a few dozen), so the cost of a
+///         gradient is constant and it is not charged against the scene-item budget. Stops are not required to be sorted
+///         and may share an offset (a hard step). Text items do not paint a gradient.
+///     </para>
+/// </remarks>
+internal sealed record SceneGradient
+{
+    /// <summary>The largest number of stops of a gradient.</summary>
+    public const int MaxStops = 256;
+
+    /// <summary>The backing field of <see cref="Stops"/>.</summary>
+    private readonly IReadOnlyList<SceneGradientStop> _stops;
+
+    /// <summary>
+    ///     Initializes a gradient.
+    /// </summary>
+    /// <param name="x1">The x position of the start, as a fraction of the width of the item's bounding box.</param>
+    /// <param name="y1">The y position of the start, as a fraction of the height of the item's bounding box.</param>
+    /// <param name="x2">The x position of the end, as a fraction of the width of the item's bounding box.</param>
+    /// <param name="y2">The y position of the end, as a fraction of the height of the item's bounding box.</param>
+    /// <param name="stops">The color stops; the sequence is copied.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="stops"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="stops"/> has more than <see cref="MaxStops"/> entries.</exception>
+    public SceneGradient(double x1, double y1, double x2, double y2, IEnumerable<SceneGradientStop> stops)
+    {
+        ArgumentNullException.ThrowIfNull(stops);
+        var copy = SceneLists.Copy(stops);
+        if (copy.Count > MaxStops)
+        {
+            throw new ArgumentException($"A gradient has at most {MaxStops} stops.", nameof(stops));
+        }
+
+        X1 = x1;
+        Y1 = y1;
+        X2 = x2;
+        Y2 = y2;
+        _stops = copy;
+    }
+
+    /// <summary>Gets the x position of the start, as a fraction of the width of the item's bounding box.</summary>
+    public double X1 { get; }
+
+    /// <summary>Gets the y position of the start, as a fraction of the height of the item's bounding box.</summary>
+    public double Y1 { get; }
+
+    /// <summary>Gets the x position of the end, as a fraction of the width of the item's bounding box.</summary>
+    public double X2 { get; }
+
+    /// <summary>Gets the y position of the end, as a fraction of the height of the item's bounding box.</summary>
+    public double Y2 { get; }
+
+    /// <summary>Gets the color stops.</summary>
+    public IReadOnlyList<SceneGradientStop> Stops => _stops;
+
+    /// <summary>
+    ///     Creates the horizontal gradient of Vega's default: from the left edge to the right edge.
+    /// </summary>
+    /// <param name="stops">The color stops.</param>
+    /// <returns>The gradient from <c>(0, 0)</c> to <c>(1, 0)</c>.</returns>
+    public static SceneGradient Horizontal(IEnumerable<SceneGradientStop> stops) => new(0, 0, 1, 0, stops);
+
+    /// <summary>
+    ///     Creates the vertical gradient of a legend: from the bottom edge (the first stop) to the top edge (the last stop).
+    /// </summary>
+    /// <param name="stops">The color stops.</param>
+    /// <returns>The gradient from <c>(0, 1)</c> to <c>(0, 0)</c>.</returns>
+    public static SceneGradient Vertical(IEnumerable<SceneGradientStop> stops) => new(0, 1, 0, 0, stops);
 }
 
 /// <summary>

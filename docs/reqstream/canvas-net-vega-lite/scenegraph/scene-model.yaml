@@ -39,6 +39,18 @@ sections:
                   - SceneModel_With_DefaultsAndCopiesFollowVega
                   - SceneModel_Create_InvalidArgumentsAreRejected
 
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-Gradient
+                title: >-
+                  The SceneModel unit shall let an item be filled with an immutable linear gradient - a start and
+                  an end as fractions of the item's bounding box (Vega's defaults run left to right, a legend
+                  gradient from the bottom to the top) and a list of color stops - copy the stops it is given
+                  into a read-only list, bound their number, and keep the solid fill of the item separate.
+                justification: |
+                  The gradient bar of a color legend is a gradient fill, and the scene is the assertion surface
+                  for it; a gradient must be as immutable and bounded as the rest of the scene.
+                tests:
+                  - SceneModel_Gradient_DefaultsCopiesAndLimits
+
               - id: CanvasNetVegaLite-Scenegraph-SceneModel-Bounds
                 title: >-
                   The SceneModel unit shall compute exact bounds - union, translation, and rotation by
