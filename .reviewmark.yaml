@@ -201,6 +201,7 @@ reviews:
       - "docs/verification/canvas-net/codecs/png-codec.md"    # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/PngCodec.cs"         # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Png/**/*.cs"         # unit source (partial-class implementation files)
+      - "src/DemaConsulting.CanvasNet/Codecs/ZlibHelper.cs"       # shared internal zlib helper (bounded inflate)
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "src/DemaConsulting.CanvasNet/Codecs/UnsupportedImageFeatureException.cs"  # shared exception type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngCodecTests.cs"  # unit tests
@@ -220,6 +221,7 @@ reviews:
       - "docs/verification/canvas-net/codecs/tiff-codec.md"   # unit verification
       - "src/DemaConsulting.CanvasNet/Codecs/TiffCodec.cs"        # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Tiff/**/*.cs"        # unit source (partial-class implementation files)
+      - "src/DemaConsulting.CanvasNet/Codecs/ZlibHelper.cs"       # shared internal zlib helper (bounded inflate)
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffFixtureTests.cs"  # fixture conformance tests

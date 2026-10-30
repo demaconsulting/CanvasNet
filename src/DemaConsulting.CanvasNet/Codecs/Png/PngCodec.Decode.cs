@@ -18,7 +18,7 @@ public static partial class PngCodec
     /// <param name="palette">The raw PLTE chunk data (RGB triples), or null if absent.</param>
     /// <param name="trns">The validated tRNS chunk data for this color type, or null if absent/not applicable.</param>
     private static Surface DecodeScanlines(
-        byte[] rawData,
+        ReadOnlySpan<byte> rawData,
         PngHeader header,
         int rowBytes,
         int bpp,
@@ -36,7 +36,7 @@ public static partial class PngCodec
         {
             var filterType = rawData[offset];
             offset++;
-            var filtered = rawData.AsSpan(offset, rowBytes);
+            var filtered = rawData.Slice(offset, rowBytes);
             offset += rowBytes;
 
             DefilterRow(filterType, filtered, previousRow, currentRow, bpp);

@@ -513,6 +513,25 @@ sections:
               - TiffCodec_GetInfo_Seekable_MaliciousOutOfLineTagLength_ThrowsWithoutUnboundedAllocation
               - TiffCodec_GetInfo_Seekable_BitsPerSampleCountImplausiblyLarge_ThrowsWithoutLargeAllocation
 
+          - id: CanvasNet-Codecs-DecompressionBound
+            title: >-
+              The Codecs subsystem shall bound the decompressed size of PNG and TIFF image data to the
+              size implied by the image's declared dimensions, rejecting data that would inflate beyond
+              it with InvalidDataException without fully inflating it.
+            justification: |
+              Callers decode untrusted images; a small crafted file must not be able to exhaust memory
+              by expanding to a vastly larger decompressed payload (a decompression bomb), so every
+              decoder limits decompression to what a legitimate image of its declared size can need.
+            children:
+              - CanvasNet-Codecs-PngCodec-LoadDecompressionBound
+              - CanvasNet-Codecs-TiffCodec-LoadDecompressionBound
+            tests:
+              - PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+              - ZlibHelper_Decompress_NearLimitValidStream_OutputAllocationAtMostTwiceOutput
+              - ZlibHelper_Decompress_TruncatedStreamWithHugeLimit_AllocatesOnlySmallBuffer
+              - ZlibHelper_Decompress_Bomb_RejectedWithAllocationWithinTwiceLimit
+              - TiffCodec_Load_DeflateStripInflatesFarBeyondExpectedSize_ThrowsInvalidDataExceptionWithBoundedAllocation
+
           - id: CanvasNet-Codecs-TiffGetInfo
             title: >-
               The Codecs subsystem shall report a TIFF's width, height, samples-per-pixel, and alpha

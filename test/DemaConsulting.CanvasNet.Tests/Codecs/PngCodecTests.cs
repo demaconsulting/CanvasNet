@@ -1373,6 +1373,159 @@ public class PngCodecTests
     }
 
     /// <summary>
+    ///     Proves that Load rejects a decompression bomb: an <c>IDAT</c> payload of only tens of
+    ///     kilobytes that would inflate to 64 MB, while the <c>IHDR</c> declares a 16x16 image
+    ///     needing only 784 bytes. The decoder must throw <see cref="InvalidDataException"/> as
+    ///     soon as the inflated output exceeds the size implied by <c>IHDR</c>, without ever
+    ///     materializing the oversized output.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation()
+    {
+        // Arrange: a 16x16 Truecolor PNG (expected raw size 16 * (1 + 48) = 784 bytes) whose
+        // IDAT holds a zlib stream of 64 MB of zeros
+        const int bombSize = 64 * 1024 * 1024;
+        var bytes = BuildPngFromZlib(16, 16, 2 /* Truecolor */, BuildZlibBomb(bombSize));
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        // Assert: the managed allocation stayed far below the size of the bomb
+        Assert.True(allocated < bombSize / 8, $"Allocated {allocated} bytes while rejecting a {bombSize}-byte bomb.");
+    }
+
+    /// <summary>
+    ///     Proves the documented allocation bound of the shared zlib inflater on valid streams whose
+    ///     output exactly fills the declared limit: the total output-buffer allocation, as reported
+    ///     by the helper's own counter (independent of the runtime's inflater internals and of the
+    ///     platform), is at most twice the output, and no final copy is made.
+    /// </summary>
+    /// <param name="compressible">
+    ///     <see langword="true"/> for highly compressible data (the buffer grows from its small
+    ///     initial size), <see langword="false"/> for incompressible data (the initial size already
+    ///     reaches the limit).
+    /// </param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ZlibHelper_Decompress_NearLimitValidStream_OutputAllocationAtMostTwiceOutput(bool compressible)
+    {
+        // Arrange
+        const int limit = 8 * 1024 * 1024;
+        var raw = new byte[limit];
+        if (!compressible)
+        {
+            new Random(12345).NextBytes(raw);
+        }
+
+        var zlib = ZlibHelper.Compress(raw);
+
+        // Act
+        var result = ZlibHelper.Decompress(zlib, limit, "PNG", out var allocated);
+
+        // Assert
+        Assert.Equal(limit, result.Length);
+        Assert.True(result.Span.SequenceEqual(raw));
+        Assert.True(allocated >= limit);
+        Assert.True(allocated <= 2L * limit, $"Allocated {allocated} output bytes inflating {limit} bytes.");
+    }
+
+    /// <summary>
+    ///     Proves that a tiny truncated zlib stream checked against a huge declared limit allocates
+    ///     only a small, size-independent buffer (never the limit): the allocation tracks the output
+    ///     actually produced, not the declared maximum.
+    /// </summary>
+    [Fact]
+    public void ZlibHelper_Decompress_TruncatedStreamWithHugeLimit_AllocatesOnlySmallBuffer()
+    {
+        // Arrange: a valid stream with its middle cut out, and a limit of 512 MiB
+        const long hugeLimit = 512L * 1024 * 1024;
+        var random = new byte[200];
+        new Random(99).NextBytes(random);
+        var valid = ZlibHelper.Compress(random);
+        var truncated = valid.AsSpan(0, valid.Length / 2).ToArray()
+            .Concat(valid.AsSpan(valid.Length - 4).ToArray()).ToArray();
+        long allocated = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(
+            () => ZlibHelper.Decompress(truncated, hugeLimit, "PNG", out allocated));
+        Assert.True(allocated > 0);
+        Assert.True(allocated <= 1024 * 1024, $"Allocated {allocated} output bytes for a {truncated.Length}-byte stream.");
+    }
+
+    /// <summary>
+    ///     Proves that a decompression bomb is still rejected early: the helper's output allocation
+    ///     stays within twice the limit (and the bomb's gigantic output is never materialized).
+    /// </summary>
+    [Fact]
+    public void ZlibHelper_Decompress_Bomb_RejectedWithAllocationWithinTwiceLimit()
+    {
+        // Arrange: 64 MiB of zeros against a 1 MiB limit
+        const int limit = 1024 * 1024;
+        var bomb = BuildZlibBomb(64 * 1024 * 1024);
+        long allocated = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => ZlibHelper.Decompress(bomb, limit, "PNG", out allocated));
+        Assert.True(allocated <= 2L * limit, $"Allocated {allocated} output bytes rejecting a bomb.");
+    }
+
+    /// <summary>
+    ///     Proves that Load rejects an <c>IDAT</c> payload that inflates to exactly one byte more
+    ///     than the size implied by <c>IHDR</c> with <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2x2 Truecolor PNG expects 2 * (1 + 6) = 14 raw bytes; supply 15
+        var bytes = BuildPngFromZlib(2, 2, 2 /* Truecolor */, ZlibCompress(new byte[15]));
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
+    ///     Proves the boundary case: an <c>IDAT</c> payload that inflates to exactly the size
+    ///     implied by <c>IHDR</c> decodes successfully and produces the expected pixels.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels()
+    {
+        // Arrange: a 2x1 Truecolor PNG expects 1 * (1 + 6) = 7 raw bytes (filter 0 + two pixels)
+        var raw = new byte[] { 0, 10, 20, 30, 40, 50, 60 };
+        var bytes = BuildPngFromZlib(2, 1, 2 /* Truecolor */, ZlibCompress(raw));
+        using var stream = new MemoryStream(bytes);
+
+        // Act
+        var surface = PngCodec.Load(stream);
+
+        // Assert
+        Assert.Equal(new Rgba32(10, 20, 30, 255), surface[0, 0]);
+        Assert.Equal(new Rgba32(40, 50, 60, 255), surface[1, 0]);
+    }
+
+    /// <summary>
+    ///     Proves that Load still rejects an <c>IDAT</c> payload that inflates to fewer bytes
+    ///     than the size implied by <c>IHDR</c> (truncated data) with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException()
+    {
+        // Arrange: a 2x2 Truecolor PNG expects 14 raw bytes; supply 13
+        var bytes = BuildPngFromZlib(2, 2, 2 /* Truecolor */, ZlibCompress(new byte[13]));
+        using var stream = new MemoryStream(bytes);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => PngCodec.Load(stream));
+    }
+
+    /// <summary>
     ///     Proves that Load rejects a zlib stream whose Adler-32 trailer does not match the
     ///     decompressed data, with InvalidDataException.
     /// </summary>
@@ -2542,6 +2695,42 @@ public class PngCodecTests
         var iend = BuildChunk("IEND", []);
         result.Write(iend, 0, iend.Length);
         return result.ToArray();
+    }
+
+    /// <summary>
+    ///     Builds a complete, single-IDAT PNG byte sequence from a pre-built zlib stream, for tests
+    ///     that need full control over the compressed payload (for example a decompression bomb).
+    /// </summary>
+    private static byte[] BuildPngFromZlib(int width, int height, byte colorType, byte[] zlib)
+    {
+        using var result = new MemoryStream();
+        result.Write(Signature, 0, Signature.Length);
+        var ihdr = BuildIhdrChunk(width, height, 8, colorType, 0, 0, 0);
+        result.Write(ihdr, 0, ihdr.Length);
+        var idat = BuildChunk("IDAT", zlib);
+        result.Write(idat, 0, idat.Length);
+        var iend = BuildChunk("IEND", []);
+        result.Write(iend, 0, iend.Length);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    ///     Builds a valid zlib stream that inflates to <paramref name="uncompressedSize"/> zero
+    ///     bytes, written in 1 MB pieces so the test itself never allocates the full output.
+    /// </summary>
+    private static byte[] BuildZlibBomb(int uncompressedSize)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, true))
+        {
+            var piece = new byte[1024 * 1024];
+            for (var written = 0; written < uncompressedSize; written += piece.Length)
+            {
+                zlib.Write(piece, 0, Math.Min(piece.Length, uncompressedSize - written));
+            }
+        }
+
+        return output.ToArray();
     }
 
     /// <summary>
