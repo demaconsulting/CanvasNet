@@ -22,6 +22,12 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `data-values.json`: a JSON document with the rows nested under `report.rows`, which the tests read with
   `format.property`. TSV, DSV, hostile and oversized data files are never fixtures: the tests write them to a
   temporary folder or an in-memory file set, so that no unusual file sits in the repository.
+- `aggregate-bars.vl.json`: a bar chart of the sum of `units` per `region` (five made-up rows, three regions), whose
+  aggregate comes from the encoding (`aggregate: "sum"`), so the bars are three sums in first-seen order.
+- `histogram.vl.json`: twelve made-up parcel weights binned by the encoding (`bin: true`) and counted
+  (`aggregate: "count"`), with the bins 0 to 35 by 5 and the counts 3, 2, 3, 1, 1, 1, 1.
+- `stacked-bars.vl.json`: the sum of `units` per `region` split by `product` (a color), so that each region's
+  bar is a stack of layers whose totals are 10 and 5.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

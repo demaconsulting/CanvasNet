@@ -473,7 +473,8 @@ internal static class FeatureCatalog
 
             var mark = view["mark"];
             var markType = (mark is { IsString: true } ? mark.StringValue : mark?["type"]?.AsString()) ?? string.Empty;
-            var stacks = new Lazy<bool>(() => StackRules.Decide(markType, mark?["orient"]?.AsString(), encoding) is not null);
+            // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
+            var stacks = new Lazy<bool>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding) is not null);
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;

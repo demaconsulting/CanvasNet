@@ -381,4 +381,32 @@ public class AxisBuilderTests
         Assert.Throws<OperationCanceledException>(() => builder.Build(new AxisRequest("x", parts.Tree.Root["encoding"]?["x"], scale, scale.CreateModel(300), 300, 200), canceled.Token));
         Assert.Throws<ArgumentNullException>(() => builder.Build(null!, TestContext.Current.CancellationToken));
     }
+
+    /// <summary>
+    ///     Validates that the axis title of an aggregated, binned or counted channel is the default title of the plan (Vega-Lite's <c>Sum of v</c>,
+    ///     <c>v (binned)</c>, <c>Count of Records</c>), that an explicit title still wins, and that a count (a definition with no field) has a grid.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid()
+    {
+        // Arrange
+        const string Rows = "\"data\":{\"values\":[{\"k\":\"a\",\"v\":1},{\"k\":\"b\",\"v\":4}]}";
+        string Spec(string x, string y) => "{" + Rows + ",\"mark\":\"bar\",\"encoding\":{\"x\":" + x + ",\"y\":" + y + "}}";
+        const string Category = "{\"field\":\"k\",\"type\":\"nominal\"}";
+
+        // Act
+        var sum = ChartTestHelpers.Axis(Spec(Category, "{\"field\":\"v\",\"type\":\"quantitative\",\"aggregate\":\"sum\"}"), "y", 300, 200)!;
+        var count = ChartTestHelpers.Axis(Spec(Category, "{\"aggregate\":\"count\",\"type\":\"quantitative\"}"), "y", 300, 200)!;
+        var binned = ChartTestHelpers.Axis(Spec("{\"field\":\"v\",\"type\":\"quantitative\",\"bin\":true}", "{\"aggregate\":\"count\",\"type\":\"quantitative\"}"), "x", 300, 200)!;
+        var explicitTitle = ChartTestHelpers.Axis(Spec(Category, "{\"field\":\"v\",\"type\":\"quantitative\",\"aggregate\":\"sum\",\"title\":\"Total\"}"), "y", 300, 200)!;
+
+        // Assert
+        Assert.Equal("Sum of v", ChartTestHelpers.Of<SceneText>(sum.Group, "axis-title").Single().Text);
+        Assert.Equal("Count of Records", ChartTestHelpers.Of<SceneText>(count.Group, "axis-title").Single().Text);
+        Assert.Equal("v (binned)", ChartTestHelpers.Of<SceneText>(binned.Group, "axis-title").Single().Text);
+        Assert.Equal("Total", ChartTestHelpers.Of<SceneText>(explicitTitle.Group, "axis-title").Single().Text);
+        Assert.NotNull(count.Grid);
+        Assert.NotNull(sum.Grid);
+        Assert.Null(binned.Grid);
+    }
 }

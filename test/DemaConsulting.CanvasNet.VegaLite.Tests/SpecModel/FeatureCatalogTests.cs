@@ -635,7 +635,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the <c>order</c> channel is accepted when it orders a stack and reported otherwise.
+    ///     Validates that the <c>order</c> channel is accepted when it orders a stack (also for a bar with two measures, whose orientation Vega-Lite infers as vertical,
+    ///     and for one whose mark gives the orientation) and reported otherwise.
     /// </summary>
     /// <param name="json">The specification text.</param>
     /// <param name="reported">Whether <c>vl-channel-order</c> is expected.</param>
@@ -645,6 +646,8 @@ public class FeatureCatalogTests
     [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"order\":{\"field\":\"o\"}}}", true)]
     [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"order\":{\"field\":\"o\"}}}", true)]
     [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":true},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"orient\":\"horizontal\"},\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
     public void FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack(string json, bool reported)
     {
         // Arrange / Act

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Units shipped per region and product",
+  "width": 240,
+  "height": 100,
+  "data": {
+    "values": [
+      { "region": "north", "product": "bolts", "units": 3 },
+      { "region": "north", "product": "nuts", "units": 2 },
+      { "region": "north", "product": "washers", "units": 5 },
+      { "region": "south", "product": "bolts", "units": 4 },
+      { "region": "south", "product": "nuts", "units": 1 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "region", "type": "nominal", "axis": { "labelAngle": 0 } },
+    "y": { "field": "units", "type": "quantitative", "aggregate": "sum" },
+    "color": { "field": "product", "type": "nominal" }
+  }
+}

@@ -901,7 +901,12 @@ internal sealed class AxisBuilder
             return TitleLines(node);
         }
 
-        // Without a title anywhere, the field name titles the axis; a datum has no name to show
+        // Without a title anywhere, the plan's default title (Vega-Lite's "Sum of x", "x (binned)") names the axis; a datum has no name to show
+        if (request.Scale.Title is { Length: > 0 } title)
+        {
+            return [title];
+        }
+
         return request.Scale.FieldPath is { Length: > 0 } field ? [field] : null;
     }
 
@@ -1006,7 +1011,7 @@ internal sealed class AxisBuilder
             Sign = orient is "left" or "top" ? -1 : 1;
             var rule = request.Scale.Kind == ScaleKind.Linear;
             var binned = request.ChannelDef?["bin"] is { } bin && !bin.IsNull && !(bin.IsBoolean && !bin.BoolValue);
-            ShowGrid = settings.ExplicitOrVl("grid")?.AsBool() ?? (rule && request.ChannelDef?["field"] is not null && !binned);
+            ShowGrid = settings.ExplicitOrVl("grid")?.AsBool() ?? (rule && (request.ChannelDef?["field"] is not null || request.ChannelDef?["aggregate"] is { IsNull: false }) && !binned);
             ShowTicks = settings.Bool("ticks") ?? true;
             ShowLabels = settings.Bool("labels") ?? true;
             ShowDomain = settings.Bool("domain") ?? true;

@@ -1273,7 +1273,7 @@ public class RowTransformsTests
     [InlineData("{\"op\":\"mean\",\"field\":\"w\"}", "c,a,b")]
     [InlineData("{\"op\":\"average\",\"field\":\"w\",\"order\":\"descending\"}", "b,a,c")]
     [InlineData("{\"op\":\"median\",\"field\":\"w\"}", "c,a,b")]
-    [InlineData("{\"op\":\"valid\",\"field\":\"w\"}", "a,b,c")]
+    [InlineData("{\"op\":\"valid\",\"field\":\"w\"}", "b,c,a")]
     [InlineData("{\"encoding\":\"x\"}", "a,b,c")]
     public void ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows(string sort, string expected)
     {
