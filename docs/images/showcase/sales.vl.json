@@ -1,0 +1,43 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 300,
+  "height": 190,
+  "title": "Annual Sales by Region",
+  "data": {
+    "values": [
+      {"region": "North", "quarter": "Q1", "sales": 42},
+      {"region": "North", "quarter": "Q2", "sales": 55},
+      {"region": "North", "quarter": "Q3", "sales": 61},
+      {"region": "North", "quarter": "Q4", "sales": 78},
+      {"region": "South", "quarter": "Q1", "sales": 30},
+      {"region": "South", "quarter": "Q2", "sales": 38},
+      {"region": "South", "quarter": "Q3", "sales": 45},
+      {"region": "South", "quarter": "Q4", "sales": 52},
+      {"region": "East", "quarter": "Q1", "sales": 25},
+      {"region": "East", "quarter": "Q2", "sales": 33},
+      {"region": "East", "quarter": "Q3", "sales": 36},
+      {"region": "East", "quarter": "Q4", "sales": 49},
+      {"region": "West", "quarter": "Q1", "sales": 18},
+      {"region": "West", "quarter": "Q2", "sales": 27},
+      {"region": "West", "quarter": "Q3", "sales": 31},
+      {"region": "West", "quarter": "Q4", "sales": 40}
+    ]
+  },
+  "mark": {"type": "bar", "cornerRadiusEnd": 4},
+  "encoding": {
+    "x": {
+      "field": "region",
+      "type": "nominal",
+      "title": "Region",
+      "sort": "-y",
+      "axis": {"labelAngle": 0}
+    },
+    "y": {"aggregate": "sum", "field": "sales", "type": "quantitative", "title": "Sales (k$)"},
+    "color": {
+      "field": "region",
+      "type": "nominal",
+      "legend": null,
+      "scale": {"scheme": "tableau10"}
+    }
+  }
+}

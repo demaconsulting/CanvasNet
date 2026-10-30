@@ -23,6 +23,11 @@ codecs for loading and saving images in common file formats. It's designed for f
 image operations using `Span<T>`, and supports independent-copy cropping and high-quality resizing for
 load/crop/resize/save workflows.
 
+![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a PDF page with mesh shadings, a PowerPoint slide with a chart, and a Visio diagram, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
+
+*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, PDF, PowerPoint, and Visio. See
+[how the image was made](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
+
 ## Features
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
@@ -41,17 +46,11 @@ load/crop/resize/save workflows.
 - 📊 **Chart Rendering** - Build and paint Bar/Column/Line/Area/Pie/Doughnut charts
 - 📈 **OOXML Chart Parsing** - Parse ECMA-376 DrawingML charts, including from `.pptx`
 - 🔷 **Visio Rendering** - Rasterize `.vsdx` diagrams; unsupported constructs are reported
-- 🧊 **3D Rendering** - Rasterize meshes and scenes with camera, lights, antialiasing, and CSG
-  (union/difference/intersection), translucent surfaces and independent overlay bodies (ghosts and
-  highlights), plus polygon extrusion (linear/rotational), exact convex hulls, and
-  Minkowski sums of convex solids
-- 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models (primitives, transforms,
-  booleans, extrusions, `hull`, `minkowski`, `text` with a deterministic bundled font, `color` with alpha, the `%` ghost
-  and `#` highlight modifiers, `-D` variables) straight to a surface; unsupported constructs are reported
+- 🧊 **3D Rendering** - Rasterize meshes and scenes with CSG, extrusion, hulls, and Minkowski sums
+- 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models to a surface
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
-- 🖥️ **Command-Line Tool** - The `canvasnet` dotnet tool exposes CanvasNet with a script- and agent-friendly contract,
-  including photo clean-up (deskew, trim, levels, grid) and color/pixel inspection
+- 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread

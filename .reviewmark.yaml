@@ -43,6 +43,7 @@ reviews:
       - "!docs/design/introduction.md"                              # exclude design intro from user-facing review
     paths:
       - "README.md"                                                 # project readme
+      - "docs/images/README.md"                                     # README image provenance and licensing
       - "docs/user_guide/**/*.md"                                   # user guide
 
   # Decomposition Review (only one per repository)
