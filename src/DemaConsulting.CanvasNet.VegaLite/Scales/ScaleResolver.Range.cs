@@ -252,9 +252,15 @@ internal static partial class ScaleResolver
         else
         {
             var symbols = context.Config.Get("range")?["symbol"];
-            items = symbols is { Kind: ConfigNodeKind.Array }
-                ? [.. symbols.Items.Select(item => new RangeItem(item, input.Location))]
-                : [.. DefaultSymbols.Select(name => new RangeItem(ConfigNode.FromString(name), input.Location))];
+            if (symbols is { Kind: ConfigNodeKind.Array })
+            {
+                CheckConfigArray(symbols, input.Location, input, context, "config.range.symbol");
+                items = [.. symbols.Items.Select(item => new RangeItem(item, input.Location))];
+            }
+            else
+            {
+                items = [.. DefaultSymbols.Select(name => new RangeItem(ConfigNode.FromString(name), input.Location))];
+            }
         }
 
         var shapes = new List<string>(items.Count);
@@ -294,6 +300,13 @@ internal static partial class ScaleResolver
                 if (item.Node is not { Kind: ConfigNodeKind.Array } list || list.Items.Any(n => n.AsNumber() is null))
                 {
                     throw new VegaLiteSpecException("The range of a strokeDash scale must be a list of lists of numbers.", item.Location);
+                }
+
+                if (list.Items.Count > context.Limits.MaxScaleDomainSize)
+                {
+                    throw new VegaLiteRenderException(
+                        $"A dash pattern of the {input.Channel} scale lists {list.Items.Count} entries, more than the limit of {context.Limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).",
+                        item.Location);
                 }
 
                 dashes.Add([.. list.Items.Select(n => n.AsNumber()!.Value)]);
@@ -392,6 +405,7 @@ internal static partial class ScaleResolver
         var named = context.Config.Get("range")?[name];
         if (named is { Kind: ConfigNodeKind.Array })
         {
+            CheckConfigArray(named, location, input, context, $"config.range.{name}");
             return new RangeSpec([.. named.Items.Select(item => new RangeItem(item, location))], null, location);
         }
 
@@ -419,6 +433,26 @@ internal static partial class ScaleResolver
             throw new VegaLiteRenderException(
                 $"The {what} of the {input.Channel} scale lists {array.Items.Count} entries, more than the limit of {context.Limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).",
                 array.GetLocation(context.SourceName));
+        }
+    }
+
+    /// <summary>
+    ///     Checks the length of an array of the configuration (a named range, a scheme list, a dash pattern) against
+    ///     <see cref="VegaLiteLimits.MaxScaleDomainSize"/> before anything is built from it, as <see cref="CheckSpecArray"/> does for the specification.
+    /// </summary>
+    /// <param name="array">The array.</param>
+    /// <param name="location">Where the configured value is used: the <c>scale.range</c> that names it, or the channel when it is a default.</param>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
+    /// <param name="what">What the array is, for the message.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown, located at <paramref name="location"/>, when it is too long.</exception>
+    private static void CheckConfigArray(ConfigNode array, VegaLiteLocation location, CommonInputs input, Context context, string what)
+    {
+        if (array.Items.Count > context.Limits.MaxScaleDomainSize)
+        {
+            throw new VegaLiteRenderException(
+                $"The configured {what} of the {input.Channel} scale lists {array.Items.Count} entries, more than the limit of {context.Limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).",
+                location.IsKnown ? location : input.Location);
         }
     }
 }

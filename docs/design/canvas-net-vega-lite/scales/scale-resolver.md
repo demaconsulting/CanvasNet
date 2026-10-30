@@ -165,7 +165,13 @@ transform) for a
   `i / (count + 1)`; the count is the explicit `count`, the domain size for an ordinal scale, 5 for quantile and
   quantize, one more than the thresholds for a threshold scale). `reverse` (also set by `sort: "descending"` on a scale
   with a
-  continuous domain) reverses the colors.
+  continuous domain) reverses the colors. A list of colors (an explicit or configured `range`, a configured scheme
+  list, or a default named range) that is empty, or has an entry that is not a string or not a color the renderer can
+  read, is a located `VegaLiteSpecException` (at the entry, at the list when empty; a configured default at the channel):
+  the list is **not** replaced by the default range, in the lenient mode or the strict one, because that would hide the
+  mistake and a color the painter cannot read must never be emitted. A configured scheme object whose `count` is not a
+  positive whole number or whose `extent` is not two numbers is reported the same way (the parser does the same for a
+  scheme of the specification).
 - **Limits and cancellation.** A range, domain, or sort array of the specification is checked by its length against
   `MaxScaleDomainSize` before anything is built; a scheme `count` and a generated numeric range are checked by their
   count (the check of `ColorSchemes.Configure` is located at the scheme) and polled for cancellation every 4,096 values.
@@ -271,10 +277,13 @@ than two values; a quantitative domain with fewer than two numbers or with a non
 list of strings; a dash range that is not a list of lists of numbers; a color that cannot be read; a color domain of
 four or more entries;
 an unknown scheme name or an unknown named range) is a `VegaLiteSpecException`
-located at the offending value (a name that comes from `config.range` is located at the channel). A log scale whose domain
+located at the offending value (a name that comes from `config.range` is located at the channel). A color range that is
+empty or has an entry that is not a color is the same error, never a fallback to the default range. A log scale whose domain
 includes zero or crosses it is a `VegaLiteSpecException` at `scale.domain` (an explicit domain) or a
 `VegaLiteRenderException` at the channel (the domain of the data). A discrete domain with
-more than `MaxScaleDomainSize` values, a specification array (domain, range) of more entries than that, a scheme `count`
+more than `MaxScaleDomainSize` values, a specification array (domain, range) or an array of the configuration (a named
+or default range of `config.range`, a `symbol` list, a configured scheme list, a dash pattern) of more entries than that,
+a scheme `count`
 or
 a generated range (`quantileCount`, `quantizeCount`) above it, is a
 `VegaLiteRenderException` located at the channel or the array whose message carries `the limit of` and

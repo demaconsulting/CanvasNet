@@ -224,8 +224,8 @@ sections:
                   object with a name, a count, and an extent, give the colors of an explicit range of colors
                   piecewise in the color space that interpolate names (a named scheme ignores it), reverse the
                   ramp on request, let the range win over the scheme and the scheme over the default, and fail
-                  with a located specification error for an unknown scheme name, an unknown named range, or a color
-                  that cannot be read.
+                  with a located specification error for an unknown scheme name, an unknown named range, an
+                  empty list of colors, or a color that cannot be read (never replaced by the default range).
                 justification: |
                   The scheme and the interpolation are what a color scale looks like; an unknown name must
                   stop the renderer as in Vega rather than give a plausible color.
@@ -235,7 +235,8 @@ sections:
                   - ScaleResolverColor_Range_ExplicitColorsInterpolatePiecewise
                   - ScaleResolverColor_Interpolate_ChoosesTheColorSpaceOfAList
                   - ScaleResolverColor_Scheme_UnknownNameIsASpecificationError
-
+                  - ScaleResolverColor_InvalidColorList_IsASpecificationErrorNotTheDefault
+                  - ScaleResolverColor_ConfiguredSchemeObject_MalformedCountOrExtentIsASpecificationError
               - id: CanvasNetVegaLite-Scales-ScaleResolver-ConfigRange
                 title: >-
                   The ScaleResolver unit shall read the default ranges of color scales and the symbol list of shape
@@ -293,6 +294,7 @@ sections:
                   bounded, the caller must be able to stop the work, and equal inputs must give equal charts.
                 tests:
                   - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
+                  - ScaleResolverColor_ConfiguredArrays_AreBoundedLikeInlineOnes
                   - ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancellable
                   - ScaleResolverColor_Resolve_IsDeterministicAcrossRepeatedAndConcurrentRuns
 

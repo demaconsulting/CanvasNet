@@ -427,8 +427,7 @@ public class ScaleResolverColorTests
     }
 
     /// <summary>
-    ///     Validates the order of precedence of the color sources: the scale's <c>range</c>, then its <c>scheme</c>, then the configured named range; and that a range
-    ///     that is not a list of colors is skipped.
+    ///     Validates the order of precedence of the color sources: the scale's <c>range</c>, then its <c>scheme</c>, then the configured named range.
     /// </summary>
     [Fact]
     public void ScaleResolverColor_Precedence_RangeThenSchemeThenTheDefault()
@@ -436,14 +435,67 @@ public class ScaleResolverColorTests
         // Arrange / Act
         var range = Scale("color", "point", Enc("color", "nominal", """{"range":["red","blue"],"scheme":"set1"}"""));
         var scheme = Scale("color", "point", Enc("color", "nominal", """{"scheme":"set1"}"""));
-        var numbers = Scale("color", "point", Enc("color", "nominal", """{"range":[1,2],"scheme":"set1"}"""));
-        var empty = Scale("color", "point", Enc("color", "nominal", """{"range":[]}"""));
 
         // Assert
         Assert.Equal(["red", "blue"], range.ColorRange);
         Assert.Equal(Scheme("set1").CssColors, scheme.ColorRange);
-        Assert.Equal(Scheme("set1").CssColors, numbers.ColorRange);
-        Assert.Equal(ColorSchemes.Tableau10, empty.ColorRange);
+    }
+
+    /// <summary>
+    ///     Validates that a list of colors that is empty, has an entry that is not a string, or has a string that is not a color is a located specification error (in the
+    ///     lenient mode as in the strict one) and is never replaced by the default range: an explicit range, a scheme list, a configured named range and a configured default range,
+    ///     for continuous and discrete scales.
+    /// </summary>
+    /// <param name="type">The field type.</param>
+    /// <param name="channelScale">The scale object text.</param>
+    /// <param name="extra">The configuration text, or empty.</param>
+    /// <param name="pointer">The expected pointer.</param>
+    /// <param name="message">The expected part of the message.</param>
+    [Theory]
+    [InlineData("nominal", "{\"range\":[0,\"blue\"]}", "", "/encoding/color/scale/range/0", "not a color")]
+    [InlineData("nominal", "{\"range\":[\"red\",1],\"scheme\":\"set1\"}", "", "/encoding/color/scale/range/1", "not a color")]
+    [InlineData("nominal", "{\"range\":[]}", "", "/encoding/color/scale/range", "at least one color")]
+    [InlineData("nominal", "{\"range\":[\"red\",\"nonsense\"]}", "", "/encoding/color/scale/range/1", "'nonsense' is not a color")]
+    [InlineData("quantitative", "{\"range\":[\"red\",\"nonsense\"]}", "", "/encoding/color/scale/range/1", "'nonsense' is not a color")]
+    [InlineData("quantitative", "{\"range\":[null,\"blue\"]}", "", "/encoding/color/scale/range/0", "not a color")]
+    [InlineData("quantitative", "{\"range\":[]}", "", "/encoding/color/scale/range", "at least one color")]
+    [InlineData("nominal", "{\"range\":\"mine\"}", "\"config\":{\"range\":{\"mine\":[\"red\",\"nonsense\"]}},", "/encoding/color/scale/range", "'nonsense' is not a color")]
+    [InlineData("nominal", "{\"range\":\"mine\"}", "\"config\":{\"range\":{\"mine\":[]}},", "/encoding/color/scale/range", "at least one color")]
+    [InlineData("nominal", "{\"range\":\"mine\"}", "\"config\":{\"range\":{\"mine\":{\"scheme\":[\"red\",3]}}},", "/encoding/color/scale/range", "not a color")]
+    [InlineData("nominal", "", "\"config\":{\"range\":{\"category\":[\"red\",true]}},", "/encoding/color", "not a color")]
+    [InlineData("nominal", "", "\"config\":{\"range\":{\"category\":[]}},", "/encoding/color", "at least one color")]
+    [InlineData("quantitative", "", "\"config\":{\"range\":{\"ramp\":[\"red\",\"nonsense\"]}},", "/encoding/color", "'nonsense' is not a color")]
+    public void ScaleResolverColor_InvalidColorList_IsASpecificationErrorNotTheDefault(string type, string channelScale, string extra, string pointer, string message)
+    {
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => Resolve("point", Enc("color", type, channelScale, type == "nominal" ? "k" : "q"), extra));
+
+        // Assert
+        Assert.Equal(pointer, ex.Location.Pointer);
+        Assert.Contains(message, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a configured scheme object is checked as the parser checks a scheme of the specification: a <c>count</c> that is not a positive whole number and an
+    ///     <c>extent</c> that is not two numbers are located specification errors (not silently ignored).
+    /// </summary>
+    /// <param name="scheme">The configured scheme object text.</param>
+    /// <param name="message">The expected part of the message.</param>
+    [Theory]
+    [InlineData("{\"scheme\":\"blues\",\"count\":0}", "'count'")]
+    [InlineData("{\"scheme\":\"blues\",\"count\":2.5}", "'count'")]
+    [InlineData("{\"scheme\":\"blues\",\"count\":\"3\"}", "'count'")]
+    [InlineData("{\"scheme\":\"blues\",\"extent\":[0]}", "'extent'")]
+    [InlineData("{\"scheme\":\"blues\",\"extent\":[0,\"1\"]}", "'extent'")]
+    [InlineData("{\"scheme\":\"blues\",\"extent\":0.5}", "'extent'")]
+    public void ScaleResolverColor_ConfiguredSchemeObject_MalformedCountOrExtentIsASpecificationError(string scheme, string message)
+    {
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => Resolve("point", Enc("color", "quantitative"), "\"config\":{\"range\":{\"ramp\":" + scheme + "}},"));
+
+        // Assert
+        Assert.Equal("/encoding/color", ex.Location.Pointer);
+        Assert.Contains(message, ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -980,6 +1032,46 @@ public class ScaleResolverColorTests
         Assert.Equal((3.0, 12.0), (quantize.DomainStart, quantize.DomainEnd));
         Assert.False(quantize.Clamp);
         Assert.NotNull(quantize.NiceCount);
+    }
+
+    /// <summary>
+    ///     Validates that the arrays of the configuration are bounded by <c>MaxScaleDomainSize</c> as an inline <c>scale.range</c> is: a named color, shape or dash range (reported at
+    ///     the <c>scale.range</c> that names it), a configured default color range, scheme list and <c>symbol</c> list (reported at the channel), a dash pattern; and that an array of
+    ///     exactly the limit is accepted.
+    /// </summary>
+    [Fact]
+    public void ScaleResolverColor_ConfiguredArrays_AreBoundedLikeInlineOnes()
+    {
+        // Arrange
+        var small = new VegaLiteLimits { MaxScaleDomainSize = 3 };
+        var four = new VegaLiteLimits { MaxScaleDomainSize = 4 };
+        var colors = Cfg("""{"range":{"mine":["red","blue","lime","cyan"]}}""");
+
+        // Act
+        var namedColor = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("color", "nominal", """{"range":"mine"}""", "k"), colors, small));
+        var namedShape = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("shape", "nominal", """{"range":"mine"}""", "k"), Cfg("""{"range":{"mine":["circle","square","cross","diamond"]}}"""), small));
+        var namedDash = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("strokeDash", "nominal", """{"range":"mine"}""", "k"), Cfg("""{"range":{"mine":[[1,0],[4,2],[2,1],[1,1]]}}"""), small));
+        var defaultColor = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("color", "nominal", string.Empty, "k"), Cfg("""{"range":{"category":["red","blue","lime","cyan"]}}"""), small));
+        var schemeList = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("color", "nominal", """{"range":"mine"}""", "k"), Cfg("""{"range":{"mine":{"scheme":["red","blue","lime","cyan"]}}}"""), small));
+        var symbols = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("shape", "nominal", string.Empty, "k"), Cfg("""{"range":{"symbol":["circle","square","cross","diamond"]}}"""), small));
+        var pattern = Assert.Throws<VegaLiteRenderException>(() => Resolve("point", Enc("strokeDash", "nominal", """{"range":[[1,2,3,4],[1,2]]}""", "k"), string.Empty, small));
+        var atTheBound = Resolve("point", Enc("color", "nominal", """{"range":"mine"}""", "k"), colors, four);
+
+        // Assert: the locations, and the limit named
+        Assert.Equal("/encoding/color/scale/range", namedColor.Location.Pointer);
+        Assert.Equal("/encoding/shape/scale/range", namedShape.Location.Pointer);
+        Assert.Equal("/encoding/strokeDash/scale/range", namedDash.Location.Pointer);
+        Assert.Equal("/encoding/color", defaultColor.Location.Pointer);
+        Assert.Equal("/encoding/color/scale/range", schemeList.Location.Pointer);
+        Assert.Equal("/encoding/shape", symbols.Location.Pointer);
+        Assert.Equal("/encoding/strokeDash/scale/range/0", pattern.Location.Pointer);
+        foreach (var failure in new[] { namedColor, namedShape, namedDash, defaultColor, schemeList, symbols, pattern })
+        {
+            Assert.Contains("MaxScaleDomainSize", failure.Message, StringComparison.Ordinal);
+            Assert.Contains("the limit of", failure.Message, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(["red", "blue", "lime", "cyan"], atTheBound["color"]!.ColorRange);
     }
 
     /// <summary>

@@ -29,9 +29,18 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 ///         colors of it, or samples of a continuous one at <c>i / (count + 1)</c>).
 ///     </para>
 ///     <para>
+///         <b>Invalid colors.</b> A list of colors (an explicit or configured <c>range</c>, a <c>scheme</c> list, or a default named range) that is empty or
+///         has an entry that is not a string or not a color the renderer can read is a located <see cref="VegaLiteSpecException"/> (at the entry; at the
+///         list when it is empty), as an unknown scheme name is. There is no fallback to the default range, in the lenient mode as in the strict one:
+///         the mistake would otherwise go unseen, and a color that cannot be read is never handed to the painter. A configured scheme object with a
+///         <c>count</c> that is not a positive whole number or an <c>extent</c> that is not two numbers is reported the same way, as the parser does for a
+///         scheme of the specification.
+///     </para>
+///     <para>
 ///         <b>Limits and cancellation.</b> A scheme or a list never gives more than <see cref="VegaLiteLimits.MaxScaleDomainSize"/> colors (an
 ///         explicit <c>count</c> above it is a located <see cref="VegaLiteRenderException"/>); the list of colors of a range is checked by its
-///         length first; the values of a quantile domain are counted against <see cref="TableLayout.MaxCells"/> before they are read, the work (one step per
+///         length first (a list of the configuration, a named range or a scheme list, as much as one of the specification, and reported at the place
+///         that uses it); the values of a quantile domain are counted against <see cref="TableLayout.MaxCells"/> before they are read, the work (one step per
 ///         64 values read, and one per 64 comparisons of the sort) is charged to the evaluation-step budget of the call, and the cancellation token is polled
 ///         while they are read and sorted.
 ///     </para>
@@ -69,22 +78,32 @@ internal static partial class ScaleResolver
         // What the range, the scheme or the default named range of the configuration says
         IReadOnlyList<RangeItem>? colors = null;
         SchemeChoice? scheme = null;
+        var where = input.Location;
         var spec = ReadRangeSpec(input, context);
-        if (spec?.Items is { Count: > 0 } listed && listed.All(item => item.Node.AsString() is not null))
+        if (spec?.Items is { } listed)
         {
             colors = listed;
+            where = spec.Location;
         }
         else if (spec?.Scheme is { } configuredScheme)
         {
-            (colors, scheme) = FromSchemeObject(configuredScheme, spec.Location);
+            (colors, scheme) = FromSchemeObject(configuredScheme, spec.Location, input, context);
+            where = spec.Location;
         }
         else if (input.ScaleDef?["scheme"] is { } schemeNode)
         {
             (colors, scheme) = FromSpecScheme(schemeNode, context);
+            where = schemeNode.GetLocation(context.SourceName);
         }
         else
         {
-            (colors, scheme) = FromSchemeObject(DefaultRange(input, kind, context), input.Location);
+            (colors, scheme) = FromSchemeObject(DefaultRange(input, kind, context), input.Location, input, context);
+        }
+
+        // A list of colors is reported when it is empty or has an entry that is not a color, wherever it comes from; there is no fallback to the default range
+        if (colors is not null)
+        {
+            CheckColors(colors, where);
         }
 
         if (continuous)
@@ -167,11 +186,16 @@ internal static partial class ScaleResolver
     /// </summary>
     /// <param name="node">The named range.</param>
     /// <param name="location">The location to report.</param>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
     /// <returns>The list of colors, or the scheme.</returns>
-    private static (IReadOnlyList<RangeItem>? Colors, SchemeChoice? Scheme) FromSchemeObject(ConfigNode node, VegaLiteLocation location)
+    /// <exception cref="VegaLiteSpecException">Thrown when the <c>count</c> or the <c>extent</c> is malformed; carries the location.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when a list of colors has more entries than the limit; carries the location.</exception>
+    private static (IReadOnlyList<RangeItem>? Colors, SchemeChoice? Scheme) FromSchemeObject(ConfigNode node, VegaLiteLocation location, CommonInputs input, Context context)
     {
         if (node.Kind == ConfigNodeKind.Array)
         {
+            CheckConfigArray(node, location, input, context, "range of colors");
             return ([.. node.Items.Select(item => new RangeItem(item, location))], null);
         }
 
@@ -180,10 +204,26 @@ internal static partial class ScaleResolver
             return (null, new SchemeChoice(plainName, null, null, null, location));
         }
 
-        var extent = node["extent"] is { Kind: ConfigNodeKind.Array, Items.Count: 2 } e && e.Items[0].AsNumber() is { } a && e.Items[1].AsNumber() is { } b ? (a, b) : ((double, double)?)null;
-        int? count = node["count"]?.AsNumber() is { } n and >= 1 ? (int)Math.Min(n, int.MaxValue) : null;
+        // The configuration is not checked by the parser as a scheme of the specification is: the same rules apply here, at the place that uses it
+        (double, double)? extent = null;
+        if (node["extent"] is { } extentNode)
+        {
+            extent = extentNode is { Kind: ConfigNodeKind.Array, Items.Count: 2 } e && e.Items[0].AsNumber() is { } a && e.Items[1].AsNumber() is { } b
+                ? (a, b)
+                : throw new VegaLiteSpecException("The 'extent' of a configured color scheme must be an array of two numbers.", location);
+        }
+
+        int? count = null;
+        if (node["count"] is { } countNode)
+        {
+            count = countNode.AsNumber() is { } n && n >= 1 && double.IsInteger(n)
+                ? (int)Math.Min(n, int.MaxValue)
+                : throw new VegaLiteSpecException("The 'count' of a configured color scheme must be a positive whole number.", location);
+        }
+
         if (node["scheme"] is { Kind: ConfigNodeKind.Array } list)
         {
+            CheckConfigArray(list, location, input, context, "scheme of colors");
             return ([.. list.Items.Select(item => new RangeItem(item, location))], null);
         }
 
@@ -213,6 +253,37 @@ internal static partial class ScaleResolver
         var extent = node["extent"] is { IsArray: true, Items.Count: 2 } e && e.Items[0].AsNumber() is { } a && e.Items[1].AsNumber() is { } b ? (a, b) : ((double, double)?)null;
         int? count = node["count"]?.AsNumber() is { } n and >= 1 ? (int)Math.Min(n, int.MaxValue) : null;
         return (null, new SchemeChoice(node["name"]?.AsString(), null, count, extent, node["name"]?.GetLocation(context.SourceName) ?? location));
+    }
+
+    /// <summary>
+    ///     Checks a list of colors: it must not be empty and every entry must be a color the renderer can read.
+    /// </summary>
+    /// <remarks>
+    ///     A failure is a <see cref="VegaLiteSpecException"/> (strict or lenient alike, as an unknown scheme name is): the list is not
+    ///     replaced by the default range, because that would hide the mistake, and a color that cannot be read is never handed to the painter.
+    /// </remarks>
+    /// <param name="colors">The list.</param>
+    /// <param name="location">Where the list is written; reports an empty list.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the entry, when it is not a color; at the list when it is empty.</exception>
+    private static void CheckColors(IReadOnlyList<RangeItem> colors, VegaLiteLocation location)
+    {
+        if (colors.Count == 0)
+        {
+            throw new VegaLiteSpecException("A color scale needs at least one color.", location);
+        }
+
+        foreach (var item in colors)
+        {
+            if (item.Node.AsString() is not { } text)
+            {
+                throw new VegaLiteSpecException($"The range of a color scale must be a list of colors; an entry of kind {item.Node.Kind} is not a color.", item.Location);
+            }
+
+            if (!CssColor.TryParse(text, out _))
+            {
+                throw new VegaLiteSpecException($"'{text}' is not a color.", item.Location);
+            }
+        }
     }
 
     /// <summary>
@@ -249,11 +320,6 @@ internal static partial class ScaleResolver
                 }
 
                 stops.Add(RgbColor.FromRgba32(parsed));
-            }
-
-            if (stops.Count == 0)
-            {
-                throw new VegaLiteSpecException("A color scale needs at least one color.", input.Location);
             }
 
             if (reverse)
