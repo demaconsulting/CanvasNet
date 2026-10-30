@@ -29,6 +29,34 @@ sections:
                   - AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid
                   - AxisBuilder_Build_TitleAndExtentMatchAnalyticLayout
 
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-AggregateTitles
+                title: >-
+                  The AxisBuilder unit shall title an axis with the default title that the encoding plan gives
+                  its channel (Sum of x, Count of Records, x (binned), and the merged title of a range) when
+                  the axis and the channel give none, let an explicit axis or channel title win, and draw the
+                  grid of a linear axis for a field or an aggregate (a count has no field) but not for a binned
+                  field.
+                justification: |
+                  A reader needs to know that an axis shows a sum or a count, and a binned axis has no grid
+                  because its ticks are not the bins; Vega-Lite behaves so.
+                tests:
+                  - AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid
+                  - AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-BinnedAxes
+                title: >-
+                  The AxisBuilder unit shall ask a binned continuous axis for one tick per ten pixels of its
+                  length by default (an explicit tick count or explicit values win, and an already binned
+                  axis keeps the default of other axes), and shall label the axis of a normalized stack with
+                  the normalized number format of the configuration (percent by default) unless the axis gives a
+                  format.
+                justification: |
+                  The ticks of a histogram axis should follow the bins closely, and the share of a normalized
+                  stack is read as a percentage.
+                tests:
+                  - AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels
+                  - AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat
+
               - id: CanvasNetVegaLite-Guides-AxisBuilder-Configuration
                 title: >-
                   The AxisBuilder unit shall honor the axis orientation, the switches that turn the grid,

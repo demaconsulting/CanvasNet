@@ -1,0 +1,27 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Parcel weights",
+  "width": 280,
+  "height": 100,
+  "data": {
+    "values": [
+      { "weight": 1.5 },
+      { "weight": 2.5 },
+      { "weight": 3 },
+      { "weight": 7 },
+      { "weight": 8.5 },
+      { "weight": 12 },
+      { "weight": 14 },
+      { "weight": 14.5 },
+      { "weight": 18 },
+      { "weight": 22 },
+      { "weight": 25 },
+      { "weight": 31 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "weight", "type": "quantitative", "bin": true },
+    "y": { "aggregate": "count", "type": "quantitative" }
+  }
+}

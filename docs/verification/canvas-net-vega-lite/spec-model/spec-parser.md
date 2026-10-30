@@ -3,8 +3,9 @@
 This document describes the unit-level verification strategy for the `SpecParser` unit in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `SpecParser` class (the `Parse` entry
 points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs`, the compilation of
-expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, and
-`ParseSchemaMajorVersion`), and the types of the sibling files that carry its result — `SpecNode`, `SpecNodeKind`,
+expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, the validation of the
+aggregating transforms and of the aggregate, bin, stack, and sort properties of an encoding in `SpecParser.Aggregates.cs`,
+and `ParseSchemaMajorVersion`), and the types of the sibling files that carry its result — `SpecNode`, `SpecNodeKind`,
 `NodePosition`, `SpecTree` (with `EnumerateViews`), `SpecMetadata` (the description of the document read from the
 tree), `SpecExpressions` (the compiled expressions of the tree, found by their string node), and `ParameterGraph` (the
 dependency order of the parameters).
@@ -31,7 +32,8 @@ duplicate-key, depth-limit, and unknown-property expectations are small texts wh
 be counted by eye.
 
 Unit tests reside in `SpecParserTests.cs` (which also holds the tests of `SpecTree`, `SpecMetadata`, and `SpecNode`,
-as they are the parser's result types) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
+as they are the parser's result types) and `SpecParserAggregatesTests.cs` (the aggregating transforms and encoding
+properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `SpecModel` folder; the large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder.
 
 #### Test Environment
@@ -171,11 +173,35 @@ position `value`, and null for a null node.
 Asserts that a specification with a bound value parameter, an expression parameter that reads it, a selection parameter,
 a parameter without a value, and sixteen transforms (calculate with the viewing signal `width`, string, field, `range`,
 `oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten with
-`as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate that a
-later phase owns) has no warning, lists the four parameter names in order, and compiles four expressions; and that the
+`as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate) has no
+warning, lists the four parameter names in order, and compiles four expressions; and that the
 parameter order puts dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies
 `0 -> 2`, `2 -> 1`, and `3 -> 0` listed twice, with none unresolved), leaves a cycle and a self reference unresolved
 with the index of the first unresolved parameter, and is empty for no parameters, with a null list refused.
+
+##### Aggregating Transforms And Encoding Properties Are Validated
+
+**Tests**: `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_WindowTransformShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_BinParamsAndBinTransformShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_StackAndImputeTransformShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_ValidAggregatingTransformsAreAccepted`,
+`SpecParserAggregatesTests.SpecParser_Parse_ValidEncodingAggregateBinStackSortFormsAreAccepted`
+
+Asserts, as theories of about two hundred cases, that a wrongly shaped `aggregate`, `joinaggregate`, `window`, `bin`,
+`stack`, or `impute` transform, wrong bin parameters, and a wrongly shaped `aggregate`, `bin`, `stack`, or `sort` of a
+channel definition are located `VegaLiteSpecException` errors at the offending value, with the file, a text position, and
+a message that starts with the file name: for example, an `aggregate` that is not an array (`/transform/0/aggregate`), an
+entry that is not an object or has no `op` or no `field` where one is required, an `op` that is not text or not an
+aggregate operation (`nope`, the upper-case `SUM`, and the window-only `rank`), an `as` that is empty or not text, an
+unparsable `field` or `groupby` path, an exponential `param` of 0, 1.5, or text, and a `groupby` that is not an array of
+paths; a window `ntile` without a `param` or with 0, 1.5, or `"4"`; and, in the same way, the wrong shapes of the other
+transforms and of the encoding properties. Asserts that every valid form, including every operation name, a `sort` of
+a channel shorthand, and the secondary channels, is accepted without a warning; that the sort shorthand helper accepts a
+channel with an optional minus sign and nothing else; that `IsSupportedSort` accepts only the values the renderer applies
+and refuses null arguments; and that `IsSupportedTransform` accepts the six aggregating transform names and refuses the
+names of later phases.
 
 ##### Schema Version Parsing
 

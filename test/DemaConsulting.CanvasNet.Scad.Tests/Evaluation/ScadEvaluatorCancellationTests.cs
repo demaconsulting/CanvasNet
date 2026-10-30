@@ -9,8 +9,12 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 /// </summary>
 public class ScadEvaluatorCancellationTests
 {
-    /// <summary>The longest a canceled evaluation may take before the test gives up.</summary>
-    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(20);
+    /// <summary>
+    ///     The longest a canceled evaluation may take before the test gives up. It only has to tell "cancellation
+    ///     works" from "the evaluation ran on to its (effectively unbounded) end", so it is deliberately far larger
+    ///     than the real latency (milliseconds) to stay clear of any CI load.
+    /// </summary>
+    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(120);
 
     /// <summary>
     ///     Validates that a token canceled before the call stops evaluation before any resolver callback.
@@ -40,7 +44,7 @@ public class ScadEvaluatorCancellationTests
     {
         // Arrange
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
@@ -66,7 +70,7 @@ public class ScadEvaluatorCancellationTests
     {
         // Arrange
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
@@ -125,7 +129,7 @@ public class ScadEvaluatorCancellationTests
         };
         const string Source = "v = [for (i = [0 : 99999]) i * 1.5];\na = [for (k = [1 : 1000000]) len(str(v))];";
         var started = DateTime.UtcNow;
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
 
         // Act
         var ex = Record.Exception(() => Run(Source, settings));

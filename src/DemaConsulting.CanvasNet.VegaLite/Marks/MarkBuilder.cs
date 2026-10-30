@@ -21,10 +21,19 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         <c>continuousBandSize</c> (5) unless <c>size</c>, <c>width</c> or <c>height</c> say otherwise. The measure axis runs from the
 ///         value to zero (to the first domain value when the domain does not contain zero); an absent channel spans the whole data
 ///         rectangle, a bar or tick without a position on its thickness axis is centered and as thick as one minus the
-///         band padding (0.1 for a bar, 0.25 for a tick) of the rectangle. A symbol sits at the center of its band or at its value and
+///         band padding (0.1 for a bar, 0.25 for a tick) of the rectangle. A symbol sits at the center of its band or at its value (the middle of its bin for a binned field, the upper end of a stack) and
 ///         at the middle of the rectangle for an absent channel. A rule with only <c>x</c> is vertical across the whole height,
 ///         with only <c>y</c> horizontal across the whole width; with both, its stem runs from the value of the measure
 ///         axis to zero. A tick is a <c>thickness</c> (1) wide rectangle that is as long as its band (or <c>continuousBandSize</c>).
+///     </para>
+///     <para>
+///         <b>Ranges, stacks and bins.</b> A stacked channel (its field is the upper end and its second field the lower end of the stack)
+///         and a channel with <c>x2</c> or <c>y2</c> span from the first to the second end instead of to zero, for a bar, a rect and a rule
+///         (a rule with a range on one channel runs along that channel; with a range on both it is the segment between the two points). A bar or rect
+///         on a continuous channel that is binned (by the encoding, or <c>bin: "binned"</c> with <c>x2</c> or a bin <c>step</c>) spans from the start of its
+///         bin to its end, each edge <c>binSpacing</c> / 2 inside (1 for a bar, 0 for a rect and a tick), the whole span shifted by the half pixel by which
+///         Vega translates the axis; a bin thinner than <c>minBandSize</c> is widened to that size around its middle. A size (<c>size</c>, <c>width</c>,
+///         <c>height</c>) centers the mark on the middle of the bin instead.
 ///     </para>
 ///     <para>
 ///         <b>Paint.</b> <c>filled</c> is on for every mark but <c>point</c> and <c>rule</c>; the color of the mark (<c>#4c78a8</c>,
@@ -44,14 +53,13 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         discrete domain is not.
 ///     </para>
 ///     <para>
-///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>
-///         (Vega-Lite also clips for interval-selection scales, which are not supported). Row-bound expressions
+///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
+///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
 ///         paint properties of the mark definition (<c>color</c>, <c>fill</c>, <c>stroke</c>, <c>opacity</c>, <c>strokeWidth</c>, and
 ///         <c>size</c> of a symbol) and for the constant <c>value</c> of a color, fill, stroke or opacity channel (and of a size
 ///         channel of a symbol); a result of the wrong kind leaves the default in place. Other mark properties that are expressions,
-///         conditional encodings, <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; <c>x2</c>, <c>y2</c> and the
-///         offset channels are reported by the feature catalog and ignored here. The class is stateless between calls and safe for
+///         conditional encodings, <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; the offset channels are reported by the feature catalog and ignored here. The class is stateless between calls and safe for
 ///         concurrent use.
 ///     </para>
 /// </remarks>
@@ -59,6 +67,12 @@ internal sealed class MarkBuilder
 {
     /// <summary>The number of rows between two cancellation checks and budget updates.</summary>
     private const int BatchSize = 1024;
+
+    /// <summary>The half pixel by which Vega translates an axis; Vega-Lite shifts the rectangles of a binned field with it so that they meet the ticks.</summary>
+    private const double AxisTranslate = 0.5;
+
+    /// <summary>The <c>binSpacing</c> of a bar when neither the mark nor the configuration gives one.</summary>
+    private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
     private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick"];
@@ -162,12 +176,23 @@ internal sealed class MarkBuilder
         /// <param name="model">The scale model, or null.</param>
         /// <param name="table">The data.</param>
         /// <param name="valueExpression">The compiled <c>{"expr": ...}</c> of the constant <c>value</c> of the channel, or null.</param>
-        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null)
+        /// <param name="secondary">The definition of the secondary channel (<c>x2</c> or <c>y2</c>) of a position channel, or null.</param>
+        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null, SpecNode? secondary = null)
         {
             Scale = scale;
             Model = model;
             ValueExpression = valueExpression;
             FieldIndex = scale?.FieldPath is { } path ? table.FindField(path) : -1;
+            Field2Index = scale?.Field2Path is { } path2 ? table.FindField(path2) : -1;
+            SecondDatum = secondary?["datum"] switch
+            {
+                { IsNumber: true } n => DataValue.FromNumber(n.NumberValue),
+                { IsString: true } s => DataValue.FromString(s.StringValue),
+                { IsBoolean: true } b => DataValue.FromBoolean(b.BoolValue),
+                _ => null,
+            };
+            SecondValue = secondary?["value"];
+            BinStep = scale is { Bin: BinKind.Binned } && Field2Index < 0 && node["bin"]?["step"] is { IsNumber: true } step && step.NumberValue > 0 ? step.NumberValue : null;
             Datum = node["datum"] switch
             {
                 { IsNumber: true } n => DataValue.FromNumber(n.NumberValue),
@@ -186,6 +211,27 @@ internal sealed class MarkBuilder
 
         /// <summary>Gets the index of the field in the table, or -1.</summary>
         public int FieldIndex { get; }
+
+        /// <summary>Gets the index in the table of the field of the second end of the channel (the lower end of a stack, the end of a bin, the field of <c>x2</c> or <c>y2</c>), or -1.</summary>
+        public int Field2Index { get; }
+
+        /// <summary>Gets the <c>datum</c> of the secondary channel (<c>x2</c> or <c>y2</c>), or null.</summary>
+        public DataValue? SecondDatum { get; }
+
+        /// <summary>Gets the constant <c>value</c> of the secondary channel (<c>x2</c> or <c>y2</c>), or null.</summary>
+        public SpecNode? SecondValue { get; }
+
+        /// <summary>Gets the step of a field that is binned already and has no secondary channel (<c>bin: {"binned": true, "step": ...}</c>), or null.</summary>
+        public double? BinStep { get; }
+
+        /// <summary>Gets a value indicating whether the channel is the stacked channel: its field is the upper end of the stack and its second field the lower end.</summary>
+        public bool IsStacked => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: not null } && Field2Index >= 0;
+
+        /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known: the geometry of a bin applies.</summary>
+        public bool HasBinEnds => Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null);
+
+        /// <summary>Gets a value indicating whether the channel spans a range that the encoding gives: <c>x2</c> or <c>y2</c> next to a field that is not binned by the encoding and not stacked.</summary>
+        public bool HasRange => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: null, Bin: not BinKind.Binning } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
 
         /// <summary>Gets the datum of the channel, or null.</summary>
         public DataValue? Datum { get; }
@@ -332,7 +378,8 @@ internal sealed class MarkBuilder
                         scale,
                         scale?.CreateModel(name is "x" or "y" ? extent : 0),
                         table,
-                        owner._expressions?.Compiled.GetReference(node["value"]));
+                        owner._expressions?.Compiled.GetReference(node["value"]),
+                        name is "x" or "y" && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null);
                 }
             }
 
@@ -602,10 +649,58 @@ internal sealed class MarkBuilder
 
             if (channel.Model is { } model)
             {
-                return model.MapCenter(channel.Read(_table, row));
+                return Center(channel, model, row);
             }
 
             return ConstantPosition(channel, extent) ?? extent / 2;
+        }
+
+        /// <summary>
+        ///     Gets the position of the value of a row on a position channel: the center of its band, the scaled value, the upper end of a
+        ///     stack, or, for a field that is binned on a continuous scale, the middle of the bin (Vega-Lite's <c>bandPosition</c> 0.5).
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="model">The scale of the channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The position, or null when the row is invalid.</returns>
+        private double? Center(Channel channel, ScaleModel model, int row)
+        {
+            if (!channel.HasBinEnds)
+            {
+                return model.MapCenter(channel.Read(_table, row));
+            }
+
+            return BinEdges(channel, model, row) is { } edges ? (edges.Start + edges.End) / 2 : null;
+        }
+
+        /// <summary>
+        ///     Gets the positions of the two boundaries of the bin of a row.
+        /// </summary>
+        /// <param name="channel">The channel (<see cref="Channel.HasBinEnds"/>).</param>
+        /// <param name="model">The scale of the channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The positions of the start and of the end of the bin, or null when the row has no valid bin.</returns>
+        private (double Start, double End)? BinEdges(Channel channel, ScaleModel model, int row)
+        {
+            var start = channel.Read(_table, row);
+            if (model.Map(start) is not { } startPosition)
+            {
+                return null;
+            }
+
+            double? endPosition;
+            if (channel.Field2Index >= 0)
+            {
+                endPosition = model.Map(_table.GetValue(row, channel.Field2Index));
+            }
+            else
+            {
+                endPosition = start.TryGetQuantitative(out var number) && channel.BinStep is { } step
+                    ? model.Map(DataValue.FromNumber(number + step))
+                    : null;
+            }
+
+            return endPosition is { } end ? (startPosition, end) : null;
         }
 
         /// <summary>
@@ -614,12 +709,49 @@ internal sealed class MarkBuilder
         /// <param name="channel">The channel.</param>
         /// <param name="extent">The size of the data rectangle along the axis.</param>
         /// <returns>The position, or null when the channel has no usable value.</returns>
-        private static double? ConstantPosition(Channel channel, double extent) => channel.Value switch
+        private static double? ConstantPosition(Channel channel, double extent) => ConstantPosition(channel.Value, extent);
+
+        /// <summary>
+        ///     Reads a constant position: a number, or the keywords <c>width</c> and <c>height</c>.
+        /// </summary>
+        /// <param name="value">The <c>value</c> of a channel, or null.</param>
+        /// <param name="extent">The size of the data rectangle along the axis.</param>
+        /// <returns>The position, or null when there is no usable value.</returns>
+        private static double? ConstantPosition(SpecNode? value, double extent) => value switch
         {
             { IsNumber: true } n => n.NumberValue,
             { IsString: true } s when s.StringValue is "width" or "height" => extent,
             _ => null,
         };
+
+        /// <summary>
+        ///     Gets the position of the second end of a range that a channel spans: the lower end of a stack, or the field, datum or value of <c>x2</c> or <c>y2</c>.
+        /// </summary>
+        /// <param name="channel">The channel that is stacked or has a range.</param>
+        /// <param name="model">The scale of the channel.</param>
+        /// <param name="extent">The size of the data rectangle along the axis.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The position, or null when the row is invalid.</returns>
+        private double? SecondEnd(Channel channel, ScaleModel model, double extent, int row)
+        {
+            // An explicit pixel value of x2 or y2 wins over the lower end of a stack
+            if (channel.SecondValue is not null)
+            {
+                return ConstantPosition(channel.SecondValue, extent);
+            }
+
+            if (channel.Field2Index >= 0)
+            {
+                return model.MapCenter(_table.GetValue(row, channel.Field2Index));
+            }
+
+            if (channel.SecondDatum is { } datum)
+            {
+                return model.MapCenter(datum);
+            }
+
+            return ConstantPosition(channel.SecondValue, extent);
+        }
 
         /// <summary>
         ///     Gets the position where a range of a measure axis starts (Vega-Lite's <c>zeroOrMin</c>): zero when the domain has it, else its first value.
@@ -658,7 +790,13 @@ internal sealed class MarkBuilder
 
             if (channel.Model is { } model)
             {
-                return model.MapCenter(channel.Read(_table, row)) is { } main ? (main, ZeroOrMin(model)) : null;
+                if (channel.IsStacked || channel.HasRange)
+                {
+                    // A stack runs from its lower to its upper end, a range from x (or y) to x2 (or y2); a row with an invalid end is not drawn
+                    return model.MapCenter(channel.Read(_table, row)) is { } high && SecondEnd(channel, model, extent, row) is { } low ? (high, low) : null;
+                }
+
+                return Center(channel, model, row) is { } main ? (main, ZeroOrMin(model)) : null;
             }
 
             return ConstantPosition(channel, extent) is { } constant ? (constant, whole.Item2) : whole;
@@ -728,7 +866,13 @@ internal sealed class MarkBuilder
                 return BandSpan(channel!, model, sizing, row);
             }
 
-            if (barOrTick)
+            // A field that is binned on a continuous scale spans its bin unless a size is given (Vega-Lite's rectBinPosition)
+            if (channel is { HasBinEnds: true } && model is not null && sizing.Fixed is null && sizing.Encoded is null)
+            {
+                return BinSpan(channel, model, row);
+            }
+
+            if (barOrTick && channel?.HasRange != true)
             {
                 var thickness = Thickness(sizing, row, out var valid);
                 if (!valid)
@@ -738,7 +882,7 @@ internal sealed class MarkBuilder
 
                 if (model is { Kind: ScaleKind.Linear })
                 {
-                    var center = model.MapCenter(channel!.Read(_table, row));
+                    var center = Center(channel!, model, row);
                     var length = thickness ?? Prop("continuousBandSize")?.AsNumber() ?? 5;
                     return center is { } c ? (c - (length / 2), length) : null;
                 }
@@ -750,6 +894,43 @@ internal sealed class MarkBuilder
             }
 
             return RangePair(isX, channel, row) is { } pair ? (Math.Min(pair.Main, pair.Other), Math.Abs(pair.Main - pair.Other)) : null;
+        }
+
+        /// <summary>
+        ///     Works out where a bar or rectangle spans along an axis whose field is binned (Vega-Lite's <c>rectBinPosition</c>): from the start of
+        ///     the bin to its end, each edge drawn <c>binSpacing</c> / 2 inside it and the whole span shifted by the half pixel that the axis is
+        ///     translated by; a bin thinner than <c>minBandSize</c> is widened around its middle to that size, without spacing.
+        /// </summary>
+        /// <param name="channel">The binned channel.</param>
+        /// <param name="model">The scale of the channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The start and the length, or null when the row has no valid bin.</returns>
+        private (double Start, double Length)? BinSpan(Channel channel, ScaleModel model, int row)
+        {
+            if (BinEdges(channel, model, row) is not { } edges)
+            {
+                return null;
+            }
+
+            var low = Math.Min(edges.Start, edges.End);
+            var high = Math.Max(edges.Start, edges.End);
+            var spacing = Prop("binSpacing")?.AsNumber() ?? (_type == "bar" ? DefaultBarBinSpacing : 0);
+            var minimum = Prop("minBandSize")?.AsNumber() ?? 0;
+            if (minimum > 0 && high - low < minimum)
+            {
+                var growth = 0.5 * (minimum - (high - low));
+                low -= growth;
+                high += growth;
+            }
+            else
+            {
+                low += spacing / 2;
+                high -= spacing / 2;
+            }
+
+            // Edges that spacing has crossed still make a rectangle of that width, as Vega draws it
+            var start = Math.Min(low, high) + AxisTranslate;
+            return (start, Math.Abs(high - low));
         }
 
         /// <summary>
@@ -919,7 +1100,10 @@ internal sealed class MarkBuilder
                 return [];
             }
 
-            var vertical = _orient != "horizontal";
+            // A range on one channel (x2 or y2) decides the direction of the rule, as a stack does for its measure axis
+            var xRange = x is { HasRange: true };
+            var yRange = y is { HasRange: true };
+            var vertical = xRange == yRange ? _orient != "horizontal" : yRange;
             var widthDefault = Def("strokeWidth")?.AsNumber() ?? Def("size")?.AsNumber() ?? Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
             for (var row = 0; row < _table.RowCount; row++)
@@ -941,7 +1125,15 @@ internal sealed class MarkBuilder
                 }
 
                 (double X, double Y, double X2, double Y2)? line = null;
-                if (vertical)
+                if (xRange && yRange)
+                {
+                    // Both channels span a range: the rule is the segment from (x, y) to (x2, y2)
+                    if (RangePair(isX: true, x, row) is { } both && RangePair(isX: false, y, row) is { } other)
+                    {
+                        line = (both.Main, other.Main, both.Other, other.Other);
+                    }
+                }
+                else if (vertical)
                 {
                     if (PointPosition(x, _width, row) is { } px && RangePair(isX: false, y, row) is { } ys)
                     {

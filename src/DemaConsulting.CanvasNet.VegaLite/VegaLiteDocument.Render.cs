@@ -19,7 +19,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     Pipeline: the specification model reports the constructs that it recognizes but cannot draw; for a single view
 ///     with a mark the data (inline rows, a local file, a named dataset or a sequence) is loaded first, under the limits and
 ///     the sandbox of this call, then the static parameters are evaluated and the row transforms (calculate, filter, fold,
-///     flatten, sample, pivot, lookup) run in the order of the specification, the scales are resolved over the transformed rows,
+///     flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, stack, impute) run in the order of the specification, the
+///     encoding's own bin, aggregate and stack run on the result (Vega-Lite's implicit stage, see <see cref="EncodingTransforms"/>), the scales are resolved over the
+///     Raw and Main tables that stage produced,
 ///     the axes, the marks and the title are built, the view
 ///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A composition
 ///     (layer, concat, facet, repeat) is not drawn yet: only its title and background are. The private pipeline
@@ -293,6 +295,8 @@ public sealed partial class VegaLiteDocument
         // A composition has no single title position; layers share one. Only single views have a data rectangle drawn so far
         var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
         DataTable? table = null;
+        EncodingPlan? plan = null;
+        EncodingData? data = null;
         IReadOnlyList<FeatureReport> dataWarnings = [];
         RowExpressions? expressions = null;
         var markNode = root["mark"];
@@ -319,10 +323,12 @@ public sealed partial class VegaLiteDocument
             try
             {
                 ParameterEnvironment.Populate(_tree, options.Parameters, parameters, evaluator);
-                table = RowTransforms.Apply(
-                    table,
-                    root["transform"],
-                    new TransformContext(_tree, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings));
+                var transformContext = new TransformContext(_tree, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings);
+                table = RowTransforms.Apply(table, root["transform"], transformContext);
+
+                // Then the encoding's own bin, aggregate and stack, in Vega-Lite's order, on the rows the transforms left
+                plan = EncodingPlan.Create(root, config);
+                data = EncodingTransforms.Apply(plan, table, transformContext);
             }
             finally
             {
@@ -338,19 +344,19 @@ public sealed partial class VegaLiteDocument
         // has, then the title, the axes (per pass), the marks group and the marks
         var budget = new SceneBudget(options.Limits.MaxSceneItems);
         budget.Add(2, root.GetLocation(_tree.SourceName));
-        var scales = table is null ? null : ScaleResolver.Resolve(root, table, config, _tree.SourceName, options.Limits, cancellationToken);
+        var scales = data is null || plan is null ? null : ScaleResolver.Resolve(root, plan, data, config, _tree.SourceName, options.Limits, cancellationToken);
 
         var hints = new ViewSizeHints(scales?.DiscreteWidth, scales?.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
         var request = ViewLayout.Resolve(root, config, hints, background);
         var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition, budget, _tree.SourceName);
-        if (table is null || scales is null)
+        if (data is null || plan is null || scales is null)
         {
             var layout = ViewLayout.Compute(request, default, title);
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        return BuildChart(new ChartInputs(request, title, scales, table, config, measurer, options.Limits, budget, expressions), cancellationToken) with { DataWarnings = dataWarnings };
+        return BuildChart(new ChartInputs(request, title, scales, plan, data, config, measurer, options.Limits, budget, expressions), cancellationToken) with { DataWarnings = dataWarnings };
     }
 
     /// <summary>
@@ -397,7 +403,7 @@ public sealed partial class VegaLiteDocument
 
         // The marks group and each mark are charged by the mark builder before they are created
         var marks = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName, inputs.Expressions)
-            .Build(_tree.Root, inputs.Table, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
+            .Build(_tree.Root, inputs.Data.Main, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
         content.Add(marks);
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
         return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content), inputs.Measurer);
@@ -554,7 +560,8 @@ public sealed partial class VegaLiteDocument
     /// <param name="Request">The layout request of the view.</param>
     /// <param name="Title">The built title, or null.</param>
     /// <param name="Scales">The resolved scales.</param>
-    /// <param name="Table">The data.</param>
+    /// <param name="Plan">The plan of the encoding (field names, titles, bins, stack).</param>
+    /// <param name="Data">The Raw and Main tables of the implicit pipeline and the bins; the marks draw the Main table.</param>
     /// <param name="Config">The effective configuration.</param>
     /// <param name="Measurer">The text measurer.</param>
     /// <param name="Limits">The limits.</param>
@@ -564,7 +571,8 @@ public sealed partial class VegaLiteDocument
         ViewLayoutRequest Request,
         TitleBlock? Title,
         ResolvedScales Scales,
-        DataTable Table,
+        EncodingPlan Plan,
+        EncodingData Data,
         ResolvedConfig Config,
         TextMeasurer Measurer,
         VegaLiteLimits Limits,

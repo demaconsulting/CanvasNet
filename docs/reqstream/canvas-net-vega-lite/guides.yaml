@@ -68,3 +68,33 @@ sections:
               - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
               - AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid
               - AxisBuilder_Build_TitleAndExtentMatchAnalyticLayout
+
+          - id: CanvasNetVegaLite-Guides-AggregateTitles
+            title: >-
+              The Guides subsystem shall title the axis of an aggregated, binned, or range channel with the
+              Vega-Lite default title (Sum of x, Count of Records, x (binned), or the merged title of the two
+              ends of a range) unless an explicit title is given, and shall draw the grid of an aggregated
+              measure but not of a binned field.
+            justification: |
+              Without a default title a reader could not tell a sum from a raw value, and the grid of a binned
+              axis would suggest boundaries that are not the bins.
+            children:
+              - CanvasNetVegaLite-Guides-AxisBuilder-AggregateTitles
+            tests:
+              - AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles
+
+          - id: CanvasNetVegaLite-Guides-BinnedAxes
+            title: >-
+              The Guides subsystem shall ask a binned axis for one tick per ten pixels of its length unless
+              the axis gives a tick count or values, and shall label a normalized stack with the normalized
+              number format of the configuration unless the axis gives a format.
+            justification: |
+              The ticks of a histogram should follow its bins, and the share of a normalized stack is read as a
+              percentage.
+            children:
+              - CanvasNetVegaLite-Guides-AxisBuilder-BinnedAxes
+            tests:
+              - AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels
+              - AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat
+              - CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin

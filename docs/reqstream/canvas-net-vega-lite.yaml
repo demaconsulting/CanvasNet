@@ -11,9 +11,10 @@
 # managed code and the public CanvasNet APIs: there is no JavaScript runtime, no network access, and no
 # dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view
 # whose data is inline, a local CSV, TSV, DSV, or JSON file read from a sandbox, a named dataset, or a generated
-# sequence, the row transforms calculate, filter, fold, flatten, sample, pivot, and lookup with a closed subset
-# of the Vega expression language and static variable parameters, the marks bar, rect, point, circle, square,
-# rule, and tick, linear, band, and point scales, axes, and
+# sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
+# window, bin, stack, and impute with a closed subset of the Vega expression language and static variable
+# parameters, the aggregate, bin, and stack of an encoding, the marks bar, rect, point, circle, square,
+# rule, and tick (with stacked, binned, and ranged geometry), linear, band, and point scales, axes, and
 # titles - and reports every recognized construct outside that subset with a stable vl-* identifier instead of
 # skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
 # never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
@@ -174,7 +175,8 @@ sections:
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
           point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, and opacity
-          channels with field, value, and datum forms, quantitative, nominal, and ordinal types, and
+          channels (and the x2 and y2 ranges of bar, rect, and rule) with field, value, and datum forms,
+          quantitative, nominal, and ordinal types, and
           linear, band, and point scales with their documented properties - and shall draw each
           supported construct without reporting it.
         tags: [system]
@@ -346,7 +348,9 @@ sections:
           channels, types, scale types and properties, legends, guide properties, expressions,
           transforms, parameters, compositions, and data sources - as an unsupported-feature report with
           a stable vl-* identifier, a message, and the RFC 6901 pointer with one-based line and column of
-          the construct, once per feature and location, and shall never skip such a construct silently.
+          the construct, once per feature and location, and shall never skip such a construct silently,
+          while not reporting a construct that it draws (the aggregate, bin of x and y, and stack of an
+          encoding, the aggregating transforms, and the secondary channels of bars, rects, and rules).
         tags: [system]
         justification: |
           Unsupported features are a different problem from mistakes and must be distinguishable from
@@ -356,6 +360,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+          - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
 
       - id: CanvasNetVegaLite-StrictMode
         title: >-
@@ -539,7 +544,8 @@ sections:
         title: >-
           The library shall apply the row transforms calculate, filter (an expression, or the predicates
           equal, lt, lte, gt, gte, range, oneOf, and valid composed with and, or, and not), fold, flatten,
-          sample, pivot (sum and count), and lookup of the drawn view in their written order to the loaded
+          sample, pivot (sum and count), and lookup of the drawn view, together with the transforms
+          aggregate, joinaggregate, window, bin, stack, and impute, in their written order to the loaded
           data before any scale is resolved, shall order a category by an aggregate of the transformed
           rows, and shall load the secondary source of a lookup through the same sandbox and budget as the
           main data, so that the chart draws the transformed rows.
@@ -561,6 +567,96 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows
           - CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields
           - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+          - CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars
+
+      - id: CanvasNetVegaLite-Aggregation
+        title: >-
+          The library shall draw a chart whose encoding aggregates a field (a sum, a count of records, a
+          mean, or any other aggregate operation of Vega-Lite) or whose aggregate transform summarizes the
+          rows, with one mark per group in first-seen order, the axes titled with the default title of the
+          aggregate (such as Sum of x or Count of Records), without reporting the aggregate as unsupported.
+        tags: [system]
+        justification: |
+          Most charts draw a summary of their data; an aggregate must therefore be computed, drawn, and
+          titled as Vega-Lite does.
+        children:
+          - CanvasNetVegaLite-Transforms-Aggregation
+          - CanvasNetVegaLite-Transforms-EncodingPipeline
+          - CanvasNetVegaLite-Guides-AggregateTitles
+          - CanvasNetVegaLite-SpecModel-AggregationValidation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles
+          - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
+
+      - id: CanvasNetVegaLite-Binning
+        title: >-
+          The library shall draw a histogram - a chart whose x or y channel bins a quantitative field - with
+          the bins of the Vega bin algorithm, one bar per bin that fills its bin less the bar spacing, an axis
+          that covers the bins with a default title, and a count or another aggregate per bin, and shall draw
+          already binned data (a start and an end field) as bars over their ranges.
+        tags: [system]
+        justification: |
+          A histogram is the standard picture of a distribution; its bins and bars must be those of
+          Vega-Lite for the chart to read the same.
+        children:
+          - CanvasNetVegaLite-Transforms-Binning
+          - CanvasNetVegaLite-Scales-BinnedDomains
+          - CanvasNetVegaLite-Marks-BinnedBars
+          - CanvasNetVegaLite-Marks-RangedMarks
+          - CanvasNetVegaLite-Guides-BinnedAxes
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin
+          - CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel
+          - CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges
+
+      - id: CanvasNetVegaLite-Stacking
+        title: >-
+          The library shall draw a bar chart whose measure has several rows in a category as a stacked bar
+          chart - each layer from its stack start to its stack end, ordered by the order channel or the
+          layer fields, with the offsets zero, center, and normalize - with an axis that reaches the total of
+          the stack, and shall leave a chart with one row per category exactly as it was drawn before stacking.
+        tags: [system]
+        justification: |
+          A bar chart with a color is a stacked bar chart in Vega-Lite; the layers must not overlap or hide
+          each other, and the charts that stack nothing must not change.
+        children:
+          - CanvasNetVegaLite-Transforms-Stacking
+          - CanvasNetVegaLite-Scales-StackedDomains
+          - CanvasNetVegaLite-Marks-StackedMarks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal
+          - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds
+
+      - id: CanvasNetVegaLite-GroupedTransforms
+        title: >-
+          The library shall draw the result of the transforms joinaggregate, window, and impute - group
+          statistics on every row, running totals, ranks, moving averages, and filled gaps - exactly as the
+          values that the transform computed, in the order of the input rows.
+        tags: [system]
+        justification: |
+          Running totals and ranks are the standard way to chart a series against its own history; they must
+          be computed and drawn as Vega-Lite does.
+        children:
+          - CanvasNetVegaLite-Transforms-GroupedTransforms
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars
+
+      - id: CanvasNetVegaLite-SortByAggregate
+        title: >-
+          The library shall order the categories of a discrete axis by an aggregate of a field (a sort object
+          with an op, the shorthand of another channel, or the encoding of another channel), in ascending or
+          descending order, keeping equal categories in first-seen order, and shall report only the sort forms
+          that it does not compute.
+        tags: [system]
+        justification: |
+          Ordering a bar chart by its value is the most common reason to sort a category axis.
+        children:
+          - CanvasNetVegaLite-Scales-SortByAggregate
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand
+          - CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections
 
       - id: CanvasNetVegaLite-TransformLimits
         title: >-
@@ -579,6 +675,28 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
 
+      - id: CanvasNetVegaLite-AggregationLimits
+        title: >-
+          The library shall bound what the aggregate, joinaggregate, window, bin, stack, and impute
+          transforms and the aggregate, bin, and stack of an encoding create and compute - the groups and
+          appended rows (counted in the shared row budget before they are allocated), the fields, the
+          cells and values they keep, the bins, the sorts, the frames, and the bootstrap resamples (charged to
+          the evaluation-step budget) - shall fail closed with a located VegaLiteRenderException when a limit is
+          exceeded, and shall observe the cancellation token while it groups, sorts, and stacks.
+        tags: [system, security]
+        justification: |
+          Grouping, windowing, and imputing can multiply or retain the data of a chart; untrusted
+          specifications must not be able to exhaust memory or time, and callers must be able to abandon the
+          work.
+        children:
+          - CanvasNetVegaLite-Transforms-AggregateTransforms-Limits
+          - CanvasNetVegaLite-Transforms-AggregateTransforms-Cancellation
+          - CanvasNetVegaLite-Transforms-EncodingPlan-Limits
+          - CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply
+          - CanvasNetVegaLite_SystemIntegration_BinnedAndStacked_SceneBudgetAndDeterminismApply
+
       - id: CanvasNetVegaLite-TransformDeterminism
         title: >-
           The library shall give the same transformed rows, the same sampled rows, the same stable category
@@ -595,6 +713,24 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
           - CanvasNetVegaLite_SystemIntegration_Transforms_SampleAndSortAreDeterministic
+
+      - id: CanvasNetVegaLite-AggregationDeterminism
+        title: >-
+          The library shall give the same groups in the same first-seen order, the same statistics (the
+          confidence intervals of a deterministic bootstrap included), the same bins, the same stacks, and the
+          same image for the same specification and options on every platform, in every culture, and for
+          repeated and concurrent measure and render calls, with a measure that matches the render that
+          follows and no dependence on a clock or a random source.
+        tags: [system]
+        justification: |
+          Reproducibility is required for golden tests and caching; a group order, a bin label, or an interval
+          that varied between runs or cultures would make that impossible.
+        children:
+          - CanvasNetVegaLite-Transforms-AggregateTransforms-Determinism
+          - CanvasNetVegaLite-Transforms-EncodingPlan-Determinism
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical
+          - CanvasNetVegaLite_SystemIntegration_BinnedAndStacked_SceneBudgetAndDeterminismApply
 
       - id: CanvasNetVegaLite-ExpressionDiagnostics
         title: >-

@@ -650,6 +650,20 @@ words:
   - lastindexof
   - startswith
   - trunc
+  - argmax
+  - argmin
+  - cume
+  - exponentialb
+  - keyvals
+  - minstep
+  - ntile
+  - stackable
+  - stdev
+  - stdevp
+  - unbinnable
+  - underflows
+  - variancep
+  - welford
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

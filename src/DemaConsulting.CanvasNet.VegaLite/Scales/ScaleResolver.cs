@@ -1,6 +1,7 @@
 // Portions derived from Vega-Lite and Vega (BSD-3-Clause), d3-scale (ISC); see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 
@@ -34,8 +35,23 @@ internal sealed class ResolvedScale
     /// <summary>Gets the kind of scale.</summary>
     public ScaleKind Kind { get; init; }
 
-    /// <summary>Gets the field path of the channel, or null when the channel is driven by a <c>datum</c>.</summary>
+    /// <summary>Gets the field path of the channel, or null when the channel is driven by a <c>datum</c>. For a binned, aggregated or stacked channel it is the derived field the marks read (the start of a bin, <c>sum_x</c>, the upper end of a stack).</summary>
     public string? FieldPath { get; init; }
+
+    /// <summary>Gets the field path of the second end of the channel (the lower end of a stack, the end of a bin, the field of <c>x2</c> or <c>y2</c>), or null when it has none.</summary>
+    public string? Field2Path { get; init; }
+
+    /// <summary>Gets the default title of the channel (Vega-Lite's <c>Sum of x</c>, <c>x (binned)</c>, ...), or null when the channel reads no field.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Gets how the channel is binned.</summary>
+    public BinKind Bin { get; init; }
+
+    /// <summary>Gets the bins of a channel that the encoding bins (the domain of its continuous scale), or null.</summary>
+    public BinSpec? BinSpec { get; init; }
+
+    /// <summary>Gets the offset of the stack the channel carries, or null when its marks are not stacked.</summary>
+    public StackOffset? Stack { get; init; }
 
     /// <summary>Gets the field type: <c>quantitative</c>, <c>nominal</c> or <c>ordinal</c>.</summary>
     public string DataType { get; init; } = string.Empty;
@@ -238,12 +254,17 @@ internal sealed class ResolvedScales
     /// <param name="markType">The mark type.</param>
     /// <param name="orient">The orientation of the mark.</param>
     /// <param name="scales">The resolved scales.</param>
-    internal ResolvedScales(string markType, string? orient, Dictionary<string, ResolvedScale> scales)
+    /// <param name="plan">The encoding plan the scales were resolved with, or null.</param>
+    internal ResolvedScales(string markType, string? orient, Dictionary<string, ResolvedScale> scales, EncodingPlan? plan = null)
     {
         MarkType = markType;
         Orient = orient;
         _scales = scales;
+        Plan = plan;
     }
+
+    /// <summary>Gets the plan of the encoding the scales were resolved with (field names, titles, stack), or null.</summary>
+    public EncodingPlan? Plan { get; }
 
     /// <summary>Gets the mark type of the view (<c>bar</c>, <c>point</c> and so on); empty when the view has no mark.</summary>
     public string MarkType { get; }
@@ -292,8 +313,13 @@ internal sealed class ResolvedScales
 ///             size; for x and y true for <c>bar</c> and <c>area</c> marks and otherwise the configured default true,
 ///             except on the discrete axis of a bar; with a custom domain only when it already spans zero) pulls the end
 ///             values to zero. A discrete domain is the distinct values in order of first appearance, sorted ascending
-///             by default (<c>sort</c> may be ascending, descending, null for data order, or an array); an explicit
-///             <c>scale.domain</c> is used as given.
+///             by default (<c>sort</c> may be ascending, descending, null for data order, an array, an object with an aggregate operation and a
+///             field, an <c>encoding</c> channel, or a channel shorthand such as <c>"-y"</c>, see <c>ScaleResolver.Sort.cs</c>); an explicit
+///             <c>scale.domain</c> is used as given. The fields a channel reads and its default title come from the <see cref="EncodingPlan"/>: the
+///             domain of a stacked channel spans the lower and the upper ends of the stack (<c>[0, 1]</c> when normalized), that of a range the
+///             fields of both channels, that of a binned field the start of the first bin and the stop of the last (no zero, no nice), and
+///             <c>scale.domain: "unaggregated"</c> reads the rows before the aggregate; a discrete channel that is binned has the text of its bins as
+///             categories, ordered by where they start.
 ///         </description></item>
 ///         <item><description>
 ///             <b>Padding and nice.</b> A band scale has inner padding from the configuration by mark (bar 0.1, tick
@@ -320,7 +346,7 @@ internal sealed class ResolvedScales
 ///         ignored. The class is stateless and thread-safe.
 ///     </para>
 /// </remarks>
-internal static class ScaleResolver
+internal static partial class ScaleResolver
 {
     /// <summary>The channels that are resolved, in the order of the result.</summary>
     private static readonly string[] Channels = ["x", "y", "color", "fill", "stroke", "size", "opacity"];
@@ -328,8 +354,9 @@ internal static class ScaleResolver
     /// <summary>The marks whose discrete positions are bands, so that the mark fits into the band.</summary>
     private static readonly HashSet<string> BandMarks = ["rect", "bar", "image", "rule", "tick"];
 
-    /// <summary>The aggregate operations of a sort by field.</summary>
-    private static readonly HashSet<string> SortOperations = ["count", "sum", "mean", "average", "median", "min", "max"];
+    /// <summary>The aggregate operations that an <c>unaggregated</c> domain accepts (Vega-Lite's shared domain operations).</summary>
+    private static readonly HashSet<AggregateOp> SharedDomainOperations =
+        [AggregateOp.Mean, AggregateOp.Median, AggregateOp.Q1, AggregateOp.Q3, AggregateOp.Min, AggregateOp.Max];
 
     /// <summary>The ratio of the step that a point-like mark's largest size may span (Vega-Lite's MAX_SIZE_RANGE_STEP_RATIO).</summary>
     private const double MaxSizeRangeStepRatio = 0.95;
@@ -341,8 +368,15 @@ internal static class ScaleResolver
     private const int CancellationInterval = 4096;
 
     /// <summary>
-    ///     Resolves the scales of a single view.
+    ///     Resolves the scales of a single view whose data needs no implicit transform, or runs the implicit transforms with a
+    ///     context of its own first.
     /// </summary>
+    /// <remarks>
+    ///     This is the convenience entry for callers that have only the rows after the explicit transforms (the tests and tools);
+    ///     the document pipeline runs <see cref="EncodingTransforms"/> in its own call context and uses
+    ///     <see cref="Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)"/>.
+    ///     The row budget of that private context starts empty.
+    /// </remarks>
     /// <param name="view">The view object of the specification (its <c>mark</c>, <c>encoding</c>, <c>width</c> and <c>height</c> are read).</param>
     /// <param name="table">The data of the view.</param>
     /// <param name="config">The effective configuration.</param>
@@ -352,7 +386,7 @@ internal static class ScaleResolver
     /// <returns>The scales; empty when the view has no mark or no encoding.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="view"/>, <paramref name="table"/> or <paramref name="config"/> is null.</exception>
     /// <exception cref="VegaLiteSpecException">Thrown when <c>scale.domain</c> or <c>scale.range</c> has the wrong shape; carries the location.</exception>
-    /// <exception cref="VegaLiteRenderException">Thrown when a discrete domain exceeds <see cref="VegaLiteLimits.MaxScaleDomainSize"/>; carries the location.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when a discrete domain exceeds <see cref="VegaLiteLimits.MaxScaleDomainSize"/> or an implicit transform exceeds a limit; carries the location.</exception>
     /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
     public static ResolvedScales Resolve(
         SpecNode view,
@@ -365,20 +399,54 @@ internal static class ScaleResolver
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(config);
+        var plan = EncodingPlan.Create(view, config);
+        var data = EncodingTransforms.ApplyStandalone(plan, table, view, sourceName, limits, cancellationToken);
+        return Resolve(view, plan, data, config, sourceName, limits, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Resolves the scales of a single view.
+    /// </summary>
+    /// <param name="view">The view object of the specification (its <c>mark</c>, <c>encoding</c>, <c>width</c> and <c>height</c> are read).</param>
+    /// <param name="plan">The plan of the encoding (field names, titles, bins, stack).</param>
+    /// <param name="data">The tables of the implicit pipeline and the bins it computed.</param>
+    /// <param name="config">The effective configuration.</param>
+    /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
+    /// <param name="limits">The limits to enforce; the defaults when null.</param>
+    /// <param name="cancellationToken">A token that stops the resolution.</param>
+    /// <returns>The scales; empty when the view has no mark or no encoding.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than the optional ones is null.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown when <c>scale.domain</c> or <c>scale.range</c> has the wrong shape; carries the location.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when a discrete domain exceeds <see cref="VegaLiteLimits.MaxScaleDomainSize"/>; carries the location.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
+    public static ResolvedScales Resolve(
+        SpecNode view,
+        EncodingPlan plan,
+        EncodingData data,
+        ResolvedConfig config,
+        string? sourceName = null,
+        VegaLiteLimits? limits = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(config);
 
         // The mark decides the scale kinds, the zero rule, the paddings and the size range
-        var (markType, specifiedOrient) = ReadMark(view["mark"]);
+        var markType = plan.MarkType;
         var encoding = view["encoding"] is { IsObject: true } e ? e : null;
-        var orient = InferOrient(markType, specifiedOrient, encoding);
+        var orient = plan.Orient;
         var scales = new Dictionary<string, ResolvedScale>(StringComparer.Ordinal);
         if (markType.Length == 0 || encoding is null)
         {
-            return new ResolvedScales(markType, orient, scales);
+            return new ResolvedScales(markType, orient, scales, plan);
         }
 
         var context = new Context
         {
-            Table = table,
+            Plan = plan,
+            Data = data,
             Config = config,
             MarkType = markType,
             Orient = orient,
@@ -399,7 +467,7 @@ internal static class ScaleResolver
             }
         }
 
-        return new ResolvedScales(markType, orient, scales);
+        return new ResolvedScales(markType, orient, scales, plan);
     }
 
     /// <summary>
@@ -472,26 +540,13 @@ internal static class ScaleResolver
     }
 
     /// <summary>
-    ///     Reads the mark type and the orient from the <c>mark</c> property.
-    /// </summary>
-    /// <param name="mark">The <c>mark</c> node: a string or a mark definition.</param>
-    /// <returns>The type (empty when there is none) and the specified orient.</returns>
-    private static (string Type, string? Orient) ReadMark(SpecNode? mark) =>
-        mark switch
-        {
-            { IsString: true } => (mark.StringValue!, null),
-            { IsObject: true } => (mark["type"]?.AsString() ?? string.Empty, mark["orient"]?.AsString()),
-            _ => (string.Empty, null),
-        };
-
-    /// <summary>
     ///     Tells whether a channel definition is an unbinned quantitative field or datum.
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
     /// <returns><see langword="true"/> for a measure.</returns>
     private static bool IsUnbinnedQuantitative(SpecNode? definition) =>
         definition is not null
-        && (definition["field"] is not null || definition["datum"] is not null)
+        && (definition["field"] is not null || definition["datum"] is not null || definition["aggregate"]?.AsString() == "count")
         && ReadType(definition, definition["datum"]) == "quantitative"
         && !IsEnabled(definition["bin"]);
 
@@ -596,7 +651,8 @@ internal static class ScaleResolver
         }
 
         var scaleDef = scaleNode is { IsObject: true } ? scaleNode : null;
-        var fieldPath = definition["field"] is { IsString: true } fieldNode ? fieldNode.StringValue : null;
+        var plan = context.Plan.Channels.FirstOrDefault(c => c.Definition == definition);
+        var fieldPath = plan?.FieldPath;
         var datum = definition["datum"] is { IsString: true } or { IsNumber: true } or { IsBoolean: true } ? definition["datum"] : null;
         if (fieldPath is null && datum is null)
         {
@@ -616,7 +672,7 @@ internal static class ScaleResolver
         }
 
         var location = definition.GetLocation(context.SourceName);
-        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location);
+        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan);
         return kind == ScaleKind.Linear
             ? BuildLinear(common, context)
             : BuildDiscrete(common, kind.Value, context);
@@ -701,6 +757,7 @@ internal static class ScaleResolver
         double start;
         double end;
         double[]? piecewise = null;
+        BinSpec? binSpec = null;
         var domainNode = input.ScaleDef?["domain"] is { IsArray: true } array ? array : null;
         if (domainNode is not null)
         {
@@ -710,7 +767,7 @@ internal static class ScaleResolver
         }
         else
         {
-            (start, end) = ExtentOf(input, context);
+            (start, end) = LinearExtent(input, context, out binSpec);
         }
 
         // The zero rule pulls the end values to zero
@@ -757,6 +814,11 @@ internal static class ScaleResolver
             Channel = input.Channel,
             Kind = ScaleKind.Linear,
             FieldPath = input.FieldPath,
+            Field2Path = input.Plan?.Field2Path,
+            Title = input.Plan?.Title,
+            Bin = input.Plan?.Bin ?? BinKind.None,
+            BinSpec = binSpec,
+            Stack = input.Plan is { IsStacked: true } ? context.Plan.Stack?.Offset : null,
             DataType = input.Type,
             Location = input.Location,
             DomainStart = start,
@@ -823,6 +885,9 @@ internal static class ScaleResolver
             Channel = input.Channel,
             Kind = kind,
             FieldPath = input.FieldPath,
+            Field2Path = input.Plan?.Field2Path,
+            Title = input.Plan?.Title,
+            Bin = input.Plan?.Bin ?? BinKind.None,
             DataType = input.Type,
             Location = input.Location,
             DiscreteDomain = domain,
@@ -907,8 +972,8 @@ internal static class ScaleResolver
             return nice.NumberValue > 0 ? nice.NumberValue : null;
         }
 
-        // By default x and y get nice unless a domain is given
-        return isPosition && !hasDomain ? 10 : null;
+        // By default x and y get nice unless a domain is given; the bins of a binned field already end on round values, so they get none
+        return isPosition && !hasDomain && input.Plan is not { Bin: not BinKind.None } ? 10 : null;
     }
 
     /// <summary>
@@ -1084,45 +1149,6 @@ internal static class ScaleResolver
     }
 
     /// <summary>
-    ///     Finds the extent of the valid numeric values of a channel.
-    /// </summary>
-    /// <param name="input">The channel facts.</param>
-    /// <param name="context">The view facts.</param>
-    /// <returns>The minimum and maximum; (0, 1) when there is no valid value.</returns>
-    private static (double Min, double Max) ExtentOf(CommonInputs input, Context context)
-    {
-        var min = double.PositiveInfinity;
-        var max = double.NegativeInfinity;
-        if (input.FieldPath is not null)
-        {
-            var field = context.Table.FindField(input.FieldPath);
-            if (field >= 0)
-            {
-                var row = 0;
-                foreach (var value in context.Table.Column(field))
-                {
-                    if (++row % CancellationInterval == 0)
-                    {
-                        context.CancellationToken.ThrowIfCancellationRequested();
-                    }
-
-                    if (value.TryGetQuantitative(out var number))
-                    {
-                        min = Math.Min(min, number);
-                        max = Math.Max(max, number);
-                    }
-                }
-            }
-        }
-        else if (ToDataValue(input.Datum!).TryGetQuantitative(out var datumNumber))
-        {
-            min = max = datumNumber;
-        }
-
-        return double.IsFinite(min) ? (min, max) : (0, 1);
-    }
-
-    /// <summary>
     ///     Builds the domain of a discrete scale: explicit, or the distinct values in the requested order.
     /// </summary>
     /// <param name="input">The channel facts.</param>
@@ -1149,10 +1175,11 @@ internal static class ScaleResolver
         }
 
         // Otherwise the distinct values in order of first appearance...
+        var table = context.Data.Main;
         if (input.FieldPath is not null)
         {
-            var field = context.Table.FindField(input.FieldPath);
-            var rows = context.Table.RowCount;
+            var field = table.FindField(input.FieldPath);
+            var rows = table.RowCount;
             for (var row = 0; row < rows; row++)
             {
                 if (row % CancellationInterval == 0)
@@ -1160,7 +1187,7 @@ internal static class ScaleResolver
                     context.CancellationToken.ThrowIfCancellationRequested();
                 }
 
-                var value = field >= 0 ? context.Table.GetValue(row, field) : default;
+                var value = field >= 0 ? table.GetValue(row, field) : default;
                 if (seen.Add(value))
                 {
                     domain.Add(value);
@@ -1179,203 +1206,7 @@ internal static class ScaleResolver
         CheckDomainSize(domain, input, context);
 
         // ... sorted as the field's sort asks (ascending by default); a stable sort keeps data order for ties
-        var sort = input.Definition["sort"];
-        if (sort is { IsNull: true })
-        {
-            return domain;
-        }
-
-        if (sort is { IsArray: true } order)
-        {
-            // Values missing from the sort array come first (index -1), then the array order; the first index of each
-            // listed value is recorded once so ordering a domain stays linear in the domain size
-            var firstIndex = new Dictionary<DataValue, int>();
-            var position = 0;
-            foreach (var item in order.Items)
-            {
-                firstIndex.TryAdd(ToDataValue(item), position++);
-            }
-
-            return [.. domain.OrderBy(value => firstIndex.TryGetValue(value, out var index) ? index : -1)];
-        }
-
-        var descending = sort?.AsString() == "descending";
-        if (sort is { IsObject: true } && IsSupportedFieldSort(sort))
-        {
-            return SortByField(domain, sort, input, context);
-        }
-
-        return descending
-            ? [.. domain.OrderBy(v => v, Comparer<DataValue>.Create((x, y) => DataValue.Compare(y, x)))]
-            : [.. domain.OrderBy(v => v, Comparer<DataValue>.Create(DataValue.Compare))];
-    }
-
-    /// <summary>
-    ///     Determines whether a <c>sort</c> object is a sort by the aggregate of a field that the resolver can compute.
-    /// </summary>
-    /// <remarks>
-    ///     Supported is an object with an <c>op</c> of <c>count</c>, <c>sum</c>, <c>mean</c>, <c>average</c>, <c>median</c>,
-    ///     <c>min</c> or <c>max</c>, an optional <c>field</c> (a valid field path; the field of the channel when absent) and an
-    ///     optional <c>order</c> (<c>ascending</c> or <c>descending</c>). A sort by another encoding channel (<c>encoding</c>) or
-    ///     by any other operation is not supported; the feature catalog reports it as <c>vl-encoding-sort</c>.
-    /// </remarks>
-    /// <param name="sort">The <c>sort</c> value.</param>
-    /// <returns><see langword="true"/> for a supported sort by field.</returns>
-    public static bool IsSupportedFieldSort(SpecNode sort)
-    {
-        if (!sort.IsObject || sort["encoding"] is not null || sort["op"] is not { IsString: true } op || !SortOperations.Contains(op.StringValue!))
-        {
-            return false;
-        }
-
-        var field = sort["field"];
-        var fieldOk = field is null || (field.IsString && FieldPath.Canonicalize(field.StringValue) is not null);
-        var order = sort["order"];
-        var orderOk = order is null || order.IsNull || (order.IsString && order.StringValue is "ascending" or "descending");
-        return fieldOk && orderOk;
-    }
-
-    /// <summary>
-    ///     Orders a discrete domain by an aggregate of a field over the rows of each category.
-    /// </summary>
-    /// <remarks>
-    ///     The aggregate of a category is computed over the rows of the (transformed) table that have it: <c>count</c> counts the
-    ///     rows, the other operations read the valid numbers of the sort field (a category without one has no value, which sorts
-    ///     first, except <c>sum</c> which is zero). Categories with the same aggregate keep the order of first appearance, so the
-    ///     sort is stable and does not depend on the culture.
-    /// </remarks>
-    /// <param name="domain">The categories in order of first appearance.</param>
-    /// <param name="sort">The supported <c>sort</c> object.</param>
-    /// <param name="input">The channel facts.</param>
-    /// <param name="context">The view facts.</param>
-    /// <returns>The categories in the requested order.</returns>
-    private static List<DataValue> SortByField(List<DataValue> domain, SpecNode sort, CommonInputs input, Context context)
-    {
-        var operation = sort["op"]!.StringValue!;
-        var descending = sort["order"]?.AsString() == "descending";
-        var table = context.Table;
-        var keyField = input.FieldPath is null ? -1 : table.FindField(input.FieldPath);
-        var valuePath = sort["field"]?.AsString() ?? input.FieldPath;
-        var valueField = valuePath is null ? -1 : table.FindField(valuePath);
-        if (keyField < 0)
-        {
-            return domain;
-        }
-
-        var groups = new Dictionary<DataValue, SortGroup>();
-        foreach (var category in domain)
-        {
-            groups[category] = new SortGroup(operation == "median");
-        }
-
-        for (var row = 0; row < table.RowCount; row++)
-        {
-            if (row % CancellationInterval == 0)
-            {
-                context.CancellationToken.ThrowIfCancellationRequested();
-            }
-
-            if (groups.TryGetValue(table.GetValue(row, keyField), out var group))
-            {
-                group.Rows++;
-                if (valueField >= 0 && table.GetValue(row, valueField).TryGetQuantitative(out var number))
-                {
-                    group.Add(number);
-                }
-            }
-        }
-
-        var keys = domain.ToDictionary(category => category, category => groups[category].Result(operation));
-        // A category without a value (null) sorts first in either direction; only the comparison of values reverses
-        var comparer = Comparer<DataValue>.Create((x, y) =>
-            x.IsNull || y.IsNull || !descending ? DataValue.Compare(x, y) : DataValue.Compare(y, x));
-        return [.. domain.OrderBy(category => keys[category], comparer)];
-    }
-
-    /// <summary>
-    ///     The numbers of one category collected for a sort by an aggregate.
-    /// </summary>
-    private sealed class SortGroup
-    {
-        /// <summary>The numbers, kept only when the median is needed.</summary>
-        private readonly List<double>? _numbers;
-
-        /// <summary>The number of valid numbers.</summary>
-        private long _count;
-
-        /// <summary>The sum of the numbers.</summary>
-        private double _sum;
-
-        /// <summary>The smallest number.</summary>
-        private double _min = double.PositiveInfinity;
-
-        /// <summary>The largest number.</summary>
-        private double _max = double.NegativeInfinity;
-
-        /// <summary>
-        ///     Initializes a group.
-        /// </summary>
-        /// <param name="keepNumbers">Whether the numbers must be kept (for the median).</param>
-        public SortGroup(bool keepNumbers) => _numbers = keepNumbers ? [] : null;
-
-        /// <summary>Gets or sets the number of rows of the category.</summary>
-        public long Rows { get; set; }
-
-        /// <summary>
-        ///     Adds one valid number.
-        /// </summary>
-        /// <param name="number">The number.</param>
-        public void Add(double number)
-        {
-            _count++;
-            _sum += number;
-            _min = Math.Min(_min, number);
-            _max = Math.Max(_max, number);
-            _numbers?.Add(number);
-        }
-
-        /// <summary>
-        ///     Computes the aggregate.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <returns>The aggregate; null when the category has no valid number (except for count and sum).</returns>
-        public DataValue Result(string operation)
-        {
-            switch (operation)
-            {
-                case "count":
-                    return DataValue.FromNumber(Rows);
-                case "sum":
-                    return DataValue.FromNumber(_sum);
-                default:
-                    break;
-            }
-
-            if (_count == 0)
-            {
-                return DataValue.Null;
-            }
-
-            return operation switch
-            {
-                "min" => DataValue.FromNumber(_min),
-                "max" => DataValue.FromNumber(_max),
-                "median" => DataValue.FromNumber(Median(_numbers!)),
-                _ => DataValue.FromNumber(_sum / _count),
-            };
-        }
-
-        /// <summary>
-        ///     Computes the median of numbers.
-        /// </summary>
-        /// <param name="numbers">The numbers (sorted in place).</param>
-        /// <returns>The middle value, or the mean of the two middle values.</returns>
-        private static double Median(List<double> numbers)
-        {
-            numbers.Sort();
-            var middle = numbers.Count / 2;
-            return numbers.Count % 2 == 1 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
-        }
+        return SortDomain(domain, input, context);
     }
 
     /// <summary>
@@ -1450,8 +1281,11 @@ internal static class ScaleResolver
     /// <summary>The facts about the view that every channel needs.</summary>
     private sealed class Context
     {
-        /// <summary>Gets the data of the view.</summary>
-        public required DataTable Table { get; init; }
+        /// <summary>Gets the plan of the encoding.</summary>
+        public required EncodingPlan Plan { get; init; }
+
+        /// <summary>Gets the tables of the implicit pipeline.</summary>
+        public required EncodingData Data { get; init; }
 
         /// <summary>Gets the configuration.</summary>
         public required ResolvedConfig Config { get; init; }
@@ -1492,6 +1326,7 @@ internal static class ScaleResolver
     /// <param name="Definition">The channel definition.</param>
     /// <param name="ScaleDef">The scale object, or null.</param>
     /// <param name="Location">The location of the channel definition.</param>
+    /// <param name="Plan">The plan of the channel definition, or null.</param>
     private sealed record CommonInputs(
         string Channel,
         string Type,
@@ -1499,5 +1334,6 @@ internal static class ScaleResolver
         SpecNode? Datum,
         SpecNode Definition,
         SpecNode? ScaleDef,
-        VegaLiteLocation Location);
+        VegaLiteLocation Location,
+        ChannelPlan? Plan);
 }

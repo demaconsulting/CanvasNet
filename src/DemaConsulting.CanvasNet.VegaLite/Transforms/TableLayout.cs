@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
@@ -223,7 +224,19 @@ internal sealed class FieldReader
     /// </summary>
     /// <param name="row">The row.</param>
     /// <returns>The cell, the rebuilt array or object, or null.</returns>
-    public DataValue Read(int row)
+    public DataValue Read(int row) => Read(row, null);
+
+    /// <summary>
+    ///     Reads the value of a row and charges the work of rebuilding an array or an object.
+    /// </summary>
+    /// <remarks>
+    ///     Reading a cell is constant work and free; rebuilding a composite touches every field below the path, which the
+    ///     expression evaluator charges as four units per field of a datum, so the same is charged here.
+    /// </remarks>
+    /// <param name="row">The row.</param>
+    /// <param name="context">The evaluation to charge to; null to not charge.</param>
+    /// <returns>The cell, the rebuilt array or object, or null.</returns>
+    public DataValue Read(int row, ExpressionFunctionContext? context)
     {
         if (_direct >= 0)
         {
@@ -240,6 +253,7 @@ internal sealed class FieldReader
             return _whole ? DataValue.FromObject(DataObject.Create([])) : default;
         }
 
+        context?.ChargeSize(_below.Count * 4L);
         var root = new FlatRowNode();
         foreach (var (field, segments) in _below)
         {

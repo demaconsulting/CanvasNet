@@ -1,9 +1,11 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Marks;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
@@ -11,10 +13,12 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 ///     What the guide and mark stages need, prepared from a specification text the way the pipeline prepares it.
 /// </summary>
 /// <param name="Tree">The parsed specification.</param>
-/// <param name="Table">The inline data.</param>
+/// <param name="Table">The rows the marks draw (the Main table of the implicit pipeline).</param>
 /// <param name="Scales">The resolved scales.</param>
 /// <param name="Config">The effective configuration.</param>
-internal sealed record ChartParts(SpecTree Tree, DataTable Table, ResolvedScales Scales, ResolvedConfig Config);
+/// <param name="Plan">The plan of the encoding.</param>
+/// <param name="Data">The Raw and Main tables of the implicit pipeline and the bins.</param>
+internal sealed record ChartParts(SpecTree Tree, DataTable Table, ResolvedScales Scales, ResolvedConfig Config, EncodingPlan Plan, EncodingData Data);
 
 /// <summary>
 ///     Helpers that run the data, scale, axis and mark stages on a specification text without painting, so the tests can
@@ -23,19 +27,39 @@ internal sealed record ChartParts(SpecTree Tree, DataTable Table, ResolvedScales
 internal static class ChartTestHelpers
 {
     /// <summary>
-    ///     Loads the data and resolves the scales of a single view.
+    ///     Loads the data, runs the transforms and the implicit encoding stage, and resolves the scales of a single view the way the
+    ///     pipeline does.
     /// </summary>
     /// <param name="json">The specification text.</param>
     /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
     /// <returns>The prepared parts.</returns>
-    public static ChartParts Parts(string json, string? callerConfig = null)
+    public static ChartParts Parts(string json, string? callerConfig = null, VegaLiteLimits? limits = null)
     {
-        var tree = SpecParser.Parse(json, "test.vl.json");
+        var effective = limits ?? VegaLiteLimits.Default;
+        var token = TestContext.Current.CancellationToken;
+        var tree = SpecParser.Parse(json, "test.vl.json", limits);
         var config = ConfigResolver.Resolve(tree, callerConfig);
-        var table = DataLoader.Load(tree.Root["data"], tree.SourceName);
-        var scales = ScaleResolver.Resolve(tree.Root, table, config, tree.SourceName);
-        return new ChartParts(tree, table, scales, config);
+        var loader = new DataLoader(tree.SourceName, effective, null, tree.Root["datasets"], null, token);
+        var loaded = loader.Load(tree.Root["data"]);
+        var values = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        var evaluator = new ExpressionEvaluator(effective, token, values);
+        ParameterEnvironment.Populate(tree, null, values, evaluator);
+        var context = new TransformContext(tree, loader, evaluator, values, effective, token, []);
+        var table = RowTransforms.Apply(loaded, tree.Root["transform"], context);
+        var plan = EncodingPlan.Create(tree.Root, config);
+        var data = EncodingTransforms.Apply(plan, table, context);
+        var scales = ScaleResolver.Resolve(tree.Root, plan, data, config, tree.SourceName, effective, token);
+        return new ChartParts(tree, data.Main, scales, config, plan, data);
     }
+
+    /// <summary>
+    ///     Runs the data, transform, encoding and scale stages of a specification (the full pipeline up to the scales).
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <returns>The prepared parts.</returns>
+    public static ChartParts ResolveFull(string json, VegaLiteLimits? limits = null) => Parts(json, null, limits);
 
     /// <summary>
     ///     Builds the axis of a channel for a data rectangle of a given size.

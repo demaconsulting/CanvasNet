@@ -444,7 +444,7 @@ public class ScadSystemIntegrationTests
         using var already = new CancellationTokenSource();
         already.Cancel();
         using var later = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        later.CancelAfter(TimeSpan.FromMilliseconds(150));
+        Evaluation.ScadEvaluatorTestSupport.CancelAfterOnDedicatedThread(later, TimeSpan.FromMilliseconds(150));
         var started = DateTime.UtcNow;
 
         // Act

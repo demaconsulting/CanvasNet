@@ -79,8 +79,10 @@ constituent software items, specifically:
   exceptions), and nine internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
   `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`), `Expressions` (units
   `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions`, the supported subset of the Vega expression
-  language), `Transforms` (unit `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
-  `pivot`, and `lookup` and the static parameters), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
+  language), `Transforms` (units `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
+  `pivot`, and `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`,
+  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; and `EncodingPlan`, the implicit bin, aggregate, and stack of
+  the encoding), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
   `NumberFormat`, and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
   `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
@@ -149,7 +151,11 @@ subsystems follow the same pattern, for example the verification design
 `src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser.cs` and
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs`, and the tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs` and
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`; the expression tests share the helpers
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`; the units `AggregateTransforms` and
+`EncodingPlan` of the same subsystem have the verification designs `transforms/aggregate-transforms.md` and
+`transforms/encoding-plan.md` and the tests `Transforms/AggregateTransformsTests.cs` (with its companion test classes for
+the measures, the bin algorithm, and the window, stack, impute, and joinaggregate transforms) and
+`Transforms/EncodingPlanTests.cs` (with `Transforms/EncodingTransformsTests.cs`); the expression tests share the helpers
 in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
 expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is

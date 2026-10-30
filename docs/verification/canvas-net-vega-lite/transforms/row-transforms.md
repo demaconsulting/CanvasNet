@@ -8,9 +8,10 @@ the internal types of its files: `RowSampler` (the deterministic sample), `Table
 layout of a derived table, its cell bound, and the rebuilding of arrays and objects from the flattened fields),
 `ParameterEnvironment` and `SpecValues` (the evaluation of the static parameters of the root view and the conversion of
 a JSON value to a `DataValue`), and `TransformContext` and `RowExpressions` (the per-call context that carries the tree,
-the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The transforms of later
-phases (`aggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`, and the others) are skipped by the executor and are
-reported by the feature catalog.
+the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The executor also dispatches
+the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the `AggregateTransforms`
+unit, which has its own verification design; the transforms of later phases (`timeUnit`, `regression`, `loess`,
+`density`, `quantile`, and `extent`) are skipped by the executor and are reported by the feature catalog.
 
 #### Verification Approach
 
@@ -115,6 +116,26 @@ to compare with matches every row (both are reported by the catalog); that a fil
 row or none depending on its truthiness (`true` keeps 3 rows, an override of `false` or `0` keeps none) while a filter
 on a selection parameter, by `param` or by the legacy `selection`, keeps every row.
 
+##### Filter Predicates Are Charged To The Step Budget
+
+**Tests**: `RowTransformsTests.RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget`,
+`RowTransformsTests.RowTransforms_Apply_FilterSmallPredicatesStayWithinASmallStepBudget`,
+`RowTransformsTests.RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow`,
+`RowTransformsTests.RowTransforms_Apply_FilterCompositeFieldReadsAreCharged`,
+`RowTransformsTests.RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure`
+
+The step counts are derived by hand from the rule of one step per 64 characters or members. As a theory over `lt`, `lte`,
+`gt`, `gte`, `range`, `equal`, and `oneOf`, a 10,000-character value compared with an equal one costs 156 steps (10,000
+divided by 64, rounded down) on top of the step of the field test: the filter keeps the expected rows (0 for `lt` and
+`gt`, 1 for the others) under a budget of 1,000, and fails under a budget of 100 at `/transform/0/filter` with the text
+`VegaLiteLimits.MaxEvaluationSteps`. A composed filter of three small predicates over four rows passes under a budget of
+100. A `oneOf` of 10,000 members costs 156 steps for one row, and 40 `valid` parts of an `and` (or 40 failing parts of an
+`or`) over five rows cost 200 steps: each passes under a budget of 10,000 and fails, located at the filter, under 100. A
+field `tags` of 300 elements is stored as 300 fields, so rebuilding it costs 1,200 units, 18 steps: a budget of 100
+passes and a budget of 10 fails at the filter. Last, an array of three 10-character texts (32 characters as text) compared
+with `lt: 5` under a `MaxStringLength` of 25 fails at `/transform/1/filter` with the text
+`the limit of 25 characters (VegaLiteLimits.MaxStringLength)` instead of an unlocated internal exception.
+
 ##### Parameters Are Evaluated In Dependency Order
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden`,
@@ -166,7 +187,8 @@ them in source order.
 `RowTransformsTests.RowTransforms_Apply_PivotCountsAndFallsBackToSum`,
 `RowTransformsTests.RowTransforms_Apply_PivotLimitAndNullValuesAreWarnings`,
 `RowTransformsTests.RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit`,
-`RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`
+`RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`,
+`RowTransformsTests.RowTransforms_Apply_PivotLongTextsAreChargedPerRow`
 
 Asserts the derived rows above and the fields `g, x, y`; that `count` without a group gives one row `3|1` and an
 unsupported `mean` falls back to the sum; that a `limit` of 1 keeps the first pivot value in ordinal order and gives a
@@ -174,7 +196,9 @@ warning `vl-transform-runtime` at `/transform/0` ("only the first 1 in ordinal o
 is null is skipped with a second warning naming the count (1 row) and the first row index (4); and that three pivot
 columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0` naming the limit; and
 that an array pivot value is the column named by its JavaScript text (`aaaaaa,bbbbbb`, 13 characters) within the default
-limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit.
+limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit; and
+that 200 rows with 2,000-character group and pivot texts exhaust a step budget of 1,000 (located at `/transform/0`, naming
+`VegaLiteLimits.MaxEvaluationSteps`) while 200 short rows pass the same budget.
 
 ##### Lookup Copies Fields Of The First Match
 
@@ -224,18 +248,23 @@ of more cells than the internal bound of 2^25 is refused before it is allocated,
 
 Asserts that the transforms throw `OperationCanceledException` under a canceled token (and give 4,999 rows of the 5,000
 under a live one: the filter keeps `a + 1 > 1`); that a table without transforms is returned as the same instance, that
-a null table or context is an `ArgumentNullException`; and that an `aggregate` among the transforms is skipped (only the
+a null table or context is an `ArgumentNullException`; and that a `regression` among the transforms is skipped (only the
 later calculate ran: the fields are `a, b, z` and the three rows are intact).
 
 ##### Sort By A Field Of The Transformed Rows
 
 **Tests**: `RowTransformsTests.ScaleResolver_Resolve_SortByFieldUsesTheTransformedRows`,
-`RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`
+`RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`,
+`RowTransformsTests.ScaleResolver_Resolve_SortByFieldPutsCategoriesWithoutValuesFirstInBothDirections`
 
 Asserts, as a theory of ten sort forms over a table made by a calculate transform (the weights of the categories
 `a`, `b`, and `c` above), that the domain follows `sum`, `count`, `max`, `min` (descending), `mean`, `average`
-(descending), and `median`, that the order option reverses it, that an operation outside the supported seven
-(`valid`) and the `encoding` form keep the ascending default, and, in the second test, that categories with equal
-aggregates keep their order of first appearance in both directions (`z, m, a` ascending and descending, so the data
-order and not the alphabet decides among ties), and that `IsSupportedFieldSort` accepts an object with an operation of
-the supported seven and refuses an invalid order and the shorthand text form.
+(descending), `median`, and `valid` (the numbers of valid values 2, 1, and 1 give `b, c, a`, the tie in the order of first
+appearance), that the order option reverses it, and that the `encoding` form with no channel to resolve keeps the
+ascending default; in the second test, that categories with equal aggregates keep their order of first appearance in
+both directions (`z, m, a` ascending and descending, so the data order and not the alphabet decides among ties), and
+that `IsSupportedFieldSort` accepts an object with an orderable operation and refuses an invalid order and the shorthand
+text form; and, in the third test, that for `mean`, `average`, `median`, `min`, and `max` a category without a valid
+value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The sort
+by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
+Verification Design_.

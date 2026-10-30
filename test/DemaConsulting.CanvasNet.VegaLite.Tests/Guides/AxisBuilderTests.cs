@@ -381,4 +381,83 @@ public class AxisBuilderTests
         Assert.Throws<OperationCanceledException>(() => builder.Build(new AxisRequest("x", parts.Tree.Root["encoding"]?["x"], scale, scale.CreateModel(300), 300, 200), canceled.Token));
         Assert.Throws<ArgumentNullException>(() => builder.Build(null!, TestContext.Current.CancellationToken));
     }
+
+    /// <summary>
+    ///     Validates that the axis title of an aggregated, binned or counted channel is the default title of the plan (Vega-Lite's <c>Sum of v</c>,
+    ///     <c>v (binned)</c>, <c>Count of Records</c>), that an explicit title still wins, and that a count (a definition with no field) has a grid.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid()
+    {
+        // Arrange
+        const string Rows = "\"data\":{\"values\":[{\"k\":\"a\",\"v\":1},{\"k\":\"b\",\"v\":4}]}";
+        string Spec(string x, string y) => "{" + Rows + ",\"mark\":\"bar\",\"encoding\":{\"x\":" + x + ",\"y\":" + y + "}}";
+        const string Category = "{\"field\":\"k\",\"type\":\"nominal\"}";
+
+        // Act
+        var sum = ChartTestHelpers.Axis(Spec(Category, "{\"field\":\"v\",\"type\":\"quantitative\",\"aggregate\":\"sum\"}"), "y", 300, 200)!;
+        var count = ChartTestHelpers.Axis(Spec(Category, "{\"aggregate\":\"count\",\"type\":\"quantitative\"}"), "y", 300, 200)!;
+        var binned = ChartTestHelpers.Axis(Spec("{\"field\":\"v\",\"type\":\"quantitative\",\"bin\":true}", "{\"aggregate\":\"count\",\"type\":\"quantitative\"}"), "x", 300, 200)!;
+        var explicitTitle = ChartTestHelpers.Axis(Spec(Category, "{\"field\":\"v\",\"type\":\"quantitative\",\"aggregate\":\"sum\",\"title\":\"Total\"}"), "y", 300, 200)!;
+
+        // Assert
+        Assert.Equal("Sum of v", ChartTestHelpers.Of<SceneText>(sum.Group, "axis-title").Single().Text);
+        Assert.Equal("Count of Records", ChartTestHelpers.Of<SceneText>(count.Group, "axis-title").Single().Text);
+        Assert.Equal("v (binned)", ChartTestHelpers.Of<SceneText>(binned.Group, "axis-title").Single().Text);
+        Assert.Equal("Total", ChartTestHelpers.Of<SceneText>(explicitTitle.Group, "axis-title").Single().Text);
+        Assert.NotNull(count.Grid);
+        Assert.NotNull(sum.Grid);
+        Assert.Null(binned.Grid);
+    }
+
+    /// <summary>
+    ///     Validates the default tick count of a binned axis: Vega-Lite asks for one tick per ten pixels when the encoding bins the field (200 px: 20, which d3 turns
+    ///     into a step of 2 over the bins 0 to 35), an explicit <c>tickCount</c> wins, and a field that is binned already keeps the count of one tick per 40 pixels (5: a step of 5).
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels()
+    {
+        // Arrange: twelve weights binned into 0 to 35 by 5 (ten bins asked for)
+        const string Rows = "\"data\":{\"values\":[{\"w\":1.5},{\"w\":2.5},{\"w\":3},{\"w\":7},{\"w\":8.5},{\"w\":12},{\"w\":14},{\"w\":14.5},{\"w\":18},{\"w\":22},{\"w\":25},{\"w\":31}]}";
+        string Histogram(string xExtra) => "{" + Rows + ",\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"w\",\"type\":\"quantitative\",\"bin\":true" + xExtra + "},\"y\":{\"aggregate\":\"count\",\"type\":\"quantitative\"}}}";
+
+        // Act
+        var binning = ChartTestHelpers.Axis(Histogram(string.Empty), "x", 200, 100)!;
+        var explicitCount = ChartTestHelpers.Axis(Histogram(",\"axis\":{\"tickCount\":5}"), "x", 200, 100)!;
+        var alreadyBinned = ChartTestHelpers.Axis(
+            "{\"data\":{\"values\":[{\"s\":0,\"e\":10,\"n\":4},{\"s\":10,\"e\":30,\"n\":7}]},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"s\",\"type\":\"quantitative\",\"bin\":\"binned\"},\"x2\":{\"field\":\"e\"},\"y\":{\"field\":\"n\",\"type\":\"quantitative\"}}}",
+            "x",
+            200,
+            100)!;
+
+        // Assert: 0, 2, ... 34 (the step 2 of the d3 algorithm for about 20 ticks of 0 to 35), 0, 5, ... 35, and 0, 5, ... 30 for the domain 0 to 30
+        Assert.Equal(Enumerable.Range(0, 18).Select(i => 2.0 * i), binning.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(Enumerable.Range(0, 8).Select(i => 5.0 * i), explicitCount.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(Enumerable.Range(0, 7).Select(i => 5.0 * i), alreadyBinned.Ticks.Select(t => t.Value.Number));
+    }
+
+    /// <summary>
+    ///     Validates that the axis of a normalized stack shows percentages (the <c>normalizedNumberFormat</c> of the configuration, <c>.0%</c> by default), that an
+    ///     explicit axis format and the configuration win, and that an ordinary stack keeps plain numbers.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat()
+    {
+        // Arrange: three layers in two stacks; a normalized y domain is 0 to 1, so a 100 px axis has the ticks 0, 0.5 and 1
+        const string Rows = "\"data\":{\"values\":[{\"k\":\"a\",\"c\":\"p\",\"n\":3},{\"k\":\"a\",\"c\":\"q\",\"n\":5},{\"k\":\"b\",\"c\":\"p\",\"n\":4}]}";
+        string Stacked(string yExtra, string config = "") => "{" + Rows + config + ",\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"n\",\"type\":\"quantitative\"" + yExtra + "},\"color\":{\"field\":\"c\",\"type\":\"nominal\"}}}";
+
+        // Act
+        var normalized = ChartTestHelpers.Axis(Stacked(",\"stack\":\"normalize\""), "y", 100, 100)!;
+        var configured = ChartTestHelpers.Axis(Stacked(",\"stack\":\"normalize\"", ",\"config\":{\"normalizedNumberFormat\":\".1%\"}"), "y", 100, 100)!;
+        var explicitFormat = ChartTestHelpers.Axis(Stacked(",\"stack\":\"normalize\",\"axis\":{\"format\":\".2f\"}"), "y", 100, 100)!;
+        var plain = ChartTestHelpers.Axis(Stacked(string.Empty), "y", 100, 100)!;
+
+        // Assert
+        Assert.Equal(["0%", "50%", "100%"], normalized.Ticks.Select(t => t.Label));
+        Assert.Equal(["0.0%", "50.0%", "100.0%"], configured.Ticks.Select(t => t.Label));
+        Assert.Equal(["0.00", "0.50", "1.00"], explicitFormat.Ticks.Select(t => t.Label));
+        Assert.DoesNotContain(plain.Ticks, t => t.Label.Contains('%', StringComparison.Ordinal));
+        Assert.Equal(["n"], [ChartTestHelpers.Of<SceneText>(plain.Group, "axis-title").Single().Text]);
+    }
 }

@@ -128,6 +128,12 @@ internal sealed partial class ExpressionEvaluator
     public int MaxStringLength => _context.MaxStringLength;
 
     /// <summary>
+    ///     Gets the per-evaluation state (step budget, string limit, cancellation) of the call, so that work done outside an
+    ///     expression on behalf of the evaluation (the predicates of a filter) is charged to the same budget.
+    /// </summary>
+    internal ExpressionFunctionContext Context => _context;
+
+    /// <summary>
     ///     Evaluates an expression that does not read a datum.
     /// </summary>
     /// <param name="expression">The compiled expression.</param>
@@ -395,8 +401,8 @@ internal sealed partial class ExpressionEvaluator
             ExpressionOpcode.Multiply => DataValue.FromNumber(ToNumber(left, _context) * ToNumber(right, _context)),
             ExpressionOpcode.Divide => DataValue.FromNumber(ToNumber(left, _context) / ToNumber(right, _context)),
             ExpressionOpcode.Modulo => DataValue.FromNumber(ToNumber(left, _context) % ToNumber(right, _context)),
-            ExpressionOpcode.StrictEqual => DataValue.FromBoolean(StrictEquals(left, right)),
-            ExpressionOpcode.StrictNotEqual => DataValue.FromBoolean(!StrictEquals(left, right)),
+            ExpressionOpcode.StrictEqual => DataValue.FromBoolean(StrictEquals(left, right, _context)),
+            ExpressionOpcode.StrictNotEqual => DataValue.FromBoolean(!StrictEquals(left, right, _context)),
             ExpressionOpcode.LooseEqual => DataValue.FromBoolean(LooseEquals(left, right, limit, _context)),
             ExpressionOpcode.LooseNotEqual => DataValue.FromBoolean(!LooseEquals(left, right, limit, _context)),
             ExpressionOpcode.Less => DataValue.FromBoolean(RelationalLess(left, right, limit, _context) == 1),

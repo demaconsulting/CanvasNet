@@ -11,8 +11,9 @@ supported, and resolves the effective configuration. It contains no data, no pix
 is **internal**: the tree, the reports, and the configuration types are visible only to the `VegaLiteDocument` unit,
 the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains three units:
 
-- **SpecParser** - the internal partial `SpecParser` (`SpecParser.cs`, `SpecParser.Validation.cs`, and
-  `SpecParser.Transforms.cs`, with `ParameterGraph`), the tree types `SpecNode`, `SpecNodeKind`, `NodePosition`, and
+- **SpecParser** - the internal partial `SpecParser` (`SpecParser.cs`, `SpecParser.Validation.cs`,
+  `SpecParser.Transforms.cs`, and `SpecParser.Aggregates.cs`, with `ParameterGraph`), the tree types `SpecNode`,
+  `SpecNodeKind`, `NodePosition`, and
   `SpecTree` (`SpecNode.cs`), `SpecExpressions` (`SpecExpressions.cs`), and `SpecMetadata` and `SpecMarkEntry`
   (`SpecMetadata.cs`); see _SpecParser Unit Design_ (`spec-model/spec-parser.md`)
 - **FeatureCatalog** - the internal static `FeatureCatalog`, `FeatureReport`, and `FeatureReportKind`; see
@@ -28,8 +29,9 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 **Exposed** (internal only): `SpecParser.Parse(string, string?, VegaLiteLimits?)` and
 `SpecParser.Parse(byte[], string?, VegaLiteLimits?)`, which return a `SpecTree`; the helpers
 `SpecParser.ParseSchemaMajorVersion`, `SpecParser.IsChannelName`, `SpecParser.FindTransformOperation`,
-`SpecParser.EscapePointerSegment`, and the phase 5 helpers `SpecParser.IsSupportedTransform`, `IsDrawnView`, `IsViewSignal`,
-`IsParameterDeclared`, and `FindParameter`; `SpecTree.Expressions` (the compiled expressions) and `ParameterGraph.Sort`;
+`SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsDrawnView`, `IsViewSignal`,
+`IsParameterDeclared`, `FindParameter`, `IsSupportedSort`, `TryParseSortShorthand`, and `IsSortChannel`;
+`SpecTree.Expressions` (the compiled expressions) and `ParameterGraph.Sort`;
 `SpecMetadata.Read(SpecTree)`; `FeatureCatalog.Visit(SpecTree)` and
 `FeatureCatalog.IsSchemeBearingUrl(string)`; and `ConfigResolver.Resolve(SpecTree, string?)`,
 `ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`.
@@ -37,8 +39,10 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 **Consumed**: the public `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteSpecException` types of the
 `VegaLiteDocument` unit (limits to enforce, the location of every node and report, and the error type of a malformed
 specification), `ExpressionParser` and `CompiledExpression` of the `Expressions` subsystem (the compilation of the
-expressions and the constructs they collect), `FieldPath` of the `Data` subsystem, and `ScaleResolver.IsSupportedFieldSort`
-of the `Scales` subsystem (so that the catalog reports exactly what the resolver does not sort). The .NET base class
+expressions and the constructs they collect), `FieldPath` of the `Data` subsystem, `AggregateMeasures` and `StackRules`
+of
+the `Transforms` subsystem (the operation names and the stack decision), and `ScaleResolver.InferOrient` of the `Scales`
+subsystem (so that the catalog reports `order` exactly when the plan will stack). The .NET base class
 library supplies `System.Text.Json`, `System.Text`, and `System.Globalization`.
 
 **Consumers**: `VegaLiteDocument` (parse, metadata, reports, and configuration), the `Data` subsystem (`DataLoader`

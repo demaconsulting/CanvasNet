@@ -246,10 +246,15 @@ _Open Options_, _Render Options: Parameters And Datasets Are Copied And Validate
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical`,
-`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical`,
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
 
 The unit creates one data loader, one expression evaluator with one step budget, and one parameter environment per call,
-and runs the stages in the order data, parameters, transforms, scales, marks, so the scenarios are asserted through the
+and runs the stages in the order data, parameters, transforms, the implicit encoding stage (the bins, the aggregate, and
+the stack that the encoding asks for, which yields the Raw and the Main table), scales, marks, so the scenarios are
+asserted through the
 public API (the units behind the stages are verified under their own designs). Asserts that the values of the static
 parameters are the defaults of the specification overridden by `VegaLiteRenderOptions.Parameters` (a value replaces a
 whole definition, so an overridden expression is not evaluated, and the name of a selection parameter is accepted and
@@ -261,7 +266,9 @@ errors that fail when the document is opened, before any render or event, while 
 (`MaxEvaluationSteps`, `MaxStringLength`, `MaxDataRows` and `MaxFieldCount` of a derived table, a lookup outside the
 sandbox, and a regular expression that exceeds its time limit) are `VegaLiteRenderException` errors located at the
 transform or expression at render time; that the one budget of the call is shared by the parameters, the transforms,
-and the mark values; that the reports of the specification are delivered first and the warnings of the stages after
+the implicit stage, and the mark values (the groups of an aggregate count in the row budget: the five rows and three
+groups of the aggregate bars need `MaxDataRows` 8, and 7 fails located at `/encoding/y`); that the reports of the
+specification are delivered first and the warnings of the stages after
 them, in the order loader warnings, lookup-source loader warnings, and transform warnings (`vl-expr-runtime` and
 `vl-transform-runtime`), and also when a later stage fails, as the data warnings are; that strict mode throws at the
 first report and delivers nothing after it; that a canceled token delivers nothing; and that `Measure` runs the same

@@ -111,6 +111,8 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/expressions/expression-functions.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/row-transforms.yaml
+  - docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml
+  - docs/reqstream/canvas-net-vega-lite/transforms/encoding-plan.yaml
   - docs/reqstream/canvas-net-vega-lite/scales.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml

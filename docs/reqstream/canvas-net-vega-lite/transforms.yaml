@@ -4,9 +4,12 @@
 # These requirements decompose the CanvasNetVegaLite system's responsibility for row transformation into the
 # Transforms subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the RowTransforms unit
 # that runs the transforms calculate, filter, fold, flatten, sample, pivot, and lookup eagerly after the data
-# loader and before the scales, and the static parameter environment that its expressions read. Aggregation,
-# window, bin, stack, impute, time-unit, and statistical transforms are deferred to later phases and are
-# reported by the FeatureCatalog; selection parameters and conditional encodings stay deferred. Each requirement
+# loader and before the scales, and the static parameter environment that its expressions read; the
+# AggregateTransforms unit that runs aggregate, joinaggregate, window, bin, stack, and impute (with the bin
+# algorithm, the aggregate and window operations, and the stack rules); and the EncodingPlan unit that derives the
+# implicit bin, aggregate, and stack of the encoding and runs them after the transforms. Time-unit and
+# statistical transforms are deferred to later phases and are reported by the FeatureCatalog; selection
+# parameters and conditional encodings stay deferred. Each requirement
 # here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
 # for the test-evidence mapping.
 
@@ -17,19 +20,23 @@ sections:
         requirements:
           - id: CanvasNetVegaLite-Transforms-Pipeline
             title: >-
-              The Transforms subsystem shall run the supported transforms of the drawn view in their written
-              order on the table that the Data subsystem loaded, before any scale is resolved, each reading an
-              immutable table and producing a new one, shall skip a transform of a later phase without
-              approximating it, and shall expose the recoverable problems of a transform as located warnings.
+              The Transforms subsystem shall run the supported transforms of the drawn view (calculate,
+              filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, stack, and
+              impute) in their written order on the table that the Data subsystem loaded, before any scale is
+              resolved, each reading an immutable table and producing a new one, shall skip a transform of a
+              later phase without approximating it, and shall expose the recoverable problems of a transform
+              as located warnings.
             justification: |
               Where transforms sit in the pipeline decides what the scales and marks see, and a transform that
               is not implemented must be reported rather than half done.
             children:
               - CanvasNetVegaLite-Transforms-RowTransforms-Pipeline
               - CanvasNetVegaLite-Transforms-RowTransforms-Warnings
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Pipeline
             tests:
               - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
               - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+              - AggregateTransforms_Window_ComposesWithFilter
               - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
 
           - id: CanvasNetVegaLite-Transforms-RowOperations
@@ -111,33 +118,147 @@ sections:
               - RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness
               - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
 
+          - id: CanvasNetVegaLite-Transforms-Aggregation
+            title: >-
+              The Transforms subsystem shall aggregate the rows of a table with the aggregate transform and
+              with the aggregate of an encoding - one row per group, groups by structural value in first-seen
+              order, every aggregate operation of Vega (counts, sums, means, variances, quantiles, extremes,
+              distinct values, the row of a minimum or maximum, collected values, exponential averages, and
+              deterministic bootstrap confidence intervals) with the field and name that the specification
+              gives.
+            justification: |
+              Most charts draw a summary of their data rather than the data itself; the summary must be the one
+              that Vega computes and must not depend on the platform or on chance.
+            children:
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-AggregateOps
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-ConfidenceIntervals
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-GroupKeys
+              - CanvasNetVegaLite-Transforms-EncodingPlan-ImplicitAggregate
+            tests:
+              - AggregateTransforms_Aggregate_ComputesEveryOperation
+              - AggregateTransforms_Aggregate_GroupsByStructuralKeysInFirstSeenOrder
+              - EncodingTransforms_Apply_AggregatesPerCategoryInFirstSeenOrder
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles
+
+          - id: CanvasNetVegaLite-Transforms-GroupedTransforms
+            title: >-
+              The Transforms subsystem shall add group statistics to every row with joinaggregate, rank,
+              difference, and accumulate rows within ordered partitions and frames with window (ranking,
+              positional, and aggregate operations), and fill the missing combinations of a group and a key
+              with impute, each keeping the rows it was given in their order.
+            justification: |
+              Running totals, ranks, moving averages, shares of a total, and gap-free series are what a chart
+              of a time series or a ranking needs, and their ties, frames, and order must be defined.
+            children:
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-JoinAggregate
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Window
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Impute
+            tests:
+              - AggregateTransforms_JoinAggregate_WritesGroupMeasuresToEveryRow
+              - AggregateTransforms_Window_RankingOperationsFollowVegaOnPeers
+              - AggregateTransforms_Impute_AppendsMissingKeysAfterTheInputRows
+              - CanvasNetVegaLite_SystemIntegration_Window_CumulativeTotalsAreBars
+
+          - id: CanvasNetVegaLite-Transforms-Binning
+            title: >-
+              The Transforms subsystem shall bin a quantitative field with the bin transform and with the bin
+              of a position channel, choosing the bins of the extent with the Vega bin algorithm (maximum
+              number of bins, step, extent, nice, base, divide, steps, minimum step, and anchor) and adding
+              the start and end of the bin of every row, so that a histogram counts the rows of each bin.
+            justification: |
+              Histograms and heat maps depend on the bin boundaries, which must be those of Vega-Lite for the
+              same specification to draw the same bars.
+            children:
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Bin
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-BinAlgorithm
+              - CanvasNetVegaLite-Transforms-EncodingPlan-ImplicitBin
+            tests:
+              - AggregateTransforms_Bin_AssignsBoundariesAndNullsForInvalidValues
+              - BinAlgorithm_Compute_MatchesHandDerivedSteps
+              - EncodingTransforms_Apply_BinsAndCountsAHistogram
+              - CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin
+
+          - id: CanvasNetVegaLite-Transforms-Stacking
+            title: >-
+              The Transforms subsystem shall stack the values of a measure with the stack transform and with
+              the stack of a bar-like encoding, deciding by the Vega-Lite rules whether an encoding stacks,
+              computing the start and end of every layer within its group with the offsets zero, center, and
+              normalize (negative values stacking down) in the order of the order channel or the layer fields.
+            justification: |
+              A bar chart with a color is a stacked bar chart in Vega-Lite; the layers must be where
+              Vega-Lite puts them for the chart to read the same.
+            children:
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Stack
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-StackRules
+              - CanvasNetVegaLite-Transforms-EncodingPlan-StackRules
+            tests:
+              - AggregateTransforms_Stack_ZeroOffsetStacksFromZero
+              - StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields
+              - EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY
+              - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal
+
+          - id: CanvasNetVegaLite-Transforms-EncodingPipeline
+            title: >-
+              The Transforms subsystem shall derive from the encoding of the drawn view, after the transforms,
+              the implicit bin, aggregate, and stack in that order, tell the scales, marks, and axes which
+              field each channel reads (the derived name of a bin, an aggregate, or a stack end), give each
+              channel its Vega-Lite default title, keep the rows before the aggregate for a scale that needs
+              them, and change nothing for an encoding that has none of them.
+            justification: |
+              The encoding is where most authors write an aggregate, a bin, or a stack; deriving them in one
+              place keeps the scales, marks, and axes in agreement about what is drawn.
+            children:
+              - CanvasNetVegaLite-Transforms-EncodingPlan-FieldNames
+              - CanvasNetVegaLite-Transforms-EncodingPlan-Titles
+              - CanvasNetVegaLite-Transforms-EncodingPlan-RawAndMain
+            tests:
+              - EncodingPlan_Create_NamesAndTitlesAggregatesAndPlainFields
+              - EncodingTransforms_Apply_KeepsTheRawRowsWhenAScaleNeedsThem
+              - EncodingTransforms_Apply_IdentityReturnsTheInputAndChecksArguments
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
+
           - id: CanvasNetVegaLite-Transforms-Limits
             title: >-
-              The Transforms subsystem shall bound the rows, fields, cells, string lengths, and evaluation
-              steps that transforms create, reserving the output of a fold or flatten against the shared row
-              budget before it allocates it, failing closed with a located VegaLiteRenderException when a
-              limit is exceeded, and stopping with an OperationCanceledException when the cancellation token
-              is canceled.
+              The Transforms subsystem shall bound the rows, fields, cells, string lengths, bins, and
+              evaluation steps that transforms create, reserving the output of a fold, a flatten, an
+              aggregate, an impute, and an encoding's groups against the shared row budget before it
+              allocates it, failing closed with a located VegaLiteRenderException when a limit is exceeded,
+              and stopping with an OperationCanceledException when the cancellation token is canceled.
             justification: |
               Transforms can multiply the data of a chart, so their cost must be bounded before it is spent
               and cancelable by the caller.
             children:
               - CanvasNetVegaLite-Transforms-RowTransforms-Limits
               - CanvasNetVegaLite-Transforms-RowTransforms-Cancellation
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Limits
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Cancellation
+              - CanvasNetVegaLite-Transforms-EncodingPlan-Limits
+              - CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
             tests:
               - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
               - RowTransforms_Apply_CanceledTokenStopsTheTransforms
+              - RowTransforms_Apply_FilterLongStringComparisonsAreChargedToTheStepBudget
+              - AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure
+              - AggregateTransforms_Aggregate_CancellationIsPolled
+              - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply
 
           - id: CanvasNetVegaLite-Transforms-Determinism
             title: >-
               The Transforms subsystem shall give the same table for the same input, specification, and
-              parameters on repeated and concurrent calls, with no clock and no random source, and a measure
+              parameters on repeated and concurrent calls, with no clock and no random source (the bootstrap
+              of a confidence interval and the sample being seeded from the specification), and a measure
               shall match the render that follows.
             justification: |
               Reproducibility is required for golden tests, and a measured size must be the size rendered.
             children:
               - CanvasNetVegaLite-Transforms-RowTransforms-Determinism
+              - CanvasNetVegaLite-Transforms-AggregateTransforms-Determinism
+              - CanvasNetVegaLite-Transforms-EncodingPlan-Determinism
             tests:
               - RowTransforms_Apply_SampleIsIdenticalWhenRepeatedAndConcurrent
+              - AggregateTransforms_Apply_IsDeterministicAndCultureInvariant
+              - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant
               - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical

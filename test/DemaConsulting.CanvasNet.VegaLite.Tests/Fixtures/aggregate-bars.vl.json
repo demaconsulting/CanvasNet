@@ -1,0 +1,20 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Units shipped per region",
+  "width": 240,
+  "height": 100,
+  "data": {
+    "values": [
+      { "region": "north", "units": 3 },
+      { "region": "south", "units": 5 },
+      { "region": "north", "units": 4 },
+      { "region": "east", "units": 2 },
+      { "region": "south", "units": 1 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "region", "type": "nominal", "axis": { "labelAngle": 0 } },
+    "y": { "field": "units", "type": "quantitative", "aggregate": "sum" }
+  }
+}

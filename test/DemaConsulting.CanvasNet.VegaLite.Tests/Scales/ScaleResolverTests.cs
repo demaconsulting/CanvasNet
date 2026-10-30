@@ -129,9 +129,15 @@ public class ScaleResolverTests
               "x": {"field":"q","type":"temporal"},
               "y": {"value": 20},
               "size": {"field":"q","type":"quantitative","scale":null},
-              "opacity": {"aggregate":"count","type":"quantitative"} }
+              "opacity": {"type":"quantitative"} }
             """));
         Assert.Empty(none.Scales);
+
+        // Assert: an aggregate count has no field but is a field definition, so it has a scale (and the title Vega-Lite gives it)
+        var counted = Resolve(Spec("point", """{ "opacity": {"aggregate":"count","type":"quantitative"} }"""));
+        Assert.Equal(ScaleKind.Linear, counted["opacity"]!.Kind);
+        Assert.Equal("__count", counted["opacity"]!.FieldPath);
+        Assert.Equal("Count of Records", counted["opacity"]!.Title);
 
         // Assert: a field without a type is read as quantitative, a datum takes the type of its value
         var missingType = Resolve(Spec("point", """{ "x": {"field":"q"}, "y": {"datum": "label"} }"""));

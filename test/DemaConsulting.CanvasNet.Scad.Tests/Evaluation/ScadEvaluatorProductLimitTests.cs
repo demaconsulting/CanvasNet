@@ -136,7 +136,7 @@ public class ScadEvaluatorProductLimitTests
         };
         var source = MatrixSource("m", 300, 300) + "a = [for (k = [0 : 20]) m * m];";
         var started = DateTime.UtcNow;
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
 
         // Act
         var ex = Record.Exception(() => Run(source, settings));

@@ -2,6 +2,7 @@ using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -57,10 +58,14 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
-///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>.</description></item>
+///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-scale-color-ramp</c></term><description>the <c>type</c> of a <c>color</c>, <c>fill</c> or <c>stroke</c> channel that has a <c>field</c> and is quantitative (a continuous color scale is not drawn; the default mark color is used).</description></item>
-///         <item><term><c>vl-encoding-aggregate</c>, <c>-bin</c>, <c>-timeunit</c>, <c>-stack</c>, <c>-sort</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel. <c>bin</c> is reported unless it is false or null; <c>stack</c> unless it is false or null (an implicit stack of bars is reported at the measure channel); <c>sort</c> only for a channel shorthand (such as <c>"-y"</c>) or an object that is not a supported sort by field (an object with an <c>op</c> of count, sum, mean, average, median, min or max, an optional <c>field</c> and an optional <c>order</c>), not for ascending, descending, null or an array of values.</description></item>
+///         <item><term><c>vl-encoding-timeunit</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
+///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel other than <c>x</c> and <c>y</c>, unless it is false or null (binning on the other channels needs the binned scale types of a later phase). <c>aggregate</c>, <c>bin</c> (on <c>x</c> and <c>y</c>), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
+///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
+///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; the values are stacked on the linear scale.</description></item>
+///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported.</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it names <c>tableau10</c> (compared without regard to case, as the scale resolver does) or the scale has an explicit color <c>range</c>, which overrides it.</description></item>
 ///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
@@ -69,8 +74,8 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>.</description></item>
 ///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the date, format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>aggregate</c>, <c>bin</c>, <c>density</c>, <c>extent</c>, <c>impute</c>, <c>joinaggregate</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>stack</c>, <c>timeunit</c>, <c>window</c>), and any transform of a nested view of a composition, which is not drawn. <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c> of the drawn view are computed and not reported.</description></item>
-///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used) and a lookup in the data of a parameter (not applied).</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>timeunit</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c> of the drawn view are computed and not reported.</description></item>
+///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
 ///         <item><term><c>vl-composition-layer</c>, <c>-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too.</description></item>
 ///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
@@ -100,11 +105,11 @@ internal static class FeatureCatalog
     /// <summary>The channels that get a legend when they are driven by a field.</summary>
     private static readonly HashSet<string> LegendChannels = ["color", "fill", "stroke", "size", "opacity"];
 
-    /// <summary>The channels whose field values group bars into a stack.</summary>
-    private static readonly HashSet<string> StackByChannels =
-    [
-        "color", "fill", "stroke", "size", "opacity", "fillOpacity", "strokeOpacity", "strokeWidth", "strokeDash", "shape", "angle", "detail", "text",
-    ];
+    /// <summary>The marks that draw a range between a position and its secondary channel (<c>x2</c> and <c>y2</c>).</summary>
+    private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule"];
+
+    /// <summary>The channels on which <c>bin</c> is applied (every other channel needs a scale type of a later phase).</summary>
+    private static readonly HashSet<string> BinnedChannels = ["x", "y"];
 
     /// <summary>The scale types that the renderer implements.</summary>
     private static readonly HashSet<string> SupportedScaleTypes = ["linear", "band", "point", "ordinal"];
@@ -457,7 +462,7 @@ internal static class FeatureCatalog
         /// <summary>
         ///     Visits an <c>encoding</c>.
         /// </summary>
-        /// <param name="view">The view that owns the encoding (its mark decides about implicit stacking).</param>
+        /// <param name="view">The view that owns the encoding (its mark decides about the secondary position channels and the stack).</param>
         /// <param name="encoding">The encoding object.</param>
         private void VisitEncoding(SpecNode view, SpecNode encoding)
         {
@@ -466,6 +471,10 @@ internal static class FeatureCatalog
                 return;
             }
 
+            var mark = view["mark"];
+            var markType = (mark is { IsString: true } ? mark.StringValue : mark?["type"]?.AsString()) ?? string.Empty;
+            // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
+            var stacks = new Lazy<bool>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding) is not null);
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;
@@ -477,6 +486,30 @@ internal static class FeatureCatalog
                 if (GeoChannels.Contains(name))
                 {
                     Unsupported("vl-channel-geo", $"The geographic channel '{name}' is not supported.", channel);
+                }
+                else if (name is "x2" or "y2")
+                {
+                    // A range is drawn by a bar, a rect or a rule that has the position channel it extends
+                    if (RangedMarks.Contains(markType) && encoding[name[..1]] is { IsObject: true })
+                    {
+                        VisitSecondaryDefinition(name, channel);
+                    }
+                    else
+                    {
+                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for a bar, rect or rule mark that has the '{name[..1]}' channel.", channel);
+                    }
+                }
+                else if (name == "order")
+                {
+                    // The order channel is the order of a stack; the order of the marks themselves is not drawn yet
+                    if (stacks.Value)
+                    {
+                        VisitSecondaryDefinition(name, channel);
+                    }
+                    else
+                    {
+                        Unsupported("vl-channel-order", "The 'order' channel is only supported when it orders a stack; the drawing order of marks is not supported yet.", channel);
+                    }
                 }
                 else if (!SupportedChannels.Contains(name))
                 {
@@ -491,8 +524,22 @@ internal static class FeatureCatalog
                     VisitChannelDefinition(name, channel);
                 }
             }
+        }
 
-            VisitImplicitStack(view, encoding);
+        /// <summary>
+        ///     Visits the definition (or the array of definitions) of a secondary or order channel that the renderer accepts.
+        /// </summary>
+        /// <param name="name">The channel name.</param>
+        /// <param name="channel">The channel value.</param>
+        private void VisitSecondaryDefinition(string name, SpecNode channel)
+        {
+            foreach (var definition in channel.IsArray ? channel.Items : [channel])
+            {
+                if (definition.IsObject)
+                {
+                    VisitChannelDefinition(name, definition);
+                }
+            }
         }
 
         /// <summary>
@@ -520,13 +567,16 @@ internal static class FeatureCatalog
                 }
             }
 
-            ReportProperty(definition, "aggregate", n => !n.IsNull, "Aggregation is not supported yet.");
-            ReportProperty(definition, "bin", IsEnabled, "Binning is not supported yet.");
             ReportProperty(definition, "timeUnit", n => !n.IsNull, "Time units are not supported yet.");
-            ReportProperty(definition, "stack", IsEnabled, "Stacking is not supported yet.");
-            ReportProperty(definition, "sort", IsSortByField, "Sorting by another field or channel is not supported yet.");
+            VisitBin(name, definition);
+            VisitStack(name, definition);
+            if (definition["sort"] is { } sort && !SpecParser.IsSupportedSort(sort, definition))
+            {
+                Unsupported("vl-encoding-sort", "Sorting by this operation or channel is not supported yet.", sort);
+            }
+
             ReportProperty(definition, "condition", _ => true, "Conditional encodings are not supported yet.");
-            ReportProperty(definition, "impute", n => !n.IsNull, "Imputation is not supported yet.");
+            ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
             ReportProperty(definition, "bandPosition", _ => true, "The band position of a field is not supported yet.");
 
             var scale = definition["scale"];
@@ -541,6 +591,49 @@ internal static class FeatureCatalog
             }
 
             VisitLegend(name, definition, scale);
+        }
+
+        /// <summary>
+        ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
+        /// </summary>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitBin(string name, SpecNode definition)
+        {
+            if (definition["bin"] is not { } bin || !IsEnabled(bin))
+            {
+                return;
+            }
+
+            if (!BinnedChannels.Contains(name))
+            {
+                Unsupported("vl-encoding-bin", $"Binning is only supported on the x and y channels, not on '{name}' (it needs the binned scale types of a later phase).", bin);
+            }
+            else if (bin is { IsObject: true } && bin["extent"] is { IsObject: true } extent)
+            {
+                Unsupported("vl-encoding-bin-extent-param", "A bin extent that is a parameter is not supported yet; the extent of the data is used.", extent);
+            }
+        }
+
+        /// <summary>
+        ///     Reports an explicit <c>stack</c> on a scale that is not linear.
+        /// </summary>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitStack(string name, SpecNode definition)
+        {
+            if (!BinnedChannels.Contains(name) || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
+            {
+                return;
+            }
+
+            if (definition["scale"]?["type"] is { IsString: true } scaleType && scaleType.StringValue != "linear")
+            {
+                Unsupported(
+                    "vl-encoding-stack-nonlinear",
+                    $"Stacking on a '{scaleType.StringValue}' scale is not supported; the values are stacked on the linear scale.",
+                    stack);
+            }
         }
 
         /// <summary>
@@ -565,18 +658,6 @@ internal static class FeatureCatalog
         /// <param name="node">The value.</param>
         /// <returns><see langword="true"/> when the value turns the feature on.</returns>
         private static bool IsEnabled(SpecNode node) => !node.IsNull && !(node.IsBoolean && !node.BoolValue);
-
-        /// <summary>
-        ///     Determines whether a <c>sort</c> value sorts by another field or channel.
-        /// </summary>
-        /// <param name="sort">The value.</param>
-        /// <returns><see langword="true"/> for an object or a channel shorthand; false for ascending, descending, null and an array of values.</returns>
-        private static bool IsSortByField(SpecNode sort) => sort.Kind switch
-        {
-            SpecNodeKind.Object => !ScaleResolver.IsSupportedFieldSort(sort),
-            SpecNodeKind.String => sort.StringValue is not ("ascending" or "descending"),
-            _ => false,
-        };
 
         /// <summary>
         ///     Visits a scale definition.
@@ -666,95 +747,15 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports bars that Vega-Lite would stack by default.
-        /// </summary>
-        /// <remarks>
-        ///     Bars are stacked implicitly when a quantitative measure sits on one position channel, the other position
-        ///     channel is discrete (or absent) and another channel groups the rows by a different field. The check is
-        ///     deliberately conservative: it reports the common case and never a chart that Vega-Lite would draw unstacked
-        ///     (an explicit <c>stack</c> of false or null, a range with <c>x2</c> or <c>y2</c>, an aggregate, a binned or
-        ///     time-unit measure).
-        /// </remarks>
-        /// <param name="view">The view that owns the encoding.</param>
-        /// <param name="encoding">The encoding object.</param>
-        private void VisitImplicitStack(SpecNode view, SpecNode encoding)
-        {
-            var mark = view["mark"];
-            string? type = null;
-            if (mark is not null)
-            {
-                type = mark.IsString ? mark.StringValue : mark["type"]?.StringValue;
-            }
-
-            if (type != "bar" || encoding["x2"] is not null || encoding["y2"] is not null)
-            {
-                return;
-            }
-
-            var x = encoding["x"];
-            var y = encoding["y"];
-            SpecNode? measure = null;
-            SpecNode? dimension = null;
-            if (IsPlainMeasure(x) && (y is null || IsDiscrete(y)))
-            {
-                (measure, dimension) = (x, y);
-            }
-            else if (IsPlainMeasure(y) && (x is null || IsDiscrete(x)))
-            {
-                (measure, dimension) = (y, x);
-            }
-
-            if (measure is null)
-            {
-                return;
-            }
-
-            var dimensionField = dimension?["field"]?.StringValue;
-            var groups = StackByChannels
-                .Select(name => encoding[name])
-                .Where(c => c is not null)
-                .SelectMany(c => c!.IsArray ? c.Items : [c])
-                .Any(def => def.IsObject && def["aggregate"] is null && def["field"]?.StringValue is { } field && field != dimensionField);
-            if (groups)
-            {
-                Unsupported(
-                    "vl-encoding-stack",
-                    "Bars that share a position are stacked by default in Vega-Lite; stacking is not supported yet (set \"stack\": null on the measure to draw them unstacked).",
-                    measure);
-            }
-        }
-
-        /// <summary>
-        ///     Determines whether a position channel is a plain quantitative field that Vega-Lite may stack.
-        /// </summary>
-        /// <param name="channel">The channel definition, or null.</param>
-        /// <returns><see langword="true"/> for a quantitative field without aggregate, bin, time unit or explicit stack.</returns>
-        private static bool IsPlainMeasure(SpecNode? channel) =>
-            channel is { IsObject: true }
-            && channel["field"] is { IsString: true }
-            && channel["type"]?.StringValue == "quantitative"
-            && channel["aggregate"] is null
-            && !(channel["bin"] is { } bin && IsEnabled(bin))
-            && channel["timeUnit"] is null
-            && channel["stack"] is null;
-
-        /// <summary>
-        ///     Determines whether a position channel is a discrete field.
-        /// </summary>
-        /// <param name="channel">The channel definition.</param>
-        /// <returns><see langword="true"/> for a nominal or ordinal field.</returns>
-        private static bool IsDiscrete(SpecNode channel) =>
-            channel.IsObject && channel["type"]?.StringValue is "nominal" or "ordinal";
-
-        /// <summary>
         ///     Visits the entries of <c>transform</c>.
         /// </summary>
         /// <remarks>
-        ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup) are reported only
-        ///     for the parts they do not support: expression constructs, filter predicates on time units, selection
-        ///     parameters or date objects, a pivot operation other than sum and count, and a lookup in the data of a parameter.
-        ///     A transform of a view that is not drawn (a nested view of a composition) is never applied and is reported as
-        ///     <c>vl-transform-&lt;name&gt;</c>, like every transform of a later phase.
+        ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
+        ///     window, bin, stack, impute) are reported only for the parts they do not support: expression constructs, filter
+        ///     predicates on time units, selection parameters or date objects, a pivot operation other than sum and count, a lookup
+        ///     in the data of a parameter, and a bin extent that is a parameter. A transform of a view that is not drawn (a nested
+        ///     view of a composition) is never applied and is reported as <c>vl-transform-&lt;name&gt;</c>, like every transform of a
+        ///     later phase.
         /// </remarks>
         /// <param name="transforms">The array.</param>
         /// <param name="drawn">Whether the view that owns the transforms is the view the renderer draws.</param>
@@ -792,6 +793,13 @@ internal static class FeatureCatalog
                         break;
                     case "lookup":
                         VisitLookupSource(entry["from"]!);
+                        break;
+                    case "bin":
+                        if (operation is { IsObject: true } && operation["extent"] is { IsObject: true } extent)
+                        {
+                            Unsupported("vl-transform-bin-extent-param", "A bin extent that is a parameter is not supported yet; the extent of the data is used.", extent);
+                        }
+
                         break;
                     default:
                         break;

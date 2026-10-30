@@ -192,6 +192,7 @@ internal sealed partial class RowTransforms
         var texts = new SortedSet<string>(StringComparer.Ordinal);
         var cut = false;
         var skipped = new RowFinding();
+        var meter = new WorkMeter(_context.Evaluator.Context);
         for (var row = 0; row < input.RowCount; row++)
         {
             Tick(row);
@@ -203,7 +204,18 @@ internal sealed partial class RowTransforms
                 continue;
             }
 
-            var key = new GroupKey([.. groupReaders.Select(r => r.Read(row))]);
+            var groupValuesOfRow = groupReaders.Select(r => r.Read(row)).ToArray();
+
+            // Hashing and comparing the text of a group value walks it, so it is charged to the step budget
+            foreach (var groupValue in groupValuesOfRow)
+            {
+                if (groupValue.IsString)
+                {
+                    Charge(meter, groupValue.Text!.Length, location);
+                }
+            }
+
+            var key = new GroupKey(groupValuesOfRow);
             if (!groups.TryGetValue(key, out var group))
             {
                 group = groupValues.Count;
@@ -228,6 +240,9 @@ internal sealed partial class RowTransforms
             // this set, so it rejects a pivot only when the columns that would be output are too many, and the set never
             // grows beyond that bound plus one.
             var text = textOf[row]!;
+
+            // Sorting the texts into the set compares them, which walks them
+            Charge(meter, text.Length, location);
             if (limit > 0 && texts.Count >= limit && !texts.Contains(text))
             {
                 if (string.CompareOrdinal(text, texts.Max) > 0)
@@ -314,6 +329,25 @@ internal sealed partial class RowTransforms
 
         _context.Loader.ReleaseRows(input.RowCount - groupValues.Count);
         return layout.Build(cells, groupValues.Count);
+    }
+
+    /// <summary>
+    ///     Charges work proportional to a size to the step budget of the call.
+    /// </summary>
+    /// <param name="meter">The meter of the transform.</param>
+    /// <param name="size">The number of characters touched.</param>
+    /// <param name="location">The location reported when the budget is exhausted.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the step budget is exhausted.</exception>
+    private static void Charge(WorkMeter meter, long size, VegaLiteLocation location)
+    {
+        try
+        {
+            meter.Add(size);
+        }
+        catch (ExpressionRuntimeException ex)
+        {
+            throw new VegaLiteRenderException(ex.Message, location);
+        }
     }
 
     /// <summary>

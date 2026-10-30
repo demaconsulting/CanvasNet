@@ -12,7 +12,7 @@ describe nothing real. They exist to give the tests small, readable charts whose
   `rule` (and change the tick thickness) to draw stems and thicker ticks.
 - `titles-config.vl.json`: a title with a subtitle, a background, and the configuration of axes, bars and the title
   (`config`), plus an explicit scale domain and tick count.
-- `unsupported.vl.json`: a line mark, a window transform and an aggregate, which are recognized but not drawn yet
+- `unsupported.vl.json`: a line mark, a regression transform and a band position, which are recognized but not drawn yet
   and must be reported with their locations.
 - `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
   relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
@@ -22,6 +22,17 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `data-values.json`: a JSON document with the rows nested under `report.rows`, which the tests read with
   `format.property`. TSV, DSV, hostile and oversized data files are never fixtures: the tests write them to a
   temporary folder or an in-memory file set, so that no unusual file sits in the repository.
+- `aggregate-bars.vl.json`: a bar chart of the sum of `units` per `region` (five made-up rows, three regions), whose
+  aggregate comes from the encoding (`aggregate: "sum"`), so the bars are three sums in first-seen order.
+- `histogram.vl.json`: twelve made-up parcel weights binned by the encoding (`bin: true`) and counted
+  (`aggregate: "count"`), with the bins 0 to 35 by 5 and the counts 3, 2, 3, 1, 1, 1, 1.
+- `stacked-bars.vl.json`: the sum of `units` per `region` split by `product` (a color), so that each region's
+  bar is a stack of layers whose totals are 10 and 5.
+- `binned-ranges.vl.json`: three made-up age ranges that are binned already (`bin: "binned"` with the end of each range
+  in `x2`: 0 to 10, 10 to 25 and 25 to 30) and a ticket count for each, so that the bars are as wide as their ranges
+  (49, 74 and 24 pixels, a pixel of bin spacing taken off every pair of edges).
+- `window-cumulative.vl.json`: four made-up quarterly order counts, turned into a running total by a `window` transform
+  (`sum`, frame up to the current row: 4, 7, 12 and 14) and drawn as bars on an ordinal axis.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or
@@ -32,7 +43,8 @@ copied, adapted or used as a source of expected values. The expected values (the
 charts, the reservoir of the sample transform, the order of sorted categories, the pixels of the colors) are derived by
 hand from the scale formulas and from the algorithm that the tests describe, and the only change to an existing
 fixture is that `unsupported.vl.json` now uses a window transform (a later phase) so that it still has an unsupported
-transform to report.
+transform to report. In Phase 6 the window transform and the aggregate became supported, so the same fixture now uses a
+regression transform and a band position (both still unsupported) for the same purpose.
 
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or

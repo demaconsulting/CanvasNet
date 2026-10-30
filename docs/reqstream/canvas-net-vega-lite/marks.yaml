@@ -57,6 +57,48 @@ sections:
               - MarkBuilder_Build_RowBoundExpressionReferencesAreEvaluatedPerRow
               - CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow
 
+          - id: CanvasNetVegaLite-Marks-StackedMarks
+            title: >-
+              The Marks subsystem shall draw the layers of a stacked measure each from its stack start to its
+              stack end (vertical and horizontal, with the offsets zero, center, and normalize), so that the
+              layers sit on one another, and shall place point-like marks on a stacked channel at the stack end.
+            justification: |
+              A bar chart with a color is a stacked bar chart; its layers must not overlap or start from zero.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-StackedLayers
+            tests:
+              - MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd
+              - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds
+
+          - id: CanvasNetVegaLite-Marks-BinnedBars
+            title: >-
+              The Marks subsystem shall draw a bar or rect on a binned channel across its bin less the bin
+              spacing (widening a bin thinner than the minimum band size), and a point-like mark on a binned
+              channel at the middle of its bin, so that a histogram shows bars that fill their bins.
+            justification: |
+              A histogram is the chart that motivates binning, and its bars must fill their bins.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-BinnedBars
+            tests:
+              - MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing
+              - CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel
+
+          - id: CanvasNetVegaLite-Marks-RangedMarks
+            title: >-
+              The Marks subsystem shall draw a bar, rect, or rule whose position channel has a second channel
+              (x2 or y2) as a range between the two ends, including the bars over already binned data, and shall
+              clip the marks to the data rectangle only when the mark says clip true.
+            justification: |
+              Ranges are written with the secondary channels, and Vega-Lite clips marks only on request (or for
+              an interval selection), so an explicit domain does not clip.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-SecondaryChannels
+              - CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
+            tests:
+              - MarkBuilder_Build_SecondaryChannelsSpanARange
+              - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField
+              - CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges
+
           - id: CanvasNetVegaLite-Marks-Limits
             title: >-
               The Marks subsystem shall bound the number of scene items, failing closed with a located

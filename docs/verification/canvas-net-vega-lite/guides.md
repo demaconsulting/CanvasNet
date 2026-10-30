@@ -53,6 +53,14 @@ documented above as machine-dependent is not a failure.
   `AxisBuilderTests.AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid` — a parsed specification's scale produces
   an axis whose tick values, label texts, and positions equal the values derived by hand from the tick algorithm and
   the scale arithmetic.
+- **Axis Titles And Ticks Follow The Aggregating Encoding**:
+  `AxisBuilderTests.AxisBuilder_Build_TitlesFollowThePlanAndACountHasAGrid`,
+  `AxisBuilderTests.AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels`,
+  `AxisBuilderTests.AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges` — the
+  axis title of an aggregated, binned, or counted channel is the plan's title (`Sum of v`, `v (binned)`, `Count of
+  Records`) unless the specification gives one, a binned axis has no grid and asks for a tick per ten pixels, a
+  normalized stack is labeled in percent, and the merged x title of pre-binned ranges names both fields.
 - **Guide Configuration Precedence**:
   `AxisBuilderTests.AxisBuilder_Build_ConfigurationPrecedenceFollowsVegaLite`,
   `TitleBuilderTests.TitleBuilder_Build_PropertiesLinesConfigurationAndLimit` — the configuration, styles, and the

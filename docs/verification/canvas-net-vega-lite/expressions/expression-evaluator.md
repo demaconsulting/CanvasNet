@@ -168,6 +168,23 @@ compared with itself, and an array holding the string under `+` and `==`), that 
 string charges at least 200 steps beyond the instructions, and that a budget of 50 steps fails with the located
 `MaxEvaluationSteps` error.
 
+##### Strict Equality Charges The Size Of The Texts It Compares
+
+**Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StrictEqualityOfLongStringsConsumesSteps`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_StrictEquals_StringsAreChargedByTheShorterLength`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_ArraySearchOfLongStringsConsumesStepsPerElement`,
+`ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_ArraySearchOfManyShortStringsConsumesSteps`
+
+Asserts, as a theory of `===` and `!==` over two 12,800-character texts (and one text with itself), that the comparison
+charges at least 200 steps beyond the instructions and that a budget of 50 fails with the located `MaxEvaluationSteps`
+error; and that `StrictEquals` with a context charges the shorter length per 64 characters — two characters against 12,800
+are free, 6,400 against 12,800 are 100 steps — charges nothing for values of different kinds or for numbers, and charges
+nothing without a context. As a theory of `indexof`, `lastindexof`, and `includes` over an array of two 12,800-character
+texts that share all but the last character with the target, the search charges at least 400 steps beyond the instructions
+(200 per element) and fails under a budget of 150, while small searches (`['ab', 'cd']`) pass under 150; 2,000 elements
+of 63 characters, each alone below one step, are charged together (at least 1,968 steps) and fail under a budget of
+1,000.
+
 ##### Shared Arrays Are Checked Once Per Node And Their Text Is Bounded
 
 **Tests**: `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SharedArrays_AreCheckedOncePerNodeAndTheirTextIsBounded`

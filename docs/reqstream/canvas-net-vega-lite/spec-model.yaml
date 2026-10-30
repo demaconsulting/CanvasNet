@@ -5,7 +5,8 @@
 # SpecModel subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded JSON parser
 # that builds an immutable tree with positions (SpecParser), the catalog that reports every recognized
 # construct outside the supported subset (FeatureCatalog), and the configuration resolver (ConfigResolver).
-# Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser).
+# Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser); Phase 6
+# adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding.
 # SpecModel knows everything about the specification text and nothing about data or pixels. Each requirement
 # here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/spec-model.md for the test-evidence mapping.
@@ -121,6 +122,7 @@ sections:
               - FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported
               - FeatureCatalog_Visit_ReportsAreInDocumentOrder
               - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
+              - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 
           - id: CanvasNetVegaLite-SpecModel-ExpressionValidation
@@ -143,6 +145,25 @@ sections:
               - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
               - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
               - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
+
+          - id: CanvasNetVegaLite-SpecModel-AggregationValidation
+            title: >-
+              The SpecModel subsystem shall validate, when a specification is parsed, the shape of the
+              transforms aggregate, joinaggregate, window, bin, stack, and impute and of the aggregate, bin,
+              stack, sort, and order properties of an encoding - operation names, fields, parameters, frames,
+              offsets, bin parameters, and sort forms - failing with a located specification exception at the
+              first wrong value in document order and accepting every documented valid form.
+            justification: |
+              A mistake in an aggregation must be found when the specification is opened, with its location,
+              before any data is read, and the later stages must be able to read these properties as given.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-AggregateTransforms
+              - CanvasNetVegaLite-SpecModel-SpecParser-EncodingAggregates
+            tests:
+              - SpecParser_Parse_AggregateTransformShapesArePinned
+              - SpecParser_Parse_WindowTransformShapesArePinned
+              - SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned
+              - SpecParser_Parse_ValidAggregatingTransformsAreAccepted
 
           - id: CanvasNetVegaLite-SpecModel-SchemaCompatibility
             title: >-

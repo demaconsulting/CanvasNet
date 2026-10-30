@@ -1,0 +1,170 @@
+---
+# Software Unit Requirements for EncodingPlan
+#
+# These requirements describe the design-level behavior of the EncodingPlan unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the implicit data pipeline of a single view
+# that Vega-Lite derives from the encoding - the bins of a binned position channel, the aggregate of an aggregated
+# channel, and the stack of a stacked measure - split into the analysis of the specification that needs no data
+# (EncodingPlan.cs: the names of the derived fields, the default axis titles, and the stack decision) and its
+# execution on the transformed table (EncodingTransforms.cs), which runs the AggregateTransforms engine and the
+# bin algorithm. The scales, marks, and axes read the plan and the resulting tables, so that they agree on which
+# field each channel draws. The naming and title rules follow Vega-Lite behavior, attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/transforms/encoding-plan.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: EncodingPlan Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-FieldNames
+                title: >-
+                  The EncodingPlan unit shall decide from the specification alone, before any data is read,
+                  which field each channel of the drawn view reads and which field holds its second end: the
+                  field of the definition as written, the Vega-Lite name of a derived field (the bin start
+                  bin_maxbins_10_x with its _end and _range companions, an aggregate such as sum_x, __count for a
+                  count of records, the _start and _end of a stack, and the field of the row that argmax or
+                  argmin returns), and no field for a datum or a value, asking for no bin, aggregate, or stack
+                  when the encoding has none.
+                justification: |
+                  Scales, marks, and axes must agree on which field each channel draws, and the names of the
+                  derived fields are how Vega-Lite specifications and its documentation refer to them.
+                tests:
+                  - EncodingPlan_Create_NamesAndTitlesAggregatesAndPlainFields
+                  - EncodingPlan_Create_NamesABinByItsParametersAndField
+                  - EncodingPlan_Create_DiscreteBinReadsTheRangeText
+                  - EncodingPlan_Create_DatumAndValueChannelsReadNoField
+                  - EncodingPlan_Create_ArgMaxReadsTheFieldOfTheReturnedRow
+                  - EncodingPlan_Create_IdentityPlansAskForNothing
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-ImplicitAggregate
+                title: >-
+                  The EncodingPlan unit shall, for an encoding whose channels carry an aggregate, group the
+                  transformed rows by every other field definition of the encoding (including the arrays of
+                  detail and tooltip channels, without repeating a field, and the start and end of a binned
+                  channel) and compute the aggregate of each aggregated channel per group, in first-seen
+                  group order, giving one row for an encoding without a field to group by and no row for an
+                  empty table, a count without a field, and the field of the winning row for argmax and
+                  argmin.
+                justification: |
+                  A bar chart of a sum per category, written as an encoding, must draw the same bars that the
+                  explicit aggregate transform would give, without the author writing the transform.
+                tests:
+                  - EncodingPlan_Create_AggregateGroupsByEveryOtherFieldDefinition
+                  - EncodingPlan_Create_AggregateGroupsByTheBoundariesOfABin
+                  - EncodingTransforms_Apply_AggregatesPerCategoryInFirstSeenOrder
+                  - EncodingTransforms_Apply_AggregateWithoutDimensionsIsOneRowAndEmptyInputHasNone
+                  - EncodingTransforms_Apply_ArgMaxReadsTheFieldOfTheWinningRow
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-ImplicitBin
+                title: >-
+                  The EncodingPlan unit shall, for an x or y channel with bin set, add to every row the start
+                  and end of its bin (computed once for each field and parameter combination and shared by the
+                  channels that use it, 10 bins at most unless maxbins, step, extent, nice, base, divide,
+                  steps, minstep, or anchor say otherwise), keep the rows of an encoding that only bins, give
+                  a value that cannot be binned no bounds (all such rows forming one group when aggregated),
+                  turn the bins of a nominal or ordinal channel into text categories ordered by bin start, and
+                  leave an already binned field (bin set to binned) as it is.
+                justification: |
+                  A histogram is a bar chart of counts per bin; the bins must be those of Vega-Lite so that the
+                  same specification draws the same bars.
+                tests:
+                  - EncodingPlan_Create_SharesABinBetweenChannelsByFieldAndParameters
+                  - EncodingTransforms_Apply_BinsAndCountsAHistogram
+                  - EncodingTransforms_Apply_BinOnlyKeepsRowsAndLeavesInvalidValuesWithoutABin
+                  - EncodingTransforms_Apply_InvalidValuesFormOneGroupWithoutBounds
+                  - EncodingTransforms_Apply_BinStepAndExtentParameters
+                  - EncodingTransforms_Apply_OrdinalBinsAreTextCategoriesOrderedByStart
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-StackRules
+                title: >-
+                  The EncodingPlan unit shall, when the Vega-Lite rules make the measure channel of an encoding
+                  stack, stack it within each group of the other position channel (and of the end of its bin),
+                  into a start and an end field named after the measure, with the layers divided by the color,
+                  detail, and order channels but never by the dimension field itself, ordered by the order
+                  channel when there is one and otherwise by the layer fields - ascending on x and descending
+                  on y so that the first layer is at the bottom - and with the offsets zero (negative values
+                  stacking down), center, and normalize.
+                justification: |
+                  Stacked bars are the default form of a bar chart with a color; the order of the layers and
+                  the sign handling decide what the reader sees.
+                tests:
+                  - EncodingPlan_Create_DecidesTheStackLikeVegaLite
+                  - EncodingPlan_Create_StackNamesAndGroupsFollowTheMeasure
+                  - EncodingPlan_Create_OrdersTheLayersLikeVegaLite
+                  - EncodingPlan_Create_StackByExcludesTheDimensionField
+                  - EncodingPlan_Create_BarWithTwoMeasuresStacksTheAggregatedOne
+                  - EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY
+                  - EncodingTransforms_Apply_StacksAscendingOnX
+                  - EncodingTransforms_Apply_StacksNegativeValuesDownwards
+                  - EncodingTransforms_Apply_NormalizeAndCenterOffsets
+                  - EncodingTransforms_Apply_OrderChannelOrdersTheLayers
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-Titles
+                title: >-
+                  The EncodingPlan unit shall give each channel the Vega-Lite default title of its definition -
+                  the field name, Sum of x (or SUM(x) under the functional title format) for an aggregate,
+                  Count of Records for a count of records, x (binned) for a bin, and the verbal forms of the
+                  other operations - merging the titles of the two ends of a range into one, and following the
+                  field-title and count-title settings of the configuration.
+                justification: |
+                  The axis title is the first thing that tells a reader what a derived value is; without a
+                  title that follows Vega-Lite the author would have to write a title for every aggregate.
+                tests:
+                  - EncodingPlan_Create_NamesAndTitlesAggregatesAndPlainFields
+                  - EncodingPlan_Create_TitlesFollowTheConfiguration
+                  - EncodingPlan_Create_MergesTheTitlesAndFieldsOfARange
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-RawAndMain
+                title: >-
+                  The EncodingPlan unit shall give the later stages the table that the marks draw (after the
+                  bins, the aggregate, and the stack) and, when a scale reads the rows before the aggregate (a
+                  sort by a field or an operation, an unaggregated domain), also the table before it,
+                  returning the one transformed table itself when the encoding has no bin, aggregate, or stack.
+                justification: |
+                  Sorting a category by a measure or showing the unaggregated extent needs the rows as they
+                  were; an encoding that changes nothing must cost nothing and change no row.
+                tests:
+                  - EncodingPlan_Create_FlagsTheEncodingsThatReadTheRawTable
+                  - EncodingTransforms_Apply_KeepsTheRawRowsWhenAScaleNeedsThem
+                  - EncodingTransforms_Apply_IdentityReturnsTheInputAndChecksArguments
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-Limits
+                title: >-
+                  The EncodingPlan unit shall count the rows of the groups it creates (and those of a stack
+                  that sits next to the kept raw table) in the row budget of the call as they appear, before
+                  they are allocated, with the input rows still counted, shall bound the bins by the
+                  scale-domain limit, shall charge its work to the evaluation-step budget, and shall fail with
+                  a located VegaLiteRenderException (at the channel or at the bin) when a limit is exceeded,
+                  accepting exactly the limit.
+                justification: |
+                  An encoding can multiply or retain the rows of a chart as an explicit transform can; the cost
+                  must be bounded before it is spent and the failure must point at the encoding.
+                tests:
+                  - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
+                  - EncodingTransforms_Apply_StackNextToRawRowsCountsTheRows
+                  - EncodingTransforms_Apply_BoundsTheBinsAndChargesTheRows
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
+                title: >-
+                  The EncodingPlan unit shall observe the cancellation token of the call while it bins,
+                  aggregates, and stacks, and stop with an OperationCanceledException without delivering a
+                  partial table.
+                justification: |
+                  Aggregating a large table can take noticeable time, and callers must be able to abandon it.
+                tests:
+                  - EncodingTransforms_Apply_PollsTheCancellationToken
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-Determinism
+                title: >-
+                  The EncodingPlan unit shall give the same plan and the same tables for the same
+                  specification, input, and parameters on repeated calls and from several threads, independent
+                  of the culture, time zone, and platform, naming derived fields and bin categories with
+                  invariant number text.
+                justification: |
+                  Reproducibility is a system contract; a derived name or a bin label that depended on the
+                  culture would break golden tests.
+                tests:
+                  - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant

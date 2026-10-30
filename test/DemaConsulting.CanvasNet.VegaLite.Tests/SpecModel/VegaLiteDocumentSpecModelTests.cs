@@ -26,7 +26,7 @@ public class VegaLiteDocumentSpecModelTests
               "name": "b",
               "bogus": 1,
               "mark": "arc",
-              "transform": [ { "stack": "x", "groupby": [], "as": [ "a", "b" ] } ]
+              "transform": [ { "regression": "x", "on": "y" } ]
             }
             """;
         var document = VegaLiteDocument.Parse(json, new VegaLiteOpenOptions { SourceName = "w.vl.json" });
@@ -41,7 +41,7 @@ public class VegaLiteDocumentSpecModelTests
                 "W vl-duplicate-key /name 3:3",
                 "W vl-unknown-property /bogus 4:3",
                 "U vl-mark-arc /mark 5:11",
-                "U vl-transform-stack /transform/0 6:18",
+                "U vl-transform-regression /transform/0 6:18",
             ],
             renderEvents);
         Assert.Equal(renderEvents, measureEvents);

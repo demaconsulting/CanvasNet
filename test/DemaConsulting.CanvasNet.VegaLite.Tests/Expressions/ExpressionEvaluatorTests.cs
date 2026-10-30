@@ -799,6 +799,117 @@ public class ExpressionEvaluatorTests
     }
 
     /// <summary>
+    ///     Validates that the strict equality operators charge the comparison of two long strings to the step budget, like
+    ///     the relational operators do.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("datum.s === datum.t")]
+    [InlineData("datum.s !== datum.t")]
+    [InlineData("datum.s === datum.s")]
+    public void ExpressionEvaluator_Evaluate_StrictEqualityOfLongStringsConsumesSteps(string text)
+    {
+        // Arrange: two 12,800 character strings cost 200 steps to compare; the program has a handful of instructions
+        var datum = Obj(("s", DataValue.FromString(new string('1', 12_800))), ("t", DataValue.FromString(new string('1', 12_800))));
+        var compiled = Compile(text);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        evaluator.Evaluate(compiled, datum);
+        var exception = Assert.Throws<VegaLiteRenderException>(() => new ExpressionEvaluator(Steps(50), CancellationToken.None).Evaluate(compiled, datum));
+
+        // Assert
+        Assert.True(evaluator.StepsUsed >= compiled.InstructionCount + 200, $"'{text}' used {evaluator.StepsUsed} steps");
+        Assert.Contains("MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that <c>indexof</c>, <c>lastindexof</c> and <c>includes</c> over an array charge the comparison of every
+    ///     element that is a long string, and that small inputs still run within a small budget.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    [Theory]
+    [InlineData("indexof([datum.s, datum.s], datum.t)")]
+    [InlineData("lastindexof([datum.s, datum.s], datum.t)")]
+    [InlineData("includes([datum.s, datum.s], datum.t)")]
+    public void ExpressionEvaluator_Evaluate_ArraySearchOfLongStringsConsumesStepsPerElement(string text)
+    {
+        // Arrange: two elements that share a 12,800 character prefix with the target (the last character differs), so each comparison walks the whole text
+        var longText = new string('1', 12_799);
+        var datum = Obj(("s", DataValue.FromString(longText + "a")), ("t", DataValue.FromString(longText + "b")));
+        var compiled = Compile(text);
+        var evaluator = new ExpressionEvaluator(null, CancellationToken.None);
+
+        // Act
+        evaluator.Evaluate(compiled, datum);
+        var exception = Assert.Throws<VegaLiteRenderException>(() => new ExpressionEvaluator(Steps(150), CancellationToken.None).Evaluate(compiled, datum));
+
+        // Assert: each element costs 200 steps (400 in all, none is found), and a small budget fails with the step error
+        Assert.True(evaluator.StepsUsed >= compiled.InstructionCount + 400, $"'{text}' used {evaluator.StepsUsed} steps");
+        Assert.Contains("MaxEvaluationSteps", exception.Message, StringComparison.Ordinal);
+
+        // Assert: small inputs run within the same small budget
+        Assert.Equal(1, Eval("indexof(['ab', 'cd'], 'cd')", Steps(150)).Number);
+        Assert.Equal(0, Eval("lastindexof(['ab', 'cd'], 'ab')", Steps(150)).Number);
+        Assert.True(Eval("includes(['ab', 'cd'], 'cd')", Steps(150)).Boolean);
+        Assert.False(Eval("includes(['ab', 'cd'], 'ef')", Steps(150)).Boolean);
+    }
+
+    /// <summary>
+    ///     Validates that many short strings searched in an array are charged together, although each comparison alone is below
+    ///     the size of one step.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_Evaluate_ArraySearchOfManyShortStringsConsumesSteps()
+    {
+        // Arrange: 2,000 elements of 63 characters (each below one step) searched for a text of the same length that they all share the prefix of
+        var elements = Enumerable.Range(0, 2_000).Select(_ => DataValue.FromString(new string('1', 62) + "a")).ToArray();
+        var datum = Obj(("a", DataValue.FromOwnedArray(elements)), ("t", DataValue.FromString(new string('1', 62) + "b")));
+
+        // Act / Assert: the 126,000 characters compared cost about 1,968 steps, so a budget of 1,000 fails and an ample one succeeds
+        foreach (var text in new[] { "indexof(datum.a, datum.t)", "includes(datum.a, datum.t)" })
+        {
+            var compiled = Compile(text);
+            Assert.Throws<VegaLiteRenderException>(() => new ExpressionEvaluator(Steps(1_000), CancellationToken.None).Evaluate(compiled, datum));
+            var evaluator = new ExpressionEvaluator(Steps(10_000), CancellationToken.None);
+            evaluator.Evaluate(compiled, datum);
+            Assert.True(evaluator.StepsUsed >= compiled.InstructionCount + 1_968, $"'{text}' used {evaluator.StepsUsed} steps");
+        }
+    }
+
+    /// <summary>
+    ///     Validates that strict equality charges the shorter length of two strings and nothing for other kinds, and that
+    ///     it does not charge without a context.
+    /// </summary>
+    [Fact]
+    public void ExpressionEvaluator_StrictEquals_StringsAreChargedByTheShorterLength()
+    {
+        // Arrange
+        var context = new ExpressionFunctionContext(Steps(1_000), CancellationToken.None);
+        var long12800 = DataValue.FromString(new string('1', 12_800));
+        var long6400 = DataValue.FromString(new string('1', 6_400));
+
+        // Act
+        var shortResult = ExpressionEvaluator.StrictEquals(long12800, DataValue.FromString("ab"), context);
+        var afterShort = context.Steps;
+        var differentLengths = ExpressionEvaluator.StrictEquals(long12800, long6400, context);
+        var afterLong = context.Steps;
+        var kinds = ExpressionEvaluator.StrictEquals(long12800, DataValue.FromNumber(1), context);
+        var numbers = ExpressionEvaluator.StrictEquals(DataValue.FromNumber(1), DataValue.FromNumber(1), context);
+        var uncharged = ExpressionEvaluator.StrictEquals(long12800, long12800);
+
+        // Assert: two characters are free, 6,400 are 100 steps, and kinds and numbers are not charged
+        Assert.False(shortResult);
+        Assert.Equal(0, afterShort);
+        Assert.False(differentLengths);
+        Assert.Equal(100, afterLong);
+        Assert.False(kinds);
+        Assert.True(numbers);
+        Assert.Equal(100, context.Steps);
+        Assert.True(uncharged);
+    }
+
+    /// <summary>
     ///     Validates that a shared array (a directed acyclic graph: <c>[x, x]</c> chained 40 times) is checked once per
     ///     node, so evaluating it finishes at once, and that converting it to text fails at the string limit instead of
     ///     building its 2^40 repeated elements.

@@ -2,7 +2,7 @@
 
 ![Transforms Structure](VegaLiteTransformsView.svg)
 
-The `RowTransforms` unit is the only software unit in the `Transforms` subsystem. It comprises nine source files in the
+The `RowTransforms` unit is the first software unit in the `Transforms` subsystem. It comprises nine source files in the
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 
 - `RowTransforms.cs` - `RowTransforms` (sealed partial class): the `Apply` entry point, the run loop, `calculate`, `filter`
@@ -15,13 +15,16 @@ The `RowTransforms` unit is the only software unit in the `Transforms` subsystem
   rebuilds arrays and objects from flattened fields)
 - `ParameterEnvironment.cs` - `ParameterEnvironment` (the static parameter values) and `SpecValues` (JSON value to
   `DataValue`)
-- `TransformContext.cs` - `TransformContext` and `RowExpressions`
+- `TransformContext.cs` - `TransformContext` and `RowExpressions` (the context is shared with the
+  `AggregateTransforms` and
+  `EncodingPlan` units)
 - `NamespaceDoc.cs` - the namespace documentation of the subsystem
 
 #### Purpose
 
 `RowTransforms` produces the rows a chart draws from the rows it loaded: it applies the supported row transforms of the
-`transform` array in order and computes the values of the static variable parameters. It exists
+`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit) and computes the
+values of the static variable parameters. It exists
 so that the semantics of each
 transform (what a row, a missing value, a repeated key, or an empty array means), the
 accounting of the row budget, and the
@@ -48,7 +51,9 @@ rebuilt from `name.0`, `name.1`, ... (trailing nulls are dropped because a missi
 cell; a null cell whose elements are all null stays null) or an object rebuilt from the fields below, otherwise null. The
 rebuilding is the `FlatRowNode` tree of the data unit, which the expression evaluator shares for `datum`.
 
-**The transforms** (in the order of the `transform` array; an entry that names a transform of a later phase is skipped):
+**The transforms** (in the order of the `transform` array; an entry that names a transform that the renderer does not
+compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
+`AggregateTransforms`, which `Run` calls with the same `TransformContext`, see _AggregateTransforms_):
 
 - **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row with
   `datum` bound to the row; the result of any kind (scalar, array, object) is stored in `as`, replacing a field of that
@@ -62,7 +67,13 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
   composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a variable
   parameter (every row passes or none). A predicate on a selection parameter or a `selection` keeps every row; a `timeUnit`
   of a predicate is ignored; a predicate that contains a date object is ignored (the row passes); all three are reported
-  by the catalog.
+  by the catalog. A predicate is charged to the evaluation step budget of the call, through the context of the evaluator
+  that the expressions share: every tested field costs one step; a comparison of two texts (`equal`, `oneOf`, and the
+  ordering operators alike) charges the shorter length per 64 characters; the members of `oneOf` are charged once per row
+  per 64 members, so `and`, `or`, and `oneOf` cannot multiply the size of the specification by the number of rows for
+  free; and reading a field that the table stores flattened (an array or an object rebuilt from its fields) charges four
+  units per field below it, as the evaluator does for a datum. A step or string limit that a predicate exceeds is a
+  `VegaLiteRenderException` located at the `filter` value.
 - **`fold`** - an array of field names and an optional `as` of one or two names (`key` and `value` by default): every row
   becomes one row per folded field, in the order of the rows and then of the fields, with the field name as written in
   `as[0]` and the cell in `as[1]` (null for a field the table lacks). The folded fields stay in the rows.
@@ -85,7 +96,9 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
   `sum` (the default) or the number of rows for `count`; a combination without rows is 0. The result has only the group
   fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a pivot
   value that equals a group field name each give one `vl-transform-runtime` warning. An `op` other than `sum` and
-  `count` is reported (`vl-transform-pivot-op`) and sum is used.
+  `count` is reported (`vl-transform-pivot-op`) and sum is used. The text of every group value and of every pivot value
+  is charged to the step budget (one step per 64 characters, located at the transform), because hashing and sorting walk
+  it.
 - **`lookup`** - the field to look up, and `from` with `data` (a data object loaded by the **loader of the call**: inline
   values, a named dataset, a local file, or a sequence), `key`, and optional `fields`; plus `as` and `default`. The secondary
   rows are indexed by the **text** of the key (so `1` matches `"1"`); null and composite keys never match; for a repeated
@@ -122,7 +135,14 @@ by the evaluator. A selection parameter is skipped and an override of its name i
 `empty` are ignored.
 
 **`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for the
-row-bound paint values; `TransformContext` is the bundle of everything one run shares.
+row-bound paint values; `TransformContext` is the bundle of everything one run shares. Besides the fields it carries, it
+offers the helpers that the aggregating units use: `Locate(node)` (the location of a node of the specification),
+`Tick(row)` (the cancellation check once per 1,024 rows), and `CheckText(value, what, location)` (a located failure
+when a
+text that the specification gives a transform is longer than the `MaxStringLength` of the call, which can be lower than
+the
+limit the specification was parsed with). The evaluator exposes its `ExpressionFunctionContext` to the unit through the
+internal `Context` property, so that the predicates, the `WorkMeter`, and the accumulators charge the same step budget.
 
 **Invariants**: the output of a transform is a new table within `MaxDataRows`, `MaxFieldCount`, and 2^25 cells; the rows
 counted in the loader's budget are the rows of the tables that are alive; nothing is read from
@@ -133,8 +153,9 @@ the current culture.
 
 - `RowTransforms.Apply(input, transforms, context)` - requires a non-null input and context; returns the input itself when
   `transforms` is null, not an array, or empty; otherwise runs the entries in order: it checks the token, finds the operation
-  property of the entry (`SpecParser.FindTransformOperation`), skips entries of later phases
-  (`SpecParser.IsSupportedTransform`), and dispatches to the transform. The expressions were
+  property of the entry (`SpecParser.FindTransformOperation`), skips entries that the renderer does not compute
+  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, or to `AggregateTransforms.Apply` for the six
+  aggregating ones. The expressions were
   compiled when the document was
   opened, so no text is parsed here.
 - `Calculate`, `Filter` (with `BuildPredicate`, the predicate classes, and `SelectRows`, which builds the table of the kept
@@ -154,7 +175,8 @@ list holds the findings of this run, or an exception was thrown.
 Everything that depends on the data and exceeds a limit is a `VegaLiteRenderException` located at the construct that caused
 it: `MaxDataRows` (checked **before** the output is allocated, also for a lookup source; located at the transform entry),
 `MaxFieldCount` and the 2^25 cell bound (the transform entry), `MaxStringLength` and the evaluation step budget (the expression
-string), a failing regular expression (the expression string), and a lookup source that the sandbox or the file layer refuses
+string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup source
+that the sandbox or the file layer refuses
 (the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped, and
 the warnings of a canceled call are not delivered. Recoverable findings are warnings: `vl-expr-runtime` and
 `vl-transform-runtime`, located at the expression string or the transform entry. A malformed transform is not an error of
@@ -173,6 +195,7 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 - **`SpecTree`**, **`SpecNode`**, **`SpecParser`** (`FindTransformOperation`,
   `IsSupportedTransform`, `ParameterGraph`), and
   **`FeatureReport`** - the tree, the helpers, and the report record of the `SpecModel` subsystem
+- **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the `VegaLiteDocument`
   unit
 - **.NET base class library** - `System.Globalization` (invariant-culture text) and `System.Text` (the UTF-8 bytes of the
@@ -183,6 +206,7 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 `VegaLiteDocument` creates the `TransformContext`, calls `ParameterEnvironment.Populate`, then
 `RowTransforms.Apply` once per
 `Measure` or `Render` call for a single view with a supported mark, and delivers the transform warnings after the loader
-warnings; `MarkBuilder` uses `RowExpressions`. The tests in
+warnings; `EncodingTransforms` and `AggregateTransforms` share the `TransformContext`, `TableLayout`, `FieldReader`, and
+`RowSampler`; `MarkBuilder` uses `RowExpressions`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs` call `Apply`, `Populate`, and `RowSampler`
 directly through `InternalsVisibleTo`.

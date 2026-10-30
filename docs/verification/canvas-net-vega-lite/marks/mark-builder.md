@@ -31,9 +31,10 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   y = 2.5, 52.5, 102.5, 152.5; x(v) = 2.4 v over 240 pixels, so the widths are 103.2, 67.2, 132.0, and 218.4 from
   x(0) = 0.
 - Negative values: a y domain of -10 to 30 over 200 pixels has y(v) = 5 (30 - v), so the bar of -10 hangs from
-  y(0) = 150 to y(-10) = 200 (y 150, height 50) and the bar of 30 spans 0 to 150; a measure axis whose domain does not
-  contain zero runs the bar to the first domain value (y(20) = 100 for a domain of 20 to 100 over 100 pixels, so y 50,
-  height 50).
+  y(0) = 150 to y(-10) = 200 (y 150, height 50) and the bar of 30 spans 0 to 150; a bar on a measure axis whose explicit
+  domain does not contain zero starts at the stack start 0, as Vega-Lite draws it (y(60) = 50 down to y(0) = 125 for a
+  domain of 20 to 100 over 100 pixels, so y 50, height 75, overflowing the data rectangle and not clipped, because only
+  `clip: true` clips), while with `stack: null` it runs to the first domain value (y(20) = 100, so y 50, height 50).
 - Continuous and absent channels: two quantitative channels give bars `continuousBandSize` (5) wide centered on x(v);
   a bar without a y channel spans the whole height; without an x channel it is centered and 0.9 of the width (x = 5,
   width 90 in 100 pixels); an explicit `size` of 20 is centered on the band (the East band is 3 to 57, its center 30,
@@ -60,6 +61,28 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   sorted category order are `#4c78a8` and `#f58518`; the size is 4 + 357 q / 30 for q = 10, 20, 30 (123, 242, 361)
   because the size domain starts at zero (0 to 30) and the range is 4 to (0.95 x 20)^2 = 361; the opacity is
   0.3 + 0.5 (o - 2) / 2 for o = 2, 3, 4 (0.3, 0.55, 0.8) because opacity has no zero rule.
+- Stacked layers (two bands of 45 pixels at 2.5 and 52.5, the layers `p` 3 and `q` 5 in region `a` and `p` 4 in `b`):
+  the layers are ordered by the color, descending on a vertical chart, so `q` is the lower layer (0 to 5) and `p` the upper
+  (5 to 8) over the domain 0 to 8, y(v) = 100 - 12.5 v, giving the bars (y 37.5, height 62.5) and (y 0, height 37.5) and
+  for `b` (y 50, height 50); `center` puts the stack of `b` at 2 to 6 (y 25, height 50); `normalize` divides by the totals
+  8 and 4 so `b` fills 0 to 1 (y 0, height 100); `stack: null` overlaps the bars from zero on the domain 0 to 5; a
+  horizontal chart stacks ascending, `p` 0 to 3 and `q` 3 to 8 with x(v) = 12.5 v; and a circle sits at the upper end of
+  its layer (y 0, 37.5, and 50).
+- Binned bars (bins 0 to 30 by 10 holding 2, 2, and 1 rows over 90 pixels, x(v) = 3 v, the count domain 0 to 2): a bar
+  spans its bin less the bin spacing of 1 (half a pixel off each edge) and plus the half pixel of the axis translate, so
+  the bars are at x = 1, 31, and 61 with the width 29 (heights 100, 100, and 50); `binSpacing` 0 gives x = 0.5, 30.5, and
+  60.5 with the width 30, and 4 gives x = 2.5, 32.5, and 62.5 with the width 26; a reversed scale mirrors the bins (61,
+  31, 1); a `size` of 10 centers the bar on the middle of its bin (x = 10, 40, 70) without spacing; a `rect` has no
+  spacing (x = 0.5 and 30.5 and 60.5, width 30); bins of 3 pixels under a `minBandSize` of 5 are widened to 5 around
+  their middle; a circle sits at the middle of its bin (15, 45, 75); and a pre-binned field with a `step` and no `x2`
+  ends one step after each start (x = 1, 31, 61).
+- Pre-binned ranges (0 to 10 and 10 to 25 over 100 pixels, no zero and no nice, so x(v) = 4 v): the bars are at x = 1 and
+  41 with the widths 39 and 59, the rects at 0.5 and 40.5 with the widths 40 and 60, and the circles at 20 and 70.
+- Secondary channels (x(v) = 10 v on the domain 0 to 10): a bar from `lo` 2 to `hi` 6 and from 4 to 10 is at x = 20 and
+  40 with the widths 40 and 60; a second end that is the pixel value 50 or the datum 1 on the domain 0 to 2 (50 pixels)
+  draws from 50 to 100; a row with a null end is not drawn; a rule with `y` and `y2` at the band centers 25 and 75 runs
+  from y(lo) to y(hi), one with `x` and `x2` from x(lo) to x(hi), and a rule with both ranges is the segment from (1, 2)
+  to (5, 8), drawn from (20, 75) to (100, 0).
 
 Unit tests reside in `MarkBuilderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks`
 folder; the shared helpers are in `ChartTestHelpers.cs`.
@@ -85,8 +108,10 @@ constitutes a failure.
 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems`
 
-Asserts the derived vertical, horizontal, negative, and non-zero-domain bars, the continuous bars, the absent channels,
-the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and the clip rule.
+Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (starting at the stack start 0 and not
+clipped for an explicit domain, and running to the first domain value for `stack: null`), the continuous
+bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and the
+clip rule.
 
 ##### Point, Circle, Square, Rule, And Tick Geometry
 
@@ -135,3 +160,36 @@ text) and the default opacity 0.7 (because the expression gave text and not a nu
 `red` and the opacity 0.25, that the stroke widths are 2 and 5, and that the sizes are 20 and 50; and that the builder
 without the expressions leaves every reference unevaluated (the opacity stays 0.7 and no fill is red), so a result of
 the wrong kind never changes the mark and a missing evaluator never changes the previous behavior.
+
+##### Stacked Layers Span From The Stack Start To Its End
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd`
+
+Asserts the derived stacked bars above for a vertical chart with the zero, center, and normalize offsets, that
+`stack: null` brings back the overlapping bars from zero, that a horizontal chart stacks ascending, that a circle sits at
+the upper end of its layer, and that the result is the same on a second build.
+
+##### Binned Bars And Rects Span Their Bins
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing`,
+`MarkBuilderTests.MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField`
+
+Asserts the derived binned geometry above (the bin spacing of the mark, the half pixel of the axis translate, an explicit
+`binSpacing`, a reversed scale, a `size` centered on the bin, a `rect` without spacing, the `minBandSize` widening, a
+pre-binned `step`, and a circle at the middle of its bin) and the pre-binned ranges drawn as bars with a pixel of spacing,
+as rects without, and as circles in the middle of the range.
+
+##### Secondary Channels Span A Range
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_SecondaryChannelsSpanARange`
+
+Asserts the derived range bars (between two fields, between a field and a pixel value, and between a field and a datum),
+that a row with an invalid end is not drawn, and the rules along the range of one channel and between two points.
+
+##### Stacked And Binned Marks Respect The Budget And Cancellation
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation`
+
+Asserts that three stacked bars and the marks group need exactly four scene items (a `MaxSceneItems` of 4 passes and 3
+fails naming the limit), that a canceled token throws `OperationCanceledException`, and that a chart with one row per
+category is drawn as before, the bars running from zero (y 114, 144, 90, and 18 with the heights 86, 56, 110, and 182).

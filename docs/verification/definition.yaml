@@ -99,6 +99,8 @@ input-files:
   - docs/verification/canvas-net-vega-lite/expressions/expression-functions.md
   - docs/verification/canvas-net-vega-lite/transforms.md
   - docs/verification/canvas-net-vega-lite/transforms/row-transforms.md
+  - docs/verification/canvas-net-vega-lite/transforms/aggregate-transforms.md
+  - docs/verification/canvas-net-vega-lite/transforms/encoding-plan.md
   - docs/verification/canvas-net-vega-lite/scales.md
   - docs/verification/canvas-net-vega-lite/scales/scale-model.md
   - docs/verification/canvas-net-vega-lite/scales/scale-resolver.md

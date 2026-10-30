@@ -49,8 +49,10 @@ unit. The .NET base class library supplies `System.IO` (files and streams), `Sys
 `System.Collections.Generic`.
 
 **Consumers**: `VegaLiteDocument` (which creates one `DataLoader` per `Measure` or `Render` call for a single view with
-a supported mark and reads its `Warnings`), the `Transforms` subsystem (`RowTransforms` reserves and releases rows in the
-loader's budget, loads the source of a `lookup` through the same loader, and builds derived tables; `ParameterEnvironment`
+a supported mark and reads its `Warnings`), the `Transforms` subsystem (`RowTransforms`, `AggregateTransforms`, and
+`EncodingTransforms` reserve and release rows in the
+loader's budget, `RowTransforms` loads the source of a `lookup` through the same loader, and all of them build derived
+tables; `ParameterEnvironment`
 converts caller values with `DataLoader.FromObject`), the `Expressions` subsystem (which reads and produces `DataValue`
 and `DataObject`), `SpecParser` and `FeatureCatalog` (which use `DelimitedTextParser.IsValidDelimiter`
 and `ParseDirectives.TryClassify` so that validation, reports, and loading agree), the `Scales` subsystem
@@ -119,8 +121,8 @@ store composite cells in derived tables (a calculated array or object, a looked-
 **Limits fail closed, before the memory is spent.** The row count is checked against `MaxDataRows` before any row is
 converted or allocated (inline rows, a file, a dataset, a sequence, and a lookup source alike) and is a **total across
 all the tables a call creates**: the loader's counter is the single budget of the call, the
-output of a fold or flatten is
-reserved in it before it is allocated (while its input still counts), and the rows of a table that is no longer needed
+output of a fold, a flatten, an aggregate, an impute, or an implicit aggregate is
+reserved in it as it is built (while its input still counts), and the rows of a table that is no longer needed
 (the input of a transform once its output is complete, the rows a filter or a sample drops) are given back; the field
 count is checked against `MaxFieldCount` per row and for the union of all rows, a text
 against `MaxStringLength`, a file's bytes against `MaxDataBytes`, and the number of files against `MaxDataFiles`; every

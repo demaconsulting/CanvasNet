@@ -1,19 +1,21 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
 ///     Applies the row transforms of a specification to the rows of a chart: <c>calculate</c>, <c>filter</c>, <c>fold</c>,
-///     <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>.
+///     <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>, and hands the aggregating transforms (<c>aggregate</c>,
+///     <c>bin</c>, ...) to <see cref="AggregateTransforms"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Execution.</b> The transforms of the <c>transform</c> array run in the order of the text, each on the table that
 ///         the previous one produced, after the data loader and before the scales. Every transform is eager and immutable: it
 ///         reads a <see cref="DataTable"/> and builds a new one (a transform that keeps every row may return its input).
-///         Entries that name a transform of a later phase are skipped here; the feature catalog reports them. The
+///         Entries that name a transform that is not supported are skipped here; the feature catalog reports them. The
 ///         expressions were compiled when the specification was parsed, so no text is parsed here.
 ///     </para>
 ///     <list type="bullet">
@@ -58,7 +60,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         before they allocate it, and release the rows of their input when the output is complete, so the peak of two tables
 ///         counts; filter, sample and pivot release the rows they drop; a lookup source counts as any loaded source. Every
 ///         derived table respects <see cref="VegaLiteLimits.MaxFieldCount"/> and a bound of <see cref="TableLayout.MaxCells"/>
-///         cells. The step budget bounds expressions, strings are bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, and
+///         cells. The step budget bounds expressions and the comparisons of filter predicates (a comparison of long texts, the members
+///         of <c>oneOf</c> and the rebuilding of a flattened field are charged to it), strings are bounded by <see cref="VegaLiteLimits.MaxStringLength"/>, and
 ///         the cancellation token is checked every 1,024 rows and between transforms. Failures are
 ///         <see cref="VegaLiteRenderException"/>s located at the transform. An instance serves one call on one thread.
 ///     </para>
@@ -130,7 +133,10 @@ internal sealed partial class RowTransforms
                 "flatten" => Flatten(table, entry, operation),
                 "sample" => Sample(table, entry, operation),
                 "pivot" => Pivot(table, entry, operation),
-                _ => Lookup(table, entry, operation),
+                "lookup" => Lookup(table, entry, operation),
+
+                // The aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) are the aggregate transform unit's
+                _ => AggregateTransforms.Apply(table, entry, operation, _context),
             };
         }
 
@@ -273,15 +279,24 @@ internal sealed partial class RowTransforms
     /// <returns>The table of the rows kept.</returns>
     private DataTable Filter(DataTable input, SpecNode filter)
     {
-        var predicate = BuildPredicate(filter, input);
         var kept = new List<int>();
-        for (var row = 0; row < input.RowCount; row++)
+        try
         {
-            Tick(row);
-            if (predicate.Test(input, row))
+            var predicate = BuildPredicate(filter, input);
+            for (var row = 0; row < input.RowCount; row++)
             {
-                kept.Add(row);
+                Tick(row);
+                if (predicate.Test(input, row))
+                {
+                    kept.Add(row);
+                }
             }
+        }
+        catch (ExpressionRuntimeException ex)
+        {
+            // A comparison of a predicate can exhaust the step budget or convert an array to text beyond the string limit; the
+            // message names the limit, so the failure is reported like one of an expression, located at the filter
+            throw new VegaLiteRenderException(ex.Message, Locate(filter));
         }
 
         return SelectRows(input, kept, Locate(filter));

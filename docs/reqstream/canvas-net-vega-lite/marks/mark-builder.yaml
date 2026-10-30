@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the MarkBuilder unit of the Marks subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
-# circle, square, rule, and tick, the resolution of the paint and size channels, and the limits. The
+# circle, square, rule, and tick, the stacked, binned, and ranged geometry that the implicit encoding pipeline
+# and the secondary channels x2 and y2 produce, the resolution of the paint and size channels, and the limits. The
 # geometry rules follow Vega-Lite behavior, attributed in
 # src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
 # docs/verification/canvas-net-vega-lite/marks/mark-builder.md for the test-evidence mapping.
@@ -20,11 +21,66 @@ sections:
                   The MarkBuilder unit shall build a bar or rect for each row spanning the band of a
                   discrete scale (the band width reduced by the padding, or centered at an explicit size)
                   or centered at the continuous band size on a continuous scale, and from the value to
-                  zero (or to the first domain value when zero is outside the domain) along the measure
-                  axis, spanning the whole rectangle when a channel is absent.
+                  zero (or to the first domain value when zero is outside the domain and the bar is not
+                  stacked) along the measure axis, spanning the whole rectangle when a channel is absent.
                 justification: |
                   Bars and rects are the most common marks, and their position and extent are what a
                   reader compares.
+                tests:
+                  - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-StackedLayers
+                title: >-
+                  The MarkBuilder unit shall draw each layer of a stacked channel from the stack start to the
+                  stack end of its row (vertical and horizontal, with the offsets zero, center, and normalize,
+                  and with no stack when the encoding says null) as a bar, rect, or rule, and place a point,
+                  circle, square, or tick on a stacked channel at the stack end.
+                justification: |
+                  A stacked bar chart is only readable when each layer sits on the one below it.
+                tests:
+                  - MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd
+                  - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-BinnedBars
+                title: >-
+                  The MarkBuilder unit shall draw a bar or rect on a binned continuous channel across its bin
+                  - from the start to the end of the bin on the scale, reduced by the bin spacing (1 pixel for
+                  a bar and 0 for a rect and a tick by default, from the mark or the configuration) and offset
+                  by the half pixel of the axis - widening a bin thinner than the minimum band size to that
+                  size, centering a bar with an explicit size on the middle of its bin, drawing the bins in
+                  reverse for a reversed scale, extending an already binned field with a step to one step past
+                  its start when it has no end field, and place a point, circle, square, rule, or tick on a
+                  binned channel at the middle of its bin.
+                justification: |
+                  A histogram must show bars that fill their bins and touch only by the spacing; Vega-Lite
+                  draws them so and the same chart must look the same.
+                tests:
+                  - MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing
+                  - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField
+                  - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-SecondaryChannels
+                title: >-
+                  The MarkBuilder unit shall draw a bar or rect whose x or y has an x2 or y2 (a field, a
+                  datum, or a pixel value) as a range between the two ends instead of a bar to zero or a
+                  centered thickness, draw a rule with a range on one channel between the two ends and with
+                  ranges on both between the two points, let a pixel value of the secondary channel win over a
+                  stack start, and draw nothing for a row whose end is not a number.
+                justification: |
+                  Ranges (a floating bar, an error bar, a timeline) are written with the secondary
+                  channels and must be drawn between the two ends.
+                tests:
+                  - MarkBuilder_Build_SecondaryChannelsSpanARange
+                  - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
+                title: >-
+                  The MarkBuilder unit shall clip the marks to the data rectangle only when the mark says clip
+                  true, and shall not clip them because a scale has an explicit domain, so that a bar that
+                  starts at zero outside an explicit domain is drawn as Vega-Lite draws it.
+                justification: |
+                  Vega-Lite clips marks only with the mark's clip property or for the extent of an interval
+                  selection (scaleClip); an explicit domain alone does not clip.
                 tests:
                   - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
 
@@ -81,4 +137,5 @@ sections:
                 tests:
                   - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
                   - MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated
+                  - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
                   - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary

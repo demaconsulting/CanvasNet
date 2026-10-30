@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Cumulative orders per quarter",
+  "width": 160,
+  "height": 140,
+  "data": {
+    "values": [
+      { "quarter": "q1", "orders": 4 },
+      { "quarter": "q2", "orders": 3 },
+      { "quarter": "q3", "orders": 5 },
+      { "quarter": "q4", "orders": 2 }
+    ]
+  },
+  "transform": [
+    { "window": [{ "op": "sum", "field": "orders", "as": "running" }], "frame": [null, 0] }
+  ],
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "quarter", "type": "ordinal", "axis": { "labelAngle": 0 } },
+    "y": { "field": "running", "type": "quantitative", "title": "Orders so far" }
+  }
+}

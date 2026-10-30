@@ -275,7 +275,8 @@ sections:
               Parameters render option), run the row transforms of the view in their written order on the
               loaded table with the loader, the limits, and the cancellation token of the call, one
               evaluator and one evaluation-step budget shared by the parameters, the transforms, and the
-              row-bound mark values, pass the transformed table to the scales and the marks, charge the scene
+              row-bound mark values, derive the implicit bin, aggregate, and stack of the encoding from the
+              transformed table, pass the resulting tables to the scales and the marks, charge the scene
               budget only after the transforms, and deliver the warnings of the loader, the lookup sources, and
               the transforms, in that order, after the reports of the specification and also when a later
               stage fails.
@@ -288,6 +289,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
               - CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
+              - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply
 
           - id: CanvasNetVegaLite-VegaLiteDocument-ExpressionErrors
             title: >-
