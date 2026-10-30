@@ -2609,6 +2609,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBounds.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBudget.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneBudgetTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scenegraph-ScenePainter Review (one per unit)
   - id: CanvasNetVegaLite-Scenegraph-ScenePainter

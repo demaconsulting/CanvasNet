@@ -14,8 +14,10 @@
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, stack, and impute with a closed subset of the Vega expression language and static variable
 # parameters, the aggregate, bin, and stack of an encoding, the marks bar, rect, point, circle, square,
-# rule, and tick (with stacked, binned, and ranged geometry), linear, band, and point scales, axes, and
-# titles - and reports every recognized construct outside that subset with a stable vl-* identifier instead of
+# rule, and tick (with stacked, binned, and ranged geometry), the color, size, shape, opacity, stroke, and angle
+# channels with color schemes, linear, logarithmic, power, symlog, band, point, ordinal, and discretizing scales,
+# axes, legends, and titles - and reports every recognized construct outside that subset with a stable vl-*
+# identifier instead of
 # skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
 # never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
 # algorithms; the default configuration, view layout, and text layout follow Vega-Lite and Vega behavior.
@@ -174,11 +176,12 @@ sections:
       - id: CanvasNetVegaLite-SupportedSubset
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
-          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, and opacity
-          channels (and the x2 and y2 ranges of bar, rect, and rule) with field, value, and datum forms,
-          quantitative, nominal, and ordinal types, and
-          linear, band, and point scales with their documented properties - and shall draw each
-          supported construct without reporting it.
+          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, opacity, fillOpacity,
+          strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2 and y2 ranges of
+          bar, rect, and rule) with field, value, and datum forms, quantitative, nominal, and ordinal
+          types, and the documented scale types (linear, log, pow, sqrt, symlog, sequential, band, point,
+          ordinal, quantile, quantize, threshold, and bin-ordinal) with their documented properties - and
+          shall draw each supported construct without reporting it.
         tags: [system]
         justification: |
           A renderer that claims general Vega-Lite support but draws a subset misleads its users; the

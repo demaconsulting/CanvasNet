@@ -26,13 +26,16 @@ construct (the value; for an unknown property or a duplicate key, the key), and 
 `UnsupportedFeature` (a recognized construct that is not rendered, delivered as a `VegaLiteUnsupportedFeature`).
 
 **The supported sets** are private read-only sets in the class and define the boundary: the supported marks (bar, rect,
-point, circle, square, rule, tick), the supported channels (x, y, color, fill, stroke, size, opacity), the marks that
+point, circle, square, rule, tick), the supported channels (x, y, color, fill, stroke, size, opacity, shape, strokeWidth,
+strokeDash, fillOpacity, strokeOpacity, angle), the marks that
 draw a range between a position channel and its secondary channel (bar, rect, rule), the channels on which `bin` is
-applied (x and y), the ignored
-channels (tooltip, href, description, key), the geographic channels, the legend channels, the supported scale types
-(linear, band, point, ordinal), the supported scale properties (type, domain, range, zero, nice, padding, reverse,
-paddingInner, paddingOuter, align, round, clamp, scheme; `scheme` is reported unless it names `tableau10`, compared
-without regard to case like the scale resolver, or the scale has an explicit color `range` that overrides it), the
+applied (x, y, and every channel that has a scale), the ignored
+channels (tooltip, href, description, key), the geographic channels, the legend channels (color, fill, stroke, size,
+opacity, shape, strokeWidth, strokeDash), the supported scale types
+(linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize, threshold, bin-ordinal), the
+supported scale properties (type, domain, range, zero, nice, padding, reverse,
+paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax,
+interpolate, base, exponent, constant; any other, such as `bins`, is reported), the
 unsupported axis properties, the scopes in which an
 expression value is looked for, and the composition properties. An identifier is built from
 an area and a name taken from the specification, lower-cased with the invariant culture and without separators

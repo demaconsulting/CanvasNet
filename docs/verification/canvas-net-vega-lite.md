@@ -370,7 +370,8 @@ Renders a point chart from a virtual CSV without `parse`, whose nominal color co
 whose x, y, and size columns hold numeric text, and the same chart from inline rows with real numbers. Asserts that no
 `vl-data-*` warning or report is delivered (the text was kept, not mis-converted) and that the two charts have the same
 size and pixels, so the quantitative x, y, and size channels coerced the text where they draw it, as Vega does for an
-unparsed column (quantitative color is not drawn by this subset and is not claimed). A second scenario writes the
+unparsed column (the color of this scenario is nominal, so it claims nothing about a quantitative color). A second
+scenario writes the
 `data-files.csv` fixture text with LF line ends, with CRLF line ends, and without a final line break and asserts that each
 draws the pixels of the inline chart, so no fixture assertion depends on how the checkout normalized line endings.
 

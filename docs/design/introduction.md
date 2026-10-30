@@ -250,16 +250,18 @@ software items, specifically:
   and `EncodingPlan` (the implicit bin, aggregate, and stack of a view's encoding, with the field names and titles
   that every
   channel reads). The `Scales` subsystem has
-  six units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
+  six units: `ScaleModel` (the linear, logarithmic, power, symlog, band, point, ordinal, sequential, diverging, and
+  discretizing mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
   number formatter), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range), and
   `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has five units:
   `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle),
   `AxisBuilder` (grid, ticks, labels, domain, and title of an axis), `LabelOverlap` (parity and greedy removal of
   overlapping labels), and `LegendBuilder` (symbol, gradient, and discrete gradient legends). The `Layout` subsystem has
-  one unit,
-  `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
-  unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
+  two units, `ViewLayout` (data rectangle, padding, autosize, title placement, and view border) and `LegendLayout`
+  (the placement of the legends around the data rectangle and the axes, and their extents). The `Marks` subsystem has one
+  unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint, with the color, size, shape,
+  opacity, stroke, and angle channels and conditional encodings). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
   and `CssColor` (CSS color parsing). Compositions, selection parameters,
   conditions on a parameter, and time
@@ -1112,6 +1114,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
+│   ├── ChannelDefinitions.cs      — SpecParser: which object of a channel definition carries the field, and its conditions
+│   ├── PredicateSource.cs         — SpecParser: a predicate of a condition written as expression source text
 │   ├── FeatureCatalog.cs          — FeatureCatalog: stable vl- reports of unsupported constructs
 │   └── ConfigResolver.cs          — ConfigResolver: defaults, configuration merge, precedence chains
 ├── Data/                          — Data subsystem (internal)
@@ -1136,6 +1140,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ExpressionFunctions.Text.cs — ExpressionFunctions: string and array functions
 │   ├── ExpressionFunctions.Types.cs — ExpressionFunctions: type and conversion functions
 │   ├── ExpressionFunctions.Regex.cs — ExpressionFunctions: regexp, test, and the regular expression forms
+│   ├── ExpressionFunctions.Casing.cs — ExpressionFunctions: the case conversion of lower and upper
 │   ├── ExpressionFunctionContext.cs — ExpressionFunctions: step budget, string limit, and regex cache
 │   └── ExpressionRegex.cs         — ExpressionFunctions: JavaScript regular expressions as safe .NET ones
 ├── Transforms/                    — Transforms subsystem (internal)
@@ -1164,10 +1169,12 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   └── EncodingTransforms.cs      — EncodingPlan: running the plan, and the Raw and Main tables
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
-│   ├── ScaleModel.cs              — ScaleModel: linear, band, point, and ordinal mappings
+│   ├── ScaleModel.cs              — ScaleModel: linear, transformed, band, point, ordinal, and color mappings
 │   ├── ScaleResolver.cs           — ScaleResolver: scale inference, ResolvedScales, and ResolvedScale
 │   ├── ScaleResolver.Plan.cs      — ScaleResolver: binned, stacked, ranged, and unaggregated domains
 │   ├── ScaleResolver.Sort.cs      — ScaleResolver: the order of discrete domains, including sort by an aggregate
+│   ├── ScaleResolver.Color.cs     — ScaleResolver: the colors of color, fill, and stroke scales and quantile domains
+│   ├── ScaleResolver.Range.cs     — ScaleResolver: the ranges of the non-position channels and named ranges
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
 │   ├── ColorSchemes.cs            — ColorSchemes: ColorScheme, SchemeRange, SchemeUse, the catalog lookup, and range configuration
@@ -1186,10 +1193,11 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   └── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
 ├── Layout/                        — Layout subsystem (internal)
 │   ├── NamespaceDoc.cs            — Layout: namespace-level XML documentation
+│   ├── LegendLayout.cs            — LegendLayout: placement of the legends and their extents
 │   └── ViewLayout.cs              — ViewLayout: data rectangle, padding, autosize, and scene assembly
 ├── Marks/                         — Marks subsystem (internal)
 │   ├── NamespaceDoc.cs            — Marks: namespace-level XML documentation
-│   └── MarkBuilder.cs             — MarkBuilder: bar, rect, point, circle, square, rule, and tick items
+│   └── MarkBuilder.cs             — MarkBuilder: mark items, with the color, size, shape, stroke, and angle channels
 └── Scenegraph/                    — Scenegraph subsystem (internal)
     ├── NamespaceDoc.cs            — Scenegraph: namespace-level XML documentation
     ├── SceneModel.cs              — SceneModel: Scene, scene items, and value types
