@@ -2,8 +2,12 @@
 # Software Unit Requirements for ColorSchemes
 #
 # These requirements describe the design-level behavior of the ColorSchemes unit of the Scales subsystem
-# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the tableau10 categorical color scheme that is
-# the Vega-Lite default category range, and the deterministic lookup of a category color. See
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the catalog of 68 Vega color schemes (15
+# categorical lists and 53 continuous ramps, with tableau10 as the Vega-Lite default category palette), the
+# lookup of a scheme by name, the piecewise sRGB interpolation of a ramp, the configuration of a scale range
+# from a scheme (counts per scale kind, extent, reversal, limits), and the license notices that ship with the
+# palette data. The palette data are facts of published palettes, attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
 # docs/verification/canvas-net-vega-lite/scales/color-schemes.md for the test-evidence mapping.
 
 sections:
@@ -23,12 +27,94 @@ sections:
                 tests:
                   - ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors
 
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Catalog
+                title: >-
+                  The ColorSchemes unit shall provide the 68 color schemes of Vega - 15 categorical schemes and
+                  53 continuous ramps - each with the number of colors and the first and last color of its
+                  published table.
+                justification: |
+                  A scheme name that Vega accepts must produce the colors that Vega produces, so every table
+                  is checked against the published values.
+                tests:
+                  - ColorSchemes_Catalog_HasSixtyEightSchemesWithUniqueNames
+                  - ColorSchemes_Catalog_HasEverySchemeWithItsStopCount
+                  - ColorSchemes_Catalog_FirstAndLastStopsMatchTheTable
+                  - ColorSchemes_Catalog_InteriorStopsMatchThePublishedValues
+
               - id: CanvasNetVegaLite-Scales-ColorSchemes-Lookup
                 title: >-
-                  The ColorSchemes unit shall find a scheme by name ignoring case and shall find only the
-                  schemes it supplies.
+                  The ColorSchemes unit shall find a scheme by name ignoring case, shall find only the schemes
+                  it supplies, and shall offer the colors of a categorical scheme separately from the ramp of a
+                  continuous one.
                 justification: |
-                  A scheme that is not supplied must be recognizable so that the resolver can fall back
-                  and flag it.
+                  A scheme that is not supplied must be recognizable so that the caller can fail or fall back
+                  and flag it; Vega ignores the case of a scheme name.
                 tests:
-                  - ColorSchemes_TryGetScheme_FindsOnlyTableau10IgnoringCase
+                  - ColorSchemes_TryGetScheme_IgnoresCaseAndRejectsUnknownNames
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Continuous
+                title: >-
+                  The ColorSchemes unit shall interpolate a continuous scheme piecewise linearly in sRGB
+                  through its colors, reaching the first and last color exactly at 0 and 1, and shall
+                  interpolate a scheme made from user colors in the interpolation space that is asked for.
+                justification: |
+                  Vega builds a continuous scheme as a piecewise linear sRGB ramp through its stops; a chart
+                  with a quantitative color field takes its colors from it.
+                tests:
+                  - ColorSchemes_Interpolate_IsPiecewiseLinearInSrgb
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Discrete
+                title: >-
+                  The ColorSchemes unit shall take the colors of a discrete range from a continuous scheme at
+                  the positions i / (count + 1) for i = 1 to count, without the two end colors.
+                justification: |
+                  This is the Vega quantizeInterpolator rule that gives quantile, quantize, threshold, and
+                  ordinal ranges their colors.
+                tests:
+                  - ColorSchemes_Sample_UsesQuantizeInterpolatorAtIOverCountPlusOne
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-RangeConfiguration
+                title: >-
+                  The ColorSchemes unit shall configure the range of a scale from a scheme with the number of
+                  colors that Vega gives to each scale kind (the explicit count or 5 for quantile and quantize,
+                  one more than the thresholds, one less than the bin edges, the explicit count or the domain
+                  size or 5 for ordinal), the whole list of a categorical scheme for an ordinal scale, an extent
+                  that selects part of a ramp in either direction, and a reversal.
+                justification: |
+                  The number of colors decides how many classes a legend and a chart show; the rules must
+                  match Vega so that the same specification gives the same classes.
+                tests:
+                  - ColorSchemes_Configure_ThresholdBinOrdinalOrdinalQuantileCounts
+                  - ColorSchemes_Configure_ExtentAndReverse
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Limits
+                title: >-
+                  The ColorSchemes unit shall fail with a render exception that names the limit when a discrete
+                  range would have more colors than the limit it is given, shall not overflow for the largest
+                  counts, and shall stop a long list when its cancellation token is cancelled.
+                justification: |
+                  A specification may ask for an arbitrarily long list of colors; the memory and time that it
+                  can take must be bounded and the caller must be able to stop it.
+                tests:
+                  - ColorSchemes_Configure_EnforcesTheColorLimitAndCancellation
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Determinism
+                title: >-
+                  The ColorSchemes unit shall give identical schemes and ranges for repeated and concurrent use,
+                  with the tables decoded once on first use.
+                justification: |
+                  Equal inputs must give byte-identical charts on every run, including the first use from
+                  several threads.
+                tests:
+                  - ColorSchemes_Catalog_IsDeterministicUnderConcurrentUse
+
+              - id: CanvasNetVegaLite-Scales-ColorSchemes-Notices
+                title: >-
+                  The color tables shall ship with the license notices of their origins - the ColorBrewer Apache
+                  notice and the Apache License text, the Turbo and cividis notices, and the d3 and Vega
+                  licenses - and a provenance record that names every scheme and every notice file.
+                justification: |
+                  The ColorBrewer, Turbo, and cividis licenses require their notices to be reproduced in binary
+                  distributions, and the CC0 credit and the origin of every scheme must be recorded.
+                tests:
+                  - ColorSchemes_Notices_ShipWithTheTablesAndNameEveryLicense

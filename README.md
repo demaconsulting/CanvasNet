@@ -478,8 +478,12 @@ text and sourcing/provenance details.
 The `DemaConsulting.CanvasNet.VegaLite` package (and the `canvasnet` tool, which bundles it) implements the public
 Vega-Lite specification language and contains a small number of values and algorithms that were ported, with
 attribution, from the Vega and Vega-Lite projects (BSD-3-Clause, Copyright (c) University of Washington Interactive
-Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, and d3-scale-chromatic (ISC, Copyright Mike
-Bostock). The license texts ship in the packages under `licenses/`; see
+Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, d3-scale-chromatic, d3-interpolate, and d3-color (ISC,
+Copyright Mike Bostock), and its color schemes include the ColorBrewer colors (Apache-2.0, Copyright Cynthia Brewer,
+Mark Harrower, and The Pennsylvania State University), the Turbo color map (Apache-2.0, Copyright Google LLC), the
+cividis color map (Battelle Memorial Institute license), and the matplotlib colormaps viridis, magma, inferno, and
+plasma (CC0, by Nathaniel J. Smith, Stefan van der Walt, and Eric Firing). The license texts ship in the packages under
+`licenses/`; see
 [the third-party notice][link-vegalite-third-party] (`src/DemaConsulting.CanvasNet.VegaLite/third-party`) for the
 license texts and the record of what was ported from where. The package is not affiliated with or endorsed by the
 Vega project, the Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab.

@@ -107,6 +107,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scales/ticks.md
   - docs/verification/canvas-net-vega-lite/scales/number-format.md
   - docs/verification/canvas-net-vega-lite/scales/color-schemes.md
+  - docs/verification/canvas-net-vega-lite/scales/color-interpolator.md
   - docs/verification/canvas-net-vega-lite/guides.md
   - docs/verification/canvas-net-vega-lite/guides/text-measurer.md
   - docs/verification/canvas-net-vega-lite/guides/title-builder.md

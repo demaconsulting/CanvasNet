@@ -1,10 +1,10 @@
 ## Scales Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scales` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Scales`), containing five units: `ScaleModel` (linear, band, point, and ordinal
+`DemaConsulting.CanvasNet.VegaLite.Scales`), containing six units: `ScaleModel` (linear, band, point, and ordinal
 mappings), `ScaleResolver` (the inference of scales from a specification and its data), `Ticks` (the tick, tick step,
-and nice algorithms), `NumberFormat` (the d3-format subset that labels axes), and `ColorSchemes` (the `tableau10`
-category colors).
+and nice algorithms), `NumberFormat` (the d3-format subset that labels axes), `ColorSchemes` (the 68 Vega color
+schemes and the configuration of a color range), and `ColorInterpolator` (the color interpolation).
 
 ### Verification Approach
 
@@ -17,7 +17,8 @@ whole chain with the real `SpecParser`, `ConfigResolver`, `DataLoader`, and `Sca
 positions, the domains, and the ranges); and the axis stage derives its tick values and labels from a scale model's
 domain with `Ticks` and `NumberFormat` (`AxisBuilderTests` runs this chain and asserts the tick values and label texts
 of the whole axis against values derived by hand). The colors of an ordinal color scale come from `ColorSchemes`
-through the resolver.
+through the resolver; the colors of a scheme are interpolated by `ColorInterpolator` (`ColorSchemesTests` runs this
+chain with the real unit and compares the colors with hand-derived values).
 
 The algorithmic units (`Ticks`, `NumberFormat`, `ScaleModel`) are verified with vector tables whose expected values are
 derived by hand from the published algorithms and from arithmetic, never by running d3 or Vega and pasting the output:

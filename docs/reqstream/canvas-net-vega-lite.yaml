@@ -484,6 +484,25 @@ sections:
           - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
           - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
 
+      - id: CanvasNetVegaLite-ColorSchemes
+        title: >-
+          The library shall provide the 68 color schemes of Vega - categorical lists and continuous ramps,
+          including the ColorBrewer, matplotlib, cividis, and Turbo colors - with the colors, counts, and
+          interpolation of Vega (piecewise sRGB, with HSL, CIELAB, and HCL on request), culture-independently,
+          and shall distribute the license notices of those palettes (ColorBrewer and Turbo Apache-2.0, the
+          cividis license, the CC0 credit, and the d3 and Vega licenses) with the package.
+        tags: [system]
+        justification: |
+          A scheme name in a specification must give the colors that Vega gives, and the licenses of the
+          palettes require their notices to be reproduced in binary distributions.
+        children:
+          - CanvasNetVegaLite-Scales-ColorSchemeCatalog
+          - CanvasNetVegaLite-Scales-ColorInterpolation
+        tests:
+          - ColorSchemes_Catalog_HasSixtyEightSchemesWithUniqueNames
+          - ColorSchemes_Notices_ShipWithTheTablesAndNameEveryLicense
+          - ColorInterpolator_Interpolation_IsDeterministic
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

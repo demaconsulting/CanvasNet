@@ -83,7 +83,8 @@ constituent software items, specifically:
   `pivot`, and `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`,
   `joinaggregate`, `window`, `bin`, `stack`, and `impute`; and `EncodingPlan`, the implicit bin, aggregate, and stack of
   the encoding), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
-  `NumberFormat`, and `ColorSchemes`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`), `Layout` (unit
+  `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units `TextMeasurer`, `TitleBuilder`, and
+  `AxisBuilder`), `Layout` (unit
   `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet

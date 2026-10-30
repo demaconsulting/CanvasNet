@@ -119,6 +119,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scales/ticks.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/number-format.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/color-schemes.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/color-interpolator.yaml
   - docs/reqstream/canvas-net-vega-lite/guides.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/text-measurer.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml

@@ -9,7 +9,7 @@ The `Scales` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Scales`, fo
 encoding channel from the specification and the data, maps data values to pixels, colors, sizes, and opacities, chooses
 axis ticks, and formats tick labels. Most of the ported d3 and Vega logic lives here. It is **internal**: its types are
 visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It contains
-five units:
+six units:
 
 - **ScaleModel** - the internal `ScaleModel` and `ScaleKind`: the immutable linear, band, point, and ordinal mappings;
   see _ScaleModel Unit Design_ (`scales/scale-model.md`)
@@ -22,8 +22,12 @@ five units:
   rules; see _Ticks Unit Design_ (`scales/ticks.md`)
 - **NumberFormat** - the internal `NumberFormat` and `FormatSpecifier`: the d3-format number formatter and the
   `tickFormat` precision rule; see _NumberFormat Unit Design_ (`scales/number-format.md`)
-- **ColorSchemes** - the internal static `ColorSchemes`: the `tableau10` category palette; see _ColorSchemes Unit
-  Design_ (`scales/color-schemes.md`)
+- **ColorSchemes** - the internal static partial `ColorSchemes` (two files) with `ColorScheme`, `SchemeRange`, and
+  `SchemeUse`: the 68 Vega color schemes as data, the lookup by name, and the configuration of a color range; see
+  _ColorSchemes Unit Design_ (`scales/color-schemes.md`)
+- **ColorInterpolator** - the internal static `ColorInterpolator` with `RgbColor`, `InterpolationSpace`, and
+  `ColorRamp`: the sRGB, HSL, CIELAB, and HCL color interpolation; see _ColorInterpolator Unit Design_
+  (`scales/color-interpolator.md`)
 
 The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Scales-*` requirements in `docs/reqstream/canvas-net-vega-lite/scales.yaml`.
@@ -37,7 +41,8 @@ itself), and `ScaleResolver.InferOrient`; `ResolvedScale.CreateModel(extent)`; t
 (`CreateLinear`, `CreateBand`, `CreatePoint`, `CreateOrdinal`), mappings (`Map`, `MapCenter`, `MapOrdinal`, `Invert`,
 `IndexOf`), and `BandSpace`; `Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`,
 `DefaultAxisTickMinStep`, `ResolveTickCount`, and `AxisTicks`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`,
-`ParseSpecifier`, and the precision helpers; and `ColorSchemes.Tableau10`, `TryGetScheme`, and `CategoryColor`.
+`ParseSpecifier`, and the precision helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`,
+and `CategoryColor`; and `ColorInterpolator.Interpolate`, `Range`, and `Quantize` with `ColorRamp`.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the
 `Data` subsystem; `EncodingPlan`, `EncodingData`, `MeasureCell`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` from the

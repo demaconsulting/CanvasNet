@@ -74,4 +74,15 @@
     </None>
   </ItemGroup>
 
+  <!-- The third-party notices that ship with the package, copied so that a test can check that they exist and name
+       every license of the color schemes -->
+  <ItemGroup>
+    <None Include="..\..\src\DemaConsulting.CanvasNet.VegaLite\third-party\LICENSE-*.txt" Link="Notices\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\src\DemaConsulting.CanvasNet.VegaLite\third-party\README.md" Link="Notices\third-party-provenance.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

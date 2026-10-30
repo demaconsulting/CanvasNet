@@ -250,9 +250,10 @@ software items, specifically:
   and `EncodingPlan` (the implicit bin, aggregate, and stack of a view's encoding, with the field names and titles
   that every
   channel reads). The `Scales` subsystem has
-  five units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
+  six units: `ScaleModel` (linear, band, point, and ordinal mappings), `ScaleResolver` (the Vega-Lite inference of
   scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
-  number formatter), and `ColorSchemes` (the `tableau10` palette). The `Guides` subsystem has three units:
+  number formatter), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range), and
+  `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has three units:
   `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle), and
   `AxisBuilder` (grid, ticks, labels, domain, and title of an axis). The `Layout` subsystem has one unit,
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
@@ -451,8 +452,8 @@ the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.Ca
 `DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Expressions` subsystem holds the
 `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
 `RowTransforms`, `AggregateTransforms`, and `EncodingPlan` units, its internal `Scales` subsystem holds the
-`ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`,
-and `ColorSchemes` units, its internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
+`ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal
+`Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, and `AxisBuilder`
 units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
@@ -1098,7 +1099,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 ├── VegaLiteRenderException.cs     — VegaLiteDocument: render error exception with location
 ├── VegaLiteUnsupportedFeatureException.cs — VegaLiteDocument: strict-mode unsupported-feature exception
 ├── VegaLiteReportSink.cs          — VegaLiteDocument: buffered, de-duplicated, capped report delivery
-├── third-party/                   — Attribution: README.md provenance record, LICENSE-vega.txt, LICENSE-d3.txt
+├── third-party/                   — Attribution: README.md provenance record and the LICENSE-*.txt notices
 ├── SpecModel/                     — SpecModel subsystem (internal)
 │   ├── NamespaceDoc.cs            — SpecModel: namespace-level XML documentation
 │   ├── SpecParser.cs              — SpecParser: entry points, single-pass reader, limits, duplicate keys
@@ -1166,7 +1167,9 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ScaleResolver.Sort.cs      — ScaleResolver: the order of discrete domains, including sort by an aggregate
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
-│   └── ColorSchemes.cs            — ColorSchemes: the tableau10 category palette
+│   ├── ColorSchemes.cs            — ColorSchemes: ColorScheme, SchemeRange, SchemeUse, the catalog lookup, and range configuration
+│   ├── ColorSchemeData.cs         — ColorSchemes: the palette tables of the 68 color schemes (data only)
+│   └── ColorInterpolator.cs       — ColorInterpolator: RgbColor, color spaces, ColorRamp, range and quantize helpers
 ├── Guides/                        — Guides subsystem (internal)
 │   ├── NamespaceDoc.cs            — Guides: namespace-level XML documentation
 │   ├── TextMeasurer.cs            — TextMeasurer: font resolution, measurement, and truncation

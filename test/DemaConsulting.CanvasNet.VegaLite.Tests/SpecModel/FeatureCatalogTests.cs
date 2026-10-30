@@ -531,8 +531,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that a color scheme other than the default palette and a continuous color scale are reported, and the default
-    ///     palette and an ordinal color scale are not.
+    ///     Validates that a color scheme that is not a categorical scheme of the catalog (a continuous ramp) and a continuous
+    ///     color scale are reported, and the categorical schemes and an ordinal color scale are not.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset()
@@ -550,11 +550,11 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the quantitative color has no ramp; tableau10 (also as an object) is available, other schemes are not
+        // Assert: the quantitative color has no ramp; tableau10 and category20 (also as an object) are categorical
+        // schemes of the catalog and are available, a continuous scheme such as blues is not
         Assert.Equal(
             [
                 ("vl-scale-color-ramp", "/encoding/color/type"),
-                ("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"),
                 ("vl-scale-property-scheme", "/encoding/opacity/scale/scheme"),
             ],
             ids);

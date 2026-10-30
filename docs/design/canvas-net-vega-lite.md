@@ -80,10 +80,12 @@ transforms, conditional encodings, selection parameters, legends, and time are l
   encoding and names the fields and titles every channel reads. See _Transforms Subsystem Design_
   (`canvas-net-vega-lite/transforms.md`).
 - **Scales** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Scales`, folder `Scales/`): the numeric
-  heart, with five units. `ScaleModel` maps values to pixels (linear, band, point, ordinal). `ScaleResolver` infers
+  heart, with six units. `ScaleModel` maps values to pixels (linear, band, point, ordinal). `ScaleResolver` infers
   scale types, domains, ranges, and paddings from the specification and the order of discrete domains. `Ticks` is the
   d3-array tick algorithm.
-  `NumberFormat` is the d3-format number formatter. `ColorSchemes` holds the `tableau10` category palette. See
+  `NumberFormat` is the d3-format number formatter. `ColorSchemes` holds the 68 Vega color schemes (the `tableau10`
+  category palette is the Vega-Lite default) and configures the color range of a scale from a scheme.
+  `ColorInterpolator` interpolates colors in sRGB, HSL, CIELAB, and HCL. See
   _Scales Subsystem Design_ (`canvas-net-vega-lite/scales.md`).
 - **Guides** (internal subsystem; namespace `DemaConsulting.CanvasNet.VegaLite.Guides`, folder `Guides/`): text and
   guide construction, with three units. `TextMeasurer` resolves fonts and measures and truncates text. `TitleBuilder`
@@ -520,11 +522,14 @@ The ported material, its licenses, and the units that contain it are:
 | Upstream project | License | Units that contain ported material | What is ported |
 | ---------------- | ------- | ---------------------------------- | -------------- |
 | Vega-Lite | BSD-3-Clause | `ConfigResolver`, `ScaleResolver`, `ColorSchemes`, `AxisBuilder`, `MarkBuilder`, `EncodingPlan`, `EncodingTransforms`, `AggregateTransforms`, `StackRules` | Default configuration values (background, padding, view size, step, mark, bar, rect, tick, rule, scale, header, and spacing configuration), the `tableau10` default category colors, the precedence of mark, view, title, and style properties, the scale inference rules (type by field type, channel, and mark; domain order; zero, nice, padding, and reverse rules; default size and opacity ranges; step sizing), the default axis tick count and axis defaults and rules, and the inferred orientation, band size, opacity, color, and invalid-data rules of the supported marks; and, since phase 6, the compile rules that turn an encoding into transforms (the order bin, aggregate, stack; the group-by and stack-by fields; which marks stack, in which direction and with which default offset; the derived field names and default titles), the domain rules of stacked, binned, and aggregated fields, the geometry of a binned bar or rect, and the tick count of a binned axis |
-| Vega | BSD-3-Clause | `ConfigResolver`, `ViewLayout`, `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `SceneModel`, `ScenePainter`, `Ticks`, `ScaleModel`, `ScaleResolver`, `BinAlgorithm`, `AggregateMeasures`, `AggregateTransforms`, `StackRules` | Default Vega configuration values, the guide, group, and mark styles, the title and axis layout constants and offsets, the axis geometry (tick and label positions, band offset, rounding, half-pixel translate, extent clamping, label overlap removal), the tick-count rules, the `bandspace` rule, the text baseline offsets and line-height and truncation rules, the group stroke offset, the symbol shape geometry, and the view-layout rules for `autosize` and title placement; and, since phase 6, the bin algorithm and the assignment rules of the `bin` transform, the semantics of the aggregate operations, and the behavior rules of the `window`, `stack`, and `impute` transforms |
+| Vega | BSD-3-Clause | `ConfigResolver`, `ViewLayout`, `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `SceneModel`, `ScenePainter`, `Ticks`, `ScaleModel`, `ScaleResolver`, `BinAlgorithm`, `AggregateMeasures`, `AggregateTransforms`, `StackRules`, `ColorSchemes`, `ColorInterpolator` | Default Vega configuration values, the guide, group, and mark styles, the title and axis layout constants and offsets, the axis geometry (tick and label positions, band offset, rounding, half-pixel translate, extent clamping, label overlap removal), the tick-count rules, the `bandspace` rule, the text baseline offsets and line-height and truncation rules, the group stroke offset, the symbol shape geometry, and the view-layout rules for `autosize` and title placement; and, since phase 6, the bin algorithm and the assignment rules of the `bin` transform, the semantics of the aggregate operations, and the behavior rules of the `window`, `stack`, and `impute` transforms; and, since phase 7, the palette table of 68 color schemes, the piecewise sRGB ramp, the interpolation types, the range and quantize helpers, and the rules that give a scheme its number of colors |
 | d3-array | ISC | `Ticks`, `AggregateMeasures` | The `ticks`, `tickIncrement`, and `tickStep` algorithms, and the `quantileSorted` interpolation (the R-7 method) behind the median, the quartiles, and the bootstrap interval |
 | d3-format | ISC | `NumberFormat` | The format specifier grammar and the `format`, `formatPrefix`, `precisionFixed`, `precisionPrefix`, and `precisionRound` behavior for the numeric types |
 | d3-scale | ISC | `ScaleModel`, `Ticks`, `NumberFormat` | The arithmetic of the linear, band, and point scales, the linear `nice` method, and the precision rule of `tickFormat` |
-| d3-scale-chromatic | ISC | `ColorSchemes` | Only the ten `tableau10` colors; no ColorBrewer scheme is used |
+| d3-scale-chromatic | ISC (and Apache-2.0 for the ColorBrewer colors) | `ColorSchemes` | The colors of `category10`, `observable10`, `rainbow`, `sinebow`, and the ColorBrewer qualitative sets |
+| d3-interpolate, d3-color | ISC | `ColorInterpolator` | The sRGB, HSL, CIELAB, and HCL color interpolation and the piecewise ramp |
+| ColorBrewer | Apache-2.0 | `ColorSchemes` (`ColorSchemeData`) | The color values of the ColorBrewer qualitative sets and of the sequential and diverging ramps that Vega names after it |
+| matplotlib colormaps, cividis, Turbo | CC0, a Battelle permissive license, Apache-2.0 | `ColorSchemes` (`ColorSchemeData`) | The color values of `viridis`, `magma`, `inferno`, and `plasma` (CC0); `cividis`; and `turbo` |
 <!-- markdownlint-enable MD013 -->
 
 The `Expressions` subsystem and the `RowTransforms` unit (with `RowSampler`, `TableLayout`, and `ParameterEnvironment`)
@@ -540,7 +545,10 @@ this, with the upstream files that were read.
 The obligations of the licenses are met as follows:
 
 - The license texts ship with the package: `src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-vega.txt`
-  (BSD-3-Clause) and `LICENSE-d3.txt` (ISC) are packed under `licenses/`, and the `CanvasNetTool` package, which bundles
+  (BSD-3-Clause), `LICENSE-d3.txt` (ISC), `LICENSE-colorbrewer.txt` with `LICENSE-apache-2.0.txt` (the ColorBrewer
+  Apache notice and the Apache License), `LICENSE-turbo.txt` (Apache-2.0), and `LICENSE-cividis.txt` (the cividis
+  license) are packed under `licenses/` by the `third-party\LICENSE-*.txt` glob, and the `CanvasNetTool` package,
+  which bundles
   the assembly without declaring a dependency, carries the same notices.
 - `src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md` is the provenance record: for each upstream project it
   lists the version studied, the license and copyright notice, the unit that ports it, and exactly what was ported,

@@ -4,8 +4,10 @@
 # These requirements decompose the CanvasNetVegaLite system's scaling responsibility into the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable scale mappings (ScaleModel), the
 # Vega-Lite inference of scales from the encoding and the data (ScaleResolver), the ports of the d3-array tick
-# algorithms (Ticks) and of the d3-format number formatter (NumberFormat), and the tableau10 category colors
-# (ColorSchemes). Ticks and NumberFormat are own C# ports of ISC-licensed d3 algorithms and are attributed in
+# algorithms (Ticks) and of the d3-format number formatter (NumberFormat), the catalog of Vega color schemes
+# (ColorSchemes), and the color interpolation (ColorInterpolator). Ticks, NumberFormat, and ColorInterpolator
+# are own C# ports of ISC-licensed d3 algorithms, and the colors of the schemes are published palette data;
+# all are attributed in
 # src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. Each requirement here links down to the unit
 # requirements that implement it. See docs/verification/canvas-net-vega-lite/scales.md for the test-evidence
 # mapping.
@@ -127,8 +129,9 @@ sections:
           - id: CanvasNetVegaLite-Scales-CategoryColors
             title: >-
               The Scales subsystem shall assign categorical colors from the tableau10 scheme (or an
-              explicit range) by cycling through the scheme in domain order, shall fall back to tableau10
-              for other schemes while flagging the fallback, and shall find schemes by name ignoring case.
+              explicit range or another categorical scheme of the catalog) by cycling through the scheme in
+              domain order, shall fall back to tableau10 for a scheme that is not a categorical scheme of
+              the catalog while flagging the fallback, and shall find schemes by name ignoring case.
             justification: |
               The default categorical palette is part of the look of every colored chart and must be
               deterministic.
@@ -141,6 +144,52 @@ sections:
               - ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors
               - ScaleModel_MapOrdinal_CyclesThroughTheRange
               - ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes
+
+          - id: CanvasNetVegaLite-Scales-ColorSchemeCatalog
+            title: >-
+              The Scales subsystem shall provide the 68 Vega color schemes (15 categorical lists and 53
+              continuous ramps) with the number of colors and the end colors of their published tables,
+              shall turn a scheme into the range of a scale with the number of colors, extent, and
+              reversal rules of Vega under a color limit and cancellation, and shall ship the license
+              notices of the palettes with the package.
+            justification: |
+              A scheme name that Vega accepts must give the colors that Vega gives, and the ColorBrewer,
+              Turbo, and cividis licenses require their notices to be distributed with the colors.
+            children:
+              - CanvasNetVegaLite-Scales-ColorSchemes-Catalog
+              - CanvasNetVegaLite-Scales-ColorSchemes-Continuous
+              - CanvasNetVegaLite-Scales-ColorSchemes-Discrete
+              - CanvasNetVegaLite-Scales-ColorSchemes-RangeConfiguration
+              - CanvasNetVegaLite-Scales-ColorSchemes-Limits
+              - CanvasNetVegaLite-Scales-ColorSchemes-Determinism
+              - CanvasNetVegaLite-Scales-ColorSchemes-Notices
+            tests:
+              - ColorSchemes_Catalog_HasSixtyEightSchemesWithUniqueNames
+              - ColorSchemes_Interpolate_IsPiecewiseLinearInSrgb
+              - ColorSchemes_Configure_ExtentAndReverse
+              - ColorSchemes_Notices_ShipWithTheTablesAndNameEveryLicense
+
+          - id: CanvasNetVegaLite-Scales-ColorInterpolation
+            title: >-
+              The Scales subsystem shall interpolate colors in sRGB (with a gamma), HSL, CIELAB, and HCL
+              with whole 8-bit results, piecewise through a list of colors, and shall sample interpolators
+              for discrete ranges, deterministically and under a cancellation check.
+            justification: |
+              Continuous color scales, scheme ranges, and the gradient of a legend all depend on one exact,
+              deterministic color interpolation.
+            children:
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Rgb
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Spaces
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Gamma
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Piecewise
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Quantize
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Conversions
+              - CanvasNetVegaLite-Scales-ColorInterpolator-Determinism
+            tests:
+              - ColorInterpolator_Rgb_RoundsHalfAwayAndClamps
+              - ColorInterpolator_Hsl_Lab_Hcl_Match_HandDerivedVectors
+              - ColorInterpolator_Piecewise_ChoosesTheSegmentAndExtrapolates
+              - ColorInterpolator_Interpolation_IsDeterministic
 
           - id: CanvasNetVegaLite-Scales-Ticks
             title: >-
