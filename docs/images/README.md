@@ -1,8 +1,5 @@
 # Documentation Images
 
-<!-- cspell:ignore canvasnet Visio vsdx pptx extensionless davehoward -->
-<!-- markdownlint-disable MD013 -->
-
 This folder holds the images used by the project README.
 
 ## showcase.png
@@ -76,12 +73,16 @@ New-Item -ItemType Directory -Force "$w/labeled" | Out-Null
 canvasnet render "$o/dashboard.svg" --size 800x600 -o "$w/1-svg.png"
 canvasnet render "$o/hull.scad" --azimuth 25 --elevation 32 --default-color "#4a90d9" --size 800x600 -o "$w/2-scad.png"
 canvasnet render "$o/sales.vl.json" --strict --scale 2.4 --pad "0,15,0,15" --pad-color white -o "$w/3-vl.png"
-canvasnet render "$o/mesh-shading.pdf" --dpi 144 --resize 600x600 --pad "100,0,100,0" --pad-color white -o "$w/4-pdf.png"
+canvasnet render "$o/mesh-shading.pdf" --dpi 144 --resize 600x600 `
+    --pad "100,0,100,0" --pad-color white -o "$w/4-pdf.png"
 canvasnet render "$o/slide.pptx" --page 1 --dpi 80 --resize 800x600 -o "$w/5-pptx.png"
 canvasnet render test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/davehoward-test4-connectors.vsdx `
     --page 1 --dpi 288 --trim --pad 40 --pad "59,0,60,0" --pad-color white --resize 800x600 -o "$w/6-vsdx.png"
 
-$map = [ordered]@{ '1-svg.png'='SVG'; '2-scad.png'='OpenSCAD 3D'; '3-vl.png'='Vega-Lite'; '4-pdf.png'='PDF'; '5-pptx.png'='PowerPoint'; '6-vsdx.png'='Visio' }
+$map = [ordered]@{
+    '1-svg.png' = 'SVG'; '2-scad.png' = 'OpenSCAD 3D'; '3-vl.png' = 'Vega-Lite'
+    '4-pdf.png' = 'PDF'; '5-pptx.png' = 'PowerPoint'; '6-vsdx.png' = 'Visio'
+}
 foreach ($k in $map.Keys) { Copy-Item "$w/$k" "$w/labeled/$($map[$k])" }
 Push-Location "$w/labeled"
 canvasnet montage "SVG" "OpenSCAD 3D" "Vega-Lite" "PDF" "PowerPoint" "Visio" `
