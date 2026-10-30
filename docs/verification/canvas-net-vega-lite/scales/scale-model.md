@@ -160,3 +160,28 @@ Asserts that numeric mapping and inversion of a band scale, an ordinal mapping a
 `InvalidOperationException`, that a sequential scale needs two or three domain entries and an interpolator, that the
 center of an unknown
 category on a linear scale is nothing, and that the kinds of a band and a point scale are reported.
+
+##### Log, Pow, Sqrt, And Symlog Transforms
+
+**Tests**: `ScaleModelTests.ScaleModel_Transform_LogMapsDecadesEvenly`,
+`ScaleModelTests.ScaleModel_Transform_PowAndSqrtFollowTheSignedPower`,
+`ScaleModelTests.ScaleModel_Transform_SymlogIsSymmetricAndAccurateNearZero`,
+`ScaleModelTests.ScaleModel_Transform_SequentialAndDivergingUseTheTransformedPosition`,
+`ScaleModelTests.ScaleModel_Fraction_FollowsTheTransformedDomain`
+
+Assert the positions derived by hand from the d3 formulas: 1 to 1000 over 300 pixels puts the powers of ten at 0,
+100, 200, and
+300 (the geometric mean at 150, 0.1 at -100), the inverse gives the exponential, clamping happens in the domain,
+a number that
+is not above zero is NaN (null for a data value), -1000 to -1 is reflected (-10 at 200), a descending domain runs backwards;
+the square of 0 to 10 puts 5 at 25 and -2 at -4, the square root of 0 to 100 puts 25 at 5 of 10 and the signed root
+of -100 to
+100 puts -25 at 50 of 200, the cube puts 1 at 9 and -1 at 7 of 0 to 16, and the exponent 1 is no transform; symlog over
++-(e-1) puts 1 at 50 + 50 ln 2, the constant 10 puts 9 at ln(1.9) / ln(10), and a tiny number (1e-12) keeps its
+digits to a part
+in a billion (the accurate `log1p`); a sequential log scale over 1 to 100 puts 10 at the middle color and 1000 at 1.5, a
+diverging log scale over 1, 10, 1000 puts 100 at 0.75, no color is given to zero or a negative number (and clamping
+holds the
+ends); and the fraction of a value runs along the transformed domain (a decade is a third of three decades, 25 is
+half of the
+square root domain 0 to 100, a domain without span is 0.5).

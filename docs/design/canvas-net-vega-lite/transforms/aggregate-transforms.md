@@ -122,7 +122,9 @@ others only with an explicit `stack`. The stacked channel is the unbinned quanti
 aggregating one wins when both are, then the `orient` of a bar or area). The group-by is the other position
 channel. The stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
 is excluded; `order` counts). There is no stack when an aggregating encoding has no stack-by field, when the
-stacked channel has a range (`x2` or `y2` with a field, datum, or aggregate), or when `stack` is false or null.
+stacked channel has a range (`x2` or `y2` with a field, datum, or aggregate), when `stack` is false or null, or when
+the stacked channel's `scale.type` is `log`, `pow`, `sqrt`, or `symlog` (Vega-Lite warns that it cannot stack on a
+non-linear scale and draws the marks from the baseline).
 
 **Invariants**: the output of a transform is a new table within `MaxDataRows`, `MaxFieldCount`, and 2^25 cells;
 the rows counted in the loader's budget are the rows of the tables that are alive; nothing is read from the

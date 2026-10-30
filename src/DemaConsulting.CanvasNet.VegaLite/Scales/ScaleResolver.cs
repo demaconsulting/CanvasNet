@@ -68,7 +68,7 @@ internal sealed class ResolvedScale
     /// <summary>
     ///     Gets the complete domain of a continuous scale after the zero rule, or null when the domain is the two ends
     ///     <see cref="DomainStart"/> and <see cref="DomainEnd"/>. For a linear scale it is the explicit domain of more than two numbers (a
-    ///     piecewise scale, see <see cref="ScaleModel.CreateLinear(double[], double[], bool, bool)"/>); for a diverging scale the three
+    ///     piecewise scale, see <see cref="ScaleModel.CreateLinear(double[], double[], bool, bool, ScaleTransform)"/>); for a diverging scale the three
     ///     entries with the middle value; for a quantile scale all the valid values of the field in ascending order; for a threshold scale
     ///     the thresholds; for a bin-ordinal scale the bin edges.
     /// </summary>
@@ -82,6 +82,12 @@ internal sealed class ResolvedScale
 
     /// <summary>Gets a value indicating whether a linear scale clamps values to its domain.</summary>
     public bool Clamp { get; init; }
+
+    /// <summary>
+    ///     Gets the transform of a continuous scale: the identity for a linear scale, the logarithm, signed power (sqrt is the power 0.5)
+    ///     or symmetric log of a <c>log</c>, <c>pow</c>, <c>sqrt</c> or <c>symlog</c> scale (with its <c>base</c>, <c>exponent</c> or <c>constant</c>).
+    /// </summary>
+    public ScaleTransform Transform { get; init; } = ScaleTransform.Linear;
 
     /// <summary>Gets a value indicating whether positions are rounded to whole numbers.</summary>
     public bool Round { get; init; }
@@ -180,9 +186,9 @@ internal sealed class ResolvedScale
         {
             case ScaleKind.Linear:
                 var range = ResolveRange(extent);
-                return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round);
+                return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round, Transform);
             case ScaleKind.Sequential or ScaleKind.Diverging:
-                return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp);
+                return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp, Transform);
             case ScaleKind.Quantize:
                 var quantizeDomain = ExtendedDomain(0);
                 return ScaleModel.CreateQuantize(quantizeDomain[0], quantizeDomain[^1], OutputRange());
@@ -245,19 +251,38 @@ internal sealed class ResolvedScale
         var start = domain[0];
         var end = domain[^1];
 
-        // Pixel padding widens the domain around its middle
+        // Pixel padding widens the domain around its middle (in the transformed domain of a log, pow or symlog scale, as Vega does)
         if (PaddingPixels > 0 && start.CompareTo(end) != 0 && span - (2 * PaddingPixels) > 0)
         {
             var factor = span / (span - (2 * PaddingPixels));
-            var middle = (start + end) / 2;
-            start = middle + ((start - middle) * factor);
-            end = middle + ((end - middle) * factor);
+            if (Transform.IsLinear)
+            {
+                var middle = (start + end) / 2;
+                start = middle + ((start - middle) * factor);
+                end = middle + ((end - middle) * factor);
+            }
+            else
+            {
+                var reflect = Transform.Kind == ScaleTransformKind.Log && start < 0;
+                var from = Transform.Forward(start, reflect);
+                var to = Transform.Forward(end, reflect);
+                var middle = (from + to) / 2;
+                var paddedStart = Transform.Inverse(middle + ((from - middle) * factor), reflect);
+                var paddedEnd = Transform.Inverse(middle + ((to - middle) * factor), reflect);
+                if (double.IsFinite(paddedStart) && double.IsFinite(paddedEnd))
+                {
+                    start = paddedStart;
+                    end = paddedEnd;
+                }
+            }
         }
 
-        // Then the domain is extended to round values, if that gives a usable domain
+        // Then the domain is extended to round values, if that gives a usable domain (a log scale to powers of its base)
         if (NiceCount is { } count)
         {
-            var (niceStart, niceEnd) = Ticks.Nice(start, end, count);
+            var (niceStart, niceEnd) = Transform.Kind == ScaleTransformKind.Log
+                ? Ticks.LogNice(start, end, Transform.Parameter)
+                : Ticks.Nice(start, end, count);
             if (double.IsFinite(niceStart) && double.IsFinite(niceEnd))
             {
                 start = niceStart;
@@ -774,9 +799,9 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType);
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, out var transformKind);
         var location = definition.GetLocation(context.SourceName);
-        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan);
+        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind);
         return kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.BinOrdinal
             ? BuildDiscrete(common, kind, context)
             : BuildContinuous(common, kind, context);
@@ -839,10 +864,12 @@ internal static partial class ScaleResolver
     /// <param name="type">The field type.</param>
     /// <param name="specified">The explicit <c>scale.type</c>, or null.</param>
     /// <param name="markType">The mark type.</param>
+    /// <param name="transformKind">Receives the transform of the scale: log, pow (also for sqrt) or symlog for the matching explicit type, else linear.</param>
     /// <returns>The kind.</returns>
-    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType)
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, out ScaleTransformKind transformKind)
     {
         var group = GroupOf(channel);
+        transformKind = ScaleTransformKind.Linear;
 
         // The default kind of Vega-Lite's defaultType
         ScaleKind defaultKind;
@@ -868,7 +895,13 @@ internal static partial class ScaleResolver
             defaultKind = ScaleKind.Point;
         }
 
-        return TryParseKind(specified, group, out var requested) && Accepts(group, type, requested) ? requested : defaultKind;
+        if (!TryParseKind(specified, group, out var requested, out var requestedTransform) || !Accepts(group, type, requested))
+        {
+            return defaultKind;
+        }
+
+        transformKind = requestedTransform;
+        return requested;
     }
 
     /// <summary>
@@ -877,13 +910,25 @@ internal static partial class ScaleResolver
     /// <param name="specified">The type name, or null.</param>
     /// <param name="group">The group of the channel (a color channel's <c>linear</c> is a sequential scale).</param>
     /// <param name="kind">Receives the kind.</param>
-    /// <returns><see langword="false"/> for null and for a type this package does not draw (log, pow, sqrt, symlog, identity, time, utc, bin-ordinal).</returns>
-    private static bool TryParseKind(string? specified, ChannelGroup group, out ScaleKind kind)
+    /// <param name="transform">Receives the transform: log, pow (for <c>pow</c> and <c>sqrt</c>) or symlog for those types, else linear.</param>
+    /// <returns><see langword="false"/> for null and for a type this package does not draw (identity, time, utc).</returns>
+    private static bool TryParseKind(string? specified, ChannelGroup group, out ScaleKind kind, out ScaleTransformKind transform)
     {
+        transform = ScaleTransformKind.Linear;
         switch (specified)
         {
             case "linear":
                 kind = group == ChannelGroup.Color ? ScaleKind.Sequential : ScaleKind.Linear;
+                return true;
+            case "log" or "pow" or "sqrt" or "symlog":
+                // Vega-Lite's continuous-to-continuous scales; on a color channel they are the sequential scales of d3 with the transform
+                kind = group == ChannelGroup.Color ? ScaleKind.Sequential : ScaleKind.Linear;
+                transform = specified switch
+                {
+                    "log" => ScaleTransformKind.Log,
+                    "symlog" => ScaleTransformKind.Symlog,
+                    _ => ScaleTransformKind.Pow,
+                };
                 return true;
             case "sequential":
                 kind = ScaleKind.Sequential;
@@ -951,7 +996,7 @@ internal static partial class ScaleResolver
         ArgumentNullException.ThrowIfNull(fieldType);
         ArgumentNullException.ThrowIfNull(scaleType);
         var group = GroupOf(channel);
-        return TryParseKind(scaleType, group, out var kind) && Accepts(group, fieldType, kind);
+        return TryParseKind(scaleType, group, out var kind, out _) && Accepts(group, fieldType, kind);
     }
 
     /// <summary>
@@ -998,7 +1043,13 @@ internal static partial class ScaleResolver
         }
         else
         {
-            (start, end) = LinearExtent(input, context, out binSpec);
+            (start, end) = LinearExtent(input, context, out binSpec, out var found);
+            if (!found && input.TransformKind == ScaleTransformKind.Log)
+            {
+                // Without a valid value a log scale gets one decade (d3's default domain 0 to 1 contains zero, which a log scale cannot map)
+                (start, end) = (1, 10);
+            }
+
             if (kind == ScaleKind.Threshold)
             {
                 // A threshold scale without a domain cuts the extent of the data in three
@@ -1006,8 +1057,11 @@ internal static partial class ScaleResolver
             }
         }
 
-        // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty)
-        var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold) && (scaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, kind, context));
+        // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty),
+        // and neither has a log scale, whose domain cannot reach zero
+        var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold)
+            && input.TransformKind != ScaleTransformKind.Log
+            && (scaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, kind, context));
         if (zero)
         {
             if (start > 0)
@@ -1085,6 +1139,11 @@ internal static partial class ScaleResolver
         }
 
         // The output values, which also decide whether the channel has a scale at all
+        var transform = MakeTransform(input);
+        if (transform.Kind == ScaleTransformKind.Log)
+        {
+            CheckLogDomain(entries ?? [start, end], domainNode, input, context);
+        }
         var domainSize = kind == ScaleKind.Threshold ? entries!.Length : 0;
         if (ResolveOutputs(input, kind, domainSize, context) is not { } outputs)
         {
@@ -1112,6 +1171,7 @@ internal static partial class ScaleResolver
             NiceCount = NiceRule(input, kind, domainNode is not null, isPosition),
             PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
             Clamp = continuousToContinuous && (scaleDef?["clamp"]?.AsBool() ?? false),
+            Transform = transform,
             Round = kind == ScaleKind.Linear && (scaleDef?["round"]?.AsBool() ?? false),
             Reverse = reverse,
             ExplicitRange = outputs.ExplicitRange,
@@ -1124,6 +1184,68 @@ internal static partial class ScaleResolver
             DashRange = outputs.Dashes,
             Interpolator = outputs.Interpolator,
         };
+    }
+
+    /// <summary>
+    ///     Creates the transform of a continuous scale from its type and its <c>base</c>, <c>exponent</c> or <c>constant</c>.
+    /// </summary>
+    /// <remarks>
+    ///     As in Vega-Lite, <c>base</c> (default 10) belongs to a log scale, <c>exponent</c> (default 1) to a pow scale, <c>constant</c> (default 1) to a
+    ///     symlog scale, and a sqrt scale is a pow scale with the exponent 0.5 whatever <c>exponent</c> says; the others ignore them.
+    /// </remarks>
+    /// <param name="input">The channel facts.</param>
+    /// <returns>The transform; the identity for a linear scale.</returns>
+    private static ScaleTransform MakeTransform(CommonInputs input)
+    {
+        var scaleDef = input.ScaleDef;
+        switch (input.TransformKind)
+        {
+            case ScaleTransformKind.Log:
+                return ScaleTransform.Log(scaleDef?["base"]?.AsNumber() is { } logBase and > 0 && logBase.CompareTo(1) != 0 ? logBase : 10);
+            case ScaleTransformKind.Symlog:
+                return ScaleTransform.Symlog(scaleDef?["constant"]?.AsNumber() is { } constant and > 0 ? constant : 1);
+            case ScaleTransformKind.Pow:
+                var exponent = scaleDef?["exponent"]?.AsNumber();
+                if (scaleDef?["type"]?.AsString() == "sqrt")
+                {
+                    return ScaleTransform.Pow(0.5);
+                }
+
+                return ScaleTransform.Pow(exponent is { } e && double.IsFinite(e) ? e : 1);
+            default:
+                return ScaleTransform.Linear;
+        }
+    }
+
+    /// <summary>
+    ///     Checks that the domain of a log scale can be mapped: every entry is finite, none is zero and all are on the same side of zero.
+    /// </summary>
+    /// <remarks>
+    ///     Vega only warns about a log domain that includes zero and then draws nothing (every position is NaN); here the domain is refused with
+    ///     a located error that says what to do. A domain given in the specification is a <see cref="VegaLiteSpecException"/> at the domain; one
+    ///     computed from the data is a <see cref="VegaLiteRenderException"/> at the channel.
+    /// </remarks>
+    /// <param name="entries">The domain entries.</param>
+    /// <param name="domainNode">The explicit domain array, or null when the domain comes from the data.</param>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when the explicit domain is not valid for a log scale.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when the domain of the data is not valid for a log scale.</exception>
+    private static void CheckLogDomain(double[] entries, SpecNode? domainNode, CommonInputs input, Context context)
+    {
+        if (entries.All(entry => Ticks.IsLogDomain(entries[0], entry)))
+        {
+            return;
+        }
+
+        var shown = string.Join(", ", entries.Take(4).Select(JsNumber.ToString)) + (entries.Length > 4 ? ", ..." : string.Empty);
+        var message = $"A log scale cannot map a domain that includes zero or crosses it ([{shown}]); the domain of the {input.Channel} scale must lie wholly above or wholly below zero. Use a symlog scale, or leave the zero and negative values out of the data.";
+        if (domainNode is not null)
+        {
+            throw new VegaLiteSpecException(message, domainNode.GetLocation(context.SourceName));
+        }
+
+        throw new VegaLiteRenderException(message, input.Location);
     }
 
     /// <summary>
@@ -1541,6 +1663,7 @@ internal static partial class ScaleResolver
     /// <param name="ScaleDef">The scale object, or null.</param>
     /// <param name="Location">The location of the channel definition.</param>
     /// <param name="Plan">The plan of the channel definition, or null.</param>
+    /// <param name="TransformKind">The transform of a continuous scale: <see cref="ScaleTransformKind.Linear"/> unless the scale type is <c>log</c>, <c>pow</c>, <c>sqrt</c> or <c>symlog</c> and the channel accepts it.</param>
     private sealed record CommonInputs(
         string Channel,
         string Type,
@@ -1549,5 +1672,6 @@ internal static partial class ScaleResolver
         SpecNode Definition,
         SpecNode? ScaleDef,
         VegaLiteLocation Location,
-        ChannelPlan? Plan);
+        ChannelPlan? Plan,
+        ScaleTransformKind TransformKind);
 }

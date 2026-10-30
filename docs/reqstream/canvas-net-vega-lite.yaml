@@ -576,6 +576,35 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Legend_LimitsAndCancellationApply
           - CanvasNetVegaLite_SystemIntegration_Legend_RendersAreDeterministicAcrossThreads
 
+      - id: CanvasNetVegaLite-ExtendedScales
+        title: >-
+          The library shall draw quantitative fields on the log, pow, sqrt, and symlog scales of Vega-Lite
+          with their base, exponent, and constant, the zero, nice, clamp, and domain rules of Vega-Lite, the
+          log ticks and labels of d3, and axes and gradient legends that follow the transformed scale, and
+          shall refuse a log scale whose domain includes or crosses zero with a located error that names
+          the symlog scale, under the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          Positions, ticks, and legends on a non-linear scale must be those of Vega-Lite, and a domain that
+          a logarithm cannot draw must be found where it is written rather than drawn as an empty chart.
+        children:
+          - CanvasNetVegaLite-Scales-ScaleModel-Transforms
+          - CanvasNetVegaLite-Scales-ScaleResolver-TransformedScales
+          - CanvasNetVegaLite-Scales-Ticks-LogTicks
+          - CanvasNetVegaLite-Scales-Ticks-LogNice
+          - CanvasNetVegaLite-Scales-Ticks-LogLabels
+          - CanvasNetVegaLite-Scales-NumberFormat-FormatFloat
+          - CanvasNetVegaLite-Scales-NumberFormat-ZeroSpan
+          - CanvasNetVegaLite-Guides-AxisBuilder-LogAxis
+          - CanvasNetVegaLite-Guides-LegendBuilder-NonLinearScales
+          - CanvasNetVegaLite-Marks-MarkBuilder-LogScales
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue
+          - CanvasNetVegaLite_SystemIntegration_LogScale_ZeroInTheDataIsALocatedErrorAndSymlogDrawsIt
+          - CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions
+          - CanvasNetVegaLite_SystemIntegration_LogScale_ColorLegendLabelsThePowers
+          - CanvasNetVegaLite_SystemIntegration_LogScale_LimitsCancellationAndDeterminismApply
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

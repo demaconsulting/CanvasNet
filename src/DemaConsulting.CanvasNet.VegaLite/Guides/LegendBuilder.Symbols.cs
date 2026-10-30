@@ -55,9 +55,11 @@ internal sealed partial class LegendBuilder
         switch (model.Kind)
         {
             case ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging:
-                var ticks = ContinuousTicks(c, model, s.Number("tickCount") ?? 5, out var count);
-                var format = Formatter(c, () => NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, count, specifier));
-                return new ValueSet(explicitValues ?? [.. ticks.Select(DataValue.FromNumber)], false, double.PositiveInfinity, format.Format);
+                var tickSet = ContinuousTicks(c, model, s.Number("tickCount") ?? 5);
+
+                // The entries of a symbol legend are all labeled, whatever the scale: d3's log filter only picks the ticks
+                var format = ContinuousFormat(c, model, tickSet, specifier, true);
+                return new ValueSet(explicitValues ?? [.. tickSet.Values.Select(DataValue.FromNumber)], false, double.PositiveInfinity, format);
             case ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold:
                 return new ValueSet(explicitValues ?? ThresholdValues(model), true, double.PositiveInfinity, ThresholdFormat(c, model, specifier));
             case ScaleKind.BinOrdinal:
@@ -129,26 +131,64 @@ internal sealed partial class LegendBuilder
     }
 
     /// <summary>
-    ///     Gets the ticks of a continuous scale for a tick count, after the minimum step of the legend.
+    ///     The ticks of a continuous scale for a legend.
+    /// </summary>
+    /// <param name="Values">The tick values (for a log scale only those that Vega labels: the filter of d3's log format is applied).</param>
+    /// <param name="Count">The tick count after the minimum step.</param>
+    /// <param name="LabelTest">The log filter that decides whether a tick of a gradient legend is labeled, or null for a scale that is not logarithmic.</param>
+    private sealed record TickSet(double[] Values, double Count, Func<double, bool>? LabelTest);
+
+    /// <summary>
+    ///     Gets the ticks of a continuous scale for a tick count, after the minimum step of the legend (Vega's <c>labelValues</c>: for a log
+    ///     scale only the ticks that d3's log format labels).
     /// </summary>
     /// <param name="c">The build state.</param>
     /// <param name="model">The scale model.</param>
     /// <param name="requested">The requested tick count.</param>
-    /// <param name="count">Receives the tick count after the minimum step.</param>
     /// <returns>The ticks.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the ticks are more than <see cref="VegaLiteLimits.MaxTicks"/>.</exception>
-    private double[] ContinuousTicks(Context c, ScaleModel model, double requested, out double count)
+    private TickSet ContinuousTicks(Context c, ScaleModel model, double requested)
     {
         var minStep = c.S.ExplicitNode("tickMinStep")?.AsNumber();
-        count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep);
+        var log = model.Transform.Kind == ScaleTransformKind.Log;
+        var count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep, log);
         try
         {
-            return Ticks.GetTicks(model.DomainStart, model.DomainEnd, count, _limits.MaxTicks);
+            var ticks = Ticks.ModelTicks(model, count, _limits.MaxTicks, c.Token);
+            if (!log)
+            {
+                return new TickSet(ticks, count, null);
+            }
+
+            var test = Ticks.LogLabelTest(model.Transform.Parameter, count, ticks.Length);
+            return new TickSet([.. ticks.Where(test)], count, test);
         }
         catch (VegaLiteRenderException ex) when (!ex.Location.IsKnown)
         {
             throw new VegaLiteRenderException(ex.Message, c.Spec.Location);
         }
+    }
+
+    /// <summary>
+    ///     Creates the label formatter of a continuous scale (Vega's <c>tickFormat</c>): d3's precision from the tick step, or for a log
+    ///     scale the variable-precision format, which for a gradient legend leaves out the labels that d3's log rule hides.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="model">The scale model.</param>
+    /// <param name="ticks">The ticks.</param>
+    /// <param name="specifier">The format specifier, or null.</param>
+    /// <param name="noSkip">Whether every label is shown (a symbol legend, and explicit <c>values</c>).</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown when the specifier is not a format specifier.</exception>
+    private Func<double, string> ContinuousFormat(Context c, ScaleModel model, TickSet ticks, string? specifier, bool noSkip)
+    {
+        if (model.Transform.Kind != ScaleTransformKind.Log)
+        {
+            return Formatter(c, () => NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, ticks.Count, specifier)).Format;
+        }
+
+        var plain = Formatter(c, () => NumberFormat.FormatFloat(specifier));
+        return noSkip || ticks.LabelTest is not { } test ? plain : value => test(value) ? plain(value) : string.Empty;
     }
 
     /// <summary>

@@ -52,7 +52,9 @@ result; so are `vl-encoding-aggregate` and `vl-encoding-stack` (and the report o
 a channel other than `x` and `y`), `vl-encoding-bin-extent-param` and `vl-transform-bin-extent-param` (a bin extent that
 is a parameter; the
 extent of the data is used), `vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
-linear), `vl-channel-x2`, `vl-channel-y2`, and `vl-channel-order` (reported only where the channel is not applied), and
+linear; the marks of a log, pow, sqrt, or symlog scale are not stacked, because Vega-Lite does not stack on
+them), `vl-channel-x2`, `vl-channel-y2`, and
+`vl-channel-order` (reported only where the channel is not applied), and
 `vl-encoding-sort` (now only for a sort that is not applied) and the new warning `vl-encoding-sort-ignored` (a sort that
 a continuous scale ignores). The warnings `vl-duplicate-key`, `vl-unknown-property`, and
 `vl-encoding-sort-mixed-types` are

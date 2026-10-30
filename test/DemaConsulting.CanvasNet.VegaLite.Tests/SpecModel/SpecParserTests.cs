@@ -397,6 +397,13 @@ public class SpecParserTests
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"extent\":[0,\"a\"]}}}}}", "/encoding/color/scale/scheme/extent")]
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"extent\":0}}}}}", "/encoding/color/scale/scheme/extent")]
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"bins\":5}}}}", "/encoding/color/scale/bins")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":1}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":0}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":-10}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"symlog\",\"constant\":0}}}}", "/encoding/y/scale/constant")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"symlog\",\"constant\":-1}}}}", "/encoding/y/scale/constant")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"pow\",\"exponent\":\"2\"}}}}", "/encoding/y/scale/exponent")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":\"10\"}}}}", "/encoding/y/scale/base")]
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"orient\":\"middle\"}}}}", "/encoding/y/axis/orient")]
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"grid\":\"yes\"}}}}", "/encoding/y/axis/grid")]
     [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"type\":\"bubble\"}}}}", "/encoding/color/legend/type")]
@@ -533,6 +540,35 @@ public class SpecParserTests
         Assert.Empty(accepted.Warnings);
         var warning = Assert.Single(warned.Warnings);
         Assert.Equal(("vl-unknown-property", "/encoding/color/legend/bogus"), (warning.Id, warning.Location.Pointer));
+    }
+
+    /// <summary>
+    ///     Validates the parameters of the log, pow and symlog scale types: a base above zero other than 1, a finite exponent and a constant above zero
+    ///     (or an expression reference) are accepted without a warning, and the parameters of another type are not checked (Vega-Lite ignores them).
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType()
+    {
+        // Arrange: valid parameters on their types, invalid ones on types that do not use them
+        const string json = """
+            {
+              "mark": "point",
+              "encoding": {
+                "x": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": 2.5 } },
+                "y": { "field": "a", "type": "quantitative", "scale": { "type": "pow", "exponent": -0.5 } },
+                "size": { "field": "a", "type": "quantitative", "scale": { "type": "symlog", "constant": 0.01 } },
+                "opacity": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": { "expr": "10" } } },
+                "color": { "field": "a", "type": "quantitative", "scale": { "type": "linear", "base": 1, "constant": 0, "exponent": 3 } },
+                "stroke": { "field": "a", "type": "quantitative", "scale": { "type": "sqrt", "base": 1, "constant": -5 } }
+              }
+            }
+            """;
+
+        // Act
+        var tree = SpecParser.Parse(json);
+
+        // Assert
+        Assert.Empty(tree.Warnings);
     }
 
     /// <summary>

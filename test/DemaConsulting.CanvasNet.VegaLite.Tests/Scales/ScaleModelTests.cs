@@ -583,4 +583,205 @@ public class ScaleModelTests
         Assert.Equal([0, 1, 0, -1], new[] { "a", "b", "c", "zzz" }.Select(c => indexed.MapIndex(DataValue.FromString(c))).ToArray());
         Assert.Throws<ArgumentNullException>(() => ScaleModel.CreateOrdinal(null!, ScaleRange.OfCount(1)));
     }
+
+    /// <summary>
+    ///     Validates the log scale against d3's <c>scaleLog</c> (the linear map of <c>ln x</c>): decades are evenly spaced, the inverse undoes
+    ///     the map, values outside the domain extrapolate, clamping happens in the domain, a number that is not above zero has no position, a
+    ///     domain below zero is reflected (<c>-ln(-x)</c>), and a descending domain runs backwards.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Transform_LogMapsDecadesEvenly()
+    {
+        // Arrange: three decades onto 300 pixels, 100 pixels per decade
+        var scale = ScaleModel.CreateLinear([1, 1000], [0, 300], transform: ScaleTransform.Log(10));
+
+        // Assert: it is a linear scale with the log transform, and each power of ten is one decade further
+        Assert.Equal(ScaleKind.Linear, scale.Kind);
+        Assert.Equal(ScaleTransformKind.Log, scale.Transform.Kind);
+        Assert.Equal(10, scale.Transform.Parameter);
+        Assert.Equal(0, scale.Map(1), Precision);
+        Assert.Equal(100, scale.Map(10), Precision);
+        Assert.Equal(200, scale.Map(100), Precision);
+        Assert.Equal(300, scale.Map(1000), Precision);
+
+        // Assert: the geometric mean of the ends is the middle; below the domain the map continues (0.1 is one decade below the start)
+        Assert.Equal(150, scale.Map(Math.Sqrt(1000)), Precision);
+        Assert.Equal(-100, scale.Map(0.1), Precision);
+
+        // Assert: the inverse is the exponential of the linear inverse
+        Assert.Equal(10, scale.Invert(100), Precision);
+        Assert.Equal(1000, scale.Invert(300), Precision);
+
+        // Assert: a number that is not above zero has no position (the logarithm is not defined), and says so as null for a data value
+        Assert.True(double.IsNaN(scale.Map(0)));
+        Assert.True(double.IsNaN(scale.Map(-5)));
+        Assert.Null(scale.Map(DataValue.FromNumber(0)));
+        Assert.Null(scale.Map(DataValue.FromNumber(-5)));
+        Assert.Equal(200.0, scale.Map(DataValue.FromNumber(100))!.Value, Precision);
+
+        // Assert: clamping works on the domain before the logarithm, so 0 and 10000 are held at the ends
+        var clamped = ScaleModel.CreateLinear([1, 1000], [0, 300], clamp: true, transform: ScaleTransform.Log(10));
+        Assert.Equal(300, clamped.Map(10000), Precision);
+        Assert.Equal(0, clamped.Map(0.001), Precision);
+        Assert.Equal(0, clamped.Map(0), Precision);
+
+        // Assert: a domain below zero is reflected: -10 is two thirds of the way from -1000 to -1, -100 one third
+        var negative = ScaleModel.CreateLinear([-1000, -1], [0, 300], transform: ScaleTransform.Log(10));
+        Assert.Equal(0, negative.Map(-1000), Precision);
+        Assert.Equal(100, negative.Map(-100), Precision);
+        Assert.Equal(200, negative.Map(-10), Precision);
+        Assert.Equal(300, negative.Map(-1), Precision);
+        Assert.Equal(-10, negative.Invert(200), Precision);
+        Assert.Null(negative.Map(DataValue.FromNumber(10)));
+
+        // Assert: a descending domain maps its first entry to the first range entry: 1000 is at 0, 1 at 300
+        var descending = ScaleModel.CreateLinear([1000, 1], [0, 300], transform: ScaleTransform.Log(10));
+        Assert.Equal(0, descending.Map(1000), Precision);
+        Assert.Equal(100, descending.Map(100), Precision);
+        Assert.Equal(300, descending.Map(1), Precision);
+
+        // Assert: the base does not change the map of a linear scale over ln x (only the ticks), so base 2 gives the same positions
+        Assert.Equal(100, ScaleModel.CreateLinear([1, 1000], [0, 300], transform: ScaleTransform.Log(2)).Map(10), Precision);
+    }
+
+    /// <summary>
+    ///     Validates the pow and sqrt scales against d3's <c>scalePow</c> and <c>scaleSqrt</c>: the sign-preserving power <c>x &lt; 0 ? -(-x)^e : x^e</c>,
+    ///     the exponent 1 as the identity, the square root (and its square as the inverse) for the exponent 0.5, and extrapolation.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Transform_PowAndSqrtFollowTheSignedPower()
+    {
+        // Assert: exponent 2 on 0..10 -> 0..100 is x squared: 5 is a quarter of the way (T = 25 of 100)
+        var square = ScaleModel.CreateLinear([0, 10], [0, 100], transform: ScaleTransform.Pow(2));
+        Assert.Equal(25, square.Map(5), Precision);
+        Assert.Equal(100, square.Map(10), Precision);
+        Assert.Equal(5, square.Invert(25), Precision);
+
+        // Assert: below zero the power keeps the sign, so -2 is -4 (T = -4 of 100): the map continues below the start
+        Assert.Equal(-4, square.Map(-2), Precision);
+
+        // Assert: the exponent 0.5 on 0..100 -> 0..10 is the square root: 25 maps to 5, 1 to 1; the inverse squares
+        var root = ScaleModel.CreateLinear([0, 100], [0, 10], transform: ScaleTransform.Pow(0.5));
+        Assert.Equal(5, root.Map(25), Precision);
+        Assert.Equal(1, root.Map(1), Precision);
+        Assert.Equal(10, root.Map(100), Precision);
+        Assert.Equal(25, root.Invert(5), Precision);
+
+        // Assert: the signed root of -100..100 -> 0..200: -25 is -5 of -10..10 (50), 0 the middle (100), 25 is 150; the inverse of 50 is -25
+        var signedRoot = ScaleModel.CreateLinear([-100, 100], [0, 200], transform: ScaleTransform.Pow(0.5));
+        Assert.Equal(50, signedRoot.Map(-25), Precision);
+        Assert.Equal(100, signedRoot.Map(0), Precision);
+        Assert.Equal(150, signedRoot.Map(25), Precision);
+        Assert.Equal(-25, signedRoot.Invert(50), Precision);
+
+        // Assert: the cube of -2..2 -> 0..16: T = -8..8, so 1 (T = 1) is 9 and -1 is 7; the inverse takes the cube root with the sign
+        var cube = ScaleModel.CreateLinear([-2, 2], [0, 16], transform: ScaleTransform.Pow(3));
+        Assert.Equal(9, cube.Map(1), Precision);
+        Assert.Equal(7, cube.Map(-1), Precision);
+        Assert.Equal(1, cube.Invert(9), Precision);
+        Assert.Equal(-1, cube.Invert(7), Precision);
+
+        // Assert: the exponent 1 is no transform at all, and every number (also NaN) is handled as in a linear scale
+        var identity = ScaleModel.CreateLinear([0, 10], [0, 100], transform: ScaleTransform.Pow(1));
+        Assert.True(identity.Transform.IsLinear);
+        Assert.Equal(30, identity.Map(3), Precision);
+        Assert.True(double.IsNaN(identity.Map(double.NaN)));
+        Assert.Equal(25, ScaleModel.CreateLinear([0, 10], [0, 100]).Map(2.5), Precision);
+        Assert.True(ScaleTransform.Linear.IsLinear);
+        Assert.False(ScaleTransform.Log(10).IsLinear);
+    }
+
+    /// <summary>
+    ///     Validates the symlog scale against d3's <c>scaleSymlog</c>: <c>sign(x) * log1p(|x| / c)</c> with its inverse
+    ///     <c>sign(y) * expm1(|y|) * c</c>, symmetric around zero, the constant as the size of the linear region, and an accurate
+    ///     <c>log1p</c> for tiny numbers (a naive <c>ln(1 + x)</c> loses them).
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Transform_SymlogIsSymmetricAndAccurateNearZero()
+    {
+        // Arrange: the constant 1 on -(e-1)..(e-1) -> 0..100: T(e-1) = ln(e) = 1, so the ends are at 0 and 100 and zero is the middle
+        var edge = Math.E - 1;
+        var scale = ScaleModel.CreateLinear([-edge, edge], [0, 100], transform: ScaleTransform.Symlog(1));
+
+        // Assert: 1 is ln 2 of the 1 that the end has, so 50 + 50 ln 2 above the middle; -1 is symmetric below it
+        Assert.Equal(50, scale.Map(0), Precision);
+        Assert.Equal(50 + (50 * Math.Log(2)), scale.Map(1), Precision);
+        Assert.Equal(50 - (50 * Math.Log(2)), scale.Map(-1), Precision);
+        Assert.Equal(100, scale.Map(edge), Precision);
+
+        // Assert: the inverse is sign * expm1 * c
+        Assert.Equal(1, scale.Invert(50 + (50 * Math.Log(2))), Precision);
+        Assert.Equal(-1, scale.Invert(50 - (50 * Math.Log(2))), Precision);
+        Assert.Equal(0, scale.Invert(50), Precision);
+
+        // Assert: the constant 10 on 0..90 -> 0..1: T(90) = ln(1 + 9) = ln 10, and 9 is ln(1.9) / ln 10 of the way
+        var tenth = ScaleModel.CreateLinear([0, 90], [0, 1], transform: ScaleTransform.Symlog(10));
+        Assert.Equal(Math.Log(1.9) / Math.Log(10), tenth.Map(9), Precision);
+        Assert.Equal(9, tenth.Invert(Math.Log(1.9) / Math.Log(10)), Precision);
+
+        // Assert: a tiny number keeps its digits: ln(1 + 1e-12) is 1e-12 (to 12 digits), so the map is 1e-12 / ln 2, within a part in a billion
+        var unit = ScaleModel.CreateLinear([0, 1], [0, 1], transform: ScaleTransform.Symlog(1));
+        var expected = 1e-12 / Math.Log(2);
+        Assert.InRange(unit.Map(1e-12) / expected, 1 - 1e-9, 1 + 1e-9);
+        Assert.InRange(unit.Invert(expected) / 1e-12, 1 - 1e-9, 1 + 1e-9);
+        Assert.True(double.IsNaN(unit.Map(double.NaN)));
+    }
+
+    /// <summary>
+    ///     Validates the color scales over a transform (d3's <c>scaleSequentialLog</c> and <c>scaleDivergingLog</c>): the position in the
+    ///     interpolator is taken from the transformed numbers, the middle value of a diverging scale included, and a number the transform
+    ///     cannot take has no color.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Transform_SequentialAndDivergingUseTheTransformedPosition()
+    {
+        // Arrange: two decades 1..100 on the probe interpolator: each decade is half of it
+        var sequential = ScaleModel.CreateSequential([1, 100], Probe, transform: ScaleTransform.Log(10));
+
+        // Assert: 10 is the middle, the ends are the ends, 1000 extrapolates to 150; no color for zero or below
+        Assert.Equal(ScaleKind.Sequential, sequential.Kind);
+        Assert.Equal(0, Position(sequential.MapColor(1)), Precision);
+        Assert.Equal(50, Position(sequential.MapColor(10)), Precision);
+        Assert.Equal(100, Position(sequential.MapColor(100)), Precision);
+        Assert.Equal(150, Position(sequential.MapColor(1000)), Precision);
+        Assert.Null(sequential.MapColor(0));
+        Assert.Null(sequential.MapColor(-3));
+
+        // Assert: clamping holds the position at the ends, and then a number below the domain has the first color (d3 clamps the position)
+        var clamped = ScaleModel.CreateSequential([1, 100], Probe, clamp: true, transform: ScaleTransform.Log(10));
+        Assert.Equal(100, Position(clamped.MapColor(10000)), Precision);
+        Assert.Equal(0, Position(clamped.MapColor(0)), Precision);
+
+        // Assert: a square root scale 0..100: 25 is half (sqrt 25 = 5 of 10)
+        Assert.Equal(50, Position(ScaleModel.CreateSequential([0, 100], Probe, transform: ScaleTransform.Pow(0.5)).MapColor(25)), Precision);
+
+        // Assert: a diverging log scale 1..10..1000 puts the middle value at the middle color, and each side by its own decades:
+        // below the middle one decade gives half of the lower side (so 1 is 0), above it 100 is half of the upper side (T = 2 of 1..3 above 1)
+        var diverging = ScaleModel.CreateSequential([1, 10, 1000], Probe, transform: ScaleTransform.Log(10));
+        Assert.Equal(ScaleKind.Diverging, diverging.Kind);
+        Assert.Equal(0, Position(diverging.MapColor(1)), Precision);
+        Assert.Equal(50, Position(diverging.MapColor(10)), Precision);
+        Assert.Equal(75, Position(diverging.MapColor(100)), Precision);
+        Assert.Equal(100, Position(diverging.MapColor(1000)), Precision);
+    }
+
+    /// <summary>
+    ///     Validates <see cref="ScaleModel.Fraction"/>, the position of a value between the ends of a domain along the transformed domain
+    ///     (Vega's <c>scaleFraction</c>, which the labels and the stops of a gradient legend use), including the domain without span.
+    /// </summary>
+    [Fact]
+    public void ScaleModel_Fraction_FollowsTheTransformedDomain()
+    {
+        // Assert: linear is the plain fraction, a log scale puts a decade at a third of three decades
+        Assert.Equal(0.25, ScaleModel.CreateLinear([0, 8], [0, 1]).Fraction(2), Precision);
+        Assert.Equal(1.0 / 3, ScaleModel.CreateLinear([1, 1000], [0, 1], transform: ScaleTransform.Log(10)).Fraction(10), Precision);
+
+        // Assert: the square root scale 0..100: 25 is half; a reflected log domain -1000..-1: -100 is one third
+        Assert.Equal(0.5, ScaleModel.CreateLinear([0, 100], [0, 1], transform: ScaleTransform.Pow(0.5)).Fraction(25), Precision);
+        Assert.Equal(1.0 / 3, ScaleModel.CreateLinear([-1000, -1], [0, 1], transform: ScaleTransform.Log(10)).Fraction(-100), Precision);
+
+        // Assert: a domain without span has its fraction in the middle
+        Assert.Equal(0.5, ScaleModel.CreateLinear([5, 5], [0, 1]).Fraction(5), Precision);
+        Assert.Equal(0.5, ScaleModel.CreateLinear([5, 5], [0, 1], transform: ScaleTransform.Log(10)).Fraction(7), Precision);
+    }
 }

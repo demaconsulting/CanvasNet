@@ -199,3 +199,17 @@ sections:
                   - MarkBuilder_Build_LongDashPatternsExceedTheLimit
                   - MarkBuilder_Build_NewChannelsHonorCancellationAndTheSceneBudget
                   - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-LogScales
+                title: >-
+                  The MarkBuilder unit shall draw the marks of a log, pow, sqrt, or symlog scale at the transformed
+                  positions, start the bars of a log axis at the start of the domain (not stacked), and leave out
+                  a row whose value the scale cannot map (a number that is not above zero on a log scale) instead of
+                  drawing it at a position that is not a number.
+                justification: |
+                  A bar or point must sit where the transformed scale puts its value, and a value outside the scale
+                  must not produce an invalid scene item.
+                tests:
+                  - MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap
+                  - CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue
+                  - CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions

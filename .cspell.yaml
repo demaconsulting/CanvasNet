@@ -641,6 +641,9 @@ words:
   - symlink
   - symlinks
   - symlog
+  - expm
+  - logb
+  - Kahan
   - tahoma
   - tickband
   - tickminstep

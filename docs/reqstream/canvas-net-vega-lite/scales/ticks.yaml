@@ -61,3 +61,47 @@ sections:
                 tests:
                   - Ticks_Ticks_ResultOverTheLimitFailsClosed
                   - Ticks_Ticks_OverflowingSpanHasNoNonFiniteTicks
+
+              - id: CanvasNetVegaLite-Scales-Ticks-LogTicks
+                title: >-
+                  The Ticks unit shall generate the ticks of a log scale with the algorithm of the d3 scaleLog
+                  ticks method (the multiples of every power of the base inside the domain when the domain spans
+                  fewer powers than the count, with exact decimals below one; the d3 ticks of the exponents as
+                  powers when it spans more; the ordinary ticks when the multiples are fewer than half the count;
+                  reflected ticks for a domain below zero; descending ticks for a descending domain; the other
+                  bases), shall give no ticks for a domain that contains or crosses zero or a base that is not
+                  usable, shall not lower the tick count of a log scale by the tick step, and shall dispatch by the
+                  transform of a scale (log ticks for a log scale, the ordinary ticks of the domain for linear, pow,
+                  sqrt, and symlog).
+                justification: |
+                  The ticks of a log axis are the multiples of the decades, not evenly spaced numbers; they must
+                  equal what d3 and Vega give for the same domain.
+                tests:
+                  - Ticks_LogTicks_MatchHandDerivedD3Vectors
+                  - Ticks_ResolveTickCount_LogarithmicScaleDoesNotLowerTheCountByTheStep
+                  - Ticks_ModelTicks_DispatchesByTheTransform
+
+              - id: CanvasNetVegaLite-Scales-Ticks-LogNice
+                title: >-
+                  The Ticks unit shall extend the domain of a log scale to the nearest powers of the base with the
+                  d3 scaleLog nice method (floor of the first end and ceiling of the last, reflected below zero,
+                  the direction of the domain kept) and shall leave a domain that the logarithm is not defined on
+                  unchanged.
+                justification: |
+                  A nice log axis starts and ends on a power of the base.
+                tests:
+                  - Ticks_LogNice_ExtendsToPowersOfTheBase
+
+              - id: CanvasNetVegaLite-Scales-Ticks-LogLabels
+                title: >-
+                  The Ticks unit shall provide the label filter of a log axis (Vega's tickLog: a tick is labeled
+                  when its leading digit does not exceed max(1, base * count / ticks), judged on the magnitude so
+                  that a negative domain is labeled by the same rule), and shall bound the work of the log ticks
+                  by a hundred times the tick limit, poll the cancellation token, and fail with a
+                  VegaLiteRenderException that names the limit when the ticks or the work exceed it.
+                justification: |
+                  Without the filter a log axis would label every multiple and be unreadable; the work of the
+                  multiples must be bounded because the base comes from the specification.
+                tests:
+                  - Ticks_LogLabelTest_LabelsTheLeadingDigitsThatFit
+                  - Ticks_LogTicks_LimitsAndCancellationAreEnforced

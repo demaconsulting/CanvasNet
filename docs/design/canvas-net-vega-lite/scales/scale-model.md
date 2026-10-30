@@ -3,14 +3,16 @@
 ![Scales Structure](VegaLiteScalesView.svg)
 
 The `ScaleModel` unit is the first software unit in the `Scales` subsystem. It is one source file, `ScaleModel.cs`, in the
-`DemaConsulting.CanvasNet.VegaLite.Scales` namespace, and defines three `internal` types: `ScaleKind` (enumeration),
-`ScaleRange` (readonly struct), and `ScaleModel` (sealed class). The file carries the provenance header comment for the
+`DemaConsulting.CanvasNet.VegaLite.Scales` namespace, and defines five `internal` types: `ScaleKind` (enumeration),
+`ScaleTransformKind` (enumeration), `ScaleTransform` (sealed class), `ScaleRange` (readonly struct), and `ScaleModel`
+(sealed class). The file carries the provenance header comment for the
 d3-scale arithmetic and the Vega scale it ports.
 
 #### Purpose
 
 `ScaleModel` maps data values to positions, and positions back to values, for the scale kinds of the first delivery:
-linear, band, point, and ordinal; it also maps numbers to colors (sequential and diverging) and classifies them
+linear (also with a log, pow, sqrt, or symlog transform), band, point, and ordinal; it also maps numbers to colors
+(sequential and diverging) and classifies them
 (quantize, quantile, threshold, and bin-ordinal). It exists so that the arithmetic of scales (normalizing,
 interpolating, stepping, padding, rounding, reversing, classifying) is defined in one pure, immutable, easily tested
 place with no knowledge of the
@@ -22,7 +24,18 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleModel-*` 
 #### Data Model
 
 **`ScaleKind`** is `Linear`, `Band`, `Point`, `Ordinal`, `Sequential`, `Diverging`, `Quantize`, `Quantile`, `Threshold`,
-or `BinOrdinal`.
+or `BinOrdinal`. A log, pow, sqrt, or symlog scale is not a kind of its own: it is a `Linear` (or, for colors,
+`Sequential` or `Diverging`) model that carries a transform, so that everything that works on a continuous scale (stacks,
+bin ends, ranges, ticks, gradient legends) keeps working.
+
+**`ScaleTransform`** (sealed class, immutable) is the transform of such a scale: `Kind` (`ScaleTransformKind`: `Linear`,
+`Log`, `Pow`, or `Symlog`), `Parameter` (the base, the exponent, or the constant), `IsLinear` (the identity, also the pow
+transform with the exponent 1), the factories `Log(base)`, `Pow(exponent)` (a sqrt scale is `Pow(0.5)`), and
+`Symlog(constant)`, and `Forward(x, reflect)` and `Inverse(y, reflect)`, which are the functions of d3's `log.js`,
+`pow.js`, and `symlog.js`: the natural logarithm (the base only matters for ticks and `nice`; a log scale whose domain
+starts below zero is reflected, `-ln(-x)` and `-exp(-y)`), the sign-preserving power (`Math.Sqrt` and its square for
+0.5), and `sign(x) * log1p(|x| / c)` with the inverse `sign(y) * expm1(|y|) * c`; `log1p` and `expm1` use Kahan's
+correction so that a tiny number keeps its digits (a naive `ln(1 + x)` would lose them).
 
 **`ScaleRange`** (readonly struct) is the output of an ordinal or discretizing scale: texts (colors, shape names),
 numbers (sizes, opacities, angles), or only a count (the caller maps the index itself, as for dash patterns). It copies
@@ -36,11 +49,12 @@ entry of the complete range for a linear scale), `Clamp`, `Round`, `PaddingInner
 (the texts of an ordinal range), `Range` (its `ScaleRange`), `Interpolator` (the color function of a sequential or
 diverging scale), and
 `Thresholds` (the interval boundaries of a quantize, quantile, or threshold scale, or the bin edges of a bin-ordinal
-scale). The factories are `CreateLinear(domainStart, domainEnd, rangeStart,
-rangeEnd, clamp, round)`, `CreateLinear(double[] domain, double[] range, clamp, round)` (the piecewise form),
+scale), and `Transform` (the `ScaleTransform` of a continuous scale). The factories are `CreateLinear(domainStart,
+domainEnd, rangeStart, rangeEnd, clamp, round, transform)`, `CreateLinear(double[] domain, double[] range, clamp, round,
+transform)` (the piecewise form),
 `CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`, `CreatePoint(domain, rangeStart,
 rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a `ScaleRange`),
-`CreateSequential(domain, interpolator, clamp)`
+`CreateSequential(domain, interpolator, clamp, transform)`
 (two entries sequential, three diverging), `CreateQuantize(start, end, range)`, `CreateQuantile(sortedValues, range)`,
 `CreateThreshold(thresholds, range)`, and `CreateBinOrdinal(edges, range)`. The static `BandSpace(count, paddingInner,
 paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
@@ -59,6 +73,13 @@ maps to NaN; the thresholds of a discretizing scale are fixed at creation.
   outside the domain continues the first or last segment, and a descending domain reverses both complete arrays before
   the first `n` entries are used (d3's own behavior when the lengths differ is kept); a segment of zero width maps to the
   middle of its output segment. `Invert` is the same map from range to domain, clamped to the domain when `Clamp` is set.
+  With a transform (d3's `transformer`) the value is clamped in the domain, then transformed, and the piecewise map runs
+  over the transformed domain; `Invert` undoes the transform of the result. A number the transform cannot take (the
+  logarithm of a number that is not above zero) maps to NaN as a number and to null as a data value, so that a mark
+  that would sit at a position that is not a number is not drawn.
+- `Fraction(double)` - the position of a value between the ends of the domain along the transformed domain, 0.5 for a
+  domain without span (Vega's `scaleFraction`: for a log scale `ln(v / start) / ln(end / start)`); gradient legends place
+  their labels and stops with it.
 - `Map(DataValue)` - for a linear scale the quantitative reading of the value (null when it has none); for a band or
   point scale the **start** of the value's band (or the point), null for a value outside the domain.
 - `MapCenter(DataValue)` - the center of a band (start plus half the bandwidth); for a point or linear scale the same
@@ -77,7 +98,9 @@ maps to NaN; the thresholds of a discretizing scale are fixed at creation.
   the number lies
   on (`0.5 / (x1 - x0)` below, `0.5 / (x2 - x1)` above, zero for equal entries, the sides swapped for a descending
   domain), clamped to 0 to 1
-  on request, and not otherwise (the interpolator extrapolates).
+  on request, and not otherwise (the interpolator extrapolates); with a transform the numbers are transformed first
+  (d3's `sequentialLog` and friends: the domain entries and the number go through the transform, the clamp applies to the
+  position), and a position that is not a finite number (a number the transform cannot take) has no color.
 - Discretizing arithmetic: quantize thresholds are `((i + 1) * x1 - (i - n) * x0) / (n + 1)` for `n = range.Count - 1`
   (d3's
   `quantize.js`), quantile thresholds the R-7 quantiles `i / n` of the sorted values (`AggregateMeasures.Quantile`,

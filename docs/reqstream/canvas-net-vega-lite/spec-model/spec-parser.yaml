@@ -227,7 +227,9 @@ sections:
                   the name of a color space or an object with that name as its type and a numeric gamma, a scheme
                   that is a name or an object with a string name, a positive whole count, and an extent of two
                   numbers, and bins as an array or an object - with a located VegaLiteSpecException at the
-                  offending value, and shall report an unknown key of a scheme or interpolate object as a
+                  offending value, shall validate the parameters of the log, pow, and symlog scale types (a base above
+                  zero other than 1, a finite exponent, a constant above zero; those of another type are not checked),
+                  and shall report an unknown key of a scheme or interpolate object as a
                   vl-unknown-property warning at the key.
                 justification: |
                   A scheme or an interpolation with the wrong shape cannot be what the author meant, so the
@@ -235,6 +237,7 @@ sections:
                 tests:
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
+                  - SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
                 title: >-

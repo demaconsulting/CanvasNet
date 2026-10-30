@@ -152,3 +152,18 @@ sections:
                   Equal inputs must give byte-identical charts on every run.
                 tests:
                   - LegendBuilder_Build_IsDeterministic
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-NonLinearScales
+                title: >-
+                  The LegendBuilder unit shall build the gradient and symbol legends of a log, pow, sqrt, or symlog
+                  scale along the transformed domain (the labels and the stops of a gradient at the fraction of the
+                  value in the transformed domain), with only the log ticks that Vega labels as entries and labels
+                  (the variable-precision format), the end points of the domain when fewer than three labels are
+                  left, and the ticks bounded by the tick limit with a located error and the cancellation token.
+                justification: |
+                  A legend of a transformed scale must show where its values lie in the scale, not on a linear bar.
+                tests:
+                  - LegendBuilder_Gradient_LogScaleLabelsThePowersAlongTheLogarithm
+                  - LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps
+                  - LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot
+                  - LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable

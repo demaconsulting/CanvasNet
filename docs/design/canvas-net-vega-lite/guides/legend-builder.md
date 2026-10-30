@@ -63,7 +63,8 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   of the entries (the bar alone for a horizontal gradient); a title that reaches left of the padding pushes everything
   right; the box is `ceil(right + padding)` by `ceil(bottom + padding)`.
 - Symbol legends - the values are the explicit `values`, the domain of a discrete scale, the d3 ticks of a continuous
-  scale (the tick count is `tickCount` or 5, reduced by `tickMinStep`), or for a discretizing scale minus infinity and
+  scale (the tick count is `tickCount` or 5, reduced by `tickMinStep`; for a log scale only the log ticks that d3's log
+  rule labels, all labeled with `NumberFormat.FormatFloat`), or for a discretizing scale minus infinity and
   the thresholds (for a bin-ordinal scale the bin edges). More than `symbolLimit` values keep the first `limit - 1` and
   add an entry `…N entries` for the next value. A first value that the scale maps to zero is dropped unless the values
   are explicit. Labels are made only for the kept entries: a discrete value is its JavaScript text (a number
@@ -80,9 +81,13 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
 - Gradient legends - the bar is `gradientThickness` (16) by the gradient length, which is `gradientLength`, else for a
   continuous scale the view height limited to 64 to 200 (vertical) or the view width limited to 100 to 200 for top and
   bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the ends
-  of the domain and the ticks for a count of 15, each at its linear position with the color of the scale (a domain
+  of the domain and the ticks for a count of 15, each at its position **along the transformed domain**
+  (`ScaleModel.Fraction`; the log ticks for a log scale) with the color of the scale (a domain
   without span is replaced by 0 to 1 with the interpolator). The labels are the ticks for a count of `tickCount` or
-  `max(2, 2 * floor(length / 100))` (the two ends when there are fewer than three), formatted by the d3 tick format,
+  `max(2, 2 * floor(length / 100))` (the two ends when there are fewer than three), formatted by the d3 tick format
+(for a
+  log scale only the ticks that d3's log rule labels, with the variable-precision format and the same rule applied to the
+  end points), at their fraction along the transformed domain,
   placed outside the bar at `gradientLabelOffset` (2) or `labelOffset`, aligned by position, and thinned by
   `LabelOverlap` (the method of `labelOverlap`, greedy for quantile and threshold scales, else parity). A discrete
   gradient has one band per class (the colors of the scale at minus infinity and the thresholds, positioned by the linear
@@ -121,7 +126,10 @@ unit directly through `InternalsVisibleTo`.
 #### Deviations From Vega-Lite
 
 The gradient stops follow Vega's rule (the ends of the domain and the ticks for a count of 15), with the offset of each
-stop its linear position. The canonical scale of a merged continuous legend is the first channel in Vega-Lite's order
+stop its position along the transformed domain (Vega's `scaleFraction`; the file with that function could not be
+read, so the
+log, pow, and symlog fractions are derived from the d3 transforms). The canonical scale of a merged continuous
+legend is the first channel in Vega-Lite's order
 (Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, `labelExpr`
 and custom format types are not drawn and are reported by the feature catalog. The symbols of the `arrow`, `wedge` and
 `triangle` shapes are bounded by the box of their path. `legend.symbolType` is combined with the configuration's

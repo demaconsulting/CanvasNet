@@ -214,4 +214,34 @@ public class StackRulesTests
         Assert.True(StackRules.IsEnabled(encoding["opacity"]!["title"]));
         Assert.True(StackRules.IsEnabled(encoding["x"]));
     }
+
+    /// <summary>
+    ///     Validates that a stacked channel whose scale type is log, pow, sqrt or symlog is not stacked (Vega-Lite warns that it cannot stack
+    ///     on a non-linear scale), by default and with an explicit <c>stack</c>, while the linear type, a type on the other channel and a
+    ///     nominal dimension keep the stack.
+    /// </summary>
+    /// <param name="scaleType">The <c>scale.type</c> of the measure.</param>
+    /// <param name="stacked">Whether the marks are stacked.</param>
+    [Theory]
+    [InlineData("log", false)]
+    [InlineData("pow", false)]
+    [InlineData("sqrt", false)]
+    [InlineData("symlog", false)]
+    [InlineData("linear", true)]
+    public void StackRules_Decide_NonLinearScaleTypesDoNotStack(string scaleType, bool stacked)
+    {
+        // Arrange: a stacked bar chart whose measure carries the scale type, with the default stack and with an explicit one
+        var byDefault = """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","scale":{"type":"TYPE"}},"color":{"field":"g","type":"nominal"}}""".Replace("TYPE", scaleType, StringComparison.Ordinal);
+        var explicitStack = """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":"zero","scale":{"type":"TYPE"}},"color":{"field":"g","type":"nominal"}}""".Replace("TYPE", scaleType, StringComparison.Ordinal);
+
+        // Act / Assert
+        Assert.Equal(stacked, Decide("\"bar\"", byDefault) is not null);
+        Assert.Equal(stacked, Decide("\"bar\"", explicitStack) is not null);
+
+        // Assert: the same measure with the type on the dimension channel is stacked, and a horizontal bar looks at its own measure
+        var onDimension = """{"x":{"field":"k","type":"nominal","scale":{"type":"TYPE"}},"y":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""".Replace("TYPE", scaleType, StringComparison.Ordinal);
+        Assert.NotNull(Decide("\"bar\"", onDimension));
+        var horizontal = """{"y":{"field":"k","type":"nominal"},"x":{"field":"v","type":"quantitative","scale":{"type":"TYPE"}},"color":{"field":"g"}}""".Replace("TYPE", scaleType, StringComparison.Ordinal);
+        Assert.Equal(stacked, Decide("\"bar\"", horizontal) is not null);
+    }
 }

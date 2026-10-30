@@ -717,6 +717,8 @@ internal sealed partial class SpecParser
             }
         }
 
+        ValidateTransformOptions(scale);
+
         if (scale["interpolate"] is { } interpolate && interpolate["expr"] is not { IsString: true })
         {
             if (interpolate.IsString)
@@ -741,6 +743,31 @@ internal sealed partial class SpecParser
                     WarnUnknown(property, "an interpolate");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the parameters of the log, pow and symlog scale types: the <c>base</c> of a log scale, the <c>exponent</c> of a pow scale and
+    ///     the <c>constant</c> of a symlog scale (the properties of another type are ignored, as in Vega-Lite).
+    /// </summary>
+    /// <param name="scale">The scale object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a base that is not above zero or is 1, an exponent that is not finite, or a constant that is not above zero.</exception>
+    private void ValidateTransformOptions(SpecNode scale)
+    {
+        var type = scale["type"]?.AsString();
+        if (type == "log" && scale["base"] is { IsNumber: true } logBase && !(logBase.NumberValue > 0 && double.IsFinite(logBase.NumberValue) && logBase.NumberValue.CompareTo(1) != 0))
+        {
+            throw Error(logBase, "The 'base' of a log scale must be a number above zero other than 1.");
+        }
+
+        if (type == "pow" && scale["exponent"] is { IsNumber: true } exponent && !double.IsFinite(exponent.NumberValue))
+        {
+            throw Error(exponent, "The 'exponent' of a pow scale must be a finite number.");
+        }
+
+        if (type == "symlog" && scale["constant"] is { IsNumber: true } constant && !(constant.NumberValue > 0 && double.IsFinite(constant.NumberValue)))
+        {
+            throw Error(constant, "The 'constant' of a symlog scale must be a number above zero.");
         }
     }
 

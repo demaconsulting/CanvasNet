@@ -682,7 +682,11 @@ public class ScaleResolverColorTests
     [InlineData("shape", "quantitative", "threshold", true)]
     [InlineData("shape", "nominal", "point", false)]
     [InlineData("strokeDash", "nominal", "ordinal", true)]
-    [InlineData("color", "quantitative", "log", false)]
+    [InlineData("color", "quantitative", "log", true)]
+    [InlineData("color", "nominal", "log", false)]
+    [InlineData("x", "quantitative", "symlog", true)]
+    [InlineData("size", "quantitative", "sqrt", true)]
+    [InlineData("shape", "quantitative", "pow", false)]
     [InlineData("color", "quantitative", "bin-ordinal", false)]
     public void ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules(string channel, string type, string scaleType, bool expected)
     {

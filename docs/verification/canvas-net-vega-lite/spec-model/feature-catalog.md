@@ -63,14 +63,18 @@ Asserts that one original specification that deliberately uses a version 4 schem
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
 composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
-unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin`, a log scale with a scheme, a legend with
+unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin`, a log scale on a nominal field with a scheme
+(which
+cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
 `encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-two reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
 `/data/format/parse/d`, `vl-encoding-bin` at `/encoding/color/bin`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
 `filter` transforms, and the `aggregate`, `bin`, `stack`, and `sort` of `y` are silent, and no `vl-expr-calculate`,
 `vl-expr-filter`, `vl-param-variable`, `vl-encoding-aggregate`, `vl-encoding-stack`, or `vl-encoding-sort` is produced for
-them), that only the schema version is a warning while every other report is an unsupported feature, that
+them), that the schema version, the ignored sort, and the ignored scale type are the only warnings while
+every other report is an unsupported feature,
+that
 all carry a file, line, column, and message (the schema report is at line 2, column 14), and that the supported
 `tooltip` channel is absent; that reports are sorted by position in the text and not by the order in which the
 constructs are visited (an encoding written before the mark, a nested view before the parent's later properties);
@@ -135,6 +139,7 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
 `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
+`FeatureCatalogTests.FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_CubehelixInterpolationIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_CustomPathShapesAreReported`,
@@ -155,9 +160,12 @@ order fields, a bar with two measures that Vega-Lite reads as vertical, a horizo
 explicit `stack: true`) and reported as `vl-channel-order` otherwise (with `stack: null`, or for a point mark that does
 not stack); that a secondary position channel is silent for a `bar`, `rect`, or `rule` that has the channel it extends and
 is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
-an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack together with
-`vl-scale-log`; that unsupported scale types and properties report
-`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not; that continuous color scales, the
+an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack (and nothing else: the log type is
+supported, and the message says that the marks are not stacked); that unsupported scale types (`identity`, `bin-ordinal`)
+and properties (`bins`) report
+`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not, and that the log, pow, sqrt, and
+symlog types with their `base`, `exponent`, and `constant` (on position, size, color, and opacity channels) produce no
+report at all; that continuous color scales, the
 color schemes of every kind, and the scheme object, `domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and
 `interpolate` produce no report (the identifier `vl-scale-color-ramp` is retired), while a cubehelix interpolation reports
 `vl-scale-interpolate-cubehelix`, a shape that is a custom path reports `vl-shape-path` (the mark, the channel value, and

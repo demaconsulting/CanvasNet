@@ -109,3 +109,23 @@ sections:
                   Binned color fields give each bin a color of a discrete range.
                 tests:
                   - ScaleModel_BinOrdinal_MapsByBinIndex
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Transforms
+                title: >-
+                  The ScaleModel unit shall map a number through a linear scale with a log, pow (and sqrt), or
+                  symlog transform as d3 does (clamp in the domain, transform, piecewise linear map over the
+                  transformed domain, inverse of the transform for the inverse): the natural logarithm with a
+                  reflected log below zero, the sign-preserving power with the square root and its square for the
+                  exponent 0.5, and the symmetric log sign(x) * log1p(|x| / c) with an accurate log1p for tiny
+                  numbers; shall give no position (null for a data value) to a number the transform cannot take;
+                  shall compute the position of a sequential or diverging color scale from the transformed domain,
+                  middle value included; and shall give the fraction of a value along the transformed domain.
+                justification: |
+                  Log, pow, sqrt, and symlog scales are the other continuous position and size scales of Vega-Lite;
+                  their positions must equal the d3 formulas.
+                tests:
+                  - ScaleModel_Transform_LogMapsDecadesEvenly
+                  - ScaleModel_Transform_PowAndSqrtFollowTheSignedPower
+                  - ScaleModel_Transform_SymlogIsSymmetricAndAccurateNearZero
+                  - ScaleModel_Transform_SequentialAndDivergingUseTheTransformedPosition
+                  - ScaleModel_Fraction_FollowsTheTransformedDomain

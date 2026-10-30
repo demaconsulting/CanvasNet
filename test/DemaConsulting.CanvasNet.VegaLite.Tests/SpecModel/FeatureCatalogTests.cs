@@ -74,7 +74,7 @@ public class FeatureCatalogTests
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-encoding-bin", "/encoding/color/bin"),
-                ("vl-scale-log", "/encoding/color/scale/type"),
+                ("vl-scale-type-ignored", "/encoding/color/scale/type"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-theta", "/encoding/theta"),
                 ("vl-channel-geo", "/encoding/latitude"),
@@ -83,9 +83,13 @@ public class FeatureCatalogTests
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
 
-        // Assert: only the schema version and the ignored sort are warnings; every other report is an unsupported feature; all carry positions and the file
-        Assert.Equal(["vl-schema-version", "vl-encoding-sort-ignored"], reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
-        Assert.All(reports.Where(r => r.Id is not ("vl-schema-version" or "vl-encoding-sort-ignored")), r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+        // Assert: only the schema version, the ignored sort and the ignored scale type are warnings; every other report is an unsupported feature; all carry positions and the file
+        Assert.Equal(
+            ["vl-schema-version", "vl-encoding-sort-ignored", "vl-scale-type-ignored"],
+            reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
+        Assert.All(
+            reports.Where(r => r.Id is not ("vl-schema-version" or "vl-encoding-sort-ignored" or "vl-scale-type-ignored")),
+            r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.All(reports, r => Assert.True(r.Location.Line >= 1 && r.Location.Column >= 1 && r.Message.Length > 0));
         Assert.All(reports, r => Assert.Equal("all.json", r.Location.File));
         Assert.Equal((2, 14), (reports[0].Location.Line, reports[0].Location.Column));
@@ -516,10 +520,10 @@ public class FeatureCatalogTests
         const string json = """
             { "mark": "point", "encoding": {
               "x": { "field": "a", "type": "quantitative", "scale": { "type": "linear", "zero": false, "nice": true, "padding": 1, "domain": [0, 1], "range": [0, 1] } },
-              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true, "exponent": 2 } },
+              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true, "bins": [0, 1] } },
               "size": { "field": "a", "type": "ordinal", "scale": { "type": "ordinal" }, "legend": null },
               "opacity": { "value": 1, "scale": { "type": "bin-ordinal", "reverse": true } },
-              "stroke": { "value": "x", "scale": { "type": "sqrt" } },
+              "stroke": { "value": "x", "scale": { "type": "identity" } },
               "fill": { "value": "x", "scale": { "type": "band" } }
             } }
             """;
@@ -530,11 +534,33 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-scale-property-exponent", "/encoding/y/scale/exponent"),
+                ("vl-scale-property-bins", "/encoding/y/scale/bins"),
                 ("vl-scale-bin-ordinal", "/encoding/opacity/scale/type"),
-                ("vl-scale-sqrt", "/encoding/stroke/scale/type"),
+                ("vl-scale-identity", "/encoding/stroke/scale/type"),
             ],
             ids);
+    }
+
+    /// <summary>
+    ///     Validates that the log, pow, sqrt and symlog scale types and their <c>base</c>, <c>exponent</c> and <c>constant</c> are supported
+    ///     (they report nothing), on position, color and numeric channels alike.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "x": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": 2, "nice": true, "clamp": true } },
+              "y": { "field": "b", "type": "quantitative", "scale": { "type": "pow", "exponent": 2, "zero": false } },
+              "size": { "field": "c", "type": "quantitative", "scale": { "type": "sqrt" }, "legend": null },
+              "color": { "field": "d", "type": "quantitative", "scale": { "type": "symlog", "constant": 10, "scheme": "blues" }, "legend": null },
+              "opacity": { "field": "e", "type": "quantitative", "scale": { "type": "log" }, "legend": null }
+            } }
+            """;
+
+        // Act / Assert
+        Assert.Empty(FeatureCatalog.Visit(SpecParser.Parse(json)));
     }
 
     /// <summary>
@@ -676,8 +702,8 @@ public class FeatureCatalogTests
         // Act
         var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
-        // Assert: log is reported as an unsupported type only; band on a quantitative field, linear on a nominal one, sequential on a nominal
-        // color and the quantitative shape each warn
+        // Assert: log on a quantitative stroke is a supported type and warns about nothing; band on a quantitative field, linear on a nominal
+        // one, sequential on a nominal color and the quantitative shape each warn
         var warnings = reports.Where(r => r.Id == "vl-scale-type-ignored").Select(r => (r.Kind, r.Location.Pointer)).ToList();
         Assert.Equal(
             [
@@ -687,7 +713,7 @@ public class FeatureCatalogTests
                 (FeatureReportKind.Warning, "/encoding/shape/type"),
             ],
             warnings);
-        Assert.Contains(reports, r => r.Id == "vl-scale-log");
+        Assert.DoesNotContain(reports, r => r.Id == "vl-scale-log");
         Assert.DoesNotContain(reports, r => r.Id == "vl-scale-quantize");
     }
 
@@ -826,7 +852,7 @@ public class FeatureCatalogTests
         var reports = Visit(json);
 
         // Assert
-        Assert.Equal([("vl-encoding-stack-nonlinear", "/encoding/y/stack"), ("vl-scale-log", "/encoding/y/scale/type")], reports);
+        Assert.Equal([("vl-encoding-stack-nonlinear", "/encoding/y/stack")], reports);
     }
 
     /// <summary>

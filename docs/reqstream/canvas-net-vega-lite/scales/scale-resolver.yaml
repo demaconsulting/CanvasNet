@@ -308,3 +308,25 @@ sections:
                 tests:
                   - ScaleResolver_Resolve_InvalidInputsFailWithLocation
                   - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TransformedScales
+                title: >-
+                  The ScaleResolver unit shall resolve the scale types log, pow, sqrt, and symlog of a quantitative
+                  field on a position, size, opacity, stroke width, angle, or color channel to a continuous scale with
+                  the matching transform and its base (default 10), exponent (default 1; sqrt is the power 0.5),
+                  or constant (default 1); shall apply Vega-Lite's defaults to them (no zero for a log scale, nice to
+                  the powers of the base for a log scale, the padding in the transformed domain, domainMin,
+                  domainMax, clamp, and an explicit domain as for a linear scale, one decade when a log scale has no
+                  valid value); shall refuse a log domain that includes zero or crosses it with a located error
+                  (a VegaLiteSpecException at the domain for an explicit domain, a VegaLiteRenderException at the
+                  channel for the domain of the data); and shall use the default scale type instead of one that the
+                  channel or the field type cannot use.
+                justification: |
+                  Log-family scales are part of the Vega-Lite scale set; a domain that the logarithm cannot map must
+                  be reported where Vega would draw nothing.
+                tests:
+                  - ScaleResolver_Resolve_LogPowSqrtSymlogCarryTheirTransform
+                  - ScaleResolver_Resolve_LogScaleDefaultsFollowVegaLite
+                  - ScaleResolver_Resolve_LogDomainThatIncludesZeroFailsWithALocatedError
+                  - ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem
+                  - ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules

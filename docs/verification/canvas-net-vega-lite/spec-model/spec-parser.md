@@ -223,14 +223,21 @@ the channel a sort refers to is read from the shorthand (`"y"`, `"-y"`) and from
 ##### Scale Options Are Validated And Unknown Keys Are Warned About
 
 **Tests**: `SpecParserTests.SpecParser_Parse_WrongTypeReportsPointer`,
-`SpecParserTests.SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn`
+`SpecParserTests.SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn`,
+`SpecParserTests.SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType`
 
 Asserts, in the rows of the pointer theory, that a `domainMid`, `domainMin`, `domainMax`, `rangeMin`, or `rangeMax` that
 is not a number or an expression reference, an `interpolate` that is a number, an unknown name, an object without a
 string `type` or with an unknown one or a non-numeric `gamma`, a `scheme` that is not a string or an object, an object
 without a string `name` (pointer at the scheme or at the name), a `count` that is 0, -1, 2.5, or a string, an `extent`
 that has one entry, a non-number, or is not an array, and `bins` that is a number are each a located error at the
-offending value; and, in the accepted form, that numbers and expression references for the limits, the eight interpolate
+offending value, that the `base` of a log scale that is 1, 0, -10, or a string, the `constant` of a symlog scale
+that is 0
+or -1, and the `exponent` of a pow scale that is a string are located errors at the value, and that a base of 2.5, an
+exponent of -0.5, a constant of 0.01, an expression reference, and invalid parameters on a scale of another type (a linear
+scale with base 1, constant 0, and exponent 3, a sqrt scale with base 1 and constant -5) are silent; and,
+in the accepted form, that numbers and
+expression references for the limits, the eight interpolate
 names, an interpolate object with a gamma or an expression reference, a scheme name, object with count and extent, or
 expression reference, and `bins` as an array or an object are silent, while an unknown key of a scheme or interpolate
 object is one `vl-unknown-property` warning at the key.

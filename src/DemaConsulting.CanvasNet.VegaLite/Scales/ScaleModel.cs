@@ -122,6 +122,186 @@ internal readonly struct ScaleRange
 }
 
 /// <summary>
+///     The transform of a continuous scale: the function that is applied to the domain before the linear map, which makes the scale a
+///     linear, a log, a pow (or sqrt) or a symlog scale.
+/// </summary>
+internal enum ScaleTransformKind
+{
+    /// <summary>No transform (a linear scale).</summary>
+    Linear,
+
+    /// <summary>The logarithm to a base (d3's <c>scaleLog</c>); a domain below zero is reflected.</summary>
+    Log,
+
+    /// <summary>The signed power to an exponent (d3's <c>scalePow</c>; the exponent 0.5 is d3's <c>scaleSqrt</c>).</summary>
+    Pow,
+
+    /// <summary>The symmetric log with a constant (d3's <c>scaleSymlog</c>).</summary>
+    Symlog,
+}
+
+/// <summary>
+///     An immutable transform of a continuous scale and its parameter (the base of a log scale, the exponent of a pow scale, the constant
+///     of a symlog scale), with the functions d3-scale 4 applies.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The transforms are those of d3's <c>log.js</c>, <c>pow.js</c> and <c>symlog.js</c>: <c>Math.log</c> (the natural logarithm: a
+///         linear map does not depend on the base, which only matters for the ticks and <c>nice</c>), the sign-preserving power
+///         <c>x &lt; 0 ? -(-x)^e : x^e</c> (with <c>Math.sqrt</c> and its square for the exponent 0.5), and
+///         <c>sign(x) * log1p(|x| / c)</c> with the inverse <c>sign(y) * expm1(|y|) * c</c>. A log scale whose domain starts below zero is
+///         reflected: <c>-log(-x)</c> and <c>-exp(-y)</c>. A transform never changes after it is created.
+///     </para>
+/// </remarks>
+internal sealed class ScaleTransform
+{
+    /// <summary>The identity transform of a linear scale.</summary>
+    public static readonly ScaleTransform Linear = new(ScaleTransformKind.Linear, 1);
+
+    /// <summary>
+    ///     Initializes a transform.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <param name="parameter">The base, the exponent or the constant.</param>
+    private ScaleTransform(ScaleTransformKind kind, double parameter)
+    {
+        Kind = kind;
+        Parameter = parameter;
+    }
+
+    /// <summary>Gets the kind of transform.</summary>
+    public ScaleTransformKind Kind { get; }
+
+    /// <summary>Gets the base of a log transform, the exponent of a pow transform or the constant of a symlog transform (1 for a linear one).</summary>
+    public double Parameter { get; }
+
+    /// <summary>Gets a value indicating whether the transform changes nothing (a linear scale, or a pow scale with the exponent 1).</summary>
+    public bool IsLinear => Kind == ScaleTransformKind.Linear || (Kind == ScaleTransformKind.Pow && Parameter.CompareTo(1) == 0);
+
+    /// <summary>
+    ///     Creates a log transform.
+    /// </summary>
+    /// <param name="logBase">The base (d3's default is 10).</param>
+    /// <returns>The transform.</returns>
+    public static ScaleTransform Log(double logBase) => new(ScaleTransformKind.Log, logBase);
+
+    /// <summary>
+    ///     Creates a pow transform.
+    /// </summary>
+    /// <param name="exponent">The exponent (1 gives a linear scale, 0.5 a sqrt scale).</param>
+    /// <returns>The transform.</returns>
+    public static ScaleTransform Pow(double exponent) => new(ScaleTransformKind.Pow, exponent);
+
+    /// <summary>
+    ///     Creates a symlog transform.
+    /// </summary>
+    /// <param name="constant">The constant (d3's default is 1): the size of the linear region around zero.</param>
+    /// <returns>The transform.</returns>
+    public static ScaleTransform Symlog(double constant) => new(ScaleTransformKind.Symlog, constant);
+
+    /// <summary>
+    ///     Applies the transform to a domain value.
+    /// </summary>
+    /// <param name="x">The value.</param>
+    /// <param name="reflect">Whether a log transform is reflected (the domain starts below zero).</param>
+    /// <returns>The transformed value; NaN or an infinity where the transform is not defined (the logarithm of a number that is not above zero).</returns>
+    public double Forward(double x, bool reflect = false)
+    {
+        switch (Kind)
+        {
+            case ScaleTransformKind.Log:
+                return reflect ? -Math.Log(-x) : Math.Log(x);
+            case ScaleTransformKind.Pow:
+                if (Parameter.CompareTo(1) == 0)
+                {
+                    return x;
+                }
+
+                if (Parameter.CompareTo(0.5) == 0)
+                {
+                    return x < 0 ? -Math.Sqrt(-x) : Math.Sqrt(x);
+                }
+
+                return x < 0 ? -Math.Pow(-x, Parameter) : Math.Pow(x, Parameter);
+            case ScaleTransformKind.Symlog:
+                return double.IsNaN(x) ? double.NaN : Math.Sign(x) * Log1P(Math.Abs(x / Parameter));
+            default:
+                return x;
+        }
+    }
+
+    /// <summary>
+    ///     Undoes the transform.
+    /// </summary>
+    /// <param name="y">The transformed value.</param>
+    /// <param name="reflect">Whether a log transform is reflected.</param>
+    /// <returns>The domain value.</returns>
+    public double Inverse(double y, bool reflect = false)
+    {
+        switch (Kind)
+        {
+            case ScaleTransformKind.Log:
+                return reflect ? -Math.Exp(-y) : Math.Exp(y);
+            case ScaleTransformKind.Pow:
+                if (Parameter.CompareTo(1) == 0)
+                {
+                    return y;
+                }
+
+                if (Parameter.CompareTo(0.5) == 0)
+                {
+                    return y < 0 ? -(y * y) : y * y;
+                }
+
+                return y < 0 ? -Math.Pow(-y, 1 / Parameter) : Math.Pow(y, 1 / Parameter);
+            case ScaleTransformKind.Symlog:
+                return double.IsNaN(y) ? double.NaN : Math.Sign(y) * ExpM1(Math.Abs(y)) * Parameter;
+            default:
+                return y;
+        }
+    }
+
+    /// <summary>
+    ///     Computes <c>ln(1 + x)</c> without losing the small digits of <paramref name="x"/> (JavaScript's <c>Math.log1p</c>).
+    /// </summary>
+    /// <param name="x">The number, above -1.</param>
+    /// <returns>The natural logarithm of one plus the number.</returns>
+    private static double Log1P(double x)
+    {
+        var u = 1 + x;
+        if (double.IsInfinity(u) || double.IsNaN(u))
+        {
+            return Math.Log(u);
+        }
+
+        // Kahan's correction: the rounding error of 1 + x is divided out
+        return u.CompareTo(1) == 0 ? x : Math.Log(u) * x / (u - 1);
+    }
+
+    /// <summary>
+    ///     Computes <c>e^x - 1</c> without losing the small digits of <paramref name="x"/> (JavaScript's <c>Math.expm1</c>).
+    /// </summary>
+    /// <param name="x">The number.</param>
+    /// <returns>The exponential of the number minus one.</returns>
+    private static double ExpM1(double x)
+    {
+        var u = Math.Exp(x);
+        if (u.CompareTo(1) == 0)
+        {
+            return x;
+        }
+
+        var um1 = u - 1;
+        if (um1.CompareTo(-1) == 0)
+        {
+            return -1;
+        }
+
+        return double.IsInfinity(u) ? u : um1 * x / Math.Log(u);
+    }
+}
+
+/// <summary>
 ///     An immutable scale: the mapping from data values to positions, sizes, opacities or colors.
 /// </summary>
 /// <remarks>
@@ -129,7 +309,7 @@ internal readonly struct ScaleRange
 ///         The model is a C# version of the d3-scale 4 scales Vega-Lite uses for its first charts: <c>scaleLinear</c>
 ///         (<see cref="ScaleKind.Linear"/>, with <c>clamp</c> and <c>round</c>, a reversed domain or range and d3's piecewise
 ///         (polylinear) mapping for a domain and a range of more than two entries, see
-///         <see cref="CreateLinear(double[], double[], bool, bool)"/>), <c>scaleBand</c>
+///         <see cref="CreateLinear(double[], double[], bool, bool, ScaleTransform)"/>), <c>scaleBand</c>
 ///         (<see cref="ScaleKind.Band"/>, with inner and outer padding, alignment, rounding and a reversed range),
 ///         <c>scalePoint</c> (<see cref="ScaleKind.Point"/>) and <c>scaleOrdinal</c> (<see cref="ScaleKind.Ordinal"/>). The arithmetic of
 ///         d3 is kept, so for example the band step is
@@ -142,6 +322,12 @@ internal readonly struct ScaleRange
 ///         <see cref="Thresholds"/>) and Vega's <c>scaleBinOrdinal</c> (<see cref="ScaleKind.BinOrdinal"/>: a number gives the value of its
 ///         bin). Their outputs are a <see cref="ScaleRange"/> of texts (colors, shape names) or numbers (sizes, opacities), or the
 ///         index of the value (<see cref="MapIndex"/>) for outputs that are neither, such as dash patterns.
+///     </para>
+///     <para>
+///         A linear, sequential or diverging scale can carry a <see cref="ScaleTransform"/>: with the logarithm (<c>scaleLog</c>,
+///         <c>scaleSequentialLog</c>), the signed power (<c>scalePow</c>, <c>scaleSqrt</c>) or the symmetric log (<c>scaleSymlog</c>) the map
+///         from the domain to the range is linear over the transformed domain, as in d3's <c>transformer</c>; <see cref="Fraction"/> gives
+///         the position of a value in that transformed domain (what a gradient legend and its labels need).
 ///     </para>
 ///     <para>
 ///         A model never changes after it is created, which also means that an ordinal model does not learn new
@@ -175,6 +361,9 @@ internal sealed class ScaleModel
 
     /// <summary>The direction of a diverging scale: 1, or -1 when the domain runs downward.</summary>
     private double _sign = 1;
+
+    /// <summary>The transformed first domain entry of a sequential scale, or the transformed middle entry of a diverging scale.</summary>
+    private double _x0;
 
     /// <summary>
     ///     Initializes a model.
@@ -244,6 +433,15 @@ internal sealed class ScaleModel
     /// <summary>Gets a value indicating whether a linear scale clamps values to its domain.</summary>
     public bool Clamp { get; private init; }
 
+    /// <summary>
+    ///     Gets the transform of a linear, sequential or diverging scale: the identity for a linear scale, else the log, pow (or sqrt) or
+    ///     symlog transform the domain goes through before the linear map.
+    /// </summary>
+    public ScaleTransform Transform { get; private init; } = ScaleTransform.Linear;
+
+    /// <summary>Gets a value indicating whether a log scale is reflected (its domain starts below zero, so <c>-log(-x)</c> is used).</summary>
+    private bool Reflect { get; init; }
+
     /// <summary>Gets a value indicating whether a linear scale rounds its results to whole numbers, or a band scale rounds its step and positions.</summary>
     public bool Round { get; private init; }
 
@@ -300,9 +498,10 @@ internal sealed class ScaleModel
     /// <param name="rangeEnd">The value that <paramref name="domainEnd"/> maps to.</param>
     /// <param name="clamp">Whether values outside the domain are clamped to its ends.</param>
     /// <param name="round">Whether results are rounded to whole numbers.</param>
+    /// <param name="transform">The transform of a log, pow, sqrt or symlog scale; null for a linear scale.</param>
     /// <returns>The scale.</returns>
-    public static ScaleModel CreateLinear(double domainStart, double domainEnd, double rangeStart, double rangeEnd, bool clamp = false, bool round = false) =>
-        CreateLinear([domainStart, domainEnd], [rangeStart, rangeEnd], clamp, round);
+    public static ScaleModel CreateLinear(double domainStart, double domainEnd, double rangeStart, double rangeEnd, bool clamp = false, bool round = false, ScaleTransform? transform = null) =>
+        CreateLinear([domainStart, domainEnd], [rangeStart, rangeEnd], clamp, round, transform);
 
     /// <summary>
     ///     Creates a linear scale from a domain and a range of any length, with d3's piecewise (polylinear) semantics.
@@ -322,15 +521,22 @@ internal sealed class ScaleModel
     ///         the complete domain and <see cref="RangeStart"/> and <see cref="RangeEnd"/> those of the complete range,
     ///         which is what d3's <c>nice</c>, <c>ticks</c> and an axis use.
     ///     </para>
+    ///     <para>
+    ///         A <paramref name="transform"/> makes the scale a log, pow, sqrt or symlog scale exactly as in d3's <c>transformer</c>: the
+    ///         value is clamped (in the domain), then transformed, and the piecewise map runs over the transformed domain; the inverse
+    ///         undoes the transform of the result. A value that the transform cannot take (the logarithm of a number that is not above
+    ///         zero) has no position: <see cref="Map(DataValue)"/> gives <see langword="null"/> for it.
+    ///     </para>
     /// </remarks>
     /// <param name="domain">The domain: at least two numbers.</param>
     /// <param name="range">The range: at least two numbers.</param>
     /// <param name="clamp">Whether values outside the domain are clamped to its ends.</param>
     /// <param name="round">Whether results are rounded to whole numbers.</param>
+    /// <param name="transform">The transform of a log, pow, sqrt or symlog scale; null for a linear scale.</param>
     /// <returns>The scale.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> or <paramref name="range"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when the domain or the range has fewer than two entries.</exception>
-    public static ScaleModel CreateLinear(double[] domain, double[] range, bool clamp = false, bool round = false)
+    public static ScaleModel CreateLinear(double[] domain, double[] range, bool clamp = false, bool round = false, ScaleTransform? transform = null)
     {
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(range);
@@ -345,6 +551,11 @@ internal sealed class ScaleModel
         }
 
         var used = Math.Min(domain.Length, range.Length);
+        transform ??= ScaleTransform.Linear;
+
+        // The piecewise maps work on the transformed domain; a log scale that starts below zero is reflected (d3's rescale)
+        var reflect = transform.Kind == ScaleTransformKind.Log && domain[0] < 0;
+        var transformed = transform.IsLinear ? domain : [.. domain.Select(d => transform.Forward(d, reflect))];
         return new ScaleModel(ScaleKind.Linear, [], default)
         {
             DomainStart = domain[0],
@@ -353,8 +564,10 @@ internal sealed class ScaleModel
             RangeEnd = range[^1],
             Clamp = clamp,
             Round = round,
-            Forward = Piecewise.Create(domain, range),
-            Inverse = Piecewise.Create(range, domain),
+            Transform = transform,
+            Reflect = reflect,
+            Forward = Piecewise.Create(transformed, range),
+            Inverse = Piecewise.Create(range, transformed),
             ClampLow = Math.Min(domain[0], domain[used - 1]),
             ClampHigh = Math.Max(domain[0], domain[used - 1]),
         };
@@ -452,10 +665,11 @@ internal sealed class ScaleModel
     /// <param name="domain">The domain: two entries (sequential) or three, the middle one being the value the middle color stands for (diverging).</param>
     /// <param name="interpolator">The interpolator over 0 to 1.</param>
     /// <param name="clamp">Whether the position is limited to 0 to 1.</param>
+    /// <param name="transform">The transform of a log, pow, sqrt or symlog color scale (d3's <c>scaleSequentialLog</c> and friends: the position is computed from the transformed numbers); null for none.</param>
     /// <returns>The scale.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> or <paramref name="interpolator"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when the domain does not have two or three entries.</exception>
-    public static ScaleModel CreateSequential(double[] domain, Func<double, RgbColor> interpolator, bool clamp = false)
+    public static ScaleModel CreateSequential(double[] domain, Func<double, RgbColor> interpolator, bool clamp = false, ScaleTransform? transform = null)
     {
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(interpolator);
@@ -464,6 +678,10 @@ internal sealed class ScaleModel
             throw new ArgumentException("A sequential scale needs two domain entries and a diverging scale three.", nameof(domain));
         }
 
+        // The position is computed from the transformed domain (a log scale that starts below zero is reflected)
+        transform ??= ScaleTransform.Linear;
+        var reflect = transform.Kind == ScaleTransformKind.Log && domain[0] < 0;
+        var t = transform.IsLinear ? domain : [.. domain.Select(d => transform.Forward(d, reflect))];
         if (domain.Length == 2)
         {
             return new ScaleModel(ScaleKind.Sequential, [], default)
@@ -472,7 +690,10 @@ internal sealed class ScaleModel
                 DomainEnd = domain[1],
                 Interpolator = interpolator,
                 Clamp = clamp,
-                _k10 = domain[0].CompareTo(domain[1]) == 0 ? 0 : 1 / (domain[1] - domain[0]),
+                Transform = transform,
+                Reflect = reflect,
+                _x0 = t[0],
+                _k10 = t[0].CompareTo(t[1]) == 0 ? 0 : 1 / (t[1] - t[0]),
             };
         }
 
@@ -483,9 +704,12 @@ internal sealed class ScaleModel
             DomainEnd = domain[2],
             Interpolator = interpolator,
             Clamp = clamp,
-            _k10 = domain[0].CompareTo(domain[1]) == 0 ? 0 : 0.5 / (domain[1] - domain[0]),
-            _k21 = domain[1].CompareTo(domain[2]) == 0 ? 0 : 0.5 / (domain[2] - domain[1]),
-            _sign = domain[1] < domain[0] ? -1 : 1,
+            Transform = transform,
+            Reflect = reflect,
+            _x0 = t[1],
+            _k10 = t[0].CompareTo(t[1]) == 0 ? 0 : 0.5 / (t[1] - t[0]),
+            _k21 = t[1].CompareTo(t[2]) == 0 ? 0 : 0.5 / (t[2] - t[1]),
+            _sign = t[1] < t[0] ? -1 : 1,
         };
     }
 
@@ -615,7 +839,7 @@ internal sealed class ScaleModel
             value = Math.Max(ClampLow, Math.Min(ClampHigh, value));
         }
 
-        var result = Forward!.Evaluate(value);
+        var result = Forward!.Evaluate(Transform.IsLinear ? value : Transform.Forward(value, Reflect));
         return Round ? JsNumber.Round(result) : result;
     }
 
@@ -634,7 +858,14 @@ internal sealed class ScaleModel
         switch (Kind)
         {
             case ScaleKind.Linear:
-                return value.TryGetQuantitative(out var number) ? Map(number) : null;
+                if (!value.TryGetQuantitative(out var number))
+                {
+                    return null;
+                }
+
+                // A value the transform cannot take (the logarithm of a number that is not above zero) has no position
+                var mapped = Map(number);
+                return Transform.IsLinear || double.IsFinite(mapped) ? mapped : null;
             case ScaleKind.Band or ScaleKind.Point:
                 return _index.TryGetValue(value, out var index) ? _positions[index] : null;
             case ScaleKind.Ordinal or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold or ScaleKind.BinOrdinal:
@@ -686,10 +917,11 @@ internal sealed class ScaleModel
         }
 
         double t;
+        var x = Transform.IsLinear ? value : Transform.Forward(value, Reflect);
         if (Kind == ScaleKind.Sequential)
         {
-            // d3: a domain of zero width gives the middle of the interpolator, otherwise the position in the domain
-            t = _k10.CompareTo(0) == 0 ? 0.5 : (value - DomainStart) * _k10;
+            // d3: a domain of zero width gives the middle of the interpolator, otherwise the position in the (transformed) domain
+            t = _k10.CompareTo(0) == 0 ? 0.5 : (x - _x0) * _k10;
             if (_k10.CompareTo(0) != 0 && Clamp)
             {
                 t = Math.Max(0, Math.Min(1, t));
@@ -697,14 +929,14 @@ internal sealed class ScaleModel
         }
         else
         {
-            t = 0.5 + ((value - DomainMid) * (_sign * value < _sign * DomainMid ? _k10 : _k21));
+            t = 0.5 + ((x - _x0) * (_sign * x < _sign * _x0 ? _k10 : _k21));
             if (Clamp)
             {
                 t = Math.Max(0, Math.Min(1, t));
             }
         }
 
-        return Interpolator!(t);
+        return double.IsFinite(t) ? Interpolator!(t) : null;
     }
 
     /// <summary>
@@ -812,8 +1044,27 @@ internal sealed class ScaleModel
             return double.NaN;
         }
 
-        var result = Inverse!.Evaluate(position);
+        var result = Transform.Inverse(Inverse!.Evaluate(position), Reflect);
         return Clamp ? Math.Max(ClampLow, Math.Min(ClampHigh, result)) : result;
+    }
+
+    /// <summary>
+    ///     Gets the position of a number between the ends of the domain of a linear, sequential or diverging scale, from 0 at the start to
+    ///     1 at the end, along the transformed domain (Vega's <c>scaleFraction</c>: a log scale gives <c>log(v / start) / log(end / start)</c>).
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The fraction; 0.5 when the domain has no span (or the span is not finite).</returns>
+    public double Fraction(double value)
+    {
+        var from = Transform.Forward(DomainStart, Reflect);
+        var to = Transform.Forward(DomainEnd, Reflect);
+        var delta = to - from;
+        if (delta.CompareTo(0) == 0 || !double.IsFinite(delta))
+        {
+            return 0.5;
+        }
+
+        return (Transform.Forward(value, Reflect) - from) / delta;
     }
 
     /// <summary>

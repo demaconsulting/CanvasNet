@@ -662,4 +662,33 @@ public class MarkBuilderTests
         Assert.Equal([114.0, 144.0, 90.0, 18.0], R(plain.Select(b => b.Y)));
         Assert.Equal([86.0, 56.0, 110.0, 182.0], R(plain.Select(b => b.Height)));
     }
+
+    /// <summary>
+    ///     Validates the bars of a log y axis: the domain 28 to 91 is rounded out to 10 to 100 (one decade, which is the 200 pixels of the data rectangle), the
+    ///     bars are not stacked and start at the bottom of the data rectangle (the start of the domain, as Vega-Lite's <c>zeroOrMin</c> gives for a log
+    ///     scale), and a row whose value the log cannot map (zero) is left out instead of drawing a bar at a position that is not a number.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap()
+    {
+        // Arrange: y(v) = 200 - 200 * (log10(v) - 1) on the domain 10 to 100 over 200 px
+        var log = BarSpec.Replace("\"y\": { \"field\": \"n\", \"type\": \"quantitative\" }", "\"y\": { \"field\": \"n\", \"type\": \"quantitative\", \"scale\": { \"type\": \"log\" } }", StringComparison.Ordinal);
+        var bars = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(log, 240, 200), "mark-bar");
+
+        // Assert: the tops follow the logarithm and every bar ends at the bottom
+        double[] values = [43, 28, 55, 91];
+        Assert.Equal(4, bars.Count);
+        Assert.Equal(R(values.Select(v => 200 - (200 * (Math.Log10(v) - 1)))), R(bars.Select(b => b.Y)));
+        Assert.All(bars, b => Assert.Equal(200, Math.Round(b.Y + b.Height, 9)));
+
+        // Arrange: a fifth category whose value is zero, on an explicit domain 10 to 100 (a zero in the data would otherwise be a domain error)
+        var withZero = log
+            .Replace("{ \"k\": \"West\", \"n\": 91 }", "{ \"k\": \"West\", \"n\": 91 }, { \"k\": \"None\", \"n\": 0 }", StringComparison.Ordinal)
+            .Replace("\"scale\": { \"type\": \"log\" }", "\"scale\": { \"type\": \"log\", \"domain\": [10, 100] }", StringComparison.Ordinal);
+        var drawn = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(withZero, 240, 200), "mark-bar");
+
+        // Assert: the zero row has no bar, and the others are where they were
+        Assert.Equal(4, drawn.Count);
+        Assert.Equal(R(values.Select(v => 200 - (200 * (Math.Log10(v) - 1)))), R(drawn.Select(b => b.Y)));
+    }
 }

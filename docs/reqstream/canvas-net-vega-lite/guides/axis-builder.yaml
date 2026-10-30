@@ -102,3 +102,22 @@ sections:
                   number of ticks must be bounded.
                 tests:
                   - AxisBuilder_Build_InvalidSettingsAndLimitsFailWithLocations
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-LogAxis
+                title: >-
+                  The AxisBuilder unit shall build the axis of a log scale with the log ticks (ten ticks by default
+                  instead of one per 40 pixels, the explicit tick count, the explicit values), label only the ticks that
+                  d3's log rule keeps (every label of explicit values) with the variable-precision number format (or
+                  the explicit format), thin the labels by the greedy overlap method by default, and shall build the
+                  axis of a pow, sqrt, or symlog scale with the ordinary ticks and format of its domain at the
+                  transformed positions; the ticks of a log axis shall respect the tick limit with a located error that
+                  names it and the cancellation token.
+                justification: |
+                  A log axis shows the decades; its labels and ticks must follow Vega-Lite's rules or the axis is
+                  unreadable or wrong.
+                tests:
+                  - AxisBuilder_Build_LogAxisHasDecadeTicksAndFilteredLabels
+                  - AxisBuilder_Build_LogAxisHonorsValuesTickCountFormatAndNegativeDomains
+                  - AxisBuilder_Build_LogAxisThinsOverlappingLabelsGreedilyByDefault
+                  - AxisBuilder_Build_PowSqrtAndSymlogAxesUseOrdinaryTicksAtTransformedPositions
+                  - AxisBuilder_Build_LogAxisEnforcesTheTickLimitAndCancellation

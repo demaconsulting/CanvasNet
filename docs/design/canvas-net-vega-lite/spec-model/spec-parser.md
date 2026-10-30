@@ -65,7 +65,11 @@ letter: a `scheme` object must have a string `name`, a positive whole `count`, a
 `interpolate` must be one of the eight color-space names (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`,
 `cubehelix`, `cubehelix-long`) or an object with that name as `type` and a numeric `gamma`; each failure is a
 `VegaLiteSpecException` at the offending value, and an unknown key of a `scheme` or `interpolate` object is a
-`vl-unknown-property` warning. An expression reference in place of either is left to the catalog. `domainMid`,
+`vl-unknown-property` warning. An expression reference in place of either is left to the catalog. `ValidateTransformOptions`
+checks the parameters of the transform scale types by the type of the scale only: the `base` of a `log` scale must be a
+number above zero other than 1, the `exponent` of a `pow` scale finite, and the `constant` of a `symlog` scale
+above zero (the
+parameters of another type are ignored, as in Vega-Lite). `domainMid`,
 `domainMin`, `domainMax`, `rangeMin`, `rangeMax` (numbers or expression references) and `bins` (array or object) have
 kind rules only.
 

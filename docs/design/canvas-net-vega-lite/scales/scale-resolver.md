@@ -68,8 +68,16 @@ is ignored for every channel but x and y.
   `strokeDash` (also for a quantitative field, which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`,
   `fillOpacity`, `strokeOpacity`, and `angle` are
   linear for a quantitative field and point scales otherwise. A temporal field has no scale. An explicit `scale.type` of
-  linear, sequential (colors), quantile, quantize, threshold, band, point, or ordinal is used when both the channel and
-  the field type accept it; otherwise (and for the types that are not drawn yet) the default applies. `ChannelIsDrawn`
+  linear, log, pow, sqrt, symlog, sequential (colors), quantile, quantize, threshold, band, point, or ordinal is used when
+  both the channel and the field type accept it; otherwise (and for the types that are not drawn yet) the default applies.
+  The log, pow, sqrt, and symlog types are the continuous-to-continuous scales with a transform
+  (`ResolvedScale.Transform`, a `ScaleTransform`): a **log** scale with its `base` (default 10), a **pow** scale with its
+  `exponent` (default 1), a **sqrt** scale as the power 0.5 whatever `exponent` says, and a **symlog** scale with its
+  `constant` (default 1); the properties of another type are ignored. They are accepted on position, size, opacity,
+  stroke width, angle, and color channels (a color scale becomes the sequential or diverging scale of the
+transform) for a
+  quantitative field, not on `shape` or `strokeDash`, and a nominal field falls back to the discrete default; a measure
+  that carries one of them is never stacked (`StackRules` refuses the stack, as Vega-Lite does). `ChannelIsDrawn`
   gives a channel a scale
   only for the marks Vega-Lite's `supportMark` allows (`shape` on `point`; `angle` on `point`, `circle`, and `square`;
   `strokeDash` and `size` not on `rect`), `AcceptsScaleType` answers the type question for the feature catalog, and
@@ -89,9 +97,15 @@ is ignored for every channel but x and y.
   bar (unless it is a range) and for quantitative sizes that are not quantized, the configured default otherwise, never
   for a binned field,
   and only
-  when a custom domain already spans zero; never for quantile and threshold scales), then `domainMin` and `domainMax`
+  when a custom domain already spans zero; never for quantile and threshold scales and never for a log scale, whose domain
+  cannot reach zero, even when `zero: true` is given), then `domainMin` and `domainMax`
   replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
-  before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. A quantize scale has
+  before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. **A log scale refuses a
+  domain that includes zero or crosses it**: Vega only warns and then draws nothing (every position is NaN), while the
+  resolver throws a located error that names the domain and suggests a symlog scale or leaving the zero and negative
+  values out - a `VegaLiteSpecException` at `scale.domain` for an explicit domain, a `VegaLiteRenderException` at the
+  channel for the domain of the data or after `domainMin`/`domainMax` (a domain below zero is fine: the scale is reflected).
+  A log scale without any valid value gets one decade, 1 to 10, instead of the default 0 to 1. A quantize scale has
   the extent of the values; a **quantile** scale all the valid values of the field in ascending order (read with the
   token polled and charged to the step budget, see _Limits_); a **threshold** scale the
   explicit thresholds or, without a domain, the extent as two thresholds. A color scale whose domain
@@ -110,7 +124,10 @@ is ignored for every channel but x and y.
 - **Padding and nice.** A band scale has inner padding by mark from the configuration (bar 0.1, tick 0.25, others 0) and
   outer padding half of it; a point scale 0.5; `scale.padding` sets both. A continuous position scale gets nice with a
   count of 10 unless it has a custom domain **or is binned** (its bins already end on round values); a bar on its
-  continuous axis (not a binned one) gets 5 pixels of padding.
+  continuous axis (not a binned one) gets 5 pixels of padding. On a **log** scale `nice` floors and ceils the ends to
+  powers of the base (`Ticks.LogNice`, the count plays no part), on pow, sqrt, and symlog scales it is the ordinary
+  tick-based `nice` of the domain, and the pixel padding widens the domain around its middle **in the transformed
+  domain** (so a log domain keeps its geometric middle).
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). Size ranges follow
   the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); `strokeWidth`
   is `minStrokeWidth` to `maxStrokeWidth` (1 to 4); the opacities are 0.3 to 0.8; `angle` is 0 to 360; a discretizing
@@ -236,7 +253,9 @@ than two values; a quantitative domain with fewer than two numbers or with a non
 list of strings; a dash range that is not a list of lists of numbers; a color that cannot be read; a color domain of
 four or more entries;
 an unknown scheme name or an unknown named range) is a `VegaLiteSpecException`
-located at the offending value (a name that comes from `config.range` is located at the channel). A discrete domain with
+located at the offending value (a name that comes from `config.range` is located at the channel). A log scale whose domain
+includes zero or crosses it is a `VegaLiteSpecException` at `scale.domain` (an explicit domain) or a
+`VegaLiteRenderException` at the channel (the domain of the data). A discrete domain with
 more than `MaxScaleDomainSize` values, a specification array (domain, range) of more entries than that, a scheme `count`
 or
 a generated range (`quantileCount`, `quantizeCount`) above it, is a
@@ -252,8 +271,9 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 
 #### Dependencies
 
-- **`ScaleModel`**, **`Ticks`**, **`ColorSchemes`**, **`ColorInterpolator`**, and **`ColorRamp`** - the models, the
-  tick-based `nice` rule,
+- **`ScaleModel`** (including its `ScaleTransform`), **`Ticks`** (the tick-based `nice` rule, `LogNice`, and `IsLogDomain`),
+  **`ColorSchemes`**, **`ColorInterpolator`**, and **`ColorRamp`** - the models, the
+  nice rules,
   the scheme catalog and its range configuration, and the color interpolation
 - **`CssColor`** - the reading of the colors of a list of colors
 - **`EncodingPlan`**, **`EncodingData`**, **`ChannelPlan`**, **`BinSpec`**, and **`StackOffset`** - the plan and the tables

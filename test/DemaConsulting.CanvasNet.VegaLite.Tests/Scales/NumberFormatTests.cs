@@ -390,4 +390,73 @@ public class NumberFormatTests
         Assert.Empty(failures);
         Assert.Throws<FormatException>(() => NumberFormat.TickFormat(0, 1, 5, "bad!"));
     }
+
+    /// <summary>
+    ///     Validates Vega's <c>formatFloat</c> (the label format of a log axis and legend): a specifier without a precision shows up to 12
+    ///     significant digits and loses the trailing zeros (and the decimal point when nothing is left, in front of an exponent or a unit),
+    ///     the default specifier groups the digits, and a specifier with a precision is used as it is.
+    /// </summary>
+    [Fact]
+    public void NumberFormat_FormatFloat_TrimsZeroesWithoutAPrecision()
+    {
+        // Arrange: (specifier, value, expected text), derived from toPrecision(12) of the value followed by the trimming
+        var vectors = new (string? Specifier, double Value, string Expected)[]
+        {
+            // the default is the grouped, 12-digit, trimmed number
+            (null, 1000, "1,000"),
+            (null, 1, "1"),
+            (null, 0.001, "0.001"),
+            (null, 1234.5, "1,234.5"),
+            (null, 0.5, "0.5"),
+            (null, 0, "0"),
+            (null, -0.25, M + "0.25"),
+            (null, 100000, "100,000"),
+            (string.Empty, 20, "20"),
+
+            // a value that needs an exponent keeps it and loses the zeros of the mantissa
+            (null, 1e-7, "1e-7"),
+            (null, 2.5e-7, "2.5e-7"),
+            (null, 1e21, "1e+21"),
+
+            // a type without a precision gets one and is trimmed: SI prefix, percent (precision 10), exponent (precision 11)
+            ("s", 1000, "1k"),
+            ("s", 1500, "1.5k"),
+            ("%", 0.256, "25.6%"),
+            ("e", 12345, "1.2345e+4"),
+
+            // a precision is used as it is, so the zeros stay
+            (".2f", 3.14159, "3.14"),
+            (".3f", 2, "2.000"),
+            (",.0f", 1234567, "1,234,567"),
+        };
+
+        // Act / Assert
+        var failures = new List<string>();
+        foreach (var (specifier, value, expected) in vectors)
+        {
+            var actual = NumberFormat.FormatFloat(specifier)(value);
+            if (!string.Equals(expected, actual, StringComparison.Ordinal))
+            {
+                failures.Add($"formatFloat({specifier ?? "null"})({value:R}) = \"{actual}\", expected \"{expected}\"");
+            }
+        }
+
+        Assert.Empty(failures);
+        Assert.Throws<FormatException>(() => NumberFormat.FormatFloat("bad!"));
+    }
+
+    /// <summary>
+    ///     Pins how the tick format of a domain without span behaves: its tick step is zero, the precision derived from it is not a number
+    ///     (d3-format 3.1.2 has no exponent for zero), and a specifier without a precision keeps the default of six decimals, as d3 and
+    ///     Vega give for such a domain; a specifier with a precision is unaffected.
+    /// </summary>
+    [Fact]
+    public void NumberFormat_TickFormat_ZeroSpanDomainKeepsTheDefaultPrecision()
+    {
+        // Assert: no precision can be derived from a step of zero, so ",f" shows six decimals; "d" and a fixed precision are explicit
+        Assert.Equal("5.000000", NumberFormat.TickFormat(5, 5, 10).Format(5));
+        Assert.Equal("5", NumberFormat.TickFormat(5, 5, 10, ",d").Format(5));
+        Assert.Equal("5.0", NumberFormat.TickFormat(5, 5, 10, ".1f").Format(5));
+        Assert.Equal("0.000000", NumberFormat.TickFormat(0, 0, 10).Format(0));
+    }
 }

@@ -460,4 +460,147 @@ public class AxisBuilderTests
         Assert.DoesNotContain(plain.Ticks, t => t.Label.Contains('%', StringComparison.Ordinal));
         Assert.Equal(["n"], [ChartTestHelpers.Of<SceneText>(plain.Group, "axis-title").Single().Text]);
     }
+
+    /// <summary>
+    ///     Builds a point chart whose y axis has a scale of the given type and the given extra properties of the channel.
+    /// </summary>
+    /// <param name="values">The y values of the rows, as JSON numbers separated by commas.</param>
+    /// <param name="scale">The JSON text of the <c>scale</c> property value.</param>
+    /// <param name="axis">The JSON text of the <c>axis</c> property value, or null for none.</param>
+    /// <returns>The specification text.</returns>
+    private static string TransformChart(string values, string scale, string? axis = null) =>
+        "{\"data\":{\"values\":[" + string.Join(",", values.Split(',').Select(v => "{\"w\":" + v + "}")) + "]},\"mark\":\"point\","
+        + "\"encoding\":{\"y\":{\"field\":\"w\",\"type\":\"quantitative\",\"scale\":" + scale + (axis is null ? string.Empty : ",\"axis\":" + axis) + "}}}";
+
+    /// <summary>
+    ///     Validates the axis of a log scale against d3's <c>scaleLog.ticks</c> and the label rule of Vega: ten ticks by default instead of one per
+    ///     40 pixels, the multiples of every decade as ticks, only the labels whose leading digit fits (1, 2 and 3 for 28 ticks and a count of
+    ///     10, derived by hand as <c>k = 10 * 10 / 28 = 3.57</c>), the variable-precision number format, and tick positions of 100 pixels
+    ///     per decade for three decades over 300 pixels.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_LogAxisHasDecadeTicksAndFilteredLabels()
+    {
+        // Arrange / Act: 1..1000 on a log y axis of 300 pixels (the domain is already nice)
+        var axis = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}"), "y", 300, 300)!;
+
+        // Assert: 28 ticks: 1..9, 10..90, 100..900 and 1000, in ascending order of value
+        Assert.Equal(28, axis.Ticks.Count);
+        Assert.Equal([1.0, 2, 3, 4, 5, 6, 7, 8, 9, 10], axis.Ticks.Take(10).Select(t => t.Value.Number));
+        Assert.Equal(1000, axis.Ticks[^1].Value.Number);
+
+        // Assert: the powers are 100 pixels apart (the origin is at the top, so 1 is at 300 and 1000 at 0); the positions are rounded
+        Assert.Equal([300.0, 200, 100, 0], new[] { 0, 9, 18, 27 }.Select(i => axis.Ticks[i].Position));
+
+        // Assert: the labels of the digits above 3 are empty; the others use the grouped variable-precision format
+        Assert.Equal(
+            ["1", "2", "3", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, "10", "20", "30"],
+            axis.Ticks.Take(12).Select(t => t.Label));
+        Assert.Equal(["100", "200", "300", "1,000"], new[] { 18, 19, 20, 27 }.Select(i => axis.Ticks[i].Label));
+        var labels = ChartTestHelpers.Of<SceneText>(axis.Group, "axis-label").Where(l => l.Text.Length > 0).Select(l => l.Text).ToList();
+        Assert.Equal(["1", "2", "3", "10", "20", "30", "100", "200", "300", "1,000"], labels);
+    }
+
+    /// <summary>
+    ///     Validates the explicit settings of a log axis: <c>values</c> are all labeled (Vega skips no label for them), <c>tickCount</c> gives the
+    ///     d3 ticks of the exponents when the span is not below it, a <c>format</c> is applied to the labels, the number format never shows more
+    ///     than 12 digits, and a domain below zero (reflected) gets ticks and labels by the same rules.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_LogAxisHonorsValuesTickCountFormatAndNegativeDomains()
+    {
+        // Assert: explicit values are all labeled, including the digits that the rule would hide
+        var values = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}", "{\"values\":[1,5,50,500]}"), "y", 300, 300)!;
+        Assert.Equal(["1", "5", "50", "500"], values.Ticks.Select(t => t.Label));
+
+        // Assert: two ticks over three decades are the powers 1 and 100 (d3 ticks of 0..3 for a count of 2 are 0 and 2), both labeled
+        var count = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}", "{\"tickCount\":2}"), "y", 300, 300)!;
+        Assert.Equal([1.0, 100], count.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(["1", "100"], count.Ticks.Select(t => t.Label));
+
+        // Assert: a format with a precision is used as it is, and a type without one is trimmed (six decades with two ticks wanted give the
+        // powers 1, 100, 10^4 and 10^6, the d3 ticks of 0..6 for a step of 2)
+        var fixedPoint = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}", "{\"tickCount\":2,\"format\":\".1f\"}"), "y", 300, 300)!;
+        Assert.Equal(["1.0", "100.0"], fixedPoint.Ticks.Select(t => t.Label));
+        var si = ChartTestHelpers.Axis(TransformChart("1,1000000", "{\"type\":\"log\"}", "{\"tickCount\":2,\"format\":\"s\"}"), "y", 300, 300)!;
+        Assert.Equal(["1", "100", "10k", "1M"], si.Ticks.Select(t => t.Label));
+
+        // Assert: the domain -1000..-1 is reflected: 28 ascending ticks whose labels keep the digits 1 to 3 (the same rule on the magnitude)
+        var negative = ChartTestHelpers.Axis(TransformChart("-1000,-1", "{\"type\":\"log\"}"), "y", 300, 300)!;
+        Assert.Equal(28, negative.Ticks.Count);
+        Assert.Equal(-1000, negative.Ticks[0].Value.Number);
+        Assert.Equal(-1, negative.Ticks[^1].Value.Number);
+        var shown = negative.Ticks.Select(t => t.Label).Where(l => l.Length > 0).ToList();
+        Assert.Equal(["\u22121,000", "\u2212300", "\u2212200", "\u2212100", "\u221230", "\u221220", "\u221210", "\u22123", "\u22122", "\u22121"], shown);
+    }
+
+    /// <summary>
+    ///     Validates that the labels of a log axis are thinned by the greedy overlap method by default (Vega-Lite's default for log scales) and
+    ///     all kept with <c>labelOverlap: false</c>: on 40 pixels the ten labels of the decades overlap.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_LogAxisThinsOverlappingLabelsGreedilyByDefault()
+    {
+        // Arrange / Act
+        var crowded = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}"), "y", 300, 40)!;
+        var all = ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}", "{\"labelOverlap\":false}"), "y", 300, 40)!;
+
+        // Assert: with the overlap method off, the ten labels that the rule picks are drawn; by default the greedy method hides the ones that touch
+        var allLabels = ChartTestHelpers.Of<SceneText>(all.Group, "axis-label").Where(l => l.Text.Length > 0).ToList();
+        var keptLabels = ChartTestHelpers.Of<SceneText>(crowded.Group, "axis-label").Where(l => l.Text.Length > 0).ToList();
+        Assert.Equal(10, allLabels.Count);
+        Assert.InRange(keptLabels.Count, 1, 9);
+        Assert.Contains(keptLabels, l => l.Text == "1");
+    }
+
+    /// <summary>
+    ///     Validates the axes of the pow, sqrt and symlog scales: as in d3 their ticks are the ordinary ticks of the domain with the default
+    ///     count of one per 40 pixels and the ordinary format, placed along the transformed domain (the square puts 40 of 0..100 at 16 percent).
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_PowSqrtAndSymlogAxesUseOrdinaryTicksAtTransformedPositions()
+    {
+        // Arrange / Act: 0..100 squared over 200 pixels: the count is ceil(200 / 40) = 5, so the ticks are 0, 20, ..., 100 with labels as usual
+        var square = ChartTestHelpers.Axis(TransformChart("0,100", "{\"type\":\"pow\",\"exponent\":2}"), "y", 300, 200)!;
+
+        // Assert: y runs upward, so 0 is at 200; 20 is 400 of 10000 (8 px above), 40 is 1600 (32), 60 is 3600 (72), 80 is 6400 (128), 100 is 10000 (200)
+        Assert.Equal([0.0, 20, 40, 60, 80, 100], square.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(["0", "20", "40", "60", "80", "100"], square.Ticks.Select(t => t.Label));
+        Assert.Equal([200.0, 192, 168, 128, 72, 0], square.Ticks.Select(t => t.Position));
+
+        // Assert: the square root of 0..100 over 200 px: 25 is half (5 of 10), so it is at 100; the ticks are the same ordinary ones
+        var sqrt = ChartTestHelpers.Axis(TransformChart("0,100", "{\"type\":\"sqrt\"}"), "y", 300, 200)!;
+        Assert.Equal([0.0, 20, 40, 60, 80, 100], sqrt.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(200 - (200 * Math.Sqrt(20) / 10), sqrt.Ticks[1].Position, 0);
+
+        // Assert: a symlog axis of -100..100 over 200 px has the ordinary ticks (the step is 50: 200 / 5 = 40 rounds up to 5 x 10) and puts zero in the middle
+        var symlog = ChartTestHelpers.Axis(TransformChart("-100,100", "{\"type\":\"symlog\"}"), "y", 300, 200)!;
+        Assert.Equal([-100.0, -50, 0, 50, 100], symlog.Ticks.Select(t => t.Value.Number));
+        Assert.Equal(100, symlog.Ticks.Single(t => t.Value.Number.CompareTo(0) == 0).Position);
+        Assert.Equal(["\u2212100", "\u221250", "0", "50", "100"], symlog.Ticks.Select(t => t.Label));
+    }
+
+    /// <summary>
+    ///     Validates the limits of a log axis: more ticks than <see cref="VegaLiteLimits.MaxTicks"/> is a located render error that the tool maps
+    ///     to a budget error (the message names the limit), and a canceled token stops the work.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_LogAxisEnforcesTheTickLimitAndCancellation()
+    {
+        // Arrange / Act: 28 ticks against a limit of 5
+        var ex = Assert.Throws<VegaLiteRenderException>(() =>
+            ChartTestHelpers.Axis(TransformChart("1,1000", "{\"type\":\"log\"}"), "y", 300, 300, null, new VegaLiteLimits { MaxTicks = 5 }));
+
+        // Assert
+        Assert.Equal("/encoding/y", ex.Location.Pointer);
+        Assert.Contains("the limit of 5", ex.Message, StringComparison.Ordinal);
+
+        // Assert: a canceled token stops the build before the ticks are made
+        var parts = ChartTestHelpers.Parts(TransformChart("1,1000", "{\"type\":\"log\"}"));
+        var scale = parts.Scales["y"]!;
+        var request = new AxisRequest("y", parts.Tree.Root["encoding"]?["y"], scale, scale.CreateModel(300), 300, 300, parts.Scales.MarkType);
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+        Assert.Throws<OperationCanceledException>(() => new AxisBuilder(new TextMeasurer(), parts.Config, null, parts.Tree.SourceName).Build(request, source.Token));
+    }
 }

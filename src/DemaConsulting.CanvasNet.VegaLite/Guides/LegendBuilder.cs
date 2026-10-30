@@ -386,7 +386,7 @@ internal sealed partial class LegendBuilder
     /// <param name="create">Creates the formatter.</param>
     /// <returns>The formatter.</returns>
     /// <exception cref="VegaLiteSpecException">Thrown, with the location of the <c>format</c>, when the specifier is not valid.</exception>
-    private NumberFormat Formatter(Context c, Func<NumberFormat> create)
+    private T Formatter<T>(Context c, Func<T> create)
     {
         try
         {

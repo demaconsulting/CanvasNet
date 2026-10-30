@@ -43,6 +43,8 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `legend-merged.vl.json`: made-up garden bed readings with a color, a shape and a size field, where the color and the
   shape read the same field (`bed`), so that they share one legend (symbols with both a shape and a color) and the
   size (`weeds`) has a legend of its own.
+- `log-scales.vl.json`: four made-up daily colony counts (12, 95, 1200 and 8000) as bars on a logarithmic y axis, so that
+  the domain is rounded out to 10 to 10000 (three decades of 100 pixels in a height of 300) and the bars start at the bottom.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

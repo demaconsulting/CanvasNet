@@ -664,4 +664,105 @@ public class LegendBuilderTests
         Assert.Equal(first, second);
         Assert.Contains("legend-symbol", first, StringComparison.Ordinal);
     }
+
+    /// <summary>Four rows with the numbers <c>q</c> (1, 10, 100, 1000), three decades, and <c>r</c> (10 to 40).</summary>
+    private const string RowsDecades = "[ { \"g\": \"a\", \"q\": 1, \"r\": 10 }, { \"g\": \"b\", \"q\": 10, \"r\": 20 }, { \"g\": \"c\", \"q\": 100, \"r\": 30 }, { \"g\": \"d\", \"q\": 1000, \"r\": 40 } ]";
+
+    /// <summary>
+    ///     Validates the gradient legend of a log color scale: the labels are the ticks that Vega labels (the powers: with a count of 4 for 28
+    ///     log ticks the rule <c>k = 10 * 4 / 28 = 1.43</c> keeps the digit 1 only), the variable-precision format, the positions along the
+    ///     logarithm (a third of the bar per decade, derived by hand), and the stops of the bar at the log ticks with the color of the scale there.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Gradient_LogScaleLabelsThePowersAlongTheLogarithm()
+    {
+        // Arrange: the log color domain is 1 to 1000 (color has no nice and no zero)
+        var json = Spec("\"color\": { " + Quantitative + ", \"scale\": { \"type\": \"log\" } }", rows: RowsDecades);
+        var model = ChartTestHelpers.Parts(json).Scales["color"]!.CreateModel(0);
+
+        // Act
+        var legend = ChartTestHelpers.Legend(json);
+        var bar = Assert.IsType<SceneRect>(Entry(legend).Children[0]);
+        var labels = Labels(legend);
+
+        // Assert: the labels are the powers, a third of the 200 pixel bar apart (the maximum is at the top), the ends aligned inward
+        Assert.Equal(LegendKind.Gradient, legend.Kind);
+        Assert.Equal(["1", "10", "100", "1,000"], labels.Select(l => l.Text));
+        Assert.Equal(R([200.0, 200 * (1 - (1.0 / 3)), 200 * (1 - (2.0 / 3)), 0.0]), R(labels.Select(l => l.Y)));
+        Assert.Equal(["bottom", "middle", "middle", "top"], labels.Select(l => l.Baseline));
+
+        // Assert: the bar has a stop at each of the 28 log ticks (1..9, 10..90, 100..900, 1000), placed along the logarithm; the stop of 10 is a third of
+        // the way and has the color the scale gives to 10, the stop of 2 is ln 2 / ln 1000 of the way
+        var stops = bar.FillGradient!.Stops;
+        Assert.Equal(28, stops.Count);
+        Assert.Equal((0.0, 1.0), (stops[0].Offset, stops[27].Offset));
+        Assert.Equal(Math.Round(Math.Log(2) / Math.Log(1000), 9), Math.Round(stops[1].Offset, 9));
+        Assert.Equal(Math.Round(1.0 / 3, 9), Math.Round(stops[9].Offset, 9));
+        Assert.Equal(model.MapColor(10)!.Value.ToCss(), stops[9].Color);
+        Assert.Equal(model.MapColor(1000)!.Value.ToCss(), stops[27].Color);
+    }
+
+    /// <summary>
+    ///     Validates the symbol legend of a log size scale: the entries are the labeled log ticks (the powers 1 to 1000), all labeled, and the
+    ///     sizes grow by the same amount per decade because the scale is linear in the logarithm.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps()
+    {
+        // Arrange
+        var json = Spec("\"size\": { " + Quantitative + ", \"scale\": { \"type\": \"log\" } }", rows: RowsDecades);
+        var model = ChartTestHelpers.Parts(json).Scales["size"]!.CreateModel(0);
+
+        // Act
+        var legend = ChartTestHelpers.Legend(json);
+        var sizes = Symbols(legend).Select(s => s.Size).ToList();
+
+        // Assert: four entries (count 5 over 28 ticks: k = 10 * 5 / 28 = 1.79, only the digit 1), the sizes are the scaled values
+        Assert.Equal(["1", "10", "100", "1,000"], Labels(legend).Select(l => l.Text));
+        Assert.Equal(R(new[] { 1.0, 10, 100, 1000 }.Select(v => model.Map(DataValue.FromNumber(v))!.Value)), R(sizes));
+
+        // Assert: a decade is the same step of size anywhere on the scale
+        Assert.Equal(Math.Round(sizes[1] - sizes[0], 6), Math.Round(sizes[2] - sizes[1], 6));
+        Assert.Equal(Math.Round(sizes[2] - sizes[1], 6), Math.Round(sizes[3] - sizes[2], 6));
+        Assert.True(sizes[1] > sizes[0]);
+    }
+
+    /// <summary>
+    ///     Validates the gradient legend of a square root color scale: the ticks are the ordinary ticks of the domain, and the labels sit at the
+    ///     position along the square root (the stop of 4 in 1..4 is at <c>(sqrt 4 - 1) / (2 - 1)</c> of the way).
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot()
+    {
+        // Arrange / Act: the domain of q is 1 to 3 with the rows of Rows4 extended to 4: ticks 1, 2, 3, 4 (a count of 4 over 3 gives the step 1)
+        var legend = ChartTestHelpers.Legend(Spec("\"color\": { " + Quantitative + ", \"scale\": { \"type\": \"sqrt\" } }", rows: Rows4));
+        var labels = Labels(legend);
+
+        // Assert: along the root of 1..4 (T = 1..2): 2 is 0.4142, 3 is 0.7321, so the labels are at (1 - fraction) of 200
+        Assert.Equal(["1", "2", "3", "4"], labels.Select(l => l.Text));
+        Assert.Equal(
+            R([200.0, 200 * (1 - (Math.Sqrt(2) - 1)), 200 * (1 - (Math.Sqrt(3) - 1)), 0.0]),
+            R(labels.Select(l => l.Y)));
+    }
+
+    /// <summary>
+    ///     Validates the limits and the cancellation of a log legend: the log ticks are bounded by <see cref="VegaLiteLimits.MaxTicks"/> with
+    ///     a located error that names the limit, and a canceled token stops the build.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable()
+    {
+        // Arrange
+        var json = Spec("\"color\": { " + Quantitative + ", \"scale\": { \"type\": \"log\" } }", rows: RowsDecades);
+
+        // Act: 28 ticks for the stops of the bar against a limit of 5
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(json, limits: new VegaLiteLimits { MaxTicks = 5 }));
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        // Assert
+        Assert.Contains("the limit of 5", tooMany.Message, StringComparison.Ordinal);
+        Assert.True(tooMany.Location.IsKnown);
+        Assert.Throws<OperationCanceledException>(() => ChartTestHelpers.Legend(json, cancellationToken: cancelled.Token));
+    }
 }

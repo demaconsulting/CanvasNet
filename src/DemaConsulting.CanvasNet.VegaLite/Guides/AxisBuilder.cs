@@ -355,7 +355,7 @@ internal sealed class AxisBuilder
         List<AxisTick> ticks;
         if (model.Kind == ScaleKind.Linear)
         {
-            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round, request.Scale.Bin == BinKind.Binning);
+            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round, request.Scale.Bin == BinKind.Binning, cancellationToken);
         }
         else
         {
@@ -383,18 +383,25 @@ internal sealed class AxisBuilder
     /// <param name="shift">The offset added to the scale position.</param>
     /// <param name="round">Whether tick positions are rounded.</param>
     /// <param name="binning">Whether the field is binned by the encoding: its default tick count is one per ten pixels (Vega-Lite's <c>ceil(size / 10)</c>).</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The ticks.</returns>
-    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, bool binning)
+    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, bool binning, CancellationToken cancellationToken)
     {
+        // A log axis has no default tick count of its own in Vega-Lite (Vega's 10 applies), and its labels are filtered by d3's log rule
+        var log = model.Transform.Kind == ScaleTransformKind.Log;
         var minStep = settings.Number("tickMinStep") ?? Ticks.DefaultAxisTickMinStep(format);
         var defaultCount = binning ? Math.Ceiling(extent / 10) : Ticks.DefaultAxisTickCount(extent);
+        if (log)
+        {
+            defaultCount = 10;
+        }
         var requested = settings.Number("tickCount") ?? (values is null ? defaultCount : values.Count);
-        var count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep);
+        var count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep, log);
         double[] positions;
         try
         {
             positions = values is null
-                ? Ticks.GetTicks(model.DomainStart, model.DomainEnd, count, _maxTicks)
+                ? Ticks.ModelTicks(model, count, _maxTicks, cancellationToken)
                 : ValidTicks(model, values.Where(v => v.IsNumber).Select(v => v.NumberValue).ToList(), count);
         }
         catch (VegaLiteRenderException ex) when (!ex.Location.IsKnown)
@@ -402,10 +409,12 @@ internal sealed class AxisBuilder
             throw new VegaLiteRenderException(ex.Message, location);
         }
 
-        NumberFormat formatter;
+        Func<double, string> label;
         try
         {
-            formatter = NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, count, format);
+            label = log
+                ? LogLabel(model, format, values is null, count, positions.Length)
+                : NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, count, format).Format;
         }
         catch (FormatException ex)
         {
@@ -415,10 +424,33 @@ internal sealed class AxisBuilder
         var ticks = new List<AxisTick>(positions.Length);
         foreach (var value in positions)
         {
-            ticks.Add(new AxisTick(DataValue.FromNumber(value), Place(model.Map(value) + shift, round), formatter.Format(value)));
+            ticks.Add(new AxisTick(DataValue.FromNumber(value), Place(model.Map(value) + shift, round), label(value)));
         }
 
         return ticks;
+    }
+
+    /// <summary>
+    ///     Creates the label formatter of a log axis (Vega's <c>tickFormat</c> for a logarithmic scale): the variable-precision format, and
+    ///     for generated ticks an empty label where d3's log rule hides it.
+    /// </summary>
+    /// <param name="model">The log scale.</param>
+    /// <param name="format">The format specifier, or null.</param>
+    /// <param name="skip">Whether the labels are filtered (generated ticks; explicit <c>values</c> are all labeled).</param>
+    /// <param name="count">The tick count the ticks were made for.</param>
+    /// <param name="tickCount">The number of ticks.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="FormatException">Thrown when the specifier is not valid.</exception>
+    private static Func<double, string> LogLabel(ScaleModel model, string? format, bool skip, double count, int tickCount)
+    {
+        var plain = NumberFormat.FormatFloat(format);
+        if (!skip)
+        {
+            return plain;
+        }
+
+        var test = Ticks.LogLabelTest(model.Transform.Parameter, count, tickCount);
+        return value => test(value) ? plain(value) : string.Empty;
     }
 
     /// <summary>
@@ -905,7 +937,7 @@ internal sealed class AxisBuilder
             LabelAlign = settings.ExplicitOrVl("labelAlign")?.AsString() ?? (angle is { } va ? DefaultLabelAlign(va, orient, isX) : null);
             LabelBaseline = settings.ExplicitOrVl("labelBaseline")?.AsString() ?? (angle is { } vb ? DefaultLabelBaseline(vb, orient, isX) : null);
             FlushThreshold = ResolveFlush(settings, request.Channel, request.Scale.DataType);
-            Overlap = ResolveOverlap(settings, isDiscreteType);
+            Overlap = ResolveOverlap(settings, isDiscreteType, request.Model.Transform.Kind == ScaleTransformKind.Log);
 
             // Vega-Lite draws the axes of a rect mark with a discrete channel in front of it, all others behind the marks
             var defaultZindex = request.MarkType == "rect" && isDiscreteType ? 1 : 0;
@@ -1043,17 +1075,24 @@ internal sealed class AxisBuilder
         }
 
         /// <summary>
-        ///     Resolves <c>labelOverlap</c>: parity by default for continuous scales, none for discrete ones.
+        ///     Resolves <c>labelOverlap</c>: parity by default for continuous scales, the greedy method for log scales (Vega-Lite's default),
+        ///     none for discrete ones.
         /// </summary>
         /// <param name="settings">The settings.</param>
         /// <param name="isDiscreteType">Whether the field is nominal or ordinal.</param>
+        /// <param name="isLog">Whether the scale is a log scale.</param>
         /// <returns>The method, or null for none.</returns>
-        private static string? ResolveOverlap(Settings settings, bool isDiscreteType)
+        private static string? ResolveOverlap(Settings settings, bool isDiscreteType, bool isLog)
         {
             var node = settings.ExplicitOrVl("labelOverlap");
             if (node is null)
             {
-                return isDiscreteType ? null : "parity";
+                if (isDiscreteType)
+                {
+                    return null;
+                }
+
+                return isLog ? LabelOverlap.Greedy : "parity";
             }
 
             return LabelOverlap.FromSetting(node);

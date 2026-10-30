@@ -31,10 +31,10 @@ internal sealed partial class LegendBuilder
 
         // The default tick count follows the length of the bar; labels are the ticks, or the two ends when there are fewer than three
         var explicitValues = ExplicitValues(c);
-        var ticks = ContinuousTicks(c, model, s.Number("tickCount") ?? Math.Max(2, 2 * Math.Floor(length / 100)), out var count);
+        var tickSet = ContinuousTicks(c, model, s.Number("tickCount") ?? Math.Max(2, 2 * Math.Floor(length / 100)));
         var specifier = FormatSpecifier(s);
-        var format = Formatter(c, () => NumberFormat.TickFormat(start, end, count, specifier));
-        List<DataValue> values = explicitValues ?? [.. ticks.Select(DataValue.FromNumber)];
+        var format = ContinuousFormat(c, model, tickSet, specifier, explicitValues is not null);
+        List<DataValue> values = explicitValues ?? [.. tickSet.Values.Select(DataValue.FromNumber)];
         if (explicitValues is null && values.Count < 3 && start.CompareTo(end) != 0)
         {
             values = [DataValue.FromNumber(start), DataValue.FromNumber(end)];
@@ -71,8 +71,8 @@ internal sealed partial class LegendBuilder
                 continue;
             }
 
-            var along = Fraction(start, end, value.Number);
-            var text = format.Format(value.Number);
+            var along = model.Fraction(value.Number);
+            var text = format(value.Number);
             c.Evaluation.ChargeSize(text.Length);
             candidates.Add(GradientLabel(c, text, along, vertical, thickness, offset, length, limit));
         }
@@ -250,19 +250,6 @@ internal sealed partial class LegendBuilder
     }
 
     /// <summary>
-    ///     Gets the position of a value in the domain from 0 to 1 (Vega's <c>scaleFraction</c>: linear, 0.5 for a domain without span).
-    /// </summary>
-    /// <param name="start">The start of the domain.</param>
-    /// <param name="end">The end of the domain.</param>
-    /// <param name="value">The value.</param>
-    /// <returns>The fraction.</returns>
-    private static double Fraction(double start, double end, double value)
-    {
-        var delta = end - start;
-        return delta.CompareTo(0) == 0 || !double.IsFinite(delta) ? 0.5 : (value - start) / delta;
-    }
-
-    /// <summary>
     ///     Gets the position function of the classes of a discretizing scale (Vega's <c>labelFraction</c>): linear over the domain; a
     ///     threshold scale is widened by one class at each end.
     /// </summary>
@@ -350,7 +337,8 @@ internal sealed partial class LegendBuilder
         Func<double, double> fraction;
         Func<double, string?> color;
         var spanOfDomain = max - min;
-        if (spanOfDomain.CompareTo(0) == 0 || !double.IsFinite(spanOfDomain))
+        var expanded = spanOfDomain.CompareTo(0) == 0 || !double.IsFinite(spanOfDomain);
+        if (expanded)
         {
             // Vega expands a domain without span to 0 to 1 with the interpolator of the scale
             min = 0;
@@ -360,16 +348,15 @@ internal sealed partial class LegendBuilder
         }
         else
         {
-            var start = min;
-            var delta = max - min;
-            fraction = v => (v - start) / delta;
+            // A log, pow or symlog scale places a stop along the transformed domain
+            fraction = model.Fraction;
             color = v => model.MapColor(v)?.ToCss();
         }
 
         List<double> stops;
         try
         {
-            stops = [.. Ticks.GetTicks(min, max, GradientTickCount, _limits.MaxTicks)];
+            stops = [.. expanded ? Ticks.GetTicks(min, max, GradientTickCount, _limits.MaxTicks) : Ticks.ModelTicks(model, GradientTickCount, _limits.MaxTicks, c.Token)];
         }
         catch (VegaLiteRenderException ex) when (!ex.Location.IsKnown)
         {

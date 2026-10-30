@@ -1,0 +1,18 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 200,
+  "height": 300,
+  "data": {
+    "values": [
+      { "day": "mon", "cells": 12 },
+      { "day": "tue", "cells": 95 },
+      { "day": "wed", "cells": 1200 },
+      { "day": "thu", "cells": 8000 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "day", "type": "nominal", "sort": null, "axis": { "title": "Day" } },
+    "y": { "field": "cells", "type": "quantitative", "scale": { "type": "log" }, "axis": { "title": "Cells counted" } }
+  }
+}

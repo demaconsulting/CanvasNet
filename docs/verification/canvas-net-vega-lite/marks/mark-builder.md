@@ -257,3 +257,21 @@ that a row with an invalid end is not drawn, and the rules along the range of on
 Asserts that three stacked bars and the marks group need exactly four scene items (a `MaxSceneItems` of 4 passes and 3
 fails naming the limit), that a canceled token throws `OperationCanceledException`, and that a chart with one row per
 category is drawn as before, the bars running from zero (y 114, 144, 90, and 18 with the heights 86, 56, 110, and 182).
+
+##### Log Scale Bars Start At The Baseline And Skip Values A Scale Cannot Map
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap`,
+`VegaLiteScaleIntegrationTests.CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue`,
+`VegaLiteScaleIntegrationTests.CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions`
+
+Assert that bars of 43, 28, 55, and 91 on a log axis rounded out to 10 to 100 (one decade over 200 pixels) are
+not stacked, reach
+`200 - 200 * (log10(v) - 1)`, and all end at 200; that a fifth row of zero on an explicit domain 10 to 100 has no bar
+and the
+other four stay where they were; that the fixture of four daily counts (12, 95, 1200, and 8000) on a 300 pixel log
+axis rounded out
+to 10 to 10000 has its bars at `300 - 100 * (log10(v) - 1)` ending at the bottom, ten labels (`10`, `20`, `30`, `100`, `200`,
+`300`, `1,000`, `2,000`, `3,000`, `10,000`) of the 28 ticks, 28 grid rules, the bar color at the bar centers, and the background
+between the grid lines above the bars; and that points on a square root x scale (0 to 100 over 200 pixels) and a
+symlog y scale
+(nice domain -10 to 10 over 100 pixels) sit at the positions the d3 formulas give.

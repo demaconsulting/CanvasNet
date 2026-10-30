@@ -377,3 +377,31 @@ over the limit, throw `VegaLiteRenderException` naming the limit; that a range w
 (`/encoding/x/scale/domain/1`), and a linear domain of one value throw `VegaLiteSpecException` naming the offending
 pointer; and that null arguments throw `ArgumentNullException` and a canceled token over nine thousand categories
 throws `OperationCanceledException`.
+
+##### Log, Pow, Sqrt, And Symlog Scales
+
+**Tests**: `ScaleResolverTests.ScaleResolver_Resolve_LogPowSqrtSymlogCarryTheirTransform`,
+`ScaleResolverTests.ScaleResolver_Resolve_LogScaleDefaultsFollowVegaLite`,
+`ScaleResolverTests.ScaleResolver_Resolve_LogDomainThatIncludesZeroFailsWithALocatedError`,
+`ScaleResolverTests.ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem`,
+`ScaleResolverColorTests.ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules`
+
+Assert, for the data 3, 7, 12, and 5, that a log x scale has the base 10, no zero (3 to 12), a nice domain of 1 to 100 (150
+pixels per decade over 300), base 2 rounds out to 2 to 16, a pow scale with the exponent 2 has the domain 0 to 12 and
+puts 6 at 75
+of 300, a sqrt scale ignores an `exponent` and puts 3 at half of 300, a symlog scale with the constant 10 over 0 to 90
+puts 9 at
+ln(1.9) / ln(10), size and color scales take the transform (the geometric mean of 3 and 12 is the middle color), and the
+properties of another type are ignored; that `zero: true` does not pull a log domain to zero, an explicit domain
+disables nice
+and clamp carries over, a bar on a log axis spans 1 to 100, a domain below zero is reflected, the pixel padding
+is applied in
+the logarithm (the domain becomes 6 / 2^(15/14) to 6 * 2^(15/14) for 10 pixels on 300), and data without a valid
+value gets the
+decade 1 to 10; that data with a zero or with both signs, an explicit domain containing zero (also a later entry), and a
+`domainMin` of zero are located errors (the render error at `/encoding/y` for the data and `domainMin`, the specification
+error at `/encoding/x/scale/domain` for an explicit domain) while symlog and pow take the same data; and that a
+measure with a
+log scale is not stacked (the stack is null and the domain is that of the values), a nominal field and a `shape`
+channel keep
+their default scale types, and the color, size, and position channels accept the transform types.

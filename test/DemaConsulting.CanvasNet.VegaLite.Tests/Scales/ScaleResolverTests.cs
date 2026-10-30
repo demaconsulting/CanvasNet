@@ -710,4 +710,186 @@ public class ScaleResolverTests
         Assert.Throws<OperationCanceledException>(() =>
             ScaleResolver.Resolve(big.Root, DataLoader.Load(big.Root["data"], null, null, Ct), ConfigResolver.Resolve(big, null), null, null, source.Token));
     }
+
+    /// <summary>
+    ///     Validates that the log, pow, sqrt and symlog scale types resolve to a continuous scale with the matching transform and its
+    ///     parameter (the <c>base</c>, <c>exponent</c> or <c>constant</c>, with Vega's defaults of 10, 1 and 1, sqrt being the power 0.5
+    ///     whatever <c>exponent</c> says), on position, size and color channels, with positions derived by hand from the d3 formulas.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_LogPowSqrtSymlogCarryTheirTransform()
+    {
+        // Arrange / Act: q is 3, 7, 12, 5. A log x gets the base 10, no zero, and nice to powers of ten: 3..12 becomes 1..100
+        var log = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["x"]!;
+
+        // Assert: the kind stays linear and the transform is the log of base 10 over the domain of the data
+        Assert.Equal(ScaleKind.Linear, log.Kind);
+        Assert.Equal(ScaleTransformKind.Log, log.Transform.Kind);
+        Assert.Equal(10, log.Transform.Parameter);
+        Assert.Equal((3.0, 12.0), (log.DomainStart, log.DomainEnd));
+        Assert.Equal(10, log.NiceCount);
+
+        // Assert: the model is nice to the powers 1..100 (two decades over 300 pixels: 150 per decade), so 10 is the middle
+        var model = log.CreateModel(300);
+        Assert.Equal((1.0, 100.0), (model.DomainStart, model.DomainEnd));
+        Assert.Equal(150, model.Map(10), Precision);
+        Assert.Equal(0, model.Map(1), Precision);
+
+        // Assert: base 2 rounds out to 2..16 (floor of log2 3 is 1, ceil of log2 12 is 4)
+        var base2 = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","base":2}} }"""))["x"]!;
+        Assert.Equal(2, base2.Transform.Parameter);
+        Assert.Equal((2.0, 16.0), (base2.CreateModel(300).DomainStart, base2.CreateModel(300).DomainEnd));
+
+        // Assert: pow takes the exponent (default 1), keeps the zero rule of a point's x (0..12), and 6 is 36 of 144 along the way (75 of 300)
+        var pow = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"pow","exponent":2}} }"""))["x"]!;
+        Assert.Equal(ScaleTransformKind.Pow, pow.Transform.Kind);
+        Assert.Equal(2, pow.Transform.Parameter);
+        Assert.Equal((0.0, 12.0), (pow.DomainStart, pow.DomainEnd));
+        Assert.Equal(75, pow.CreateModel(300).Map(6), Precision);
+        Assert.Equal(1, Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"pow"}} }"""))["x"]!.Transform.Parameter);
+
+        // Assert: sqrt is the power 0.5 and ignores the exponent; 3 is sqrt(3) of sqrt(12) of the way
+        var sqrt = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"sqrt","exponent":3}} }"""))["x"]!;
+        Assert.Equal(ScaleTransformKind.Pow, sqrt.Transform.Kind);
+        Assert.Equal(0.5, sqrt.Transform.Parameter);
+        Assert.Equal(300 * Math.Sqrt(3) / Math.Sqrt(12), sqrt.CreateModel(300).Map(3), Precision);
+
+        // Assert: symlog takes the constant (default 1); with 10 the number 90 is ln 10 along and 9 is ln(1.9) / ln(10) of it
+        var symlog = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"symlog","constant":10,"domain":[0,90]}} }"""))["x"]!;
+        Assert.Equal(ScaleTransformKind.Symlog, symlog.Transform.Kind);
+        Assert.Equal(10, symlog.Transform.Parameter);
+        Assert.Equal(300 * Math.Log(1.9) / Math.Log(10), symlog.CreateModel(300).Map(9), Precision);
+        Assert.Equal(1, Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"symlog"}} }"""))["x"]!.Transform.Parameter);
+
+        // Assert: a size scale takes the transform too, and a log scale has no zero (3..12, not 0..12)
+        var size = Resolve(Spec("point", """{ "size": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["size"]!;
+        Assert.Equal(ScaleTransformKind.Log, size.Transform.Kind);
+        Assert.Equal((3.0, 12.0), (size.DomainStart, size.DomainEnd));
+
+        // Assert: a color scale becomes the sequential scale of the transform: 6 is the geometric mean of 3 and 12, so the middle of the colors
+        var color = Resolve(Spec("point", """{ "color": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["color"]!;
+        Assert.Equal(ScaleKind.Sequential, color.Kind);
+        Assert.Equal(ScaleTransformKind.Log, color.Transform.Kind);
+        Assert.Equal(color.Interpolator!(0.5).ToCss(), color.CreateModel(0).MapColor(6)!.Value.ToCss());
+
+        // Assert: other scales keep the identity transform, also when they carry the properties of a transform
+        Assert.True(Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"base":2,"exponent":3,"constant":4}} }"""))["x"]!.Transform.IsLinear);
+        Assert.Equal(ScaleTransformKind.Linear, Resolve(Spec("point", """{ "x": {"field":"k","type":"nominal"} }"""))["x"]!.Transform.Kind);
+    }
+
+    /// <summary>
+    ///     Validates the Vega-Lite defaults of a log scale: <c>zero</c> is ignored (a log domain cannot reach zero), <c>nice</c> follows the
+    ///     usual rules (on by default for x and y without a domain, off for an explicit domain or <c>nice: false</c>), <c>clamp</c> and
+    ///     <c>domain</c> carry over, a domain below zero is reflected, the pixel padding works on the logarithm, and a bar chart on a log
+    ///     axis does not pull its domain to zero.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_LogScaleDefaultsFollowVegaLite()
+    {
+        // Assert: an explicit zero: true does not pull the domain to zero (Vega-Lite does not support zero on a log scale)
+        var zero = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","zero":true,"nice":false}} }"""))["x"]!;
+        Assert.Equal((3.0, 12.0), (zero.DomainStart, zero.DomainEnd));
+        Assert.Null(zero.NiceCount);
+        Assert.Equal((3.0, 12.0), (zero.CreateModel(300).DomainStart, zero.CreateModel(300).DomainEnd));
+
+        // Assert: an explicit domain is used as it is (no nice), and clamp and reverse carry over to the model
+        var explicitDomain = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","domain":[10,1000],"clamp":true}} }"""))["x"]!;
+        Assert.Null(explicitDomain.NiceCount);
+        Assert.True(explicitDomain.Clamp);
+        var clamped = explicitDomain.CreateModel(300);
+        Assert.Equal(300, clamped.Map(100000), Precision);
+        Assert.Equal(150, clamped.Map(100), Precision);
+
+        // Assert: the measure of a bar does not start at zero on a log scale; with the default nice it spans 1..100
+        var bar = Resolve(Spec("bar", """{ "x": {"field":"k","type":"nominal"}, "y": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["y"]!;
+        Assert.Equal((3.0, 12.0), (bar.DomainStart, bar.DomainEnd));
+        Assert.Equal((1.0, 100.0), (bar.CreateModel(200).DomainStart, bar.CreateModel(200).DomainEnd));
+
+        // Assert: a domain below zero is reflected: -100, -10 and -1 make the domain -100..-1, and -10 is the middle
+        var negative = Resolve("""
+            { "data": {"values":[{"v":-100},{"v":-10},{"v":-1}]}, "mark": "point", "encoding": { "y": {"field":"v","type":"quantitative","scale":{"type":"log"}} } }
+            """)["y"]!;
+        Assert.Equal((-100.0, -1.0), (negative.DomainStart, negative.DomainEnd));
+        Assert.Equal(150, negative.CreateModel(300).Map(-10), Precision);
+
+        // Assert: pixel padding widens the domain by the same factor in the logarithm: 3..12 has the geometric middle 6 and the half-width
+        // ln 2; with 10 pixels of padding on 300 the factor is 300 / 280 = 15 / 14, so the domain is 6 / 2^(15/14) .. 6 * 2^(15/14)
+        var padded = Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","padding":10,"nice":false}} }"""))["x"]!.CreateModel(300);
+        Assert.Equal(6 / Math.Pow(2, 15.0 / 14), padded.DomainStart, Precision);
+        Assert.Equal(6 * Math.Pow(2, 15.0 / 14), padded.DomainEnd, Precision);
+
+        // Assert: without a valid value a log scale has one decade (1..10) instead of the default 0..1 that it cannot map
+        var empty = Resolve("""
+            { "data": {"values":[{"v":null},{"v":"a"}]}, "mark": "point", "encoding": { "y": {"field":"v","type":"quantitative","scale":{"type":"log"}} } }
+            """)["y"]!;
+        Assert.Equal((1.0, 10.0), (empty.DomainStart, empty.DomainEnd));
+    }
+
+    /// <summary>
+    ///     Validates the domain errors of a log scale: a domain that includes zero or crosses it cannot be mapped, so it is a located
+    ///     error (a specification error at the <c>domain</c> for an explicit domain, a render error at the channel for the domain of the
+    ///     data), where Vega only warns and draws nothing; a symlog scale takes such domains.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_LogDomainThatIncludesZeroFailsWithALocatedError()
+    {
+        // Arrange: data with a zero, and data with both signs
+        const string withZero = """{"data":{"values":[{"v":0},{"v":10}]},"mark":"point","encoding":{"y":{"field":"v","type":"quantitative","scale":{"type":"log"}}}}""";
+        const string bothSigns = """{"data":{"values":[{"v":-5},{"v":5}]},"mark":"point","encoding":{"y":{"field":"v","type":"quantitative","scale":{"type":"log"}}}}""";
+
+        // Assert: the domain of the data includes zero: a render error at the channel that tells what to do
+        var zero = Assert.Throws<VegaLiteRenderException>(() => Resolve(withZero));
+        Assert.Equal("/encoding/y", zero.Location.Pointer);
+        Assert.Contains("includes zero or crosses it ([0, 10])", zero.Message, StringComparison.Ordinal);
+        Assert.Contains("symlog", zero.Message, StringComparison.Ordinal);
+        var crossing = Assert.Throws<VegaLiteRenderException>(() => Resolve(bothSigns));
+        Assert.Contains("([-5, 5])", crossing.Message, StringComparison.Ordinal);
+
+        // Assert: an explicit domain with zero is a specification error at the domain, also for a later entry and for domainMin
+        var explicitZero = Assert.Throws<VegaLiteSpecException>(() =>
+            Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","domain":[0,100]}} }""")));
+        Assert.Equal("/encoding/x/scale/domain", explicitZero.Location.Pointer);
+        Assert.Throws<VegaLiteSpecException>(() =>
+            Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","domain":[1,10,0]}} }""")));
+        var minimum = Assert.Throws<VegaLiteRenderException>(() =>
+            Resolve(Spec("point", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log","domainMin":0}} }""")));
+        Assert.Equal("/encoding/x", minimum.Location.Pointer);
+
+        // Assert: symlog takes zero and both signs, and a pow scale too
+        var symlogZero = Resolve(withZero.Replace("\"log\"", "\"symlog\"", StringComparison.Ordinal))["y"]!;
+        Assert.Equal((0.0, 10.0), (symlogZero.DomainStart, symlogZero.DomainEnd));
+        var symlogBoth = Resolve(bothSigns.Replace("\"log\"", "\"symlog\"", StringComparison.Ordinal))["y"]!;
+        Assert.Equal((-5.0, 5.0), (symlogBoth.DomainStart, symlogBoth.DomainEnd));
+        Assert.NotNull(Resolve(bothSigns.Replace("\"log\"", "\"pow\"", StringComparison.Ordinal))["y"]);
+    }
+
+    /// <summary>
+    ///     Validates the cases in which an explicit log, pow or symlog type is not used: a nominal field takes the discrete default and a
+    ///     shape channel the ordinal default; a stacked channel with such a scale type is not stacked at all (Vega-Lite does not stack on
+    ///     a scale that is not linear), so its domain is that of the values and its bars start at the baseline.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem()
+    {
+        // Assert: a measure on a log scale is not stacked (Vega-Lite warns and draws from the baseline), so it keeps its scale and the
+        // domain of the plain values; the same measure on the default scale is stacked, and its domain adds up the layers
+        const string encoding = """{ "x": {"field":"k","type":"nominal"}, "y": {"field":"q","type":"quantitative","stack":"zero","scale":{"type":"log"}}, "color": {"field":"r","type":"nominal"} }""";
+        var log = Resolve(Spec("bar", encoding))["y"]!;
+        Assert.Null(log.Stack);
+        Assert.Equal(ScaleTransformKind.Log, log.Transform.Kind);
+        Assert.Equal("q", log.FieldPath);
+        Assert.Equal((3.0, 12.0), (log.DomainStart, log.DomainEnd));
+        var linear = Resolve(Spec("bar", encoding.Replace(",\"scale\":{\"type\":\"log\"}", string.Empty, StringComparison.Ordinal)))["y"]!;
+        Assert.NotNull(linear.Stack);
+        Assert.True(linear.Transform.IsLinear);
+
+        // Assert: a nominal field has no log scale: the point or band default applies
+        Assert.Equal(ScaleKind.Point, Resolve(Spec("point", """{ "x": {"field":"k","type":"nominal","scale":{"type":"log"}} }"""))["x"]!.Kind);
+        Assert.Equal(ScaleKind.Ordinal, Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"type":"symlog"}} }"""))["color"]!.Kind);
+
+        // Assert: a shape channel is ordinal only
+        var shape = Resolve(Spec("point", """{ "shape": {"field":"q","type":"quantitative","scale":{"type":"pow"}} }"""))["shape"]!;
+        Assert.Equal(ScaleKind.Ordinal, shape.Kind);
+        Assert.True(shape.Transform.IsLinear);
+    }
 }

@@ -112,5 +112,6 @@ scenario in the three unit verification documents passes without error or unexpe
   features that the renderer computes for the drawn view (the aggregating transforms, the encoding aggregate, bin, stack,
   and sort, secondary position channels of a range, and the `order` of a stack) and still reports the transforms of
   nested views, the remaining parts (a bin extent that is a parameter, a bin on a channel other than `x` and `y`, a stack
-  on a non-linear scale, an `order` without a stack, and a secondary channel that a mark cannot draw), and the transforms
+  on a non-linear scale (not applied: Vega-Lite does not stack on a log, pow, sqrt, or symlog scale), an `order`
+  without a stack, and a secondary channel that a mark cannot draw), and the transforms
   of later phases; the document-level test now uses a `regression` transform as its example of an unsupported transform.

@@ -44,7 +44,13 @@ on the platform's floating-point formatting.
   (`formatSpan`) uses: with no specifier it is `,f` with the precision of the tick step (`precisionFixed`); with a
   specifier of type `s` it uses `precisionPrefix`, and with types `e g p r` it uses `precisionRound`.
 - `PrecisionFixed(step)`, `PrecisionPrefix(step, value)`, and `PrecisionRound(step, max)` - d3's precision helpers (NaN
-  is tolerated).
+  is tolerated). For a domain without span the tick step is zero and `exponent(0)` is NaN in d3-format 3.1.2 (the version
+  followed; 3.1.0 returned 0), so no precision is derived and a specifier without one keeps d3's default of six decimals
+  (`5.000000` for `,f`); this is pinned by a test.
+- `FormatFloat(specifier)` - Vega's `formatFloat`, the label format of a log axis and legend: the specifier defaults to
+  `,`; one without a precision gets 12 (10 for `%`, 11 for `e`) and the zeros after the decimal point are trimmed with the
+  point when nothing remains, in front of an exponent or a unit suffix (`TrimZeroes`, Vega's `trimZeroes`), so 1000 is
+  `1,000`, 0.001 is `0.001`, and 1e-7 is `1e-7`; one with a precision is used as it is.
 
 **Preconditions and postconditions**: a specifier is non-null text; `Format` is deterministic and never depends on the
 current culture.

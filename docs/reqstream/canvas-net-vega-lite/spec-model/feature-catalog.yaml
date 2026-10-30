@@ -95,7 +95,8 @@ sections:
                   accept the order channel when it orders a stack and report it (vl-channel-order) otherwise;
                   and shall report the bin of any other channel (vl-encoding-bin), a bin extent that is a
                   parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
-                  linear (vl-encoding-stack-nonlinear).
+                  linear (vl-encoding-stack-nonlinear; Vega-Lite does not stack on a log, pow, sqrt, or symlog
+                  scale, so such marks are not stacked).
                 justification: |
                   Marks and channels are the heart of the supported boundary; each unsupported one must be
                   named so that the author knows exactly what was not drawn, and one that is drawn must not
@@ -113,9 +114,10 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
-                  The FeatureCatalog unit shall report scale types other than linear, sequential, band,
-                  point, ordinal, quantile, quantize, and threshold, scale properties outside the supported
-                  set (the properties of the continuous color scales included), a cubehelix interpolation
+                  The FeatureCatalog unit shall report scale types other than linear, log, pow, sqrt, symlog,
+                  sequential, band, point, ordinal, quantile, quantize, and threshold, scale properties outside
+                  the supported set (the properties of the continuous color scales and the base, exponent, and
+                  constant of the log, pow, and symlog scales included), a cubehelix interpolation
                   (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
                   properties that the legend builder does not draw (encode, labelExpr, formatType, a title
                   orient other than top, clipHeight, and a custom symbol path), and the guide properties and
@@ -129,6 +131,7 @@ sections:
                   would produce a plausible but wrong chart.
                 tests:
                   - FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset
+                  - FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported
                   - FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported
                   - FeatureCatalog_Visit_CubehelixInterpolationIsReported
                   - FeatureCatalog_Visit_CustomPathShapesAreReported

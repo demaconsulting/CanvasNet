@@ -121,7 +121,11 @@ offset channels are reported by the feature catalog and ignored here.
 - Row filtering (Vega-Lite's invalid filter) - a row whose value for a channel with a continuous domain (`x`, `y`,
   `size`, or `opacity` on a linear scale, and a color, `strokeWidth`, `fillOpacity`, `strokeOpacity`, or `angle` channel
   on a linear, sequential, diverging, quantize, quantile, or threshold scale) is null, missing, NaN, or not a number is
-  not drawn; a null in a discrete field is the category `null` and is drawn; a value outside an explicit discrete domain
+  not drawn; a number that a log, pow, sqrt, or symlog scale cannot take (zero or a negative number on a log scale)
+has no
+  position (`ScaleModel.Map` gives null), so the mark is not drawn instead of being placed at a position that is not a
+  number, and the bars of a log axis start at the start of the domain (`ZeroOrMin`) and are not stacked; a null in a
+  discrete field is the category `null` and is drawn; a value outside an explicit discrete domain
   is not drawn by a position scale and gets the default (no color) from an ordinal color scale.
 
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the

@@ -130,3 +130,21 @@ orient, offset, and position facts.
 
 Assert the located limit failures, the exact charge of nine scene items, the cancellation, the located specification
 error of an invalid format, and that two builds give the same items.
+
+##### Legends Of Log, Pow, And Sqrt Scales
+
+**Tests**: `LegendBuilderTests.LegendBuilder_Gradient_LogScaleLabelsThePowersAlongTheLogarithm`,
+`LegendBuilderTests.LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps`,
+`LegendBuilderTests.LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot`,
+`LegendBuilderTests.LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable`
+
+Assert, for the readings 1, 10, 100, and 1000 on a log color scale, a gradient legend with the labels `1`, `10`,
+`100`, and
+`1,000` (a count of 4 over 28 log ticks keeps the digit 1: k = 1.43) at the heights 200, 133.3, 66.7, and 0 of the
+200 pixel bar
+(a third per decade), 28 stops at the log ticks whose offsets are the fractions along the logarithm (ln 2 / ln 1000
+for the stop
+of 2, a third for 10) with the colors of the scale at those values; that a log size legend has the entries 1, 10, 100, and
+1,000 with sizes that grow by the same amount per decade; that a square root color legend places 2 and 3 of 1 to 4 at
+`sqrt 2 - 1` and `sqrt 3 - 1` of the bar; and that 28 ticks against a limit of 5 fail with a located error naming the limit
+and a canceled token stops the build.

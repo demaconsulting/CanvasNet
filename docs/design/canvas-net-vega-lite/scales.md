@@ -41,10 +41,12 @@ VegaLiteLimits?, CancellationToken)` (the pipeline entry), the convenience overl
 DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans and runs the implicit pipeline
 itself), `ScaleResolver.InferOrient`, `ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`;
 `ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories (`CreateLinear`, `CreateBand`, `CreatePoint`,
-`CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`),
-mappings (`Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`, `MapIndex`, `Invert`, `IndexOf`), and `BandSpace`;
+`CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`) with the
+`ScaleTransform` of log, pow, sqrt, and symlog scales,
+mappings (`Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`, `MapIndex`, `Invert`, `IndexOf`, `Fraction`), and `BandSpace`;
 `Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`, `DefaultAxisTickMinStep`,
-`ResolveTickCount`, and `AxisTicks`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`, `ParseSpecifier`, and the
+`ResolveTickCount`, `AxisTicks`, `ModelTicks`, `LogTicks`, `LogNice`, and `LogLabelTest`; `NumberFormat.Create`, `CreatePrefix`,
+`TickFormat`, `FormatFloat`, `ParseSpecifier`, and the
 precision helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`, and `CategoryColor`; and
 `ColorInterpolator.Interpolate`, `Range`, and `Quantize` with `ColorRamp`.
 
