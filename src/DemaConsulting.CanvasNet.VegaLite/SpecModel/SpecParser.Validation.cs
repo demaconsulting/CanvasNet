@@ -136,11 +136,36 @@ internal sealed partial class SpecParser
         "domainColor: SZE", "gridColor: SZE", "tickColor: SZE", "labelColor: SZE", "titleColor: SZE",
         "labelFont: SE", "titleFont: SE", "labelFontWeight: SNE", "titleFontWeight: SNE", "labelOverlap: BSE");
 
+    /// <summary>The names of the properties of a legend definition (the Vega-Lite version 6 legend, plus <c>encode</c>).</summary>
+    private static readonly HashSet<string> LegendKeys = Set(
+        "aria clipHeight columnPadding columns cornerRadius description direction encode fillColor format formatType "
+        + "gradientLength gradientOpacity gradientStrokeColor gradientStrokeWidth gradientThickness gridAlign labelAlign "
+        + "labelBaseline labelColor labelExpr labelFont labelFontSize labelFontStyle labelFontWeight labelLimit "
+        + "labelOffset labelOpacity labelOverlap labelSeparation legendX legendY offset orient padding rowPadding "
+        + "strokeColor symbolDash symbolDashOffset symbolFillColor symbolLimit symbolOffset symbolOpacity symbolSize "
+        + "symbolStrokeColor symbolStrokeWidth symbolType tickCount tickMinStep title titleAlign titleAnchor "
+        + "titleBaseline titleColor titleFont titleFontSize titleFontStyle titleFontWeight titleLimit titleLineHeight "
+        + "titleOpacity titleOrient titlePadding type values zindex");
+
+    /// <summary>The legend properties that must be numbers that are not negative.</summary>
+    private static readonly string[] LegendCounts = ["columns", "symbolLimit", "tickCount", "clipHeight", "gradientLength", "gradientThickness"];
+
     /// <summary>The rules for the properties of a legend definition.</summary>
     private static readonly Dictionary<string, Rule> LegendRules = Rules(
         "orient: SE=none|left|right|top|bottom|top-left|top-right|bottom-left|bottom-right",
         "type: S=symbol|gradient", "title: STZE", "encode: O", "values: AE", "format: SO", "tickCount: NSO",
-        "direction: S=horizontal|vertical");
+        "direction: S=horizontal|vertical", "aria: BE", "description: SE", "zindex: NE", "clipHeight: NE",
+        "columnPadding: NE", "columns: NE", "cornerRadius: NE", "fillColor: SZE", "strokeColor: SZE", "formatType: S",
+        "gradientLength: NE", "gradientOpacity: NE", "gradientStrokeColor: SZE", "gradientStrokeWidth: NE",
+        "gradientThickness: NE", "gridAlign: S=all|each|none", "labelAlign: SE", "labelBaseline: SE", "labelColor: SZE",
+        "labelExpr: S", "labelFont: SE", "labelFontSize: NE", "labelFontStyle: SE", "labelFontWeight: SNE",
+        "labelLimit: NE", "labelOffset: NE", "labelOpacity: NE", "labelOverlap: BSE", "labelSeparation: NE",
+        "legendX: NE", "legendY: NE", "offset: NE", "padding: NE", "rowPadding: NE", "symbolDash: AE",
+        "symbolDashOffset: NE", "symbolFillColor: SZE", "symbolLimit: NE", "symbolOffset: NE", "symbolOpacity: NE",
+        "symbolSize: NE", "symbolStrokeColor: SZE", "symbolStrokeWidth: NE", "symbolType: SE", "tickMinStep: NE",
+        "titleAlign: SE", "titleAnchor: SE=start|middle|end", "titleBaseline: SE", "titleColor: SZE", "titleFont: SE",
+        "titleFontSize: NE", "titleFontStyle: SE", "titleFontWeight: SNE", "titleLimit: NE", "titleLineHeight: NE",
+        "titleOpacity: NE", "titleOrient: SE=left|right|top|bottom", "titlePadding: NE");
 
     /// <summary>The rules for the properties of a data definition.</summary>
     private static readonly Dictionary<string, Rule> DataRules = Rules(
@@ -629,9 +654,32 @@ internal sealed partial class SpecParser
         if (definition["legend"] is { IsObject: true } legend)
         {
             CheckObject(legend, LegendRules);
+            ValidateLegendOptions(legend);
         }
 
         CompileChannelExpression(definition);
+    }
+
+    /// <summary>
+    ///     Validates what the rules of a legend cannot express: the counts and lengths are not negative, and the keys that Vega-Lite does
+    ///     not define for a legend are warned about.
+    /// </summary>
+    /// <param name="legend">The legend object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a negative or non-finite count or length.</exception>
+    private void ValidateLegendOptions(SpecNode legend)
+    {
+        foreach (var name in LegendCounts)
+        {
+            if (legend[name] is { IsNumber: true } number && !(number.NumberValue >= 0 && double.IsFinite(number.NumberValue)))
+            {
+                throw Error(number, $"The '{name}' must be a number that is not negative.");
+            }
+        }
+
+        foreach (var property in legend.Properties.Where(p => !LegendKeys.Contains(p.Name!)))
+        {
+            WarnUnknown(property, "a legend");
+        }
     }
 
     /// <summary>

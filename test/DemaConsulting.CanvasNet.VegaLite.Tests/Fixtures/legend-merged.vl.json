@@ -1,0 +1,23 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 200,
+  "height": 120,
+  "data": {
+    "values": [
+      { "row": 1, "yield": 12, "bed": "north", "weeds": 3 },
+      { "row": 2, "yield": 15, "bed": "north", "weeds": 5 },
+      { "row": 3, "yield": 11, "bed": "south", "weeds": 8 },
+      { "row": 4, "yield": 18, "bed": "south", "weeds": 2 },
+      { "row": 5, "yield": 16, "bed": "east", "weeds": 6 },
+      { "row": 6, "yield": 21, "bed": "east", "weeds": 4 }
+    ]
+  },
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "row", "type": "quantitative", "scale": { "zero": false }, "axis": { "title": "Row" } },
+    "y": { "field": "yield", "type": "quantitative", "axis": { "title": "Yield (kg)" } },
+    "color": { "field": "bed", "type": "nominal" },
+    "shape": { "field": "bed", "type": "nominal" },
+    "size": { "field": "weeds", "type": "quantitative" }
+  }
+}

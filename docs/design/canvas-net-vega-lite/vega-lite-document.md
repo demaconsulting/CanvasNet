@@ -159,8 +159,11 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   they exist (a `finally` block around the parameters and transforms), so a later failure still delivers them, and the
   `BuildPlan` step records them after the reports of the specification. The only I/O of the pipeline
   happens here, on the calling thread.
-  `BuildChart` iterates the axes and the
-  layout at most three passes, then builds the marks once and assembles the scene. `PrepareChartOrReport` wraps it so
+  `BuildChart` iterates the axes, the legends, and the
+  layout at most three passes (each pass builds the axes and the legends again for the data rectangle, the legends are
+  placed by `LegendLayout` against the axes and their reach joins the extents of the axes before the title is laid out),
+  then builds the marks once and assembles the scene (grids, back axes, marks, front axes, then the legends, then the
+  title). `PrepareChartOrReport` wraps it so
   that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
   rethrown (in strict mode the first unsupported feature wins).
 - `ValidateParameters(options)` - checks every `Parameters` key against `ParameterNames` and reports the first unknown
@@ -203,8 +206,9 @@ throws after a successful call propagates its exception (the surface is disposed
 - **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms` (which dispatches to `AggregateTransforms`),
   `EncodingPlan`, `EncodingTransforms`, `EncodingData`, `TransformContext`, and `RowExpressions`
 - **`Scales` subsystem** - `ScaleResolver` (the pipeline entry that takes the plan and the data), `ResolvedScales`
-- **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`
-- **`Layout` subsystem** - `ViewLayout` and its request and measure records
+- **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`,
+  `LegendPlan`, `LegendBuilder`, `LegendResult`
+- **`Layout` subsystem** - `ViewLayout` and its request and measure records, and `LegendLayout`
 - **`Marks` subsystem** - `MarkBuilder`
 - **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`, `CssColor`
 - **Core `CanvasNet`** - `Surface` and `Rgba32` (public API); see _CanvasNetVegaLite System Design_

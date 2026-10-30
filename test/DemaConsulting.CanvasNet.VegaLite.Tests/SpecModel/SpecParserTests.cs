@@ -400,6 +400,14 @@ public class SpecParserTests
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"orient\":\"middle\"}}}}", "/encoding/y/axis/orient")]
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"grid\":\"yes\"}}}}", "/encoding/y/axis/grid")]
     [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"type\":\"bubble\"}}}}", "/encoding/color/legend/type")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"columns\":-1}}}}", "/encoding/color/legend/columns")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":false}}}", "/encoding/color/legend")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"symbolLimit\":-5}}}}", "/encoding/color/legend/symbolLimit")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"gradientLength\":-200}}}}", "/encoding/color/legend/gradientLength")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"gradientThickness\":-1}}}}", "/encoding/color/legend/gradientThickness")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"orient\":\"middle\"}}}}", "/encoding/color/legend/orient")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"direction\":\"diagonal\"}}}}", "/encoding/color/legend/direction")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"titleOrient\":\"middle\"}}}}", "/encoding/color/legend/titleOrient")]
     [InlineData("{\"encoding\":{\"detail\":[1]}}", "/encoding/detail/0")]
     [InlineData("{\"params\":{}}", "/params")]
     [InlineData("{\"params\":[1]}", "/params/0")]
@@ -496,6 +504,35 @@ public class SpecParserTests
         // Assert: accepted without a parse warning (the layers themselves are only reported by the catalog)
         Assert.Empty(tree.Warnings);
         Assert.Equal(9, tree.Root["layer"]!.Items.Count);
+    }
+
+    /// <summary>
+    ///     Validates that the legend properties are accepted in every valid form (the orients, directions, counts, a null legend, a list of values, the
+    ///     paint and font properties and the symbol type) without a warning, and that an unknown key warns once at the key.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn()
+    {
+        // Arrange: each form on its own channel
+        const string json = """
+            {
+              "mark": "point",
+              "encoding": {
+                "color": { "field": "a", "type": "nominal", "legend": { "title": "T", "orient": "top-right", "direction": "horizontal", "columns": 2, "symbolLimit": 0, "symbolType": "diamond", "symbolSize": 80, "values": ["x", "y"], "offset": 4, "padding": 3, "labelLimit": 50, "titleLimit": 60, "format": ".1f", "fillColor": "white", "strokeColor": "gray", "gradientLength": 100, "gradientThickness": 10, "tickCount": 3, "labelAlign": "left", "titleFontWeight": "bold" } },
+                "size": { "field": "a", "type": "quantitative", "legend": null },
+                "shape": { "field": "a", "type": "nominal", "legend": { "orient": "none", "legendX": 5, "legendY": 6 } }
+              }
+            }
+            """;
+
+        // Act
+        var accepted = SpecParser.Parse(json);
+        var warned = SpecParser.Parse("{\"encoding\":{\"color\":{\"legend\":{\"title\":\"T\",\"bogus\":1}}}}");
+
+        // Assert
+        Assert.Empty(accepted.Warnings);
+        var warning = Assert.Single(warned.Warnings);
+        Assert.Equal(("vl-unknown-property", "/encoding/color/legend/bogus"), (warning.Id, warning.Location.Pointer));
     }
 
     /// <summary>

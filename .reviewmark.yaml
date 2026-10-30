@@ -1902,6 +1902,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAggregationIntegrationTests.cs"  # aggregation tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLegendIntegrationTests.cs"  # legend integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
@@ -2519,6 +2520,22 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Layout-LegendLayout Review (one per unit)
+  - id: CanvasNetVegaLite-Layout-LegendLayout
+    title: Review that CanvasNetVegaLite Layout LegendLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/layout.md"
+      - "docs/reqstream/canvas-net-vega-lite/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/layout/legend-layout.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/layout/legend-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/layout/legend-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Layout/LegendLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/LegendLayoutTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Marks Review (one per subsystem)
   - id: CanvasNetVegaLite-Marks

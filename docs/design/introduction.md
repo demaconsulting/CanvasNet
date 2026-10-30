@@ -456,7 +456,8 @@ the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.Ca
 `RowTransforms`, `AggregateTransforms`, and `EncodingPlan` units, its internal `Scales` subsystem holds the
 `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal
 `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`
-units, its internal `Layout` subsystem holds the `ViewLayout` unit, its internal `Marks` subsystem holds the
+units, its internal `Layout` subsystem holds the `ViewLayout` and `LegendLayout` units, its internal `Marks` subsystem
+holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
 subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,

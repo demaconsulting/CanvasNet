@@ -75,7 +75,6 @@ public class FeatureCatalogTests
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-encoding-bin", "/encoding/color/bin"),
                 ("vl-scale-log", "/encoding/color/scale/type"),
-                ("vl-guide-legend", "/encoding/color/legend"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-theta", "/encoding/theta"),
                 ("vl-channel-geo", "/encoding/latitude"),
@@ -472,29 +471,39 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the legend rule: a legend is reported for field-driven color, size and opacity channels unless it
-    ///     or the scale is null, never for values, data and position channels.
+    ///     Validates the legend rule: legends are drawn, so they are not reported; only the parts of a legend that are not drawn are
+    ///     (a title orient other than top, a clip height, an encode, a label expression, a custom format type, and a custom symbol path),
+    ///     at the exact property, and never for a position channel or a channel without a legend.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn()
+    public void FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal" },
-              "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left" } },
+              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "datum.label", "formatType": "time", "symbolType": "M0,0L1,1", "encode": {} } },
+              "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left", "titleOrient": "top", "symbolType": "diamond", "title": "S" } },
               "opacity": { "field": "a", "type": "quantitative", "legend": null },
               "fill": { "field": "a", "type": "nominal", "scale": null },
-              "stroke": { "value": "red" },
-              "x": { "field": "a", "type": "nominal", "legend": {} }
+              "stroke": { "field": "a", "type": "nominal" },
+              "x": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left" } }
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert: color has no legend object, so the channel itself is the location; size reports its legend object
-        Assert.Equal([("vl-guide-legend", "/encoding/color"), ("vl-guide-legend", "/encoding/size/legend")], ids);
+        // Assert: in document order; the legend of the size channel and the plain ones draw without a report
+        Assert.Equal(
+            [
+                ("vl-guide-legend-titleorient", "/encoding/color/legend/titleOrient"),
+                ("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight"),
+                ("vl-expr-label", "/encoding/color/legend/labelExpr"),
+                ("vl-format-type-custom", "/encoding/color/legend/formatType"),
+                ("vl-shape-path", "/encoding/color/legend/symbolType"),
+                ("vl-guide-encode", "/encoding/color/legend/encode"),
+            ],
+            ids);
     }
 
     /// <summary>

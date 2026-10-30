@@ -1,0 +1,21 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 240,
+  "height": 160,
+  "data": {
+    "values": [
+      { "plot": 1, "depth": 10, "rain": 2.5 },
+      { "plot": 2, "depth": 14, "rain": 5 },
+      { "plot": 3, "depth": 9, "rain": 7.5 },
+      { "plot": 4, "depth": 18, "rain": 10 },
+      { "plot": 5, "depth": 12, "rain": 12.5 },
+      { "plot": 6, "depth": 20, "rain": 15 }
+    ]
+  },
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "plot", "type": "quantitative", "scale": { "zero": false }, "axis": { "title": "Plot" } },
+    "y": { "field": "depth", "type": "quantitative", "axis": { "title": "Soil depth (cm)" } },
+    "color": { "field": "rain", "type": "quantitative", "legend": { "title": "Rain (mm)" } }
+  }
+}

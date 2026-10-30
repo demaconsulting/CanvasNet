@@ -490,8 +490,8 @@ public class VegaLiteAggregationIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the aggregate, bin and stack of an encoding are drawn without a report (the color legend of the stacked bars is the only report
-    ///     of the fixtures: legends are not drawn yet), and that a part that is still unsupported next to them (a time unit) is reported once with its
+    ///     Validates that the aggregate, bin and stack of an encoding are drawn without a report (the color legend of the stacked bars is drawn too,
+    ///     so the fixtures report nothing), and that a part that is still unsupported next to them (a time unit) is reported once with its
     ///     location, which strict mode turns into an exception.
     /// </summary>
     [Fact]
@@ -518,7 +518,7 @@ public class VegaLiteAggregationIntegrationTests
         var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
 
         // Assert
-        Assert.Equal(["vl-guide-legend /encoding/color"], fixtureReports);
+        Assert.Empty(fixtureReports);
         Assert.Equal(["vl-encoding-timeunit /encoding/x/timeUnit"], reported);
         Assert.Equal("vl-encoding-timeunit", strict.Feature);
     }

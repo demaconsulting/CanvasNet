@@ -1,0 +1,72 @@
+---
+# Software Unit Requirements for LegendLayout
+#
+# These requirements describe the design-level behavior of the LegendLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Layout): the placement of the built legends of a view next to its data
+# rectangle and its axes (a port of the legend layout of Vega's view layout), and the extents the legends add to
+# those of the axes so that the canvas holds them. See docs/verification/canvas-net-vega-lite/layout/legend-layout.md
+# for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: LegendLayout Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Layout-LegendLayout-Orients
+                title: >-
+                  The LegendLayout unit shall place the legends of the orients right and left (a column) and top
+                  and bottom (a row) outside the data rectangle and its axes at the legend offset (18 pixels), a
+                  left or top legend ending at the offset, the orients top-left, top-right, bottom-left, and
+                  bottom-right at the offset from the corners inside the data rectangle, and a legend without an
+                  orient at its own legendX and legendY.
+                justification: |
+                  The position of a legend is part of the look of every chart that has one, and the rule is the
+                  one of Vega-Lite so that charts lay out alike.
+                tests:
+                  - LegendLayout_Place_RightLegendIsOffsetFromTheDataRectangle
+                  - LegendLayout_Place_LeftLegendEndsLeftOfTheDataRectangle
+                  - LegendLayout_Place_TopAndBottomLegendsFormRows
+                  - LegendLayout_Place_InnerOrientsSitInTheCorners
+                  - LegendLayout_Place_NoneUsesLegendXAndLegendY
+
+              - id: CanvasNetVegaLite-Layout-LegendLayout-Stacking
+                title: >-
+                  The LegendLayout unit shall stack the legends of one orient in a grid in the order given, with
+                  the margin (8 pixels) between the boxes, in one column for the left and right side and one row
+                  for the other orients unless the configuration says otherwise, use the largest offset that a
+                  legend asks for, place the orients independently, and measure the boxes flush or by their full
+                  bounds as the configuration says.
+                justification: |
+                  Several legends on one side must not overlap and must read in the order of the channels.
+                tests:
+                  - LegendLayout_Place_RightLegendsStackInAColumn
+                  - LegendLayout_Place_LargestRequestedOffsetWins
+                  - LegendLayout_Place_OrientsArePlacedIndependentlyAndKeepTheOrder
+                  - LegendLayout_Place_FullBoundsPlaceTheBorderInsideTheGrid
+
+              - id: CanvasNetVegaLite-Layout-LegendLayout-Configuration
+                title: >-
+                  The LegendLayout unit shall read the offset, margin, anchor, frame, bounds, direction, and
+                  center of config.legend.layout with Vega's lookup (the object of the orient, then the layout
+                  object, then the default) and anchor a legend at the start, the middle, or the end of the side
+                  of the data rectangle or of its bounds.
+                justification: |
+                  The configuration of the layout is the documented way to move the legends of a whole chart.
+                tests:
+                  - LegendLayout_Place_LayoutConfigurationOfTheOrientWins
+                  - LegendLayout_Place_AnchorMovesTheLegendAlongTheSide
+
+              - id: CanvasNetVegaLite-Layout-LegendLayout-Extents
+                title: >-
+                  The LegendLayout unit shall measure the legends of the sides from the data rectangle united with
+                  the axes on that side, and shall join the union of the bounds of the legends with the extents of
+                  the axes by the larger reach on each side, so that the canvas holds the legends.
+                justification: |
+                  A legend beside an axis must not cover it, and a legend outside the data rectangle must not be
+                  cut off.
+                tests:
+                  - LegendLayout_Place_LegendsStartAfterTheAxes
+                  - LegendLayout_Combine_TakesTheLargerReachOfEachSide
+                  - LegendLayout_Place_NoLegendsGivesAnEmptyPlacement

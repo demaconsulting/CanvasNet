@@ -36,6 +36,13 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `signed-stacks.vl.json`: made-up takings (positive) and outgoings (negative) per quarter, split by `kind` (a color), so
   that each quarter's bar is a stack that hangs both above and below the zero line (the positive layers stack up from
   zero and the negative layers stack down from zero, separately; the domain is -20 to 20).
+- `legend-symbols.vl.json`: made-up seed packet readings as filled points with a color field (`crop`, a legend with an
+  explicit title) and a size field (`trays`), so that the chart has two symbol legends stacked at its right side.
+- `legend-gradient.vl.json`: made-up rain gauge readings as points colored by a quantitative field (`rain`, 2.5 to 15 in
+  steps of 2.5), so that the chart has one gradient legend with the default ramp.
+- `legend-merged.vl.json`: made-up garden bed readings with a color, a shape and a size field, where the color and the
+  shape read the same field (`bed`), so that they share one legend (symbols with both a shape and a color) and the
+  size (`weeds`) has a legend of its own.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

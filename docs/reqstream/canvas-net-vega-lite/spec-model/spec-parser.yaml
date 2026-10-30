@@ -236,6 +236,21 @@ sections:
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
+                title: >-
+                  The SpecParser unit shall validate the properties of a legend object - the orient, direction,
+                  and title orient names and the kinds of the paint, font, and layout properties - and the counts
+                  and lengths of a legend (columns, symbolLimit, tickCount, clipHeight, gradientLength, and
+                  gradientThickness), which must not be negative, with a located VegaLiteSpecException at the
+                  offending value, and shall report a key that Vega-Lite does not define for a legend as a
+                  vl-unknown-property warning at the key.
+                justification: |
+                  A legend with a wrong property cannot be what the author meant, and a negative size would break
+                  the layout that is derived from it.
+                tests:
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
                   The SpecParser unit shall reject source text longer than the source-length limit with

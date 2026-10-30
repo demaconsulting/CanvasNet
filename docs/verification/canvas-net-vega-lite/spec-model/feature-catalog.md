@@ -170,10 +170,13 @@ properties are not.
 
 ##### Legends
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn`
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported`
 
-Asserts that `vl-guide-legend` is reported for field-driven color, size, and opacity channels unless the legend or
-the scale is `null`, and never for value definitions, the data, or position channels.
+Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
+not drawn are reported once each at the exact property (`vl-guide-legend-titleorient` for a title orient other than
+`top`, `vl-guide-legend-clipheight`, `vl-expr-label`, `vl-format-type-custom`, `vl-shape-path` for a symbol type that
+is a path, and `vl-guide-encode`), in document order, and that a `titleOrient` of `top`, a `null` legend, a null scale,
+and a legend object on a position channel produce no report.
 
 ##### Transforms, Expressions, Parameters, Compositions, And Autosize
 

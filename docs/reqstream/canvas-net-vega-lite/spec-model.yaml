@@ -180,9 +180,11 @@ sections:
               with its location, before any data is read.
             children:
               - CanvasNetVegaLite-SpecModel-SpecParser-ScaleOptions
+              - CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
             tests:
               - SpecParser_Parse_WrongTypeReportsPointer
               - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
+              - SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn
 
           - id: CanvasNetVegaLite-SpecModel-SchemaCompatibility
             title: >-

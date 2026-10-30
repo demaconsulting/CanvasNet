@@ -4094,7 +4094,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field); see *Vega-Lite Aggregation, Binning, and Stacking* |
 | Scales | The types linear, band, point, and ordinal, with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette); a quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
-| Legends | **None**: a color, fill, stroke, size, or opacity channel driven by a field is drawn without a legend and reported (`vl-guide-legend`), unless `legend` or `scale` is `null` |
+| Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and the configuration; `legend: null` switches one off; `encode`, `labelExpr`, a custom `formatType`, a `titleOrient` other than `top`, and `clipHeight` are reported and not drawn |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad` or `none`; `background`; the `view` configuration (size, fill, and stroke) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism |
@@ -4673,8 +4673,8 @@ thread, after the work finished and before the method returns or throws.
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, sequential, band, point, ordinal, quantile, quantize, and threshold |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (`domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and `interpolate` are supported; an unknown color scheme name is an error) |
-| `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, opacity, shape, strokeWidth, or strokeDash channel |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
+| `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight` | Unsupported | A `legend.titleOrient` other than `top` (the title stays above the entries), a `legend.clipHeight` (the entries are not clipped) |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-format-type-custom` | Unsupported | `axis.formatType` |
 | `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, size, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, or square, an encoding `value` other than that of color, fill, stroke, opacity, or the size of a symbol, and every such value in a view that is not drawn. The value is not used |
@@ -6050,8 +6050,8 @@ PngCodec.Save(histogramPicture, "parcel-weights.png");
 
 // 2. A stacked bar chart: the y channel sums the units of every region and product (aggregate), and the bars stack
 //    (the default for a bar) in the order of the product: north is washers 0 to 5, nuts 5 to 7, and bolts 7 to 10, and
-//    south is nuts 0 to 1 and bolts 1 to 5. The y axis reaches the largest total, 10. A color legend is not implemented
-//    yet, so the lenient render reports it (vl-guide-legend); everything else is drawn.
+//    south is nuts 0 to 1 and bolts 1 to 5. The y axis reaches the largest total, 10. The color legend is drawn at the
+//    right of the chart, so the lenient render reports nothing.
 var shipped = VegaLiteDocument.Parse("""
     {
       "title": "Units shipped per region and product",
@@ -6074,7 +6074,7 @@ var shipped = VegaLiteDocument.Parse("""
     """);
 var reports = new List<VegaLiteUnsupportedFeature>();
 using var shippedPicture = shipped.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add });
-Console.WriteLine(string.Join(", ", reports.Select(r => r.Feature))); // Output: vl-guide-legend
+Console.WriteLine(reports.Count); // Output: 0
 PngCodec.Save(shippedPicture, "units-shipped.png");
 
 // 3. A running total with the window transform: the default frame [null, 0] runs from the first row to the current

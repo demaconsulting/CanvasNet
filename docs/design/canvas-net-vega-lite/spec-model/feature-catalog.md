@@ -84,8 +84,10 @@ catalog never produces them).
 - `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set. `VisitEncoding` reports the
   channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-temporal`,
   `vl-type-geojson`), the encoding properties (`vl-encoding-<name>`), the scale type and properties
-  (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the legend
-  (`vl-guide-legend`), the custom path shapes (`vl-shape-path`), and the axis
+  (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the parts
+  of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-expr-label`, `vl-format-type-custom`,
+  `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight`, and `vl-shape-path` for a custom `symbolType`), the custom
+  path shapes (`vl-shape-path`), and the axis
   properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`). The phase 6 rules:
   `x2` and `y2` are accepted (and their definitions visited like any channel definition) for a bar, rect, or rule that
   has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; `order` is accepted when it
@@ -116,8 +118,9 @@ catalog never produces them).
   `shape` channel, and the entries of its `scale.range`). `VisitScaleType` warns `vl-scale-type-ignored` when a
   supported `scale.type` is not accepted for the channel and the field type (`ScaleResolver.AcceptsScaleType`, the rule
   the resolver replaces it by the default type with) and for a quantitative field on a `shape` or `strokeDash` channel
-  that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Field-driven `shape`,
-  `strokeWidth`, and `strokeDash` channels keep the `vl-guide-legend` report until the legends are drawn.
+  that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Legends are drawn, so the
+  identifier `vl-guide-legend` is retired: `VisitLegend` visits the `legend` object of a field-driven channel and reports
+  only what the legend builder does not draw.
 - `VisitTransforms(transforms, drawn)` reports the entries as `vl-transform-<name>` only for what is **not computed**:
   the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`, `timeunit`) and every
   transform of a

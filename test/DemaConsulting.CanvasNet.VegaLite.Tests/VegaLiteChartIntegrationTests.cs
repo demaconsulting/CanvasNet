@@ -139,11 +139,15 @@ public class VegaLiteChartIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels()
     {
-        // Arrange: scatter plot. The data rectangle is 300 by 200; the y axis is 0 to 100 (widest label "100"), the title sits above
-        // the top label overhang as in the bar chart, so the origin is the same formula. x runs 6 to 20 (300 / 14 per unit).
+        // Arrange: scatter plot without its legends (the legend geometry is the subject of the legend integration tests). The data rectangle
+        // is 300 by 200; the y axis is 0 to 100 (widest label "100"), the title sits above the top label overhang as in the bar chart,
+        // so the origin is the same formula. x runs 6 to 20 (300 / 14 per unit).
         var ox = (int)(5 + Math.Ceiling(7 + LabelWidth("100") + 4 + 11));
         const int oy = 27;
-        using var scatter = OpenFixture("point-inline.vl.json").Render(cancellationToken: Ct);
+        var withoutLegends = Fixture("point-inline.vl.json")
+            .Replace("\"color\": { \"field\": \"glaze\", \"type\": \"nominal\" }", "\"color\": { \"field\": \"glaze\", \"type\": \"nominal\", \"legend\": null }", StringComparison.Ordinal)
+            .Replace("\"size\": { \"field\": \"load\", \"type\": \"quantitative\" }", "\"size\": { \"field\": \"load\", \"type\": \"quantitative\", \"legend\": null }", StringComparison.Ordinal);
+        using var scatter = VegaLiteDocument.Parse(withoutLegends).Render(cancellationToken: Ct);
 
         // Assert: the canvas has the 5 px of padding and 1 px for the half tick at the right end; the points are at
         // x = 300 (h - 6) / 14, y = 200 - 2 yield: (12, 78) -> (128.6, 44) gloss (blue), (14, 74) -> (171.4, 52) matte (orange)
@@ -320,7 +324,7 @@ public class VegaLiteChartIntegrationTests
               "encoding": { "x": { "field": "a", "type": "quantitative", "axis": { "format": "!!" } } } }
             """);
         var rows = string.Join(',', Enumerable.Range(0, 5000).Select(i => "{\"k\":\"c" + i + "\",\"v\":" + i + "}"));
-        var big = VegaLiteDocument.Parse("{\"mark\":\"point\",\"data\":{\"values\":[" + rows + "]},\"encoding\":{\"x\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"k\",\"type\":\"nominal\"}}}");
+        var big = VegaLiteDocument.Parse("{\"mark\":\"point\",\"data\":{\"values\":[" + rows + "]},\"encoding\":{\"x\":{\"field\":\"v\",\"type\":\"quantitative\",\"bandPosition\":0.5},\"color\":{\"field\":\"k\",\"type\":\"nominal\",\"legend\":null}}}");
         var reported = new List<string>();
         var options = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 100 }, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
 
@@ -328,12 +332,12 @@ public class VegaLiteChartIntegrationTests
         var format = Assert.Throws<VegaLiteSpecException>(() => invalidAxis.Render(cancellationToken: Ct));
         var items = Assert.Throws<VegaLiteRenderException>(() => big.Render(options, Ct));
 
-        // Assert: the format error points at the format value; the budget error at the mark; the legend report was still delivered
+        // Assert: the format error points at the format value; the budget error at the mark; the report found before the failure was still delivered
         Assert.Equal("/encoding/x/axis/format", format.Location.Pointer);
         Assert.Equal(2, format.Location.Line);
         Assert.Equal("/mark", items.Location.Pointer);
         Assert.Contains("MaxSceneItems", items.Message, StringComparison.Ordinal);
-        Assert.Contains("vl-guide-legend", reported);
+        Assert.Contains("vl-encoding-bandposition", reported);
     }
 
     /// <summary>

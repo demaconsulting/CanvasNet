@@ -4,7 +4,9 @@
 # These requirements decompose the CanvasNetVegaLite system's layout responsibility into the Layout subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the single-view layout (ViewLayout) that sizes
 # the data rectangle, the canvas, and the padding around the guides and the title, and assembles the scene with
-# its view background and border. Each requirement here links down to the unit requirements that implement it.
+# its view background and border, and the legend layout (LegendLayout) that places the legends around the data
+# rectangle and adds their room to the canvas. Each requirement here links down to the unit requirements that
+# implement it.
 # See docs/verification/canvas-net-vega-lite/layout.md for the test-evidence mapping.
 
 sections:
@@ -46,3 +48,23 @@ sections:
               - ViewLayout_Resolve_ViewStyleAndBackgroundFollowPrecedence
               - ViewLayout_Build_ContentTitleClipAndRoundingFollowTheMeasure
               - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors
+
+          - id: CanvasNetVegaLite-Layout-LegendPlacement
+            title: >-
+              The Layout subsystem shall place the legends of a view next to its data rectangle and its axes by
+              their orient (right by default, left, top, bottom, the four corners inside the data rectangle, or
+              their own position), stack the legends of one side with the documented margin, honor the legend
+              layout configuration, and grow the canvas by the room the legends need outside the data
+              rectangle, or leave the canvas as it is when the autosize is none.
+            justification: |
+              A legend outside the data rectangle changes the size of the chart, so its placement and its
+              extent belong to the one layout rule that sizes the canvas.
+            children:
+              - CanvasNetVegaLite-Layout-LegendLayout-Orients
+              - CanvasNetVegaLite-Layout-LegendLayout-Stacking
+              - CanvasNetVegaLite-Layout-LegendLayout-Configuration
+              - CanvasNetVegaLite-Layout-LegendLayout-Extents
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle
+              - CanvasNetVegaLite_SystemIntegration_Legend_OrientsPlaceTheLegendAroundTheDataRectangle
+              - CanvasNetVegaLite_SystemIntegration_Legend_ConfigurationAndAutosizeNone

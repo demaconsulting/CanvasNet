@@ -647,8 +647,8 @@ limit) and a canceled token stops the render with an `OperationCanceledException
 **Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
 
 Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
-report, the only report being the color legend of the stacked bars (`vl-guide-legend` at `/encoding/color`, because
-legends are not drawn yet); and that adding a `timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
+report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding a
+`timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
 once (`vl-encoding-timeunit` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render with a
 `VegaLiteUnsupportedFeatureException` for that feature.
 
@@ -683,13 +683,38 @@ lines, the ticks, the labels, the domain line, and the title (13 for the three-t
 one fewer, that the title builder charges the group, the title, and the subtitle (3) and fails at `/title` with fewer,
 and that a forked budget counts on its own and is taken over only when adopted.
 
+### Legends: Placement, Merging, Gradients, Limits, And Determinism
+
+**Tests**: `VegaLiteLegendIntegrationTests.CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle`,
+`..._NullSwitchesTheLegendOff`, `..._QuantitativeColorDrawsAGradient`,
+`..._DefaultColorRampOfAScatterPlotHasAGradientLegend`, `..._SharedFieldsMergeAndOthersStack`,
+`..._OrientsPlaceTheLegendAroundTheDataRectangle`, `..._ConfigurationAndAutosizeNone`,
+`..._UnsupportedPropertiesAreReportedWithLocations`, `..._LimitsAndCancellationApply`,
+`..._RendersAreDeterministicAcrossThreads`
+
+Uses the three original legend fixtures and small inline specifications, reads the scene of the rendered document and
+asserts hand-derived geometry (the sizes of the legend boxes are those of the unit-tested legend builder): the color and
+size legends of `legend-symbols.vl.json` are one column 18 pixels right of the data rectangle and 8 pixels apart, with
+the explicit title `Crop`, the colors of the scheme, and a canvas as wide as the legends need; `legend: null` removes
+them; the
+quantitative color of `legend-gradient.vl.json` (and of a small scatter plot without any legend property) has a gradient
+bar of 16 by 160 pixels whose stops are the ends of the domain and the ticks (the second at 0.04), whose first and last
+colors are the ends of the default ramp and whose painted rows are light at the bottom and dark at the top, titled `Rain
+(mm)`; a color and a shape on the same field of `legend-merged.vl.json` share one legend (stroked symbols with both a
+shape and a color) while the size has its own legend 8 pixels below, and a shape on another field is a third legend; a
+bottom legend is 18 pixels below the x axis, a top legend 18 pixels above the data rectangle, an inner orient does not
+change the canvas, a left legend ends 18 pixels left of the y axis, and `autosize: none` keeps the canvas size so the legend
+sticks out; a `titleOrient` of `left` is reported once with its location and stops a strict render; a `MaxSceneItems` of
+the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
+in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
+
 ### Limits: Chart Failures Carry Locations
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations`
 
 Asserts that an invalid axis format is a `VegaLiteSpecException` pointing at the format value, that a point chart
 with more rows than the item budget allows is a `VegaLiteRenderException` pointing at the mark, and that reports
-found before the failure (a legend report in the test) are still delivered.
+found before the failure (a `bandPosition` report in the test) are still delivered.
 
 ### Cancellation: Stops Measuring And Rendering
 

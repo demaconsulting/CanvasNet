@@ -235,6 +235,19 @@ names, an interpolate object with a gamma or an expression reference, a scheme n
 expression reference, and `bins` as an array or an object are silent, while an unknown key of a scheme or interpolate
 object is one `vl-unknown-property` warning at the key.
 
+##### Legend Options Are Validated And Unknown Keys Are Warned About
+
+**Tests**: `SpecParserTests.SpecParser_Parse_WrongTypeReportsPointer`,
+`SpecParserTests.SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn`
+
+Asserts, in the rows of the pointer theory, that a legend `columns`, `symbolLimit`, `gradientLength`, or
+`gradientThickness` that is negative, an `orient` or `titleOrient` that is not one of the defined names, and a
+`direction` that is not `horizontal` or `vertical` are each a located error at the offending value; and, in the accepted
+form, that a legend with a title, an inner orient, a direction, counts, a symbol type and size, a list of values, an
+offset and padding, label and title limits, a format, paint, tick count, label and title font properties, a `null`
+legend, and the orient `none` with its `legendX` and `legendY` is silent, while an unknown key is one
+`vl-unknown-property` warning at the key.
+
 ##### Schema Version Parsing
 
 **Tests**: `SpecParserTests.SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion`

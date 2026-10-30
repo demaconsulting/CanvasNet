@@ -560,12 +560,21 @@ sections:
         children:
           - CanvasNetVegaLite-Guides-Legends
           - CanvasNetVegaLite-Guides-OverlapRemoval
+          - CanvasNetVegaLite-Layout-LegendPlacement
         tests:
           - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
           - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
           - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
           - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
           - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated
+          - CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle
+          - CanvasNetVegaLite_SystemIntegration_Legend_QuantitativeColorDrawsAGradient
+          - CanvasNetVegaLite_SystemIntegration_Legend_DefaultColorRampOfAScatterPlotHasAGradientLegend
+          - CanvasNetVegaLite_SystemIntegration_Legend_SharedFieldsMergeAndOthersStack
+          - CanvasNetVegaLite_SystemIntegration_Legend_NullSwitchesTheLegendOff
+          - CanvasNetVegaLite_SystemIntegration_Legend_UnsupportedPropertiesAreReportedWithLocations
+          - CanvasNetVegaLite_SystemIntegration_Legend_LimitsAndCancellationApply
+          - CanvasNetVegaLite_SystemIntegration_Legend_RendersAreDeterministicAcrossThreads
 
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-

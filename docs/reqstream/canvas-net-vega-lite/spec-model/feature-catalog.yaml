@@ -116,11 +116,14 @@ sections:
                   The FeatureCatalog unit shall report scale types other than linear, sequential, band,
                   point, ordinal, quantile, quantize, and threshold, scale properties outside the supported
                   set (the properties of the continuous color scales included), a cubehelix interpolation
-                  (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), a legend
-                  only when one would be drawn, and the guide properties and encode blocks that the axis
-                  builder does not honor, shall warn (vl-scale-type-ignored) about a scale type that the channel
+                  (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
+                  properties that the legend builder does not draw (encode, labelExpr, formatType, a title
+                  orient other than top, clipHeight, and a custom symbol path), and the guide properties and
+                  encode blocks that the axis builder does not honor, shall warn (vl-scale-type-ignored) about
+                  a scale type that the channel
                   or the field type cannot use, and shall not report the continuous color scales, the color
-                  schemes, or the properties it does honor (the identifier vl-scale-color-ramp is retired).
+                  schemes, the legends (which are drawn), or the properties it does honor (the identifiers
+                  vl-scale-color-ramp and vl-guide-legend are retired).
                 justification: |
                   Scales and guides decide how data is positioned and labeled; a silently ignored property
                   would produce a plausible but wrong chart.
@@ -132,7 +135,7 @@ sections:
                   - FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed
                   - FeatureCatalog_Visit_SchemeNamesAreNotReported
                   - FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes
-                  - FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn
+                  - FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-

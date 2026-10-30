@@ -60,7 +60,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle; <c>shape</c> is drawn by a point, <c>angle</c> by a point, circle or square and <c>strokeDash</c> by every mark but a rect, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
-///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel or an entry of its <c>scale.range</c> (custom SVG path shapes are not drawn; a circle is).</description></item>
+///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
 ///         <item><term><c>vl-encoding-timeunit</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
@@ -72,11 +72,11 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, sequential, band, point, ordinal, quantile, quantize and threshold.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax and interpolate. An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
-///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size, opacity, shape, strokeWidth or strokeDash channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
+///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
-///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>.</description></item>
-///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
+///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c> and <c>legend.formatType</c>.</description></item>
+///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the date, format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>timeunit</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c> of the drawn view are computed and not reported.</description></item>
 ///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
@@ -609,7 +609,7 @@ internal static class FeatureCatalog
                 VisitAxis(axis);
             }
 
-            VisitLegend(name, definition, scale);
+            VisitLegend(name, definition);
         }
 
         /// <summary>
@@ -868,23 +868,50 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports the legend that Vega-Lite would draw for a channel driven by a field.
+        ///     Reports the parts of a legend definition that the renderer does not draw.
         /// </summary>
+        /// <remarks>
+        ///     Legends themselves are drawn (by the <c>LegendPlan</c> and <c>LegendBuilder</c> units) and are not reported. A <c>titleOrient</c> other than <c>top</c> and a
+        ///     <c>clipHeight</c> are not drawn, <c>encode</c>, <c>labelExpr</c> and <c>formatType</c> are not evaluated, and a
+        ///     <c>symbolType</c> that is not a symbol name is a custom shape path (a circle is drawn).
+        /// </remarks>
         /// <param name="channel">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
-        /// <param name="scale">The <c>scale</c> value of the channel, or null.</param>
-        private void VisitLegend(string channel, SpecNode definition, SpecNode? scale)
+        private void VisitLegend(string channel, SpecNode definition)
         {
-            var legend = definition["legend"];
-            if (!LegendChannels.Contains(channel) || definition["field"] is null || legend is { IsNull: true } || scale is { IsNull: true })
+            if (!LegendChannels.Contains(channel) || definition["legend"] is not { IsObject: true } legend)
             {
                 return;
             }
 
-            Unsupported("vl-guide-legend", "Legends are not supported yet.", legend ?? definition);
-            if (legend is { IsObject: true } && legend["encode"] is { } encode)
+            foreach (var property in legend.Properties)
             {
-                Unsupported("vl-guide-encode", "Custom guide encodings (legend.encode) are not supported.", encode);
+                switch (property.Name)
+                {
+                    case "encode":
+                        Unsupported("vl-guide-encode", "Custom guide encodings (legend.encode) are not supported.", property);
+                        break;
+                    case "labelExpr":
+                        Unsupported("vl-expr-label", "Label expressions (legend.labelExpr) are not supported yet.", property);
+                        break;
+                    case "formatType":
+                        Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported.", property);
+                        break;
+                    case "titleOrient" when property.IsString && property.StringValue != "top":
+                        Unsupported(
+                            "vl-guide-legend-titleorient",
+                            $"The legend title orient '{property.StringValue}' is not supported; the title is drawn above the legend.",
+                            property);
+                        break;
+                    case "clipHeight":
+                        Unsupported("vl-guide-legend-clipheight", "The legend property 'clipHeight' is not supported yet.", property);
+                        break;
+                    case "symbolType":
+                        VisitShapeName(property);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 

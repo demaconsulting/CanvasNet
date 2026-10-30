@@ -84,8 +84,8 @@ constituent software items, specifically:
   `joinaggregate`, `window`, `bin`, `stack`, and `impute`; and `EncodingPlan`, the implicit bin, aggregate, and stack of
   the encoding), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
   `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units `TextMeasurer`, `TitleBuilder`,
-  `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`), `Layout` (unit
-  `ViewLayout`), `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
+  `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`), `Layout` (units `ViewLayout` and `LegendLayout`), `Marks` (unit
+  `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,

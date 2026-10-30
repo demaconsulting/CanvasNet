@@ -1,0 +1,23 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Seed packets: sprouting and tray size",
+  "width": 200,
+  "height": 150,
+  "data": {
+    "values": [
+      { "days": 4, "stem": 6, "crop": "beet", "trays": 2 },
+      { "days": 6, "stem": 9, "crop": "beet", "trays": 4 },
+      { "days": 7, "stem": 12, "crop": "kale", "trays": 6 },
+      { "days": 9, "stem": 14, "crop": "kale", "trays": 8 },
+      { "days": 11, "stem": 17, "crop": "leek", "trays": 10 },
+      { "days": 13, "stem": 21, "crop": "leek", "trays": 12 }
+    ]
+  },
+  "mark": { "type": "point", "filled": true },
+  "encoding": {
+    "x": { "field": "days", "type": "quantitative", "scale": { "zero": false }, "axis": { "title": "Days to sprout" } },
+    "y": { "field": "stem", "type": "quantitative", "axis": { "title": "Stem (cm)" } },
+    "color": { "field": "crop", "type": "nominal", "legend": { "title": "Crop" } },
+    "size": { "field": "trays", "type": "quantitative" }
+  }
+}

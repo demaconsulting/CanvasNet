@@ -69,6 +69,13 @@ letter: a `scheme` object must have a string `name`, a positive whole `count`, a
 `domainMin`, `domainMax`, `rangeMin`, `rangeMax` (numbers or expression references) and `bins` (array or object) have
 kind rules only.
 
+**Legend options.** After the kind rules of a legend, `ValidateLegendOptions` checks what they cannot express: the counts
+and lengths `columns`, `symbolLimit`, `tickCount`, `clipHeight`, `gradientLength`, and `gradientThickness` must not be
+negative (a `VegaLiteSpecException` at the value), and a key that Vega-Lite does not define for a legend is a
+`vl-unknown-property` warning. The kind rules carry the enumerations (`orient`, `direction`, `titleOrient`, and the
+alignments) and the kinds of the paint, font, and layout properties; `legend: null` disables the legend, and `legend:
+false` is a specification error.
+
 **Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data stage
 reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
 break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a
