@@ -29,7 +29,7 @@ internal readonly record struct RangeEnd(double Value, bool IsExtent);
 /// </remarks>
 internal sealed class ResolvedScale
 {
-    /// <summary>Gets the channel: <c>x</c>, <c>y</c>, <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c> or <c>opacity</c>.</summary>
+    /// <summary>Gets the channel: <c>x</c>, <c>y</c>, <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, <c>opacity</c>, <c>shape</c>, <c>strokeWidth</c>, <c>strokeDash</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> or <c>angle</c>.</summary>
     public string Channel { get; init; } = string.Empty;
 
     /// <summary>Gets the kind of scale.</summary>
@@ -59,16 +59,18 @@ internal sealed class ResolvedScale
     /// <summary>Gets the location of the channel definition in the specification.</summary>
     public VegaLiteLocation Location { get; init; }
 
-    /// <summary>Gets the start of the domain of a linear scale after the zero rule, before pixel padding and <c>nice</c>.</summary>
+    /// <summary>Gets the start of the domain of a continuous scale after the zero rule, before pixel padding and <c>nice</c>.</summary>
     public double DomainStart { get; init; }
 
-    /// <summary>Gets the end of the domain of a linear scale after the zero rule, before pixel padding and <c>nice</c> (the last entry of <see cref="Domain"/>).</summary>
+    /// <summary>Gets the end of the domain of a continuous scale after the zero rule, before pixel padding and <c>nice</c> (the last entry of <see cref="Domain"/>).</summary>
     public double DomainEnd { get; init; }
 
     /// <summary>
-    ///     Gets the complete explicit domain of a linear scale after the zero rule (at least two numbers), or null when the
-    ///     domain is the two ends <see cref="DomainStart"/> and <see cref="DomainEnd"/>; a domain of more than two numbers
-    ///     is piecewise (see <see cref="ScaleModel.CreateLinear(double[], double[], bool, bool)"/>).
+    ///     Gets the complete domain of a continuous scale after the zero rule, or null when the domain is the two ends
+    ///     <see cref="DomainStart"/> and <see cref="DomainEnd"/>. For a linear scale it is the explicit domain of more than two numbers (a
+    ///     piecewise scale, see <see cref="ScaleModel.CreateLinear(double[], double[], bool, bool)"/>); for a diverging scale the three
+    ///     entries with the middle value; for a quantile scale all the valid values of the field in ascending order; for a threshold scale
+    ///     the thresholds; for a bin-ordinal scale the bin edges.
     /// </summary>
     public IReadOnlyList<double>? Domain { get; init; }
 
@@ -105,14 +107,29 @@ internal sealed class ResolvedScale
     /// <summary>Gets the explicit range of the specification, or null for the default range.</summary>
     public IReadOnlyList<RangeEnd>? ExplicitRange { get; init; }
 
-    /// <summary>Gets the numeric range of a size or opacity scale (start and end).</summary>
+    /// <summary>Gets the replacement of the first entry of a default two-entry range (<c>rangeMin</c>), or null.</summary>
+    public double? RangeMin { get; init; }
+
+    /// <summary>Gets the replacement of the second entry of a default two-entry range (<c>rangeMax</c>), or null.</summary>
+    public double? RangeMax { get; init; }
+
+    /// <summary>Gets the numeric range of a size, opacity, stroke width or angle scale (start and end).</summary>
     public (double Start, double End)? ValueRange { get; init; }
 
-    /// <summary>Gets the colors of an ordinal color scale.</summary>
+    /// <summary>Gets the numbers a discretizing or ordinal scale of a size, opacity, stroke width or angle gives (one per interval or category, cycling for an ordinal scale).</summary>
+    public IReadOnlyList<double> NumberRange { get; init; } = [];
+
+    /// <summary>Gets the colors of an ordinal color scale, and of a quantize, quantile, threshold or bin-ordinal color scale (one per interval).</summary>
     public IReadOnlyList<string> ColorRange { get; init; } = [];
 
-    /// <summary>Gets a value indicating whether the colors are the <c>tableau10</c> fallback because the requested scheme is not available.</summary>
-    public bool ColorFallback { get; init; }
+    /// <summary>Gets the shapes (symbol names or SVG path strings) of a <c>shape</c> scale, one per category or interval.</summary>
+    public IReadOnlyList<string> ShapeRange { get; init; } = [];
+
+    /// <summary>Gets the dash patterns of a <c>strokeDash</c> scale, one per category or interval.</summary>
+    public IReadOnlyList<IReadOnlyList<double>> DashRange { get; init; } = [];
+
+    /// <summary>Gets the interpolator of a sequential or diverging color scale (a color for a position from 0 to 1, after the scheme extent and the reversal), or null.</summary>
+    public Func<double, RgbColor>? Interpolator { get; init; }
 
     /// <summary>Gets a value indicating whether the channel is a position channel (<c>x</c> or <c>y</c>).</summary>
     public bool IsPosition => Channel is "x" or "y";
@@ -143,8 +160,11 @@ internal sealed class ResolvedScale
     ///     <para>
     ///         The range of an x scale is <c>[0, extent]</c>; that of a continuous y scale is <c>[extent, 0]</c> (the
     ///         origin of a view is at the top) and that of a discrete y scale <c>[0, extent]</c>; an explicit range
-    ///         replaces them (the keywords <c>width</c> and <c>height</c> stand for <paramref name="extent"/>); a
-    ///         reversed scale swaps the two ends. Size and opacity scales use their own ranges and ignore the extent.
+    ///         replaces them (the keywords <c>width</c> and <c>height</c> stand for <paramref name="extent"/>) and <c>rangeMin</c> and
+    ///         <c>rangeMax</c> replace the first and the second entry of a default range; a
+    ///         reversed scale swaps the two ends. Size and opacity scales use their own ranges and ignore the extent. The scales
+    ///         that give colors, shapes, dash patterns or the numbers of discrete intervals (sequential, diverging, quantize, quantile,
+    ///         threshold, bin-ordinal and ordinal) do not depend on the extent.
     ///     </para>
     ///     <para>
     ///         A continuous position scale applies its pixel padding first (the domain is widened around its middle so
@@ -156,48 +176,98 @@ internal sealed class ResolvedScale
     /// <returns>The scale model.</returns>
     public ScaleModel CreateModel(double extent)
     {
-        var range = ResolveRange(extent);
         switch (Kind)
         {
             case ScaleKind.Linear:
-                // Vega applies padding, zero and nice to the first and the last entry of a piecewise domain and leaves the others as they are
-                double[] domain = Domain is { Count: > 2 } complete ? [.. complete] : [DomainStart, DomainEnd];
-                var start = domain[0];
-                var end = domain[^1];
-
-                // Pixel padding widens the domain around its middle
-                var span = Math.Abs(range[^1] - range[0]);
-                if (PaddingPixels > 0 && start.CompareTo(end) != 0 && span - (2 * PaddingPixels) > 0)
-                {
-                    var factor = span / (span - (2 * PaddingPixels));
-                    var middle = (start + end) / 2;
-                    start = middle + ((start - middle) * factor);
-                    end = middle + ((end - middle) * factor);
-                }
-
-                // Then the domain is extended to round values, if that gives a usable domain
-                if (NiceCount is { } count)
-                {
-                    var (niceStart, niceEnd) = Ticks.Nice(start, end, count);
-                    if (double.IsFinite(niceStart) && double.IsFinite(niceEnd))
-                    {
-                        start = niceStart;
-                        end = niceEnd;
-                    }
-                }
-
-                domain[0] = start;
-                domain[^1] = end;
-                return ScaleModel.CreateLinear(domain, range, Clamp, Round);
+                var range = ResolveRange(extent);
+                return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round);
+            case ScaleKind.Sequential or ScaleKind.Diverging:
+                return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp);
+            case ScaleKind.Quantize:
+                var quantizeDomain = ExtendedDomain(0);
+                return ScaleModel.CreateQuantize(quantizeDomain[0], quantizeDomain[^1], OutputRange());
+            case ScaleKind.Quantile:
+                return ScaleModel.CreateQuantile(DomainArray(), OutputRange());
+            case ScaleKind.Threshold:
+                return ScaleModel.CreateThreshold(DomainArray(), OutputRange());
+            case ScaleKind.BinOrdinal:
+                return ScaleModel.CreateBinOrdinal(DomainArray(), OutputRange());
 
             // A band or point scale takes the first two entries of its range, as d3's scaleBand does
             case ScaleKind.Band:
-                return ScaleModel.CreateBand(DiscreteDomain, range[0], range[1], PaddingInner, PaddingOuter, Align, Round);
+                var bandRange = ResolveRange(extent);
+                return ScaleModel.CreateBand(DiscreteDomain, bandRange[0], bandRange[1], PaddingInner, PaddingOuter, Align, Round);
             case ScaleKind.Point:
-                return ScaleModel.CreatePoint(DiscreteDomain, range[0], range[1], PaddingOuter, Align, Round);
+                var pointRange = ResolveRange(extent);
+                return ScaleModel.CreatePoint(DiscreteDomain, pointRange[0], pointRange[1], PaddingOuter, Align, Round);
             default:
-                return ScaleModel.CreateOrdinal(DiscreteDomain, ColorRange);
+                return ScaleModel.CreateOrdinal(DiscreteDomain, OutputRange());
         }
+    }
+
+    /// <summary>
+    ///     Gets the output values of an ordinal or discretizing scale: the shapes of a shape scale, the number of dash patterns, the
+    ///     numbers of a numeric channel or the colors.
+    /// </summary>
+    /// <returns>The range.</returns>
+    private ScaleRange OutputRange()
+    {
+        if (DashRange.Count > 0)
+        {
+            return ScaleRange.OfCount(DashRange.Count);
+        }
+
+        if (Channel == "shape")
+        {
+            return ScaleRange.OfTexts(ShapeRange);
+        }
+
+        return NumberRange.Count > 0 ? ScaleRange.OfNumbers(NumberRange) : ScaleRange.OfTexts(ColorRange);
+    }
+
+    /// <summary>
+    ///     Gets the domain of a quantile, threshold or bin-ordinal scale as an array.
+    /// </summary>
+    /// <returns>The domain (the array itself when it is one, so a long quantile domain is not copied).</returns>
+    private double[] DomainArray() => Domain is double[] array ? array : [.. Domain ?? [DomainStart, DomainEnd]];
+
+    /// <summary>
+    ///     Applies the pixel padding and <c>nice</c> to the first and the last entry of the domain of a continuous scale.
+    /// </summary>
+    /// <remarks>
+    ///     Vega applies padding, zero and nice to the first and the last entry of a piecewise domain and leaves the others as they are.
+    /// </remarks>
+    /// <param name="span">The extent of the range in pixels, which the padding is taken from.</param>
+    /// <returns>The domain (at least two entries).</returns>
+    private double[] ExtendedDomain(double span)
+    {
+        double[] domain = Domain is { Count: > 2 } complete ? [.. complete] : [DomainStart, DomainEnd];
+        var start = domain[0];
+        var end = domain[^1];
+
+        // Pixel padding widens the domain around its middle
+        if (PaddingPixels > 0 && start.CompareTo(end) != 0 && span - (2 * PaddingPixels) > 0)
+        {
+            var factor = span / (span - (2 * PaddingPixels));
+            var middle = (start + end) / 2;
+            start = middle + ((start - middle) * factor);
+            end = middle + ((end - middle) * factor);
+        }
+
+        // Then the domain is extended to round values, if that gives a usable domain
+        if (NiceCount is { } count)
+        {
+            var (niceStart, niceEnd) = Ticks.Nice(start, end, count);
+            if (double.IsFinite(niceStart) && double.IsFinite(niceEnd))
+            {
+                start = niceStart;
+                end = niceEnd;
+            }
+        }
+
+        domain[0] = start;
+        domain[^1] = end;
+        return domain;
     }
 
     /// <summary>
@@ -212,18 +282,28 @@ internal sealed class ResolvedScale
         {
             range = [.. explicitRange.Select(entry => entry.IsExtent ? extent : entry.Value)];
         }
-        else if (IsPosition)
-        {
-            // The origin of a view is its top left corner, so a continuous y scale runs upward
-            range = Channel == "y" && Kind == ScaleKind.Linear ? [extent, 0.0] : [0.0, extent];
-        }
-        else if (ValueRange is { } values)
-        {
-            range = [values.Start, values.End];
-        }
         else
         {
-            range = [0.0, 1.0];
+            if (IsPosition)
+            {
+                // The origin of a view is its top left corner, so a continuous y scale runs upward
+                range = Channel == "y" && Kind == ScaleKind.Linear ? [extent, 0.0] : [0.0, extent];
+            }
+            else if (ValueRange is { } values)
+            {
+                range = [values.Start, values.End];
+            }
+            else
+            {
+                range = [0.0, 1.0];
+            }
+
+            // rangeMin and rangeMax replace the first and the second entry of a default range (not of a range that a step sizes)
+            if (Step is null)
+            {
+                range[0] = RangeMin ?? range[0];
+                range[1] = RangeMax ?? range[1];
+            }
         }
 
         if (Reverse)
@@ -241,7 +321,7 @@ internal sealed class ResolvedScale
 /// <remarks>
 ///     The class is immutable. It holds one <see cref="ResolvedScale"/> per channel that has a scale; channels with a
 ///     <c>value</c> or without a field have none, and neither do channels whose scale is not drawn in this package
-///     (quantitative color, temporal fields).
+///     (temporal fields, a <c>size</c> on a mark without sizes, a <c>shape</c> on a mark other than <c>point</c>).
 /// </remarks>
 internal sealed class ResolvedScales
 {
@@ -272,7 +352,7 @@ internal sealed class ResolvedScales
     /// <summary>Gets the orientation of the mark as Vega-Lite infers it (<c>horizontal</c> or <c>vertical</c>), or null when the mark has none.</summary>
     public string? Orient { get; }
 
-    /// <summary>Gets the channels that have a scale, in the order x, y, color, fill, stroke, size, opacity.</summary>
+    /// <summary>Gets the channels that have a scale, in the order x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle.</summary>
     public IEnumerable<ResolvedScale> Scales => _scales.Values;
 
     /// <summary>Gets the width the data rectangle needs when the x scale is discrete and sized by a step; otherwise null.</summary>
@@ -300,19 +380,24 @@ internal sealed class ResolvedScales
 ///     </para>
 ///     <list type="bullet">
 ///         <item><description>
-///             <b>Kind.</b> A quantitative field gets a linear scale. A nominal or ordinal field on <c>x</c> or
-///             <c>y</c> gets a band scale for the marks <c>bar</c>, <c>rect</c>, <c>rule</c> and <c>tick</c> (they must
-///             fit into a band) and a point scale for the others; on <c>color</c>, <c>fill</c> and <c>stroke</c> an ordinal
-///             scale; on <c>size</c> and <c>opacity</c> a point scale. A quantitative color is not drawn here (no scale),
-///             a temporal field has no scale. An explicit <c>scale.type</c> is used when the channel and the field
-///             type accept it (linear, band, point), otherwise the default applies.
+///             <b>Kind.</b> A quantitative field gets a linear scale, which on <c>color</c>, <c>fill</c> and <c>stroke</c> is a sequential
+///             scale (a diverging scale when the domain has three entries, which <c>domainMid</c> makes of two). A nominal or ordinal field
+///             on <c>x</c> or <c>y</c> gets a band scale for the marks <c>bar</c>, <c>rect</c>, <c>rule</c> and <c>tick</c> (they must
+///             fit into a band) and a point scale for the others; on <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>shape</c> and
+///             <c>strokeDash</c> an ordinal scale (so does a quantitative field on <c>shape</c> and <c>strokeDash</c>, which accept
+///             only discrete outputs); on <c>size</c>, <c>opacity</c>, <c>strokeWidth</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> and
+///             <c>angle</c> a point scale. A temporal field has no scale. An explicit <c>scale.type</c> is used when the channel and the field
+///             type accept it (Vega-Lite's <c>channelSupportScaleType</c> and <c>scaleTypeSupportDataType</c>: linear, sequential (colors
+///             only), quantile, quantize, threshold, band, point and ordinal; the others are not drawn yet), otherwise the default applies.
 ///         </description></item>
 ///         <item><description>
 ///             <b>Domain.</b> A linear domain is the extent of the valid values (numbers, booleans as 1/0, numeric
 ///             strings; null and NaN are ignored; an empty extent is [0, 1]); then <c>zero</c> (true for a quantitative
-///             size; for x and y true for <c>bar</c> and <c>area</c> marks and otherwise the configured default true,
+///             size that is not discretized; for x and y true for <c>bar</c> and <c>area</c> marks and otherwise the configured default true,
 ///             except on the discrete axis of a bar; with a custom domain only when it already spans zero) pulls the end
-///             values to zero. A discrete domain is the distinct values in order of first appearance, sorted ascending
+///             values to zero, <c>domainMin</c> and <c>domainMax</c> replace the first and the last entry and <c>domainMid</c> (colors) inserts the middle
+///             value (Vega's <c>configureDomain</c>). A quantize scale has the same extent; a quantile scale all the valid values in ascending
+///             order; a threshold scale the explicit thresholds, or the extent. A discrete domain is the distinct values in order of first appearance, sorted ascending
 ///             by default (<c>sort</c> may be ascending, descending, null for data order, an array, an object with an aggregate operation and a
 ///             field, an <c>encoding</c> channel, or a channel shorthand such as <c>"-y"</c>, see <c>ScaleResolver.Sort.cs</c>); an explicit
 ///             <c>scale.domain</c> is used as given. The fields a channel reads and its default title come from the <see cref="EncodingPlan"/>: the
@@ -325,31 +410,50 @@ internal sealed class ResolvedScales
 ///             <b>Padding and nice.</b> A band scale has inner padding from the configuration by mark (bar 0.1, tick
 ///             0.25, others 0) and outer padding half of it; a point scale 0.5; <c>scale.padding</c> sets both. A
 ///             continuous x or y scale gets <c>nice</c> with a count of 10 unless a domain is given, and a bar on its continuous
-///             axis gets 5 pixels of padding.
+///             axis gets 5 pixels of padding. An explicit <c>nice</c> also applies to sequential, diverging and quantize scales.
 ///         </description></item>
 ///         <item><description>
 ///             <b>Range.</b> x is [0, width], y is [height, 0] (continuous) or [0, height] (discrete). Size uses
 ///             [minimum, maximum] by mark (point-like marks: [4, (0.95 step)^2]; bar and tick: [2, step - 1]; rule: [1,
-///             4]); opacity [0.3, 0.8]; colors the configured category scheme (<c>tableau10</c>). A discrete position
+///             4]); <c>strokeWidth</c> [1, 4]; opacities [0.3, 0.8]; <c>angle</c> [0, 360]; a discretizing size scale
+///             (quantile, quantize, threshold) spreads the numbers evenly over [minimum, maximum] with one value per
+///             interval (<c>quantileCount</c> 4, <c>quantizeCount</c> 4, one more than the thresholds). Colors: an ordinal scale takes the
+///             named range <c>category</c> (nominal) or <c>ordinal</c> (ordinal) of <c>config.range</c>, a continuous scale <c>diverging</c> (with
+///             <c>domainMid</c>), <c>heatmap</c> (a <c>rect</c> mark) or <c>ramp</c>; a named range is a list of colors or a scheme (<c>scheme</c>,
+///             <c>count</c>, <c>extent</c>); the scale's own <c>range</c> (an array of colors, or the name of a configured range) and then its
+///             <c>scheme</c> (a name, a list of colors or an object with <c>name</c>, <c>count</c>, <c>extent</c>) win over the default (see
+///             <see cref="ColorSchemes.Configure"/> for the colors a scheme gives); <c>interpolate</c> chooses the color space of a list of colors;
+///             <c>reverse</c> reverses the colors. <c>shape</c> takes the <c>symbol</c> range of the configuration and <c>strokeDash</c> five fixed
+///             patterns. A discrete position
 ///             scale without an explicit range or a fixed size takes its size from the <c>step</c> (20 pixels by
 ///             default): see <see cref="ResolvedScale.NaturalExtent"/>. An explicit linear domain and range keep all
 ///             their entries and map piecewise like d3's <c>polymap</c> (<c>min(domain.length, range.length)</c> entries
 ///             are used, <c>zero</c>, pixel padding and <c>nice</c> change only the first and the last domain entry); a band
-///             or point scale uses the first two entries of its range, as <c>scaleBand</c> does.
+///             or point scale uses the first two entries of its range, as <c>scaleBand</c> does. <c>rangeMin</c> and <c>rangeMax</c> replace the
+///             first and the second entry of a default two-entry range.
+///         </description></item>
+///         <item><description>
+///             <b>Limits and cancellation.</b> A domain, range, scheme count or color list of more than
+///             <see cref="VegaLiteLimits.MaxScaleDomainSize"/> entries fails with a located <see cref="VegaLiteRenderException"/> before it is built;
+///             the values of a quantile scale are counted against <see cref="TableLayout.MaxCells"/> before they are read, charged to the
+///             evaluation-step budget (one step per 64 values read, and per 64 comparisons of the sort) and the token is polled while they are read
+///             and sorted.
 ///         </description></item>
 ///     </list>
 ///     <para>
 ///         Deviations from Vega-Lite: values of different kinds in one discrete domain are ordered by kind instead of
-///         by JavaScript's coercions (see <see cref="DataValue.Compare"/>); a color scheme other than <c>tableau10</c>
-///         falls back to it (see <see cref="ResolvedScale.ColorFallback"/>), and so does the <c>ordinal</c> range of an
-///         ordinal color field (ColorBrewer blues in Vega-Lite); <c>scale.domain</c> forms other than an array are
-///         ignored. The class is stateless and thread-safe.
+///         by JavaScript's coercions (see <see cref="DataValue.Compare"/>); <c>scale.domain</c> forms other than an array are
+///         ignored; a property that the scale type or the channel does not support (for example <c>scheme</c> on a size channel) is ignored
+///         without Vega-Lite's console warning; a color scale with an explicit domain of four or more entries (a piecewise color scale) is
+///         a specification error; an array of colors given as <c>scheme</c> of a discrete scale is used as the list of colors, whole.
+///         The class is stateless and thread-safe.
 ///     </para>
 /// </remarks>
 internal static partial class ScaleResolver
 {
     /// <summary>The channels that are resolved, in the order of the result.</summary>
-    private static readonly string[] Channels = ["x", "y", "color", "fill", "stroke", "size", "opacity"];
+    private static readonly string[] Channels =
+        ["x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle"];
 
     /// <summary>The marks whose discrete positions are bands, so that the mark fits into the band.</summary>
     private static readonly HashSet<string> BandMarks = ["rect", "bar", "image", "rule", "tick"];
@@ -665,43 +769,97 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType);
-        if (kind is null)
+        if (!ChannelIsDrawn(channel, context.MarkType))
         {
             return null;
         }
 
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType);
         var location = definition.GetLocation(context.SourceName);
         var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan);
-        return kind == ScaleKind.Linear
-            ? BuildLinear(common, context)
-            : BuildDiscrete(common, kind.Value, context);
+        return kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.BinOrdinal
+            ? BuildDiscrete(common, kind, context)
+            : BuildContinuous(common, kind, context);
     }
+
+    /// <summary>
+    ///     Tells whether Vega-Lite draws a channel for a mark (its <c>supportMark</c>): <c>shape</c> only on <c>point</c>, <c>angle</c> on
+    ///     <c>point</c>, <c>circle</c> and <c>square</c> (a circle looks the same turned), <c>strokeDash</c> and <c>size</c> on every mark but <c>rect</c>; the
+    ///     other channels on every mark this package draws (a <c>size</c> on a mark without sizes, such as a rect, has no range, which the scale builders check too).
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="markType">The mark type.</param>
+    /// <returns><see langword="true"/> when the mark uses the channel.</returns>
+    internal static bool ChannelIsDrawn(string channel, string markType) => channel switch
+    {
+        "shape" => markType == "point",
+        "angle" => markType is "point" or "circle" or "square",
+        "strokeDash" or "size" => markType != "rect",
+        _ => true,
+    };
+
+    /// <summary>The groups of channels that Vega-Lite treats alike when it picks and checks a scale type.</summary>
+    private enum ChannelGroup
+    {
+        /// <summary><c>x</c> and <c>y</c>.</summary>
+        Position,
+
+        /// <summary><c>color</c>, <c>fill</c> and <c>stroke</c>: a continuous or a discrete range.</summary>
+        Color,
+
+        /// <summary><c>shape</c> and <c>strokeDash</c>: a discrete range only.</summary>
+        Discrete,
+
+        /// <summary><c>size</c>, <c>opacity</c>, <c>strokeWidth</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> and <c>angle</c>: a numeric range.</summary>
+        Numeric,
+    }
+
+    /// <summary>
+    ///     Gets the group of a channel.
+    /// </summary>
+    /// <param name="channel">The channel name.</param>
+    /// <returns>The group.</returns>
+    private static ChannelGroup GroupOf(string channel) => channel switch
+    {
+        "x" or "y" => ChannelGroup.Position,
+        "color" or "fill" or "stroke" => ChannelGroup.Color,
+        "shape" or "strokeDash" => ChannelGroup.Discrete,
+        _ => ChannelGroup.Numeric,
+    };
 
     /// <summary>
     ///     Chooses the kind of scale for a channel and a field type.
     /// </summary>
+    /// <remarks>
+    ///     The default is Vega-Lite's <c>defaultType</c>; an explicit type counts when the channel accepts it
+    ///     (<c>channelSupportScaleType</c>) and the field type accepts it (<c>scaleTypeSupportDataType</c>). The linear scale of a color is a
+    ///     sequential scale (<see cref="ScaleKind.Sequential"/>; the resolver makes a diverging one of it when the domain has a middle value).
+    /// </remarks>
     /// <param name="channel">The channel.</param>
     /// <param name="type">The field type.</param>
     /// <param name="specified">The explicit <c>scale.type</c>, or null.</param>
     /// <param name="markType">The mark type.</param>
-    /// <returns>The kind, or <see langword="null"/> when the channel gets no scale.</returns>
-    private static ScaleKind? ChooseKind(string channel, string type, string? specified, string markType)
+    /// <returns>The kind.</returns>
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType)
     {
-        var isColor = channel is "color" or "fill" or "stroke";
-        var isPosition = channel is "x" or "y";
+        var group = GroupOf(channel);
 
         // The default kind of Vega-Lite's defaultType
         ScaleKind defaultKind;
         if (type == "quantitative")
         {
-            defaultKind = ScaleKind.Linear;
+            defaultKind = group switch
+            {
+                ChannelGroup.Color => ScaleKind.Sequential,
+                ChannelGroup.Discrete => ScaleKind.Ordinal,
+                _ => ScaleKind.Linear,
+            };
         }
-        else if (isColor)
+        else if (group is ChannelGroup.Color or ChannelGroup.Discrete)
         {
             defaultKind = ScaleKind.Ordinal;
         }
-        else if (isPosition && BandMarks.Contains(markType))
+        else if (group == ChannelGroup.Position && BandMarks.Contains(markType))
         {
             defaultKind = ScaleKind.Band;
         }
@@ -710,68 +868,146 @@ internal static partial class ScaleResolver
             defaultKind = ScaleKind.Point;
         }
 
-        // An explicit type counts when both the channel and the field type accept it
-        var kind = defaultKind;
-        if (specified is "linear" or "band" or "point" or "ordinal")
-        {
-            var requested = specified switch
-            {
-                "linear" => ScaleKind.Linear,
-                "band" => ScaleKind.Band,
-                "point" => ScaleKind.Point,
-                _ => ScaleKind.Ordinal,
-            };
-            bool channelAccepts;
-            if (isPosition)
-            {
-                channelAccepts = requested != ScaleKind.Ordinal;
-            }
-            else if (isColor)
-            {
-                channelAccepts = requested is ScaleKind.Linear or ScaleKind.Ordinal;
-            }
-            else
-            {
-                channelAccepts = requested != ScaleKind.Ordinal;
-            }
-            var typeAccepts = type == "quantitative" ? requested == ScaleKind.Linear : requested != ScaleKind.Linear;
-            if (channelAccepts && typeAccepts)
-            {
-                kind = requested;
-            }
-        }
-
-        // A quantitative color would need a color ramp, which is not drawn here
-        return isColor && kind == ScaleKind.Linear ? null : kind;
+        return TryParseKind(specified, group, out var requested) && Accepts(group, type, requested) ? requested : defaultKind;
     }
 
     /// <summary>
-    ///     Builds a linear scale.
+    ///     Reads an explicit <c>scale.type</c> as the kind this package draws.
     /// </summary>
+    /// <param name="specified">The type name, or null.</param>
+    /// <param name="group">The group of the channel (a color channel's <c>linear</c> is a sequential scale).</param>
+    /// <param name="kind">Receives the kind.</param>
+    /// <returns><see langword="false"/> for null and for a type this package does not draw (log, pow, sqrt, symlog, identity, time, utc, bin-ordinal).</returns>
+    private static bool TryParseKind(string? specified, ChannelGroup group, out ScaleKind kind)
+    {
+        switch (specified)
+        {
+            case "linear":
+                kind = group == ChannelGroup.Color ? ScaleKind.Sequential : ScaleKind.Linear;
+                return true;
+            case "sequential":
+                kind = ScaleKind.Sequential;
+                return true;
+            case "band":
+                kind = ScaleKind.Band;
+                return true;
+            case "point":
+                kind = ScaleKind.Point;
+                return true;
+            case "ordinal":
+                kind = ScaleKind.Ordinal;
+                return true;
+            case "quantile":
+                kind = ScaleKind.Quantile;
+                return true;
+            case "quantize":
+                kind = ScaleKind.Quantize;
+                return true;
+            case "threshold":
+                kind = ScaleKind.Threshold;
+                return true;
+            default:
+                kind = default;
+                return false;
+        }
+    }
+
+    /// <summary>
+    ///     Applies Vega-Lite's <c>channelSupportScaleType</c> and <c>scaleTypeSupportDataType</c> to an explicit scale kind.
+    /// </summary>
+    /// <param name="group">The group of the channel.</param>
+    /// <param name="type">The field type.</param>
+    /// <param name="kind">The requested kind.</param>
+    /// <returns><see langword="true"/> when both the channel and the field type accept the kind.</returns>
+    private static bool Accepts(ChannelGroup group, string type, ScaleKind kind)
+    {
+        var discretizing = kind is ScaleKind.Quantile or ScaleKind.Quantize or ScaleKind.Threshold;
+        var channelAccepts = group switch
+        {
+            ChannelGroup.Position => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point,
+            ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal || discretizing,
+            ChannelGroup.Discrete => kind == ScaleKind.Ordinal || discretizing,
+            _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal || discretizing,
+        };
+
+        // A quantitative field takes the continuous and the discretizing scales, a nominal or ordinal field the discrete ones
+        var typeAccepts = type == "quantitative"
+            ? kind is ScaleKind.Linear or ScaleKind.Sequential || discretizing
+            : kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal;
+        return channelAccepts && typeAccepts;
+    }
+
+    /// <summary>
+    ///     Tells whether Vega-Lite accepts an explicit <c>scale.type</c> for a channel and a field type; the feature catalog uses it to warn that
+    ///     an explicit type is replaced by the default one.
+    /// </summary>
+    /// <param name="channel">The channel name.</param>
+    /// <param name="fieldType">The field type (<c>quantitative</c>, <c>nominal</c> or <c>ordinal</c>).</param>
+    /// <param name="scaleType">The scale type name.</param>
+    /// <returns><see langword="true"/> when the type is one this package draws and both the channel and the field type accept it; <see langword="false"/> for any other type, whether Vega-Lite rejects it or this package does not draw it yet.</returns>
+    public static bool AcceptsScaleType(string channel, string fieldType, string scaleType)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        ArgumentNullException.ThrowIfNull(fieldType);
+        ArgumentNullException.ThrowIfNull(scaleType);
+        var group = GroupOf(channel);
+        return TryParseKind(scaleType, group, out var kind) && Accepts(group, fieldType, kind);
+    }
+
+    /// <summary>
+    ///     Builds a continuous or discretizing scale: linear, sequential, diverging, quantize, quantile or threshold.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The domain is the explicit <c>scale.domain</c> or the extent of the valid values (quantile: all of them, sorted); then, as in Vega's
+    ///         <c>configureDomain</c>, <c>zero</c> pulls the end values to zero, <c>domainMin</c> and <c>domainMax</c> replace the first and the
+    ///         last entry, and <c>domainMid</c> (colors) inserts the middle value, which makes a color scale diverging. The three entries of a
+    ///         diverging scale are the most a color scale takes: a longer explicit domain is a specification error.
+    ///     </para>
+    /// </remarks>
     /// <param name="input">The channel facts.</param>
+    /// <param name="kind">The kind: linear, sequential, quantize, quantile or threshold.</param>
     /// <param name="context">The view facts.</param>
     /// <returns>The scale, or null when the channel cannot have one (a size on a mark without sizes).</returns>
-    private static ResolvedScale? BuildLinear(CommonInputs input, Context context)
+    /// <exception cref="VegaLiteSpecException">Thrown when the domain, the range or the color scheme is wrong; carries the location.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when a limit is exceeded; carries the location.</exception>
+    private static ResolvedScale? BuildContinuous(CommonInputs input, ScaleKind kind, Context context)
     {
+        var group = GroupOf(input.Channel);
+        var scaleDef = input.ScaleDef;
+        var continuousToContinuous = kind is ScaleKind.Linear or ScaleKind.Sequential;
+
         // The domain: explicit, or the extent of the valid values; an explicit domain of more than two numbers is piecewise
         double start;
         double end;
-        double[]? piecewise = null;
+        double[]? entries = null;
         BinSpec? binSpec = null;
-        var domainNode = input.ScaleDef?["domain"] is { IsArray: true } array ? array : null;
-        if (domainNode is not null)
+        var domainNode = scaleDef?["domain"] is { IsArray: true } array ? array : null;
+        if (kind == ScaleKind.Quantile)
         {
-            var explicitDomain = ReadNumericDomain(domainNode, context);
+            entries = QuantileDomain(input, domainNode, context);
+            (start, end) = entries.Length > 0 ? (entries[0], entries[^1]) : (0d, 1d);
+        }
+        else if (domainNode is not null)
+        {
+            CheckSpecArray(domainNode, input, context, "domain");
+            var minimum = kind == ScaleKind.Threshold ? 1 : 2;
+            var explicitDomain = ReadNumericDomain(domainNode, context, minimum);
             (start, end) = (explicitDomain[0], explicitDomain[^1]);
-            piecewise = explicitDomain.Length > 2 ? explicitDomain : null;
+            entries = explicitDomain.Length > 2 || kind == ScaleKind.Threshold ? explicitDomain : null;
         }
         else
         {
             (start, end) = LinearExtent(input, context, out binSpec);
+            if (kind == ScaleKind.Threshold)
+            {
+                // A threshold scale without a domain cuts the extent of the data in three
+                entries = [start, end];
+            }
         }
 
-        // The zero rule pulls the end values to zero
-        var zero = input.ScaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, context);
+        // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty)
+        var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold) && (scaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, kind, context));
         if (zero)
         {
             if (start > 0)
@@ -784,35 +1020,84 @@ internal static partial class ScaleResolver
                 end = 0;
             }
 
-            if (piecewise is not null)
+            if (entries is not null)
             {
-                piecewise[0] = start;
-                piecewise[^1] = end;
+                entries[0] = start;
+                entries[^1] = end;
             }
         }
 
-        // The value range of a size or opacity scale
-        (double, double)? valueRange = null;
-        if (input.Channel == "size")
+        // domainMin, domainMax and domainMid belong to the continuous-to-continuous scales (domainMid to colors only)
+        if (continuousToContinuous)
         {
-            if (SizeRange(context) is not { } sizeRange)
+            if (scaleDef?["domainMin"]?.AsNumber() is { } domainMin)
             {
-                return null;
+                start = domainMin;
+                if (entries is not null)
+                {
+                    entries[0] = start;
+                }
             }
 
-            valueRange = sizeRange;
-        }
-        else if (input.Channel == "opacity")
-        {
-            valueRange = (context.Config.GetNumber("scale.minOpacity") ?? 0.3, context.Config.GetNumber("scale.maxOpacity") ?? 0.8);
+            if (scaleDef?["domainMax"]?.AsNumber() is { } domainMax)
+            {
+                end = domainMax;
+                if (entries is not null)
+                {
+                    entries[^1] = end;
+                }
+            }
+
+            if (group == ChannelGroup.Color && scaleDef?["domainMid"]?.AsNumber() is { } mid)
+            {
+                // Vega puts the middle value before the first entry, after the last, or between the ends (the last entry is moved up for two entries)
+                var all = (entries ?? [start, end]).ToList();
+                var position = all.Count - 1;
+                if (mid > all[^1])
+                {
+                    position = all.Count;
+                }
+                else if (mid < all[0])
+                {
+                    position = 0;
+                }
+
+                all.Insert(position, mid);
+                entries = [.. all];
+                (start, end) = (entries[0], entries[^1]);
+            }
         }
 
-        var isPosition = input.Channel is "x" or "y";
-        var sortDescending = input.Definition["sort"]?.AsString() == "descending";
+        // A color scale is sequential with two domain entries and diverging with three; a longer domain would be piecewise
+        if (group == ChannelGroup.Color && kind == ScaleKind.Sequential)
+        {
+            if (entries is { Length: > 3 })
+            {
+                throw new VegaLiteSpecException(
+                    "A color scale takes a domain of two entries, or of three with a middle value (a diverging scale); a longer domain is not supported.",
+                    (domainNode ?? scaleDef)?.GetLocation(context.SourceName) ?? input.Location);
+            }
+
+            if (entries is { Length: 3 })
+            {
+                kind = ScaleKind.Diverging;
+            }
+        }
+
+        // The output values, which also decide whether the channel has a scale at all
+        var domainSize = kind == ScaleKind.Threshold ? entries!.Length : 0;
+        if (ResolveOutputs(input, kind, domainSize, context) is not { } outputs)
+        {
+            return null;
+        }
+
+        var isPosition = group == ChannelGroup.Position;
+        var reverse = ReverseOf(input, kind);
+        var supportsRangeLimits = kind == ScaleKind.Linear;
         return new ResolvedScale
         {
             Channel = input.Channel,
-            Kind = ScaleKind.Linear,
+            Kind = kind,
             FieldPath = input.FieldPath,
             Field2Path = input.Plan?.Field2Path,
             Title = input.Plan?.Title,
@@ -823,19 +1108,26 @@ internal static partial class ScaleResolver
             Location = input.Location,
             DomainStart = start,
             DomainEnd = end,
-            Domain = piecewise,
-            NiceCount = NiceRule(input, domainNode is not null, isPosition),
+            Domain = entries,
+            NiceCount = NiceRule(input, kind, domainNode is not null, isPosition),
             PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
-            Clamp = input.ScaleDef?["clamp"]?.AsBool() ?? false,
-            Round = input.ScaleDef?["round"]?.AsBool() ?? false,
-            Reverse = input.ScaleDef?["reverse"]?.AsBool() ?? sortDescending,
-            ExplicitRange = ReadRange(input, context),
-            ValueRange = valueRange,
+            Clamp = continuousToContinuous && (scaleDef?["clamp"]?.AsBool() ?? false),
+            Round = kind == ScaleKind.Linear && (scaleDef?["round"]?.AsBool() ?? false),
+            Reverse = reverse,
+            ExplicitRange = outputs.ExplicitRange,
+            RangeMin = supportsRangeLimits ? scaleDef?["rangeMin"]?.AsNumber() : null,
+            RangeMax = supportsRangeLimits ? scaleDef?["rangeMax"]?.AsNumber() : null,
+            ValueRange = outputs.ValueRange,
+            NumberRange = outputs.Numbers,
+            ColorRange = outputs.Colors,
+            ShapeRange = outputs.Shapes,
+            DashRange = outputs.Dashes,
+            Interpolator = outputs.Interpolator,
         };
     }
 
     /// <summary>
-    ///     Builds a band, point or ordinal scale.
+    ///     Builds a band, point, ordinal or bin-ordinal scale.
     /// </summary>
     /// <param name="input">The channel facts.</param>
     /// <param name="kind">The kind of scale.</param>
@@ -846,36 +1138,17 @@ internal static partial class ScaleResolver
         var isPosition = input.Channel is "x" or "y";
         var domain = DiscreteDomain(input, context);
 
-        // Size and opacity categories are spread over the numeric range of the channel
-        (double, double)? valueRange = null;
-        if (input.Channel == "size")
+        // The output values (which also decide whether the channel has a scale at all)
+        if (ResolveOutputs(input, kind, domain.Count, context) is not { } outputs)
         {
-            if (SizeRange(context) is not { } sizeRange)
-            {
-                return null;
-            }
-
-            valueRange = sizeRange;
-        }
-        else if (input.Channel == "opacity")
-        {
-            valueRange = (context.Config.GetNumber("scale.minOpacity") ?? 0.3, context.Config.GetNumber("scale.maxOpacity") ?? 0.8);
+            return null;
         }
 
         var (inner, outer) = kind == ScaleKind.Ordinal ? (0.0, 0.0) : Paddings(input, kind, context, isPosition);
-        var explicitRange = ReadRange(input, context);
-
-        // Colors for an ordinal scale
-        IReadOnlyList<string> colors = [];
-        var fallback = false;
-        if (kind == ScaleKind.Ordinal)
-        {
-            (colors, fallback) = ResolveColors(input, context);
-        }
 
         // A discrete position without an explicit range is sized by its step, unless the view size is fixed
         double? step = null;
-        if (isPosition && kind != ScaleKind.Ordinal && explicitRange is null)
+        if (isPosition && kind != ScaleKind.Ordinal && outputs.ExplicitRange is null)
         {
             step = input.Channel == "x" ? context.WidthStep : context.HeightStep;
         }
@@ -897,10 +1170,14 @@ internal static partial class ScaleResolver
             Round = input.ScaleDef?["round"]?.AsBool() ?? false,
             Reverse = input.ScaleDef?["reverse"]?.AsBool() ?? false,
             Step = step,
-            ExplicitRange = explicitRange,
-            ValueRange = valueRange,
-            ColorRange = colors,
-            ColorFallback = fallback,
+            ExplicitRange = outputs.ExplicitRange,
+            RangeMin = kind is ScaleKind.Band or ScaleKind.Point ? input.ScaleDef?["rangeMin"]?.AsNumber() : null,
+            RangeMax = kind is ScaleKind.Band or ScaleKind.Point ? input.ScaleDef?["rangeMax"]?.AsNumber() : null,
+            ValueRange = outputs.ValueRange,
+            NumberRange = outputs.Numbers,
+            ColorRange = outputs.Colors,
+            ShapeRange = outputs.Shapes,
+            DashRange = outputs.Dashes,
         };
     }
 
@@ -909,9 +1186,10 @@ internal static partial class ScaleResolver
     /// </summary>
     /// <param name="input">The channel facts.</param>
     /// <param name="domainNode">The explicit domain array, or null.</param>
+    /// <param name="kind">The kind of scale (a discretizing size scale does not start at zero).</param>
     /// <param name="context">The view facts.</param>
     /// <returns>Whether the domain is extended to include zero.</returns>
-    private static bool ZeroRule(CommonInputs input, SpecNode? domainNode, Context context)
+    private static bool ZeroRule(CommonInputs input, SpecNode? domainNode, ScaleKind kind, Context context)
     {
         // An explicit domain is not augmented, except that one that already spans zero keeps zero
         if (domainNode is not null)
@@ -921,10 +1199,10 @@ internal static partial class ScaleResolver
                 && domainNode.Items[^1] is { IsNumber: true } last && last.NumberValue >= 0;
         }
 
-        // A quantitative size starts at zero
+        // A quantitative size starts at zero, unless its scale cuts the domain into intervals
         if (input.Channel == "size")
         {
-            return true;
+            return kind != ScaleKind.Quantize;
         }
 
         // Only unbinned x and y scales are subject to the position rules; every other channel does not include zero
@@ -955,11 +1233,16 @@ internal static partial class ScaleResolver
     ///     Decides <c>nice</c> for a continuous scale.
     /// </summary>
     /// <param name="input">The channel facts.</param>
+    /// <param name="kind">The kind of scale (the quantile and threshold scales have no <c>nice</c>).</param>
     /// <param name="hasDomain">Whether the specification gives the domain.</param>
     /// <param name="isPosition">Whether the channel is x or y.</param>
     /// <returns>The tick count to nice with, or null for no nice.</returns>
-    private static double? NiceRule(CommonInputs input, bool hasDomain, bool isPosition)
+    private static double? NiceRule(CommonInputs input, ScaleKind kind, bool hasDomain, bool isPosition)
     {
+        if (kind is not (ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize))
+        {
+            return null;
+        }
         // Explicit nice: true uses the d3 default count of 10, a number is the count, false switches nice off
         var nice = input.ScaleDef?["nice"];
         if (nice is { IsBoolean: true })
@@ -1082,56 +1365,22 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>
-    ///     Reads an explicit <c>scale.range</c> of numbers and the keywords <c>width</c> and <c>height</c>.
-    /// </summary>
-    /// <param name="input">The channel facts.</param>
-    /// <param name="context">The view facts (for the source name).</param>
-    /// <returns>The ends of the range; null when the range is absent or not an array of numbers (for example a color range).</returns>
-    /// <exception cref="VegaLiteSpecException">Thrown when a numeric range has fewer than two ends.</exception>
-    private static IReadOnlyList<RangeEnd>? ReadRange(CommonInputs input, Context context)
-    {
-        if (input.ScaleDef?["range"] is not { IsArray: true } range || input.Channel is "color" or "fill" or "stroke")
-        {
-            return null;
-        }
-
-        var ends = new List<RangeEnd>();
-        foreach (var item in range.Items)
-        {
-            if (item.IsNumber)
-            {
-                ends.Add(new RangeEnd(item.NumberValue, false));
-            }
-            else if (item is { IsString: true } && item.StringValue is "width" or "height")
-            {
-                ends.Add(new RangeEnd(0, true));
-            }
-            else
-            {
-                throw new VegaLiteSpecException("The scale range must be an array of numbers (or the keywords \"width\" and \"height\").", item.GetLocation(context.SourceName));
-            }
-        }
-
-        if (ends.Count < 2)
-        {
-            throw new VegaLiteSpecException("The scale range needs at least two values.", range.GetLocation(context.SourceName));
-        }
-
-        return ends;
-    }
-
-    /// <summary>
     ///     Reads an explicit linear domain: an array of numbers, all of which are kept (more than two make a piecewise scale).
     /// </summary>
     /// <param name="domain">The <c>scale.domain</c> array.</param>
     /// <param name="context">The view facts (for the source name).</param>
+    /// <param name="minimum">The fewest entries the scale needs: two, or one for the thresholds of a threshold scale.</param>
     /// <returns>The entries.</returns>
-    /// <exception cref="VegaLiteSpecException">Thrown when the array has fewer than two entries or a non-numeric entry.</exception>
-    private static double[] ReadNumericDomain(SpecNode domain, Context context)
+    /// <exception cref="VegaLiteSpecException">Thrown when the array has too few entries or a non-numeric entry.</exception>
+    private static double[] ReadNumericDomain(SpecNode domain, Context context, int minimum = 2)
     {
-        if (domain.Items.Count < 2)
+        if (domain.Items.Count < minimum)
         {
-            throw new VegaLiteSpecException("The scale domain of a quantitative field needs at least two numbers.", domain.GetLocation(context.SourceName));
+            throw new VegaLiteSpecException(
+                minimum == 1
+                    ? "The scale domain of a threshold scale needs at least one number."
+                    : "The scale domain of a quantitative field needs at least two numbers.",
+                domain.GetLocation(context.SourceName));
         }
 
         var entries = new double[domain.Items.Count];
@@ -1162,6 +1411,7 @@ internal static partial class ScaleResolver
         var seen = new HashSet<DataValue>();
         if (input.ScaleDef?["domain"] is { IsArray: true } explicitDomain)
         {
+            CheckSpecArray(explicitDomain, input, context, "domain");
             foreach (var item in explicitDomain.Items)
             {
                 var value = ToDataValue(item);
@@ -1227,42 +1477,6 @@ internal static partial class ScaleResolver
         }
 
         return domain;
-    }
-
-    /// <summary>
-    ///     Chooses the colors of an ordinal color scale.
-    /// </summary>
-    /// <param name="input">The channel facts.</param>
-    /// <param name="context">The view facts.</param>
-    /// <returns>The colors and whether they are the fallback palette for a scheme that is not available.</returns>
-    private static (IReadOnlyList<string> Colors, bool Fallback) ResolveColors(CommonInputs input, Context context)
-    {
-        // An explicit range of colors
-        if (input.ScaleDef?["range"] is { IsArray: true, Items.Count: > 0 } range && range.Items.All(i => i.IsString))
-        {
-            return ([.. range.Items.Select(i => i.StringValue!)], false);
-        }
-
-        // A named scheme of the scale
-        if (input.ScaleDef?["scheme"] is { } scheme)
-        {
-            var name = scheme.IsString ? scheme.StringValue : scheme["name"]?.AsString();
-            return ColorSchemes.TryGetScheme(name, out var colors) ? (colors, false) : (ColorSchemes.Tableau10, true);
-        }
-
-        // The configured palette: "category" for nominal fields, "ordinal" for ordinal fields
-        var node = context.Config.Get(input.Type == "nominal" ? "range.category" : "range.ordinal");
-        if (node is { Kind: ConfigNodeKind.Array } && node.Items.Count > 0 && node.Items.All(i => i.AsString() is not null))
-        {
-            return ([.. node.Items.Select(i => i.AsString()!)], false);
-        }
-
-        if (node?["scheme"]?.AsString() is { } schemeName && ColorSchemes.TryGetScheme(schemeName, out var configured))
-        {
-            return (configured, false);
-        }
-
-        return (ColorSchemes.Tableau10, true);
     }
 
     /// <summary>

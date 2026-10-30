@@ -2,9 +2,13 @@
 
 This document describes the unit-level verification strategy for the `ScaleModel` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal immutable `ScaleModel` class (the factories
-`CreateLinear`, `CreateBand`, `CreatePoint`, and `CreateOrdinal`, the mapping methods `Map`, `MapCenter`, `MapOrdinal`,
-and `Invert`, `IndexOf`, and the static `BandSpace`) and the `ScaleKind` enumeration. The arithmetic is an own C#
-implementation of the d3-scale linear, band, point, and ordinal scales and of the Vega `bandspace` rule.
+`CreateLinear`, `CreateBand`, `CreatePoint`, `CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`,
+`CreateThreshold`, and `CreateBinOrdinal`, the mapping methods `Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`,
+`MapIndex`, and `Invert`, `IndexOf`, and the static `BandSpace`), the `ScaleRange` struct, and the `ScaleKind`
+enumeration. The
+arithmetic is an own C# implementation of the d3-scale linear, band, point, ordinal, sequential, diverging, quantize,
+quantile, and
+threshold scales, of Vega's bin-ordinal scale, and of the Vega `bandspace` rule.
 
 #### Verification Approach
 
@@ -30,7 +34,9 @@ tests state the arithmetic next to them:
 - The ordinal scale cycles through its range: five categories over a range of two colors give red, blue, red, blue,
   red.
 
-The unit has no dependencies other than the data value type of the `Data` namespace, so no mocking or stubbing is
+The unit has no dependencies other than the data value type of the `Data` namespace (and the color type of the
+interpolator unit, which a
+test passes as a probe function), so no mocking or stubbing is
 required; the internal type is reached through the test assembly's `InternalsVisibleTo` access. The unit's use by the
 resolver and the axis and mark builders is verified at the subsystem tier (see _Scales Subsystem Verification
 Design_).
@@ -86,10 +92,59 @@ entries, or a null one, is rejected.
 
 ##### Ordinal Mapping Cycles Through The Range
 
-**Tests**: `ScaleModelTests.ScaleModel_MapOrdinal_CyclesThroughTheRange`
+**Tests**: `ScaleModelTests.ScaleModel_MapOrdinal_CyclesThroughTheRange`,
+`ScaleModelTests.ScaleModel_Range_HoldsTextsNumbersOrACount`
 
 Asserts the cycling derived above, that an unknown category maps to nothing, that an empty range maps to nothing, and
-that the kind and the range are reported.
+that the kind and the range are reported; and that a `ScaleRange` copies its texts, numbers, or count and answers by
+index,
+and that an ordinal scale with numbers cycles through them and one with only a count gives the index.
+
+##### Sequential Scales Follow d3
+
+**Tests**: `ScaleModelTests.ScaleModel_Sequential_MapsThroughTheInterpolator`
+
+With a probe interpolator that returns 100 times the position as the red channel, the domain 0 to 10 maps 5 to 50, 10
+to
+100, and extrapolates 20 to 200 and -10 to -100 unless clamped (then 100 and 0); the domain 10 to 20 maps 15 to 50; a
+reversed
+domain 10 to 0 maps 10 to 0 and 2.5 to 75; a domain of zero width gives 50 for every value, clamped or not; NaN and
+text that is not a number have no
+color; a black-to-white ramp gives `#808080` in the middle (127.5 rounds half away from zero to 128).
+
+##### Diverging Scales Use Two Slopes
+
+**Tests**: `ScaleModelTests.ScaleModel_Diverging_UsesTheTwoSlopes`
+
+The domain 0, 50, 100 maps 25 to 25 and 75 to 75; the asymmetric 0, 10, 100 gives 0.05 per unit below the middle (5 maps
+to 25, -5 to
+-25) and 0.5 / 90 above it (55 maps to 75); the descending 100, 50, 0 maps 100 to 0, 0 to 100, and 75 to 25; equal first
+entries (5, 5, 15) give 50 below the
+middle and 75 at 10; clamping limits 200 (which maps to 200) to 100.
+
+##### Quantize, Quantile, And Threshold Scales Classify By Bisect
+
+**Tests**: `ScaleModelTests.ScaleModel_Quantize_ThresholdsAreEqualWidth`,
+`ScaleModelTests.ScaleModel_Quantile_UsesR7Thresholds`,
+`ScaleModelTests.ScaleModel_Threshold_Bisects`
+
+Quantize over 0 to 10 with four values has the thresholds 2.5, 5, and 7.5 (a value on a threshold takes the value
+above it; -5 and 15 take the
+first and last); over 100 to 200 with two values the threshold 150; one value has none and an empty range maps nothing.
+Quantile of 1 to 8 with four
+groups has the R-7 quartiles 1 + 7 x 0.25 = 2.75, 4.5, and 6.25; of 0, 10, 10, 10, 100 with five groups the quintiles
+8, 10, 10, and 28. Threshold
+at 10 and 20 with three values maps 5 to the first, 10 and 15 to the second, 20 and 25 to the third; a range of two
+values uses only the first of three
+thresholds.
+
+##### Bin-Ordinal Scales Follow Vega
+
+**Tests**: `ScaleModelTests.ScaleModel_BinOrdinal_MapsByBinIndex`
+
+With the edges 0, 10, 20, 30 and three values, 0 and 5 map to the first, 10 and 19.5 to the second, 20 and 29 to the
+third; -1 has no value; 30 and 35 map
+to index 3 modulo 3, the first value (Vega's behavior for a value at or above the last edge); a range of two values cycles.
 
 ##### Band Space
 
@@ -101,6 +156,7 @@ Asserts the five derived band spaces above, including the five bands without pad
 
 **Tests**: `ScaleModelTests.ScaleModel_WrongKind_Throws`
 
-Asserts that numeric mapping and inversion of a band scale and an ordinal mapping of a linear scale throw
-`InvalidOperationException`, that the center of an unknown category on a linear scale is nothing, and that the kinds of
-a band and a point scale are reported.
+Asserts that numeric mapping and inversion of a band scale, an ordinal mapping and a color mapping of a linear scale throw
+`InvalidOperationException`, that a sequential scale needs two or three domain entries and an interpolator, that the
+center of an unknown
+category on a linear scale is nothing, and that the kinds of a band and a point scale are reported.

@@ -1,5 +1,6 @@
-// Portions derived from d3-scale (ISC, Mike Bostock); see third-party/README.md
+// Portions derived from d3-scale (ISC, Mike Bostock) and Vega (BSD-3-Clause); see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 
@@ -19,6 +20,105 @@ internal enum ScaleKind
 
     /// <summary>An ordinal scale: each category of a discrete domain gets the next value of a discrete range (cycling).</summary>
     Ordinal,
+
+    /// <summary>A sequential scale: a number in a two-entry domain gives a color of an interpolator over 0 to 1 (d3's <c>scaleSequential</c>).</summary>
+    Sequential,
+
+    /// <summary>A diverging scale: a number in a three-entry domain (with a middle value) gives a color of an interpolator over 0 to 1 (d3's <c>scaleDiverging</c>).</summary>
+    Diverging,
+
+    /// <summary>A quantize scale: the domain is cut into equal-width intervals, each with one value of a discrete range (d3's <c>scaleQuantize</c>).</summary>
+    Quantize,
+
+    /// <summary>A quantile scale: the sorted domain values are cut at their quantiles, each interval has one value of a discrete range (d3's <c>scaleQuantile</c>).</summary>
+    Quantile,
+
+    /// <summary>A threshold scale: explicit thresholds cut the numbers into intervals, each with one value of a discrete range (d3's <c>scaleThreshold</c>).</summary>
+    Threshold,
+
+    /// <summary>A bin-ordinal scale: the number is placed in the bin between two edges and the bin has one value of a discrete range (Vega's <c>scaleBinOrdinal</c>).</summary>
+    BinOrdinal,
+}
+
+/// <summary>
+///     The output values of an ordinal or discretizing scale: texts (colors, shape names), numbers (sizes, opacities, angles) or
+///     only a count (when the caller maps the index itself, as for dash patterns).
+/// </summary>
+/// <remarks>The values are copied on creation, so the range never changes after it is built.</remarks>
+internal readonly struct ScaleRange
+{
+    /// <summary>The texts, or null.</summary>
+    private readonly string[]? _texts;
+
+    /// <summary>The numbers, or null.</summary>
+    private readonly double[]? _numbers;
+
+    /// <summary>
+    ///     Initializes a range.
+    /// </summary>
+    /// <param name="texts">The texts, or null.</param>
+    /// <param name="numbers">The numbers, or null.</param>
+    /// <param name="count">The number of values.</param>
+    private ScaleRange(string[]? texts, double[]? numbers, int count)
+    {
+        _texts = texts;
+        _numbers = numbers;
+        Count = count;
+    }
+
+    /// <summary>Gets the number of values of the range.</summary>
+    public int Count { get; }
+
+    /// <summary>Gets the texts; empty when the range holds numbers or only a count.</summary>
+    public IReadOnlyList<string> Texts => _texts ?? [];
+
+    /// <summary>Gets the numbers; empty when the range holds texts or only a count.</summary>
+    public IReadOnlyList<double> Numbers => _numbers ?? [];
+
+    /// <summary>
+    ///     Creates a range of texts.
+    /// </summary>
+    /// <param name="texts">The values.</param>
+    /// <returns>The range.</returns>
+    public static ScaleRange OfTexts(IEnumerable<string> texts)
+    {
+        ArgumentNullException.ThrowIfNull(texts);
+        var copy = texts.ToArray();
+        return new ScaleRange(copy, null, copy.Length);
+    }
+
+    /// <summary>
+    ///     Creates a range of numbers.
+    /// </summary>
+    /// <param name="numbers">The values.</param>
+    /// <returns>The range.</returns>
+    public static ScaleRange OfNumbers(IEnumerable<double> numbers)
+    {
+        ArgumentNullException.ThrowIfNull(numbers);
+        var copy = numbers.ToArray();
+        return new ScaleRange(null, copy, copy.Length);
+    }
+
+    /// <summary>
+    ///     Creates a range that has only a count: the scale gives the index of the value.
+    /// </summary>
+    /// <param name="count">The number of values; a negative count is treated as zero.</param>
+    /// <returns>The range.</returns>
+    public static ScaleRange OfCount(int count) => new(null, null, Math.Max(0, count));
+
+    /// <summary>
+    ///     Gets the text at an index.
+    /// </summary>
+    /// <param name="index">The index.</param>
+    /// <returns>The text, or null when the range has no texts or the index is outside it.</returns>
+    public string? TextAt(int index) => _texts is not null && index >= 0 && index < _texts.Length ? _texts[index] : null;
+
+    /// <summary>
+    ///     Gets the number at an index.
+    /// </summary>
+    /// <param name="index">The index.</param>
+    /// <returns>The number, or null when the range has no numbers or the index is outside it.</returns>
+    public double? NumberAt(int index) => _numbers is not null && index >= 0 && index < _numbers.Length ? _numbers[index] : null;
 }
 
 /// <summary>
@@ -34,7 +134,14 @@ internal enum ScaleKind
 ///         <c>scalePoint</c> (<see cref="ScaleKind.Point"/>) and <c>scaleOrdinal</c> (<see cref="ScaleKind.Ordinal"/>). The arithmetic of
 ///         d3 is kept, so for example the band step is
 ///         <c>(stop - start) / max(1, n - paddingInner + 2 * paddingOuter)</c> and the first band starts at
-///         <c>start + (stop - start - step * (n - paddingInner)) * align</c>.
+///         <c>start + (stop - start - step * (n - paddingInner)) * align</c>. The color and discretizing scales of Vega-Lite's
+///         legends and color encodings are <c>scaleSequential</c> and <c>scaleDiverging</c> (<see cref="ScaleKind.Sequential"/>,
+///         <see cref="ScaleKind.Diverging"/>: a number gives a color of an interpolator), <c>scaleQuantize</c>,
+///         <c>scaleQuantile</c> and <c>scaleThreshold</c> (<see cref="ScaleKind.Quantize"/>, <see cref="ScaleKind.Quantile"/>,
+///         <see cref="ScaleKind.Threshold"/>: a number gives the value of its interval, whose boundaries are
+///         <see cref="Thresholds"/>) and Vega's <c>scaleBinOrdinal</c> (<see cref="ScaleKind.BinOrdinal"/>: a number gives the value of its
+///         bin). Their outputs are a <see cref="ScaleRange"/> of texts (colors, shape names) or numbers (sizes, opacities), or the
+///         index of the value (<see cref="MapIndex"/>) for outputs that are neither, such as dash patterns.
 ///     </para>
 ///     <para>
 ///         A model never changes after it is created, which also means that an ordinal model does not learn new
@@ -54,20 +161,32 @@ internal sealed class ScaleModel
     /// <summary>The band start of every category of a band or point scale.</summary>
     private readonly double[] _positions;
 
-    /// <summary>The range of an ordinal scale.</summary>
-    private readonly string[] _ordinalRange;
+    /// <summary>The output values of an ordinal or discretizing scale.</summary>
+    private readonly ScaleRange _range;
+
+    /// <summary>The thresholds of a quantize, quantile or threshold scale, or the bin edges of a bin-ordinal scale.</summary>
+    private double[] _thresholds = [];
+
+    /// <summary>The slope of a sequential scale from the domain to 0..1, or the slope of the lower half of a diverging scale.</summary>
+    private double _k10;
+
+    /// <summary>The slope of the upper half of a diverging scale.</summary>
+    private double _k21;
+
+    /// <summary>The direction of a diverging scale: 1, or -1 when the domain runs downward.</summary>
+    private double _sign = 1;
 
     /// <summary>
     ///     Initializes a model.
     /// </summary>
     /// <param name="kind">The kind of scale.</param>
     /// <param name="domain">The categories of a discrete domain (deduplicated here).</param>
-    /// <param name="ordinalRange">The range of an ordinal scale.</param>
+    /// <param name="range">The output values of an ordinal or discretizing scale.</param>
     /// <param name="positions">The band starts of a band or point scale.</param>
-    private ScaleModel(ScaleKind kind, IEnumerable<DataValue> domain, string[] ordinalRange, double[]? positions = null)
+    private ScaleModel(ScaleKind kind, IEnumerable<DataValue> domain, ScaleRange range, double[]? positions = null)
     {
         Kind = kind;
-        _ordinalRange = ordinalRange;
+        _range = range;
         _index = [];
         var list = new List<DataValue>();
         foreach (var value in domain.Distinct())
@@ -88,6 +207,21 @@ internal sealed class ScaleModel
 
     /// <summary>Gets the end of the numeric domain of a linear scale (the last entry of the complete domain).</summary>
     public double DomainEnd { get; private init; }
+
+    /// <summary>Gets the middle value of a diverging scale (the second domain entry).</summary>
+    public double DomainMid { get; private init; }
+
+    /// <summary>Gets the interpolator of a sequential or diverging scale (a color for a position from 0 to 1), or null.</summary>
+    public Func<double, RgbColor>? Interpolator { get; private init; }
+
+    /// <summary>
+    ///     Gets the thresholds of a quantize, quantile or threshold scale (the values that separate the intervals, in ascending
+    ///     order), or the bin edges of a bin-ordinal scale; empty for the other kinds.
+    /// </summary>
+    public IReadOnlyList<double> Thresholds => _thresholds;
+
+    /// <summary>Gets the output values of an ordinal or discretizing scale.</summary>
+    public ScaleRange Range => _range;
 
     /// <summary>Gets the start of the numeric range of a linear, band or point scale (the first entry of the complete range).</summary>
     public double RangeStart { get; private init; }
@@ -131,8 +265,8 @@ internal sealed class ScaleModel
     /// <summary>Gets the categories of a discrete domain, without duplicates, in order.</summary>
     public IReadOnlyList<DataValue> Domain => _domain;
 
-    /// <summary>Gets the range of an ordinal scale.</summary>
-    public IReadOnlyList<string> OrdinalRange => _ordinalRange;
+    /// <summary>Gets the range of an ordinal scale as texts (empty when the range holds numbers).</summary>
+    public IReadOnlyList<string> OrdinalRange => _range.Texts;
 
     /// <summary>
     ///     Computes the width a band or point scale needs so that every band has the given step (Vega's
@@ -211,7 +345,7 @@ internal sealed class ScaleModel
         }
 
         var used = Math.Min(domain.Length, range.Length);
-        return new ScaleModel(ScaleKind.Linear, [], [])
+        return new ScaleModel(ScaleKind.Linear, [], default)
         {
             DomainStart = domain[0],
             DomainEnd = domain[^1],
@@ -288,7 +422,174 @@ internal sealed class ScaleModel
     {
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(range);
-        return new ScaleModel(ScaleKind.Ordinal, domain, [.. range]);
+        return new ScaleModel(ScaleKind.Ordinal, domain, ScaleRange.OfTexts(range));
+    }
+
+    /// <summary>
+    ///     Creates an ordinal scale with any kind of range: texts, numbers or only a count (the caller maps the index).
+    /// </summary>
+    /// <param name="domain">The categories (duplicates are ignored).</param>
+    /// <param name="range">The range; the n-th category gets the n-th value and the range repeats when it is shorter than the domain.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> is null.</exception>
+    public static ScaleModel CreateOrdinal(IEnumerable<DataValue> domain, ScaleRange range)
+    {
+        ArgumentNullException.ThrowIfNull(domain);
+        return new ScaleModel(ScaleKind.Ordinal, domain, range);
+    }
+
+    /// <summary>
+    ///     Creates a sequential scale (two domain entries) or a diverging scale (three), whose output is a color of an interpolator.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The sequential map is d3's: <c>t = (x - x0) / (x1 - x0)</c>, clamped to 0 to 1 when <paramref name="clamp"/> is set, and a
+    ///         domain of zero width gives the middle of the interpolator (0.5). The diverging map is d3's
+    ///         <c>t = 0.5 + (x - x1) * k</c> with <c>k = 0.5 / (x1 - x0)</c> on the side of <c>x0</c> and <c>0.5 / (x2 - x1)</c> on the
+    ///         side of <c>x2</c> (zero when the two entries are equal), the sides told apart by the direction of the domain.
+    ///     </para>
+    /// </remarks>
+    /// <param name="domain">The domain: two entries (sequential) or three, the middle one being the value the middle color stands for (diverging).</param>
+    /// <param name="interpolator">The interpolator over 0 to 1.</param>
+    /// <param name="clamp">Whether the position is limited to 0 to 1.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> or <paramref name="interpolator"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the domain does not have two or three entries.</exception>
+    public static ScaleModel CreateSequential(double[] domain, Func<double, RgbColor> interpolator, bool clamp = false)
+    {
+        ArgumentNullException.ThrowIfNull(domain);
+        ArgumentNullException.ThrowIfNull(interpolator);
+        if (domain.Length is not (2 or 3))
+        {
+            throw new ArgumentException("A sequential scale needs two domain entries and a diverging scale three.", nameof(domain));
+        }
+
+        if (domain.Length == 2)
+        {
+            return new ScaleModel(ScaleKind.Sequential, [], default)
+            {
+                DomainStart = domain[0],
+                DomainEnd = domain[1],
+                Interpolator = interpolator,
+                Clamp = clamp,
+                _k10 = domain[0].CompareTo(domain[1]) == 0 ? 0 : 1 / (domain[1] - domain[0]),
+            };
+        }
+
+        return new ScaleModel(ScaleKind.Diverging, [], default)
+        {
+            DomainStart = domain[0],
+            DomainMid = domain[1],
+            DomainEnd = domain[2],
+            Interpolator = interpolator,
+            Clamp = clamp,
+            _k10 = domain[0].CompareTo(domain[1]) == 0 ? 0 : 0.5 / (domain[1] - domain[0]),
+            _k21 = domain[1].CompareTo(domain[2]) == 0 ? 0 : 0.5 / (domain[2] - domain[1]),
+            _sign = domain[1] < domain[0] ? -1 : 1,
+        };
+    }
+
+    /// <summary>
+    ///     Creates a quantize scale: the domain is divided into as many equal-width intervals as the range has values.
+    /// </summary>
+    /// <remarks>
+    ///     The thresholds are d3's <c>((i + 1) * x1 - (i - n) * x0) / (n + 1)</c> for <c>n = range.Count - 1</c>, and a number is
+    ///     mapped to the value of the interval it falls into (<c>bisectRight</c>), so a number outside the domain gets the first
+    ///     or the last value and a number on a threshold the value above it.
+    /// </remarks>
+    /// <param name="domainStart">The start of the domain.</param>
+    /// <param name="domainEnd">The end of the domain.</param>
+    /// <param name="range">The output values.</param>
+    /// <returns>The scale.</returns>
+    public static ScaleModel CreateQuantize(double domainStart, double domainEnd, ScaleRange range)
+    {
+        var n = range.Count - 1;
+        var thresholds = new double[Math.Max(0, n)];
+        for (var i = 0; i < thresholds.Length; i++)
+        {
+            thresholds[i] = (((i + 1) * domainEnd) - ((i - n) * domainStart)) / (n + 1);
+        }
+
+        return new ScaleModel(ScaleKind.Quantize, [], range)
+        {
+            DomainStart = domainStart,
+            DomainEnd = domainEnd,
+            _thresholds = thresholds,
+        };
+    }
+
+    /// <summary>
+    ///     Creates a quantile scale: the domain values are divided into as many groups of equal size as the range has values.
+    /// </summary>
+    /// <remarks>
+    ///     The thresholds are the quantiles <c>i / n</c> of the sorted values by linear interpolation between the closest ranks (the R-7
+    ///     method of d3's <c>quantileSorted</c>), for <c>n = max(1, range.Count)</c> and <c>i = 1 .. n - 1</c>.
+    /// </remarks>
+    /// <param name="sortedValues">The domain values in ascending order; none is NaN.</param>
+    /// <param name="range">The output values.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="sortedValues"/> is null.</exception>
+    public static ScaleModel CreateQuantile(double[] sortedValues, ScaleRange range)
+    {
+        ArgumentNullException.ThrowIfNull(sortedValues);
+        var n = Math.Max(1, range.Count);
+        var thresholds = new double[n - 1];
+        for (var i = 1; i < n; i++)
+        {
+            thresholds[i - 1] = AggregateMeasures.Quantile(sortedValues, (double)i / n);
+        }
+
+        return new ScaleModel(ScaleKind.Quantile, [], range)
+        {
+            DomainStart = sortedValues.Length > 0 ? sortedValues[0] : double.NaN,
+            DomainEnd = sortedValues.Length > 0 ? sortedValues[^1] : double.NaN,
+            _thresholds = thresholds,
+        };
+    }
+
+    /// <summary>
+    ///     Creates a threshold scale: the thresholds divide the numbers into intervals, the interval a number falls into gives the value.
+    /// </summary>
+    /// <remarks>
+    ///     As in d3, the thresholds are expected in ascending order and only the first <c>min(thresholds, range.Count - 1)</c> of them are used.
+    /// </remarks>
+    /// <param name="thresholds">The thresholds in ascending order.</param>
+    /// <param name="range">The output values.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="thresholds"/> is null.</exception>
+    public static ScaleModel CreateThreshold(double[] thresholds, ScaleRange range)
+    {
+        ArgumentNullException.ThrowIfNull(thresholds);
+        var used = Math.Max(0, Math.Min(thresholds.Length, range.Count - 1));
+        return new ScaleModel(ScaleKind.Threshold, [], range)
+        {
+            DomainStart = thresholds.Length > 0 ? thresholds[0] : double.NaN,
+            DomainEnd = thresholds.Length > 0 ? thresholds[^1] : double.NaN,
+            _thresholds = [.. thresholds.Take(used)],
+        };
+    }
+
+    /// <summary>
+    ///     Creates a bin-ordinal scale: a number is placed in the bin between two neighboring edges and the bin gives the value.
+    /// </summary>
+    /// <remarks>
+    ///     As in Vega's <c>scaleBinOrdinal</c> the value is <c>range[(bisectRight(edges, x) - 1) % range.Count]</c>: the bin index
+    ///     cycles through the range, a number below the first edge has no value, and a number at or above the last edge gets the value
+    ///     that follows the last bin.
+    /// </remarks>
+    /// <param name="edges">The bin edges in ascending order (one more than there are bins).</param>
+    /// <param name="range">The output values.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="edges"/> is null.</exception>
+    public static ScaleModel CreateBinOrdinal(double[] edges, ScaleRange range)
+    {
+        ArgumentNullException.ThrowIfNull(edges);
+        return new ScaleModel(ScaleKind.BinOrdinal, [], range)
+        {
+            DomainStart = edges.Length > 0 ? edges[0] : double.NaN,
+            DomainEnd = edges.Length > 0 ? edges[^1] : double.NaN,
+            _thresholds = [.. edges],
+        };
     }
 
     /// <summary>
@@ -336,9 +637,138 @@ internal sealed class ScaleModel
                 return value.TryGetQuantitative(out var number) ? Map(number) : null;
             case ScaleKind.Band or ScaleKind.Point:
                 return _index.TryGetValue(value, out var index) ? _positions[index] : null;
+            case ScaleKind.Ordinal or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold or ScaleKind.BinOrdinal:
+                return _range.NumberAt(MapIndex(value));
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    ///     Maps a data value through any scale whose output is a text (a color or a shape name) to that text.
+    /// </summary>
+    /// <remarks>
+    ///     An ordinal scale maps a category, a quantize, quantile, threshold or bin-ordinal scale the number to the value of its
+    ///     interval, and a sequential or diverging scale the number to a color of the interpolator as <c>#rrggbb</c> (or
+    ///     <c>#rrggbbaa</c>). A value that is not a number (or not a category) has no text, as d3's <c>unknown</c>.
+    /// </remarks>
+    /// <param name="value">The data value.</param>
+    /// <returns>The text, or <see langword="null"/> when the value has none or the scale does not output texts.</returns>
+    public string? MapText(DataValue value)
+    {
+        switch (Kind)
+        {
+            case ScaleKind.Sequential or ScaleKind.Diverging:
+                return value.TryGetQuantitative(out var number) ? MapColor(number)?.ToCss() : null;
+            case ScaleKind.Ordinal or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold or ScaleKind.BinOrdinal:
+                return _range.TextAt(MapIndex(value));
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    ///     Maps a number through a sequential or diverging scale to a color.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The color of the interpolator; <see langword="null"/> for NaN.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the scale is not sequential or diverging.</exception>
+    public RgbColor? MapColor(double value)
+    {
+        if (Kind is not (ScaleKind.Sequential or ScaleKind.Diverging))
+        {
+            throw new InvalidOperationException($"The operation needs a {ScaleKind.Sequential} or {ScaleKind.Diverging} scale, but this is a {Kind} scale.");
+        }
+
+        if (double.IsNaN(value))
+        {
+            return null;
+        }
+
+        double t;
+        if (Kind == ScaleKind.Sequential)
+        {
+            // d3: a domain of zero width gives the middle of the interpolator, otherwise the position in the domain
+            t = _k10.CompareTo(0) == 0 ? 0.5 : (value - DomainStart) * _k10;
+            if (_k10.CompareTo(0) != 0 && Clamp)
+            {
+                t = Math.Max(0, Math.Min(1, t));
+            }
+        }
+        else
+        {
+            t = 0.5 + ((value - DomainMid) * (_sign * value < _sign * DomainMid ? _k10 : _k21));
+            if (Clamp)
+            {
+                t = Math.Max(0, Math.Min(1, t));
+            }
+        }
+
+        return Interpolator!(t);
+    }
+
+    /// <summary>
+    ///     Finds the position in the range that an ordinal or discretizing scale gives a data value.
+    /// </summary>
+    /// <remarks>
+    ///     An ordinal scale gives the position of the category in the domain modulo the size of the range. The discretizing scales
+    ///     read the value as a number (see <see cref="DataValue.TryGetQuantitative"/>) and find the interval with
+    ///     <c>bisectRight</c> over the thresholds, as d3 does.
+    /// </remarks>
+    /// <param name="value">The data value.</param>
+    /// <returns>The zero-based position in the range, or -1 when the value has no output (not in the domain, not a number, an empty range, or, for a bin-ordinal scale, below the first edge).</returns>
+    public int MapIndex(DataValue value)
+    {
+        var count = _range.Count;
+        if (count == 0)
+        {
+            return -1;
+        }
+
+        switch (Kind)
+        {
+            case ScaleKind.Ordinal:
+                return _index.TryGetValue(value, out var category) ? category % count : -1;
+            case ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold:
+                return value.TryGetQuantitative(out var number) ? Math.Min(count - 1, BisectRight(_thresholds, number)) : -1;
+            case ScaleKind.BinOrdinal:
+                if (!value.TryGetQuantitative(out var edge))
+                {
+                    return -1;
+                }
+
+                var bin = BisectRight(_thresholds, edge) - 1;
+                return bin < 0 ? -1 : bin % count;
+            default:
+                return -1;
+        }
+    }
+
+    /// <summary>
+    ///     Finds the number of thresholds that are not above a number (d3's <c>bisectRight</c>): the position where the number would be
+    ///     inserted after its equals.
+    /// </summary>
+    /// <param name="thresholds">The thresholds, in ascending order.</param>
+    /// <param name="x">The number.</param>
+    /// <returns>The insertion position, from 0 to the number of thresholds.</returns>
+    private static int BisectRight(double[] thresholds, double x)
+    {
+        var low = 0;
+        var high = thresholds.Length;
+        while (low < high)
+        {
+            var middle = (low + high) >>> 1;
+            if (thresholds[middle] > x)
+            {
+                high = middle;
+            }
+            else
+            {
+                low = middle + 1;
+            }
+        }
+
+        return low;
     }
 
     /// <summary>
@@ -361,7 +791,7 @@ internal sealed class ScaleModel
     public string? MapOrdinal(DataValue value)
     {
         RequireKind(ScaleKind.Ordinal);
-        return _ordinalRange.Length > 0 && _index.TryGetValue(value, out var index) ? _ordinalRange[index % _ordinalRange.Length] : null;
+        return _range.TextAt(MapIndex(value));
     }
 
     /// <summary>
@@ -443,7 +873,7 @@ internal sealed class ScaleModel
             positions[reverse ? n - 1 - i : i] = start + (step * i);
         }
 
-        return new ScaleModel(kind, categories, [], positions)
+        return new ScaleModel(kind, categories, default, positions)
         {
             RangeStart = rangeStart,
             RangeEnd = rangeEnd,

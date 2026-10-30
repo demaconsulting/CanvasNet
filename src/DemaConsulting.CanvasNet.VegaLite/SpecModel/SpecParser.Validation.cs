@@ -120,7 +120,11 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ScaleRules = Rules(
         "type: S=" + string.Join('|', ScaleTypes), "zero: BE", "nice: BNSO", "padding: NE", "paddingInner: NE",
         "paddingOuter: NE", "reverse: BE", "round: BE", "clamp: BE", "domain: ASO", "range: ASO", "scheme: SO",
-        "exponent: NE", "base: NE", "constant: NE");
+        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NE", "domainMax: NE",
+        "rangeMin: NE", "rangeMax: NE", "interpolate: SO", "bins: AO");
+
+    /// <summary>The color spaces that <c>scale.interpolate</c> names (Vega-Lite's <c>ScaleInterpolateEnum</c>).</summary>
+    private static readonly string[] InterpolateTypes = ["rgb", "hsl", "hsl-long", "lab", "hcl", "hcl-long", "cubehelix", "cubehelix-long"];
 
     /// <summary>The rules for the properties of an axis definition.</summary>
     private static readonly Dictionary<string, Rule> AxisRules = Rules(
@@ -614,6 +618,7 @@ internal sealed partial class SpecParser
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);
+            ValidateScaleOptions(scale);
         }
 
         if (definition["axis"] is { IsObject: true } axis)
@@ -627,6 +632,81 @@ internal sealed partial class SpecParser
         }
 
         CompileChannelExpression(definition);
+    }
+
+    /// <summary>
+    ///     Validates the structured options of a scale whose kind the rules cannot express: a <c>scheme</c> object and <c>interpolate</c>.
+    /// </summary>
+    /// <remarks>
+    ///     A <c>scheme</c> object has a string <c>name</c>, a positive whole <c>count</c> and an <c>extent</c> of two numbers; an
+    ///     <c>interpolate</c> is the name of a color space or an object with that name as <c>type</c> and a numeric <c>gamma</c>. An
+    ///     expression reference (<c>{"expr": ...}</c>) is left to the feature catalog, which reports it. Unknown keys warn.
+    /// </remarks>
+    /// <param name="scale">The scale object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a wrong type or value.</exception>
+    private void ValidateScaleOptions(SpecNode scale)
+    {
+        if (scale["scheme"] is { IsObject: true } scheme && scheme["expr"] is not { IsString: true })
+        {
+            if (scheme["name"] is not { IsString: true })
+            {
+                throw Error(scheme["name"] ?? scheme, "The 'name' of a scheme must be a string.");
+            }
+
+            if (scheme["count"] is { } count && !(count.IsNumber && count.NumberValue >= 1 && double.IsInteger(count.NumberValue)))
+            {
+                throw Error(count, "The 'count' of a scheme must be a positive whole number.");
+            }
+
+            if (scheme["extent"] is { } extent && !(extent.IsArray && extent.Items.Count == 2 && extent.Items.All(item => item.IsNumber)))
+            {
+                throw Error(extent, "The 'extent' of a scheme must be an array of two numbers.");
+            }
+
+            foreach (var property in scheme.Properties.Where(p => p.Name is not ("name" or "count" or "extent")))
+            {
+                WarnUnknown(property, "a scheme");
+            }
+        }
+
+        if (scale["interpolate"] is { } interpolate && interpolate["expr"] is not { IsString: true })
+        {
+            if (interpolate.IsString)
+            {
+                CheckInterpolateType(interpolate);
+            }
+            else if (interpolate.IsObject)
+            {
+                if (interpolate["type"] is not { IsString: true } type)
+                {
+                    throw Error(interpolate["type"] ?? interpolate, "The 'type' of an interpolate must be a string.");
+                }
+
+                CheckInterpolateType(type);
+                if (interpolate["gamma"] is { IsNumber: false } gamma)
+                {
+                    throw Error(gamma, "The 'gamma' of an interpolate must be a number.");
+                }
+
+                foreach (var property in interpolate.Properties.Where(p => p.Name is not ("type" or "gamma")))
+                {
+                    WarnUnknown(property, "an interpolate");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Checks that an interpolate type is the name of a color space.
+    /// </summary>
+    /// <param name="type">The string value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when the name is not one of <see cref="InterpolateTypes"/>.</exception>
+    private void CheckInterpolateType(SpecNode type)
+    {
+        if (!InterpolateTypes.Contains(type.StringValue, StringComparer.Ordinal))
+        {
+            throw Error(type, $"The 'interpolate' must be one of {string.Join(", ", InterpolateTypes.Select(v => "'" + v + "'"))}.");
+        }
     }
 
     /// <summary>

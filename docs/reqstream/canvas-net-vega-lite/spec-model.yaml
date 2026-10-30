@@ -169,6 +169,21 @@ sections:
               - SpecParser_Parse_SortArrayAndObjectWarningsAreLocated
               - SpecParser_Parse_ValidAggregatingTransformsAreAccepted
 
+          - id: CanvasNetVegaLite-SpecModel-ScaleValidation
+            title: >-
+              The SpecModel subsystem shall validate, when a specification is parsed, the structured options of
+              a scale - the domain and range limits, the interpolate, the scheme with its name, count, and extent,
+              and the bins - failing with a located specification exception at the offending value and warning
+              about unknown keys of a scheme or an interpolate object.
+            justification: |
+              A color scheme or interpolation of the wrong shape must be found when the specification is opened,
+              with its location, before any data is read.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-ScaleOptions
+            tests:
+              - SpecParser_Parse_WrongTypeReportsPointer
+              - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
+
           - id: CanvasNetVegaLite-SpecModel-SchemaCompatibility
             title: >-
               The SpecModel subsystem shall read the Vega-Lite major version from the $schema URL and

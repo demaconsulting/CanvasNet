@@ -220,6 +220,22 @@ sections:
                   - SpecParser_TryGetSortChannel_ReadsTheShorthandAndTheEncoding
                   - SpecParser_Parse_ValidEncodingAggregateBinStackSortFormsAreAccepted
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ScaleOptions
+                title: >-
+                  The SpecParser unit shall validate the structured options of a scale - domainMid, domainMin,
+                  domainMax, rangeMin, and rangeMax numbers (or expression references), an interpolate that is
+                  the name of a color space or an object with that name as its type and a numeric gamma, a scheme
+                  that is a name or an object with a string name, a positive whole count, and an extent of two
+                  numbers, and bins as an array or an object - with a located VegaLiteSpecException at the
+                  offending value, and shall report an unknown key of a scheme or interpolate object as a
+                  vl-unknown-property warning at the key.
+                justification: |
+                  A scheme or an interpolation with the wrong shape cannot be what the author meant, so the
+                  mistake is reported where it is instead of drawing a guess.
+                tests:
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
                   The SpecParser unit shall reject source text longer than the source-length limit with

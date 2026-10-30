@@ -503,6 +503,44 @@ sections:
           - ColorSchemes_Notices_ShipWithTheTablesAndNameEveryLicense
           - ColorInterpolator_Interpolation_IsDeterministic
 
+      - id: CanvasNetVegaLite-ContinuousColor
+        title: >-
+          The library shall give a quantitative color, fill, or stroke field a continuous color scale as
+          Vega-Lite does - a sequential scale over the extent of the data (a diverging one with a middle
+          value) that maps a number to a color of the ramp, heatmap, or diverging range of the
+          configuration, of a named scheme with its extent, count, and reversal, or of a list of colors
+          interpolated in the color space that interpolate names - with the zero, nice, domain limit, and
+          clamp rules of Vega, and shall refuse an unknown scheme name or a malformed scheme with a located
+          specification error.
+        tags: [system]
+        justification: |
+          A continuous color encoding must look as it does in Vega-Lite, and a scheme that is misspelled or
+          malformed must be found where it is written rather than drawn as a guess.
+        children:
+          - CanvasNetVegaLite-Scales-ContinuousColors
+          - CanvasNetVegaLite-SpecModel-ScaleValidation
+        tests:
+          - ScaleResolverColor_Default_QuantitativeColorIsSequentialWithTheRampScheme
+          - ScaleResolverColor_Scheme_UnknownNameIsASpecificationError
+
+      - id: CanvasNetVegaLite-DiscretizingScales
+        title: >-
+          The library shall classify values with the quantize, quantile, threshold, and bin-ordinal scales
+          of Vega-Lite - the class boundaries, the class counts, and the scheme colors, spread sizes,
+          opacities, shapes, and dash patterns of each class - and shall give the strokeWidth, fillOpacity,
+          strokeOpacity, angle, shape, and strokeDash channels their scales with the documented default
+          ranges, under the scale-domain limit and the cancellation token.
+        tags: [system]
+        justification: |
+          Classified charts and the channels that vary a mark property per value depend on where the class
+          boundaries fall and on the default ranges, which must be those of Vega-Lite.
+        children:
+          - CanvasNetVegaLite-Scales-DiscretizingScales
+          - CanvasNetVegaLite-Scales-ChannelRanges
+        tests:
+          - ScaleResolverColor_Quantize_UsesFiveSchemeColorsOverEqualIntervals
+          - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

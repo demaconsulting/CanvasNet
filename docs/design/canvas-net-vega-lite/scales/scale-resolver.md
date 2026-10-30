@@ -2,16 +2,21 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises three source files in the
+The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises five source files in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define four `internal` types:
 `ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed class), and
 `RangeEnd` (readonly record struct):
 
-- `ScaleResolver.cs` - the entry points, the channel resolution (kind, linear and discrete scales, the zero, nice, padding,
+- `ScaleResolver.cs` - the entry points, the channel resolution (kind, continuous and discrete scales, the zero, nice, padding,
   and range rules), and the four types
 - `ScaleResolver.Plan.cs` - the domains that follow from the encoding plan: binned, stacked, ranged, and unaggregated
 - `ScaleResolver.Sort.cs` - the order of the categories of a discrete scale (every `sort` form, including the sort by an
   aggregate)
+- `ScaleResolver.Color.cs` - the colors of the color, fill, and stroke scales (the scale's `range`, its `scheme`, the named
+  ranges of `config.range`, the interpolators of continuous scales, `interpolate`) and the domain of a quantile scale
+- `ScaleResolver.Range.cs` - the output values of every non-position channel (numbers, shapes, dash patterns), the named
+  and
+  explicit ranges, the counts of discretizing scales, and the limit check of a specification array
 
 The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale
 behavior they port.
@@ -31,7 +36,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleResolver-
 
 **`ResolvedScales`** holds the `MarkType`, the inferred `Orient` (horizontal, vertical, or null), the `Plan` (the
 `EncodingPlan` the scales were resolved with), the scales by channel
-(an indexer by channel name and an enumeration in the fixed channel order x, y, color, fill, stroke, size, opacity), and
+(an indexer by channel name and an enumeration in the fixed channel order x, y, color, fill, stroke, size, opacity, shape,
+strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle), and
 the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position scale needs.
 
 **`ResolvedScale`** (immutable) describes one channel before the size of the data rectangle is known: `Channel`, `Kind`,
@@ -39,20 +45,34 @@ the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position sc
 upper end of a stack; null for a `datum`), `Field2Path` (the lower end of a stack, the end of a bin, or the field of `x2`
 or `y2`), `Title` (the default title of the plan), `Bin` (a `BinKind`) and `BinSpec` (the bins of a continuous channel that
 the encoding bins), `Stack` (the `StackOffset` of the stacked channel, or null), `DataType`, `Location` (the channel
-definition), the linear `DomainStart` and
-`DomainEnd` (after the zero rule, before pixel padding and nice), `NiceCount`, `PaddingPixels`, `Clamp`, `Round`,
+definition), the continuous `DomainStart` and
+`DomainEnd` (after the zero rule, before pixel padding and nice) and `Domain` (all the entries when the domain has more
+than two: a piecewise linear domain, the three entries of a diverging scale, the sorted values of a quantile scale, the
+thresholds of a threshold scale), `NiceCount`, `PaddingPixels`, `Clamp`, `Round`,
 `Reverse`, the `DiscreteDomain`, `PaddingInner`, `PaddingOuter`, `Align`, `Step`, the `ExplicitRange` (a list of
-`RangeEnd` values, each a number or the keyword `width` or `height`), the `ValueRange` of a size or opacity scale, the
-`ColorRange` and `ColorFallback`, `IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
+`RangeEnd` values, each a number or the keyword `width` or `height`), `RangeMin` and `RangeMax`, the `ValueRange` of a
+linear, band, or point scale of a numeric channel, the `NumberRange` of an ordinal or discretizing numeric scale, the
+`ColorRange` of an ordinal or discretizing color scale, the `ShapeRange` and the `DashRange`, the `Interpolator` of a
+sequential or diverging scale,
+`IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
 discrete scale). `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y); the extent
-is ignored for color, size, and opacity.
+is ignored for every channel but x and y.
 
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
 
-- **Type.** Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,
-  `image`, `rule`, and `tick` marks and point scales for the others; `color`, `fill`, and `stroke` fields are ordinal;
-  `size` and `opacity` are point-style value scales. A quantitative color has no scale, and a temporal field has none. An
-  explicit `scale.type` of linear, band, or point is used when the channel and field type accept it.
+- **Type.** `ChooseKind` is Vega-Lite's `defaultType` with its `channelSupportScaleType` and `scaleTypeSupportDataType`
+  checks.
+  Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,
+  `image`, `rule`, and `tick` marks and point scales for the others; a quantitative `color`, `fill`, or `stroke` is a **sequential**
+  scale (a **diverging** one with three domain entries); a nominal or ordinal one is ordinal, as are `shape` and
+  `strokeDash` (also for a quantitative field, which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`,
+  `fillOpacity`, `strokeOpacity`, and `angle` are
+  linear for a quantitative field and point scales otherwise. A temporal field has no scale. An explicit `scale.type` of
+  linear, sequential (colors), quantile, quantize, threshold, band, point, or ordinal is used when both the channel and
+  the field type accept it; otherwise (and for the types that are not drawn yet) the default applies. `ChannelIsDrawn`
+  gives a channel a scale
+  only for the marks Vega-Lite's `supportMark` allows (`shape` on `point`; `angle` on `point`, `circle`, and `square`;
+  `strokeDash` and `size` not on `rect`), and `AcceptsScaleType` answers the type question for the feature catalog.
 - **Domain.** The fields a channel reads come from the `EncodingPlan`. A linear domain is the extent of the valid values
   (numbers, booleans as 1 and 0, numeric strings; null and
   NaN are ignored; an empty extent is 0 to 1) of the **Main** table, over the channel's field and its second field: for
@@ -65,9 +85,17 @@ is ignored for color, size, and opacity.
   the extent of the source field in the **Raw** table, for a channel that aggregates with `mean`, `average`, `median`,
   `q1`, `q3`, `min`, or `max` (Vega-Lite's shared-domain operations); for any other channel it is ignored and the normal
   domain applies. Then the `zero` rule pulls an end to zero (true for the measure axis of a
-  bar (unless it is a range) and for quantitative sizes, the configured default otherwise, never for a binned field,
+  bar (unless it is a range) and for quantitative sizes that are not quantized, the configured default otherwise, never
+  for a binned field,
   and only
-  when a custom domain already spans zero). A
+  when a custom domain already spans zero; never for quantile and threshold scales), then `domainMin` and `domainMax`
+  replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
+  before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. A quantize scale has
+  the extent of the values; a **quantile** scale all the valid values of the field in ascending order (read with the
+  token polled and charged to the step budget, see _Limits_); a **threshold** scale the
+  explicit thresholds or, without a domain, the extent as two thresholds. A color scale whose domain
+  has three entries is diverging; one with four or more is a specification error (a piecewise color scale is not
+  supported). A
   discrete domain is the distinct values of the Main table in order of first appearance, ordered by the `sort` of the
   channel (see _Sort forms_; ascending by default); an explicit `scale.domain` is used as given; a nominal or ordinal
   channel that is binned has the **text of its bins** (the boundaries formatted with the axis `format` or
@@ -83,11 +111,46 @@ is ignored for color, size, and opacity.
   count of 10 unless it has a custom domain **or is binned** (its bins already end on round values); a bar on its
   continuous axis (not a binned one) gets 5 pixels of padding.
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). Size ranges follow
-  the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); opacity is 0.3
-  to 0.8; colors are the configured category scheme (`tableau10`). A discrete position scale without an explicit range
+  the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); `strokeWidth`
+  is `minStrokeWidth` to `maxStrokeWidth` (1 to 4); the opacities are 0.3 to 0.8; `angle` is 0 to 360; a discretizing
+  **size** scale (quantile, quantize, threshold) spreads the numbers evenly over the range (Vega-Lite's
+  `interpolateRange`) with one value per
+  interval - `quantileCount` and `quantizeCount` (4), or one more than the thresholds - and the other numeric channels keep
+  their two-entry range. `shape` takes `config.range.symbol` (eight names) and `strokeDash` five fixed patterns. A
+  discrete position
+  scale without an explicit range
   or a fixed size takes its size from `step` (20 pixels by default), which is what `DiscreteWidth` and `DiscreteHeight`
   report so that the layout can size the view. An explicit numeric range keeps all its entries for a linear scale (`reverse`
-  flips the whole array, as Vega does); a band or point scale uses the first two entries, as d3's `scaleBand` does.
+  flips the whole array, as Vega does); a band or point scale uses the first two entries, as d3's `scaleBand` does;
+  `rangeMin` and `rangeMax` replace the first and second entry of a default two-entry range of a linear, band, or point
+  scale (not of a step-sized one).
+- **Colors** (`ScaleResolver.Color.cs`). The colors come, in Vega-Lite's order, from the scale's `range` (an array of
+  colors, or a string naming an entry of `config.range`), then its `scheme` (a name, an array of colors, or
+  `{name, count, extent}`), then the named range of `config.range` that `defaultRange` picks: `category` for a nominal
+  field and `ordinal` for an ordinal one; `diverging` when the scale has a `domainMid`; `heatmap` for a `rect` mark;
+  `ramp` otherwise. A named range is a list of colors or a scheme object (`scheme`, `count`, `extent`); one that the
+  configuration lacks is a specification error for `scale.range` (Vega's "Unrecognized scale range value"), and Vega's
+  own default is used when the configuration removed a default one. A scheme name is looked up in the 68 schemes of
+  `ColorSchemes` ignoring case; an unknown name is a specification error ("Unrecognized scheme name", Vega's behavior).
+  A **sequential or diverging** scale gets an interpolator over 0 to 1: a scheme through `ColorSchemes.Configure` (its `extent`
+  and `reverse` included; `interpolate` does not apply to a named scheme, as in Vega) or a list of colors piecewise
+  through a `ColorRamp` in the space `interpolate` names (`rgb` by default; `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`;
+  the object form adds a sRGB `gamma`; `cubehelix` is accepted and interpolates in sRGB). An **ordinal, quantile,
+  quantize, threshold, or bin-ordinal** scale gets a list of colors: the list given, or what `ColorSchemes.Configure`
+  picks (the whole list of a categorical scheme for an ordinal scale, otherwise the first colors or samples at
+  `i / (count + 1)`; the count is the explicit `count`, the domain size for an ordinal scale, 5 for quantile and
+  quantize, one more than the thresholds for a threshold scale). `reverse` (also set by `sort: "descending"` on a scale
+  with a
+  continuous domain) reverses the colors.
+- **Limits and cancellation.** A range, domain, or sort array of the specification is checked by its length against
+  `MaxScaleDomainSize` before anything is built; a scheme `count` and a generated numeric range are checked by their
+  count (the check of `ColorSchemes.Configure` is located at the scheme) and polled for cancellation every 4,096 values.
+  The values of a **quantile** scale are counted against `TableLayout.MaxCells` (twice the number of rows: the values
+  and the sort buffer) before the array is allocated, read with the token polled every 4,096 rows, charged to the
+  evaluation-step budget through a `WorkMeter` (one step per 64 values read and per 64 comparisons of the sort,
+  `n * ceil(log2 n)`), and sorted by a bottom-up merge sort that polls the token. Strings are never built from data
+  here: colors are
+  `#rrggbb` texts or texts the parser has already length-checked.
 - **Sort forms** (`ScaleResolver.Sort.cs`). `"ascending"` and `"descending"` order the categories by value (a stable
   sort, null first, the order of `DataValue.Compare`); `null` keeps the data order; an array lists the categories (those
   it
@@ -114,9 +177,12 @@ is ignored for color, size, and opacity.
   (an `aggregate` of `count` without a field) is a measure. The encoding plan and the feature catalog reuse it.
 
 **Deviations** (also listed in _CanvasNetVegaLite System Design_): values of different kinds in one discrete domain
-are ordered by kind; a scheme other than `tableau10`, and the ordinal range of an ordinal color field, fall back to
-`tableau10` with `ColorFallback` set; `scale.domain` forms other than an array and `"unaggregated"` are ignored, and
-`"unaggregated"` applies only to the shared-domain operations; a sort by the `argmin`, `argmax`, `values`, or exponential
+are ordered by kind; `scale.domain` forms other than an array and `"unaggregated"` are ignored, and
+`"unaggregated"` applies only to the shared-domain operations; a property that the scale type or channel does not support
+(`scheme` or `interpolate` on a non-color channel, `domainMin` on a quantize scale, and so on) is ignored without Vega-Lite's
+console warning; a color scale with an explicit domain of four or more entries (a piecewise color scale) is a specification
+error; an array of colors given as the `scheme` of a discrete scale is used as the whole list of colors; a sort by the
+`argmin`, `argmax`, `values`, or exponential
 operation is ignored (the catalog reports it); a `sort` array puts values
 missing from it first; a bin is planned on x and y only. A
 `sort` array is read once into a
@@ -134,12 +200,20 @@ ordering a domain costs one lookup per value rather than a search of the list pe
   Main tables, configuration, mark, orient, encoding, limits, token, and the width and height steps), and resolves each
   present channel in the fixed order, reading the field of each from its `ChannelPlan`. The data is scanned with the token
   polled every 4,096 rows.
+- `ChooseKind`, `ChannelIsDrawn`, and `AcceptsScaleType` - the scale-type rules above; `BuildContinuous` builds the linear,
+  sequential, diverging, quantize, quantile, and threshold scales (domain, zero, `domainMin`, `domainMax`, `domainMid`,
+  nice, clamp), and `BuildDiscrete` the band, point, and ordinal ones; both ask `ResolveOutputs` for the output values
+  of the channel, by its group
+  (position, color, shape and dash, numeric).
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field
   or a count.
 - `ResolvedScale.CreateModel(extent)` - applies what depends on the extent: the range of a position scale (including an
-  explicit range with `width` and `height` keywords, all of whose entries are kept for a linear scale), the pixel
+  explicit range with `width` and `height` keywords, all of whose entries are kept for a linear scale, and `rangeMin`
+  and `rangeMax`), the pixel
   padding of a continuous scale (the domain is widened so that the extreme values keep that distance from the edge),
-  then `nice` (after the padding, as Vega does), and builds a linear, band, point, or ordinal `ScaleModel`; a non-finite
+  then `nice` (after the padding, as Vega does), and builds a linear, sequential, diverging, quantize, quantile,
+  threshold, bin-ordinal,
+  band, point, or ordinal `ScaleModel` (the discretizing scales from the output range of the channel); a non-finite
   domain after nice keeps the padded domain.
 - `ResolvedScale.NaturalExtent` - `step * BandSpace(count, inner, outer)`, the size a step-driven discrete scale needs.
 - `LinearExtent` (`ScaleResolver.Plan.cs`) - finds the domain of a continuous channel before the zero rule:
@@ -157,18 +231,30 @@ has a resolved scale, and the result is immutable.
 #### Error Handling
 
 A `scale.domain` or `scale.range` of the wrong shape (a range that is not an array of numbers or the keywords, with fewer
-than two values; a quantitative domain with fewer than two numbers or with a non-number) is a `VegaLiteSpecException`
-located at the offending value. A discrete domain with more than `MaxScaleDomainSize` values is a
-`VegaLiteRenderException` located at the channel; so is the work of a sort by an aggregate that exceeds the
+than two values; a quantitative domain with fewer than two numbers or with a non-number; a shape range that is not a
+list of strings; a dash range that is not a list of lists of numbers; a color that cannot be read; a color domain of
+four or more entries;
+an unknown scheme name or an unknown named range) is a `VegaLiteSpecException`
+located at the offending value (a name that comes from `config.range` is located at the channel). A discrete domain with
+more than `MaxScaleDomainSize` values, a specification array (domain, range) of more entries than that, a scheme `count`
+or
+a generated range (`quantileCount`, `quantizeCount`) above it, is a
+`VegaLiteRenderException` located at the channel or the array whose message carries `the limit of` and
+`VegaLiteLimits.MaxScaleDomainSize`; so is the work of a sort by an aggregate or of the values of a quantile scale that
+exceeds the
 step budget or the
-value-state limit (the failure of the accumulators is converted with the same message and located at the channel
+value-state or cell limit (the failure of the accumulators and of the work meter is converted with the same message and
+located at the channel
 definition). A canceled token is an `OperationCanceledException`. A null argument is
 `ArgumentNullException`, which is not converted. Constructs outside the supported subset are never errors here: they are
 reported by the `FeatureCatalog`, and the resolver falls back or ignores them as listed above.
 
 #### Dependencies
 
-- **`ScaleModel`**, **`Ticks`**, and **`ColorSchemes`** - the models, the tick-based `nice` rule, and the category palette
+- **`ScaleModel`**, **`Ticks`**, **`ColorSchemes`**, **`ColorInterpolator`**, and **`ColorRamp`** - the models, the
+  tick-based `nice` rule,
+  the scheme catalog and its range configuration, and the color interpolation
+- **`CssColor`** - the reading of the colors of a list of colors
 - **`EncodingPlan`**, **`EncodingData`**, **`ChannelPlan`**, **`BinSpec`**, and **`StackOffset`** - the plan and the tables
   of the implicit pipeline (the `EncodingPlan` unit), which also reuses `InferOrient` of this unit
 - **`MeasureCell`**, **`MeasureEnvironment`**, **`WorkMeter`**, **`AggregateMeasures`**, and **`TableLayout`** - the
@@ -187,5 +273,6 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 produced. `FeatureCatalog` calls `InferOrient` (to decide whether the `order` channel orders a stack). `AxisBuilder` and
 `MarkBuilder` read the `ResolvedScale` (field path, second field, title, bin and stack facts, kind, domain, padding) and
 the models built from it. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs` call the resolver directly through
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs` and `ScaleResolverColorTests.cs` call the
+resolver directly through
 `InternalsVisibleTo`.

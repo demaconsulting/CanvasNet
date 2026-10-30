@@ -2315,9 +2315,10 @@ reviews:
       - "docs/design/canvas-net-vega-lite/scales/scale-resolver.md"   # unit design
       - "docs/verification/canvas-net-vega-lite/scales/scale-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-resolver.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver*.cs"  # unit source (partial files: plan, sort)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPlanTests.cs"  # unit tests (plan, sort)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverColorTests.cs"  # unit tests (colors)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)

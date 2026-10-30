@@ -121,17 +121,20 @@ public class ScaleResolverTests
         Assert.Equal(ScaleKind.Band, Resolve(Spec("bar", """{ "x": {"field":"k","type":"nominal","scale":{"type":"ordinal"}} }"""))["x"]!.Kind);
         Assert.Equal(ScaleKind.Linear, Resolve(Spec("bar", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["x"]!.Kind);
 
-        // Assert: no scale for a quantitative color, a temporal field, a value, a datum-less definition, "scale": null
+        // Assert: no scale for a temporal field, a value, a datum-less definition, "scale": null
         var none = Resolve(Spec(
             "point",
             """
-            { "color": {"field":"q","type":"quantitative"},
-              "x": {"field":"q","type":"temporal"},
+            { "x": {"field":"q","type":"temporal"},
               "y": {"value": 20},
               "size": {"field":"q","type":"quantitative","scale":null},
               "opacity": {"type":"quantitative"} }
             """));
         Assert.Empty(none.Scales);
+
+        // Assert: a quantitative color is a sequential scale (a continuous color ramp), its linear scale type too
+        Assert.Equal(ScaleKind.Sequential, Resolve(Spec("point", """{ "color": {"field":"q","type":"quantitative"} }"""))["color"]!.Kind);
+        Assert.Equal(ScaleKind.Sequential, Resolve(Spec("point", """{ "color": {"field":"q","type":"quantitative","scale":{"type":"linear"}} }"""))["color"]!.Kind);
 
         // Assert: an aggregate count has no field but is a field definition, so it has a scale (and the title Vega-Lite gives it)
         var counted = Resolve(Spec("point", """{ "opacity": {"aggregate":"count","type":"quantitative"} }"""));
@@ -585,45 +588,43 @@ public class ScaleResolverTests
     }
 
     /// <summary>
-    ///     Validates the colors of ordinal color scales: the tableau10 default, schemes, explicit ranges, configuration and
-    ///     the fallback.
+    ///     Validates the colors of ordinal color scales: the tableau10 default, schemes, explicit ranges, the configured named ranges
+    ///     and the Vega-Lite <c>ordinal</c> range of an ordinal field.
     /// </summary>
     [Fact]
-    public void ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes()
+    public void ScaleResolver_Resolve_OrdinalColorsUseTheConfiguredRanges()
     {
         // Arrange / Act: the default for a nominal field; the domain is a, b, c
         var plain = Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal"} }"""))["color"]!;
         var model = plain.CreateModel(0);
 
-        // Assert: the tableau10 colors in domain order, no fallback
+        // Assert: the tableau10 colors in domain order
         Assert.Equal(ColorSchemes.Tableau10, plain.ColorRange);
-        Assert.False(plain.ColorFallback);
         Assert.Equal(["#4c78a8", "#f58518", "#e45756"], new[] { "a", "b", "c" }.Select(c => model.MapOrdinal(S(c))).ToArray());
         Assert.Null(model.MapOrdinal(S("zzz")));
 
-        // Assert: the named scheme tableau10, a scheme object, an unknown scheme (fallback) and an explicit range
-        Assert.False(Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":"tableau10"}} }"""))["color"]!.ColorFallback);
-        Assert.False(Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":{"name":"tableau10"}}} }"""))["color"]!.ColorFallback);
-        var blues = Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":"blues"}} }"""))["color"]!;
-        Assert.True(blues.ColorFallback);
-        Assert.Equal(ColorSchemes.Tableau10, blues.ColorRange);
+        // Assert: the named scheme tableau10, a scheme object, another categorical scheme and an explicit range
+        Assert.Equal(ColorSchemes.Tableau10, Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":"tableau10"}} }"""))["color"]!.ColorRange);
+        Assert.Equal(ColorSchemes.Tableau10, Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":{"name":"tableau10"}}} }"""))["color"]!.ColorRange);
+        Assert.True(ColorSchemes.TryGetScheme("set1", out var set1));
+        Assert.Equal(set1, Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"scheme":"set1"}} }"""))["color"]!.ColorRange);
         var custom = Resolve(Spec("point", """{ "color": {"field":"k","type":"nominal","scale":{"range":["red","blue"]}} }"""))["color"]!;
-        Assert.False(custom.ColorFallback);
         Assert.Equal(["red", "blue"], custom.ColorRange);
         Assert.Equal("red", custom.CreateModel(0).MapOrdinal(S("a")));
         Assert.Equal("red", custom.CreateModel(0).MapOrdinal(S("c")));
 
-        // Assert: an ordinal field uses Vega-Lite's "ordinal" range (a blue ramp), which is not available: fallback
+        // Assert: an ordinal field uses Vega-Lite's "ordinal" range (the blues ramp sampled at i / (n + 1) for n = 3 categories)
         var ordinal = Resolve(Spec("point", """{ "color": {"field":"k","type":"ordinal"} }"""))["color"]!;
-        Assert.True(ordinal.ColorFallback);
-        Assert.Equal(ColorSchemes.Tableau10, ordinal.ColorRange);
+        Assert.True(ColorSchemes.TryGetColorScheme("blues", out var blues));
+        Assert.Equal(
+            ColorInterpolator.Quantize(blues.Ramp.At, 3, Ct).Select(c => c.ToCss()).ToArray(),
+            ordinal.ColorRange);
 
         // Assert: the configured category range (a list of colors, or a scheme) wins over the default
         var tree = SpecParser.Parse(Spec("point", """{ "color": {"field":"k","type":"nominal"} }""", "\"config\": {\"range\": {\"category\": [\"#111111\", \"#222222\"]}},"));
         var table = DataLoader.Load(tree.Root["data"], null, null, Ct);
         var configured = ScaleResolver.Resolve(tree.Root, table, ConfigResolver.Resolve(tree, null), null, null, Ct)["color"]!;
         Assert.Equal(["#111111", "#222222"], configured.ColorRange);
-        Assert.False(configured.ColorFallback);
     }
 
     /// <summary>

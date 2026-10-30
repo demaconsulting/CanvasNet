@@ -11,12 +11,14 @@ axis ticks, and formats tick labels. Most of the ported d3 and Vega logic lives 
 visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It contains
 six units:
 
-- **ScaleModel** - the internal `ScaleModel` and `ScaleKind`: the immutable linear, band, point, and ordinal mappings;
+- **ScaleModel** - the internal `ScaleModel`, `ScaleKind`, and `ScaleRange`: the immutable linear, band, point, ordinal,
+  sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings;
   see _ScaleModel Unit Design_ (`scales/scale-model.md`)
-- **ScaleResolver** - the internal static partial `ScaleResolver` (three files) with `ResolvedScales`, `ResolvedScale`,
+- **ScaleResolver** - the internal static partial `ScaleResolver` (five files) with `ResolvedScales`, `ResolvedScale`,
   and
   `RangeEnd`: the Vega-Lite inference of scale types, domains (including the binned, stacked, ranged, and unaggregated
-  ones), the order of discrete domains, ranges, and paddings; see _ScaleResolver Unit Design_
+  ones), the order of discrete domains, ranges, paddings, the colors and schemes of color scales, and the ranges of the
+  non-position channels; see _ScaleResolver Unit Design_
   (`scales/scale-resolver.md`)
 - **Ticks** - the internal static `Ticks`: the d3-array tick algorithms, the linear `nice`, and the Vega tick-count
   rules; see _Ticks Unit Design_ (`scales/ticks.md`)
@@ -37,12 +39,14 @@ The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its beha
 **Exposed** (internal only): `ScaleResolver.Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?,
 VegaLiteLimits?, CancellationToken)` (the pipeline entry), the convenience overload `ScaleResolver.Resolve(SpecNode,
 DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans and runs the implicit pipeline
-itself), and `ScaleResolver.InferOrient`; `ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories
-(`CreateLinear`, `CreateBand`, `CreatePoint`, `CreateOrdinal`), mappings (`Map`, `MapCenter`, `MapOrdinal`, `Invert`,
-`IndexOf`), and `BandSpace`; `Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`,
-`DefaultAxisTickMinStep`, `ResolveTickCount`, and `AxisTicks`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`,
-`ParseSpecifier`, and the precision helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`,
-and `CategoryColor`; and `ColorInterpolator.Interpolate`, `Range`, and `Quantize` with `ColorRamp`.
+itself), `ScaleResolver.InferOrient`, `ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`;
+`ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories (`CreateLinear`, `CreateBand`, `CreatePoint`,
+`CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`),
+mappings (`Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`, `MapIndex`, `Invert`, `IndexOf`), and `BandSpace`;
+`Ticks.GetTicks`, `TickStep`, `TickIncrement`, `Nice`, `DefaultAxisTickCount`, `DefaultAxisTickMinStep`,
+`ResolveTickCount`, and `AxisTicks`; `NumberFormat.Create`, `CreatePrefix`, `TickFormat`, `ParseSpecifier`, and the
+precision helpers; `ColorSchemes.TryGetColorScheme`, `TryGetScheme`, `Configure`, `Tableau10`, and `CategoryColor`; and
+`ColorInterpolator.Interpolate`, `Range`, and `Quantize` with `ColorRamp`.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the
 `Data` subsystem; `EncodingPlan`, `EncodingData`, `MeasureCell`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` from the
@@ -69,8 +73,9 @@ data rectangle. `ScaleModel` itself is pure arithmetic with no knowledge of the 
 channels of discrete fields are band scales for `rect`, `bar`, `image`, `rule`, and `tick` marks and point scales for the
 others); zero, nice, padding, and the default ranges follow the Vega-Lite 6 rules and configuration; Vega's order of
 applying zero, pixel padding, and nice is preserved. Anything outside the supported subset is already reported by the
-`FeatureCatalog`; the resolver ignores or falls back deliberately (an ordinal color field uses `tableau10`, a quantitative
-color has no scale) and the deviations are listed in _CanvasNetVegaLite System Design_.
+`FeatureCatalog`; the resolver ignores or falls back deliberately (a property that the scale type or channel does not
+support is ignored; a color domain of four or more entries is a specification error) and the deviations are listed in
+_CanvasNetVegaLite System Design_.
 
 **Ported algorithms are exact and tested by hand.** `Ticks` and `NumberFormat` are ports of the d3-array and d3-format
 algorithms and `ScaleModel` of the d3-scale arithmetic, all carrying attribution headers; test vectors are derived by

@@ -60,6 +60,15 @@ definitions) are the generous union of every variant in the Vega-Lite 6 schema, 
 top-level `selection` and the channel key `band` are accepted too. Validation never walks inline data rows: a `values`
 array is checked for being an array and no more.
 
+**Scale options.** After the kind rules of a scale, `ValidateScaleOptions` checks the options that need more than a kind
+letter: a `scheme` object must have a string `name`, a positive whole `count`, and an `extent` of two numbers; an
+`interpolate` must be one of the eight color-space names (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`,
+`cubehelix`, `cubehelix-long`) or an object with that name as `type` and a numeric `gamma`; each failure is a
+`VegaLiteSpecException` at the offending value, and an unknown key of a `scheme` or `interpolate` object is a
+`vl-unknown-property` warning. An expression reference in place of either is left to the catalog. `domainMid`,
+`domainMin`, `domainMax`, `rangeMin`, `rangeMax` (numbers or expression references) and `bins` (array or object) have
+kind rules only.
+
 **Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data stage
 reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
 break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a

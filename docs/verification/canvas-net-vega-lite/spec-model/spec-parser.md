@@ -220,6 +220,21 @@ Vega-Lite does not define (`bogus`) is one `vl-unknown-property` warning at `/en
 the channel a sort refers to is read from the shorthand (`"y"`, `"-y"`) and from `encoding`, and from no other form
 (`ascending`, an operation, an array, null), with a null argument refused.
 
+##### Scale Options Are Validated And Unknown Keys Are Warned About
+
+**Tests**: `SpecParserTests.SpecParser_Parse_WrongTypeReportsPointer`,
+`SpecParserTests.SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn`
+
+Asserts, in the rows of the pointer theory, that a `domainMid`, `domainMin`, `domainMax`, `rangeMin`, or `rangeMax` that
+is not a number or an expression reference, an `interpolate` that is a number, an unknown name, an object without a
+string `type` or with an unknown one or a non-numeric `gamma`, a `scheme` that is not a string or an object, an object
+without a string `name` (pointer at the scheme or at the name), a `count` that is 0, -1, 2.5, or a string, an `extent`
+that has one entry, a non-number, or is not an array, and `bins` that is a number are each a located error at the
+offending value; and, in the accepted form, that numbers and expression references for the limits, the eight interpolate
+names, an interpolate object with a gamma or an expression reference, a scheme name, object with count and extent, or
+expression reference, and `bins` as an array or an object are silent, while an unknown key of a scheme or interpolate
+object is one `vl-unknown-property` warning at the key.
+
 ##### Schema Version Parsing
 
 **Tests**: `SpecParserTests.SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion`
