@@ -260,9 +260,14 @@ size of a legitimate non-interlaced PNG is fixed by `IHDR` alone: `height * (1 +
 `rowBytes = (width * bitsPerPixel + 7) / 8`. `Load` computes this figure (in `long` arithmetic;
 `width` has already been validated against `Surface.MaxDimension` and `bitsPerPixel` is at most
 64, so it cannot overflow and never exceeds the maximum .NET array length) and passes it to
-`ZlibHelper.Decompress` as a hard output limit. The helper allocates one output array of exactly
-that size and inflates directly into it (peak allocation: the limit plus fixed inflater working
-memory), throwing `InvalidDataException` as soon as any byte beyond the limit appears, so a few-kilobyte `IDAT`
+`ZlibHelper.Decompress` as a hard output limit. The helper grows its output buffer on demand, in
+proportion to the output actually produced and never beyond that limit (initial size
+`min(limit, max(64 KiB, 4 * compressedLength))`, doubling, inflating directly into the buffer's
+free tail, no `MemoryStream` and no final copy), so a tiny truncated `IDAT` on a huge declared
+image allocates only a small buffer; total output-buffer allocation is at most 2 x the final
+capacity (itself at most the limit), plus fixed inflater working memory (see _Zlib Helper_ in the
+Codecs subsystem design). It throws `InvalidDataException` as soon as any byte beyond the limit
+appears, so a few-kilobyte `IDAT`
 payload crafted to expand to gigabytes can never exhaust memory; output of exactly the limit is
 accepted, and output shorter than the limit is still rejected afterwards as a corrupt/truncated
 image (the pre-existing "unexpected length" check). No tolerance for trailing excess data is

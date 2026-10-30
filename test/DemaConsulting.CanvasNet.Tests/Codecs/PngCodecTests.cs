@@ -1398,35 +1398,80 @@ public class PngCodecTests
     }
 
     /// <summary>
-    ///     Proves the documented peak allocation bound of the shared zlib inflater: inflating a
-    ///     valid stream whose output exactly fills the declared limit allocates no more than the
-    ///     limit plus a small fixed constant (the single output array plus the inflater's own
-    ///     working memory), i.e. no growing intermediate buffer and no second output copy.
+    ///     Proves the documented allocation bound of the shared zlib inflater on valid streams whose
+    ///     output exactly fills the declared limit: the total output-buffer allocation, as reported
+    ///     by the helper's own counter (independent of the runtime's inflater internals and of the
+    ///     platform), is at most twice the output, and no final copy is made.
     /// </summary>
-    [Fact]
-    public void ZlibHelper_Decompress_NearLimitValidStream_AllocationStaysWithinLimitPlusSmallConstant()
+    /// <param name="compressible">
+    ///     <see langword="true"/> for highly compressible data (the buffer grows from its small
+    ///     initial size), <see langword="false"/> for incompressible data (the initial size already
+    ///     reaches the limit).
+    /// </param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ZlibHelper_Decompress_NearLimitValidStream_OutputAllocationAtMostTwiceOutput(bool compressible)
     {
-        // Arrange: 8 MiB of pseudo-random-ish (poorly compressible but valid) data
+        // Arrange
         const int limit = 8 * 1024 * 1024;
-        const int allowedOverhead = 256 * 1024;
         var raw = new byte[limit];
-        new Random(12345).NextBytes(raw);
+        if (!compressible)
+        {
+            new Random(12345).NextBytes(raw);
+        }
+
         var zlib = ZlibHelper.Compress(raw);
 
-        // Warm up so one-time JIT/static allocations are not counted
-        _ = ZlibHelper.Decompress(ZlibHelper.Compress(new byte[64]), 64, "PNG");
-
         // Act
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        var result = ZlibHelper.Decompress(zlib, limit, "PNG");
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        var result = ZlibHelper.Decompress(zlib, limit, "PNG", out var allocated);
 
         // Assert
         Assert.Equal(limit, result.Length);
         Assert.True(result.Span.SequenceEqual(raw));
-        Assert.True(
-            allocated <= limit + allowedOverhead,
-            $"Allocated {allocated} bytes inflating {limit} bytes (allowed {limit + allowedOverhead}).");
+        Assert.True(allocated >= limit);
+        Assert.True(allocated <= 2L * limit, $"Allocated {allocated} output bytes inflating {limit} bytes.");
+    }
+
+    /// <summary>
+    ///     Proves that a tiny truncated zlib stream checked against a huge declared limit allocates
+    ///     only a small, size-independent buffer (never the limit): the allocation tracks the output
+    ///     actually produced, not the declared maximum.
+    /// </summary>
+    [Fact]
+    public void ZlibHelper_Decompress_TruncatedStreamWithHugeLimit_AllocatesOnlySmallBuffer()
+    {
+        // Arrange: a valid stream with its middle cut out, and a limit of 512 MiB
+        const long hugeLimit = 512L * 1024 * 1024;
+        var random = new byte[200];
+        new Random(99).NextBytes(random);
+        var valid = ZlibHelper.Compress(random);
+        var truncated = valid.AsSpan(0, valid.Length / 2).ToArray()
+            .Concat(valid.AsSpan(valid.Length - 4).ToArray()).ToArray();
+        long allocated = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(
+            () => ZlibHelper.Decompress(truncated, hugeLimit, "PNG", out allocated));
+        Assert.True(allocated > 0);
+        Assert.True(allocated <= 1024 * 1024, $"Allocated {allocated} output bytes for a {truncated.Length}-byte stream.");
+    }
+
+    /// <summary>
+    ///     Proves that a decompression bomb is still rejected early: the helper's output allocation
+    ///     stays within twice the limit (and the bomb's gigantic output is never materialized).
+    /// </summary>
+    [Fact]
+    public void ZlibHelper_Decompress_Bomb_RejectedWithAllocationWithinTwiceLimit()
+    {
+        // Arrange: 64 MiB of zeros against a 1 MiB limit
+        const int limit = 1024 * 1024;
+        var bomb = BuildZlibBomb(64 * 1024 * 1024);
+        long allocated = 0;
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => ZlibHelper.Decompress(bomb, limit, "PNG", out allocated));
+        Assert.True(allocated <= 2L * limit, $"Allocated {allocated} output bytes rejecting a bomb.");
     }
 
     /// <summary>

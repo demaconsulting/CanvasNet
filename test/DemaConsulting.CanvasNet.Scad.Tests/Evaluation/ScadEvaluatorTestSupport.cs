@@ -21,10 +21,30 @@ internal static class ScadEvaluatorTestSupport
     /// </remarks>
     /// <param name="cts">The source to cancel.</param>
     /// <param name="delay">The delay before canceling.</param>
-    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay)
+    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay) =>
+        CancelAfterOnDedicatedThread(cts, delay, () => true);
+
+    /// <summary>
+    ///     Cancels the source from a dedicated thread once a condition holds, after a further delay.
+    /// </summary>
+    /// <remarks>
+    ///     A fixed delay alone can fire before a cold, slow runner (macOS CI) has even started evaluating; waiting for
+    ///     the condition (for example "the first echo was produced") and only then delaying keeps the test
+    ///     deterministic. The wait is bounded so a condition that never holds still cancels eventually.
+    /// </remarks>
+    /// <param name="cts">The source to cancel.</param>
+    /// <param name="delay">The delay, after the condition holds, before canceling.</param>
+    /// <param name="condition">The condition to wait for.</param>
+    public static void CancelAfterOnDedicatedThread(CancellationTokenSource cts, TimeSpan delay, Func<bool> condition)
     {
         var canceler = new Thread(() =>
         {
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+            while (!condition() && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(5);
+            }
+
             Thread.Sleep(delay);
             try
             {

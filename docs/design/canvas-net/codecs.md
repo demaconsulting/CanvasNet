@@ -96,16 +96,25 @@ compressed payload that would otherwise inflate to gigabytes. The caller must su
 `maxOutputBytes`, derived from the image's own declared dimensions (PNG: exactly
 `height * (1 + rowBytes)` from `IHDR`; TIFF: `rowBytes * min(RowsPerStrip, ImageLength)` per strip),
 never from an attacker-controlled length field. The helper validates the zlib header (method,
-FCHECK, no preset dictionary), then allocates the output array **once, at exactly
-`maxOutputBytes`**, and inflates directly into it (`Read(buffer, total, buffer.Length - total)`);
-once the array is full it reads one further byte and throws `InvalidDataException` if any data
-remains, so the excess is never stored. There is no growing intermediate stream and no final
-`ToArray()` copy, so the peak managed allocation is `maxOutputBytes` (itself bounded by
-`Surface.MaxDimension`) plus the inflater's fixed, size-independent working memory (a few tens of
-KB), regardless of the stream's expansion ratio; this is asserted by a test that measures
-allocation on a valid near-limit stream. `Decompress` returns a `Memory<byte>` slice over that
-array, so a stream that legally inflates to fewer bytes (a TIFF strip) yields a shorter view
-without another copy. Output of exactly `maxOutputBytes` is accepted. A negative limit or one above the
+FCHECK, no preset dictionary), then inflates into an output buffer that is **grown on demand, in
+proportion to the output actually produced, and never beyond `maxOutputBytes`**: it starts at
+`min(maxOutputBytes, max(64 KiB, 4 * compressedLength))` bytes and doubles (capped at
+`maxOutputBytes`) only when the inflater has filled it and a one-byte probe shows more output
+follows, inflating directly into the buffer's free tail (`Read(buffer, total, buffer.Length -
+total)`). When the buffer is full at exactly `maxOutputBytes`, the one-byte probe either proves
+the stream ended or throws `InvalidDataException`, so the excess is never stored. There is no
+`MemoryStream` growth and no final `ToArray()` copy; `Decompress` returns a `Memory<byte>` slice
+of the buffer. **Allocation bound**: a truncated or malformed stream allocates only in
+proportion to what it actually inflates (a few-KiB `IDAT` on a declared 8192x8192 RGBA16 image
+allocates ~64 KiB, not 512 MiB); the total output-buffer allocation over the call (the initial
+buffer plus each growth step) is at most 2 x the final capacity, which is at most `maxOutputBytes`
+(itself bounded by `Surface.MaxDimension`) and less than 2 x the actual output unless the initial
+size or the limit applies, and the live peak (old plus new buffer while growing) is at most
+1.5 x the final capacity, plus the inflater's fixed, size-independent working memory (a few tens
+of KB), regardless of the stream's expansion ratio. An overload reports the cumulative
+output-buffer allocation (`out long outputBytesAllocated`), which the tests assert on rather than
+on thread-wide GC counters. A stream that legally inflates to fewer bytes (a TIFF strip) yields a
+shorter view without another copy. Output of exactly `maxOutputBytes` is accepted.
 maximum .NET array length is also rejected with `InvalidDataException`. The trailing Adler-32 is
 validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
 FlateDecode implementation, which is bounded by a fixed global cap instead, since a PDF stream

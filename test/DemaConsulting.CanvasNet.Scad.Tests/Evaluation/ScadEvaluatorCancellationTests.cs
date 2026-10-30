@@ -44,13 +44,16 @@ public class ScadEvaluatorCancellationTests
     {
         // Arrange
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150));
         var settings = new ScadEvaluationSettings
         {
             Cancellation = cts.Token,
             Limits = new ScadLimits { MaxEvaluationSteps = long.MaxValue },
         };
         var sink = new ScadEvaluationSink(ScadLimits.Default);
+
+        // Cancel only once the first echo exists (a fixed delay alone can fire before a cold, slow runner has even
+        // started evaluating, which made this test flaky on macOS CI), then let the endless recursion run briefly
+        CancelAfterOnDedicatedThread(cts, TimeSpan.FromMilliseconds(150), () => sink.EchoLines.Count > 0);
         var started = DateTime.UtcNow;
 
         // Act
