@@ -89,11 +89,14 @@ sections:
                   draw them (as vl-channel-name, the channel being ignored), the temporal and geographic types, and the
                   encoding properties timeUnit, condition, impute, and bandPosition when they change the
                   chart, but not the properties aggregate, stack, and sort (in its supported forms) and the
-                  bin of x and y, which the renderer draws, and no implicit bar stack; shall accept the
+                  bin of x, y, and the channels that have a scale (which the renderer draws), and no implicit
+                  bar stack; shall
+                  accept the
                   secondary channels x2 and y2 of a bar, rect, or rule that has the channel they extend and
                   report them (vl-channel-x2 and vl-channel-y2) for any other mark or without it; shall
                   accept the order channel when it orders a stack and report it (vl-channel-order) otherwise;
-                  and shall report the bin of any other channel (vl-encoding-bin), a bin extent that is a
+                  and shall report the bin of a channel that cannot bin (vl-encoding-bin: a secondary channel and
+                  order) and a bin: "binned" on a channel other than x and y (vl-encoding-bin), a bin extent that is a
                   parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
                   linear (vl-encoding-stack-nonlinear; Vega-Lite does not stack on a log, pow, sqrt, or symlog
                   scale, so such marks are not stacked).
@@ -111,19 +114,22 @@ sections:
                   - FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges
                   - FeatureCatalog_Visit_StackOnANonLinearScaleIsReported
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
+                  - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
                   The FeatureCatalog unit shall report scale types other than linear, log, pow, sqrt, symlog,
-                  sequential, band, point, ordinal, quantile, quantize, and threshold, scale properties outside
-                  the supported set (the properties of the continuous color scales and the base, exponent, and
-                  constant of the log, pow, and symlog scales included), a cubehelix interpolation
+                  sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, scale
+                  properties outside the supported set (the bins property, but not the properties of the
+                  continuous color scales or the base, exponent, and constant of the log, pow, and symlog
+                  scales), a cubehelix interpolation
                   (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
                   properties that the legend builder does not draw (encode, labelExpr, formatType, a title
                   orient other than top, clipHeight, and a custom symbol path), and the guide properties and
                   encode blocks that the axis builder does not honor, shall warn (vl-scale-type-ignored) about
                   a scale type that the channel
-                  or the field type cannot use, and shall not report the continuous color scales, the color
+                  or the field type cannot use (the bin-ordinal type is accepted for a binned quantitative
+                  color only), and shall not report the continuous color scales, the color
                   schemes, the legends (which are drawn), or the properties it does honor (the identifiers
                   vl-scale-color-ramp and vl-guide-legend are retired).
                 justification: |
@@ -132,6 +138,7 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset
                   - FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported
+                  - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
                   - FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported
                   - FeatureCatalog_Visit_CubehelixInterpolationIsReported
                   - FeatureCatalog_Visit_CustomPathShapesAreReported

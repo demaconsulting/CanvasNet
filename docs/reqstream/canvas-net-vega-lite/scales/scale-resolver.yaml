@@ -330,3 +330,30 @@ sections:
                   - ScaleResolver_Resolve_LogDomainThatIncludesZeroFailsWithALocatedError
                   - ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem
                   - ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-BinOrdinal
+                title: >-
+                  The ScaleResolver unit shall resolve the bin-ordinal scale of a binned quantitative color, fill,
+                  or stroke (the default of Vega-Lite, and the one an explicit bin-ordinal type asks for): the
+                  domain is the edges of the bins of the encoding (one more than the bins), the range has one
+                  color per bin from the scheme (ramp by default), the colors of the range or the reversal of the
+                  specification, and a field without a finite value has no edge and no color; shall resolve the
+                  other binned channels as Vega-Lite does (a continuous scale over the start of the first bin to
+                  the stop of the last for a size, opacity, stroke width, or angle, or an explicit continuous
+                  type of a color, and the text of the bins as the categories of an ordinal scale for a nominal
+                  or ordinal field); shall use the default scale type instead of a bin-ordinal type that the
+                  channel, the field type, or a missing bin cannot use; and shall bound the bins by the
+                  scale-domain limit and the work by the evaluation-step budget with a located error.
+                justification: |
+                  A binned color is a classified color; the classes must be the bins that Vega-Lite makes, and a
+                  scale type that cannot be drawn must fall back to the default rather than draw a wrong chart.
+                tests:
+                  - ScaleResolverBin_BinnedColor_DefaultsToBinOrdinalOverTheBinEdges
+                  - ScaleResolverBin_Kind_FollowsTheVegaLiteTypeRulesForBinnedFields
+                  - ScaleResolverBin_ContinuousScales_SpanTheBins
+                  - ScaleResolverBin_BinOrdinal_UsesTheRangeAndTheReversalOfTheSpecification
+                  - ScaleResolverBin_DiscreteBinnedColor_ReadsTheTextOfTheBins
+                  - ScaleResolverBin_FieldWithoutNumbers_HasAnEmptyBinOrdinalScale
+                  - ScaleResolverBin_Limits_AreEnforcedOnTheBinsOfAChannel
+                  - ScaleResolverBin_Work_IsChargedToTheEvaluationBudget
+                  - ScaleResolverColor_AcceptsScaleType_BinOrdinalNeedsABinnedQuantitativeColor

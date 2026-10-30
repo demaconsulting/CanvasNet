@@ -167,3 +167,22 @@ sections:
                   - LegendBuilder_Symbol_LogSizeShowsThePowersWithEvenSizeSteps
                   - LegendBuilder_Gradient_SqrtScalePlacesTheLabelsAlongTheRoot
                   - LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-BinnedLegends
+                title: >-
+                  The LegendBuilder unit shall build the symbol legend of a bin-ordinal scale with one entry per
+                  bin (not per edge) labeled with the range of the bin (the edges formatted and joined with an
+                  en dash, as in Vega; the legend format applies to every edge, and the last of an explicit list
+                  of values reads as at least its value), in the colors of the scale in bin order, titled as a
+                  binned field; shall merge the channels of the same binned field and parameters into one
+                  legend; shall show a binned size with the ticks of its linear scale and a nominal or ordinal
+                  binned field with the text of each bin; and shall charge the scene items before creating them
+                  and observe the cancellation token.
+                justification: |
+                  The key of a binned color must say which values each color stands for, in the form Vega-Lite shows.
+                tests:
+                  - LegendBuilder_Symbol_BinnedColorLabelsTheRangesOfTheBins
+                  - LegendBuilder_Symbol_BinnedColorFormatValuesAndReverseApply
+                  - LegendBuilder_Symbol_BinnedSizeShowsTicksAndOrdinalBinnedOpacityShowsTheBinText
+                  - LegendBuilder_Merge_BinnedChannelsOfTheSameBinShareOneLegend
+                  - LegendBuilder_Limits_BinnedLegendChargesItsItemsAndPollsTheToken

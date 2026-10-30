@@ -405,3 +405,31 @@ measure with a
 log scale is not stacked (the stack is null and the domain is that of the values), a nominal field and a `shape`
 channel keep
 their default scale types, and the color, size, and position channels accept the transform types.
+
+##### Bin-Ordinal Scales And Binned Channels
+
+**Tests**: `ScaleResolverBinTests.ScaleResolverBin_BinnedColor_DefaultsToBinOrdinalOverTheBinEdges`,
+`ScaleResolverBinTests.ScaleResolverBin_Kind_FollowsTheVegaLiteTypeRulesForBinnedFields`,
+`ScaleResolverBinTests.ScaleResolverBin_ContinuousScales_SpanTheBins`,
+`ScaleResolverBinTests.ScaleResolverBin_BinOrdinal_UsesTheRangeAndTheReversalOfTheSpecification`,
+`ScaleResolverBinTests.ScaleResolverBin_DiscreteBinnedColor_ReadsTheTextOfTheBins`,
+`ScaleResolverBinTests.ScaleResolverBin_FieldWithoutNumbers_HasAnEmptyBinOrdinalScale`,
+`ScaleResolverBinTests.ScaleResolverBin_Limits_AreEnforcedOnTheBinsOfAChannel`,
+`ScaleResolverBinTests.ScaleResolverBin_Work_IsChargedToTheEvaluationBudget`,
+`ScaleResolverColorTests.ScaleResolverColor_AcceptsScaleType_BinOrdinalNeedsABinnedQuantitativeColor`
+
+Assert, for the values 3 to 97 with the six-bin default (the step 20 over 0 to 100), that a binned quantitative color
+is a bin-ordinal scale with the six edges 0, 20, ..., 100 as its domain, five different colors, the field
+`bin_maxbins_6_v`, and the bin of a number giving its color (a number below the first edge none, and the last edge the
+first color, as in Vega); that as a theory over channels, field types, and scale types the default kinds follow
+`defaultType` (a binned color, fill, and stroke bin-ordinal; size, opacities, stroke width, and angle linear; shape and
+stroke dash ordinal; a nominal or ordinal field the ordinal scale of the text) and an explicit type is used where
+`channelSupportScaleType` and `scaleTypeSupportDataType` allow it and the default otherwise (the explicit `bin-ordinal`
+of a binned quantitative color is that default, and anywhere else is replaced); that the values 132 to 176 have the
+bins 130 to 180 by 10, so an opacity, a size, and a linear color have the domain 130 to 180 (a size from 0, no nice)
+and a bin-ordinal one six edges; that an explicit range of three colors cycles over five bins and `reverse` turns them
+around, while a scheme `count` is not used; that the text of the bins is the domain of a binned ordinal color; that a
+field without a number has no edge and no color; that a limit on `MaxScaleDomainSize` passes six bins (`maxbins` 6) and
+five bins of a `step` of 20 and fails a lower one with a located error at the `bin` that names the limit; that a step
+budget of 40 stops the bins of 5000 rows; and that `bin-ordinal` is accepted by the question of the feature catalog
+for a binned quantitative color, fill, and stroke only.

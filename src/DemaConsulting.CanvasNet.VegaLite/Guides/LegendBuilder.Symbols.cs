@@ -65,7 +65,8 @@ internal sealed partial class LegendBuilder
             case ScaleKind.BinOrdinal:
                 var edges = model.Thresholds;
                 var bins = explicitValues ?? [.. edges.Take(Math.Max(0, edges.Count - 1)).Select(DataValue.FromNumber)];
-                return new ValueSet(bins, true, edges.Count > 0 ? edges[^1] : double.PositiveInfinity, PointFormat(c, specifier));
+                // Explicit values are a plain list: the last one has no upper edge (Vega's array has no max), so its label is "≥ lo"
+                return new ValueSet(bins, true, explicitValues is null && edges.Count > 0 ? edges[^1] : double.PositiveInfinity, PointFormat(c, specifier));
             default:
                 return new ValueSet(explicitValues ?? [.. model.Domain], false, double.PositiveInfinity, specifier is null ? null : PointFormat(c, specifier));
         }

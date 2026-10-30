@@ -148,3 +148,21 @@ of 2, a third for 10) with the colors of the scale at those values; that a log s
 1,000 with sizes that grow by the same amount per decade; that a square root color legend places 2 and 3 of 1 to 4 at
 `sqrt 2 - 1` and `sqrt 3 - 1` of the bar; and that 28 ticks against a limit of 5 fail with a located error naming the limit
 and a canceled token stops the build.
+
+##### Binned Legends
+
+**Tests**: `LegendBuilderTests.LegendBuilder_Symbol_BinnedColorLabelsTheRangesOfTheBins`,
+`LegendBuilderTests.LegendBuilder_Symbol_BinnedColorFormatValuesAndReverseApply`,
+`LegendBuilderTests.LegendBuilder_Symbol_BinnedSizeShowsTicksAndOrdinalBinnedOpacityShowsTheBinText`,
+`LegendBuilderTests.LegendBuilder_Merge_BinnedChannelsOfTheSameBinShareOneLegend`,
+`LegendBuilderTests.LegendBuilder_Limits_BinnedLegendChargesItsItemsAndPollsTheToken`
+
+Assert that a binned quantitative color (the bins 0 to 100 by 20) draws a symbol legend with five entries (one per bin,
+not per edge) labeled `0 – 20` to `80 – 100`, with the strokes of the five colors of the range and the title
+`q (binned)`; that a format of `.1f` gives `0.0 – 20.0` and so on, that the explicit values 20 and 60 give `20 – 60` and
+`≥ 60` (the label of a value runs to the next value of the list, as in Vega) with the second and fourth colors, and that
+`reverse` turns the colors and not the ranges; that a binned size shows the ticks 0, 20, ..., 100 of its linear scale
+with the sizes of the scale and an ordinal binned opacity the texts of the five bins; that a binned color and a binned
+fill of the same bin share one legend while a binned color and an unbinned fill of the same field are two; and that the
+thirteen items of the legend are charged exactly (a budget of 12 fails naming `MaxSceneItems`) and a canceled token
+stops the build.

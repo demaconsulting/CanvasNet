@@ -213,3 +213,18 @@ sections:
                   - MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap
                   - CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue
                   - CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-BinnedChannels
+                title: >-
+                  The MarkBuilder unit shall draw the marks of a binned field on a color, fill, stroke, size, or other
+                  scale channel with the value of the scale at the start of the bin of the row (the color of the bin
+                  for a bin-ordinal scale, the size of the start of the bin for a linear one), color the bars of a
+                  histogram by the bin they count when the color channel bins the field as the x channel does, charge
+                  the scene items before creating them, and observe the cancellation token.
+                justification: |
+                  The marks are what the reader sees of a binned encoding; each must carry the class of its own bin.
+                tests:
+                  - MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin
+                  - MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin
+                  - MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin
+                  - MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable

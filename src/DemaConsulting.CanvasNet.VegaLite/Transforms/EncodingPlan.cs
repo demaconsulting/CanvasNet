@@ -7,7 +7,7 @@ using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
-///     How a position channel is binned.
+///     How a channel is binned.
 /// </summary>
 internal enum BinKind
 {
@@ -133,8 +133,9 @@ internal sealed record StackPlan(
 ///         (<c>SUM(x)</c>) or <c>plain</c> (the field).
 ///     </para>
 ///     <para>
-///         <b>Differences from Vega-Lite.</b> <c>bin</c> is planned on <c>x</c> and <c>y</c> only (the feature catalog reports it on
-///         the other channels); a count is titled by <c>countTitle</c> in every <c>fieldTitle</c> mode; the aggregate name keeps the
+///         <b>Differences from Vega-Lite.</b> <c>bin</c> is planned on <c>x</c> and <c>y</c> and on the channels that have a scale (<c>color</c>, <c>fill</c>,
+///         <c>stroke</c>, <c>size</c>, the opacities, <c>strokeWidth</c>, <c>strokeDash</c>, <c>shape</c> and <c>angle</c>; the default <c>maxbins</c> of those channels is
+///         Vega-Lite's <c>autoMaxBins</c>), while <c>bin: "binned"</c> is read on <c>x</c> and <c>y</c> only (the feature catalog reports it elsewhere); a count is titled by <c>countTitle</c> in every <c>fieldTitle</c> mode; the aggregate name keeps the
 ///         operation as written (<c>average_x</c>). The class is immutable and safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -356,28 +357,33 @@ internal sealed class EncodingPlan
         string? field2 = null;
         string? valueField = aggregate is null ? source : (aggregate.ArgOutput ?? EscapeName(aggregate.Spec.Name));
         var isPositionChannel = channel is "x" or "y";
-        if (isPositionChannel && StackRules.IsEnabled(definition["bin"]))
+        if ((isPositionChannel || CanBin(channel)) && StackRules.IsEnabled(definition["bin"]))
         {
             var node = definition["bin"]!;
-            if (node is { IsString: true } || node["binned"] is { IsBoolean: true, BoolValue: true })
+            var alreadyBinned = node is { IsString: true } || node["binned"] is { IsBoolean: true, BoolValue: true };
+            if (alreadyBinned)
             {
-                bin = source is null ? BinKind.None : BinKind.Binned;
+                // Data that is binned already has its bin ends in the data: only a position channel reads them
+                bin = source is null || !isPositionChannel ? BinKind.None : BinKind.Binned;
             }
             else if (source is not null && aggregate is null)
             {
                 bin = BinKind.Binning;
                 var discrete = StackRules.TypeOf(definition) is "nominal" or "ordinal";
-                var start = BinStartName(node, source, DefaultPositionMaxBins);
+                var maxBins = AutoMaxBins(channel);
+                var start = BinStartName(node, source, maxBins);
                 if (!bins.TryGetValue(start, out var builder))
                 {
-                    builder = new BinBuilder(start, source, BinSettings.Read(node, DefaultPositionMaxBins), node);
+                    builder = new BinBuilder(start, source, BinSettings.Read(node, maxBins), node);
                     bins[start] = builder;
                 }
 
                 if (discrete && !builder.Discrete)
                 {
+                    // The text of a bin is formatted as the guide of the channel is: the axis of a position, the legend of any other channel
                     builder.Discrete = true;
-                    builder.Format = definition["axis"]?["format"]?.AsString() ?? config.GetString("numberFormat") ?? string.Empty;
+                    var guide = isPositionChannel ? definition["axis"] : definition["legend"];
+                    builder.Format = guide?["format"]?.AsString() ?? config.GetString("numberFormat") ?? string.Empty;
                 }
 
                 valueField = EscapeName(discrete ? start + "_range" : start);
@@ -390,6 +396,28 @@ internal sealed class EncodingPlan
         var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, config);
         return new ChannelPlan(channel, definition, source, valueField, rawField, valueField, field2, bin, binPlan, aggregate?.Spec, false, title);
     }
+
+    /// <summary>
+    ///     Tells whether a channel other than <c>x</c> and <c>y</c> can bin its field: every channel the renderer draws through a scale.
+    /// </summary>
+    /// <param name="channel">The channel name.</param>
+    /// <returns><see langword="true"/> for <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, the opacities, <c>strokeWidth</c>, <c>strokeDash</c>, <c>shape</c> and <c>angle</c>.</returns>
+    internal static bool CanBin(string channel) =>
+        channel is "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "strokeDash" or "shape" or "angle";
+
+    /// <summary>
+    ///     Gets the number of bins Vega-Lite asks for on a channel when the specification gives neither <c>maxbins</c> nor <c>step</c>
+    ///     (its <c>autoMaxBins</c>).
+    /// </summary>
+    /// <param name="channel">The channel name.</param>
+    /// <returns>6 for the color, size, opacity, stroke width and shape channels (a facet and a size should not have too many bins), 4 for the stroke dash
+    /// (there are five dash patterns), else 10.</returns>
+    internal static double AutoMaxBins(string channel) => channel switch
+    {
+        "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "shape" => 6,
+        "strokeDash" => 4,
+        _ => DefaultPositionMaxBins,
+    };
 
     /// <summary>
     ///     Gets the field a channel reads in the Raw table.

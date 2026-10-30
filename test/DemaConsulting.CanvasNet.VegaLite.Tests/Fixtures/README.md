@@ -45,6 +45,9 @@ describe nothing real. They exist to give the tests small, readable charts whose
   size (`weeds`) has a legend of its own.
 - `log-scales.vl.json`: four made-up daily colony counts (12, 95, 1200 and 8000) as bars on a logarithmic y axis, so that
   the domain is rounded out to 10 to 10000 (three decades of 100 pixels in a height of 300) and the bars start at the bottom.
+- `binned-channels.vl.json`: eight made-up daily soil readings (`moisture` from 3 to 97) as circles whose color field is
+  binned, so that the six-bin default gives the bins 0-20 to 80-100 (two, one, two, one and two readings), a bin-ordinal
+  color scale with five explicit colors, and a legend with one entry per bin.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

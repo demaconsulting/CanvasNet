@@ -73,7 +73,6 @@ public class FeatureCatalogTests
                 ("vl-encoding-timeunit", "/encoding/x/timeUnit"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
-                ("vl-encoding-bin", "/encoding/color/bin"),
                 ("vl-scale-type-ignored", "/encoding/color/scale/type"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-theta", "/encoding/theta"),
@@ -535,10 +534,52 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-scale-property-bins", "/encoding/y/scale/bins"),
-                ("vl-scale-bin-ordinal", "/encoding/opacity/scale/type"),
                 ("vl-scale-identity", "/encoding/stroke/scale/type"),
             ],
             ids);
+    }
+
+    /// <summary>
+    ///     Validates that the <c>bin</c> of every channel that has a scale is supported (it reports nothing), that <c>bin: "binned"</c> on such a
+    ///     channel and a bin on a secondary channel are reported, and that the bin-ordinal scale type is supported for a binned quantitative color but warns, with the
+    ///     default type used instead, for a field that is not binned, a nominal field, and a channel Vega-Lite does not give it.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "x": { "field": "a", "type": "quantitative" },
+              "color": { "field": "b", "type": "quantitative", "bin": true, "scale": { "type": "bin-ordinal" } },
+              "fill": { "field": "b", "type": "quantitative", "bin": { "maxbins": 4 }, "scale": { "type": "linear" } },
+              "stroke": { "field": "b", "type": "quantitative", "scale": { "type": "bin-ordinal" } },
+              "size": { "field": "b", "type": "quantitative", "bin": true, "scale": { "type": "bin-ordinal" } },
+              "opacity": { "field": "b", "type": "quantitative", "bin": true },
+              "strokeWidth": { "field": "b", "type": "ordinal", "bin": true },
+              "angle": { "field": "b", "type": "quantitative", "bin": "binned" },
+              "shape": { "field": "b", "type": "nominal", "scale": { "type": "bin-ordinal" } },
+              "fillOpacity": { "field": "b", "type": "nominal", "bin": true, "scale": { "type": "bin-ordinal" } }
+            } }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json, "bins.json"));
+        var secondary = Visit("""{ "mark": "bar", "encoding": { "x": { "field": "a", "type": "quantitative" }, "x2": { "field": "b", "bin": true } } }""");
+
+        // Assert: the bins of the scale channels are silent; the bin-ordinal scale of a binned quantitative color is silent too
+        Assert.Equal(
+            [
+                ("vl-scale-type-ignored", "/encoding/stroke/scale/type"),
+                ("vl-scale-type-ignored", "/encoding/size/scale/type"),
+                ("vl-encoding-bin", "/encoding/angle/bin"),
+                ("vl-scale-type-ignored", "/encoding/shape/scale/type"),
+                ("vl-scale-type-ignored", "/encoding/fillOpacity/scale/type"),
+            ],
+            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Equal(["vl-scale-type-ignored", "vl-scale-type-ignored", "vl-scale-type-ignored", "vl-scale-type-ignored"], reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
+        Assert.Contains("only supported on the x and y channels", reports.Single(r => r.Location.Pointer == "/encoding/angle/bin").Message, StringComparison.Ordinal);
+        Assert.Equal([("vl-encoding-bin", "/encoding/x2/bin")], secondary);
     }
 
     /// <summary>
@@ -1169,9 +1210,9 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: bin on a channel other
-    ///     than x and y, a bin extent that is a parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
-    ///     impute of a channel, and a stack on a scale that is not linear.
+    ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: a bin extent that is a
+    ///     parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
+    ///     impute of a channel, and a stack on a scale that is not linear (the bin of a color channel is supported).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre()
@@ -1191,11 +1232,10 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: x2 draws a range and the order channel orders the stack of y; only the binned scale parts are reported
+        // Assert: x2 draws a range and the order channel orders the stack of y; the bin of the color channel is supported, and only the extent parameter is reported
         Assert.Equal(
             [
                 ("vl-encoding-bin-extent-param", "/encoding/x/bin/extent"),
-                ("vl-encoding-bin", "/encoding/color/bin"),
             ],
             ids);
     }

@@ -431,4 +431,84 @@ public class MarkBuilderChannelTests
         Assert.Equal(4, first.Count);
         Assert.Equal(3, first.Select(s => s.Shape).Distinct().Count());
     }
+
+    /// <summary>Eight rows with the numbers <c>v</c> from 3 to 97 (the bins 0-20 to 80-100 hold 2, 1, 2, 1 and 2 of them) and <c>q</c> from 1 to 8.</summary>
+    private const string RowsBins = "[ { \"q\": 1, \"v\": 3 }, { \"q\": 2, \"v\": 12 }, { \"q\": 3, \"v\": 27 }, { \"q\": 4, \"v\": 41 }, { \"q\": 5, \"v\": 58 }, { \"q\": 6, \"v\": 66 }, { \"q\": 7, \"v\": 83 }, { \"q\": 8, \"v\": 97 } ]";
+
+    /// <summary>
+    ///     Validates the marks of a binned color: a bin-ordinal scale gives each mark the color of the bin of its value (the first two rows share the first
+    ///     bin, the fourth and fifth the third, the last two the fifth), as a fill for a filled mark and a stroke for an unfilled one.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin()
+    {
+        // Arrange: the values 3 to 97 have the six-bin default step 20 (edges 0 to 100), five colors of the range
+        const string color = "\"color\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": true, \"scale\": { \"range\": [\"#ff0000\", \"#ffa500\", \"#ffff00\", \"#00ff00\", \"#0000ff\"] } }";
+
+        // Act
+        var filled = Symbols("{ \"type\": \"circle\" }", color, RowsBins);
+        var outlined = Symbols("\"point\"", color, RowsBins);
+
+        // Assert
+        string[] expected = ["#ff0000", "#ff0000", "#ffa500", "#ffff00", "#ffff00", "#00ff00", "#0000ff", "#0000ff"];
+        Assert.Equal(expected, filled.Select(s => s.Fill));
+        Assert.Equal(expected, outlined.Select(s => s.Stroke));
+        Assert.All(outlined, s => Assert.Equal("transparent", s.Fill));
+    }
+
+    /// <summary>
+    ///     Validates the size of a binned field: the marks use the start of the bin as the value of a linear scale over the bins (0 to 100, with the zero rule
+    ///     of a size), so the values 3 and 12 both give the size at 0, 27 the size at 20 and so on, over the size range 4 to 361 of a point.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin()
+    {
+        // Act
+        var points = Symbols("\"point\"", "\"size\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": true }", RowsBins);
+
+        // Assert: size = 4 + 357 * start / 100 for the starts 0, 0, 20, 40, 40, 60, 80, 80
+        Assert.Equal(R(new[] { 0.0, 0, 20, 40, 40, 60, 80, 80 }.Select(start => 4 + (357 * start / 100))), R(points.Select(s => s.Size)));
+    }
+
+    /// <summary>
+    ///     Validates a histogram whose bars are colored by the bin they count: the bin of <c>x</c> and the bin of <c>color</c> are the same, so the five bars
+    ///     take the five colors in bin order.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin()
+    {
+        // Arrange
+        const string encoding = "\"x\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": { \"maxbins\": 5 } }, \"y\": { \"aggregate\": \"count\", \"type\": \"quantitative\" }, \"color\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": { \"maxbins\": 5 }, \"scale\": { \"range\": [\"#ff0000\", \"#ffa500\", \"#ffff00\", \"#00ff00\", \"#0000ff\"] } }";
+        var json = "{ \"width\": 100, \"height\": 100, \"data\": { \"values\": " + RowsBins + " }, \"mark\": \"bar\", \"encoding\": { " + encoding + " } }";
+
+        // Act
+        var bars = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(json, 100, 100), "mark-bar");
+
+        // Assert: five bars (the five bins), in bin order, filled with the colors of the bins; the counts 2, 1, 2, 1, 2 give the heights on the domain 0 to 2, and each
+        // bar spans its bin of 20 pixels less the bin spacing of 1 (the bar starts one pixel in and ends 20 - 1 = 19 pixels wide)
+        Assert.Equal(["#ff0000", "#ffa500", "#ffff00", "#00ff00", "#0000ff"], bars.Select(b => b.Fill));
+        Assert.Equal(R([100.0, 50, 100, 50, 100]), R(bars.Select(b => b.Height)));
+        Assert.Equal(R([1.0, 21, 41, 61, 81]), R(bars.Select(b => b.X)));
+        Assert.Equal(R([19.0, 19, 19, 19, 19]), R(bars.Select(b => b.Width)));
+    }
+
+    /// <summary>
+    ///     Validates that the marks of a binned color are charged to the scene budget before they are created and that a canceled token stops the build.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable()
+    {
+        // Arrange
+        var json = Spec("\"point\"", "\"color\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": true }", RowsBins);
+        var parts = ChartTestHelpers.Parts(json);
+        var builder = new MarkBuilder(parts.Config, budget: new SceneBudget(4), sourceName: parts.Tree.SourceName);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act / Assert: one item for the group and eight marks exceed a budget of four; a canceled token stops the marks
+        var ex = Assert.Throws<VegaLiteRenderException>(() => builder.Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken));
+        Assert.Contains("MaxSceneItems", ex.Message, StringComparison.Ordinal);
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            new MarkBuilder(parts.Config, sourceName: parts.Tree.SourceName).Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, canceled.Token));
+    }
 }

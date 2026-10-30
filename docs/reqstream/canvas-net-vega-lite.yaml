@@ -605,6 +605,29 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_LogScale_ColorLegendLabelsThePowers
           - CanvasNetVegaLite_SystemIntegration_LogScale_LimitsCancellationAndDeterminismApply
 
+      - id: CanvasNetVegaLite-BinnedChannels
+        title: >-
+          The library shall bin a quantitative, nominal, or ordinal field on the color, fill, stroke, size, opacity,
+          stroke width, stroke dash, shape, and angle channels as Vega-Lite does (its default numbers of bins, the bins
+          shared with the other channels that bin the field the same way), give a binned quantitative color the
+          bin-ordinal scale with one color per bin, draw each mark in the class of its bin, and explain the bins with
+          a legend whose entries are the ranges of the bins, under the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A binned color or size is how a continuous measure is classified in a chart; the classes and their key must be
+          those of Vega-Lite so that the chart reads the same.
+        children:
+          - CanvasNetVegaLite-Transforms-EncodingPlan-BinnedChannels
+          - CanvasNetVegaLite-Scales-ScaleResolver-BinOrdinal
+          - CanvasNetVegaLite-Guides-LegendBuilder-BinnedLegends
+          - CanvasNetVegaLite-Marks-MarkBuilder-BinnedChannels
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_CirclesTakeTheColorOfTheirBinAndTheLegendListsTheRanges
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_HistogramBarsAreColoredByTheirOwnBin
+          - CanvasNetVegaLite_SystemIntegration_BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_DiagnosticsAreLocated
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_LimitsCancellationAndDeterminismApply
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

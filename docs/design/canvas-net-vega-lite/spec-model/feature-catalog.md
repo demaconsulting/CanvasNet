@@ -49,7 +49,9 @@ other names taken from the specification (the message keeps the function name as
 those constructs are supported and absent from the
 result; so are `vl-encoding-aggregate` and `vl-encoding-stack` (and the report of an implicit bar stack), because
 `aggregate`, `stack`, and `bin` on `x` and `y` are computed. The phase 6 identifiers are `vl-encoding-bin` (now only for
-a channel other than `x` and `y`), `vl-encoding-bin-extent-param` and `vl-transform-bin-extent-param` (a bin extent that
+a `bin: "binned"` on a channel other than `x` and `y`, and for a `bin` on a channel that cannot bin: `order` and the
+secondary channels; the other channels that have a scale bin from the data since phase 7), `vl-encoding-bin-extent-param`
+and `vl-transform-bin-extent-param` (a bin extent that
 is a parameter; the
 extent of the data is used), `vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
 linear; the marks of a log, pow, sqrt, or symlog scale are not stacked, because Vega-Lite does not stack on
@@ -95,8 +97,10 @@ catalog never produces them).
   has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; `order` is accepted when it
   orders a stack, decided lazily by `StackRules.Decide` with the orientation of `ScaleResolver.InferOrient` (so the
   catalog and the encoding plan agree), and reports `vl-channel-order` otherwise; `VisitBin` reports `vl-encoding-bin`
-  for a `bin` on any channel but `x` and `y` and `vl-encoding-bin-extent-param` for an extent that is a parameter;
-  `VisitStack` reports `vl-encoding-stack-nonlinear`; `aggregate`, `bin` on `x` and `y`, and `stack` are otherwise
+  for a `bin` on a channel that cannot bin (`BinnedChannels` holds `x`, `y`, and the channels that have a scale) and for
+  a `bin: "binned"` on any channel but `x` and `y` (`IsBinning` tells the bins of the data from the data that is binned
+  already), and `vl-encoding-bin-extent-param` for an extent that is a parameter;
+  `VisitStack` reports `vl-encoding-stack-nonlinear`; `aggregate`, `bin` on the channels that bin, and `stack` are otherwise
   supported and never reported; `sort` is reported as `vl-encoding-sort` when `SpecParser.IsSupportedSort` rejects it (a
   channel shorthand or an `encoding` that names a channel without a field or an aggregate, or an `op` of `values` or an
   exponential operation); the message of a missing channel names it (`SpecParser.TryGetSortChannel`: "The sort refers to
@@ -112,13 +116,15 @@ catalog never produces them).
 - The phase 7 rules: `SupportedChannels` also holds `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`,
   `strokeOpacity`, and `angle`, but a `shape`, `angle`, or `strokeDash` channel is reported (`vl-channel-<name>`) and
   ignored for a mark that does not draw it (`ScaleResolver.ChannelIsDrawn`). `SupportedScaleTypes` also holds
-  `sequential`, `quantile`, `quantize`, and `threshold`, and `SupportedScaleProperties` also `domainMid`, `domainMin`,
+  `sequential`, `quantile`, `quantize`, `threshold`, and `bin-ordinal` (the `vl-scale-bin-ordinal` identifier is retired),
+  and `SupportedScaleProperties` also `domainMid`, `domainMin`,
   `domainMax`, `rangeMin`, `rangeMax`, and `interpolate`; `scheme` is never reported (an unknown name is a specification
   error of the scale resolver), so the retired identifier `vl-scale-color-ramp` is no longer produced. `VisitScale`
   reports `vl-scale-interpolate-cubehelix` for the two cubehelix interpolation types, and `VisitShapeName` reports
   `vl-shape-path` for a shape that `ScaleResolver.IsKnownShape` does not know (the `shape` of a mark, the `value` of a
   `shape` channel, and the entries of its `scale.range`). `VisitScaleType` warns `vl-scale-type-ignored` when a
-  supported `scale.type` is not accepted for the channel and the field type (`ScaleResolver.AcceptsScaleType`, the rule
+  supported `scale.type` is not accepted for the channel and the field type (`ScaleResolver.AcceptsScaleType`, which
+  also takes whether the encoding bins the field: `bin-ordinal` is accepted for a binned quantitative color only; the rule
   the resolver replaces it by the default type with) and for a quantitative field on a `shape` or `strokeDash` channel
   that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Legends are drawn, so the
   identifier `vl-guide-legend` is retired: `VisitLegend` visits the `legend` object of a field-driven channel and reports

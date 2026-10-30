@@ -799,7 +799,8 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, out var transformKind);
+        var binning = plan is { Bin: BinKind.Binning } && type == "quantitative";
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, out var transformKind);
         var location = definition.GetLocation(context.SourceName);
         var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind);
         return kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.BinOrdinal
@@ -864,9 +865,10 @@ internal static partial class ScaleResolver
     /// <param name="type">The field type.</param>
     /// <param name="specified">The explicit <c>scale.type</c>, or null.</param>
     /// <param name="markType">The mark type.</param>
+    /// <param name="binning">Whether the encoding bins the quantitative field (a binned color gets the bin-ordinal scale by default).</param>
     /// <param name="transformKind">Receives the transform of the scale: log, pow (also for sqrt) or symlog for the matching explicit type, else linear.</param>
     /// <returns>The kind.</returns>
-    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, out ScaleTransformKind transformKind)
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, out ScaleTransformKind transformKind)
     {
         var group = GroupOf(channel);
         transformKind = ScaleTransformKind.Linear;
@@ -877,7 +879,7 @@ internal static partial class ScaleResolver
         {
             defaultKind = group switch
             {
-                ChannelGroup.Color => ScaleKind.Sequential,
+                ChannelGroup.Color => binning ? ScaleKind.BinOrdinal : ScaleKind.Sequential,
                 ChannelGroup.Discrete => ScaleKind.Ordinal,
                 _ => ScaleKind.Linear,
             };
@@ -895,7 +897,7 @@ internal static partial class ScaleResolver
             defaultKind = ScaleKind.Point;
         }
 
-        if (!TryParseKind(specified, group, out var requested, out var requestedTransform) || !Accepts(group, type, requested))
+        if (!TryParseKind(specified, group, out var requested, out var requestedTransform) || !Accepts(group, type, requested, binning))
         {
             return defaultKind;
         }
@@ -951,6 +953,9 @@ internal static partial class ScaleResolver
             case "threshold":
                 kind = ScaleKind.Threshold;
                 return true;
+            case "bin-ordinal":
+                kind = ScaleKind.BinOrdinal;
+                return true;
             default:
                 kind = default;
                 return false;
@@ -963,21 +968,27 @@ internal static partial class ScaleResolver
     /// <param name="group">The group of the channel.</param>
     /// <param name="type">The field type.</param>
     /// <param name="kind">The requested kind.</param>
+    /// <param name="binning">Whether the encoding bins the field: the bin-ordinal scale needs bins to place the values in.</param>
     /// <returns><see langword="true"/> when both the channel and the field type accept the kind.</returns>
-    private static bool Accepts(ChannelGroup group, string type, ScaleKind kind)
+    /// <remarks>
+    ///     The bin-ordinal scale is accepted for a binned quantitative field of a color channel only. Vega-Lite also lets a nominal or
+    ///     ordinal field ask for it, but then the field is the text of the bin, which no bin-ordinal scale can place; the default scale is used for that
+    ///     (and for a field that is not binned, which has no bins to place values in).
+    /// </remarks>
+    private static bool Accepts(ChannelGroup group, string type, ScaleKind kind, bool binning)
     {
         var discretizing = kind is ScaleKind.Quantile or ScaleKind.Quantize or ScaleKind.Threshold;
         var channelAccepts = group switch
         {
             ChannelGroup.Position => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point,
-            ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal || discretizing,
+            ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal or ScaleKind.BinOrdinal || discretizing,
             ChannelGroup.Discrete => kind == ScaleKind.Ordinal || discretizing,
             _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal || discretizing,
         };
 
         // A quantitative field takes the continuous and the discretizing scales, a nominal or ordinal field the discrete ones
         var typeAccepts = type == "quantitative"
-            ? kind is ScaleKind.Linear or ScaleKind.Sequential || discretizing
+            ? kind is ScaleKind.Linear or ScaleKind.Sequential || discretizing || (kind == ScaleKind.BinOrdinal && binning)
             : kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal;
         return channelAccepts && typeAccepts;
     }
@@ -989,14 +1000,15 @@ internal static partial class ScaleResolver
     /// <param name="channel">The channel name.</param>
     /// <param name="fieldType">The field type (<c>quantitative</c>, <c>nominal</c> or <c>ordinal</c>).</param>
     /// <param name="scaleType">The scale type name.</param>
+    /// <param name="binned">Whether the encoding bins the field (<c>bin</c> is true or an object, not <c>"binned"</c>).</param>
     /// <returns><see langword="true"/> when the type is one this package draws and both the channel and the field type accept it; <see langword="false"/> for any other type, whether Vega-Lite rejects it or this package does not draw it yet.</returns>
-    public static bool AcceptsScaleType(string channel, string fieldType, string scaleType)
+    public static bool AcceptsScaleType(string channel, string fieldType, string scaleType, bool binned = false)
     {
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(fieldType);
         ArgumentNullException.ThrowIfNull(scaleType);
         var group = GroupOf(channel);
-        return TryParseKind(scaleType, group, out var kind, out _) && Accepts(group, fieldType, kind);
+        return TryParseKind(scaleType, group, out var kind, out _) && Accepts(group, fieldType, kind, binned && EncodingPlan.CanBin(channel));
     }
 
     /// <summary>
@@ -1258,6 +1270,11 @@ internal static partial class ScaleResolver
     private static ResolvedScale? BuildDiscrete(CommonInputs input, ScaleKind kind, Context context)
     {
         var isPosition = input.Channel is "x" or "y";
+        if (kind == ScaleKind.BinOrdinal)
+        {
+            return BuildBinOrdinal(input, context);
+        }
+
         var domain = DiscreteDomain(input, context);
 
         // The output values (which also decide whether the channel has a scale at all)
@@ -1295,6 +1312,74 @@ internal static partial class ScaleResolver
             ExplicitRange = outputs.ExplicitRange,
             RangeMin = kind is ScaleKind.Band or ScaleKind.Point ? input.ScaleDef?["rangeMin"]?.AsNumber() : null,
             RangeMax = kind is ScaleKind.Band or ScaleKind.Point ? input.ScaleDef?["rangeMax"]?.AsNumber() : null,
+            ValueRange = outputs.ValueRange,
+            NumberRange = outputs.Numbers,
+            ColorRange = outputs.Colors,
+            ShapeRange = outputs.Shapes,
+            DashRange = outputs.Dashes,
+        };
+    }
+
+    /// <summary>
+    ///     Builds a bin-ordinal scale: the colors of the bins of a binned quantitative field (Vega's <c>scaleBinOrdinal</c>).
+    /// </summary>
+    /// <remarks>
+    ///     The domain is the edges of the bins the encoding computed (Vega-Lite hands the scale the <c>bins</c> of the bin transform; the scale builds
+    ///     <c>sequence(start, stop + step / 2, step)</c> from them), so there is one more edge than there are bins and one color per bin. A field without a
+    ///     finite value has no bins, so the scale has no edge and no color, and no mark gets a color from it. An explicit <c>scale.domain</c> is not used, as in
+    ///     Vega-Lite, where the domain comes from the bins.
+    /// </remarks>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the bins are more than the scale domain limit; carries the location.</exception>
+    private static ResolvedScale? BuildBinOrdinal(CommonInputs input, Context context)
+    {
+        var edges = new List<double>();
+        BinSpec? binSpec = null;
+        if (input.Plan is { BinPlan: { } bins } && context.Data.Bins.TryGetValue(bins.StartName, out var spec))
+        {
+            binSpec = spec;
+            var step = spec.Step;
+            var limit = spec.Stop + (step / 2);
+            for (var edge = spec.Start; edge < limit; edge = spec.Start + (edges.Count * step))
+            {
+                if (edges.Count % CancellationInterval == 0)
+                {
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                }
+
+                edges.Add(edge);
+                // One more edge than there are bins; the bins were bounded by the limit already, so this only guards the arithmetic of the loop
+                if (edges.Count > context.Limits.MaxScaleDomainSize + 1)
+                {
+                    throw new VegaLiteRenderException(
+                        $"The {input.Channel} scale has more than {context.Limits.MaxScaleDomainSize} bins, the limit (MaxScaleDomainSize).",
+                        input.Location);
+                }
+            }
+        }
+
+        if (ResolveOutputs(input, ScaleKind.BinOrdinal, edges.Count, context) is not { } outputs)
+        {
+            return null;
+        }
+
+        return new ResolvedScale
+        {
+            Channel = input.Channel,
+            Kind = ScaleKind.BinOrdinal,
+            FieldPath = input.FieldPath,
+            Title = input.Plan?.Title,
+            Bin = input.Plan?.Bin ?? BinKind.None,
+            BinSpec = binSpec,
+            DataType = input.Type,
+            Location = input.Location,
+            DomainStart = edges.Count > 0 ? edges[0] : 0,
+            DomainEnd = edges.Count > 0 ? edges[^1] : 0,
+            Domain = [.. edges],
+            Reverse = input.ScaleDef?["reverse"]?.AsBool() ?? false,
+            ExplicitRange = outputs.ExplicitRange,
             ValueRange = outputs.ValueRange,
             NumberRange = outputs.Numbers,
             ColorRange = outputs.Colors,

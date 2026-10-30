@@ -708,6 +708,45 @@ sticks out; a `titleOrient` of `left` is reported once with its location and sto
 the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
 in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
 
+### Log, Pow, Sqrt, And Symlog Scales: Positions, Ticks, Legends, Limits, And Determinism
+
+**Tests**: `VegaLiteScaleIntegrationTests.CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue`,
+`..._LogScale_ZeroInTheDataIsALocatedErrorAndSymlogDrawsIt`,
+`..._SqrtAndSymlogScales_PointsSitAtTheTransformedPositions`, `..._LogScale_ColorLegendLabelsThePowers`,
+`..._LogScale_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `log-scales.vl.json` and small inline specifications, and asserts hand-derived numbers from
+the scale formulas: four bars of 12, 95, 1200, and 8000 on a log axis rounded out to 10 to 10000 (100 pixels per decade)
+reach `300 - 100 * (log10(v) - 1)` and end at the bottom, the axis has 28 ticks and the ten labels that d3's log rule
+keeps, and the bars are painted over the grid; data that reaches zero is a located `VegaLiteRenderException` that names
+the symlog scale while a symlog scale draws the same data with the zero bar flat; points on a square root x scale and a
+symlog y scale sit at the formula positions with the ordinary ticks; a log color scale has a gradient legend labeled with
+the powers a third of the bar apart and reports nothing in strict mode; and a tick limit of 5 against the 28 ticks fails
+with the name of the limit, a limit of exactly 28 renders, a canceled token stops the render, and repeated and
+concurrent renders are byte-identical.
+
+### Binned Channels: Bin-Ordinal Colors, Range Legends, Limits, And Determinism
+
+**Tests**: `VegaLiteBinnedChannelIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinnedColor_CirclesTakeTheColorOfTheirBinAndTheLegendListsTheRanges`,
+`..._BinnedColor_HistogramBarsAreColoredByTheirOwnBin`,
+`..._BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel`, `..._BinnedColor_DiagnosticsAreLocated`,
+`..._BinnedColor_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `binned-channels.vl.json` (eight readings from 3 to 97 with a binned color) and small inline
+specifications, and asserts hand-derived numbers from Vega's bin algorithm (the step 20 over 0 to 100): the circles sit
+at 25 pixels a day and 20 pixels a unit, are filled with the color of their bin (the first two readings share the first
+color, 41 and 58 the third, 83 and 97 the last), and are painted in those colors over the white background at the
+opacity of 0.7; the legend is a symbol legend of five entries labeled `0 – 20` to `80 – 100`, titled
+`moisture (binned)`, in strict mode and without a warning, with the colors confirmed by pixels; a histogram whose color
+bins the field as its x axis does has five bars of 39 pixels at 1, 41, ..., 161 with the counts 2, 1, 2, 1, and 2 in the
+colors of their bins, a bin axis of 0 to 100 by 20, and a count axis of 0 to 2; a binned size sizes the points by the
+start of the bin (`4 + 357 * start / 100`) and has the legend ticks 0 to 100 by 20, and an ordinal binned opacity lists
+the text of the bins; `bin: "binned"` on a color is reported with its location (and stops a strict render there) while
+an explicit `bin-ordinal` on a field that is not binned is a located warning that leaves the gradient; and a
+`MaxScaleDomainSize` of 5 fails at the `bin` while 6 renders, the exact scene count renders and one less fails naming
+`MaxSceneItems`, a canceled token stops the render, and repeated and
+concurrent renders are byte-identical.
+
 ### Limits: Chart Failures Carry Locations
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations`

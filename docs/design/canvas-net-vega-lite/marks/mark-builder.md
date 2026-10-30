@@ -126,7 +126,11 @@ has no
   position (`ScaleModel.Map` gives null), so the mark is not drawn instead of being placed at a position that is not a
   number, and the bars of a log axis start at the start of the domain (`ZeroOrMin`) and are not stacked; a null in a
   discrete field is the category `null` and is drawn; a value outside an explicit discrete domain
-  is not drawn by a position scale and gets the default (no color) from an ordinal color scale.
+  is not drawn by a position scale and gets the default (no color) from an ordinal color scale. A binned field reads
+  the **start of the bin** from the table (the field the plan names), so the marks of one bin share the value of the
+  scale: a bin-ordinal scale gives the color of the bin (a start below the first edge, or a null start, gets none), a
+  linear scale the size or opacity of the start; the bars of a histogram whose `color` bins the field as `x` does take
+  the color of their own bin.
 
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the
 **Main** table of

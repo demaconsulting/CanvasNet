@@ -64,7 +64,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
 ///         <item><term><c>vl-encoding-timeunit</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
-///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel other than <c>x</c> and <c>y</c>, unless it is false or null (binning on the other channels needs the binned scale types of a later phase). <c>aggregate</c>, <c>bin</c> (on <c>x</c> and <c>y</c>), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
+///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
 ///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
 ///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; Vega-Lite does not stack on a log, pow, sqrt or symlog scale, so those marks are not stacked, and any other type is stacked on the linear scale.</description></item>
 ///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported. The message names the channel that the sort refers to when that is the problem (the sort stays a report, not a specification error, because a channel can come from a parent encoding after normalization).</description></item>
@@ -115,11 +115,14 @@ internal static class FeatureCatalog
     /// <summary>The marks that draw a range between a position and its secondary channel (<c>x2</c> and <c>y2</c>).</summary>
     private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule"];
 
-    /// <summary>The channels on which <c>bin</c> is applied (every other channel needs a scale type of a later phase).</summary>
-    private static readonly HashSet<string> BinnedChannels = ["x", "y"];
+    /// <summary>The channels on which <c>bin</c> is applied: the position channels and every channel that has a scale (a <c>bin: "binned"</c> is read on the position channels only).</summary>
+    private static readonly HashSet<string> BinnedChannels =
+    [
+        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle",
+    ];
 
     /// <summary>The scale types that the renderer implements.</summary>
-    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "log", "pow", "sqrt", "symlog", "sequential", "band", "point", "ordinal", "quantile", "quantize", "threshold"];
+    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "log", "pow", "sqrt", "symlog", "sequential", "band", "point", "ordinal", "quantile", "quantize", "threshold", "bin-ordinal"];
 
     /// <summary>The scale types that order categories (a quantitative field with one of them is not on a continuous scale).</summary>
     private static readonly HashSet<string> DiscreteScaleTypes = ["band", "point", "ordinal", "bin-ordinal", "quantile", "quantize", "threshold"];
@@ -683,6 +686,14 @@ internal static class FeatureCatalog
             && !(definition["scale"]?["type"] is { IsString: true } scaleType && DiscreteScaleTypes.Contains(scaleType.StringValue!));
 
         /// <summary>
+        ///     Determines whether a channel definition asks the encoding to bin its field (<c>bin</c> true or an object, not <c>"binned"</c>).
+        /// </summary>
+        /// <param name="definition">The channel definition object.</param>
+        /// <returns><see langword="true"/> when the bins are computed from the data.</returns>
+        private static bool IsBinning(SpecNode definition) =>
+            definition["bin"] is { } bin && IsEnabled(bin) && !(bin.IsString || bin["binned"] is { IsBoolean: true, BoolValue: true });
+
+        /// <summary>
         ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
         /// </summary>
         /// <param name="name">The channel name.</param>
@@ -696,7 +707,11 @@ internal static class FeatureCatalog
 
             if (!BinnedChannels.Contains(name))
             {
-                Unsupported("vl-encoding-bin", $"Binning is only supported on the x and y channels, not on '{name}' (it needs the binned scale types of a later phase).", bin);
+                Unsupported("vl-encoding-bin", $"Binning is not supported on the '{name}' channel; it bins the x and y channels and the channels that have a scale.", bin);
+            }
+            else if (name is not ("x" or "y") && (bin is { IsString: true } || bin["binned"] is { IsBoolean: true, BoolValue: true }))
+            {
+                Unsupported("vl-encoding-bin", $"A field that is binned already (bin: \"binned\") is only supported on the x and y channels, not on '{name}'.", bin);
             }
             else if (bin is { IsObject: true } && bin["extent"] is { IsObject: true } extent)
             {
@@ -711,7 +726,7 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitStack(string name, SpecNode definition)
         {
-            if (!BinnedChannels.Contains(name) || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
+            if (name is not ("x" or "y") || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
             {
                 return;
             }
@@ -820,7 +835,7 @@ internal static class FeatureCatalog
 
             if (definition["scale"]?["type"] is { IsString: true } scaleType)
             {
-                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldType.StringValue, scaleType.StringValue!))
+                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldType.StringValue, scaleType.StringValue!, IsBinning(definition)))
                 {
                     Warn(
                         "vl-scale-type-ignored",

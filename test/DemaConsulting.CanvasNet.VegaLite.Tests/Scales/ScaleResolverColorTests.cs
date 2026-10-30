@@ -695,6 +695,31 @@ public class ScaleResolverColorTests
     }
 
     /// <summary>
+    ///     Validates that the bin-ordinal scale type is accepted for a binned quantitative field of a color channel only: not without a bin (there are no bins to
+    ///     place values in), not for a nominal field (which reads the text of its bin), and not for the other channels, which Vega-Lite does not give it.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="type">The field type.</param>
+    /// <param name="binned">Whether the encoding bins the field.</param>
+    /// <param name="expected">Whether the type is accepted.</param>
+    [Theory]
+    [InlineData("color", "quantitative", true, true)]
+    [InlineData("fill", "quantitative", true, true)]
+    [InlineData("stroke", "quantitative", true, true)]
+    [InlineData("color", "quantitative", false, false)]
+    [InlineData("color", "nominal", true, false)]
+    [InlineData("color", "ordinal", true, false)]
+    [InlineData("size", "quantitative", true, false)]
+    [InlineData("opacity", "quantitative", true, false)]
+    [InlineData("shape", "quantitative", true, false)]
+    [InlineData("x", "quantitative", true, false)]
+    public void ScaleResolverColor_AcceptsScaleType_BinOrdinalNeedsABinnedQuantitativeColor(string channel, string type, bool binned, bool expected)
+    {
+        // Act / Assert
+        Assert.Equal(expected, ScaleResolver.AcceptsScaleType(channel, type, "bin-ordinal", binned));
+    }
+
+    /// <summary>
     ///     Validates the argument checks of the scale type question and of the per-mark channel rule.
     /// </summary>
     [Fact]

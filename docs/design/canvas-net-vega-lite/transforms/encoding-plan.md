@@ -52,8 +52,10 @@ Measure, IsStacked, Title)` - one definition and what the pipeline makes of it:
 when used as paths):
 
 - bin: `bin` followed by `_name_value` for every parameter of the bin object **in the order written**, with
-  every character that is not a letter, a digit, or an underscore replaced by an underscore, then `maxbins_10`
-  when the parameters give neither `maxbins` nor `step`, then `_` and the field: `bin_maxbins_10_x`,
+  every character that is not a letter, a digit, or an underscore replaced by an underscore, then `maxbins_N`
+  when the parameters give neither `maxbins` nor `step` (`N` is Vega-Lite's `autoMaxBins` of the channel: 10 for a
+  position channel and for `angle`, 6 for `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, and
+  `shape`, and 4 for `strokeDash`), then `_` and the field: `bin_maxbins_10_x`, `bin_maxbins_6_x`,
   `bin_maxbins_20_x`, `bin_step_5_x`. The upper boundary adds `_end` and the text of a bin on a discrete channel
   adds `_range`. A bin is shared by the channels that name the same field and parameters, and computed once.
 - aggregate: `sum_x` (the operation as written, so `average_x`, not `mean_x`), `__count` for a count,
@@ -71,7 +73,8 @@ titles only).
 **`BinPlan`** `(StartName, EndName, RangeName, SourceField, Settings, Node, Format)`: the three literal names
 (the range name only when a discrete channel shows the bin as text), the `BinSettings`, the `bin` value that
 located the first request, and the number format of the boundaries in the text (the `axis.format` of the first
-discrete channel, else `config.numberFormat`, else the default specifier).
+discrete position channel or the `legend.format` of the first discrete channel of another kind, else
+`config.numberFormat`, else the default specifier).
 
 **`AggregatePlan`** `(GroupBy, Measures, ArgFields)`: the group-by is **every other field definition of every
 channel** (array channels element by element; a definition that has no field contributes nothing; a binned
@@ -107,10 +110,14 @@ is read from the clock, the environment, or the current culture.
   the bin, the fields, the title), shares the bins by start name, applies `StackRules` and plans the stack
   (marking the stacked channel: its `FieldPath` becomes the end and its `Field2Path` the start), links each `x`
   and `y` to its secondary channel (`LinkRanges`: not for a stacked channel and not for a bin the encoding
-  computes), then plans the aggregate and decides `NeedsRaw`. A `bin` is planned on `x` and `y` only, only for a
-  definition that has a field and does not aggregate; the other channels keep reporting `vl-encoding-bin`. A
-  nominal or ordinal binned channel reads the `_range` field and has no second field.
-- `EncodingPlan.BinStartName(bin, field, defaultMaxBins)` - the literal name rule above.
+  computes), then plans the aggregate and decides `NeedsRaw`. A `bin` is planned on `x`, `y`, and the channels that
+  have a scale (`CanBin`: `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`,
+  `shape`, and `angle`), only for a definition that has a field and does not aggregate; `bin: "binned"` is read
+  on `x` and `y` only, and the other channels keep reporting `vl-encoding-bin` for it. A
+  nominal or ordinal binned channel reads the `_range` field and has no second field; a quantitative one reads the
+  start and has the end as its second field, which the scale resolver uses to find the bins.
+- `EncodingPlan.BinStartName(bin, field, defaultMaxBins)` - the literal name rule above; `EncodingPlan.AutoMaxBins(channel)`
+  gives the default number of bins of a channel.
 - `EncodingTransforms.Apply(plan, table, context)` (static) - requires non-null arguments; returns
   `EncodingData.Identity` for an identity plan; otherwise runs the stages in **Vega-Lite's order: explicit
   transforms (done by the caller), bin, Raw, aggregate, stack, Main**:
@@ -144,7 +151,7 @@ rows of the tables that are alive, and the explicit-transform tables that are no
 
 #### Error Handling
 
-The plan never fails for a valid specification: a construct it cannot plan (a bin on another channel, a measure
+The plan never fails for a valid specification: a construct it cannot plan (a `bin: "binned"` on another channel, a measure
 without a field, an operation that is not an aggregate) is skipped and is the feature catalog's to report. The
 execution reports everything that depends on the data as a `VegaLiteRenderException` located at the construct
 that asked for it - the `bin` value (a bin count above `MaxScaleDomainSize`, an extent that cannot be binned, a
@@ -153,8 +160,8 @@ definition - with the limit named in the message, as _AggregateTransforms_ does;
 of the engines is converted with the same message. A canceled token is an `OperationCanceledException`, never
 wrapped. A null argument is an `ArgumentNullException`. The unit performs no I/O and produces no warning.
 
-**Differences from Vega-Lite**: `bin` is planned on `x` and `y` only (the other channels need the binned scale
-types of a later phase); a count is titled by `countTitle` in every `fieldTitle` mode; the name of an aggregate
+**Differences from Vega-Lite**: `bin: "binned"` is read on `x` and `y` only (a bin of the other channels is
+computed from the data); a count is titled by `countTitle` in every `fieldTitle` mode; the name of an aggregate
 keeps the operation as written (`average_x`); and a non-finite stack value is silently invalid, as in
 Vega-Lite.
 

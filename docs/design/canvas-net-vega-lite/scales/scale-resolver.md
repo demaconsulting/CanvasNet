@@ -67,8 +67,14 @@ is ignored for every channel but x and y.
   scale (a **diverging** one with three domain entries); a nominal or ordinal one is ordinal, as are `shape` and
   `strokeDash` (also for a quantitative field, which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`,
   `fillOpacity`, `strokeOpacity`, and `angle` are
-  linear for a quantitative field and point scales otherwise. A temporal field has no scale. An explicit `scale.type` of
-  linear, log, pow, sqrt, symlog, sequential (colors), quantile, quantize, threshold, band, point, or ordinal is used when
+  linear for a quantitative field and point scales otherwise; a quantitative `color`, `fill`, or `stroke` field that the
+  encoding **bins** is a **bin-ordinal** scale instead (Vega-Lite's `defaultType`), whose domain is the edges of the bins
+  (one more than the bins) and whose range is one color per bin (`ColorSchemes` with `SchemeUse.BinOrdinal`: the ramp
+  sampled once per bin), while the other channels keep their scale over the start of the bin. A temporal field has no
+  scale. An explicit `scale.type` of
+  linear, log, pow, sqrt, symlog, sequential (colors), quantile, quantize, threshold, bin-ordinal (a binned quantitative
+  color only: Vega-Lite refuses it for every other field type, and it is what the default is there), band, point, or
+  ordinal is used when
   both the channel and the field type accept it; otherwise (and for the types that are not drawn yet) the default applies.
   The log, pow, sqrt, and symlog types are the continuous-to-continuous scales with a transform
   (`ResolvedScale.Transform`, a `ScaleTransform`): a **log** scale with its `base` (default 10), a **pow** scale with its
@@ -202,7 +208,9 @@ console warning; a color scale with an explicit domain of four or more entries (
 error; an array of colors given as the `scheme` of a discrete scale is used as the whole list of colors; a sort by the
 `argmin`, `argmax`, `values`, or exponential
 operation is ignored (the catalog reports it); a `sort` array puts values
-missing from it first; a bin is planned on x and y only. A
+missing from it first; a bin is planned on every channel that has a scale, but a `bin-ordinal` scale is accepted for a binned
+quantitative color only (a nominal or ordinal binned color keeps the ordinal scale of the text of its bins even when it
+asks for `bin-ordinal`, and a field that is not binned ignores the type). A
 `sort` array is read once into a
 dictionary from each listed value to its first position (a value listed twice counts at its first position), so
 ordering a domain costs one lookup per value rather than a search of the list per value.
@@ -220,7 +228,11 @@ ordering a domain costs one lookup per value rather than a search of the list pe
   polled every 4,096 rows.
 - `ChooseKind`, `ChannelIsDrawn`, and `AcceptsScaleType` - the scale-type rules above; `BuildContinuous` builds the linear,
   sequential, diverging, quantize, quantile, and threshold scales (domain, zero, `domainMin`, `domainMax`, `domainMid`,
-  nice, clamp), and `BuildDiscrete` the band, point, and ordinal ones; both ask `ResolveOutputs` for the output values
+  nice, clamp), `BuildDiscrete` the band, point, and ordinal ones, and `BuildBinOrdinal` the bin-ordinal scale (the edges
+  of the bins from `EncodingData.Bins` as the domain - `sequence(start, stop + step / 2, step)`, one more than the bins,
+  as
+  Vega builds them from the `bins` of the scale - and one color per bin; no edge and no color for a field without a
+  finite value; the bins and the work were bounded by `EncodingTransforms`); both ask `ResolveOutputs` for the output values
   of the channel, by its group
   (position, color, shape and dash, numeric).
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field

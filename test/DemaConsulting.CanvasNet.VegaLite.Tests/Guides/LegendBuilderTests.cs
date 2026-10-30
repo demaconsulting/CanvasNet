@@ -765,4 +765,120 @@ public class LegendBuilderTests
         Assert.True(tooMany.Location.IsKnown);
         Assert.Throws<OperationCanceledException>(() => ChartTestHelpers.Legend(json, cancellationToken: cancelled.Token));
     }
+
+    /// <summary>Eight rows with the numbers <c>q</c> from 3 to 97, which fall in the five bins 0-20, 20-40, 40-60, 60-80 and 80-100 as 2, 1, 2, 1 and 2 rows.</summary>
+    private const string RowsBins = "[ { \"g\": \"a\", \"q\": 3, \"r\": 1 }, { \"g\": \"b\", \"q\": 12, \"r\": 2 }, { \"g\": \"c\", \"q\": 27, \"r\": 3 }, { \"g\": \"d\", \"q\": 41, \"r\": 4 }, { \"g\": \"a\", \"q\": 58, \"r\": 5 }, { \"g\": \"b\", \"q\": 66, \"r\": 6 }, { \"g\": \"c\", \"q\": 83, \"r\": 7 }, { \"g\": \"d\", \"q\": 97, \"r\": 8 } ]";
+
+    /// <summary>The five colors of the binned legend tests, one per bin.</summary>
+    private const string BinColors = "[\"#ff0000\", \"#ffa500\", \"#ffff00\", \"#00ff00\", \"#0000ff\"]";
+
+    /// <summary>
+    ///     Validates the symbol legend of a binned quantitative color: the scale is bin-ordinal, so the legend has one entry per bin (not per edge) labeled
+    ///     with the range of the bin, <c>0 – 20</c> to <c>80 – 100</c>, each symbol in the color of its bin, and the title is the title of a binned field.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_BinnedColorLabelsTheRangesOfTheBins()
+    {
+        // Arrange: the values 3 to 97 with the default of six bins have the step 20 and the edges 0 to 100
+        var json = Spec("\"color\": { " + Quantitative + ", \"bin\": true, \"scale\": { \"range\": " + BinColors + " } }", rows: RowsBins);
+
+        // Act
+        var legend = ChartTestHelpers.Legend(json);
+
+        // Assert: a symbol legend with five entries, ranges as labels, the colors of the range in bin order, and the title of the binned field
+        Assert.Equal(LegendKind.Symbol, legend.Kind);
+        Assert.Equal(["0 \u2013 20", "20 \u2013 40", "40 \u2013 60", "60 \u2013 80", "80 \u2013 100"], Labels(legend).Select(l => l.Text));
+        Assert.Equal(["#ff0000", "#ffa500", "#ffff00", "#00ff00", "#0000ff"], Symbols(legend).Select(s => s.Stroke));
+        Assert.Equal("q (binned)", Title(legend).Text);
+    }
+
+    /// <summary>
+    ///     Validates the labels of a bin-ordinal legend under a legend <c>format</c> (every edge is formatted, so <c>.1f</c> gives <c>0.0 – 20.0</c>), with
+    ///     explicit <c>values</c> (each label runs to the next value in the list, as in Vega, and the last is <c>≥</c> its value), and with a reversed scale (the colors run backwards, the ranges do not).
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_BinnedColorFormatValuesAndReverseApply()
+    {
+        // Act
+        var formatted = ChartTestHelpers.Legend(Spec("\"color\": { " + Quantitative + ", \"bin\": true, \"scale\": { \"range\": " + BinColors + " }, \"legend\": { \"format\": \".1f\" } }", rows: RowsBins));
+        var valued = ChartTestHelpers.Legend(Spec("\"color\": { " + Quantitative + ", \"bin\": true, \"scale\": { \"range\": " + BinColors + " }, \"legend\": { \"values\": [20, 60] } }", rows: RowsBins));
+        var reversed = ChartTestHelpers.Legend(Spec("\"color\": { " + Quantitative + ", \"bin\": true, \"scale\": { \"range\": " + BinColors + ", \"reverse\": true } }", rows: RowsBins));
+
+        // Assert
+        Assert.Equal(["0.0 \u2013 20.0", "20.0 \u2013 40.0", "40.0 \u2013 60.0", "60.0 \u2013 80.0", "80.0 \u2013 100.0"], Labels(formatted).Select(l => l.Text));
+        Assert.Equal(["20 \u2013 60", "\u2265 60"], Labels(valued).Select(l => l.Text));
+        Assert.Equal(["#ffa500", "#00ff00"], Symbols(valued).Select(s => s.Stroke));
+        Assert.Equal(["0 \u2013 20", "20 \u2013 40", "40 \u2013 60", "60 \u2013 80", "80 \u2013 100"], Labels(reversed).Select(l => l.Text));
+        Assert.Equal(["#0000ff", "#00ff00", "#ffff00", "#ffa500", "#ff0000"], Symbols(reversed).Select(s => s.Stroke));
+    }
+
+    /// <summary>
+    ///     Validates the legends of the other binned channels: a binned size is a linear scale over the bins (0 to 100, with the zero rule), so its legend shows the
+    ///     ticks 0, 20, ..., 100 with the sizes of the scale; an ordinal binned opacity shows the text of each bin.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Symbol_BinnedSizeShowsTicksAndOrdinalBinnedOpacityShowsTheBinText()
+    {
+        // Arrange
+        var sizeJson = Spec("\"size\": { " + Quantitative + ", \"bin\": true }", rows: RowsBins);
+        var model = ChartTestHelpers.Parts(sizeJson).Scales["size"]!.CreateModel(0);
+
+        // Act
+        var size = ChartTestHelpers.Legend(sizeJson);
+        var opacity = ChartTestHelpers.Legend(Spec("\"opacity\": { \"field\": \"q\", \"type\": \"ordinal\", \"bin\": true }", rows: RowsBins));
+
+        // Assert: d3 ticks(0, 100, 5) have the step 20; the symbol sizes are the scaled tick values
+        Assert.Equal(["0", "20", "40", "60", "80", "100"], Labels(size).Select(l => l.Text));
+        Assert.Equal(R(new[] { 0.0, 20, 40, 60, 80, 100 }.Select(v => model.Map(DataValue.FromNumber(v))!.Value)), R(Symbols(size).Select(s => s.Size)));
+        Assert.Equal("q (binned)", Title(size).Text);
+
+        // Assert: the ordinal scale lists the texts of the bins
+        Assert.Equal(["0 \u2013 20", "20 \u2013 40", "40 \u2013 60", "60 \u2013 80", "80 \u2013 100"], Labels(opacity).Select(l => l.Text));
+    }
+
+    /// <summary>
+    ///     Validates that a bin-ordinal legend merges with another channel of the same binned field and parameters (a shared domain), and not with the unbinned field:
+    ///     color and fill of the same bin share one legend, while the color of the plain field and the binned fill are two.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Merge_BinnedChannelsOfTheSameBinShareOneLegend()
+    {
+        // Arrange
+        var shared = Spec("\"color\": { " + Quantitative + ", \"bin\": true }, \"fill\": { " + Quantitative + ", \"bin\": true }", rows: RowsBins);
+        var mixed = Spec("\"color\": { " + Quantitative + ", \"bin\": true }, \"fill\": { " + Quantitative + " }", rows: RowsBins);
+
+        // Act
+        var sharedLegends = ChartTestHelpers.Legends(shared);
+        var mixedLegends = ChartTestHelpers.Legends(mixed);
+
+        // Assert
+        Assert.Single(sharedLegends);
+        Assert.Equal(["color", "fill"], sharedLegends[0].Members.Select(m => m.Channel));
+        Assert.Equal(2, mixedLegends.Count);
+    }
+
+    /// <summary>
+    ///     Validates the limits and the cancellation of a bin-ordinal legend: the scene items are charged before they are created (the legend, the title, the entry
+    ///     group and a symbol and a label for each of five bins are thirteen items), more explicit values than the limit allows is a located error, and a canceled
+    ///     token stops the build.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Limits_BinnedLegendChargesItsItemsAndPollsTheToken()
+    {
+        // Arrange
+        var json = Spec("\"color\": { " + Quantitative + ", \"bin\": true }", rows: RowsBins);
+        var budget = new SceneBudget(13);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        // Act
+        var exact = ChartTestHelpers.Legend(json, budget: budget);
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(json, limits: new VegaLiteLimits { MaxSceneItems = 12 }, budget: new SceneBudget(12)));
+
+        // Assert
+        Assert.Equal(13, budget.Count);
+        Assert.Equal(13, exact.ItemCount);
+        Assert.Contains("MaxSceneItems", tooMany.Message, StringComparison.Ordinal);
+        Assert.Throws<OperationCanceledException>(() => ChartTestHelpers.Legend(json, cancellationToken: cancelled.Token));
+    }
 }

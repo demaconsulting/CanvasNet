@@ -63,12 +63,14 @@ Asserts that one original specification that deliberately uses a version 4 schem
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
 composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
-unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin`, a log scale on a nominal field with a scheme
+unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported, so it is silent), a log
+scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-two reports whose
+`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-one reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
-`/data/format/parse/d`, `vl-encoding-bin` at `/encoding/color/bin`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
+`/data/format/parse/d`, `vl-encoding-condition` at `/encoding/y/condition`, and `vl-mark-geoshape` at
+`/layer/0/mark`; the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
 `filter` transforms, and the `aggregate`, `bin`, `stack`, and `sort` of `y` are silent, and no `vl-expr-calculate`,
 `vl-expr-filter`, `vl-param-variable`, `vl-encoding-aggregate`, `vl-encoding-stack`, or `vl-encoding-sort` is produced for
@@ -140,6 +142,7 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
 `FeatureCatalogTests.FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_CubehelixInterpolationIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_CustomPathShapesAreReported`,
@@ -148,7 +151,8 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 `FeatureCatalogTests.FeatureCatalog_Visit_SchemeNamesAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes`
 
-Asserts that the encoding identifiers that remain (`vl-encoding-bin` for a channel other than `x` and `y`,
+Asserts that the encoding identifiers that remain (`vl-encoding-bin` for `bin: "binned"` on a channel other than `x` and
+`y`,
 `vl-encoding-impute`, and `vl-encoding-bandposition`) are reported only when the property changes the chart (`bin: false`
 and `null`, `stack: false` and `null`, a `null` aggregate, an ascending sort shorthand, a `null` sort, an array sort, and
 a sort that names an `encoding` are silent, as are `timeUnit: null` and `impute: null`), and that the identifiers of the
@@ -161,9 +165,13 @@ explicit `stack: true`) and reported as `vl-channel-order` otherwise (with `stac
 not stack); that a secondary position channel is silent for a `bar`, `rect`, or `rule` that has the channel it extends and
 is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
 an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack (and nothing else: the log type is
-supported, and the message says that the marks are not stacked); that unsupported scale types (`identity`, `bin-ordinal`)
-and properties (`bins`) report
-`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not, and that the log, pow, sqrt, and
+supported, and the message says that the marks are not stacked); that the unsupported scale type `identity` and the
+property `bins` report
+`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not, that the `bin` of a color, fill,
+stroke, size, opacity, stroke width, and the other channels that have a scale and the `bin-ordinal` scale type of a
+binned quantitative color report nothing, that `bin: "binned"` on a channel other than `x` and `y` and a `bin` of a secondary
+channel report `vl-encoding-bin` at the `bin`, and that a `bin-ordinal` type on a field that is not binned, on a
+nominal field, and on a size, shape, or opacity warns `vl-scale-type-ignored`, and that the log, pow, sqrt, and
 symlog types with their `base`, `exponent`, and `constant` (on position, size, color, and opacity channels) produce no
 report at all; that continuous color scales, the
 color schemes of every kind, and the scheme object, `domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and
@@ -248,7 +256,7 @@ conditional encoding as `vl-encoding-condition`, while the six aggregating trans
 
 Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear scale,
 a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports only
-`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` and `vl-encoding-bin` at `/encoding/color/bin` (the `x2`
+`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` (the binned color is supported and silent; the `x2`
 draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that every
 aggregating transform of a nested view, which is not drawn, is still reported by name (`vl-transform-aggregate`,
 `-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/layer/0/transform/0` to `/5`, after

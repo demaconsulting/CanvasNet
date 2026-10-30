@@ -275,3 +275,18 @@ to 10 to 10000 has its bars at `300 - 100 * (log10(v) - 1)` ending at the bottom
 between the grid lines above the bars; and that points on a square root x scale (0 to 100 over 200 pixels) and a
 symlog y scale
 (nice domain -10 to 10 over 100 pixels) sit at the positions the d3 formulas give.
+
+##### Binned Channels
+
+**Tests**: `MarkBuilderChannelTests.MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin`,
+`MarkBuilderChannelTests.MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin`,
+`MarkBuilderChannelTests.MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin`,
+`MarkBuilderChannelTests.MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable`
+
+Assert, for the readings 3, 12, 27, 41, 58, 66, 83, and 97 with the bins 0 to 100 by 20 and five colors, that the
+circles take the color of their bin (the first two the first color, 41 and 58 the third, the last two the fifth) as a
+fill and an outlined point as a stroke; that binned point sizes are `4 + 357 * start / 100` for the starts 0, 0, 20, 40,
+40, 60, 80, and 80; that the five bars of a histogram whose color bins the field as its x channel does are filled with
+the five colors in bin order, are 19 pixels wide starting at 1, 21, ..., 81 (the bin of 20 pixels less the bin spacing
+of 1) of 100 pixels, and are 100, 50, 100, 50, and 100 pixels high for the counts 2, 1, 2, 1, and 2; and that a scene
+budget of four fails naming `MaxSceneItems` and a canceled token stops the build.

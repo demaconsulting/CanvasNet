@@ -185,6 +185,27 @@ its bin (0 is `[0, 10)` and 100 is `[90, 100]`), with null for a value that is n
 `step` and `extent` vectors above; and that a discrete bin has the text of its boundaries joined with an en dash as its
 categories, ordered by where the bin starts (the values 0, 10, and so on to 100 have the bins 0 to 100 by 10).
 
+##### Binned Channels Other Than The Positions
+
+**Tests**: `EncodingPlanTests.EncodingPlan_Create_BinsTheChannelsThatHaveAScaleWithTheirDefaultMaxBins`,
+`EncodingPlanTests.EncodingPlan_Create_DiscreteBinOfAnotherChannelReadsTheRangeTextWithTheLegendFormat`,
+`EncodingPlanTests.EncodingPlan_Create_DiscreteBinReadsTheRangeText`,
+`EncodingTransformsTests.EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX`,
+`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields`,
+`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable`
+
+Asserts, as a theory over the channels, that a binned `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, and
+`shape` get the field `bin_maxbins_6_v`, a `strokeDash` `bin_maxbins_4_v`, an `angle` `bin_maxbins_10_v`, that an explicit
+`maxbins`, `step`, or `nice` is named in the order written, that the second field is the end of the bin, and that the
+title is `v (binned)`; that a nominal or ordinal color reads `bin_maxbins_6_v_range` with no second field and the
+`legend.format` is the format of the text, while `bin: "binned"` and a bin of an aggregate plan no bin; that a bin of
+`x` and a bin of `color` with the same `maxbins` of 5 are one bin whose start and end the aggregate groups by (the
+values 3, 12, 27, 41, 58, 66, 83, and 97 have the step 20 over 0 to 100 and the counts 2, 1, 2, 1, and 2), that a
+color alone keeps the rows and adds `0|20`, `0|20`, `20|40`, `40|60`, `40|60`, `60|80`, `80|100`, and `80|100`; that
+four bins ask for the step 50, and the ordinal color has the texts `0 – 20` to `80 – 100`; and that a limit of 100
+evaluation steps stops the bins of a color of 5000 rows with a located error naming `MaxEvaluationSteps` and a canceled
+token stops the stage.
+
 ##### Row Budget, Limits, And Cancellation
 
 **Tests**: `EncodingTransformsTests.EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget`,

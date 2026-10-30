@@ -351,6 +351,86 @@ public class EncodingTransformsTests
     }
 
     /// <summary>
+    ///     Validates that a binned color channel without an aggregate keeps every row and adds the start and end of its bin (the values 3 to 97 with
+    ///     <c>maxbins</c> 6 have the step 20 over 0 to 100), and that a bin of <c>x</c> and a bin of <c>color</c> with the same parameters are one bin that the
+    ///     aggregate groups by: the counts of the five bins are 2, 1, 2, 1 and 2.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX()
+    {
+        // Arrange
+        const string Values = """[{"v":3},{"v":12},{"v":27},{"v":41},{"v":58},{"v":66},{"v":83},{"v":97}]""";
+
+        // Act
+        var plain = Run(Values, "point", """{"x":{"field":"v","type":"quantitative"},"color":{"field":"v","type":"quantitative","bin":true}}""");
+        var shared = Run(
+            Values,
+            "bar",
+            """{"x":{"field":"v","type":"quantitative","bin":{"maxbins":5}},"y":{"aggregate":"count","type":"quantitative"},"color":{"field":"v","type":"quantitative","bin":{"maxbins":5}}}""");
+
+        // Assert: the rows keep their order and get the bin of the channel (default maxbins 6 for a color)
+        Assert.Equal(
+            ["0|20", "0|20", "20|40", "40|60", "40|60", "60|80", "80|100", "80|100"],
+            Rows(plain.Data.Main, "bin_maxbins_6_v", "bin_maxbins_6_v_end"));
+        Assert.Same(plain.Data.Raw, plain.Data.Main);
+        Assert.Equal(new BinSpec(0, 100, 20), plain.Data.Bins["bin_maxbins_6_v"]);
+        Assert.Equal("bin_maxbins_6_v", plain.Scales["color"]!.FieldPath);
+
+        // Assert: one bin shared by both channels, which the aggregate groups by (the counts of the five bins)
+        Assert.Single(shared.Data.Bins);
+        Assert.Equal(
+            ["0|20|2", "20|40|1", "40|60|2", "60|80|1", "80|100|2"],
+            Rows(shared.Data.Main, "bin_maxbins_5_v", "bin_maxbins_5_v_end", "__count"));
+        Assert.Equal("bin_maxbins_5_v", shared.Scales["color"]!.FieldPath);
+        Assert.Equal(ScaleKind.BinOrdinal, shared.Scales["color"]!.Kind);
+        Assert.Equal([0.0, 20, 40, 60, 80, 100], shared.Scales["color"]!.Domain!);
+    }
+
+    /// <summary>
+    ///     Validates the default <c>maxbins</c> of the channels (6, 4 for the stroke dash and 10 for the angle), that a nominal color reads the text of its
+    ///     bin, and that a bin that an aggregate cannot have is not made (the field of an aggregate is not binned).
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields()
+    {
+        // Arrange
+        const string Values = """[{"v":3},{"v":12},{"v":27},{"v":41},{"v":58},{"v":66},{"v":83},{"v":97}]""";
+
+        // Act: maxbins 4 over 3 to 97 gives the step 50 (span 94: round(log10 94) = 2, level ceil(log10 4) = 1, step 10, then 100, then 100 / 5 = 20 needs 5 bins, 100 / 2 = 50 fits)
+        var dash = Run(Values, "line", """{"x":{"field":"v","type":"quantitative"},"strokeDash":{"field":"v","type":"quantitative","bin":true}}""");
+        var text = Run(Values, "point", """{"x":{"field":"v","type":"quantitative"},"color":{"field":"v","type":"ordinal","bin":true}}""");
+
+        // Assert
+        Assert.Equal(new BinSpec(0, 100, 50), dash.Data.Bins["bin_maxbins_4_v"]);
+        Assert.Equal(
+            ["0 \u2013 20", "0 \u2013 20", "20 \u2013 40", "40 \u2013 60", "40 \u2013 60", "60 \u2013 80", "80 \u2013 100", "80 \u2013 100"],
+            Rows(text.Data.Main, "bin_maxbins_6_v_range"));
+        Assert.Equal("bin_maxbins_6_v_range", text.Scales["color"]!.FieldPath);
+    }
+
+    /// <summary>
+    ///     Validates that the bins of a non-position channel poll the cancellation token and charge the evaluation budget like the bins of a position channel.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable()
+    {
+        // Arrange
+        const string Source = "{\"data\":{\"sequence\":{\"start\":0,\"stop\":5000,\"as\":\"id\"}},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"id\",\"type\":\"quantitative\"},\"color\":{\"field\":\"id\",\"type\":\"quantitative\",\"bin\":true}}}";
+        var tree = SpecParser.Parse(Source);
+        var table = DataLoader.Load(tree.Root["data"], null, null, Ct);
+        var plan = EncodingPlan.Create(tree.Root, ConfigResolver.Resolve(tree, null));
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var steps = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.ResolveFull(Source, new VegaLiteLimits { MaxEvaluationSteps = 100 }));
+
+        // Assert: the failure names the limit; a canceled token stops the stage
+        Assert.Contains("MaxEvaluationSteps", steps.Message, StringComparison.Ordinal);
+        Assert.ThrowsAny<OperationCanceledException>(() => EncodingTransforms.ApplyStandalone(plan, table, tree.Root, null, null, canceled.Token));
+    }
+
+    /// <summary>
     ///     Validates that an <c>argmax</c> definition reads the field of the row that has the largest compared value: in group a the row with t = 5 has v = 9,
     ///     in group b the only row has v = 2.
     /// </summary>

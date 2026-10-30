@@ -133,4 +133,11 @@ legend is the first channel in Vega-Lite's order
 (Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, `labelExpr`
 and custom format types are not drawn and are reported by the feature catalog. The symbols of the `arrow`, `wedge` and
 `triangle` shapes are bounded by the box of their path. `legend.symbolType` is combined with the configuration's
-`symbolType` only for marks that default to a circle. A bin-ordinal scale has a symbol legend with range labels.
+`symbolType` only for marks that default to a circle. A bin-ordinal scale (the scale of a binned quantitative color) has
+a symbol legend with one entry per bin (the edges but the last are the values) labeled `lo – hi` with the format of the
+legend or the JavaScript text of the numbers (Vega's `formatRange`, which reads the next value of the list as the upper
+edge and, for the last bin of the scale, the last edge); explicit `values` are a plain list, so each label runs to the
+next listed value and the last reads `≥ lo`, as the array of Vega has no `max`. A binned size, opacity, or angle is a
+linear scale over the start of the bins and has the ticks of a continuous scale; a binned nominal or ordinal field has
+the texts of its bins as categories. Channels that bin the same field with the same parameters have the same `BinKind`
+and domain in the merge key, so they share one legend.

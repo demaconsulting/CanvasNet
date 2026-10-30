@@ -1904,6 +1904,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAggregationIntegrationTests.cs"  # aggregation tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLegendIntegrationTests.cs"  # legend integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteScaleIntegrationTests.cs"  # scale integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBinnedChannelIntegrationTests.cs"  # binned channel tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
@@ -2321,6 +2322,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPlanTests.cs"  # unit tests (plan, sort)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverColorTests.cs"  # unit tests (colors)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverBinTests.cs"  # unit tests (binned channels)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
