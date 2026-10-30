@@ -99,6 +99,8 @@ sections:
                   - EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY
                   - EncodingTransforms_Apply_StacksAscendingOnX
                   - EncodingTransforms_Apply_StacksNegativeValuesDownwards
+                  - EncodingTransforms_Apply_SignedStacksOnXAndWithAggregatedNegativeSums
+                  - EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar
                   - EncodingTransforms_Apply_NormalizeAndCenterOffsets
                   - EncodingTransforms_Apply_OrderChannelOrdersTheLayers
 

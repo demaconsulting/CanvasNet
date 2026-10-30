@@ -268,6 +268,7 @@ sections:
                 tests:
                   - StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields
                   - StackRules_Decide_ReturnsNullWhenNothingIsStacked
+                  - StackRules_Decide_AreaStacksByDefaultInBothOrientations
                   - StackRules_Decide_ListsTheStackByDefinitionsInChannelOrder
                   - StackRules_Decide_HandlesMissingArguments
                   - StackRules_Helpers_ClassifyDefinitionsAndSwitches

@@ -53,8 +53,9 @@ than `x` and `y`), `vl-encoding-bin-extent-param` and `vl-transform-bin-extent-p
 parameter; the
 extent of the data is used), `vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
 linear), `vl-channel-x2`, `vl-channel-y2`, and `vl-channel-order` (reported only where the channel is not applied), and
-`vl-encoding-sort` (now only for a sort that is not applied). The warnings `vl-duplicate-key` and
-`vl-unknown-property` are
+`vl-encoding-sort` (now only for a sort that is not applied) and the new warning `vl-encoding-sort-ignored` (a sort that
+a continuous scale ignores). The warnings `vl-duplicate-key`, `vl-unknown-property`, and
+`vl-encoding-sort-mixed-types` are
 produced by `SpecParser`, and the render-time
 warnings `vl-expr-runtime` and `vl-transform-runtime` by `RowTransforms` (they need the data; the
 catalog never produces them).
@@ -93,6 +94,14 @@ catalog never produces them).
   `vl-encoding-stack-nonlinear`; `aggregate`, `bin` on `x` and `y`, and `stack` are otherwise supported and never reported;
   `sort` is reported as `vl-encoding-sort` when `SpecParser.IsSupportedSort` rejects it (a channel shorthand or an
   `encoding` that names a channel without a field or an aggregate, or an `op` of `values` or an exponential operation);
+  the message of a missing channel names it (`SpecParser.TryGetSortChannel`: "The sort refers to the 'y' channel, which
+  this encoding does not have (or which reads no field); the categories are sorted ascending."). It stays a report and
+  not a specification error, because after a later normalization the channel may legitimately come from a layer or a
+  parent encoding. `VisitSort` also warns `vl-encoding-sort-ignored` when a sort array, a channel shorthand, or an
+  object with a `field`, `op`, or `encoding` sits on a channel (other than `order`, `x2`, and `y2`) whose type is
+  `quantitative` and whose `scale.type` is not a discrete one (`band point ordinal bin-ordinal quantile quantize
+  threshold`): a continuous scale has no categories to order. `ascending`, `descending`, `null`, and an object with only
+  an `order` are never reported;
   `timeUnit`, `condition`, an encoding `impute`, and `bandPosition` stay reported.
 - `VisitTransforms(transforms, drawn)` reports the entries as `vl-transform-<name>` only for what is **not computed**: the
   transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`, `timeunit`) and every transform

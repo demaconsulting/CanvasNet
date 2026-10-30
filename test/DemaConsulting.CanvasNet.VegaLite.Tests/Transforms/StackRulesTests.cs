@@ -115,6 +115,26 @@ public class StackRulesTests
     }
 
     /// <summary>
+    ///     Validates that an <c>area</c> stacks by default in both orientations: the quantitative channel is stacked ascending along x or descending along y,
+    ///     exactly as for a bar, and an explicit <c>stack: false</c> switches it off.
+    /// </summary>
+    [Fact]
+    public void StackRules_Decide_AreaStacksByDefaultInBothOrientations()
+    {
+        // Act
+        var vertical = Decide("\"area\"", """{"x":{"field":"t","type":"ordinal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var horizontal = Decide("\"area\"", """{"y":{"field":"t","type":"ordinal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var horizontalBar = Decide("\"bar\"", """{"y":{"field":"t","type":"ordinal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var off = Decide("\"area\"", """{"y":{"field":"t","type":"ordinal"},"x":{"field":"v","type":"quantitative","stack":false},"color":{"field":"g","type":"nominal"}}""");
+
+        // Assert
+        Assert.Equal(("y", "zero", 1), (vertical!.Channel, vertical.Offset, vertical.StackBy.Count));
+        Assert.Equal(("x", "zero", 1), (horizontal!.Channel, horizontal.Offset, horizontal.StackBy.Count));
+        Assert.Equal((horizontalBar!.Channel, horizontalBar.Offset), (horizontal.Channel, horizontal.Offset));
+        Assert.Null(off);
+    }
+
+    /// <summary>
     ///     Validates that the stack-by definitions are the definitions of the non-position channels in channel order, array items included.
     /// </summary>
     [Fact]

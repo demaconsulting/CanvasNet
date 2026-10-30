@@ -264,5 +264,19 @@ Asserts, as a theory of sixteen sort forms, that `ascending`, an array, a sort o
 `count`, `median`, `valid`, or `q1`) and an optional field and order (also an `order` of null), a sort object with
 only a `field`, the `encoding` form that names a channel of the encoding (`y`), and the channel shorthands `-y` and `x`
 are silent, and that the forms that the scale resolver does not compute — an `encoding` that names a channel the
-encoding does not have (`color`), the operations `values` and `exponential`, and the shorthand `-color` — report
-`vl-encoding-sort`.
+encoding does not have (`color`), the operations `values` and `exponential`, and the shorthand `-color` — report `vl-encoding-sort`.
+
+##### Sort Diagnostics: A Missing Channel Is Named And A Continuous Scale Ignores The Sort
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel`,
+`FeatureCatalogTests.FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning`
+
+Asserts, as a theory of five encodings, that a sort that refers to a channel the encoding lacks (`{"encoding":"y"}`
+without a `y`, `"-y"` when `y` has only a `value`, the shorthand `color`, and `{"encoding":"size"}` with a `size` that
+has only a `value`) is one unsupported `vl-encoding-sort` at `/encoding/x/sort` whose message says that the sort refers
+to the named channel and that the categories are sorted ascending, and that an operation that cannot order categories
+(`values`) keeps the operation message; and, as a theory of thirteen definitions, that a sort array (also an empty one),
+a channel shorthand, and a sort object with a field or an operation on a quantitative field with a continuous scale (or
+an explicit `linear` scale) are one `vl-encoding-sort-ignored` warning at the sort, while `ascending`, `descending`, `null`,
+an object that has only an order, a nominal or ordinal field, and a quantitative field with a `band` scale type are not
+reported.

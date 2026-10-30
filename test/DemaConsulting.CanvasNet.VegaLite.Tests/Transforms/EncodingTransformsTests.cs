@@ -120,6 +120,31 @@ public class EncodingTransformsTests
     }
 
     /// <summary>
+    ///     Validates that signed values stack separately from zero on a horizontal measure, in ascending layer order, and that aggregated sums that are
+    ///     negative stack downwards on a vertical one. Horizontal: the layers x (3), y (-2), z (1) are stacked ascending, so the positives are x (0, 3) then
+    ///     z (3, 4) and the negative y is (0, -2). Vertical: the sums are x = -1 + -3 = -4 and y = 2, stacked descending: y is (0, 2) and x is (0, -4).
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Apply_SignedStacksOnXAndWithAggregatedNegativeSums()
+    {
+        // Act
+        var horizontal = Run(
+            """[{"c":"a","g":"x","v":3},{"c":"a","g":"y","v":-2},{"c":"a","g":"z","v":1}]""",
+            "bar",
+            """{"y":{"field":"c","type":"nominal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var aggregated = Run(
+            """[{"c":"a","g":"x","v":-1},{"c":"a","g":"y","v":2},{"c":"a","g":"x","v":-3}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","aggregate":"sum"},"color":{"field":"g","type":"nominal"}}""");
+
+        // Assert: the rows keep their order; the domain spans the lowest negative end and the highest positive end
+        Assert.Equal(["x|0|3", "y|0|-2", "z|3|4"], Rows(horizontal.Data.Main, "g", "v_start", "v_end"));
+        Assert.Equal((-2, 4), (horizontal.Scales["x"]!.DomainStart, horizontal.Scales["x"]!.DomainEnd));
+        Assert.Equal(["x|0|-4", "y|0|2"], Rows(aggregated.Data.Main, "g", "sum_v_start", "sum_v_end"));
+        Assert.Equal((-4, 2), (aggregated.Scales["y"]!.DomainStart, aggregated.Scales["y"]!.DomainEnd));
+    }
+
+    /// <summary>
     ///     Validates the <c>normalize</c> offset (the layers y = 3 and x = 1 of a total of 4 become (0, 0.75) and (0.75, 1)) with the domain [0, 1], and
     ///     the <c>center</c> offset (group a of total 4 is the widest and starts at 0; group b of total 2 starts at (4 - 2) / 2 = 1).
     /// </summary>

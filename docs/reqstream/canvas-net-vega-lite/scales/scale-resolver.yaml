@@ -84,6 +84,23 @@ sections:
                   - ScaleResolver_Resolve_UnresolvableSortsAndPlainFormsKeepTheirOrder
                   - ScaleResolver_IsSupportedFieldSort_AcceptsOrderableOperations
 
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-SortArrayLimits
+                title: >-
+                  The ScaleResolver unit shall order a discrete domain by an explicit sort array in which a
+                  value missing from the array comes first and a repeated value counts at its first position
+                  (values of another kind not matching), shall fail with a VegaLiteRenderException located at the
+                  array and naming the limit of VegaLiteLimits.MaxScaleDomainSize when the array has more items
+                  than that limit, shall poll the cancellation token while it reads the array, and shall never
+                  let an object or array item stand for the null category.
+                justification: |
+                  A specification of a few megabytes can hold millions of sort items; reading them must be
+                  bounded and cancellable, and an item that is not a category must not silently position the
+                  null category.
+                tests:
+                  - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
+                  - ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation
+                  - ScaleResolver_Resolve_SortArrayNeverMapsNonScalarItemsToNull
+
               - id: CanvasNetVegaLite-Scales-ScaleResolver-PlanFields
                 title: >-
                   The ScaleResolver unit shall read each channel from the field that the encoding plan names
@@ -130,6 +147,7 @@ sections:
                   - ScaleResolver_Resolve_ScalesCarryThePlanFacts
                   - ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack
                   - ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers
+                  - ScaleResolver_Resolve_SignedStackDomainInBothOrientations
                   - ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-UnaggregatedDomain

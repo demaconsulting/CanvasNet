@@ -627,6 +627,23 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal
           - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds
 
+      - id: CanvasNetVegaLite-SignedStacking
+        title: >-
+          The library shall draw a stack with negative values on both sides of the zero baseline - the
+          positive layers stacking up (right) from zero and the negative layers down (left) from zero,
+          separately, with an axis that reaches both ends - for a vertical and a horizontal bar chart, and
+          shall give an area mark the same stack decision and rows.
+        tags: [system]
+        justification: |
+          Charts of takings and outgoings, gains and losses, and signed differences are common; a negative
+          layer must hang below zero and never overlap the positive layers.
+        children:
+          - CanvasNetVegaLite-Transforms-Stacking
+          - CanvasNetVegaLite-Scales-StackedDomains
+          - CanvasNetVegaLite-Marks-StackedMarks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero
+
       - id: CanvasNetVegaLite-GroupedTransforms
         title: >-
           The library shall draw the result of the transforms joinaggregate, window, and impute - group
@@ -657,6 +674,25 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections
+
+      - id: CanvasNetVegaLite-SortValidation
+        title: >-
+          The library shall reject a sort array that holds an object or an array (other than a date-time of a
+          temporal field) with a specification error located at the item, shall warn once, at the array, about a
+          sort array that mixes kinds of values and about a sort that a continuous scale ignores, shall warn
+          about a key a sort object does not define, shall report a sort by a channel the encoding does not have
+          with a message that names the channel, and shall bound and cancel the reading of a sort array - and
+          none of them shall crash the renderer or silently mis-sort a chart.
+        tags: [system]
+        justification: |
+          A malformed sort is a mistake of the specification author; it must be reported where it is and must
+          never be read as a different, plausible sort.
+        children:
+          - CanvasNetVegaLite-SpecModel-AggregationValidation
+          - CanvasNetVegaLite-SpecModel-FeatureReporting
+          - CanvasNetVegaLite-Scales-SortByAggregate
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes
 
       - id: CanvasNetVegaLite-TransformLimits
         title: >-

@@ -169,6 +169,18 @@ Asserts the derived stacked bars above for a vertical chart with the zero, cente
 `stack: null` brings back the overlapping bars from zero, that a horizontal chart stacks ascending, that a circle sits at
 the upper end of its layer, and that the result is the same on a second build.
 
+##### Signed Stacks Hang Below Zero In Both Orientations
+
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations`
+
+Asserts, for one category with the layers p = 3, q = 2, r = -4, and s = -1 over the domain -5 to 5 (y(v) = 50 - 10 v),
+that the vertical chart draws q (0, 2) and p (2, 5) above the baseline and s (0, -1) and r (-1, -5) below it (the
+rectangles at y = 0, 30, 60, and 50 and as high as 30, 20, 40, and 10, in data order); that the horizontal chart draws
+p (0, 3), q (3, 5), r (-4, 0), and s (-5, -4) (x = 50, 80, 10, and 0 and as wide as 30, 20, 40, and 10); that an
+all-negative stack (p = -3, q = -2) hangs entirely below zero over the domain -5 to 0; that center and normalize use the
+absolute values (a with 3 and -1, b with -2: the centered rectangles at y = 0, 75, and 25, the normalized ones at
+y = 0, 75, and 0); and that the result is the same on a second build.
+
 ##### Binned Bars And Rects Span Their Bins
 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing`,

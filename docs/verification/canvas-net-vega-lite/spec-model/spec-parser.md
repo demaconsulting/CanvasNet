@@ -203,6 +203,23 @@ channel with an optional minus sign and nothing else; that `IsSupportedSort` acc
 and refuses null arguments; and that `IsSupportedTransform` accepts the six aggregating transform names and refuses the
 names of later phases.
 
+##### Sort Array Items Are Validated And Mixed Or Unknown Parts Are Warned About
+
+**Tests**: `SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_SortArrayAndObjectWarningsAreLocated`,
+`SpecParserAggregatesTests.SpecParser_TryGetSortChannel_ReadsTheShorthandAndTheEncoding`
+
+Asserts, in the rows of the shapes theory, that an object or an array item of a `sort` array is a located error at the
+item (`/encoding/x/sort/0`, `/encoding/x/sort/1`, `/encoding/x/sort/2`), that a date-time object is an error on a field
+that is not of type `temporal` and on a temporal field when it is empty, has a key that is not a date-time key (`yr`),
+or has a value that is not a string, a number, or a boolean; that a sort array that mixes kinds of values (`[1, "b"]`,
+`[null, "a"]`, `["a", true, "b"]`) is exactly one warning `vl-encoding-sort-mixed-types` at `/encoding/x/sort`, with the
+file, line, and column, and is still accepted with every item kept, while arrays of strings, numbers, booleans, only
+nulls, an empty array, and date-time objects on a temporal field are silent; that a key of a sort object that
+Vega-Lite does not define (`bogus`) is one `vl-unknown-property` warning at `/encoding/x/sort/bogus`; and that
+the channel a sort refers to is read from the shorthand (`"y"`, `"-y"`) and from `encoding`, and from no other form
+(`ascending`, an operation, an array, null), with a null argument refused.
+
 ##### Schema Version Parsing
 
 **Tests**: `SpecParserTests.SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion`

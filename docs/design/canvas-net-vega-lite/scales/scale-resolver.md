@@ -91,7 +91,11 @@ is ignored for color, size, and opacity.
 - **Sort forms** (`ScaleResolver.Sort.cs`). `"ascending"` and `"descending"` order the categories by value (a stable
   sort, null first, the order of `DataValue.Compare`); `null` keeps the data order; an array lists the categories (those
   it
-  does not list come first). The other forms order the categories by an **aggregate of a field over the rows of the Raw
+  does not list come first). A sort array has at most `MaxScaleDomainSize` items (otherwise a `VegaLiteRenderException`
+  located at the array that carries `the limit of` and `VegaLiteLimits.MaxScaleDomainSize`, which the tool maps to
+  `budget-exceeded`), is read with the cancellation token polled every 4,096 items, and skips an object or array item
+  (the parser rejects them; the resolver never lets one stand for the null category). The other forms order the
+  categories by an **aggregate of a field over the rows of the Raw
   table** (the rows before the implicit aggregate, as Vega-Lite does, so a calculated, flattened, or looked-up
   field can be
   the sort field): an object `{op, field, order}` with any aggregate operation that yields a comparable value (every

@@ -558,6 +558,29 @@ each layer is drawn from its start to its end and not from zero: with bands of 1
 data rectangle 100 pixels high (y(v) = 100 - 10 v), a pixel inside a lower layer has that layer's color (bolts blue,
 nuts orange, washers red in the order of the sorted colors).
 
+### Signed Stacking: Layers Hang On Both Sides Of Zero
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero`
+
+Renders `signed-stacks.vl.json` (takings and outgoings per quarter split by the color `kind`) and the same data
+transposed. Asserts that the domain is -20 to 20 over 100 pixels (y(v) = 50 - 2.5 v), that in q1 the layers tips (0, 8)
+and sales (8, 20) are drawn above the zero line and refunds (0, -4) and costs (-4, -10) below it (the rectangles at
+y = 0, 30, 50, and 60 and as high as 30, 20, 10, and 15 pixels; q2 likewise), that the pixels above the zero line of the
+q1 bar are only the positive layer colors and those below it only the negative ones, and that the transposed chart
+stacks ascending with the negative layers left of the zero line (x = 25 to 50) and the positive ones right of it; and
+that rendering twice is byte-identical.
+
+### Sort Validation: Malformed Sorts Are Reported And Never Mis-Sort
+
+**Test**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes`
+
+Opens inline specifications through the public API. Asserts that an object item of a sort array is a
+`VegaLiteSpecException` with the file, pointer `/encoding/x/sort/1`, and the line and column of the item; that a sort
+array that mixes kinds of values renders and delivers exactly one `vl-encoding-sort-mixed-types` warning at
+`/encoding/x/sort` through the warning handler and does not make strict mode throw; that a sort array on a quantitative
+field delivers `vl-encoding-sort-ignored` the same way; and that a sort by a channel the encoding does not have is an
+unsupported feature `vl-encoding-sort` whose message names the channel and which strict mode throws for.
+
 ### Sort By Aggregate: Bars Follow The Sort Of Their Category Axis
 
 **Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand`,

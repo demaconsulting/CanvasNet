@@ -4373,7 +4373,18 @@ Binning, and Stacking* except `argmin`, `argmax`, `values`, `exponential`, and `
 does, with the rules of the aggregate operations (only valid values of the field count, and a category with no valid
 value has a `null` result, which sorts first in either direction). Categories with the same value keep their order of
 first appearance. A sort by a channel that is not in the encoding or has no field, or by an unsupported `op`, is
-reported (`vl-encoding-sort`) and the default order is used.
+reported (`vl-encoding-sort`, with a message that names the channel) and the categories are sorted ascending. A `sort`
+array may hold only strings, numbers, booleans, and `null`; an object or an array in it is a specification error at that
+item (the one exception is a date-time object such as `{"year": 2024}` on a field of type `temporal`, which is accepted
+for a later release). An array that mixes kinds of values (`[1, "b"]`) still works, because values are matched by kind,
+and is reported as the warning `vl-encoding-sort-mixed-types`. A `sort` array, channel, or object on a quantitative
+field has no categories to order on its continuous scale and is ignored with the warning `vl-encoding-sort-ignored`. A
+key of a `sort` object that Vega-Lite does not define is the warning `vl-unknown-property`. A `sort` array may list at
+most `MaxScaleDomainSize` values.
+
+**Signed stacks.** The negative values of a stacked measure stack **downward** from zero (leftward for a horizontal
+chart) separately from the positive values, which stack upward from zero, so that a chart of takings and outgoings hangs
+the outgoings below the zero line (`center` and `normalize` use the absolute values). The axis covers both ends.
 
 **Determinism and limits.** `sample` is a reservoir sample whose generator is seeded from the **JSON pointer of the
 transform** (for example `/transform/0`), so the same chart always keeps the same rows, on every machine, and two
@@ -4654,7 +4665,9 @@ thread, after the work finished and before the method returns or throws.
 | `vl-encoding-timeunit`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel other than `x` and `y`, unless it is false or null (it needs the binned scale types of a later release); the channel is not binned |
 | `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
-| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate`, or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the default order is used |
+| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate` (the message names the channel), or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the categories are sorted ascending |
+| `vl-encoding-sort-ignored` | Warning | A `sort` array, channel (`"-y"`, `{"encoding": ...}`), or object with a `field` or `op` on a quantitative field whose scale is continuous: there are no categories to order, so the sort is ignored (`"ascending"`, `"descending"`, and `null` are not reported) |
+| `vl-encoding-sort-mixed-types` | Warning | A `sort` array that mixes strings, numbers, booleans, or `null`, reported at the array; the values are matched by kind (`1` does not position the text `"1"`) |
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
@@ -4682,7 +4695,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-projection` | Unsupported | `projection` |
 | `vl-layout-autosize-<type>` | Unsupported | `autosize` types other than pad and none (laid out as `pad`) |
 | `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
-| `vl-unknown-property` | Warning | A key that Vega-Lite does not define for a view, mark definition, encoding, or channel definition |
+| `vl-unknown-property` | Warning | A key that Vega-Lite does not define for a view, mark definition, encoding, channel definition, or sort object |
 | `vl-diagnostics-suppressed` | Warning | The first report beyond `MaxDiagnostics` |
 <!-- markdownlint-enable MD013 -->
 

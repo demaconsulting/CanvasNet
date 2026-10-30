@@ -192,6 +192,19 @@ categories keep the ascending default and the plain forms (ascending, descending
 that `IsSupportedFieldSort` accepts any orderable operation with a valid field and order and refuses `encoding`, an invalid
 order, the text form, and a null argument.
 
+##### Sort Array Is Bounded, Cancellable, And Scalar Only
+
+**Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation`,
+`ScaleResolverPlanTests.ScaleResolver_Resolve_SortArrayNeverMapsNonScalarItemsToNull`
+
+Asserts that, with `MaxScaleDomainSize` of 3, a sort array of four items is a `VegaLiteRenderException` located at
+`/encoding/x/sort` whose message contains `the limit of 3` and `VegaLiteLimits.MaxScaleDomainSize`, that an array of three
+items is accepted (`c, b, a`), and that a canceled token stops the read of a sort array (the data has no rows, so only
+the sort can notice it); and, with a specification tree built by hand because the parser rejects such items, that an
+object item and an array item of a sort array never stand for the null category: for the categories `a`, null, and `b`
+and the sort `[{}, [], "a"]` the unlisted null and `b` come first in data order and `a` last (`null, b, a`; reading the
+object as null would have given `b, null, a`).
+
 ##### Sort Cost Is Charged And Bounded
 
 **Tests**: `ScaleResolverPlanTests.ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable`
@@ -207,6 +220,7 @@ names `MaxEvaluationSteps` under a budget of 40), that the categories are bounde
 `ScaleResolverPlanTests.ScaleResolver_Resolve_RangeDomainIsTheUnionOfBothFields`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers`,
+`ScaleResolverPlanTests.ScaleResolver_Resolve_SignedStackDomainInBothOrientations`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd`,
 `ScaleResolverPlanTests.ScaleResolver_Resolve_BinnedScalesHaveNoNiceUnlessAsked`,
@@ -216,7 +230,9 @@ Asserts that the text categories of an ordinal bin (the boundaries joined with a
 starts and `descending` reverses them, and that the axis `format` (`.0%` for the bins 0 to 1 by 0.1) formats the
 boundaries; the range domain 1 to 9 with the merged title; the stacked domains read straight from the resolved scale (the
 layers 3, 2, 5 of north and 4, 1 of south give 0 to 10, the total of the highest stack; a layer of +3 and one of -4 stack
-upward and downward from zero and give -4 to 3; a normalized stack gives 0 to 1, and a chart with one row per category is
+upward and downward from zero and give -4 to 3; signed stacks in both orientations give -4 to 3 on a horizontal measure,
+-5 to 0 for an all-negative stack, 0 to 1 for a normalized stack of mixed signs, and 0 to 4 for a centered one (the
+absolute values 4 and 2 start at 0 and 1); a normalized stack gives 0 to 1, and a chart with one row per category is
 not stacked and keeps its zero-rule domain 0 to 10); the pre-binned domain 0 to 20 with the scale marked as binned
 and no computed bins; that a binned scale has no `nice` unless asked for and an explicit domain is used as given; and
 that the `unaggregated` domain of a mean reads the Raw rows (1 to 12) while the normal domain reads the means (2 to 8) and

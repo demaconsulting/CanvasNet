@@ -201,6 +201,25 @@ sections:
                   - SpecParser_IsSupportedSort_RequiresAnOperationOrChannelTheRendererComputes
                   - SpecParser_IsSupportedSort_RejectsNullArguments
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-SortValues
+                title: >-
+                  The SpecParser unit shall validate the values of an encoding sort array - every item a
+                  string, a number, a boolean, or null, and an object only as a date-time object on a field of
+                  type temporal, an object or array item otherwise being a located VegaLiteSpecException at the
+                  item - shall report an array that mixes the kinds of its values as the warning
+                  vl-encoding-sort-mixed-types at the array (the values still being accepted and matched by
+                  kind), shall report a key that a sort object does not define as a vl-unknown-property warning
+                  at the key, and shall tell the channel that a sort refers to.
+                justification: |
+                  A sort array item that is an object or an array would otherwise be read as the null category
+                  and silently mis-sort the chart; the specification is the problem and must be reported where
+                  it is, and a spec-quality problem that changes nothing the renderer can fix is a warning.
+                tests:
+                  - SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned
+                  - SpecParser_Parse_SortArrayAndObjectWarningsAreLocated
+                  - SpecParser_TryGetSortChannel_ReadsTheShorthandAndTheEncoding
+                  - SpecParser_Parse_ValidEncodingAggregateBinStackSortFormsAreAccepted
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
                   The SpecParser unit shall reject source text longer than the source-length limit with

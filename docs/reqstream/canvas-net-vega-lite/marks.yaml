@@ -66,8 +66,10 @@ sections:
               A bar chart with a color is a stacked bar chart; its layers must not overlap or start from zero.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-StackedLayers
+              - CanvasNetVegaLite-Marks-MarkBuilder-SignedStacks
             tests:
               - MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd
+              - MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations
               - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds
 
           - id: CanvasNetVegaLite-Marks-BinnedBars

@@ -7,6 +7,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 /// <summary>
 ///     System-level integration tests of the implicit encoding pipeline (aggregate, bin and stack from the encoding) and of the marks and axes that draw its result
 ///     through the public API, with the original fixtures <c>aggregate-bars.vl.json</c>, <c>histogram.vl.json</c>, <c>stacked-bars.vl.json</c>,
+///     <c>signed-stacks.vl.json</c>,
 ///     <c>binned-ranges.vl.json</c> and <c>window-cumulative.vl.json</c>. Every number is derived by hand from the data and the scale formulas.
 /// </summary>
 public class VegaLiteAggregationIntegrationTests
@@ -325,6 +326,93 @@ public class VegaLiteAggregationIntegrationTests
         // Assert
         Assert.Equal(["c", "a", "b"], ascending);
         Assert.Equal(["b", "a", "c"], descending);
+    }
+
+    /// <summary>
+    ///     Validates that the layers of a signed stack hang on both sides of the zero line, in both orientations, through the public API and the pixels. The
+    ///     fixture has the layers tips 8 and sales 12 above zero in q1 (0 to 8, 8 to 20) and refunds -4 and costs -6 below it (0 to -4, -4 to -10); q2 is tips 3 and
+    ///     sales 15 (0 to 3, 3 to 18) and refunds -8 and costs -12 (0 to -8, -8 to -20). The domain -20 to 20 over 100 px gives y(v) = 50 - 2.5 v, and the bands
+    ///     are 108 px wide and start at 6 and 126. The negative layers (costs blue, refunds orange) are drawn only below the zero line, the positive layers (sales red,
+    ///     tips teal) only above it. The transposed chart (the quarter on y, the stack along x over 100 px: x(v) = 50 + 2.5 v) stacks ascending: costs (0, -6),
+    ///     refunds (-6, -10), sales (0, 12) and tips (12, 20) in q1.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero()
+    {
+        // Arrange: tableau10 gives the sorted kinds costs, refunds, sales and tips these colors
+        var costs = new Rgba32(0x4c, 0x78, 0xa8, 255);
+        var refunds = new Rgba32(0xf5, 0x85, 0x18, 255);
+        var sales = new Rgba32(0xe4, 0x57, 0x56, 255);
+        var tips = new Rgba32(0x72, 0xb7, 0xb2, 255);
+        var document = Open("signed-stacks.vl.json");
+
+        // Act
+        var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+        var bars = scene.FindAll("mark-bar").ToList();
+        var rects = bars.Select(b => (SceneRect)b.Item).ToList();
+        using var surface = document.Render(cancellationToken: Ct);
+        var (ox, oy) = ((int)Math.Floor(bars[0].OffsetX), (int)Math.Floor(bars[0].OffsetY));
+
+        // Assert: the rows are in data order (q1: sales, tips, refunds, costs; q2 the same)
+        Assert.Equal([6.0, 6.0, 6.0, 6.0, 126.0, 126.0, 126.0, 126.0], rects.Select(r => r.X).ToArray());
+        Assert.Equal([0.0, 30.0, 50.0, 60.0, 5.0, 42.5, 50.0, 70.0], rects.Select(r => r.Y).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal([30.0, 20.0, 10.0, 15.0, 37.5, 7.5, 20.0, 30.0], rects.Select(r => r.Height).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+
+        // Assert: above the zero line of q1 there are only positive layers, below it only negative ones, and under the stack it is the background
+        for (var y = 2; y <= 47; y++)
+        {
+            var pixel = surface[ox + 60, oy + y];
+            Assert.True(pixel.Equals(sales) || pixel.Equals(tips), $"y {y} above zero is {pixel}");
+        }
+
+        for (var y = 52; y <= 73; y++)
+        {
+            var pixel = surface[ox + 60, oy + y];
+            Assert.True(pixel.Equals(refunds) || pixel.Equals(costs), $"y {y} below zero is {pixel}");
+        }
+
+        Assert.Equal(refunds, surface[ox + 60, oy + 55]);
+        Assert.Equal(costs, surface[ox + 60, oy + 67]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[ox + 60, oy + 80]);
+        Assert.Equal(costs, surface[ox + 180, oy + 90]);
+
+        // Arrange: the same data on the other orientation
+        var transposed = VegaLiteDocument.Parse(Text("signed-stacks.vl.json")
+            .Replace("\"width\": 240", "\"width\": 100", StringComparison.Ordinal)
+            .Replace("\"height\": 100", "\"height\": 240", StringComparison.Ordinal)
+            .Replace("\"x\": { \"field\": \"quarter\", \"type\": \"nominal\", \"axis\": { \"labelAngle\": 0 } }", "\"y\": { \"field\": \"quarter\", \"type\": \"nominal\" }", StringComparison.Ordinal)
+            .Replace("\"y\": { \"field\": \"amount\", \"type\": \"quantitative\" }", "\"x\": { \"field\": \"amount\", \"type\": \"quantitative\" }", StringComparison.Ordinal));
+
+        // Act
+        var acrossBars = transposed.BuildScene(new VegaLiteRenderOptions(), Ct).FindAll("mark-bar").ToList();
+        var across = acrossBars.Select(b => (SceneRect)b.Item).ToList();
+        using var acrossSurface = transposed.Render(cancellationToken: Ct);
+        var (ax, ay) = ((int)Math.Floor(acrossBars[0].OffsetX), (int)Math.Floor(acrossBars[0].OffsetY));
+
+        // Assert: q1 is sales (0, 12), tips (12, 20), refunds (-6, -10) and costs (0, -6); q2 is sales (0, 15), tips (15, 18), refunds (-12, -20) and costs (0, -12)
+        Assert.Equal([6.0, 6.0, 6.0, 6.0, 126.0, 126.0, 126.0, 126.0], across.Select(r => r.Y).ToArray());
+        Assert.Equal([50.0, 80.0, 25.0, 35.0, 50.0, 87.5, 0.0, 20.0], across.Select(r => r.X).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+        Assert.Equal([30.0, 20.0, 10.0, 15.0, 37.5, 7.5, 20.0, 30.0], across.Select(r => r.Width).ToArray(), (a, b) => Math.Abs(a - b) < 1e-9);
+
+        // Assert: along the row through the middle of q1 the negative colors are left of the zero line and the positive ones right of it
+        for (var x = 2; x <= 47; x++)
+        {
+            var pixel = acrossSurface[ax + x, ay + 60];
+            Assert.True(pixel.Equals(refunds) || pixel.Equals(costs) || pixel.Equals(VegaLiteTestHelpers.White), $"x {x} left of zero is {pixel}");
+        }
+
+        for (var x = 52; x <= 98; x++)
+        {
+            var pixel = acrossSurface[ax + x, ay + 60];
+            Assert.True(pixel.Equals(sales) || pixel.Equals(tips), $"x {x} right of zero is {pixel}");
+        }
+
+        Assert.Equal(costs, acrossSurface[ax + 42, ay + 60]);
+        Assert.Equal(refunds, acrossSurface[ax + 30, ay + 60]);
+
+        // Assert: the rendering is deterministic
+        using var again = document.Render(cancellationToken: Ct);
+        Assert.Equal(VegaLiteTestHelpers.Snapshot(surface), VegaLiteTestHelpers.Snapshot(again));
     }
 
     /// <summary>

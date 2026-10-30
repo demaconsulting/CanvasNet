@@ -134,7 +134,13 @@ value:
   values, a channel shorthand (`"y"` or `"-y"` with a channel of `x y color fill stroke strokeWidth size shape fillOpacity
   strokeOpacity opacity text`), or an object `{field, op, order}` (the `op` any aggregate operation but `argmin` and
   `argmax`) or `{encoding, order}` (the two forms cannot be mixed); the `sort` of an `order` channel is `ascending` or
-  `descending` only.
+  `descending` only. Every item of a `sort` array (`ValidateSortArray`) is a string, a number, a boolean, or null: an
+  object or an array item is an error at the item, because it would otherwise read as the null category and silently
+  mis-sort; an object is accepted only as a date-time (a non-empty object of the keys `year quarter month date day hours
+  minutes seconds milliseconds utc` with string, number, or boolean values) on a field of type `temporal`. An array that
+  mixes kinds of values is accepted (values are matched by kind, as Vega-Lite's strict comparison does) and is one
+  `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than `field`,
+  `op`, `order`, and `encoding` is a `vl-unknown-property` warning at the key.
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -171,7 +177,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   too), `IsDrawnView(root, view)`, `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
-  array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`, and
+  array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`,
+  `TryGetSortChannel(sort, out channel)` (the channel a shorthand or an `encoding` refers to), and
   `IsSortChannel(name)` are shared with the catalog and the scale resolver in the same way.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be

@@ -185,6 +185,25 @@ sections:
                   - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
 
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
+                title: >-
+                  The FeatureCatalog unit shall report a sort by a channel that the encoding does not have
+                  (or that reads no field) as vl-encoding-sort with a message that names the channel and says
+                  that the categories are sorted ascending, report a sort by an operation that cannot order
+                  categories as vl-encoding-sort with the operation message, and warn with
+                  vl-encoding-sort-ignored, at the sort, when a sort array, a channel shorthand, or a sort
+                  object with a field, an operation, or an encoding is given on a quantitative field whose
+                  scale is continuous - and shall not warn for ascending, descending, null, an object that
+                  has only an order, a discrete field, or a discrete scale type.
+                justification: |
+                  A sort that does nothing must say why: the specification, not the renderer, is the problem,
+                  and the message must name what to fix without hiding it behind a generic unsupported text.
+                tests:
+                  - FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel
+                  - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
+                  - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
+                  - CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes
+
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
                 title: >-
                   The FeatureCatalog unit shall warn with vl-schema-version, at the $schema value, when the

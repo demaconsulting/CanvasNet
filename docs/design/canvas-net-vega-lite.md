@@ -607,7 +607,9 @@ of an expression function (`timeFormat` gives `vl-expr-function-timeformat`; the
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel other than `x` and `y`, unless false or null (it needs the binned scale types of a later phase) |
 | `vl-encoding-bin-extent-param`, `vl-transform-bin-extent-param` | Unsupported | A `bin` whose `extent` is a `{"param": ...}` object, in an encoding or in a transform; the extent of the data is used |
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` of `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
-| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel shorthand or an `encoding` that names a channel without a field or an aggregate, or an `op` of `values` or an exponential operation |
+| `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel shorthand or an `encoding` that names a channel without a field or an aggregate (the message names the channel), or an `op` of `values` or an exponential operation |
+| `vl-encoding-sort-ignored` | Warning | A `sort` array, channel shorthand, or object with a `field`, `op`, or `encoding` on a quantitative field with a continuous scale (there are no categories to order) |
+| `vl-encoding-sort-mixed-types` | Warning | A `sort` array that mixes strings, numbers, booleans, or null (produced by the parser at the array; values are matched by kind) |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
 | `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
@@ -755,7 +757,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     the exponential ones, by field, by `op`, by channel shorthand (`"-y"`), or by `{"encoding"}`, over the **Raw** rows
     (before the implicit aggregate, as in Vega-Lite), stable for ties; a category without a valid value (a null result,
     also for `sum`, as in Vega) sorts first in either direction. Any other form is reported as
-    `vl-encoding-sort`.
+    `vl-encoding-sort`. A sort array is bounded by `MaxScaleDomainSize` and an object or array item in it is a
+    specification error; a sort array that mixes value kinds warns (`vl-encoding-sort-mixed-types`) and a sort of
+    categories on a continuous scale warns and is ignored (`vl-encoding-sort-ignored`).
 24. **Warnings, not silent nulls**: a calculate that produces a regular expression stores null and warns
     (`vl-expr-runtime`); a pivot that skips or cuts data warns (`vl-transform-runtime`).
 25. **Provenance of the expression and transform rules**: the semantics follow the public Vega

@@ -121,15 +121,19 @@ the returned row, while an operation without a field is not a measure.
 `EncodingPlanTests.EncodingPlan_Create_StackNamesAndGroupsFollowTheMeasure`,
 `EncodingPlanTests.EncodingPlan_Create_OrdersTheLayersLikeVegaLite`,
 `EncodingPlanTests.EncodingPlan_Create_StackByExcludesTheDimensionField`,
-`EncodingPlanTests.EncodingPlan_Create_BarWithTwoMeasuresStacksTheAggregatedOne`
+`EncodingPlanTests.EncodingPlan_Create_BarWithTwoMeasuresStacksTheAggregatedOne`,
+`EncodingPlanTests.EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar`
 
 Asserts, as a theory of fourteen mark and encoding combinations, the stacked channel and offset above; that the stack
 writes `<field>_start` and `<field>_end` of the derived measure, the stacked channel reads the upper end with the lower
 end as its second field, and a stack splits by the fields of the other position channel; that the layers are ordered
 bottom first by the stack-by fields, descending when the stacked channel is `y` and ascending when it is `x`, or by the
 `order` channel in its own direction; that a stack-by field that is also the group-by is not a layer (the dimension's own
-field is excluded) and a stack-by field that is aggregated is sorted by its derived name; and that the plan carries the
-inferred orientation, which decides the stack of a bar with two measures.
+field is excluded) and a stack-by field that is aggregated is sorted by its derived name; that the plan carries the
+inferred orientation, which decides the stack of a bar with two measures; and that an `area` with the signed values 3,
+-2, and 1 gets the decision, the layer order, and the rows of a bar in both orientations (vertical: z (0, 1), y (0, -2),
+x (1, 4); horizontal: x (0, 3), y (0, -2), z (3, 4)), so that the area mark, which is drawn in a later phase, inherits
+verified stacking.
 
 ##### Raw Table Is Flagged
 
@@ -155,11 +159,14 @@ keeps the three input rows and their fields while Main has the two groups when a
 
 **Tests**: `EncodingTransformsTests.EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY`,
 `EncodingTransformsTests.EncodingTransforms_Apply_StacksNegativeValuesDownwards`,
+`EncodingTransformsTests.EncodingTransforms_Apply_SignedStacksOnXAndWithAggregatedNegativeSums`,
 `EncodingTransformsTests.EncodingTransforms_Apply_NormalizeAndCenterOffsets`,
 `EncodingTransformsTests.EncodingTransforms_Apply_StacksAscendingOnX`,
 `EncodingTransformsTests.EncodingTransforms_Apply_OrderChannelOrdersTheLayers`
 
 Asserts the stacked ranges above for the aggregated layers, the negative values (the rows keep their order), the
+signed values on a horizontal measure (x (0, 3) and z (3, 4) up, y (0, -2) down) and the aggregated negative sums
+(x = -1 + -3 = -4 stacks to (0, -4), y = 2 to (0, 2)), the
 normalize and center offsets with the domain `[0, 1]` for normalize, the ascending horizontal stack, and that the
 `order` channel replaces the default layer order: with the order field descending the layer with the larger order is at
 the bottom (`q` (0, 2), `p` (2, 3)), and with the default direction `p` is (0, 1) and `q` is (1, 3).

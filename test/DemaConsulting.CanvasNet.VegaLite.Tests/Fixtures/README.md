@@ -33,6 +33,9 @@ describe nothing real. They exist to give the tests small, readable charts whose
   (49, 74 and 24 pixels, a pixel of bin spacing taken off every pair of edges).
 - `window-cumulative.vl.json`: four made-up quarterly order counts, turned into a running total by a `window` transform
   (`sum`, frame up to the current row: 4, 7, 12 and 14) and drawn as bars on an ordinal axis.
+- `signed-stacks.vl.json`: made-up takings (positive) and outgoings (negative) per quarter, split by `kind` (a color), so
+  that each quarter's bar is a stack that hangs both above and below the zero line (the positive layers stack up from
+  zero and the negative layers stack down from zero, separately; the domain is -20 to 20).
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

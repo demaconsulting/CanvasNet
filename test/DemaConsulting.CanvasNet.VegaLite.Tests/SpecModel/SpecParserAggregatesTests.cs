@@ -244,6 +244,14 @@ public class SpecParserAggregatesTests
     [InlineData("x", """{"field":"a","sort":{"encoding":3}}""", "/encoding/x/sort/encoding")]
     [InlineData("x", """{"field":"a","sort":{"encoding":"y","field":"v"}}""", "/encoding/x/sort/field")]
     [InlineData("x", """{"field":"a","sort":{"encoding":"y","op":"sum"}}""", "/encoding/x/sort/op")]
+    [InlineData("x", """{"field":"a","sort":[{"a":1}]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","sort":[["a"]]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","sort":["a",{}]}""", "/encoding/x/sort/1")]
+    [InlineData("x", """{"field":"a","sort":["a","b",[]]}""", "/encoding/x/sort/2")]
+    [InlineData("x", """{"field":"a","type":"nominal","sort":[{"year":2024}]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"yr":2024}]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"year":2024},{}]}""", "/encoding/x/sort/1")]
+    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"year":{"a":1}}]}""", "/encoding/x/sort/0")]
     [InlineData("order", """{"field":"a","sort":"sideways"}""", "/encoding/order/sort")]
     [InlineData("order", """{"field":"a","sort":{"op":"sum"}}""", "/encoding/order/sort")]
     [InlineData("order", """[{"field":"a"},{"field":"b","sort":"sideways"}]""", "/encoding/order/1/sort")]
@@ -258,6 +266,79 @@ public class SpecParserAggregatesTests
 
         // Assert
         AssertLocated(ex, pointer);
+    }
+
+    /// <summary>
+    ///     Validates the diagnostics of a <c>sort</c> that is accepted: an array that mixes the kinds of its values is one warning at the array (and the
+    ///     values are still accepted, null included), an array of one kind is silent, a date-time object is accepted on a temporal field, and a key that a
+    ///     sort object does not define is a <c>vl-unknown-property</c> warning at the key.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_SortArrayAndObjectWarningsAreLocated()
+    {
+        // Arrange
+        static SpecTree Parse(string definition) =>
+            SpecParser.Parse("{\"mark\":\"bar\",\"encoding\":{\"x\":" + definition + "}}", "t.json");
+
+        // Act
+        var mixed = Parse("""{"field":"a","sort":[1,"b"]}""");
+        var withNull = Parse("""{"field":"a","sort":[null,"a"]}""");
+        var withBoolean = Parse("""{"field":"a","sort":["a",true,"b"]}""");
+        var strings = Parse("""{"field":"a","sort":["a","b"]}""");
+        var numbers = Parse("""{"field":"a","type":"ordinal","sort":[3,1,2]}""");
+        var booleans = Parse("""{"field":"a","sort":[true,false]}""");
+        var nulls = Parse("""{"field":"a","sort":[null,null]}""");
+        var empty = Parse("""{"field":"a","sort":[]}""");
+        var temporal = Parse("""{"field":"a","type":"temporal","sort":[{"year":2024,"month":"jan"},{"year":2025,"utc":true}]}""");
+        var unknown = Parse("""{"field":"a","sort":{"op":"sum","bogus":1}}""");
+        var known = Parse("""{"field":"a","sort":{"op":"sum","field":"v","order":"descending"}}""");
+
+        // Assert: one warning at the array, with the pointer, the line and the column
+        var warning = Assert.Single(mixed.Warnings);
+        Assert.Equal("vl-encoding-sort-mixed-types", warning.Id);
+        Assert.Equal(FeatureReportKind.Warning, warning.Kind);
+        Assert.Equal("/encoding/x/sort", warning.Location.Pointer);
+        Assert.Equal("t.json", warning.Location.File);
+        Assert.True(warning.Location.Line >= 1 && warning.Location.Column >= 1);
+        Assert.Equal("vl-encoding-sort-mixed-types", Assert.Single(withNull.Warnings).Id);
+        Assert.Equal("vl-encoding-sort-mixed-types", Assert.Single(withBoolean.Warnings).Id);
+        Assert.Equal(3, withBoolean.Root["encoding"]!["x"]!["sort"]!.Items.Count);
+
+        // Assert: arrays of one kind (and no array) have nothing to warn about
+        Assert.Empty(strings.Warnings);
+        Assert.Empty(numbers.Warnings);
+        Assert.Empty(booleans.Warnings);
+        Assert.Empty(nulls.Warnings);
+        Assert.Empty(empty.Warnings);
+        Assert.Empty(temporal.Warnings);
+        Assert.Empty(known.Warnings);
+
+        // Assert: an unknown key of a sort object is warned about at the key, once
+        var unknownWarning = Assert.Single(unknown.Warnings);
+        Assert.Equal("vl-unknown-property", unknownWarning.Id);
+        Assert.Equal("/encoding/x/sort/bogus", unknownWarning.Location.Pointer);
+        Assert.Contains("a sort definition", unknownWarning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the channel that a <c>sort</c> refers to: the shorthand and the <c>encoding</c> of a sort object; any other form refers to none.
+    /// </summary>
+    [Fact]
+    public void SpecParser_TryGetSortChannel_ReadsTheShorthandAndTheEncoding()
+    {
+        // Arrange
+        static string? Channel(string sort) =>
+            SpecParser.TryGetSortChannel(SpecParser.Parse("{\"s\":" + sort + "}").Root["s"]!, out var channel) ? channel : null;
+
+        // Act / Assert
+        Assert.Equal("y", Channel("\"y\""));
+        Assert.Equal("y", Channel("\"-y\""));
+        Assert.Equal("color", Channel("""{"encoding":"color","order":"descending"}"""));
+        Assert.Null(Channel("\"ascending\""));
+        Assert.Null(Channel("""{"op":"sum","field":"v"}"""));
+        Assert.Null(Channel("""["a","b"]"""));
+        Assert.Null(Channel("null"));
+        Assert.Throws<ArgumentNullException>(() => SpecParser.TryGetSortChannel(null!, out _));
     }
 
     /// <summary>

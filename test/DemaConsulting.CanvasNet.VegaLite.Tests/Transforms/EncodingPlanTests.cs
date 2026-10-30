@@ -382,6 +382,35 @@ public class EncodingPlanTests
     }
 
     /// <summary>
+    ///     Validates that an <c>area</c> mark decides, plans and computes its stack like a bar in both orientations, with signed values: the area is not drawn
+    ///     until a later phase, but the stack decision, the plan and the engine are shared, so its rows are the ones a bar gets. Vertical: the layers x (3),
+    ///     y (-2), z (1) stack descending, so z is (0, 1), y is (0, -2) and x is (1, 4). Horizontal: ascending, so x is (0, 3), y is (0, -2) and z is (3, 4).
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar()
+    {
+        // Arrange
+        const string rows = """[{"c":"a","g":"x","v":3},{"c":"a","g":"y","v":-2},{"c":"a","g":"z","v":1}]""";
+        const string vertical = """{"x":{"field":"c","type":"ordinal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""";
+        const string horizontal = """{"y":{"field":"c","type":"ordinal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""";
+
+        // Act
+        var areaPlan = Create(vertical, "\"area\"").Plan;
+        var barPlan = Create(vertical, "\"bar\"").Plan;
+        var areaRows = ChartTestHelpers.ResolveFull("{\"data\":{\"values\":" + rows + "},\"mark\":\"area\",\"encoding\":" + vertical + "}");
+        var areaAcross = ChartTestHelpers.ResolveFull("{\"data\":{\"values\":" + rows + "},\"mark\":\"area\",\"encoding\":" + horizontal + "}");
+
+        // Assert: the same decision and the same layer order as a bar
+        Assert.Equal(barPlan.Stack!.Channel, areaPlan.Stack!.Channel);
+        Assert.Equal(barPlan.Stack.Offset, areaPlan.Stack.Offset);
+        Assert.Equal(barPlan.Stack.Sort.ToArray(), areaPlan.Stack.Sort.ToArray());
+        Assert.Equal(["x|1|4", "y|0|-2", "z|0|1"], AggregateTestSupport.Rows(areaRows.Data.Main, "g", "v_start", "v_end"));
+        Assert.Equal((-2, 4), (areaRows.Scales["y"]!.DomainStart, areaRows.Scales["y"]!.DomainEnd));
+        Assert.Equal(["x|0|3", "y|0|-2", "z|3|4"], AggregateTestSupport.Rows(areaAcross.Data.Main, "g", "v_start", "v_end"));
+        Assert.Equal((-2, 4), (areaAcross.Scales["x"]!.DomainStart, areaAcross.Scales["x"]!.DomainEnd));
+    }
+
+    /// <summary>
     ///     Validates that a stack that has to be sorted by an aggregated stack-by field sorts by the derived measure name and that
     ///     a group-by that is also a stack-by field is not a layer (Vega-Lite excludes the dimension's own field).
     /// </summary>

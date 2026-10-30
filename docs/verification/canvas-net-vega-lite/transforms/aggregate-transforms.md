@@ -386,11 +386,13 @@ comparison, and that a canceled token and an exception of the comparison propaga
 
 **Tests**: `StackRulesTests.StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields`,
 `StackRulesTests.StackRules_Decide_ReturnsNullWhenNothingIsStacked`,
+`StackRulesTests.StackRules_Decide_AreaStacksByDefaultInBothOrientations`,
 `StackRulesTests.StackRules_Decide_ListsTheStackByDefinitionsInChannelOrder`,
 `StackRulesTests.StackRules_Decide_HandlesMissingArguments`,
 `StackRulesTests.StackRules_Helpers_ClassifyDefinitionsAndSwitches`
 
 Asserts the Vega-Lite decision: which channel stacks and with which offset (the default for `bar`, `area`, and `arc`),
+that an `area` stacks by default along `y` or along `x` like a bar and an explicit `stack: false` switches it off,
 that the fields of the non-position channels in channel order (array items included) split a group, and that nothing
 stacks for an explicit `null` or `false`, a mark that does not stack, an aggregate without a field to split, a range
 (`x2` or `y2`), or a channel that cannot stack; that a missing mark is refused and a missing or non-object encoding

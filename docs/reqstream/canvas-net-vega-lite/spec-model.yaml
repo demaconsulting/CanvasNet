@@ -116,6 +116,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -123,6 +124,7 @@ sections:
               - FeatureCatalog_Visit_ReportsAreInDocumentOrder
               - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
               - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
+              - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 
           - id: CanvasNetVegaLite-SpecModel-ExpressionValidation
@@ -159,10 +161,12 @@ sections:
             children:
               - CanvasNetVegaLite-SpecModel-SpecParser-AggregateTransforms
               - CanvasNetVegaLite-SpecModel-SpecParser-EncodingAggregates
+              - CanvasNetVegaLite-SpecModel-SpecParser-SortValues
             tests:
               - SpecParser_Parse_AggregateTransformShapesArePinned
               - SpecParser_Parse_WindowTransformShapesArePinned
               - SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned
+              - SpecParser_Parse_SortArrayAndObjectWarningsAreLocated
               - SpecParser_Parse_ValidAggregatingTransformsAreAccepted
 
           - id: CanvasNetVegaLite-SpecModel-SchemaCompatibility

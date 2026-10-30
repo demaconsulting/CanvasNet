@@ -41,6 +41,20 @@ sections:
                   - MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd
                   - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
 
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-SignedStacks
+                title: >-
+                  The MarkBuilder unit shall draw the layers of a stack with negative values hanging below (or,
+                  on a horizontal measure, left of) the zero baseline - the positive layers from zero up and
+                  the negative layers from zero down, separately, in both orientations, an all-negative stack
+                  entirely below zero, and the offsets center and normalize by the absolute values - each layer
+                  from its stack start to its stack end whichever of the two is the larger.
+                justification: |
+                  A chart of takings and outgoings is a stacked chart on both sides of zero; a negative layer
+                  drawn above the baseline or on top of the positive layers would reverse its meaning.
+                tests:
+                  - MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations
+                  - CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero
+
               - id: CanvasNetVegaLite-Marks-MarkBuilder-BinnedBars
                 title: >-
                   The MarkBuilder unit shall draw a bar or rect on a binned continuous channel across its bin

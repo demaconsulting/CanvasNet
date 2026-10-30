@@ -23,7 +23,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 ///         Categories with the same result keep the order of first appearance, so the sort is stable and culture-independent.
 ///     </para>
 ///     <para>
-///         <b>Limits.</b> The aggregates are computed with the engine of the aggregate transform (<see cref="MeasureCell"/>): one cell per
+///         <b>Limits.</b> A sort array has at most <see cref="VegaLiteLimits.MaxScaleDomainSize"/> items (a located failure at the array otherwise) and the
+///         cancellation token is polled while it is read. The aggregates are computed with the engine of the aggregate transform (<see cref="MeasureCell"/>): one cell per
 ///         category (at most <see cref="VegaLiteLimits.MaxScaleDomainSize"/>), the work of every row charged to the evaluation-step budget of
 ///         the call, an operation that keeps values bounded by <see cref="TableLayout.MaxCells"/>, the cancellation token checked as the rows are read.
 ///         A failure is a <see cref="VegaLiteRenderException"/> located at the channel definition.
@@ -76,12 +77,32 @@ internal static partial class ScaleResolver
 
         if (sort is { IsArray: true } order)
         {
+            // The array is bounded like a domain and polled for cancellation: a specification can hold millions of items
+            if (order.Items.Count > context.Limits.MaxScaleDomainSize)
+            {
+                throw new VegaLiteRenderException(
+                    $"The sort of the {input.Channel} channel lists {order.Items.Count} values, more than the limit of {context.Limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).",
+                    order.GetLocation(context.SourceName));
+            }
+
             // Values missing from the sort array come first (index -1), then the array order; the first index of each
             // listed value is recorded once so ordering a domain stays linear in the domain size
             var firstIndex = new Dictionary<DataValue, int>();
             var position = 0;
             foreach (var item in order.Items)
             {
+                if (position % CancellationInterval == 0)
+                {
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                }
+
+                // An object or an array is not a category (the parser rejects them); never let one stand for the null category
+                if (item.IsObject || item.IsArray)
+                {
+                    position++;
+                    continue;
+                }
+
                 firstIndex.TryAdd(ToDataValue(item), position++);
             }
 

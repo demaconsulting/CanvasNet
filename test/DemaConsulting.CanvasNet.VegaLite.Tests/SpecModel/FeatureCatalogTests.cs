@@ -71,6 +71,7 @@ public class FeatureCatalogTests
                 ("vl-mark-arc", "/mark"),
                 ("vl-type-temporal", "/encoding/x/type"),
                 ("vl-encoding-timeunit", "/encoding/x/timeUnit"),
+                ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-encoding-bin", "/encoding/color/bin"),
                 ("vl-scale-log", "/encoding/color/scale/type"),
@@ -84,9 +85,9 @@ public class FeatureCatalogTests
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
 
-        // Assert: only the schema version is a warning; every other report is an unsupported feature; all carry positions and the file
-        Assert.Equal(FeatureReportKind.Warning, reports[0].Kind);
-        Assert.All(reports.Skip(1), r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+        // Assert: only the schema version and the ignored sort are warnings; every other report is an unsupported feature; all carry positions and the file
+        Assert.Equal(["vl-schema-version", "vl-encoding-sort-ignored"], reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
+        Assert.All(reports.Where(r => r.Id is not ("vl-schema-version" or "vl-encoding-sort-ignored")), r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.All(reports, r => Assert.True(r.Location.Line >= 1 && r.Location.Column >= 1 && r.Message.Length > 0));
         Assert.All(reports, r => Assert.Equal("all.json", r.Location.File));
         Assert.Equal((2, 14), (reports[0].Location.Line, reports[0].Location.Column));
@@ -1185,5 +1186,76 @@ public class FeatureCatalogTests
 
         // Assert
         Assert.Equal(reported ? new[] { "vl-encoding-sort" } : [], ids);
+    }
+
+    /// <summary>
+    ///     Validates that a sort that refers to a channel the encoding lacks is reported as <c>vl-encoding-sort</c> with a message that names the channel
+    ///     (the specification is the problem, not the renderer), at the sort, and that an operation that cannot order categories keeps the general message.
+    /// </summary>
+    /// <param name="encoding">The text of the encoding (x always has the sort).</param>
+    /// <param name="channel">The channel the message must name, or null for the operation message.</param>
+    [Theory]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"encoding":"y"}}}""", "y")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":"-y"},"y":{"value":3}}""", "y")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":"color"},"y":{"field":"v","type":"quantitative"}}""", "color")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"encoding":"size","order":"descending"}},"size":{"value":3}}""", "size")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"op":"values","field":"v"}},"y":{"field":"v","type":"quantitative"}}""", null)]
+    public void FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel(string encoding, string? channel)
+    {
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse("{\"mark\":\"bar\",\"encoding\":" + encoding + "}"));
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal("vl-encoding-sort", report.Id);
+        Assert.Equal(FeatureReportKind.UnsupportedFeature, report.Kind);
+        Assert.Equal("/encoding/x/sort", report.Location.Pointer);
+        if (channel is null)
+        {
+            Assert.Contains("operation", report.Message, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("refers to the '" + channel + "' channel", report.Message, StringComparison.Ordinal);
+            Assert.Contains("sorted ascending", report.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a sort that lists or computes an order of categories is a <c>vl-encoding-sort-ignored</c> warning on a quantitative field with a
+    ///     continuous scale, and is not reported for the plain directions, for null, for an order-only object, for a discrete field, or when the scale type is
+    ///     a discrete one.
+    /// </summary>
+    /// <param name="definition">The definition of the <c>x</c> channel.</param>
+    /// <param name="reported">Whether the warning is expected.</param>
+    [Theory]
+    [InlineData("""{"field":"v","type":"quantitative","sort":["a"]}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":[]}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"-y"}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"op":"sum","field":"w"}}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"field":"w"}}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"ascending"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"descending"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":null}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"order":"descending"}}""", false)]
+    [InlineData("""{"field":"v","type":"nominal","sort":["a"]}""", false)]
+    [InlineData("""{"field":"v","type":"ordinal","sort":"-y"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","scale":{"type":"band"},"sort":["a"]}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","scale":{"type":"linear"},"sort":["a"]}""", true)]
+    public void FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning(string definition, bool reported)
+    {
+        // Act: the y channel exists, so a channel shorthand is applicable
+        var reports = FeatureCatalog.Visit(SpecParser.Parse("{\"mark\":\"point\",\"encoding\":{\"x\":" + definition + ",\"y\":{\"field\":\"w\",\"type\":\"quantitative\"}}}"));
+
+        // Assert
+        if (reported)
+        {
+            var report = Assert.Single(reports);
+            Assert.Equal(("vl-encoding-sort-ignored", FeatureReportKind.Warning, "/encoding/x/sort"), (report.Id, report.Kind, report.Location.Pointer));
+        }
+        else
+        {
+            Assert.Empty(reports);
+        }
     }
 }

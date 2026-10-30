@@ -65,7 +65,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel other than <c>x</c> and <c>y</c>, unless it is false or null (binning on the other channels needs the binned scale types of a later phase). <c>aggregate</c>, <c>bin</c> (on <c>x</c> and <c>y</c>), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
 ///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
 ///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; the values are stacked on the linear scale.</description></item>
-///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported.</description></item>
+///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported. The message names the channel that the sort refers to when that is the problem (the sort stays a report, not a specification error, because a channel can come from a parent encoding after normalization).</description></item>
+///         <item><term><c>vl-encoding-sort-ignored</c> (warning)</term><description>a <c>sort</c> array, channel shorthand, or object with a <c>field</c>, <c>op</c> or <c>encoding</c> on a quantitative field whose scale is continuous (no discrete <c>scale.type</c>): there are no categories to order and the sort is ignored. <c>ascending</c>, <c>descending</c> and null are not reported.</description></item>
+///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it names <c>tableau10</c> (compared without regard to case, as the scale resolver does) or the scale has an explicit color <c>range</c>, which overrides it.</description></item>
 ///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
@@ -82,7 +84,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-layout-autosize-&lt;type&gt;</c></term><description><c>autosize</c> types other than pad and none (fit, fit-x, fit-y).</description></item>
 ///     </list>
 ///     <para>
-///         The warnings <c>vl-duplicate-key</c> and <c>vl-unknown-property</c> are produced by <see cref="SpecParser"/>
+///         The warnings <c>vl-duplicate-key</c>, <c>vl-unknown-property</c> and <c>vl-encoding-sort-mixed-types</c> are produced by <see cref="SpecParser"/>
 ///         and are available in <see cref="SpecTree.Warnings"/>. The warning <c>vl-data-parse-failed</c> is not part of the
 ///         catalog: it needs the data, so the data stage produces it while a chart is measured or rendered (values that an
 ///         explicit <c>format.parse</c> conversion could not read, one warning per field).
@@ -113,6 +115,9 @@ internal static class FeatureCatalog
 
     /// <summary>The scale types that the renderer implements.</summary>
     private static readonly HashSet<string> SupportedScaleTypes = ["linear", "band", "point", "ordinal"];
+
+    /// <summary>The scale types that order categories (a quantitative field with one of them is not on a continuous scale).</summary>
+    private static readonly HashSet<string> DiscreteScaleTypes = ["band", "point", "ordinal", "bin-ordinal", "quantile", "quantize", "threshold"];
 
     /// <summary>The scale properties that the renderer implements; <c>scheme</c> only for <c>tableau10</c> (see the scale visit).</summary>
     private static readonly HashSet<string> SupportedScaleProperties =
@@ -570,11 +575,7 @@ internal static class FeatureCatalog
             ReportProperty(definition, "timeUnit", n => !n.IsNull, "Time units are not supported yet.");
             VisitBin(name, definition);
             VisitStack(name, definition);
-            if (definition["sort"] is { } sort && !SpecParser.IsSupportedSort(sort, definition))
-            {
-                Unsupported("vl-encoding-sort", "Sorting by this operation or channel is not supported yet.", sort);
-            }
-
+            VisitSort(name, definition);
             ReportProperty(definition, "condition", _ => true, "Conditional encodings are not supported yet.");
             ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
             ReportProperty(definition, "bandPosition", _ => true, "The band position of a field is not supported yet.");
@@ -592,6 +593,73 @@ internal static class FeatureCatalog
 
             VisitLegend(name, definition, scale);
         }
+
+        /// <summary>
+        ///     Reports a <c>sort</c> that is not applied: one the renderer cannot compute, one that refers to a channel the encoding does
+        ///     not have, and one that a continuous scale ignores.
+        /// </summary>
+        /// <remarks>
+        ///     <c>ascending</c>, <c>descending</c> and null are meaningful on every scale. A sort array, a channel shorthand and an object
+        ///     that sorts by a field, an operation or a channel orders the categories of a discrete scale; on a quantitative field
+        ///     (whose scale is continuous unless <c>scale.type</c> names a discrete scale) it has nothing to order and is ignored, which
+        ///     is the warning <c>vl-encoding-sort-ignored</c>.
+        /// </remarks>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitSort(string name, SpecNode definition)
+        {
+            if (definition["sort"] is not { } sort)
+            {
+                return;
+            }
+
+            if (!SpecParser.IsSupportedSort(sort, definition))
+            {
+                if (SpecParser.TryGetSortChannel(sort, out var other))
+                {
+                    Unsupported(
+                        "vl-encoding-sort",
+                        $"The sort refers to the '{other}' channel, which this encoding does not have (or which reads no field); the categories are sorted ascending.",
+                        sort);
+                }
+                else
+                {
+                    Unsupported("vl-encoding-sort", "Sorting by this operation is not supported yet; the categories are sorted ascending.", sort);
+                }
+
+                return;
+            }
+
+            if (name is not ("order" or "x2" or "y2") && SortOrdersCategories(sort) && IsContinuous(definition))
+            {
+                Warn(
+                    "vl-encoding-sort-ignored",
+                    "The sort orders the categories of a discrete scale; this field is quantitative with a continuous scale, so the sort is ignored.",
+                    sort);
+            }
+        }
+
+        /// <summary>
+        ///     Determines whether a <c>sort</c> lists, or computes, an order of categories (everything but ascending, descending, null and an order-only object).
+        /// </summary>
+        /// <param name="sort">The <c>sort</c> value.</param>
+        /// <returns><see langword="true"/> for an array, a channel shorthand, or an object with a field, an operation or an encoding.</returns>
+        private static bool SortOrdersCategories(SpecNode sort) => sort.Kind switch
+        {
+            SpecNodeKind.Array => true,
+            SpecNodeKind.String => sort.StringValue is not ("ascending" or "descending"),
+            SpecNodeKind.Object => sort["field"] is not null || sort["op"] is not null || sort["encoding"] is not null,
+            _ => false,
+        };
+
+        /// <summary>
+        ///     Determines whether a channel definition is a quantitative field on a continuous scale.
+        /// </summary>
+        /// <param name="definition">The channel definition object.</param>
+        /// <returns><see langword="true"/> for the type <c>quantitative</c> without a discrete <c>scale.type</c>.</returns>
+        private static bool IsContinuous(SpecNode definition) =>
+            definition["type"] is { IsString: true, StringValue: "quantitative" }
+            && !(definition["scale"]?["type"] is { IsString: true } scaleType && DiscreteScaleTypes.Contains(scaleType.StringValue!));
 
         /// <summary>
         ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
