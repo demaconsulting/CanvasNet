@@ -63,7 +63,10 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
-///         <item><term><c>vl-encoding-timeunit</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
+///         <item><term><c>vl-encoding-timeunit</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
+///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition for every row.</description></item>
+///         <item><term><c>vl-encoding-condition-param</c></term><description>a condition with a <c>param</c> (it never holds), and a <c>test</c> that names a selection or a parameter that is not a variable parameter.</description></item>
+///         <item><term><c>vl-encoding-condition-test</c></term><description>a predicate object in the <c>test</c> of a condition with a <c>timeUnit</c> or a date object (the condition never holds).</description></item>
 ///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
 ///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
 ///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; Vega-Lite does not stack on a log, pow, sqrt or symlog scale, so those marks are not stacked, and any other type is stacked on the linear scale.</description></item>
@@ -591,7 +594,7 @@ internal static class FeatureCatalog
             VisitBin(name, definition);
             VisitStack(name, definition);
             VisitSort(name, definition);
-            ReportProperty(definition, "condition", _ => true, "Conditional encodings are not supported yet.");
+            VisitCondition(name, definition);
             ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
             ReportProperty(definition, "bandPosition", _ => true, "The band position of a field is not supported yet.");
             if (name == "shape" && definition["value"] is { IsString: true } shape)
@@ -738,6 +741,114 @@ internal static class FeatureCatalog
                     ? $"Stacking on a '{scaleType.StringValue}' scale is not supported; Vega-Lite does not stack on it, so the marks are not stacked."
                     : $"Stacking on a '{scaleType.StringValue}' scale is not supported; the values are stacked on the linear scale.";
                 Unsupported("vl-encoding-stack-nonlinear", message, stack);
+            }
+        }
+
+        /// <summary>
+        ///     Reports the <c>condition</c> of a channel definition that is not applied, and visits the field definition of a condition that is.
+        /// </summary>
+        /// <remarks>
+        ///     A condition with a <c>test</c> is evaluated for every row on the channels that accept one. A condition on a channel that cannot take one
+        ///     is reported as a whole; a condition on a parameter (or a test that refers to a selection, a time unit or a date object)
+        ///     is reported and never holds.
+        /// </remarks>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitCondition(string name, SpecNode definition)
+        {
+            if (definition["condition"] is not { } condition)
+            {
+                return;
+            }
+
+            if (!ChannelDefinitions.CanCondition(name))
+            {
+                Unsupported("vl-encoding-condition", $"A conditional encoding is not supported on the '{name}' channel; the condition is ignored.", condition);
+                return;
+            }
+
+            foreach (var item in condition.IsArray ? condition.Items : [condition])
+            {
+                if (!item.IsObject)
+                {
+                    continue;
+                }
+
+                if (item["param"] is not null)
+                {
+                    Unsupported("vl-encoding-condition-param", "A condition on a parameter is not supported yet; it never holds.", item);
+                    continue;
+                }
+
+                if (item["test"] is { } test)
+                {
+                    VisitConditionTest(test);
+                }
+
+                VisitChannelDefinition(name, item);
+            }
+        }
+
+        /// <summary>
+        ///     Reports the part of the test of a condition that the renderer cannot evaluate.
+        /// </summary>
+        /// <param name="test">The <c>test</c> value: an expression text or a predicate object.</param>
+        private void VisitConditionTest(SpecNode test)
+        {
+            if (test.IsString)
+            {
+                ReportConstructs(test);
+                return;
+            }
+
+            if (!test.IsObject || !PredicateSource.IsUnsupported(test))
+            {
+                return;
+            }
+
+            var pending = new Stack<SpecNode>();
+            pending.Push(test);
+            while (pending.Count > 0)
+            {
+                var predicate = pending.Pop();
+                if (predicate.IsString)
+                {
+                    ReportConstructs(predicate);
+                }
+                else if (predicate.IsObject)
+                {
+                    VisitConditionPredicate(predicate, pending);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Reports one object of a predicate that cannot be evaluated, or queues its parts.
+        /// </summary>
+        /// <param name="predicate">The predicate object.</param>
+        /// <param name="pending">The predicates still to visit.</param>
+        private void VisitConditionPredicate(SpecNode predicate, Stack<SpecNode> pending)
+        {
+            var composed = predicate["and"] ?? predicate["or"];
+            var named = predicate["param"] ?? predicate["selection"];
+            if (composed is { IsArray: true })
+            {
+                foreach (var item in composed.Items)
+                {
+                    pending.Push(item);
+                }
+            }
+            else if (predicate["not"] is { } negated)
+            {
+                pending.Push(negated);
+            }
+            else if (named is not null)
+            {
+                Unsupported("vl-encoding-condition-param", "A test on a selection or a parameter that is not a variable is not supported yet; the condition never holds.", named);
+            }
+            else if (PredicateSource.IsUnsupported(predicate))
+            {
+                Unsupported("vl-encoding-condition-test", "A time unit or a date object in the test of a condition is not supported yet; the condition never holds.", predicate);
             }
         }
 

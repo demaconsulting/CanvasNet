@@ -1089,4 +1089,32 @@ public class ScaleResolverColorTests
         Assert.Equal(first, again);
         Assert.All(concurrent, summary => Assert.Equal(first, summary));
     }
+
+    /// <summary>
+    ///     Validates that a condition that holds a field gives its channel the scale of that field (type, scale options and domain read from the condition),
+    ///     that a scale option of the condition applies, and that conditions that hold only values resolve no scale.
+    /// </summary>
+    [Fact]
+    public void ScaleResolverColor_Resolve_FieldInAConditionGivesTheChannelItsScale()
+    {
+        // Arrange
+        var scales = Resolve(
+            "point",
+            """
+            { "color": { "condition": { "test": "datum.q > 2", "field": "q", "type": "quantitative", "scale": { "scheme": "blues" } }, "value": "gray" },
+              "shape": { "condition": { "test": "datum.q > 2", "field": "k", "type": "nominal" }, "value": "circle" },
+              "size": { "condition": { "test": "datum.q > 2", "value": 90 }, "value": 20 },
+              "opacity": { "condition": { "test": "datum.q > 2", "value": 1 } } }
+            """);
+
+        // Act and Assert: the quantitative field is a sequential color scale over 3 to 12 (the sample data), the nominal one lists its categories
+        var color = scales["color"]!;
+        Assert.Equal(ScaleKind.Sequential, color.Kind);
+        Assert.Equal("q", color.FieldPath);
+        Assert.Equal((3.0, 12.0), (color.DomainStart, color.DomainEnd));
+        Assert.Equal(ScaleKind.Ordinal, scales["shape"]!.Kind);
+        Assert.Equal(["a", "b", "c"], scales["shape"]!.DiscreteDomain.Select(d => d.Text));
+        Assert.Null(scales["size"]);
+        Assert.Null(scales["opacity"]);
+    }
 }

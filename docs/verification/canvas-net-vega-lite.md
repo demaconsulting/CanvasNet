@@ -483,7 +483,8 @@ that would have come later.
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
 Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, `quantile`, and
-`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is
+`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a condition on the `x` channel (which takes
+none). Asserts that each is
 reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
 `vl-transform-density`, `vl-transform-quantile`, `vl-transform-timeunit`, `vl-expr-function-timeformat`,
 `vl-expr-function-now`, `vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that
@@ -746,6 +747,24 @@ an explicit `bin-ordinal` on a field that is not binned is a located warning tha
 `MaxScaleDomainSize` of 5 fails at the `bin` while 6 renders, the exact scene count renders and one less fails naming
 `MaxSceneItems`, a canceled token stops the render, and repeated and
 concurrent renders are byte-identical.
+
+### Conditional Encodings: Tests Pick The Value Of Each Mark, Limits, And Determinism
+
+**Tests**: `VegaLiteConditionalMarksIntegrationTests.CanvasNetVegaLite_SystemIntegration_ConditionalMarks_CirclesTakeTheValuesOfTheirConditions`,
+`..._ConditionalMarks_FieldConditionDrawsALegendAndKeepsTheValueElsewhere`,
+`..._ConditionalMarks_DiagnosticsAreLocated`, `..._ConditionalMarks_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `conditional-marks.vl.json` (the eight readings with a conditional color, size, and opacity)
+and small inline specifications, and asserts hand-derived values: the readings with a moisture under 30 are red and the
+others blue, the plants of height 4 or more have the size 240 and the others 60, the days 3 to 5 have the opacity 1 and
+the others 0.4, in strict mode, without a warning and without a legend (conditions that hold values create none), with
+the colors confirmed by pixels blended over the white background; a color condition that holds a field draws the legend
+of that field (`a`, `b`, `c` in the palette colors) and leaves the value of the channel where the test fails; a condition
+on a variable parameter is reported once at the condition with `vl-encoding-condition-param` (and stops a strict render
+there) while the chart draws the value of the channel, and a test with a syntax error is a `VegaLiteSpecException` at
+the test; and a `MaxEvaluationSteps` of 10 fails naming the limit while a roomy one renders, the exact scene count
+renders and one less fails naming `MaxSceneItems`, a canceled token stops the render, and repeated and concurrent
+renders are byte-identical.
 
 ### Limits: Chart Failures Carry Locations
 

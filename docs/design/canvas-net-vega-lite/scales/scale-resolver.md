@@ -215,6 +215,12 @@ asks for `bin-ordinal`, and a field that is not binned ignores the type). A
 dictionary from each listed value to its first position (a value listed twice counts at its first position), so
 ordering a domain costs one lookup per value rather than a search of the list per value.
 
+A conditional channel resolves its scale from the **field definition** that the plan names (`ChannelPlan.FieldDef`): its
+own definition when that holds a field, else the first condition on a test that does. The type, the scale options, the
+domain, and the title of the scale come from that object, so a color given by `{"condition": {"test": ..., "field": "g",
+"type": "nominal"}, "value": "gray"}` has the ordinal scale of `g`, while conditions that hold only values (or a
+parameter) resolve no scale.
+
 #### Key Methods
 
 - `Resolve(view, table, config, sourceName, limits, token)` - the convenience entry for callers that have only the rows

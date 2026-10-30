@@ -357,3 +357,16 @@ sections:
                   - ScaleResolverBin_Limits_AreEnforcedOnTheBinsOfAChannel
                   - ScaleResolverBin_Work_IsChargedToTheEvaluationBudget
                   - ScaleResolverColor_AcceptsScaleType_BinOrdinalNeedsABinnedQuantitativeColor
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ConditionalFields
+                title: >-
+                  The ScaleResolver unit shall resolve the scale of a conditional channel from the field
+                  definition that the plan names (its own, or the condition that holds a field), with the
+                  type, scale options, and domain of that definition, and shall resolve no scale for a
+                  channel whose conditions hold only values.
+                justification: |
+                  Vega-Lite builds the scale of a conditional channel from its field definition; conditions
+                  that hold values must not create a scale that nothing reads.
+                tests:
+                  - ScaleResolverColor_Resolve_FieldInAConditionGivesTheChannelItsScale
+                  - LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend

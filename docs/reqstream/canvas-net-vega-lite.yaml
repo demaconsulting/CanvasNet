@@ -628,6 +628,31 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_BinnedColor_DiagnosticsAreLocated
           - CanvasNetVegaLite_SystemIntegration_BinnedColor_LimitsCancellationAndDeterminismApply
 
+      - id: CanvasNetVegaLite-ConditionalEncoding
+        title: >-
+          The library shall evaluate the test of the conditions of a color, fill, stroke, opacity, stroke width,
+          stroke dash, size, shape, and angle channel for every row as Vega-Lite does (an expression or a
+          predicate, the first condition that holds giving the value or the scaled field, else the value or
+          scale of the channel, else the default of the mark), draw a scale and a legend only for a condition
+          that holds a field, and report the conditions that it cannot evaluate (a parameter or a selection), under
+          the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A conditional encoding is how a chart highlights the rows that match a test; a specification that uses
+          it must draw the highlight, not only report it.
+        children:
+          - CanvasNetVegaLite-SpecModel-SpecParser-ConditionalEncodings
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-ConditionalEncodings
+          - CanvasNetVegaLite-Transforms-EncodingPlan-ConditionalFields
+          - CanvasNetVegaLite-Scales-ScaleResolver-ConditionalFields
+          - CanvasNetVegaLite-Guides-LegendBuilder-ConditionalLegends
+          - CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_CirclesTakeTheValuesOfTheirConditions
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_FieldConditionDrawsALegendAndKeepsTheValueElsewhere
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_DiagnosticsAreLocated
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_LimitsCancellationAndDeterminismApply
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum
@@ -919,7 +944,7 @@ sections:
           an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
           report as unsupported features, with the stable identifiers vl-expr-function-name (the name lower-cased),
           vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
-          shall keep reporting the transforms, parameters, conditional encodings, and functions of later
+          shall keep reporting the transforms, parameters, conditions on a parameter, and functions of later
           phases; and shall let strict mode abort at the first such report.
         tags: [system]
         justification: |

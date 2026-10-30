@@ -200,6 +200,28 @@ an error; a duplicate key keeps the last value at the position of the first occu
   array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`,
   `TryGetSortChannel(sort, out channel)` (the channel a shorthand or an `encoding` refers to), and
   `IsSortChannel(name)` are shared with the catalog and the scale resolver in the same way.
+- `ValidateConditions(definition)` (in `SpecParser.Transforms.cs`, called from `ValidateChannelDefinition`) checks the
+  `condition` of a channel definition: an object, or an array of objects, each with a `test` or a `param` (an object
+  that has neither is an error at the condition) and the properties of a value or a field definition (the scale, axis,
+  and legend of a field condition are validated like those of a channel). A `test` is checked by `ValidatePredicate`
+  (an expression text is compiled there, as in a filter). On a channel that accepts a condition of the drawn view
+  (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
+  source by `PredicateSource.TryBuild` and compiled once under the key of the predicate node, so the marks evaluate
+  it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter
+  that is not a variable, a time unit, a date object) is not written. The `value.expr` of a condition is compiled like
+  the one of a channel. `CompileSource(key, source, location)` is the common part of `CompileExpression`.
+  `ChannelDefinitions` is the shared, pure helper that tells the conditional channels, lists the conditions, and finds
+  the **field definition** of a channel (its own definition when it names a field, a datum, or an aggregate, else the
+  first condition on a test that does, as Vega-Lite's `getFieldOrDatumDef`) and the constant values a legend shows
+  (the first condition value, then the channel's own value).
+- `PredicateSource.TryBuild(predicate, out source)` writes the predicates of Vega-Lite as expression text with the
+  meaning that `isValid`, strict equality, and the comparison operators give: `equal` as `===`, `lt`, `lte`, `gt`, and
+  `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null
+  endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as `isValid` (negated for false),
+  `and`, `or`, and `not` as the logical operators (an empty `and` is true, an empty `or` is false), and a variable
+  parameter as its name. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text as a
+  double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the source
+  unquoted.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
   ordered (a cycle), or -1; the same

@@ -100,8 +100,8 @@ one); and - the constant `value` of the `color`, `fill`, `stroke`, and `opacity`
 
 A result of the wrong kind leaves the default in place: a color expression that does not give text, a number expression
 (`opacity`, `strokeWidth`, `size`) that does not give a finite number. Everything else that is an `{"expr": ...}` (other
-mark properties, other encoding values, and conditional encodings) is not evaluated and is reported by the feature
-catalog (`vl-expr-ref`, `vl-encoding-condition`).
+mark properties, other encoding values, and conditions that cannot be evaluated) is not evaluated and is reported by the
+feature catalog (`vl-expr-ref`, `vl-encoding-condition`, `vl-encoding-condition-param`).
 
 **Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
 `cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, and `rule`, and the
@@ -131,7 +131,19 @@ has no
   scale: a bin-ordinal scale gives the color of the bin (a start below the first edge, or a null start, gets none), a
   linear scale the size or opacity of the start; the bars of a histogram whose `color` bins the field as `x` does take
   the color of their own bin.
-
+- Conditions (Vega-Lite's conditional encodings) - on the color, fill, stroke, opacity, fillOpacity, strokeOpacity,
+  strokeWidth, strokeDash, size, shape, and angle channels, the constructor's `RowExpressions` evaluate the `test` of
+  every condition that the parser compiled, for every row, against the transformed row (so the steps are charged to
+  `MaxEvaluationSteps` and the token is polled by the same loops as the other expressions, and a test that evaluates to
+  null, a missing field, or any falsy value does not hold). The **first** condition that holds gives the row its value:
+  the constant `value` (a `value` that is an `expr` is evaluated per row; a value of the wrong kind leaves the default,
+  as an expression of the wrong kind does), or, for a condition that holds a field, the value of the scale of that field.
+  When no condition holds the row gets what the channel gives without conditions: its scaled field, else its own
+  `value`, else the default of the mark. A channel with a field of its own takes value conditions only; a channel
+  that is only a value may take a field condition. A field condition leaves the continuous-domain row filter alone
+  (the field is read only where its test holds). Conditions on a parameter, and tests that no expression can say, are
+  left out by the parser, so they never hold. Without the `RowExpressions` (a caller that has none) the conditions
+  are ignored and the channels draw as they do without them.
 **Preconditions and postconditions**: the scales were resolved from the same view and data; `table` is the
 **Main** table of
 the implicit pipeline (the one the plan's field names refer to); on return the group holds one

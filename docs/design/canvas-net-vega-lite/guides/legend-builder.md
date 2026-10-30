@@ -141,3 +141,10 @@ next listed value and the last reads `≥ lo`, as the array of Vega has no `max`
 linear scale over the start of the bins and has the ticks of a continuous scale; a binned nominal or ordinal field has
 the texts of its bins as categories. Channels that bin the same field with the same parameters have the same `BinKind`
 and domain in the merge key, so they share one legend.
+
+A channel that has **conditions** gets a legend only from its field definition: a condition that holds a field makes the
+legend of that field (its scale, title, and format), while conditions that hold only values create none, as in
+Vega-Lite. The symbols of another legend (for example a size legend) look like the marks they describe through the facts
+that `LegendPlan` reads from a channel that no field drives: the fill, stroke, or shape is the value of the first
+condition on a test (Vega-Lite's `getFirstConditionValue`), else the value of the channel, and the opacity is the largest
+of the value of the channel and the values of its conditions, so the symbols are as visible as the most visible mark.

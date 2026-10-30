@@ -55,6 +55,7 @@ internal sealed record BinPlan(
 /// <param name="Measure">The aggregate measure of the channel, or null.</param>
 /// <param name="IsStacked">Whether the channel carries the stack.</param>
 /// <param name="Title">The default title of the channel (Vega-Lite's verbal, plain or functional title; two merged for a range), or null when the channel reads no field.</param>
+/// <param name="FieldDefinition">The object that carries the field of the channel when it is not <paramref name="Definition"/>: the condition of a channel whose own definition is a value (Vega-Lite's <c>getFieldOrDatumDef</c>); otherwise null.</param>
 internal sealed record ChannelPlan(
     string Channel,
     SpecNode Definition,
@@ -67,8 +68,12 @@ internal sealed record ChannelPlan(
     BinPlan? BinPlan,
     AggregateSpec? Measure,
     bool IsStacked,
-    string? Title)
+    string? Title,
+    SpecNode? FieldDefinition = null)
 {
+    /// <summary>Gets the object whose <c>type</c>, <c>scale</c>, <c>sort</c>, <c>bin</c> and <c>legend</c> the channel reads: its field condition, or else its own definition.</summary>
+    public SpecNode FieldDef => FieldDefinition ?? Definition;
+
     /// <summary>Gets a value indicating whether the channel reads a field of the table.</summary>
     public bool HasField => FieldPath is not null;
 
@@ -256,7 +261,7 @@ internal sealed class EncodingPlan
 
         channels = LinkRanges(channels);
         var aggregate = PlanAggregate(channels);
-        var needsRaw = channels.Any(c => c.Channel is not ("x2" or "y2") && (UsesFieldSort(c.Definition) || c.Definition["scale"]?["domain"]?.AsString() == "unaggregated"));
+        var needsRaw = channels.Any(c => c.Channel is not ("x2" or "y2") && (UsesFieldSort(c.FieldDef) || c.FieldDef["scale"]?["domain"]?.AsString() == "unaggregated"));
         return new EncodingPlan(markType, orient, channels, binPlans, aggregate, stack, needsRaw);
     }
 
@@ -350,16 +355,17 @@ internal sealed class EncodingPlan
     /// <returns>The plan of the definition (without the stack and the secondary channel).</returns>
     private static ChannelPlan PlanDefinition(string channel, SpecNode definition, ResolvedConfig config, Dictionary<string, BinBuilder> bins)
     {
-        var source = definition["field"] is { IsString: true } field && FieldPath.Canonicalize(field.StringValue) is not null ? field.StringValue : null;
-        var aggregate = ParseAggregate(definition["aggregate"], source);
+        var fieldDefinition = ChannelDefinitions.FieldDefinitionOf(definition);
+        var source = fieldDefinition["field"] is { IsString: true } field && FieldPath.Canonicalize(field.StringValue) is not null ? field.StringValue : null;
+        var aggregate = ParseAggregate(fieldDefinition["aggregate"], source);
         var bin = BinKind.None;
         BinPlan? binPlan = null;
         string? field2 = null;
         string? valueField = aggregate is null ? source : (aggregate.ArgOutput ?? EscapeName(aggregate.Spec.Name));
         var isPositionChannel = channel is "x" or "y";
-        if ((isPositionChannel || CanBin(channel)) && StackRules.IsEnabled(definition["bin"]))
+        if ((isPositionChannel || CanBin(channel)) && StackRules.IsEnabled(fieldDefinition["bin"]))
         {
-            var node = definition["bin"]!;
+            var node = fieldDefinition["bin"]!;
             var alreadyBinned = node is { IsString: true } || node["binned"] is { IsBoolean: true, BoolValue: true };
             if (alreadyBinned)
             {
@@ -369,7 +375,7 @@ internal sealed class EncodingPlan
             else if (source is not null && aggregate is null)
             {
                 bin = BinKind.Binning;
-                var discrete = StackRules.TypeOf(definition) is "nominal" or "ordinal";
+                var discrete = StackRules.TypeOf(fieldDefinition) is "nominal" or "ordinal";
                 var maxBins = AutoMaxBins(channel);
                 var start = BinStartName(node, source, maxBins);
                 if (!bins.TryGetValue(start, out var builder))
@@ -382,7 +388,7 @@ internal sealed class EncodingPlan
                 {
                     // The text of a bin is formatted as the guide of the channel is: the axis of a position, the legend of any other channel
                     builder.Discrete = true;
-                    var guide = isPositionChannel ? definition["axis"] : definition["legend"];
+                    var guide = isPositionChannel ? fieldDefinition["axis"] : fieldDefinition["legend"];
                     builder.Format = guide?["format"]?.AsString() ?? config.GetString("numberFormat") ?? string.Empty;
                 }
 
@@ -394,7 +400,7 @@ internal sealed class EncodingPlan
 
         var rawField = RawFieldOf(aggregate, source, valueField);
         var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, config);
-        return new ChannelPlan(channel, definition, source, valueField, rawField, valueField, field2, bin, binPlan, aggregate?.Spec, false, title);
+        return new ChannelPlan(channel, definition, source, valueField, rawField, valueField, field2, bin, binPlan, aggregate?.Spec, false, title, ReferenceEquals(fieldDefinition, definition) ? null : fieldDefinition);
     }
 
     /// <summary>

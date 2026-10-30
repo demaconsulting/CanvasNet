@@ -4091,7 +4091,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, and `opacity`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it. `x2` and `y2` give the end of a range on a `bar`, `rect`, or `rule`, and `order` orders the layers of a stack (an `order` that does not order a stack is reported). `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
 | Field types | `quantitative`, `nominal`, and `ordinal` |
-| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field); see *Vega-Lite Aggregation, Binning, and Stacking* |
+| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (as `null` only), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
 | Scales | The types linear, log, pow, sqrt, symlog, band, point, ordinal, and bin-ordinal (the scale of a binned quantitative color, which has one color per bin and a legend of the ranges of the bins; it is the default there) (a log scale takes `base`, a pow scale `exponent`, a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data), with the properties `type`, `domain`, `range`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, and `scheme` (only `tableau10`, which is also the default categorical palette); a quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
 | Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and the configuration; `legend: null` switches one off; `encode`, `labelExpr`, a custom `formatType`, a `titleOrient` other than `top`, and `clipHeight` are reported and not drawn |
@@ -4101,7 +4101,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Expressions | A subset of the Vega expression language with 57 functions (math, string, array, type, and regular expression), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
 | Parameters | Static **variable** parameters of the single view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture |
 | Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms* and *Vega-Lite Aggregation, Binning, and Stacking* |
-| Time, conditional encodings, other transforms | **None** (see the identifiers below) |
+| Time, other transforms | **None** (see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
 
 The default colors, sizes, orientations, and layout constants follow Vega-Lite 6 and Vega; positions are derived from
@@ -4129,7 +4129,8 @@ of its row and its parameters. Expressions are accepted in these places, and onl
 
 An expression anywhere else (a title, `width`, `height`, `padding`, `background`, `view`, another mark property, an
 encoding `value` of another channel, `axis.labelExpr`) is not evaluated and is reported (`vl-expr-ref`, `vl-expr-label`).
-Conditional encodings (`condition`) are reported (`vl-encoding-condition`) and not applied.
+Conditional encodings (`condition` with a `test`) are applied, as described in *Vega-Lite Conditional Encodings*; a
+condition on a `param` is reported (`vl-encoding-condition-param`) and never holds.
 
 Every expression of every view is **compiled when the document is opened**, once, so a mistake is a
 `VegaLiteSpecException` at the string value of the expression, with the pointer, line, and column of the value and the
@@ -4605,6 +4606,21 @@ the message names the limit. The result never depends on the machine, the cultur
 - A `bin: "binned"` on a channel other than `x` and `y`, an encoding `impute`, and a `timeUnit` are reported (see the
   identifiers below).
 
+### Vega-Lite Conditional Encodings
+
+A channel can take a **`condition`** (one object or an array of objects) on `color`, `fill`, `stroke`, `opacity`,
+`fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle`. Each condition has a `test`
+and either a `value` or the properties of a field definition. The `test` is an expression (`"datum.moisture < 30"`) or a
+predicate object (`{"field": "day", "range": [3, 5]}`, with `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`,
+`valid`, `and`, `or`, `not`, and a variable `param`); it runs for every row with the expression engine, under the
+`MaxEvaluationSteps` budget and the cancellation token. The first condition that holds gives the mark its value (or the
+value of the scale of its field); a row for which none holds gets what the channel gives without the conditions - its
+own field and scale, else its `value`, else the default of the mark. Conditions that hold only values create no scale
+and no legend; a condition that holds a field draws the legend of that field, and the symbols of another legend show
+the first condition value (the opacity is the largest of the values). A condition on a `param`, a selection, a time
+unit, or a date object never holds and is reported (`vl-encoding-condition-param`, `vl-encoding-condition-test`), and a
+condition on a channel that takes none is reported as `vl-encoding-condition`.
+
 ### Time Zone, Fonts, and Determinism
 
 Rendering is **deterministic**: two renders of one document with the same options are byte-identical, for every
@@ -4665,7 +4681,10 @@ thread, after the work finished and before the method returns or throws.
 | `vl-shape-path` | Unsupported | A shape that is not a symbol name (a custom SVG path): the `shape` of a mark, the `value` of a `shape` channel, or an entry of its `scale.range`; a circle is drawn |
 | `vl-scale-interpolate-cubehelix` | Unsupported | A `scale.interpolate` of `cubehelix` or `cubehelix-long`; RGB interpolation is used |
 | `vl-scale-type-ignored` | Warning | A `scale.type` that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a `shape` or `strokeDash` channel without a discretizing scale type (the scale is ordinal) |
-| `vl-encoding-timeunit`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
+| `vl-encoding-timeunit`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
+| `vl-encoding-condition` | Unsupported | A `condition` on a channel that takes none (`x`, `y`, the secondary channels, `order`); the condition is ignored |
+| `vl-encoding-condition-param` | Unsupported | A condition on a `param`, or a `test` that names a selection or a parameter that is not a variable; the condition never holds |
+| `vl-encoding-condition-test` | Unsupported | A `timeUnit` or a date object in the predicate of a `test`; the condition never holds |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel that cannot bin (`order` and the secondary channels `x2` and `y2`), and `bin: "binned"` (data that is binned already) on a channel other than `x` and `y`, unless it is false or null; the channel is not binned |
 | `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
 | `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate` (the message names the channel), or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the categories are sorted ascending |
@@ -4721,10 +4740,11 @@ because the aggregating, binning, and stacking transforms and encodings are now 
 Binning, and Stacking*); `vl-channel-x2` and `vl-channel-y2` are no longer produced for a bar, rect, or rule, nor
 `vl-channel-order` for an `order` that orders a stack; `vl-encoding-bin` is now produced only for `bin: "binned"` on a
 channel other than `x` and `y` and for a bin of `order` or a secondary channel, `vl-scale-bin-ordinal` is no longer
-produced (the bin-ordinal scale is drawn), and `vl-encoding-sort` only for a form that cannot be applied. A build that
+produced (the bin-ordinal scale is drawn), `vl-encoding-condition` is now produced only for a channel that takes no
+condition, and `vl-encoding-sort` only for a form that cannot be applied. A build that
 matched one of them should stop
 doing so.
-Planned later releases add, among other things, conditional encodings, `timeUnit` and
+Planned later releases add, among other things, `timeUnit` and
 the other transforms (`regression`, `loess`, `density`, `quantile`, `extent`), the date, time, formatting, and color
 functions of the expression language, expressions in more places, legends and further color schemes and scale types,
 time scales, line-like marks, layers, composition, and selections; until then the constructs are reported with the

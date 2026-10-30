@@ -261,8 +261,8 @@ software items, specifically:
   `ViewLayout` (data rectangle, padding, autosize, title placement, and view border). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
-  and `CssColor` (CSS color parsing). Compositions, selection parameters, conditional
-  encodings, legends, and time
+  and `CssColor` (CSS color parsing). Compositions, selection parameters,
+  conditions on a parameter, and time
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
   sequences, a bounded subset of the Vega expression language, static variable parameters, the row transforms
   `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`, the aggregating transforms `aggregate`,

@@ -132,19 +132,131 @@ internal sealed partial class SpecParser
     /// <param name="text">The string node that holds the expression.</param>
     /// <returns>The compiled expression (also kept in the tree).</returns>
     /// <exception cref="VegaLiteSpecException">Thrown for a syntax error, a limit overflow or a reference to an unknown parameter.</exception>
-    private CompiledExpression CompileExpression(SpecNode text)
+    private CompiledExpression CompileExpression(SpecNode text) => CompileSource(text, text.StringValue!, text);
+
+    /// <summary>
+    ///     Compiles expression source for a node of the specification and checks the parameters it refers to.
+    /// </summary>
+    /// <param name="key">The node the compiled expression is kept under (the string node, or the predicate object that the source was written from).</param>
+    /// <param name="source">The expression source.</param>
+    /// <param name="location">The node that locates a failure, and whose scope decides which parameters are visible.</param>
+    /// <returns>The compiled expression (also kept in the tree).</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown for a syntax error, a limit overflow or a reference to an unknown parameter.</exception>
+    private CompiledExpression CompileSource(SpecNode key, string source, SpecNode location)
     {
-        var compiled = ExpressionParser.Parse(text.StringValue!, text.GetLocation(_file), _limits);
-        var unknown = compiled.ParameterReferences.FirstOrDefault(r => !IsViewSignal(r.Name) && !IsParameterDeclared(text, r.Name));
+        var compiled = ExpressionParser.Parse(source, location.GetLocation(_file), _limits);
+        var unknown = compiled.ParameterReferences.FirstOrDefault(r => !IsViewSignal(r.Name) && !IsParameterDeclared(location, r.Name));
         if (unknown.Name is not null)
         {
             throw Error(
-                text,
+                location,
                 $"The expression refers to '{unknown.Name}', which is not a parameter of the specification (at expression offset {unknown.Offset}).");
         }
 
-        _expressions[text] = compiled;
+        _expressions[key] = compiled;
         return compiled;
+    }
+
+    /// <summary>
+    ///     Validates the <c>condition</c> of a channel definition: each condition is an object with a <c>test</c> (an expression or a
+    ///     predicate) or a <c>param</c>, and a <c>value</c> or the properties of a field definition.
+    /// </summary>
+    /// <remarks>
+    ///     The test of a condition on a drawn channel is compiled here, once: an expression text as it is, a predicate object as the
+    ///     expression that means the same (<see cref="PredicateSource"/>). A condition on a parameter is not evaluated (the feature catalog reports it),
+    ///     so it is validated for its shape only.
+    /// </remarks>
+    /// <param name="definition">The channel definition object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a condition that is not an object, has neither a test nor a parameter, or has an invalid test.</exception>
+    private void ValidateConditions(SpecNode definition)
+    {
+        if (definition["condition"] is not { } condition)
+        {
+            return;
+        }
+
+        var items = condition.IsArray ? condition.Items : [condition];
+        var evaluated = IsConditionSite(definition);
+        foreach (var item in items)
+        {
+            if (!item.IsObject)
+            {
+                throw Error(item, "Each condition must be an object with a 'test' or a 'param'.");
+            }
+
+            CheckObject(item, ConditionRules);
+            ValidateAggregationProperties(item);
+            foreach (var property in item.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
+            {
+                WarnUnknown(property, "a condition");
+            }
+
+            if (item["test"] is null && item["param"] is null)
+            {
+                throw Error(item, "A condition needs a 'test' (an expression or a predicate) or a 'param'.");
+            }
+
+            ValidateConditionGuides(item);
+            if (item["test"] is { } test)
+            {
+                ValidatePredicate(test);
+                if (evaluated && test.IsObject && PredicateSource.TryBuild(test, out var source))
+                {
+                    CompileSource(test, source, test);
+                }
+            }
+
+            if (evaluated && item["value"] is { IsObject: true } value && value["expr"] is { IsString: true } text)
+            {
+                CompileExpression(text);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the scale, axis and legend of the field definition that a condition holds.
+    /// </summary>
+    /// <param name="condition">The condition object.</param>
+    private void ValidateConditionGuides(SpecNode condition)
+    {
+        if (condition["scale"] is { IsObject: true } scale)
+        {
+            CheckObject(scale, ScaleRules);
+            ValidateScaleOptions(scale);
+        }
+
+        if (condition["axis"] is { IsObject: true } axis)
+        {
+            CheckObject(axis, AxisRules);
+        }
+
+        if (condition["legend"] is { IsObject: true } legend)
+        {
+            CheckObject(legend, LegendRules);
+            ValidateLegendOptions(legend);
+        }
+    }
+
+    /// <summary>
+    ///     Tells whether the conditions of a channel definition are evaluated: the channel is one that accepts a condition and belongs to the drawn view
+    ///     (and a size only on a mark that draws symbols).
+    /// </summary>
+    /// <param name="definition">The channel definition object.</param>
+    /// <returns><see langword="true"/> when the marks evaluate the conditions.</returns>
+    private bool IsConditionSite(SpecNode definition)
+    {
+        if (_root is null
+            || definition.Name is not { } channel
+            || !ChannelDefinitions.CanCondition(channel)
+            || definition.Parent?.Parent is not { } view
+            || !IsDrawnView(_root, view))
+        {
+            return false;
+        }
+
+        var markNode = view["mark"];
+        var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
+        return channel != "size" || (markType is not null && (SymbolMarks.Contains(markType) || markType is "bar" or "rect" or "tick" or "rule"));
     }
 
     /// <summary>

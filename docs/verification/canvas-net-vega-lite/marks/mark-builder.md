@@ -290,3 +290,37 @@ fill and an outlined point as a stroke; that binned point sizes are `4 + 357 * s
 the five colors in bin order, are 19 pixels wide starting at 1, 21, ..., 81 (the bin of 20 pixels less the bin spacing
 of 1) of 100 pixels, and are 100, 50, 100, 50, and 100 pixels high for the counts 2, 1, 2, 1, and 2; and that a scene
 budget of four fails naming `MaxSceneItems` and a canceled token stops the build.
+
+##### Conditional Encodings
+
+**Tests**: `MarkBuilderConditionTests.MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ConditionWithoutBaseValueLeavesTheMarkDefault`,
+`MarkBuilderConditionTests.MarkBuilder_Build_FirstConditionThatHoldsWins`,
+`MarkBuilderConditionTests.MarkBuilder_Build_FieldConditionUsesTheScaleOfItsFieldWhereTheTestHolds`,
+`MarkBuilderConditionTests.MarkBuilder_Build_FieldWithValueConditionMapsTheFieldElsewhere`,
+`MarkBuilderConditionTests.MarkBuilder_Build_NumericChannelConditionsGiveValuesAndKeepDefaults`,
+`MarkBuilderConditionTests.MarkBuilder_Build_FillAndStrokeOpacityConditionsApplyPerRow`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ShapeAndDashConditionsApplyPerRow`,
+`MarkBuilderConditionTests.MarkBuilder_Build_PredicateObjectTestsAreEvaluated`,
+`MarkBuilderConditionTests.MarkBuilder_Build_TestReadsVariableParametersAndMissingFieldsDoNotHold`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ParameterConditionIsNotApplied`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ConditionsApplyToBarsTicksAndRules`,
+`MarkBuilderConditionTests.MarkBuilder_Build_SizeConditionGivesTheThicknessOfABar`,
+`MarkBuilderConditionTests.MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget`,
+`MarkBuilderConditionTests.MarkBuilder_Build_CanceledTokenStopsTheEvaluation`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ConditionalMarksAreDeterministic`
+
+Assert, for circles over the rows with `q` 1, 3, and 5 and the categories a, b, and a, that a color condition on
+`q > 3` with the base `gray` gives `gray`, `gray`, `red`, and without a base the default of the palette (`#4c78a8`) for
+the first two; that of the two conditions `q > 1` and `q > 3` the first that holds wins (`gray`, `red`, `red`); that a
+condition that holds the field `c` colors the rows where `q > 1` holds with the palette colors of `b` and `a`
+(`#f58518`, `#4c78a8`) and leaves the first row `gray`, and that a field with a value condition maps the field
+elsewhere; that the opacity (0.7 by default, then 0.2 or 1), the size (30 by default, then 50 or 200), the stroke
+width, the angle, the fill and stroke opacity, the shape, and the dash pattern take the value of the condition where
+it holds and the base value or the default elsewhere; that each of the thirteen predicate forms (comparisons, a range
+given in either order, a set, validity of a field that exists and one that does not, a negation, and the compositions)
+holds for the rows that a hand evaluation says; that a test reads a variable parameter and a missing field does not hold;
+that a condition on a parameter changes nothing; that the color and opacity conditions apply to bars, ticks, and rules and
+the size condition gives the thickness of a bar (4 or 9 pixels); that a limit of 4 steps fails naming
+`MaxEvaluationSteps` while a limit of 10,000 draws the three circles; that a canceled token stops the build; and that
+two builds give equal items.

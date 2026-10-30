@@ -767,11 +767,15 @@ internal static partial class ScaleResolver
     ///     Resolves the scale of one channel.
     /// </summary>
     /// <param name="channel">The channel name.</param>
-    /// <param name="definition">The channel definition object.</param>
+    /// <param name="channelDefinition">The channel definition object (its field condition, when it has one, carries the field).</param>
     /// <param name="context">The view facts.</param>
     /// <returns>The scale, or <see langword="null"/> when the channel has none.</returns>
-    private static ResolvedScale? ResolveChannel(string channel, SpecNode definition, Context context)
+    private static ResolvedScale? ResolveChannel(string channel, SpecNode channelDefinition, Context context)
     {
+        // The scale belongs to the field definition of the channel: the definition itself, or the condition that holds the field
+        var plan = context.Plan.Channels.FirstOrDefault(c => c.Definition == channelDefinition);
+        var definition = plan?.FieldDef ?? channelDefinition;
+
         // A channel without a field or datum has no scale (a value is used as it is), and so has "scale": null
         var scaleNode = definition["scale"];
         if (scaleNode is { IsNull: true })
@@ -780,7 +784,6 @@ internal static partial class ScaleResolver
         }
 
         var scaleDef = scaleNode is { IsObject: true } ? scaleNode : null;
-        var plan = context.Plan.Channels.FirstOrDefault(c => c.Definition == definition);
         var fieldPath = plan?.FieldPath;
         var datum = definition["datum"] is { IsString: true } or { IsNumber: true } or { IsBoolean: true } ? definition["datum"] : null;
         if (fieldPath is null && datum is null)

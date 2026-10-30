@@ -48,6 +48,9 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `binned-channels.vl.json`: eight made-up daily soil readings (`moisture` from 3 to 97) as circles whose color field is
   binned, so that the six-bin default gives the bins 0-20 to 80-100 (two, one, two, one and two readings), a bin-ordinal
   color scale with five explicit colors, and a legend with one entry per bin.
+- `conditional-marks.vl.json`: the same eight made-up daily soil readings as circles whose color, size and opacity are
+  conditional: the dry readings (`moisture` under 30) are red, the others blue; the plants of height 4 or more are
+  larger; days 3 to 5 are opaque and the others faint. The conditions hold values only, so the chart has no legend.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

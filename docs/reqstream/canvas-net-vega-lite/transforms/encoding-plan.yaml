@@ -192,3 +192,16 @@ sections:
                   culture would break golden tests.
                 tests:
                   - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-ConditionalFields
+                title: >-
+                  The EncodingPlan unit shall read the field, aggregate, bin, type, scale, and legend of a
+                  channel whose own definition is a value from the first condition on a test that holds a
+                  field, as Vega-Lite reads the field definition of a conditional channel, while a channel
+                  that has a field of its own keeps it and a condition that holds only values, or a
+                  parameter, reads none.
+                justification: |
+                  A color that is conditional on a test but mapped from a field elsewhere draws a scale and a
+                  legend from that field; the plan must name the same field as the scale and the legend.
+                tests:
+                  - EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel

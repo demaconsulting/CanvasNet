@@ -66,7 +66,8 @@ sections:
               value channels of the drawn view once per row against the transformed row - the mark color,
               fill, stroke, opacity, strokeWidth, and (for point, circle, and square) size, and the value of
               the color, fill, stroke, opacity, and (for point, circle, and square) size channels - and keep
-              the default for a result of the wrong kind, while a conditional encoding stays deferred.
+              the default for a result of the wrong kind, while the tests of the conditional encodings are
+              evaluated by the Marks-MarkBuilder-ConditionalEncodings requirement.
             justification: |
               Expression-driven values are how a chart colors or sizes marks from calculated fields; their
               boundary must be explicit so that nothing else is implied to be evaluated.

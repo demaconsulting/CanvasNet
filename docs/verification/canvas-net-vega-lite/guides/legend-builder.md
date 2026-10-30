@@ -166,3 +166,19 @@ with the sizes of the scale and an ordinal binned opacity the texts of the five 
 fill of the same bin share one legend while a binned color and an unbinned fill of the same field are two; and that the
 thirteen items of the legend are charged exactly (a budget of 12 fails naming `MaxSceneItems`) and a canceled token
 stops the build.
+
+##### Conditional Legends
+
+**Tests**: `LegendPlanConditionTests.LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend`,
+`LegendPlanConditionTests.LegendPlan_Create_FieldConditionCreatesTheScaleAndTheLegend`,
+`LegendPlanConditionTests.LegendPlan_Create_FieldWithValueConditionKeepsItsLegend`,
+`LegendPlanConditionTests.LegendBuilder_Symbol_SizeLegendShowsTheFirstConditionValueOfAFixedColor`,
+`LegendPlanConditionTests.LegendBuilder_Symbol_OpacityOfConditionalChannelIsTheLargestValue`,
+`LegendPlanConditionTests.LegendBuilder_Symbol_ConditionalLegendIsDeterministic`
+
+Assert, for circles over three rows, that value conditions on a color, an opacity, and a size plan no legend; that a
+color whose condition holds the field `g` plans one legend (the categories `a`, `b`, `c` in the first three colors of the
+palette, titled `g`), as does a field with a value condition; that the symbols of a size legend are filled with the
+value of the first condition of a color (`red`, not the later `blue` or the base `gray`) and with the base value when
+there is no condition; that the symbols show the largest opacity of the base and condition values (0.9 for 0.2 and 0.9,
+and 0.4 for 0.4 and 0.1); and that building the same legend twice gives equal symbols.

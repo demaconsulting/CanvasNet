@@ -284,3 +284,30 @@ sections:
                   - SpecMetadata_Read_SequenceComputesLength
                   - SpecMetadata_Read_InlineValuesTakePrecedenceOverName
                   - SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ConditionalEncodings
+                title: >-
+                  The SpecParser unit shall validate the condition of a channel definition (an object or an
+                  array of objects, each with a test or a param and the properties of a value or a field
+                  definition) with a located error at the offending value, shall compile the test of a
+                  condition on a drawn channel once, an expression text as written and a predicate object
+                  (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter) as the
+                  expression that means the same, shall compile the value expression of a condition, and shall
+                  leave out what no expression can say (a selection, a time unit, a date object).
+                justification: |
+                  Evaluating the tests of the conditions with the expression engine gives them the same
+                  limits, step budget, and cancellation as every other expression, and compiling them once
+                  keeps the per-row work small.
+                tests:
+                  - SpecParser_Parse_MalformedConditionReportsThePointer
+                  - SpecParser_Parse_ConditionTestsAreCompiled
+                  - SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled
+                  - SpecParser_Parse_FieldConditionScaleIsValidated
+                  - PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame
+                  - PredicateSource_TryBuild_QuotesPathsAndStrings
+                  - PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay
+                  - PredicateSource_TryBuild_NullPredicateThrows
+                  - ChannelDefinitions_CanCondition_ListsTheConditionalChannels
+                  - ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField
+                  - ChannelDefinitions_Conditions_ListsConditionsInOrder
+                  - ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives

@@ -224,3 +224,12 @@ failure that names `MaxEvaluationSteps`); and that the standalone entry polls a 
 
 Asserts that an encoding that asks for nothing returns the input table itself as both the Raw and the Main table, that
 null arguments are refused, and that two runs and runs under other cultures give the same tables, domains, and labels.
+
+##### Conditional Fields
+
+**Tests**: `EncodingPlanTests.EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel`
+
+Asserts, for a point mark, that a color whose own definition is a value with a condition on a test that holds the field
+`c` reads `c` (the source field, the field path, and the title) and names the condition as its field definition while
+its `Definition` stays the channel; that a size with a value condition and an opacity with a condition on a parameter
+read no field; and that a shape with a field of its own keeps it and is its own field definition.

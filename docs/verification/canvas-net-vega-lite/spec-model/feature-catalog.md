@@ -247,7 +247,7 @@ Asserts that a drawn view with a selection parameter and the twelve transforms `
 `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports only
 `vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`timeunit`, `regression`, `loess`,
 `density`, `quantile`, and `extent`, with `timeunit` in lower case) at their indexes 6 to 11 in document order, and the
-conditional encoding as `vl-encoding-condition`, while the six aggregating transforms are computed and silent.
+conditions on a parameter as `vl-encoding-condition-param`, while the six aggregating transforms are computed and silent.
 
 ##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
 
@@ -315,3 +315,20 @@ a channel shorthand, and a sort object with a field or an operation on a quantit
 an explicit `linear` scale) are one `vl-encoding-sort-ignored` warning at the sort, while `ascending`, `descending`, `null`,
 an object that has only an order, a nominal or ordinal field, and a quantitative field with a `band` scale type are not
 reported.
+
+##### Conditional Encodings Are Reported Only Where They Are Not Applied
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ConditionsWithATestAreNotReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited`
+
+Assert, as a theory of five color definitions, that a condition with an expression test, with a predicate object, with
+a composition of a range and a negated set, with a field, and an array of conditions on a field are not reported; that a
+condition on a `param` is `vl-encoding-condition-param` at the condition (at the item of an array), and a selection
+inside a composition at the `param` of the test; that a `timeUnit`, and a date object inside an `or`, are
+`vl-encoding-condition-test` at the predicate that holds them (and not for the part that is supported); that a
+condition on
+`x` is `vl-encoding-condition` at the condition; and that a function outside the list in a test or in a `value.expr`
+is `vl-expr-function-now` at the text, and a `temporal` field in a field condition is `vl-type-temporal` at its `type`.

@@ -228,3 +228,32 @@ sections:
                   - MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin
                   - MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin
                   - MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
+                title: >-
+                  The MarkBuilder unit shall evaluate the test of each condition of a color, fill, stroke,
+                  opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, or angle
+                  channel for every row with the expression engine, give the row the value (or the scaled
+                  field) of the first condition that holds, else the value or scale of the channel, else the
+                  default of the mark, ignore the conditions on a parameter, charge the evaluation to the step
+                  budget, observe the cancellation token, and give the same items on every call.
+                justification: |
+                  A conditional encoding is how a chart highlights the rows that match a test; the first match
+                  must win and the rest must look exactly as they do without the condition.
+                tests:
+                  - MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds
+                  - MarkBuilder_Build_ConditionWithoutBaseValueLeavesTheMarkDefault
+                  - MarkBuilder_Build_FirstConditionThatHoldsWins
+                  - MarkBuilder_Build_FieldConditionUsesTheScaleOfItsFieldWhereTheTestHolds
+                  - MarkBuilder_Build_FieldWithValueConditionMapsTheFieldElsewhere
+                  - MarkBuilder_Build_NumericChannelConditionsGiveValuesAndKeepDefaults
+                  - MarkBuilder_Build_FillAndStrokeOpacityConditionsApplyPerRow
+                  - MarkBuilder_Build_ShapeAndDashConditionsApplyPerRow
+                  - MarkBuilder_Build_PredicateObjectTestsAreEvaluated
+                  - MarkBuilder_Build_TestReadsVariableParametersAndMissingFieldsDoNotHold
+                  - MarkBuilder_Build_ParameterConditionIsNotApplied
+                  - MarkBuilder_Build_ConditionsApplyToBarsTicksAndRules
+                  - MarkBuilder_Build_SizeConditionGivesTheThicknessOfABar
+                  - MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget
+                  - MarkBuilder_Build_CanceledTokenStopsTheEvaluation
+                  - MarkBuilder_Build_ConditionalMarksAreDeterministic

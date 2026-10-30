@@ -1156,7 +1156,7 @@ public class FeatureCatalogTests
             [
                 ("vl-param-selection", "/params/0"), ("vl-transform-timeunit", "/transform/6"), ("vl-transform-regression", "/transform/7"),
                 ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
-                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition", "/encoding/color/condition"),
+                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition-param", "/encoding/color/condition"),
             ],
             ids);
     }
@@ -1451,5 +1451,93 @@ public class FeatureCatalogTests
         {
             Assert.Empty(reports);
         }
+    }
+
+    /// <summary>
+    ///     Parses a specification whose color channel is the given definition and lists the findings that are not about the selection parameter
+    ///     the specification declares.
+    /// </summary>
+    /// <param name="color">The JSON text of the color definition.</param>
+    /// <returns>The findings as identifier and pointer pairs.</returns>
+    private static List<(string Id, string Pointer)> VisitColor(string color) =>
+        Visit("{\"params\":[{\"name\":\"sel\",\"select\":\"interval\"}],\"data\":{\"values\":[{\"q\":1,\"g\":\"a\"}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"q\",\"type\":\"quantitative\"},\"color\":" + color + "}}")
+            .Where(r => r.Id != "vl-param-selection").ToList();
+
+    /// <summary>
+    ///     Validates that the conditions that the renderer evaluates are not reported: an expression test, the predicate forms, value and field
+    ///     conditions, and an array of conditions.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"condition":{"test":"datum.q > 1","value":"red"},"value":"gray"}""")]
+    [InlineData("""{"condition":{"test":{"field":"q","gt":1},"value":"red"}}""")]
+    [InlineData("""{"condition":{"test":{"and":[{"field":"q","range":[1,3]},{"not":{"field":"g","oneOf":["b"]}}]},"value":"red"}}""")]
+    [InlineData("""{"condition":{"test":"datum.q > 1","field":"g","type":"nominal"},"value":"gray"}""")]
+    [InlineData("""{"field":"g","type":"nominal","condition":[{"test":"datum.q > 1","value":"red"},{"test":"datum.q > 2","value":"blue"}]}""")]
+    public void FeatureCatalog_Visit_ConditionsWithATestAreNotReported(string color) =>
+        Assert.Empty(VisitColor(color));
+
+    /// <summary>
+    ///     Validates that a condition on a parameter, and a test that names a selection or a parameter that is not a variable, are reported at the
+    ///     parameter or the condition and are never applied.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ParameterConditionsAreReported()
+    {
+        // Act
+        var single = VisitColor("""{"condition":{"param":"sel","value":"red"},"value":"gray"}""");
+        var array = VisitColor("""{"condition":[{"test":"datum.q > 1","value":"blue"},{"param":"sel","value":"red"}]}""");
+        var inTest = VisitColor("""{"condition":{"test":{"and":[{"field":"q","gt":1},{"param":"sel"}]},"value":"red"}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition")], single);
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/1")], array);
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/test/and/1/param")], inTest);
+    }
+
+    /// <summary>
+    ///     Validates that a time unit or a date object in the predicate of a test is reported once, at the predicate, and that the supported
+    ///     parts of the same composition are not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported()
+    {
+        // Act
+        var timeUnit = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"year","equal":2020},"value":"red"}}""");
+        var date = VisitColor("""{"condition":{"test":{"or":[{"field":"q","gt":1},{"field":"q","equal":{"year":2020}}]},"value":"red"}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test")], timeUnit);
+        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test/or/1")], date);
+    }
+
+    /// <summary>
+    ///     Validates that a condition on a channel that takes none is reported as a whole, and that a position channel keeps the report.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported()
+    {
+        // Act
+        var reports = Visit("""{"mark":"point","encoding":{"x":{"field":"q","type":"quantitative","condition":{"test":"datum.q > 1","value":1}},"y":{"field":"r","type":"quantitative"}}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition", "/encoding/x/condition")], reports);
+    }
+
+    /// <summary>
+    ///     Validates that the expressions of a condition are reported for what the engine cannot do (a function outside the whitelist in the test
+    ///     and in a value expression), and that the properties of a field condition are visited like those of a channel.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited()
+    {
+        // Act
+        var test = VisitColor("""{"condition":{"test":"datum.q > now()","value":"red"}}""");
+        var value = VisitColor("""{"condition":{"test":"datum.q > 1","value":{"expr":"now()"}}}""");
+        var field = VisitColor("""{"condition":{"test":"datum.q > 1","field":"q","type":"temporal"},"value":"gray"}""");
+
+        // Assert
+        Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/test")], test);
+        Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/value/expr")], value);
+        Assert.Equal([("vl-type-temporal", "/encoding/color/condition/type")], field);
     }
 }

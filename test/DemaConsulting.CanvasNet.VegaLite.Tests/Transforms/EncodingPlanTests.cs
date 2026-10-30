@@ -270,6 +270,36 @@ public class EncodingPlanTests
     }
 
     /// <summary>
+    ///     Validates that a field in a condition of a value channel is the field the channel reads (the definition that carries the field is the condition), that
+    ///     value conditions and parameter conditions read none, and that a field with value conditions keeps its own field.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel()
+    {
+        // Act
+        var (plan, tree) = Create(
+            """
+            {"color":{"condition":{"test":"datum.a > 1","field":"c","type":"nominal"},"value":"gray"},
+             "size":{"condition":{"test":"datum.a > 1","value":9}},
+             "opacity":{"condition":{"param":"p","field":"c","type":"nominal"},"value":0.5},
+             "shape":{"field":"s","type":"nominal","condition":{"test":"datum.a > 1","value":"square"}}}
+            """,
+            "\"point\"");
+
+        // Assert: the color reads c through its condition; the size and the parameter condition read nothing; the shape keeps its own field
+        var color = plan.Channel("color")!;
+        Assert.Equal(("c", "c"), (color.SourceField, color.FieldPath));
+        Assert.Same(tree.Root["encoding"]!["color"]!["condition"], color.FieldDef);
+        Assert.Same(tree.Root["encoding"]!["color"], color.Definition);
+        Assert.Equal("c", color.Title);
+        Assert.False(plan.Channel("size")!.HasField);
+        Assert.False(plan.Channel("opacity")!.HasField);
+        var shape = plan.Channel("shape")!;
+        Assert.Equal("s", shape.FieldPath);
+        Assert.Same(shape.Definition, shape.FieldDef);
+    }
+
+    /// <summary>
     ///     Validates that an encoding without aggregates, bins or a stack is an identity plan, and that a view without a mark or an encoding has no channels.
     /// </summary>
     [Fact]

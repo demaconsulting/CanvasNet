@@ -433,3 +433,13 @@ field without a number has no edge and no color; that a limit on `MaxScaleDomain
 five bins of a `step` of 20 and fails a lower one with a located error at the `bin` that names the limit; that a step
 budget of 40 stops the bins of 5000 rows; and that `bin-ordinal` is accepted by the question of the feature catalog
 for a binned quantitative color, fill, and stroke only.
+
+##### Conditional Fields
+
+**Tests**: `ScaleResolverColorTests.ScaleResolverColor_Resolve_FieldInAConditionGivesTheChannelItsScale`,
+`LegendPlanConditionTests.LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend`
+
+Assert, over the sample data (the numbers 3, 5, 7, and 12 and the categories a, b, and c), that a color whose condition
+holds the quantitative field `q` is a sequential scale over 3 to 12 read from `q`, that a shape whose condition holds the
+nominal field `k` has the ordinal scale of `a`, `b`, and `c`, and that a size and an opacity whose conditions hold only
+values have no scale (and no legend is planned for a color, an opacity, and a size with value conditions).

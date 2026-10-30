@@ -35,8 +35,13 @@ no stack). `Channel(name)` finds the first definition of a channel. A view witho
 identity plan with no channels.
 
 **`ChannelPlan`** `(Channel, Definition, SourceField, ValueField, RawField, FieldPath, Field2Path, Bin, BinPlan,
-Measure, IsStacked, Title)` - one definition and what the pipeline makes of it:
+Measure, IsStacked, Title, FieldDefinition)` - one definition and what the pipeline makes of it:
 
+- `Definition` is always the channel node (the guides and marks find the plan by it). `FieldDefinition` is the object
+  that carries the field when that is not the channel node: a channel whose own definition is a value, with a condition
+  on a test that holds a field, reads that field (Vega-Lite's `getFieldOrDatumDef`); `FieldDef` is the
+  `FieldDefinition` or else the `Definition`, and the aggregate, bin, type, scale, sort, and legend of the channel are
+  read from it. A condition that holds only values, or a parameter, gives the channel no field.
 - `SourceField` is the field path as written; `ValueField` is the field the channel reads **before the stack**
   (the derived field of a bin or an aggregate, else the source field); `RawField` is the field in the **Raw**
   table (the source field of an aggregate, none for a count); `FieldPath` is the field in the **Main** table (the

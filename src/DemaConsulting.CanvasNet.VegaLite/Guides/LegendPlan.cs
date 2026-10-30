@@ -168,12 +168,29 @@ internal sealed class LegendMarkFacts
         }
 
         var encoding = view["encoding"] is { IsObject: true } e ? e : null;
-        if (encoding?["opacity"] is { IsObject: true } opacityDef && opacityDef["field"] is null && opacityDef["datum"] is null && opacityDef["value"]?.AsNumber() is { } constant)
+
+        // A color channel that no field drives gives the symbols its first conditional value, else its value (Vega-Lite's getFirstConditionValue)
+        if (ChannelDefinitions.FirstValue(encoding?["fill"] ?? (filled ? encoding?["color"] : null))?.AsString() is { } channelFill)
         {
-            opacity = constant;
+            fill = channelFill;
         }
 
-        var shape = encoding?["shape"]?["value"]?.AsString() ?? Def("shape")?.AsString();
+        if (ChannelDefinitions.FirstValue(encoding?["stroke"] ?? (filled ? null : encoding?["color"]))?.AsString() is { } channelStroke)
+        {
+            stroke = channelStroke;
+        }
+
+        if (encoding?["opacity"] is { IsObject: true } opacityDef)
+        {
+            // A channel that no field drives gives the legend its constant: the largest of its value and the values of its conditions (Vega-Lite's getMaxValue)
+            var constants = ChannelDefinitions.Values(opacityDef).Select(v => v.AsNumber()).OfType<double>().ToList();
+            if (constants.Count > 0)
+            {
+                opacity = constants.Max();
+            }
+        }
+
+        var shape = ChannelDefinitions.FirstValue(encoding?["shape"])?.AsString() ?? Def("shape")?.AsString();
         var dash = Prop("strokeDash") is { Kind: ConfigNodeKind.Array } dashNode
             ? (IReadOnlyList<double>)[.. dashNode.Items.Select(i => i.AsNumber()).Where(n => n is not null).Select(n => n!.Value)]
             : null;
@@ -199,7 +216,7 @@ internal sealed class LegendMarkFacts
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
     /// <returns><see langword="true"/> for a field or datum definition.</returns>
-    private static bool DrivesPaint(SpecNode? definition) => definition is { IsObject: true } && (definition["field"] is not null || definition["datum"] is not null);
+    private static bool DrivesPaint(SpecNode? definition) => definition is { IsObject: true } && ChannelDefinitions.HasField(ChannelDefinitions.FieldDefinitionOf(definition));
 }
 
 /// <summary>
@@ -445,11 +462,13 @@ internal static class LegendPlan
     private static bool TryCreateMember(string channel, SpecNode encoding, ResolvedScales scales, out LegendMember member)
     {
         member = null!;
-        if (encoding[channel] is not { IsObject: true } definition || scales[channel] is not { } scale)
+        if (encoding[channel] is not { IsObject: true } channelDefinition || scales[channel] is not { } scale)
         {
             return false;
         }
 
+        // The legend belongs to the field definition of the channel (a condition that holds the field, when the definition itself is a value)
+        var definition = ChannelDefinitions.FieldDefinitionOf(channelDefinition);
         var legend = definition["legend"];
         if (legend is { IsNull: true } or { IsBoolean: true, BoolValue: false } || definition["scale"] is { IsNull: true })
         {

@@ -186,3 +186,22 @@ sections:
                   - LegendBuilder_Symbol_BinnedSizeShowsTicksAndOrdinalBinnedOpacityShowsTheBinText
                   - LegendBuilder_Merge_BinnedChannelsOfTheSameBinShareOneLegend
                   - LegendBuilder_Limits_BinnedLegendChargesItsItemsAndPollsTheToken
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-ConditionalLegends
+                title: >-
+                  The LegendBuilder unit shall draw a legend for a condition that holds a field, from its
+                  scale and title, shall draw none for conditions that hold only values, shall show the first
+                  condition value (else the value of the channel) as the fixed fill, stroke, or shape of the
+                  symbols of another legend, and the largest of the base and condition opacities, and shall
+                  give the same legend on every call.
+                justification: |
+                  A condition alone does not say what a color stands for, so it creates no key; the symbols of
+                  another key must still look like the marks that they describe, as Vega-Lite's
+                  first-condition-value rule does.
+                tests:
+                  - LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend
+                  - LegendPlan_Create_FieldConditionCreatesTheScaleAndTheLegend
+                  - LegendPlan_Create_FieldWithValueConditionKeepsItsLegend
+                  - LegendBuilder_Symbol_SizeLegendShowsTheFirstConditionValueOfAFixedColor
+                  - LegendBuilder_Symbol_OpacityOfConditionalChannelIsTheLargestValue
+                  - LegendBuilder_Symbol_ConditionalLegendIsDeterministic

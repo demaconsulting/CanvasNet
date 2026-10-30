@@ -65,7 +65,16 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         paint properties of the mark definition (<c>color</c>, <c>fill</c>, <c>stroke</c>, <c>opacity</c>, <c>strokeWidth</c>, and
 ///         <c>size</c> of a symbol) and for the constant <c>value</c> of a color, fill, stroke or opacity channel (and of a size
 ///         channel of a symbol); a result of the wrong kind leaves the default in place. Other mark properties that are expressions,
-///         conditional encodings, <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; the offset channels are reported by the feature catalog and ignored here. The class is stateless between calls and safe for
+///         <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; the offset channels are reported by the feature catalog and ignored here.
+///     </para>
+///     <para>
+///         <b>Conditions.</b> A color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape or angle channel
+///         may carry a <c>condition</c> (an object, or an array of them) whose <c>test</c> is an expression or a predicate that the parser compiled
+///         to an expression. For every row the conditions are tried in order and the first whose test is truthy decides: its <c>value</c> (a literal or an
+///         <c>{"expr": ...}</c>), or, for a condition that holds the field of the channel, the value that the scale of the channel gives for the field of
+///         the row; otherwise the channel gives what it gives without conditions (its scale or its constant <c>value</c>), or, when it has nothing, the property
+///         of the mark. A test is evaluated by the expression engine under the step budget of the call, and a condition on a parameter, or a test that
+///         cannot be written as an expression, is not applied (the feature catalog reports it). The class is stateless between calls and safe for
 ///         concurrent use.
 ///     </para>
 /// </remarks>
@@ -186,11 +195,15 @@ internal sealed class MarkBuilder
         /// <param name="table">The data.</param>
         /// <param name="valueExpression">The compiled <c>{"expr": ...}</c> of the constant <c>value</c> of the channel, or null.</param>
         /// <param name="secondary">The definition of the secondary channel (<c>x2</c> or <c>y2</c>) of a position channel, or null.</param>
-        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null, SpecNode? secondary = null)
+        /// <param name="conditions">The conditions of the channel whose test the call can evaluate, in order.</param>
+        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null, SpecNode? secondary = null, IReadOnlyList<ChannelCondition>? conditions = null)
         {
             Scale = scale;
             Model = model;
             ValueExpression = valueExpression;
+            Conditions = conditions ?? [];
+            var fieldNode = ChannelDefinitions.FieldDefinitionOf(node);
+            IsFieldConditional = !ReferenceEquals(fieldNode, node);
             FieldIndex = scale?.FieldPath is { } path ? table.FindField(path) : -1;
             Field2Index = scale?.Field2Path is { } path2 ? table.FindField(path2) : -1;
             SecondDatum = secondary?["datum"] switch
@@ -202,7 +215,7 @@ internal sealed class MarkBuilder
             };
             SecondValue = secondary?["value"];
             BinStep = scale is { Bin: BinKind.Binned } && Field2Index < 0 && node["bin"]?["step"] is { IsNumber: true } step && step.NumberValue > 0 ? step.NumberValue : null;
-            Datum = node["datum"] switch
+            Datum = fieldNode["datum"] switch
             {
                 { IsNumber: true } n => DataValue.FromNumber(n.NumberValue),
                 { IsString: true } s => DataValue.FromString(s.StringValue),
@@ -211,6 +224,12 @@ internal sealed class MarkBuilder
             };
             Value = node["value"];
         }
+
+        /// <summary>Gets the conditions of the channel whose test the call can evaluate, in order.</summary>
+        public IReadOnlyList<ChannelCondition> Conditions { get; }
+
+        /// <summary>Gets a value indicating whether the field of the channel (and so its scale) belongs to a condition: the definition of the channel itself is a value.</summary>
+        public bool IsFieldConditional { get; }
 
         /// <summary>Gets the resolved scale, or null.</summary>
         public ResolvedScale? Scale { get; }
@@ -263,6 +282,22 @@ internal sealed class MarkBuilder
         public DataValue Read(DataTable table, int row) =>
             FieldIndex >= 0 ? table.GetValue(row, FieldIndex) : Datum ?? DataValue.Null;
     }
+
+    /// <summary>
+    ///     One condition of a channel: a test that the expression engine evaluates for a row, and what the channel gives the row when the test holds.
+    /// </summary>
+    /// <param name="Test">The compiled test.</param>
+    /// <param name="IsField">Whether the condition holds the field of the channel (its value is what the scale of the channel gives for the field of the row); otherwise it holds a value.</param>
+    /// <param name="Value">The literal <c>value</c> of the condition, or null.</param>
+    /// <param name="ValueExpression">The compiled <c>{"expr": ...}</c> of the value, or null.</param>
+    private sealed record ChannelCondition(CompiledExpression Test, bool IsField, SpecNode? Value, CompiledExpression? ValueExpression);
+
+    /// <summary>
+    ///     What a channel gives a row: a number (null for an invalid row), or nothing at all, so that the property of the mark applies.
+    /// </summary>
+    /// <param name="Value">The number, or null when the row is invalid.</param>
+    /// <param name="IsDefault">Whether the channel gives the row nothing (a conditional channel whose conditions did not hold and that has no value of its own).</param>
+    private readonly record struct Resolved(double? Value, bool IsDefault);
 
     /// <summary>
     ///     How thick a bar or tick is along one axis.
@@ -406,16 +441,47 @@ internal sealed class MarkBuilder
                         scale?.CreateModel(name is "x" or "y" ? extent : 0),
                         table,
                         owner._expressions?.Compiled.GetReference(node["value"]),
-                        name is "x" or "y" && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null);
+                        name is "x" or "y" && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
+                        ConditionsOf(name, node));
                 }
             }
 
-            _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain).Select(c => c.Value)];
+            _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional).Select(c => c.Value)];
             ResolvePaint();
             foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
             {
                 CheckDashLength(dash.Count);
             }
+        }
+
+        /// <summary>
+        ///     Lists the conditions of a channel that this call can evaluate.
+        /// </summary>
+        /// <param name="name">The channel name.</param>
+        /// <param name="node">The channel definition.</param>
+        /// <returns>The conditions in order: those on a test that the parser compiled (a condition on a parameter, a test that no expression can say, and the conditions of a call without expressions are left out).</returns>
+        private List<ChannelCondition> ConditionsOf(string name, SpecNode node)
+        {
+            var conditions = new List<ChannelCondition>();
+            if (_owner._expressions is not { } expressions || !ChannelDefinitions.CanCondition(name))
+            {
+                return conditions;
+            }
+
+            var fieldDefinition = ChannelDefinitions.FieldDefinitionOf(node);
+            foreach (var condition in ChannelDefinitions.TestConditions(node))
+            {
+                if (expressions.Compiled.Get(condition["test"]) is { } test)
+                {
+                    conditions.Add(new ChannelCondition(
+                        test,
+                        ReferenceEquals(condition, fieldDefinition),
+                        condition["value"],
+                        expressions.Compiled.GetReference(condition["value"])));
+                }
+            }
+
+            return conditions;
         }
 
         /// <summary>
@@ -568,7 +634,7 @@ internal sealed class MarkBuilder
             var opacity = _opacity;
             if (Get("opacity") is { } channel)
             {
-                if (Encoded(channel, row) is not { } encoded)
+                if (Encoded(channel, row, _opacity) is not { } encoded)
                 {
                     return false;
                 }
@@ -583,7 +649,7 @@ internal sealed class MarkBuilder
             // The stroke width, the opacities and the dash pattern: a channel replaces what the mark says
             if (Get("strokeWidth") is { } widthChannel)
             {
-                if (Encoded(widthChannel, row) is not { } width)
+                if (Encoded(widthChannel, row, strokeWidth) is not { } width)
                 {
                     return false;
                 }
@@ -598,7 +664,7 @@ internal sealed class MarkBuilder
             var fillOpacity = _fillOpacity;
             if (Get("fillOpacity") is { } fillChannel)
             {
-                if (Encoded(fillChannel, row) is not { } encodedFill)
+                if (Encoded(fillChannel, row, _fillOpacity) is not { } encodedFill)
                 {
                     return false;
                 }
@@ -609,7 +675,7 @@ internal sealed class MarkBuilder
             var strokeOpacity = _strokeOpacity;
             if (Get("strokeOpacity") is { } strokeOpacityChannel)
             {
-                if (Encoded(strokeOpacityChannel, row) is not { } encodedStroke)
+                if (Encoded(strokeOpacityChannel, row, _strokeOpacity) is not { } encodedStroke)
                 {
                     return false;
                 }
@@ -682,6 +748,21 @@ internal sealed class MarkBuilder
                 return null;
             }
 
+            if (Matching(channel, row) is { } hit)
+            {
+                if (hit.IsField)
+                {
+                    return channel.Model?.MapText(channel.Read(_table, row));
+                }
+
+                if (hit.ValueExpression is { } conditional)
+                {
+                    return ExpressionColor(conditional, row);
+                }
+
+                return hit.Value is { IsString: true } text ? text.StringValue : null;
+            }
+
             if (channel.ValueExpression is { } expression)
             {
                 return ExpressionColor(expression, row);
@@ -692,28 +773,66 @@ internal sealed class MarkBuilder
                 return value.StringValue;
             }
 
-            return channel.Model?.MapText(channel.Read(_table, row));
+            return channel.IsFieldConditional ? null : channel.Model?.MapText(channel.Read(_table, row));
         }
 
         /// <summary>
-        ///     Gets a number of a row from a size, opacity, stroke width or angle channel: its constant value or its scaled field.
+        ///     Finds the first condition of a channel whose test holds for a row.
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="row">The row, which is the <c>datum</c> of the tests.</param>
+        /// <returns>The condition; null when the channel has none or no test holds.</returns>
+        private ChannelCondition? Matching(Channel channel, int row)
+        {
+            return channel.Conditions.FirstOrDefault(condition => ExpressionEvaluator.IsTruthy(Evaluate(condition.Test, row)));
+        }
+
+        /// <summary>
+        ///     Works out what a size, opacity, stroke width or angle channel gives a row: the value of the first condition that holds, else its scaled field or
+        ///     its constant value.
         /// </summary>
         /// <param name="channel">The channel.</param>
         /// <param name="row">The row.</param>
-        /// <returns>The number, or null when the row has no valid value.</returns>
-        private double? Encoded(Channel channel, int row)
+        /// <returns>The number, or nothing at all when the channel is conditional, no condition holds and the channel has no value of its own.</returns>
+        private Resolved Resolve(Channel channel, int row)
         {
+            if (Matching(channel, row) is { } hit)
+            {
+                if (hit.IsField)
+                {
+                    return new Resolved(channel.Model?.Map(channel.Read(_table, row)), false);
+                }
+
+                // A condition value of the wrong kind leaves the default in place, as an expression of the wrong kind does
+                var number = hit.ValueExpression is { } conditional ? ExpressionNumber(conditional, row) : hit.Value?.AsNumber();
+                return number is null ? new Resolved(null, true) : new Resolved(number, false);
+            }
+
             if (channel.ValueExpression is { } expression)
             {
-                return ExpressionNumber(expression, row);
+                return new Resolved(ExpressionNumber(expression, row), false);
             }
 
-            if (channel.Model is { } model)
+            if (!channel.IsFieldConditional && channel.Model is { } model)
             {
-                return model.Map(channel.Read(_table, row));
+                return new Resolved(model.Map(channel.Read(_table, row)), false);
             }
 
-            return channel.Value?.AsNumber();
+            var constant = channel.Value?.AsNumber();
+            return new Resolved(constant, constant is null && channel.Conditions.Count > 0);
+        }
+
+        /// <summary>
+        ///     Gets a number of a row from a size, opacity, stroke width or angle channel: its constant value, its scaled field, or the value of a condition that holds.
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="row">The row.</param>
+        /// <param name="fallback">What a conditional channel gives a row for which no condition holds when it has no value of its own (the property of the mark), or null.</param>
+        /// <returns>The number, or null when the row has no valid value.</returns>
+        private double? Encoded(Channel channel, int row, double? fallback = null)
+        {
+            var resolved = Resolve(channel, row);
+            return resolved.IsDefault ? fallback : resolved.Value;
         }
 
         /// <summary>
@@ -772,13 +891,39 @@ internal sealed class MarkBuilder
         /// <returns>The pattern, or null to use the pattern of the mark.</returns>
         private IReadOnlyList<double>? DashOf(Channel channel, int row)
         {
-            if (channel.Model is { } model && channel.Scale is { } scale)
+            if (Matching(channel, row) is { } hit)
             {
-                var index = model.MapIndex(channel.Read(_table, row));
-                return index >= 0 && index < scale.DashRange.Count ? scale.DashRange[index] : null;
+                if (hit.IsField)
+                {
+                    return DashFromScale(channel, row);
+                }
+
+                return hit.Value is { } conditional ? ConstantDash(ConfigNode.FromSpec(conditional)) : null;
+            }
+
+            if (!channel.IsFieldConditional && DashFromScale(channel, row) is { } scaled)
+            {
+                return scaled;
             }
 
             return channel.Value is { } value ? ConstantDash(ConfigNode.FromSpec(value)) : null;
+        }
+
+        /// <summary>
+        ///     Gets the dash pattern that the scale of a <c>strokeDash</c> channel gives the field of a row.
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The pattern, or null when the channel has no scale or the value has none.</returns>
+        private IReadOnlyList<double>? DashFromScale(Channel channel, int row)
+        {
+            if (channel.Model is not { } model || channel.Scale is not { } scale)
+            {
+                return null;
+            }
+
+            var index = model.MapIndex(channel.Read(_table, row));
+            return index >= 0 && index < scale.DashRange.Count ? scale.DashRange[index] : null;
         }
 
         /// <summary>
@@ -789,12 +934,27 @@ internal sealed class MarkBuilder
         /// <returns>The shape name or path, or null to use the shape of the mark.</returns>
         private string? ShapeOf(Channel channel, int row)
         {
+            if (Matching(channel, row) is { } hit)
+            {
+                if (hit.IsField)
+                {
+                    return channel.Model?.MapText(channel.Read(_table, row));
+                }
+
+                if (hit.ValueExpression is { } conditional)
+                {
+                    return ExpressionColor(conditional, row);
+                }
+
+                return hit.Value is { IsString: true } text ? text.StringValue : null;
+            }
+
             if (channel.ValueExpression is { } expression)
             {
                 return ExpressionColor(expression, row);
             }
 
-            if (channel.Model is { } model)
+            if (!channel.IsFieldConditional && channel.Model is { } model)
             {
                 return model.MapText(channel.Read(_table, row));
             }
@@ -988,13 +1148,13 @@ internal sealed class MarkBuilder
             }
 
             var encoded = useSizeChannel ? Get("size") : null;
-            if (encoded?.Model is null && encoded?.Value?.AsNumber() is { } constant)
+            if (encoded is { Model: null, Conditions.Count: 0 } && encoded.Value?.AsNumber() is { } constant)
             {
                 fixedSize = constant;
                 encoded = null;
             }
 
-            return new Sizing(fixedSize, band, encoded?.Model is null ? null : encoded);
+            return new Sizing(fixedSize, band, encoded is { Model: null, Conditions.Count: 0 } ? null : encoded);
         }
 
         /// <summary>
@@ -1009,9 +1169,14 @@ internal sealed class MarkBuilder
             valid = true;
             if (sizing.Encoded is { } channel)
             {
-                var value = Encoded(channel, row);
-                valid = value is not null;
-                return value;
+                var resolved = Resolve(channel, row);
+                if (resolved.IsDefault)
+                {
+                    return sizing.Fixed;
+                }
+
+                valid = resolved.Value is not null;
+                return resolved.Value;
             }
 
             return sizing.Fixed;
@@ -1281,7 +1446,7 @@ internal sealed class MarkBuilder
                 var width = widthDefault;
                 if (Get("size") is { } sizeChannel)
                 {
-                    width = Encoded(sizeChannel, row);
+                    width = Encoded(sizeChannel, row, widthDefault);
                     if (width is null)
                     {
                         continue;
@@ -1348,7 +1513,7 @@ internal sealed class MarkBuilder
             for (var row = 0; row < _table.RowCount; row++)
             {
                 Batch(row);
-                var size = sizeChannel is null ? ExpressionNumber(_sizeExpression, row) ?? defaultSize : Encoded(sizeChannel, row);
+                var size = sizeChannel is null ? ExpressionNumber(_sizeExpression, row) ?? defaultSize : Encoded(sizeChannel, row, defaultSize);
                 if (size is not { } area || PointPosition(x, _width, row) is not { } px || PointPosition(y, _height, row) is not { } py || !TryPaint(row, strokeWidth, out var paint))
                 {
                     continue;
@@ -1357,7 +1522,7 @@ internal sealed class MarkBuilder
                 var rowAngle = angle;
                 if (angleChannel is not null)
                 {
-                    if (Encoded(angleChannel, row) is not { } encodedAngle)
+                    if (Encoded(angleChannel, row, angle) is not { } encodedAngle)
                     {
                         continue;
                     }

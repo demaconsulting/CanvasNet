@@ -58,7 +58,16 @@ linear; the marks of a log, pow, sqrt, or symlog scale are not stacked, because 
 them), `vl-channel-x2`, `vl-channel-y2`, and
 `vl-channel-order` (reported only where the channel is not applied), and
 `vl-encoding-sort` (now only for a sort that is not applied) and the new warning `vl-encoding-sort-ignored` (a sort that
-a continuous scale ignores). The warnings `vl-duplicate-key`, `vl-unknown-property`, and
+a continuous scale ignores). The phase 7 identifier `vl-encoding-condition` is narrowed to a `condition` on a channel that
+takes none (the position, secondary, and order channels); a condition with a `test` on the color, fill, stroke, opacity,
+fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape, and angle channels is evaluated by the marks, so it is
+not reported. A condition with a `param`, and a `test` that names a selection or a parameter that is not a variable,
+report `vl-encoding-condition-param` (the condition never holds); a `timeUnit` or a date object in a predicate
+reports `vl-encoding-condition-test` (an identifier of this phase, with the same meaning for a test as
+`vl-transform-filter-timeunit` and `vl-transform-filter-datetime` have for a filter). `VisitCondition` walks the conditions
+of a channel (a predicate composition is walked with an explicit stack, so its nesting cannot overflow the call stack),
+reports the constructs of a test that is an expression text, and visits the field properties of a field condition like
+those of a channel definition. The warnings `vl-duplicate-key`, `vl-unknown-property`, and
 `vl-encoding-sort-mixed-types` are
 produced by `SpecParser`, and the render-time
 warnings `vl-expr-runtime` and `vl-transform-runtime` by `RowTransforms` (they need the data; the
@@ -112,7 +121,8 @@ catalog never produces them).
   quantize threshold`; a `shape` or `strokeDash` channel never counts as continuous): a continuous scale has no
   categories to order. `ascending`, `descending`, `null`, and an object with only
   an `order` are never reported;
-  `timeUnit`, `condition`, an encoding `impute`, and `bandPosition` stay reported.
+  `timeUnit`, an encoding `impute`, and `bandPosition` stay reported; `condition` is reported only on a channel that takes
+  none, or for a parameter (see the phase 7 identifiers above).
 - The phase 7 rules: `SupportedChannels` also holds `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`,
   `strokeOpacity`, and `angle`, but a `shape`, `angle`, or `strokeDash` channel is reported (`vl-channel-<name>`) and
   ignored for a mark that does not draw it (`ScaleResolver.ChannelIsDrawn`). `SupportedScaleTypes` also holds

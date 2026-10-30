@@ -1905,6 +1905,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLegendIntegrationTests.cs"  # legend integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteScaleIntegrationTests.cs"  # scale integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBinnedChannelIntegrationTests.cs"  # binned channel tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteConditionalMarksIntegrationTests.cs"  # conditional tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
@@ -2012,8 +2013,13 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNode.cs"  # unit source (immutable tree)
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecMetadata.cs"  # unit source (descriptive facts)
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecExpressions.cs"  # unit source (compiled expressions)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/ChannelDefinitions.cs"  # unit source (conditions)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/PredicateSource.cs"  # unit source (predicates as expressions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserAggregatesTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
 
   # CanvasNetVegaLite-SpecModel-FeatureCatalog Review (one per unit)
   - id: CanvasNetVegaLite-SpecModel-FeatureCatalog
@@ -2493,6 +2499,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Grid.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Layout Review (one per subsystem)
@@ -2569,6 +2576,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs"  # unit tests (Phase 7)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph Review (one per subsystem)

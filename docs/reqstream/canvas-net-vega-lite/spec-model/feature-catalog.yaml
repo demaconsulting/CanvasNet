@@ -152,8 +152,8 @@ sections:
                   The FeatureCatalog unit shall report each transform of a later phase (timeUnit, regression,
                   loess, density, quantile, and extent) as vl-transform-name, every transform and every
                   variable parameter of a nested view that is not drawn (the aggregating transforms included),
-                  each selection parameter (vl-param-selection), the conditional
-                  encodings (vl-encoding-condition), each projection, composition (layer, concat, hconcat,
+                  each selection parameter (vl-param-selection), the conditions on a parameter
+                  (vl-encoding-condition-param), each projection, composition (layer, concat, hconcat,
                   vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
                   composition, shall report each construct once at its own location, and shall not report
                   the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
@@ -238,3 +238,23 @@ sections:
                   version may render differently and its author should be told.
                 tests:
                   - FeatureCatalog_Visit_SchemaVersionWarnsOutsideFiveAndSix
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ConditionalEncodings
+                title: >-
+                  The FeatureCatalog unit shall not report a condition with a test on the color, fill, stroke,
+                  opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, and angle
+                  channels, shall report vl-encoding-condition for a condition on a channel that takes none,
+                  vl-encoding-condition-param for a condition or a test on a parameter that is not a variable
+                  parameter, and vl-encoding-condition-test for a time unit or a date object in a test, each
+                  at the construct, and shall visit the expressions and the field properties of a condition
+                  like those of a channel.
+                justification: |
+                  A condition that the renderer cannot evaluate must be reported where it is, and one that it
+                  evaluates must not be reported at all.
+                tests:
+                  - FeatureCatalog_Visit_ConditionsWithATestAreNotReported
+                  - FeatureCatalog_Visit_ParameterConditionsAreReported
+                  - FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported
+                  - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
+                  - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
+                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported

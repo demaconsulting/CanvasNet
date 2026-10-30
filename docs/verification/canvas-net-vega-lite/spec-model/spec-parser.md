@@ -34,7 +34,9 @@ be counted by eye.
 Unit tests reside in `SpecParserTests.cs` (which also holds the tests of `SpecTree`, `SpecMetadata`, and `SpecNode`,
 as they are the parser's result types) and `SpecParserAggregatesTests.cs` (the aggregating transforms and encoding
 properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`SpecModel` folder; the large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder.
+`SpecModel` folder, together with `SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs`
+(the predicates written as expressions), and `ChannelDefinitionsTests.cs`; the large-inline-data test is in
+`VegaLiteDocumentSpecModelTests.cs` in the same folder.
 
 #### Test Environment
 
@@ -277,3 +279,38 @@ pointers and positions), data references by kind with row counts, URLs, and loca
 none), and distinct parameter names in order; that the title text is plain text for each form; that a sequence's
 length is computed, including degenerate sequences; and that inline values win over the other source keys of a data
 object.
+
+##### Conditional Encodings
+
+**Tests**: `SpecParserConditionTests.SpecParser_Parse_MalformedConditionReportsThePointer`,
+`SpecParserConditionTests.SpecParser_Parse_ConditionTestsAreCompiled`,
+`SpecParserConditionTests.SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled`,
+`SpecParserConditionTests.SpecParser_Parse_FieldConditionScaleIsValidated`,
+`PredicateSourceTests.PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame`,
+`PredicateSourceTests.PredicateSource_TryBuild_QuotesPathsAndStrings`,
+`PredicateSourceTests.PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay`,
+`PredicateSourceTests.PredicateSource_TryBuild_NullPredicateThrows`,
+`ChannelDefinitionsTests.ChannelDefinitions_CanCondition_ListsTheConditionalChannels`,
+`ChannelDefinitionsTests.ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField`,
+`ChannelDefinitionsTests.ChannelDefinitions_Conditions_ListsConditionsInOrder`,
+`ChannelDefinitionsTests.ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives`
+
+Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
+has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
+composition that is not an array, and a `value.expr` that does not compile, are each a `VegaLiteSpecException` at the
+offending value (the pointer of the condition, of the item of an array, of the `test`, of the `and`, or of the `expr`)
+with the file, line, and column; that the tests of the three conditions of a color are compiled to the source
+`datum.q > t` (an expression text as written), `(datum["q"] >= 2 && datum["q"] <= 3)` (the range `[3, 2]` with its
+endpoints put in ascending order) and `(t)` (a variable parameter), and that the `value.expr` is compiled; that the
+predicate objects of a position channel, of a selection, and of a view that is not drawn are not compiled; and that a
+scale option of a field
+condition is validated like that of a channel (`padding: "wide"` is an error at the scale). The predicate theory
+writes out, for twenty-three predicates, the exact expression text of each comparison, range (with open ends), set, validity
+check, negation, composition (an empty `and` is true and an empty `or` false), expression text, and parameter; a
+second test checks the bracket path of a dotted field and an escaped dot, and the escapes of the quote, the newline, and
+the backslash in a text; the third lists a selection, a time unit, a date object, and a composition that holds one, as
+refused with an empty source; and a null predicate is refused. The helper tests list the eleven channels that take a
+condition (and the position, secondary, order, and tooltip channels that do not), find the field definition of a channel
+(its own, the first field condition on a test, none for a parameter condition), list the conditions in order with the
+parameter conditions left out of the tests, and list the constant values a legend shows (the conditions first, then the
+value; none for a channel that a field drives).

@@ -116,6 +116,12 @@ internal sealed partial class SpecParser
         "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO", "formatType: S",
         "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ");
 
+    /// <summary>The rules for the properties of a condition of a channel definition: a test (or a parameter), a value or the properties of a field definition.</summary>
+    private static readonly Dictionary<string, Rule> ConditionRules = Rules(
+        "test: SO", "param: S", "empty: B", "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ",
+        "bin: BOSZ", "timeUnit: SOZ", "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO",
+        "formatType: S", "bandPosition: NE");
+
     /// <summary>The rules for the properties of a scale definition.</summary>
     private static readonly Dictionary<string, Rule> ScaleRules = Rules(
         "type: S=" + string.Join('|', ScaleTypes), "zero: BE", "nice: BNSO", "padding: NE", "paddingInner: NE",
@@ -658,6 +664,7 @@ internal sealed partial class SpecParser
         }
 
         CompileChannelExpression(definition);
+        ValidateConditions(definition);
     }
 
     /// <summary>
