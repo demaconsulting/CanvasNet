@@ -83,6 +83,50 @@ frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/
 the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
 participate in its generated value equality like every other member.
 
+#### Zlib Helper (internal)
+
+`ZlibHelper` (`Codecs/ZlibHelper.cs`) is an `internal static` helper shared by `PngCodec` and
+`TiffCodec`; it is not a software unit of its own and is not part of the public API. It replaces
+two formerly copy-pasted private zlib implementations and provides Adler-32 checksum computation,
+zlib-stream compression (`Compress`), and **hard-bounded** zlib-stream decompression
+(`Decompress(byte[] zlibData, long maxOutputBytes, string formatName)`).
+
+`Decompress` exists to defend the decoders against "decompression bombs" — a tiny crafted
+compressed payload that would otherwise inflate to gigabytes. The caller must supply
+`maxOutputBytes`, derived from the image's own declared dimensions (PNG: exactly
+`height * (1 + rowBytes)` from `IHDR`; TIFF: `rowBytes * min(RowsPerStrip, ImageLength)` per strip),
+never from an attacker-controlled length field. The helper validates the zlib header (method,
+FCHECK, no preset dictionary), then inflates into an output buffer that is **grown on demand, in
+proportion to the output actually produced, and never beyond `maxOutputBytes`**: it starts at
+`min(maxOutputBytes, max(64 KiB, 4 * compressedLength))` bytes and doubles (capped at
+`maxOutputBytes`) only when the inflater has filled it and a one-byte probe shows more output
+follows, inflating directly into the buffer's free tail (`Read(buffer, total, buffer.Length -
+total)`). When the buffer is full at exactly `maxOutputBytes`, the one-byte probe either proves
+the stream ended or throws `InvalidDataException`, so the excess is never stored. There is no
+`MemoryStream` growth and no final `ToArray()` copy; `Decompress` returns a `Memory<byte>` slice
+of the buffer. **Allocation bound**: a truncated or malformed stream allocates only in
+proportion to what it actually inflates (a few-KiB `IDAT` on a declared 8192x8192 RGBA16 image
+allocates ~64 KiB, not 512 MiB); the total output-buffer allocation over the call (the initial
+buffer plus each growth step) is at most 2 x the final capacity, which is at most `maxOutputBytes`
+(itself bounded by `Surface.MaxDimension`) and less than 2 x the actual output unless the initial
+size or the limit applies, and the live peak (old plus new buffer while growing) is at most
+1.5 x the final capacity, plus the inflater's fixed, size-independent working memory (a few tens
+of KB), regardless of the stream's expansion ratio. An overload reports the cumulative
+output-buffer allocation (`out long outputBytesAllocated`), which the tests assert on rather than
+on thread-wide GC counters. A stream that legally inflates to fewer bytes (a TIFF strip) yields a
+shorter view without another copy. Output of exactly `maxOutputBytes` is accepted. A
+`maxOutputBytes` value that is negative or larger than the maximum .NET array length is rejected
+with `InvalidDataException`, as is any output that exceeds `maxOutputBytes`. The trailing Adler-32
+is validated against the decompressed bytes. (The separate `CanvasNetPdf` package has its own
+FlateDecode implementation, which is bounded by a fixed global cap instead, since a PDF stream
+carries no per-stream expected size.)
+
+The other decoders were reviewed for the same class of problem: `GifCodec`'s LZW decoder already
+writes into a buffer of exactly the Image Descriptor's declared index count and rejects any code
+that would exceed it (and the frame region is bounded by the canvas, itself bounded by
+`Surface.MaxDimension`); `Jpeg2000Codec` enforces explicit `Jpeg2000DecoderLimits`; TIFF's LZW and
+PackBits strip decoders are now bounded by the same per-strip limit as Deflate.
+
 ### Header-Only Probing (`GetInfo`)
 
 Each of the six codecs, in addition to its existing `Load` method (and, for four of the six

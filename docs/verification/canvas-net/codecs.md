@@ -43,3 +43,10 @@ malformed/truncated-input rejection, and `ImageInfo.CanDecode`/`UnsupportedImage
 well-formed-but-unsupported handling, plus the system-level `CanvasNet_SystemIntegration_*`
 round-trip (or, for `GifCodec`, load-only) tests that exercise each codec end-to-end against a
 `Surface` (see the system verification design, `../canvas-net.md`).
+
+The internal `ZlibHelper` shared by `PngCodec` and `TiffCodec` is not a separate software unit and
+has no tests of its own; it is verified through the decompression-bound scenarios in the
+`PngCodec` and `TiffCodec` unit verification documents
+(`CanvasNet-Codecs-PngCodec-LoadDecompressionBound` and
+`CanvasNet-Codecs-TiffCodec-LoadDecompressionBound`), which exercise its hard output limit, and
+through every valid-fixture decode that exercises its checksum validation.

@@ -158,12 +158,6 @@ public static partial class TiffCodec
     private const int SavedSamplesPerPixel = 4;
 
     /// <summary>
-    ///     The modulus used by the Adler-32 checksum algorithm, as required by the zlib format
-    ///     that wraps Deflate-compressed TIFF strip data.
-    /// </summary>
-    private const uint AdlerModulus = 65521;
-
-    /// <summary>
     ///     The TIFF-flavor LZW clear code, which resets the decoder's/encoder's code table.
     /// </summary>
     private const int LzwClearCode = 256;
@@ -214,7 +208,11 @@ public static partial class TiffCodec
     ///     photometric interpretation is not Grayscale (1) or RGB (2), the compression method is
     ///     not one of None/LZW/Deflate/PackBits, the planar configuration is not Chunky (1), the
     ///     width or height exceeds <see cref="Surface.MaxDimension"/>, an RGB image with 4 samples
-    ///     per pixel is missing a valid <c>ExtraSamples</c> tag, or the stream ends before all
+    ///     per pixel is missing a valid <c>ExtraSamples</c> tag, a compressed (LZW, Deflate, or
+    ///     PackBits) strip decompresses to more bytes than its rows could occupy (at most
+    ///     <c>RowsPerStrip</c> rows, clamped to the image height, each of <c>width</c> times
+    ///     samples-per-pixel bytes - a decompression-bomb defense that stops decoding early
+    ///     rather than inflating the whole payload), or the stream ends before all
     ///     directory, tag value, or strip data has been read.
     /// </exception>
     /// <example>
@@ -483,7 +481,7 @@ public static partial class TiffCodec
             TiffCompression.None => raw,
             TiffCompression.PackBits => EncodePackBits(raw),
             TiffCompression.Lzw => EncodeLzw(raw),
-            TiffCompression.Deflate => ZlibCompress(raw),
+            TiffCompression.Deflate => ZlibHelper.Compress(raw),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(compression), compression, "Compression must be a defined TiffCompression value.")
         };

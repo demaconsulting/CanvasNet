@@ -376,6 +376,31 @@ Builds a complete, valid one-pixel Truecolor PNG (`IHDR` + `IDAT` + a CRC-valid,
 throws `InvalidDataException` naming `IEND` as the cause, since the PNG specification requires
 `IEND` to be the final chunk in the datastream.
 
+##### CanvasNet-Codecs-PngCodec-LoadDecompressionBound: Load Bounds Decompressed IDAT Size to the IHDR-Implied Size
+
+**Tests**:
+`PngCodec_Load_IdatInflatesFarBeyondIhdrSize_ThrowsInvalidDataExceptionWithBoundedAllocation`,
+`ZlibHelper_Decompress_NearLimitValidStream_OutputAllocationAtMostTwiceOutput` (compressible and incompressible),
+`ZlibHelper_Decompress_TruncatedStreamWithHugeLimit_AllocatesOnlySmallBuffer`,
+`ZlibHelper_Decompress_Bomb_RejectedWithAllocationWithinTwiceLimit`,
+`PngCodec_Load_IdatInflatesOneByteBeyondExpectedSize_ThrowsInvalidDataException`,
+`PngCodec_Load_IdatInflatesToExactlyExpectedSize_DecodesExpectedPixels`,
+`PngCodec_Load_IdatInflatesToFewerBytesThanExpected_ThrowsInvalidDataException`
+
+Builds a PNG whose `IHDR` declares a 16x16 Truecolor image (784 expected raw bytes) but whose
+`IDAT` is a valid zlib stream of 64 MB of zeros (a few tens of kilobytes compressed), and asserts
+`Load` throws `InvalidDataException` while `GC.GetAllocatedBytesForCurrentThread()` grows by far
+less than the bomb's size (proving the output is never fully inflated). Boundary cases use a
+tiny image: an `IDAT` that inflates to one byte more than `IHDR` implies is rejected; one that
+inflates to exactly the implied size decodes to the expected pixels; one byte fewer is still
+rejected as truncated. Separate tests call the internal `ZlibHelper.Decompress` overload that
+reports the helper's own output-buffer allocation (so the assertions depend neither on the
+platform's inflater internals nor on thread-wide GC counters): a valid 8 MiB stream whose output
+exactly fills the limit (both highly compressible and incompressible data) allocates at most twice
+the output; a tiny truncated stream checked against a 512 MiB limit allocates at most 1 MiB (never
+the limit); and a 64 MiB bomb against a 1 MiB limit is rejected having allocated at most twice the
+limit.
+
 ##### CanvasNet-Codecs-PngCodec-PngSuiteSupported: PngSuite Files Within Scope Load Successfully
 
 **Test**: `PngCodec_Load_PngSuiteSupportedFile_ReturnsCanvas` (`[Theory]` over 126 PngSuite files)

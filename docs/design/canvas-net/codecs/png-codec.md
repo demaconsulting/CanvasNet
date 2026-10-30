@@ -248,11 +248,32 @@ works uniformly for both seekable and non-seekable streams) and rejects the file
 end-of-stream — any trailing byte or additional chunk appended after `IEND` is non-conforming.
 Once `IEND` is reached, the concatenated `IDAT` payload is unwrapped as a zlib stream (2-byte
 header validated, `DeflateStream` inflates the DEFLATE data, the 4-byte Adler-32 trailer is
-validated against the decompressed bytes), then each scanline is defiltered (reconstructing all
+validated against the decompressed bytes) by the shared internal `ZlibHelper` (see _Zlib Helper_ in
+the Codecs subsystem design, `../codecs.md`), then each scanline is defiltered (reconstructing all
 five standard filter types) and its samples extracted (per-bit-depth unpacking — direct byte copy
 at 8-bit, big-endian 16-bit-sample combination, or MSB-first sub-byte unpacking at 1/2/4-bit) and
 mapped to an RGBA pixel per the color type's channel layout and any `tRNS` transparency, written
 directly into the destination `Surface`'s rows via `Surface.GetRowSpanBytes`.
+
+**Design decision — bounded decompression (decompression-bomb defense)**: the exact decompressed
+size of a legitimate non-interlaced PNG is fixed by `IHDR` alone: `height * (1 + rowBytes)`, where
+`rowBytes = (width * bitsPerPixel + 7) / 8`. `Load` computes this figure (in `long` arithmetic;
+`width` has already been validated against `Surface.MaxDimension` and `bitsPerPixel` is at most
+64, so it cannot overflow and never exceeds the maximum .NET array length) and passes it to
+`ZlibHelper.Decompress` as a hard output limit. The helper grows its output buffer on demand, in
+proportion to the output actually produced and never beyond that limit (initial size
+`min(limit, max(64 KiB, 4 * compressedLength))`, doubling, inflating directly into the buffer's
+free tail, no `MemoryStream` and no final copy), so a tiny truncated `IDAT` on a huge declared
+image allocates only a small buffer; total output-buffer allocation is at most 2 x the final
+capacity (itself at most the limit), plus fixed inflater working memory (see _Zlib Helper_ in the
+Codecs subsystem design). It throws `InvalidDataException` as soon as any byte beyond the limit
+appears, so a few-kilobyte `IDAT`
+payload crafted to expand to gigabytes can never exhaust memory; output of exactly the limit is
+accepted, and output shorter than the limit is still rejected afterwards as a corrupt/truncated
+image (the pre-existing "unexpected length" check). No tolerance for trailing excess data is
+provided: any data beyond the `IHDR`-implied size was already rejected by that length check
+before this change and remains rejected. Should Adam7 support ever be added, the limit becomes the
+sum of the seven passes' sizes.
 
 **Design decision — 16-bit `tRNS` comparison ordering**: for 16-bit Grayscale/Truecolor data, the
 raw 16-bit sample is compared against the `tRNS` chunk's 16-bit key value **before** the sample is
@@ -302,7 +323,8 @@ rationale, including why it derives from `IOException` rather than `InvalidDataE
   height, or width/height exceeding
   `Surface.MaxDimension`; non-consecutive `IDAT` chunks; any chunk's CRC-32 mismatch; a malformed
   or unsupported zlib header; an
-  Adler-32 checksum mismatch; an unexpected decompressed data length; an unsupported scanline
+  Adler-32 checksum mismatch; an unexpected decompressed data length (including an `IDAT`
+  payload that would inflate beyond the size implied by `IHDR`); an unsupported scanline
   filter type; or the stream ends before all header, chunk, or pixel data has been read
 * `UnsupportedImageFeatureException` — the file is well-formed but Adam7-interlaced (`Feature` =
   `"png-adam7-interlace"`); this is a distinct type from `InvalidDataException` — see the design
@@ -577,7 +599,9 @@ class library's `System.IO` namespace (`Stream`,
 `FileStream`, `InvalidDataException`) and `System.IO.Compression.DeflateStream` (available on
 every one of CanvasNet's target frameworks with no new runtime NuGet dependency); the zlib
 wrapper (2-byte header, Adler-32 trailer) and every PNG chunk's CRC-32 are computed by hand-rolled
-algorithms rather than any third-party library.
+algorithms rather than any third-party library. The zlib wrapper itself (compression, Adler-32, and
+bounded decompression) is provided by the `Codecs` subsystem's internal `ZlibHelper`, shared with
+`TiffCodec` — see _Zlib Helper_ in `../codecs.md`.
 
 #### Conformance Testing
 
