@@ -75,6 +75,7 @@ sections:
                 tests:
                   - ScenePainter_Paint_SymbolsCoverTheirDocumentedArea
                   - ScenePainter_SymbolPath_ShapesHaveVegaBounds
+                  - ScenePainter_IsSymbolShape_KnowsTheDrawnShapes
                   - ScenePainter_Paint_PathsRoundedRectanglesAndGroupBackgroundAreCrisp
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Text

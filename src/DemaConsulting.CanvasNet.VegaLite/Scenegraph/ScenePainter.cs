@@ -167,6 +167,19 @@ internal sealed class ScenePainter
         PaintGroup(scene.Root, new Context(surface, transform, (float)placement.Scale), cancellationToken);
     }
 
+    /// <summary>The names of the symbol shapes that <see cref="SymbolPath"/> draws; any other name is drawn as a circle.</summary>
+    private static readonly HashSet<string> SymbolShapes =
+    [
+        "circle", "square", "cross", "diamond", "arrow", "wedge", "triangle", "triangle-up", "triangle-down", "triangle-left", "triangle-right", "stroke",
+    ];
+
+    /// <summary>
+    ///     Finds out whether a name is one of the symbol shapes that the painter draws.
+    /// </summary>
+    /// <param name="shape">The shape name.</param>
+    /// <returns><see langword="true"/> for a known shape name; <see langword="false"/> for any other text (a custom SVG path, for example), which is drawn as a circle.</returns>
+    internal static bool IsSymbolShape(string shape) => SymbolShapes.Contains(shape);
+
     /// <summary>
     ///     Gets the path of a symbol shape centered at the origin.
     /// </summary>

@@ -80,15 +80,20 @@ and that the location of a mark report is the value of the `mark` property, with
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedMarkReportsMarkId`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
 `FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`
 
 Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`
 are silent and that `arc`, `area`, `image`, `line`, `text`, `trail`, `geoshape`, `boxplot`, `errorbar`, and
 `errorband` each report `vl-mark-<type>` at the mark; that every channel except `x`, `y`, `color`, `fill`, `stroke`,
-`size`, and `opacity` reports `vl-channel-<name>` (the four geographic channels sharing one identifier) while
+`size`, `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
+`vl-channel-<name>` (the four geographic channels sharing one identifier) while
 `tooltip`, `href`, `description`, and `key` are accepted silently, with the exception of the secondary position channels
 and `order`, which are reported only when the mark cannot draw the range or no stack uses the order (see the encoding
-rules below), as the `x2` and `order` of a point mark show; and that an unknown channel name is not reported
+rules below), as the `x2` and `order` of a point mark show; that, as a theory over nine marks and channels, `shape` is
+silent for a `point` and reported with its own identifier (and ignored) for a `circle` or a `bar`, `angle` is silent for
+a `point` and a `square` and reported for a `tick`, and `strokeDash` is silent for a `bar` and a `rule` and reported for
+a `rect`; and that an unknown channel name is not reported
 again by the catalog (the parser warns about it once).
 
 ##### Data
@@ -130,7 +135,12 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
 `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
-`FeatureCatalogTests.FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CubehelixInterpolationIsReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CustomPathShapesAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed`,
+`FeatureCatalogTests.FeatureCatalog_Visit_SchemeNamesAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes`
 
 Asserts that the encoding identifiers that remain (`vl-encoding-bin` for a channel other than `x` and `y`,
@@ -147,8 +157,14 @@ not stack); that a secondary position channel is silent for a `bar`, `rect`, or 
 is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
 an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack together with
 `vl-scale-log`; that unsupported scale types and properties report
-`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not; that a color scheme other than
-`tableau10` reports `vl-scale-property-scheme` and a quantitative color field reports `vl-scale-color-ramp`; and that
+`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not; that continuous color scales, the
+color schemes of every kind, and the scheme object, `domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and
+`interpolate` produce no report (the identifier `vl-scale-color-ramp` is retired), while a cubehelix interpolation reports
+`vl-scale-interpolate-cubehelix`, a shape that is a custom path reports `vl-shape-path` (the mark, the channel value, and
+the scale range) and every symbol name is silent; that the shape, angle, and stroke dash channels are silent for the marks
+that draw them (`point`; `point`, `circle`, `square`; every mark but `rect`) and reported and ignored for the others;
+that an explicit scale type that the channel or the field type cannot use warns `vl-scale-type-ignored` (a quantitative
+field on `shape` or `strokeDash` as well) while accepted types and types reported otherwise do not; and that
 guide `encode`, `labelExpr`, `formatType`, and the listed unsupported axis properties are reported while the honored
 properties are not.
 

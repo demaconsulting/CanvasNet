@@ -122,13 +122,15 @@ fractional box, and rounded corners.
 ##### Symbols
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_SymbolsCoverTheirDocumentedArea`,
-`ScenePainterTests.ScenePainter_SymbolPath_ShapesHaveVegaBounds`
+`ScenePainterTests.ScenePainter_SymbolPath_ShapesHaveVegaBounds`,
+`ScenePainterTests.ScenePainter_IsSymbolShape_KnowsTheDrawnShapes`
 
 Asserts the derived square, rotated square, and circle coverage and area; the bounding boxes for size 64 (radius 4) of
 `square`, `cross`, `diamond`, and `circle` (-4 to 4 in both directions), of `triangle-up` and `triangle-down` (-4 to 4
 by minus and plus 3.4641), of `triangle-right` and `triangle-left` (the transpose), of `stroke` (-4 to 4 by 0 to 0), and
-of an unknown shape (drawn as a circle); that `arrow`, `wedge`, and `triangle` have shapes; and that a size that is not
-positive has no shape.
+of an unknown shape (drawn as a circle); that `arrow`, `wedge`, and `triangle` have shapes; that a size that is not
+positive has no shape; and, as a theory, that `IsSymbolShape` is true for each of the twelve names that have a shape and
+false for another case of a name, the empty text, and an SVG path.
 
 ##### Paths, Rounded Rectangles, And Group Backgrounds
 

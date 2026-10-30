@@ -72,7 +72,8 @@ is ignored for every channel but x and y.
   the field type accept it; otherwise (and for the types that are not drawn yet) the default applies. `ChannelIsDrawn`
   gives a channel a scale
   only for the marks Vega-Lite's `supportMark` allows (`shape` on `point`; `angle` on `point`, `circle`, and `square`;
-  `strokeDash` and `size` not on `rect`), and `AcceptsScaleType` answers the type question for the feature catalog.
+  `strokeDash` and `size` not on `rect`), `AcceptsScaleType` answers the type question for the feature catalog, and
+  `IsKnownShape` tells it whether a shape is a symbol name that the painter draws (anything else is a custom path).
 - **Domain.** The fields a channel reads come from the `EncodingPlan`. A linear domain is the extent of the valid values
   (numbers, booleans as 1 and 0, numeric strings; null and
   NaN are ignored; an empty extent is 0 to 1) of the **Main** table, over the channel's field and its second field: for

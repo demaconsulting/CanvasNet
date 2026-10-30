@@ -34,6 +34,13 @@ internal static partial class ScaleResolver
     private static readonly double[][] DefaultDashes = [[1, 0], [4, 2], [2, 1], [1, 1], [1, 2, 4, 2]];
 
     /// <summary>
+    ///     Tells whether a shape name is one of the symbols that the painter draws.
+    /// </summary>
+    /// <param name="name">The shape name or path.</param>
+    /// <returns><see langword="true"/> for a name the painter draws; <see langword="false"/> for any other text (a custom SVG path), which is drawn as a circle.</returns>
+    internal static bool IsKnownShape(string name) => Scenegraph.ScenePainter.IsSymbolShape(name);
+
+    /// <summary>
     ///     What one scale resolves to besides its domain: the output values of the channel.
     /// </summary>
     private sealed record Outputs

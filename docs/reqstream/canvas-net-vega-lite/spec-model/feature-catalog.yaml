@@ -84,7 +84,9 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
                   square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
-                  stroke, size, and opacity as vl-channel-name, the temporal and geographic types, and the
+                  stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and
+                  angle as vl-channel-name, the shape, angle, and strokeDash channels of a mark that does not
+                  draw them (as vl-channel-name, the channel being ignored), the temporal and geographic types, and the
                   encoding properties timeUnit, condition, impute, and bandPosition when they change the
                   chart, but not the properties aggregate, stack, and sort (in its supported forms) and the
                   bin of x and y, which the renderer draws, and no implicit bar stack; shall accept the
@@ -101,6 +103,7 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_UnsupportedMarkReportsMarkId
                   - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
+                  - FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem
                   - FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart
                   - FeatureCatalog_Visit_ImplicitBarStackIsNotReported
                   - FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack
@@ -110,16 +113,24 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
-                  The FeatureCatalog unit shall report scale types other than linear, band, point, and
-                  ordinal, scale properties and color schemes outside the supported set, a legend only
-                  when one would be drawn, and the guide properties and encode blocks that the axis
-                  builder does not honor, and shall not report the properties it does honor.
+                  The FeatureCatalog unit shall report scale types other than linear, sequential, band,
+                  point, ordinal, quantile, quantize, and threshold, scale properties outside the supported
+                  set (the properties of the continuous color scales included), a cubehelix interpolation
+                  (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), a legend
+                  only when one would be drawn, and the guide properties and encode blocks that the axis
+                  builder does not honor, shall warn (vl-scale-type-ignored) about a scale type that the channel
+                  or the field type cannot use, and shall not report the continuous color scales, the color
+                  schemes, or the properties it does honor (the identifier vl-scale-color-ramp is retired).
                 justification: |
                   Scales and guides decide how data is positioned and labeled; a silently ignored property
                   would produce a plausible but wrong chart.
                 tests:
                   - FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset
-                  - FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset
+                  - FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported
+                  - FeatureCatalog_Visit_CubehelixInterpolationIsReported
+                  - FeatureCatalog_Visit_CustomPathShapesAreReported
+                  - FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed
+                  - FeatureCatalog_Visit_SchemeNamesAreNotReported
                   - FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes
                   - FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn
 

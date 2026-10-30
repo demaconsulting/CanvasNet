@@ -4658,10 +4658,12 @@ thread, after the work finished and before the method returns or throws.
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick; the chart is drawn without marks and without axes |
-| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, and opacity (tooltip, href, description, and key are ignored). `x2` and `y2` are supported on a bar, rect, or rule that has the `x` or `y` they extend, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it; `order` is supported when it orders a stack and is reported (`vl-channel-order`) otherwise, because the drawing order of marks is not implemented |
+| `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and angle (tooltip, href, description, and key are ignored); `shape` is drawn by a point mark, `angle` by a point, circle, or square, and `strokeDash` by every mark but a rect, and the channel is reported and ignored on any other mark. `x2` and `y2` are supported on a bar, rect, or rule that has the `x` or `y` they extend, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it; `order` is supported when it orders a stack and is reported (`vl-channel-order`) otherwise, because the drawing order of marks is not implemented |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
-| `vl-scale-color-ramp` | Unsupported | A quantitative `color`, `fill`, or `stroke` field (the default mark color is used) |
+| `vl-shape-path` | Unsupported | A shape that is not a symbol name (a custom SVG path): the `shape` of a mark, the `value` of a `shape` channel, or an entry of its `scale.range`; a circle is drawn |
+| `vl-scale-interpolate-cubehelix` | Unsupported | A `scale.interpolate` of `cubehelix` or `cubehelix-long`; RGB interpolation is used |
+| `vl-scale-type-ignored` | Warning | A `scale.type` that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a `shape` or `strokeDash` channel without a discretizing scale type (the scale is ordinal) |
 | `vl-encoding-timeunit`, `-condition`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel other than `x` and `y`, unless it is false or null (it needs the binned scale types of a later release); the channel is not binned |
 | `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
@@ -4669,9 +4671,9 @@ thread, after the work finished and before the method returns or throws.
 | `vl-encoding-sort-ignored` | Warning | A `sort` array, channel (`"-y"`, `{"encoding": ...}`), or object with a `field` or `op` on a quantitative field whose scale is continuous: there are no categories to order, so the sort is ignored (`"ascending"`, `"descending"`, and `null` are not reported) |
 | `vl-encoding-sort-mixed-types` | Warning | A `sort` array that mixes strings, numbers, booleans, or `null`, reported at the array; the values are matched by kind (`1` does not position the text `"1"`) |
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the values are stacked on the linear scale |
-| `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, band, point, and ordinal |
-| `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list; `scheme` unless `tableau10` |
-| `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, or opacity channel |
+| `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, sequential, band, point, ordinal, quantile, quantize, and threshold |
+| `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (`domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and `interpolate` are supported; an unknown color scheme name is an error) |
+| `vl-guide-legend` | Unsupported | The legend, or the channel, of a field-driven color, fill, stroke, size, opacity, shape, strokeWidth, or strokeDash channel |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-format-type-custom` | Unsupported | `axis.formatType` |

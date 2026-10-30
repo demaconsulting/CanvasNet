@@ -490,6 +490,24 @@ reported once, in document order (`vl-param-selection`, `vl-transform-regression
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before they
 were supported are computed now and are covered by the aggregation scenarios below.
 
+### Colors: Ramp Color And Shape Channels Are Drawn In Strict Mode
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode`
+
+Renders two dots at (2, 2) and (5, 5) with a quantitative color field (values 0 and 10, a black to red range) and a nominal
+shape field (the categories a and b) with strict mode on. Asserts that nothing is reported (the identifier
+`vl-scale-color-ramp` is retired), that the first dot is black and the second red, and that the pixel 6.5 pixels from the
+center along both axes is red for the square of the second category and white for the circle of the first.
+
+### Colors: Diagnostics Are Located
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated`
+
+Renders a color scheme `no-such-scheme` and a point mark whose `shape` is the path `M0,0L1,1Z` with a `band` scale on a
+quantitative `x`. Asserts that the scheme is a `VegaLiteSpecException` at `/encoding/color/scale/scheme`, that the path
+shape is the unsupported feature `vl-shape-path` at `/mark/shape`, and that the ignored scale type is the warning
+`vl-scale-type-ignored` at `/encoding/x/scale/type`.
+
 ### Expressions: Errors And Limits Fail When The Document Is Opened
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened`

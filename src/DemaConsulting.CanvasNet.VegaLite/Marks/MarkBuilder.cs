@@ -42,13 +42,19 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         <c>strokeWidth</c>, <c>strokeDash</c>, <c>cornerRadius</c>, <c>size</c>, <c>shape</c> and <c>angle</c> of the mark definition win over the
 ///         configuration (style, <c>config.&lt;mark&gt;</c>, <c>config.mark</c>, Vega's styles such as <c>point</c>: size 30, stroke
 ///         width 2). <c>point</c>, <c>circle</c>, <c>square</c> and <c>tick</c> get an opacity of 0.7 when nothing names an
-///         opacity. A <c>color</c>, <c>fill</c> or <c>stroke</c> field is mapped through its ordinal scale (<c>tableau10</c> by default), a
+///         opacity. A <c>color</c>, <c>fill</c> or <c>stroke</c> field is mapped through its scale (the colors of an ordinal scale, the ramp of a
+///         sequential or diverging scale, the class color of a quantize, quantile or threshold scale), a
 ///         <c>size</c> field through the size scale (the area of a symbol, the stroke width of a rule, the thickness of a bar or
-///         tick) and an <c>opacity</c> field through the opacity scale; <c>value</c> definitions are used as given.
+///         tick), an <c>opacity</c> field through the opacity scale, and the channels <c>strokeWidth</c>, <c>fillOpacity</c> and <c>strokeOpacity</c>
+///         (every mark), <c>strokeDash</c> (every mark but a rect), <c>shape</c> (a point) and <c>angle</c> (a symbol) through theirs, each
+///         replacing the mark property of the same name for the row; <c>value</c> definitions are used as given. A symbol with a
+///         <c>shape</c> that is not one of the symbol names is drawn as a circle (the feature catalog reports a custom path).
 ///     </para>
 ///     <para>
 ///         <b>Invalid data.</b> Vega-Lite's default <c>invalid</c> mode for marks other than lines and areas is <c>filter</c>: a row
-///         whose value for a continuous channel (<c>x</c>, <c>y</c>, <c>size</c>, <c>opacity</c> on a linear scale) is null, missing, NaN or not a
+///         whose value for a channel with a continuous domain (<c>x</c>, <c>y</c>, <c>size</c>, <c>opacity</c>, <c>strokeWidth</c>, <c>fillOpacity</c>,
+///         <c>strokeOpacity</c>, <c>angle</c> on a linear scale; <c>color</c>, <c>fill</c>, <c>stroke</c> on a sequential, diverging, quantize, quantile or
+///         threshold scale) is null, missing, NaN or not a
 ///         number is not drawn. A null in a discrete field is the category <c>null</c> and is drawn; a value outside an explicit
 ///         discrete domain is not.
 ///     </para>
@@ -67,6 +73,9 @@ internal sealed class MarkBuilder
 {
     /// <summary>The number of rows between two cancellation checks and budget updates.</summary>
     private const int BatchSize = 1024;
+
+    /// <summary>The most entries a dash pattern may have: a longer pattern is an error, as every item would carry its own copy.</summary>
+    private const int MaxDashLength = 64;
 
     /// <summary>The half pixel by which Vega translates an axis; Vega-Lite shifts the rectangles of a binned field with it so that they meet the ticks.</summary>
     private const double AxisTranslate = 0.5;
@@ -230,6 +239,9 @@ internal sealed class MarkBuilder
         /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known: the geometry of a bin applies.</summary>
         public bool HasBinEnds => Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null);
 
+        /// <summary>Gets a value indicating whether the scale of the channel has a continuous domain, so that a row whose value is not a number is not drawn (Vega-Lite's invalid filter).</summary>
+        public bool HasContinuousDomain => Model is { Kind: ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold };
+
         /// <summary>Gets a value indicating whether the channel spans a range that the encoding gives: <c>x2</c> or <c>y2</c> next to a field that is not binned by the encoding and not stacked.</summary>
         public bool HasRange => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: null, Bin: not BinKind.Binning } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
 
@@ -267,7 +279,10 @@ internal sealed class MarkBuilder
     /// <param name="Stroke">The stroke color.</param>
     /// <param name="StrokeWidth">The stroke width.</param>
     /// <param name="Opacity">The opacity.</param>
-    private readonly record struct Paint(string? Fill, string? Stroke, double? StrokeWidth, double Opacity);
+    /// <param name="FillOpacity">The opacity of the fill.</param>
+    /// <param name="StrokeOpacity">The opacity of the stroke.</param>
+    /// <param name="StrokeDash">The dash pattern of the stroke, or null for a solid line.</param>
+    private readonly record struct Paint(string? Fill, string? Stroke, double? StrokeWidth, double Opacity, double FillOpacity, double StrokeOpacity, IReadOnlyList<double>? StrokeDash);
 
     /// <summary>
     ///     The state of building one mark: everything that is the same for every row.
@@ -322,6 +337,18 @@ internal sealed class MarkBuilder
         /// <summary>The default opacity.</summary>
         private double _opacity = 1;
 
+        /// <summary>The default opacity of the fill (the <c>fillOpacity</c> of the mark).</summary>
+        private double _fillOpacity = 1;
+
+        /// <summary>The default opacity of the stroke (the <c>strokeOpacity</c> of the mark).</summary>
+        private double _strokeOpacity = 1;
+
+        /// <summary>The default dash pattern of the stroke (the <c>strokeDash</c> of the mark), or null for a solid line.</summary>
+        private IReadOnlyList<double>? _dash;
+
+        /// <summary>The channels whose scale has a continuous domain and whose rows must hold a number (the paint and symbol channels; the position and size channels check their own values).</summary>
+        private readonly Channel[] _filtered;
+
         /// <summary>The expression that gives the fill of each row (the <c>fill</c> property, or the <c>color</c> of a filled mark), or null.</summary>
         private CompiledExpression? _fillExpression;
 
@@ -367,9 +394,9 @@ internal sealed class MarkBuilder
 
             _orient = scales.Orient ?? (type == "tick" ? "vertical" : null);
             var encoding = view["encoding"] is { IsObject: true } e ? e : null;
-            foreach (var name in new[] { "x", "y", "color", "fill", "stroke", "size", "opacity" })
+            foreach (var name in new[] { "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle" })
             {
-                if (encoding?[name] is { IsObject: true } node)
+                if (encoding?[name] is { IsObject: true } node && (name is not ("shape" or "angle" or "strokeDash") || ScaleResolver.ChannelIsDrawn(name, type)))
                 {
                     var scale = scales[name];
                     var extent = name == "x" ? width : height;
@@ -383,7 +410,12 @@ internal sealed class MarkBuilder
                 }
             }
 
+            _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain).Select(c => c.Value)];
             ResolvePaint();
+            foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
+            {
+                CheckDashLength(dash.Count);
+            }
         }
 
         /// <summary>
@@ -509,6 +541,11 @@ internal sealed class MarkBuilder
             {
                 _opacity = Vl("opacity")?.AsNumber() ?? 1;
             }
+
+            // The opacities of the fill and the stroke and the dash pattern: the mark's, which a channel replaces for a row
+            _fillOpacity = Prop("fillOpacity")?.AsNumber() ?? 1;
+            _strokeOpacity = Prop("strokeOpacity")?.AsNumber() ?? 1;
+            _dash = ConstantDash(Prop("strokeDash"));
         }
 
         /// <summary>
@@ -517,9 +554,15 @@ internal sealed class MarkBuilder
         /// <param name="row">The row.</param>
         /// <param name="strokeWidth">The stroke width of the mark; null for the default of one pixel.</param>
         /// <param name="paint">Receives the paint.</param>
-        /// <returns><see langword="false"/> when the row is invalid (its opacity value is not a number).</returns>
+        /// <returns><see langword="false"/> when the row is invalid (a channel with a continuous domain has no number for it).</returns>
         private bool TryPaint(int row, double? strokeWidth, out Paint paint)
         {
+            paint = default;
+            if (!ChannelsValid(row))
+            {
+                return false;
+            }
+
             var fill = ColorOf(_fillChannel, row) ?? ExpressionColor(_fillExpression, row) ?? _fill;
             var stroke = ColorOf(_strokeChannel, row) ?? ExpressionColor(_strokeExpression, row) ?? _stroke;
             var opacity = _opacity;
@@ -527,7 +570,6 @@ internal sealed class MarkBuilder
             {
                 if (Encoded(channel, row) is not { } encoded)
                 {
-                    paint = default;
                     return false;
                 }
 
@@ -538,8 +580,45 @@ internal sealed class MarkBuilder
                 opacity = computed;
             }
 
-            strokeWidth = ExpressionNumber(_strokeWidthExpression, row) ?? strokeWidth;
-            paint = new Paint(fill, stroke, strokeWidth, opacity);
+            // The stroke width, the opacities and the dash pattern: a channel replaces what the mark says
+            if (Get("strokeWidth") is { } widthChannel)
+            {
+                if (Encoded(widthChannel, row) is not { } width)
+                {
+                    return false;
+                }
+
+                strokeWidth = width;
+            }
+            else
+            {
+                strokeWidth = ExpressionNumber(_strokeWidthExpression, row) ?? strokeWidth;
+            }
+
+            var fillOpacity = _fillOpacity;
+            if (Get("fillOpacity") is { } fillChannel)
+            {
+                if (Encoded(fillChannel, row) is not { } encodedFill)
+                {
+                    return false;
+                }
+
+                fillOpacity = encodedFill;
+            }
+
+            var strokeOpacity = _strokeOpacity;
+            if (Get("strokeOpacity") is { } strokeOpacityChannel)
+            {
+                if (Encoded(strokeOpacityChannel, row) is not { } encodedStroke)
+                {
+                    return false;
+                }
+
+                strokeOpacity = encodedStroke;
+            }
+
+            var dash = Get("strokeDash") is { } dashChannel ? DashOf(dashChannel, row) ?? _dash : _dash;
+            paint = new Paint(fill, stroke, strokeWidth, opacity, fillOpacity, strokeOpacity, dash);
             return true;
         }
 
@@ -589,9 +668,13 @@ internal sealed class MarkBuilder
         /// <summary>
         ///     Gets the color of a row from a color channel.
         /// </summary>
+        /// <remarks>
+        ///     A constant <c>value</c> (or its expression) is the color; a field is mapped through the scale of the channel: the colors of an ordinal
+        ///     scale, the color of a sequential or diverging ramp, the class color of a quantize, quantile or threshold scale.
+        /// </remarks>
         /// <param name="channel">The channel, or null.</param>
         /// <param name="row">The row.</param>
-        /// <returns>The color, or null to use the default.</returns>
+        /// <returns>The color, or null to use the default (also for a value outside the domain of a scale; a continuous domain that has no number for the row never gets here: see <see cref="ChannelsValid"/>).</returns>
         private string? ColorOf(Channel? channel, int row)
         {
             if (channel is null)
@@ -609,11 +692,11 @@ internal sealed class MarkBuilder
                 return value.StringValue;
             }
 
-            return channel.Model is { Kind: ScaleKind.Ordinal } model ? model.MapOrdinal(channel.Read(_table, row)) : null;
+            return channel.Model?.MapText(channel.Read(_table, row));
         }
 
         /// <summary>
-        ///     Gets a number of a row from a size or opacity channel: its constant value or its scaled field.
+        ///     Gets a number of a row from a size, opacity, stroke width or angle channel: its constant value or its scaled field.
         /// </summary>
         /// <param name="channel">The channel.</param>
         /// <param name="row">The row.</param>
@@ -627,10 +710,96 @@ internal sealed class MarkBuilder
 
             if (channel.Model is { } model)
             {
-                return model.Kind == ScaleKind.Ordinal ? null : model.Map(channel.Read(_table, row));
+                return model.Map(channel.Read(_table, row));
             }
 
             return channel.Value?.AsNumber();
+        }
+
+        /// <summary>
+        ///     Checks that every channel whose scale has a continuous domain has a number for a row (Vega-Lite's invalid filter).
+        /// </summary>
+        /// <param name="row">The row.</param>
+        /// <returns><see langword="false"/> when a field of such a channel holds no number in the row.</returns>
+        private bool ChannelsValid(int row)
+        {
+            foreach (var channel in _filtered)
+            {
+                if (channel.FieldIndex >= 0 && !channel.Read(_table, row).TryGetQuantitative(out _))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        ///     Reads a dash pattern that a mark property or a channel value gives.
+        /// </summary>
+        /// <param name="node">The value, or null.</param>
+        /// <returns>The pattern, or null when the value is not a list (a solid line); the entries that are not numbers are left out.</returns>
+        /// <exception cref="VegaLiteRenderException">Thrown, with the location of the mark, when the pattern has more than <see cref="MaxDashLength"/> entries.</exception>
+        private IReadOnlyList<double>? ConstantDash(ConfigNode? node)
+        {
+            if (node is not { Kind: ConfigNodeKind.Array })
+            {
+                return null;
+            }
+
+            CheckDashLength(node.Items.Count);
+            return [.. node.Items.Select(i => i.AsNumber()).Where(n => n is not null).Select(n => n!.Value)];
+        }
+
+        /// <summary>
+        ///     Checks the length of a dash pattern against <see cref="MaxDashLength"/>.
+        /// </summary>
+        /// <param name="length">The number of entries.</param>
+        /// <exception cref="VegaLiteRenderException">Thrown, with the location of the mark, when the pattern is longer than the limit.</exception>
+        private void CheckDashLength(int length)
+        {
+            if (length > MaxDashLength)
+            {
+                throw new VegaLiteRenderException($"A strokeDash pattern has {length} entries, more than the limit of {MaxDashLength}.", _location);
+            }
+        }
+
+        /// <summary>
+        ///     Gets the dash pattern of a row from a <c>strokeDash</c> channel: its constant <c>value</c> or the pattern its scale gives.
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The pattern, or null to use the pattern of the mark.</returns>
+        private IReadOnlyList<double>? DashOf(Channel channel, int row)
+        {
+            if (channel.Model is { } model && channel.Scale is { } scale)
+            {
+                var index = model.MapIndex(channel.Read(_table, row));
+                return index >= 0 && index < scale.DashRange.Count ? scale.DashRange[index] : null;
+            }
+
+            return channel.Value is { } value ? ConstantDash(ConfigNode.FromSpec(value)) : null;
+        }
+
+        /// <summary>
+        ///     Gets the shape of a row from a <c>shape</c> channel: its constant <c>value</c> or the shape its scale gives.
+        /// </summary>
+        /// <param name="channel">The channel.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The shape name or path, or null to use the shape of the mark.</returns>
+        private string? ShapeOf(Channel channel, int row)
+        {
+            if (channel.ValueExpression is { } expression)
+            {
+                return ExpressionColor(expression, row);
+            }
+
+            if (channel.Model is { } model)
+            {
+                return model.MapText(channel.Read(_table, row));
+            }
+
+            return channel.Value is { IsString: true } value ? value.StringValue : null;
         }
 
         /// <summary>
@@ -1169,6 +1338,8 @@ internal sealed class MarkBuilder
                 "square" => "square",
                 _ => Prop("shape", vega: true)?.AsString() ?? "circle",
             };
+            var shapeChannel = _type == "point" ? Get("shape") : null;
+            var angleChannel = Get("angle");
             var angle = Prop("angle")?.AsNumber() ?? 0;
             var defaultSize = Prop("size", vega: true)?.AsNumber() ?? 30;
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
@@ -1183,8 +1354,20 @@ internal sealed class MarkBuilder
                     continue;
                 }
 
+                var rowAngle = angle;
+                if (angleChannel is not null)
+                {
+                    if (Encoded(angleChannel, row) is not { } encodedAngle)
+                    {
+                        continue;
+                    }
+
+                    rowAngle = encodedAngle;
+                }
+
+                var rowShape = shapeChannel is null ? shape : ShapeOf(shapeChannel, row) ?? shape;
                 Reserve();
-                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = shape, Size = area, Angle = angle }, paint));
+                items.Add(Style(new SceneSymbol("mark-" + _type, px, py) { Shape = rowShape, Size = area, Angle = rowAngle }, paint));
             }
 
             return items;
@@ -1202,9 +1385,9 @@ internal sealed class MarkBuilder
             Stroke = paint.Stroke,
             StrokeWidth = paint.StrokeWidth,
             Opacity = paint.Opacity,
-            FillOpacity = Prop("fillOpacity")?.AsNumber() ?? 1,
-            StrokeOpacity = Prop("strokeOpacity")?.AsNumber() ?? 1,
-            StrokeDash = Dash(),
+            FillOpacity = paint.FillOpacity,
+            StrokeOpacity = paint.StrokeOpacity,
+            StrokeDash = paint.StrokeDash,
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
             StrokeJoin = Prop("strokeJoin")?.AsString(),
@@ -1222,9 +1405,9 @@ internal sealed class MarkBuilder
             Stroke = paint.Stroke,
             StrokeWidth = paint.StrokeWidth,
             Opacity = paint.Opacity,
-            FillOpacity = Prop("fillOpacity")?.AsNumber() ?? 1,
-            StrokeOpacity = Prop("strokeOpacity")?.AsNumber() ?? 1,
-            StrokeDash = Dash(),
+            FillOpacity = paint.FillOpacity,
+            StrokeOpacity = paint.StrokeOpacity,
+            StrokeDash = paint.StrokeDash,
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
             StrokeJoin = Prop("strokeJoin")?.AsString(),
@@ -1241,17 +1424,10 @@ internal sealed class MarkBuilder
             Stroke = paint.Stroke ?? paint.Fill,
             StrokeWidth = paint.StrokeWidth,
             Opacity = paint.Opacity,
-            StrokeOpacity = Prop("strokeOpacity")?.AsNumber() ?? 1,
-            StrokeDash = Dash(),
+            StrokeOpacity = paint.StrokeOpacity,
+            StrokeDash = paint.StrokeDash,
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
         };
-
-        /// <summary>
-        ///     Reads the dash pattern of the mark.
-        /// </summary>
-        /// <returns>The pattern, or null for a solid line.</returns>
-        private IReadOnlyList<double>? Dash() =>
-            Prop("strokeDash") is { Kind: ConfigNodeKind.Array } node ? node.Items.Select(i => i.AsNumber()).Where(n => n is not null).Select(n => n!.Value).ToList() : null;
     }
 }

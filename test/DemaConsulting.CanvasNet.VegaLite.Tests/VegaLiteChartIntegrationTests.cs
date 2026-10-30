@@ -853,6 +853,69 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a continuous color and a shape channel are drawn through the whole pipeline without a report, in strict mode:
+    ///     the ramp color of each dot and the symbol of each category are the pixels at the derived positions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode()
+    {
+        // Arrange: dots at (2, 2) and (5, 5) with the values 0 and 10 on a black to red ramp; the categories a and b are a circle and a square
+        const string rows = "[{\"x\":2,\"v\":0,\"g\":\"a\"},{\"x\":5,\"v\":10,\"g\":\"b\"}]";
+        var encoding = "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"x\"," + Measure + "},"
+            + "\"color\":{\"field\":\"v\",\"type\":\"quantitative\",\"legend\":null,\"scale\":{\"range\":[\"#000000\",\"#ff0000\"]}},"
+            + "\"shape\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}";
+        var reported = new List<string>();
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
+
+        // Act
+        using var surface = RenderDots(Dots(rows, "[]", encoding), strict);
+
+        // Assert: nothing was reported, the first dot is black (the start of the ramp) and the second red (its end)
+        Assert.Empty(reported);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[20, 80]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: 6.5 pixels from the center along both axes is inside the square (half side 7.07) and outside the circle (radius 7.98)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[56, 56]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[26, 86]);
+    }
+
+    /// <summary>
+    ///     Validates the diagnostics of the Phase 7 channels: an unknown color scheme is a located specification error, a custom path shape
+    ///     is reported once and drawn as a circle, and a scale type that the field cannot use is a warning that keeps the default scale.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated()
+    {
+        // Arrange
+        const string unknown = """
+            { "data": { "values": [ { "a": 1 } ] }, "mark": "point",
+              "encoding": { "x": { "field": "a", "type": "quantitative" },
+                            "color": { "field": "a", "type": "quantitative", "legend": null, "scale": { "scheme": "no-such-scheme" } } } }
+            """;
+        const string custom = """
+            { "data": { "values": [ { "a": 1 } ] }, "mark": { "type": "point", "shape": "M0,0L1,1Z" },
+              "encoding": { "x": { "field": "a", "type": "quantitative", "scale": { "type": "band" } } } }
+            """;
+        var unsupported = new List<string>();
+        var warnings = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            UnsupportedFeatureHandler = u => unsupported.Add(u.Feature + " " + u.Location.Pointer),
+            WarningHandler = w => warnings.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + " " + w.Location.Pointer),
+        };
+
+        // Act
+        var error = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(unknown).Render(null, Ct));
+        using var surface = VegaLiteDocument.Parse(custom).Render(options, Ct);
+
+        // Assert: the scheme error points at the scheme; the path shape and the ignored scale type are reported at their values
+        Assert.Equal("/encoding/color/scale/scheme", error.Location.Pointer);
+        Assert.Equal(["vl-shape-path /mark/shape"], unsupported);
+        Assert.Equal(["vl-scale-type-ignored /encoding/x/scale/type"], warnings);
+    }
+
+    /// <summary>
     ///     Validates the diagnostics of expressions: an unsupported function is reported at the expression text, a regular
     ///     expression result is a runtime warning delivered after the reports of the specification, and strict mode stops at the
     ///     first report with nothing after it.

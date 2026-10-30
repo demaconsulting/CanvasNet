@@ -519,9 +519,13 @@ sections:
         children:
           - CanvasNetVegaLite-Scales-ContinuousColors
           - CanvasNetVegaLite-SpecModel-ScaleValidation
+          - CanvasNetVegaLite-Marks-ContinuousColorsAndChannels
         tests:
           - ScaleResolverColor_Default_QuantitativeColorIsSequentialWithTheRampScheme
           - ScaleResolverColor_Scheme_UnknownNameIsASpecificationError
+          - MarkBuilder_Build_SequentialColorInterpolatesTheRange
+          - CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode
+          - CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated
 
       - id: CanvasNetVegaLite-DiscretizingScales
         title: >-

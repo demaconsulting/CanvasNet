@@ -2510,6 +2510,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/marks/mark-builder.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs"  # unit tests (Phase 7)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph Review (one per subsystem)

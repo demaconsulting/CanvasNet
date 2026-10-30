@@ -340,6 +340,34 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that <see cref="ScenePainter.IsSymbolShape"/> knows exactly the names that the painter draws as their own shape (a custom
+    ///     path, an empty text, and a name of another case are drawn as a circle).
+    /// </summary>
+    /// <param name="shape">The shape name.</param>
+    /// <param name="known">Whether the painter has the shape.</param>
+    [Theory]
+    [InlineData("circle", true)]
+    [InlineData("square", true)]
+    [InlineData("cross", true)]
+    [InlineData("diamond", true)]
+    [InlineData("triangle-up", true)]
+    [InlineData("triangle-down", true)]
+    [InlineData("triangle-left", true)]
+    [InlineData("triangle-right", true)]
+    [InlineData("arrow", true)]
+    [InlineData("wedge", true)]
+    [InlineData("triangle", true)]
+    [InlineData("stroke", true)]
+    [InlineData("Circle", false)]
+    [InlineData("", false)]
+    [InlineData("M0,0L1,1Z", false)]
+    public void ScenePainter_IsSymbolShape_KnowsTheDrawnShapes(string shape, bool known)
+    {
+        // Act and assert: a known name is a distinct shape (the bounds of the unknown names are those of the circle)
+        Assert.Equal(known, ScenePainter.IsSymbolShape(shape));
+    }
+
+    /// <summary>
     ///     Validates rounded rectangles, polylines, polygons, and the stroked group background with Vega's pixel offset.
     /// </summary>
     [Fact]

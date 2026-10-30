@@ -123,6 +123,48 @@ sections:
                   The channels carry additional data in a chart and their defaults decide its look.
                 tests:
                   - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
+                  - MarkBuilder_Build_InvalidValuesOfContinuousChannelsDropTheRow
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ContinuousColors
+                title: >-
+                  The MarkBuilder unit shall color each item of a color, fill, or stroke channel from the scale of
+                  the channel whatever its kind - the color of the ramp (sequential or diverging, with its
+                  domain, reversal, and middle value) for a continuous scale, the color of the class of the
+                  value for a quantize, quantile, or threshold scale (a value on a threshold belonging to the
+                  class above), and
+                  the color of the category for an ordinal scale - as the fill of a filled mark and the
+                  stroke of an unfilled one, and shall not draw a row whose value on a continuous color scale is not a
+                  number.
+                justification: |
+                  A continuous or binned color encoding is the second most common way to show a measure, and the
+                  default mark color it replaced hid the data.
+                tests:
+                  - MarkBuilder_Build_SequentialColorInterpolatesTheRange
+                  - MarkBuilder_Build_DefaultRampReverseAndDivergingColors
+                  - MarkBuilder_Build_DiscretizedColorsGiveTheColorOfTheClass
+                  - MarkBuilder_Build_RampColorsPaintBarsRectsRulesAndTicks
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-StrokeAndSymbolChannels
+                title: >-
+                  The MarkBuilder unit shall give each item its stroke width, fill opacity, stroke opacity, and
+                  stroke dash pattern from the strokeWidth, fillOpacity, strokeOpacity, and strokeDash channels
+                  (a field through the scale, a value as given) in preference to the mark definition, and give
+                  each symbol its shape from the shape channel (a symbol name, a custom path being kept as
+                  written), its angle from the angle channel, and its size from a quantize, quantile, threshold, or
+                  ordinal size scale; and shall ignore the shape, angle, and strokeDash channels of a mark that does
+                  not draw them.
+                justification: |
+                  These channels carry the remaining encodings that distinguish items without color, and a mark
+                  that cannot draw one must not be altered by it.
+                tests:
+                  - MarkBuilder_Build_ShapeChannelChoosesTheSymbolOfEachRow
+                  - MarkBuilder_Build_EveryShapeNameReachesTheSymbol
+                  - MarkBuilder_Build_StrokeWidthChannelScalesAndOverridesTheMark
+                  - MarkBuilder_Build_StrokeDashChannelChoosesThePatternOfEachRow
+                  - MarkBuilder_Build_FillAndStrokeOpacityChannelsScaleIndependently
+                  - MarkBuilder_Build_AngleChannelRotatesTheSymbols
+                  - MarkBuilder_Build_SizeOnDiscretizingScalesUsesTheClassOfTheValue
+                  - MarkBuilder_Build_NewChannelsAreDeterministic
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-ExpressionValues
                 title: >-
@@ -144,7 +186,9 @@ sections:
                   The MarkBuilder unit shall fail with a located VegaLiteRenderException when the number of scene items
                   would exceed the scene-item limit, counting the marks group and each item before it is created (a row
                   that draws nothing costs nothing; a limit of N allows exactly N items), shall stop with an
-                  OperationCanceledException when the cancellation token is canceled, and shall build nothing for a mark
+                  OperationCanceledException when the cancellation token is canceled, shall fail with a located
+                  VegaLiteRenderException for a dash pattern of more than 64 entries (of the mark, a channel value,
+                  or a scale range), and shall build nothing for a mark
                   type it does not support.
                 justification: |
                   Marks scale with the data, so their number and their time must be bounded.
@@ -152,4 +196,6 @@ sections:
                   - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
                   - MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated
                   - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
+                  - MarkBuilder_Build_LongDashPatternsExceedTheLimit
+                  - MarkBuilder_Build_NewChannelsHonorCancellationAndTheSceneBudget
                   - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary

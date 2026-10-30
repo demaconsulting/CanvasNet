@@ -75,7 +75,6 @@ public class FeatureCatalogTests
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-encoding-bin", "/encoding/color/bin"),
                 ("vl-scale-log", "/encoding/color/scale/type"),
-                ("vl-scale-property-scheme", "/encoding/color/scale/scheme"),
                 ("vl-guide-legend", "/encoding/color/legend"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-theta", "/encoding/theta"),
@@ -324,21 +323,20 @@ public class FeatureCatalogTests
               "x": {"field":"a","type":"quantitative"}, "y": {"field":"a","type":"quantitative"},
               "color": {"value":"red"}, "fill": {"value":"red"}, "stroke": {"value":"red"}, "size": {"value":3}, "opacity": {"value":1},
               "tooltip": {"value":"t"}, "href": {"value":"h"}, "description": {"value":"d"}, "key": {"field":"a"},
-              "x2": {"field":"a"}, "shape": {"field":"a","type":"nominal"}, "strokeWidth": {"value":2}, "text": {"field":"a"},
+              "x2": {"field":"a"}, "shape": {"field":"a","type":"nominal","legend":null}, "strokeWidth": {"value":2}, "text": {"field":"a"},
               "detail": [ {"field":"a"} ], "order": {"field":"a"}, "row": {"field":"a"}, "xOffset": {"field":"a"},
-              "longitude": {"field":"a"}, "latitude2": {"field":"a"}
+              "longitude": {"field":"a"}, "latitude2": {"field":"a"},
+              "strokeDash": {"value":[1,1]}, "fillOpacity": {"value":0.5}, "strokeOpacity": {"value":0.5}, "angle": {"value":45}
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert
+        // Assert: shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle are drawn by a point mark
         Assert.Equal(
             [
                 ("vl-channel-x2", "/encoding/x2"),
-                ("vl-channel-shape", "/encoding/shape"),
-                ("vl-channel-strokewidth", "/encoding/strokeWidth"),
                 ("vl-channel-text", "/encoding/text"),
                 ("vl-channel-detail", "/encoding/detail"),
                 ("vl-channel-order", "/encoding/order"),
@@ -531,58 +529,180 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that a color scheme that is not a categorical scheme of the catalog (a continuous ramp) and a continuous
-    ///     color scale are reported, and the categorical schemes and an ordinal color scale are not.
+    ///     Validates that continuous color scales, the color schemes (of every kind) and the other color scale properties of Phase 7 are not
+    ///     reported, and that the retired <c>vl-scale-color-ramp</c> never is.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset()
+    public void FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
               "color": { "field": "a", "type": "quantitative", "legend": null },
-              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "tableau10" }, "legend": null },
-              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": { "name": "category20" } }, "legend": null },
-              "opacity": { "field": "d", "type": "ordinal", "scale": { "scheme": "blues" }, "legend": null }
+              "fill": { "field": "b", "type": "quantitative", "scale": { "scheme": { "name": "viridis", "count": 5, "extent": [0.1, 0.9] }, "domainMid": 0, "domainMin": -1, "domainMax": 1, "interpolate": { "type": "hcl", "gamma": 2 }, "type": "sequential" }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "category20" }, "legend": null },
+              "opacity": { "field": "d", "type": "quantitative", "scale": { "scheme": "blues", "type": "quantize", "rangeMin": 0.1, "rangeMax": 1 }, "legend": null }
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert: the quantitative color has no ramp; tableau10 and category20 (also as an object) are categorical
-        // schemes of the catalog and are available, a continuous scheme such as blues is not
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>
+    ///     Validates the cubehelix interpolation report: both spellings, as a string and as an object, and no report for the other types.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_CubehelixInterpolationIsReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "quantitative", "scale": { "interpolate": "cubehelix" }, "legend": null },
+              "fill": { "field": "b", "type": "quantitative", "scale": { "interpolate": { "type": "cubehelix-long", "gamma": 1 } }, "legend": null },
+              "stroke": { "field": "c", "type": "quantitative", "scale": { "interpolate": "lab" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
         Assert.Equal(
             [
-                ("vl-scale-color-ramp", "/encoding/color/type"),
-                ("vl-scale-property-scheme", "/encoding/opacity/scale/scheme"),
+                ("vl-scale-interpolate-cubehelix", "/encoding/color/scale/interpolate"),
+                ("vl-scale-interpolate-cubehelix", "/encoding/fill/scale/interpolate"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates that the scheme report agrees with the scale resolver: the name is matched without regard to case, an
-    ///     explicit color range overrides the scheme (so nothing is reported), and each report is made once with its pointer.
+    ///     Validates that a shape that is not a symbol name is reported wherever it can be given (the mark, the channel value, the scale
+    ///     range), and that every symbol name the painter draws is not.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_SchemeReportAgreesWithTheResolver()
+    public void FeatureCatalog_Visit_CustomPathShapesAreReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": { "type": "point", "shape": "M0,0L1,1" }, "encoding": {
+              "shape": { "field": "a", "type": "nominal", "scale": { "range": ["circle", "M0,0L1,1Z", "wedge"] }, "legend": null }
+            } }
+            """;
+        const string value = """
+            { "mark": "point", "encoding": { "shape": { "value": "M0,0L1,1" } } }
+            """;
+        var known = string.Join(
+            ",",
+            new[] { "circle", "square", "cross", "diamond", "arrow", "wedge", "triangle", "triangle-up", "triangle-down", "triangle-left", "triangle-right", "stroke" }.Select(s => $"\"{s}\""));
+
+        // Act
+        var ids = Visit(json);
+        var channelValue = Visit(value);
+        var symbols = Visit("{\"mark\":{\"type\":\"point\",\"shape\":\"cross\"},\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\",\"scale\":{\"range\":[" + known + "]},\"legend\":null}}}");
+
+        // Assert
+        Assert.Equal(
+            [
+                ("vl-shape-path", "/mark/shape"),
+                ("vl-shape-path", "/encoding/shape/scale/range/1"),
+            ],
+            ids);
+        Assert.Equal([("vl-shape-path", "/encoding/shape/value")], channelValue);
+        Assert.Empty(symbols);
+    }
+
+    /// <summary>
+    ///     Validates that the shape, angle and stroke dash channels are reported (and ignored) on a mark that does not draw them, and are not
+    ///     reported on one that does.
+    /// </summary>
+    /// <param name="mark">The mark type.</param>
+    /// <param name="channel">The channel with its definition.</param>
+    /// <param name="drawn">Whether the mark draws the channel.</param>
+    [Theory]
+    [InlineData("point", "\"shape\":{\"value\":\"cross\"}", true)]
+    [InlineData("circle", "\"shape\":{\"value\":\"cross\"}", false)]
+    [InlineData("bar", "\"shape\":{\"value\":\"cross\"}", false)]
+    [InlineData("point", "\"angle\":{\"value\":10}", true)]
+    [InlineData("square", "\"angle\":{\"value\":10}", true)]
+    [InlineData("tick", "\"angle\":{\"value\":10}", false)]
+    [InlineData("bar", "\"strokeDash\":{\"value\":[2,2]}", true)]
+    [InlineData("rule", "\"strokeDash\":{\"value\":[2,2]}", true)]
+    [InlineData("rect", "\"strokeDash\":{\"value\":[2,2]}", false)]
+    public void FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem(string mark, string channel, bool drawn)
+    {
+        // Act
+        var ids = Visit("{\"mark\":\"" + mark + "\",\"encoding\":{" + channel + "}}");
+
+        // Assert
+        var name = channel[1..channel.IndexOf('"', 1)];
+        Assert.Equal(drawn ? [] : [("vl-channel-" + name.ToLowerInvariant(), "/encoding/" + name)], ids);
+    }
+
+    /// <summary>
+    ///     Validates the scale type warning: a type the channel or the field type cannot use, a quantitative field on a shape or stroke dash
+    ///     channel, and no warning for accepted types, for types that are reported otherwise, or for a channel without a field.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal", "scale": { "scheme": "Tableau10" }, "legend": null },
-              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "blues", "range": ["red", "blue"] }, "legend": null },
-              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "BLUES" }, "legend": null }
+              "x": { "field": "a", "type": "quantitative", "scale": { "type": "band" } },
+              "y": { "field": "b", "type": "nominal", "scale": { "type": "linear" } },
+              "color": { "field": "c", "type": "nominal", "scale": { "type": "sequential" }, "legend": null },
+              "fill": { "field": "d", "type": "quantitative", "scale": { "type": "quantize" }, "legend": null },
+              "stroke": { "field": "e", "type": "quantitative", "scale": { "type": "log" }, "legend": null },
+              "size": { "field": "f", "type": "quantitative", "scale": { "type": "threshold", "domain": [1] }, "legend": null },
+              "shape": { "field": "g", "type": "quantitative", "legend": null },
+              "strokeDash": { "field": "h", "type": "quantitative", "scale": { "type": "quantile" }, "legend": null },
+              "opacity": { "value": 1, "scale": { "type": "band" } }
             } }
             """;
 
         // Act
         var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
-        // Assert: only the unavailable scheme without a range is reported
-        var report = Assert.Single(reports);
-        Assert.Equal(("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"), (report.Id, report.Location.Pointer));
-        Assert.Contains("'BLUES'", report.Message, StringComparison.Ordinal);
+        // Assert: log is reported as an unsupported type only; band on a quantitative field, linear on a nominal one, sequential on a nominal
+        // color and the quantitative shape each warn
+        var warnings = reports.Where(r => r.Id == "vl-scale-type-ignored").Select(r => (r.Kind, r.Location.Pointer)).ToList();
+        Assert.Equal(
+            [
+                (FeatureReportKind.Warning, "/encoding/x/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/y/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/color/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/shape/type"),
+            ],
+            warnings);
+        Assert.Contains(reports, r => r.Id == "vl-scale-log");
+        Assert.DoesNotContain(reports, r => r.Id == "vl-scale-quantize");
+    }
+
+    /// <summary>
+    ///     Validates that a sort that orders categories is not ignored on a discretizing color scale, and that scheme names are never
+    ///     catalog reports (an unknown name is a specification error of the scale resolver).
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_SchemeNamesAreNotReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "quantitative", "scale": { "type": "quantize", "scheme": "Blues" }, "sort": ["a"], "legend": null },
+              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "TABLEAU10" }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "no-such-scheme" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Empty(ids);
     }
 
     /// <summary>
@@ -1240,7 +1360,6 @@ public class FeatureCatalogTests
     [InlineData("""{"field":"v","type":"quantitative","sort":{"order":"descending"}}""", false)]
     [InlineData("""{"field":"v","type":"nominal","sort":["a"]}""", false)]
     [InlineData("""{"field":"v","type":"ordinal","sort":"-y"}""", false)]
-    [InlineData("""{"field":"v","type":"quantitative","scale":{"type":"band"},"sort":["a"]}""", false)]
     [InlineData("""{"field":"v","type":"quantitative","scale":{"type":"linear"},"sort":["a"]}""", true)]
     public void FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning(string definition, bool reported)
     {

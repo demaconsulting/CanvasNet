@@ -41,6 +41,25 @@ sections:
             tests:
               - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
 
+          - id: CanvasNetVegaLite-Marks-ContinuousColorsAndChannels
+            title: >-
+              The Marks subsystem shall color the marks from continuous, classified, and categorical color
+              scales (the color of the ramp, of the class of the value, or of the category), and shall draw
+              the shape, stroke width, stroke dash, fill opacity, stroke opacity, angle, and size channels
+              from their scales or values, as the fill of a filled mark and the stroke of an unfilled one,
+              ignoring the channels that a mark does not draw.
+            justification: |
+              A color ramp, a classified color, and the channels that vary a stroke or a symbol per value are
+              the encodings that make a chart readable without a legend of its own, and must be drawn as
+              Vega-Lite draws them.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-ContinuousColors
+              - CanvasNetVegaLite-Marks-MarkBuilder-StrokeAndSymbolChannels
+            tests:
+              - MarkBuilder_Build_SequentialColorInterpolatesTheRange
+              - MarkBuilder_Build_DiscretizedColorsGiveTheColorOfTheClass
+              - MarkBuilder_Build_ShapeChannelChoosesTheSymbolOfEachRow
+
           - id: CanvasNetVegaLite-Marks-ExpressionValues
             title: >-
               The Marks subsystem shall evaluate the expression references of the mark definition and of the
@@ -112,3 +131,4 @@ sections:
               - CanvasNetVegaLite-Marks-MarkBuilder-Limits
             tests:
               - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
+              - MarkBuilder_Build_LongDashPatternsExceedTheLimit

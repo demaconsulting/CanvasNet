@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `MarkBuilder` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Marks` namespace: the internal `MarkBuilder` class (`Build` and the static
 `IsSupported`). The unit reads the rows of a `DataTable` and the resolved scales of a view and creates, in a `marks`
-group, the scene items of a `bar`, `rect`, `point`, `circle`, `square`, `rule`, or `tick` mark (roles `mark-<type>`) with
-the geometry and the paint that Vega-Lite assigns: positions from the scale models, band sizes, default sizes, the
+group, the scene items of a `bar`, `rect`, `point`, `circle`, `square`, `rule`, or `tick` mark (roles `mark-<type>`)
+with the geometry and the paint that Vega-Lite assigns: positions from the scale models, band sizes, default sizes, the
 filled or outlined appearance, the colors, the sizes, the opacities, the invalid-data filter, and the scene item budget.
 
 #### Verification Approach
@@ -14,9 +14,9 @@ The unit is verified through the shared helper `ChartTestHelpers.Marks`, which r
 rectangle of a chosen size. The assertions are on the scene items (positions, sizes, fills, strokes, stroke widths,
 opacities, shapes, angles, corner radii). No mocking or stubbing is used; the collaborators are real because the unit's
 contract is how the table, the scales, and the configuration combine into items. The expression-reference scenario
-builds the `RowExpressions` (the compiled expressions of the tree and a real `ExpressionEvaluator` with its own parameter
-dictionary) by hand and passes them to the builder, because `ChartTestHelpers.Marks` builds the builder without them.
-The internal types are reached through
+builds the `RowExpressions` (the compiled expressions of the tree and a real `ExpressionEvaluator` with its own
+parameter dictionary) by hand and passes them to the builder, because `ChartTestHelpers.Marks` builds the builder
+without them. The internal types are reached through
 the test assembly's `InternalsVisibleTo` access.
 
 The expected values are derived by hand from the band, point, and linear scale formulas and the Vega-Lite mark rules,
@@ -62,22 +62,22 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   because the size domain starts at zero (0 to 30) and the range is 4 to (0.95 x 20)^2 = 361; the opacity is
   0.3 + 0.5 (o - 2) / 2 for o = 2, 3, 4 (0.3, 0.55, 0.8) because opacity has no zero rule.
 - Stacked layers (two bands of 45 pixels at 2.5 and 52.5, the layers `p` 3 and `q` 5 in region `a` and `p` 4 in `b`):
-  the layers are ordered by the color, descending on a vertical chart, so `q` is the lower layer (0 to 5) and `p` the upper
-  (5 to 8) over the domain 0 to 8, y(v) = 100 - 12.5 v, giving the bars (y 37.5, height 62.5) and (y 0, height 37.5) and
-  for `b` (y 50, height 50); `center` puts the stack of `b` at 2 to 6 (y 25, height 50); `normalize` divides by the totals
-  8 and 4 so `b` fills 0 to 1 (y 0, height 100); `stack: null` overlaps the bars from zero on the domain 0 to 5; a
-  horizontal chart stacks ascending, `p` 0 to 3 and `q` 3 to 8 with x(v) = 12.5 v; and a circle sits at the upper end of
-  its layer (y 0, 37.5, and 50).
+  the layers are ordered by the color, descending on a vertical chart, so `q` is the lower layer (0 to 5) and `p` the
+  upper (5 to 8) over the domain 0 to 8, y(v) = 100 - 12.5 v, giving the bars (y 37.5, height 62.5) and (y 0, height
+  37.5) and for `b` (y 50, height 50); `center` puts the stack of `b` at 2 to 6 (y 25, height 50); `normalize` divides
+  by the totals 8 and 4 so `b` fills 0 to 1 (y 0, height 100); `stack: null` overlaps the bars from zero on the domain 0
+  to 5; a horizontal chart stacks ascending, `p` 0 to 3 and `q` 3 to 8 with x(v) = 12.5 v; and a circle sits at the
+  upper end of its layer (y 0, 37.5, and 50).
 - Binned bars (bins 0 to 30 by 10 holding 2, 2, and 1 rows over 90 pixels, x(v) = 3 v, the count domain 0 to 2): a bar
   spans its bin less the bin spacing of 1 (half a pixel off each edge) and plus the half pixel of the axis translate, so
-  the bars are at x = 1, 31, and 61 with the width 29 (heights 100, 100, and 50); `binSpacing` 0 gives x = 0.5, 30.5, and
-  60.5 with the width 30, and 4 gives x = 2.5, 32.5, and 62.5 with the width 26; a reversed scale mirrors the bins (61,
-  31, 1); a `size` of 10 centers the bar on the middle of its bin (x = 10, 40, 70) without spacing; a `rect` has no
+  the bars are at x = 1, 31, and 61 with the width 29 (heights 100, 100, and 50); `binSpacing` 0 gives x = 0.5, 30.5,
+  and 60.5 with the width 30, and 4 gives x = 2.5, 32.5, and 62.5 with the width 26; a reversed scale mirrors the bins
+  (61, 31, 1); a `size` of 10 centers the bar on the middle of its bin (x = 10, 40, 70) without spacing; a `rect` has no
   spacing (x = 0.5 and 30.5 and 60.5, width 30); bins of 3 pixels under a `minBandSize` of 5 are widened to 5 around
   their middle; a circle sits at the middle of its bin (15, 45, 75); and a pre-binned field with a `step` and no `x2`
   ends one step after each start (x = 1, 31, 61).
-- Pre-binned ranges (0 to 10 and 10 to 25 over 100 pixels, no zero and no nice, so x(v) = 4 v): the bars are at x = 1 and
-  41 with the widths 39 and 59, the rects at 0.5 and 40.5 with the widths 40 and 60, and the circles at 20 and 70.
+- Pre-binned ranges (0 to 10 and 10 to 25 over 100 pixels, no zero and no nice, so x(v) = 4 v): the bars are at x = 1
+  and 41 with the widths 39 and 59, the rects at 0.5 and 40.5 with the widths 40 and 60, and the circles at 20 and 70.
 - Secondary channels (x(v) = 10 v on the domain 0 to 10): a bar from `lo` 2 to `hi` 6 and from 4 to 10 is at x = 20 and
   40 with the widths 40 and 60; a second end that is the pixel value 50 or the datum 1 on the domain 0 to 2 (50 pixels)
   draws from 50 to 100; a row with a null end is not drawn; a rule with `y` and `y2` at the band centers 25 and 75 runs
@@ -110,8 +110,8 @@ constitutes a failure.
 
 Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (starting at the stack start 0 and not
 clipped for an explicit domain, and running to the first domain value for `stack: null`), the continuous
-bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and the
-clip rule.
+bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and
+the clip rule.
 
 ##### Point, Circle, Square, Rule, And Tick Geometry
 
@@ -123,30 +123,82 @@ stems, and the vertical, horizontal, and two-measure ticks.
 
 ##### Color, Size, And Opacity
 
-**Tests**: `MarkBuilderTests.MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties`
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties`,
+`MarkBuilderChannelTests.MarkBuilder_Build_InvalidValuesOfContinuousChannelsDropTheRow`
 
-Asserts the derived tableau10 colors, sizes, and opacities for a filled and an unfilled point; that value definitions are
-used as given and the `fill` channel wins over `color` (`#102030`, opacity 0.25, size 99); that the mark definition wins
-over `config.point`, which wins over `config.mark` (stroke `teal`, stroke width 3, size 50, fill opacity 0.5); that
+Asserts the derived tableau10 colors, sizes, and opacities for a filled and an unfilled point; that value definitions
+are used as given and the `fill` channel wins over `color` (`#102030`, opacity 0.25, size 99); that the mark definition
+wins over `config.point`, which wins over `config.mark` (stroke `teal`, stroke width 3, size 50, fill opacity 0.5); that
 bars are opaque by default and a configured opacity (0.9) replaces the reduced default of points; and that a row whose
-size value is not a number is dropped.
+size value is not a number is dropped; and that, with a color field and a stroke width field of which one value each is
+not a number (`"x"` and `"y"`), the two rows with an invalid value are dropped and the other two are drawn.
+
+##### Ramp, Classified, And Categorical Colors
+
+**Tests**: `MarkBuilderChannelTests.MarkBuilder_Build_SequentialColorInterpolatesTheRange`,
+`MarkBuilderChannelTests.MarkBuilder_Build_DefaultRampReverseAndDivergingColors`,
+`MarkBuilderChannelTests.MarkBuilder_Build_DiscretizedColorsGiveTheColorOfTheClass`,
+`MarkBuilderChannelTests.MarkBuilder_Build_RampColorsPaintBarsRectsRulesAndTicks`
+
+Asserts, for four rows with the field v = 20, 60, 100, 100, that a sequential scale over the extent 20 to 100 with the
+range black to white gives `#000000`, `#808080` (127.5 rounds to 128), `#ffffff`, and `#ffffff`, as the fill of a filled
+point, as the stroke (with the fill `transparent`) of an unfilled point, as the fill of a bar, and as the stroke of a
+rule; that the default ramp of the configuration gives the ends of Vega's blues scheme (`#cfe1f2` for the lowest value
+and `#0a4a90` for the highest) and `reverse` swaps them; that `domainMid` 60 with the range red, white, blue makes the
+scale diverging and gives `#ff0000`, `#ffffff` (the middle of the three-color range), and `#0000ff`; that the rows whose
+value is `"n/a"` or `null` are not drawn; that a quantize scale over 0 to 90 and a threshold scale at 30 and 60, both
+with three colors, give red to 0 and 29, green to 31 and 59, and blue to 61 and 90, and that a value on a threshold
+takes the color of the class above (30 is green, 60 is blue); and that a quantile scale over 1 to 8 with two colors cuts
+at the median 4.5 (the first four rows take the first color, the last four the second).
+
+##### Shape, Stroke Width, Stroke Dash, Opacities, And Angle
+
+**Tests**: `MarkBuilderChannelTests.MarkBuilder_Build_ShapeChannelChoosesTheSymbolOfEachRow`,
+`MarkBuilderChannelTests.MarkBuilder_Build_EveryShapeNameReachesTheSymbol`,
+`MarkBuilderChannelTests.MarkBuilder_Build_StrokeWidthChannelScalesAndOverridesTheMark`,
+`MarkBuilderChannelTests.MarkBuilder_Build_StrokeDashChannelChoosesThePatternOfEachRow`,
+`MarkBuilderChannelTests.MarkBuilder_Build_FillAndStrokeOpacityChannelsScaleIndependently`,
+`MarkBuilderChannelTests.MarkBuilder_Build_AngleChannelRotatesTheSymbols`,
+`MarkBuilderChannelTests.MarkBuilder_Build_SizeOnDiscretizingScalesUsesTheClassOfTheValue`,
+`MarkBuilderChannelTests.MarkBuilder_Build_NewChannelsAreDeterministic`
+
+Asserts that the shape channel takes the symbols circle, square, and triangle-up of the configuration for the categories
+a, b, and c (the repeated category repeating its shape), a custom range (`diamond`, `cross`, and a custom path that is
+kept as written), a constant value, and the mark's own shape, that a circle mark ignores the channel, and that each of
+the twelve symbol names reaches the symbol unchanged; that a stroke width scale over 10 to 40 (only a size scale starts
+at zero) maps to 1, 2, 3, and 4, a constant value and the mark's property replace it as documented, and a quantize scale
+on the channel has two classes; that the stroke dash scale gives the first three of the five patterns (`1,0`, `4,2`,
+`2,1`) to the categories on a point, a rule, and a bar, a custom range its own patterns, a constant value and the mark's
+pattern theirs, and that a rect keeps the solid line; that the fill opacity and the stroke opacity scales over 20 to 100
+map to 0.3, 0.55, 0.8, and 0.8 independently of each other and of the opacity, with constants and the mark's properties
+as the fallback, and that a rule carries the stroke opacity; that the angle scale over 0 to 100 maps 20, 60, and 100 to
+72, 216, and 360 degrees, a constant and the mark's angle are used, a tick ignores the channel, and a row without a
+number is dropped; that a quantize size scale with four classes over 0 to 100 gives 4, 123, 242, and 361 for 10, 30, 60,
+and 90, a threshold scale with two thresholds gives 4, 182.5, and 361, and an ordinal scale gives the same size to equal
+categories; and that building the same chart twice with every new channel at once gives the same items.
 
 ##### Limits, Cancellation, And Unsupported Marks
 
-**Tests**: `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks`
+**Tests**: `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks`,
+`MarkBuilderChannelTests.MarkBuilder_Build_LongDashPatternsExceedTheLimit`,
+`MarkBuilderChannelTests.MarkBuilder_Build_NewChannelsHonorCancellationAndTheSceneBudget`
 
 Asserts that more items than a `MaxSceneItems` of 3 throw `VegaLiteRenderException` at `/mark` naming the limit; that a
-canceled token throws `OperationCanceledException`; that a `line` mark gives an empty group and `IsSupported` is true for
-`tick` and false for `line` and null; that a rule without x and y draws nothing; and that null arguments are rejected.
+canceled token throws `OperationCanceledException`; that a `line` mark gives an empty group and `IsSupported` is true
+for `tick` and false for `line` and null; that a rule without x and y draws nothing; and that null arguments are
+rejected; that a dash pattern of 64 entries is drawn while one of 65 entries, given by the mark, by a channel value, or
+by a scale range, throws a `VegaLiteRenderException` at `/mark` that names "the limit of 64"; and that a point mark with
+a shape and a color channel stops on a canceled token and charges a budget of two at the marks group and the first
+symbol before it fails on the second symbol.
 
 ##### Budget Counts Only The Items Created
 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated`
 
 Asserts that a point mark over five rows, three of which have no valid x, creates two items and charges a shared budget
-of three exactly three times (the marks group and the two symbols), without failing, and that a budget of two fails at the
-second symbol, at `/mark`, after the marks group was charged first. Every mark item is charged before it is created; the
-exact boundary of a whole chart is asserted by the system tests of the scene item limit.
+of three exactly three times (the marks group and the two symbols), without failing, and that a budget of two fails at
+the second symbol, at `/mark`, after the marks group was charged first. Every mark item is charged before it is created;
+the exact boundary of a whole chart is asserted by the system tests of the scene item limit.
 
 ##### Row-Bound Expression References Are Evaluated Per Row
 
@@ -166,8 +218,8 @@ the wrong kind never changes the mark and a missing evaluator never changes the 
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd`
 
 Asserts the derived stacked bars above for a vertical chart with the zero, center, and normalize offsets, that
-`stack: null` brings back the overlapping bars from zero, that a horizontal chart stacks ascending, that a circle sits at
-the upper end of its layer, and that the result is the same on a second build.
+`stack: null` brings back the overlapping bars from zero, that a horizontal chart stacks ascending, that a circle sits
+at the upper end of its layer, and that the result is the same on a second build.
 
 ##### Signed Stacks Hang Below Zero In Both Orientations
 
@@ -186,10 +238,10 @@ y = 0, 75, and 0); and that the result is the same on a second build.
 **Tests**: `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing`,
 `MarkBuilderTests.MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField`
 
-Asserts the derived binned geometry above (the bin spacing of the mark, the half pixel of the axis translate, an explicit
-`binSpacing`, a reversed scale, a `size` centered on the bin, a `rect` without spacing, the `minBandSize` widening, a
-pre-binned `step`, and a circle at the middle of its bin) and the pre-binned ranges drawn as bars with a pixel of spacing,
-as rects without, and as circles in the middle of the range.
+Asserts the derived binned geometry above (the bin spacing of the mark, the half pixel of the axis translate, an
+explicit `binSpacing`, a reversed scale, a `size` centered on the bin, a `rect` without spacing, the `minBandSize`
+widening, a pre-binned `step`, and a circle at the middle of its bin) and the pre-binned ranges drawn as bars with a
+pixel of spacing, as rects without, and as circles in the middle of the range.
 
 ##### Secondary Channels Span A Range
 
