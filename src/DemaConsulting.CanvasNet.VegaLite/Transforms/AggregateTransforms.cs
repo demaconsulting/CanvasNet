@@ -6,10 +6,41 @@ using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
-///     Applies the aggregating transforms of a specification: <c>aggregate</c> and <c>bin</c> (the others, <c>joinaggregate</c>,
-///     <c>window</c>, <c>stack</c> and <c>impute</c>, are dispatched here too and pass the table through until they are implemented).
+///     Applies the aggregating transforms of a specification: <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>,
+///     <c>stack</c> and <c>impute</c>.
 /// </summary>
 /// <remarks>
+///     <para>
+///         <b>Joinaggregate.</b> The rows are grouped like those of <c>aggregate</c>, but every input row is kept (in its place) and
+///         receives the measures of its group as new fields; a <c>values</c> measure hands the same array to every row of the group.
+///     </para>
+///     <para>
+///         <b>Window.</b> The rows are partitioned by <c>groupby</c> (structural keys, first-seen order) and each partition is sorted
+///         by <c>sort</c> with a stable merge sort (null first, NaN next, then by value; ties keep the input order). Every row then gets
+///         the ranking, offset and positional operations of its position, or the aggregate operations over its <c>frame</c>: the frame
+///         is two row offsets (null is unbounded; default <c>[null, 0]</c>) that are clamped to the partition, and with a <c>sort</c>
+///         and no <c>ignorePeers</c> the frame is widened to take in the peers (rows with the same sort values) at both ends. The
+///         output keeps the input row order. A frame that starts at the first row (<c>[null, n]</c>) is computed incrementally, in
+///         <c>O(n)</c> for the whole partition; any other frame is recomputed per row and its size is charged to the step budget.
+///         <c>cume_dist</c> and <c>ntile</c> count the peers of the first rows of a partition correctly (Vega under-reports them for
+///         the first row when it has peers). An empty frame gives null for the positional operations.
+///     </para>
+///     <para>
+///         <b>Stack.</b> Within each group (the rows with the same <c>groupby</c> values) the rows are put in the order of <c>sort</c>
+///         (input order without one) and stacked as Vega's <c>stack</c> does: <c>zero</c> adds the values as given from 0, the negative
+///         ones downwards from 0 separately from the positive ones (null counts as 0); <c>center</c> and <c>normalize</c> stack the
+///         absolute values, <c>center</c> centered on the widest group and <c>normalize</c> scaled so every group sums to 1. The two
+///         output fields (<c>as</c>; default <c>field_start</c> and <c>field_end</c>) hold the lower and the upper end; a NaN or a
+///         zero sum under <c>normalize</c> follows IEEE arithmetic exactly as in Vega (NaN ends for the rows it affects).
+///     </para>
+///     <para>
+///         <b>Impute.</b> For every group (<c>groupby</c> values) and every key of the key domain (<c>keyvals</c> first, then the keys
+///         observed in first-seen order) that the group lacks, a row is appended after the input rows: the group fields, the key and the
+///         imputed field, every other field null. The imputed field is the <c>value</c> (default 0) or, for <c>mean</c>, <c>median</c>,
+///         <c>min</c> and <c>max</c>, that operation over the <c>frame</c> (default the whole group) in data order, as Vega-Lite does
+///         with a window transform; a null in an existing row is replaced as well. The size of the result is bounded before it is
+///         allocated.
+///     </para>
 ///     <para>
 ///         <b>Aggregate.</b> The rows are grouped by the <c>groupby</c> fields (none: one group) and each group becomes one output row with the
 ///         group fields followed by one field per measure. The groups are keyed by the <i>structure</i> of the values (a number and a text
@@ -36,6 +67,17 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         failure is a <see cref="VegaLiteRenderException"/> located at the transform whose message names the limit. The result is a
 ///         pure function of the input, the specification and its JSON pointer (the seed of the bootstrap): no clock, no random source and
 ///         no culture-dependent text. An instance serves one call on one thread.
+///     </para>
+///     <para>
+///         <b>Limits of the grouped transforms.</b> <c>joinaggregate</c>, <c>window</c> and <c>stack</c> keep every row, so the row budget is
+///         unchanged and the new fields are bounded by <see cref="TableLayout"/> (the field and the cell limits); their groups cost a few
+///         table cells each, checked as they appear. The sort keys are bounded by rows times sort fields against the cell limit, a sort is
+///         a stable merge sort charged n·⌈log₂ n⌉ that polls the cancellation token, a window frame that is not cumulative is recomputed
+///         for each row and charged one step for every 16 rows of the frame, and the arrays that a window <c>values</c> operation builds
+///         are bounded by <see cref="VegaLiteLimits.MaxDataRows"/> (rows that share a frame share one array). <c>impute</c> bounds the
+///         result before it allocates it: the number of <c>keyvals</c> and the product of groups and keys are counted in the row budget
+///         (the product can only be smaller than the result), the presence of every combination takes one bit, and the output cells
+///         are checked against <see cref="TableLayout.MaxCells"/> before they are allocated.
 ///     </para>
 /// </remarks>
 internal sealed partial class AggregateTransforms
@@ -67,7 +109,7 @@ internal sealed partial class AggregateTransforms
     /// <param name="entry">The transform object.</param>
     /// <param name="operation">The member that names the transform (<c>aggregate</c>, <c>bin</c>, ...).</param>
     /// <param name="context">The context of the call.</param>
-    /// <returns>The transformed table; <paramref name="input"/> itself for a transform that is not implemented yet.</returns>
+    /// <returns>The transformed table; <paramref name="input"/> itself for a name that is not one of the six transforms.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown, with the location of the transform, when a limit is exceeded.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token of the context is canceled.</exception>
@@ -81,11 +123,133 @@ internal sealed partial class AggregateTransforms
         return operation.Name switch
         {
             "aggregate" => run.Aggregate(input, entry, operation),
+            "joinaggregate" => run.JoinAggregate(input, entry, operation),
+            "window" => run.Window(input, entry, operation),
             "bin" => run.Bin(input, entry, operation),
-
-            // joinaggregate, window, stack and impute are accepted and validated; they compute in a later work package
+            "stack" => run.Stack(input, entry, operation),
+            "impute" => run.Impute(input, entry, operation),
             _ => input,
         };
+    }
+
+    /// <summary>
+    ///     Reads the <c>groupby</c> field list of a transform.
+    /// </summary>
+    /// <param name="entry">The transform object.</param>
+    /// <returns>The field paths; empty when there is no <c>groupby</c>.</returns>
+    private static string[] ReadGroupBy(SpecNode entry) =>
+        entry["groupby"] is { IsArray: true } list ? [.. list.Items.Select(i => i.StringValue!)] : [];
+
+    /// <summary>
+    ///     Reads a <c>sort</c> array of <c>{field, order}</c> objects.
+    /// </summary>
+    /// <param name="sort">The array (validated by the parser), or null.</param>
+    /// <returns>The sort fields in order of significance; empty for no sort.</returns>
+    internal static List<SortField> ReadSortFields(SpecNode? sort)
+    {
+        var fields = new List<SortField>();
+        if (sort is { IsArray: true })
+        {
+            foreach (var item in sort.Items)
+            {
+                fields.Add(new SortField(item["field"]!.StringValue!, string.Equals(item["order"]?.AsString(), "descending", StringComparison.Ordinal)));
+            }
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    ///     Checks the texts a transform takes from the specification against the string limit of the call.
+    /// </summary>
+    /// <param name="what">What the texts are, for the message.</param>
+    /// <param name="location">The location of the transform.</param>
+    /// <param name="texts">The texts (nulls are skipped).</param>
+    private void CheckTexts(string what, VegaLiteLocation location, params IEnumerable<string?>[] texts)
+    {
+        foreach (var text in texts.SelectMany(t => t))
+        {
+            _context.CheckText(DataValue.FromString(text), what, location);
+        }
+    }
+
+    /// <summary>
+    ///     Reads the values of the sort fields of every row.
+    /// </summary>
+    /// <param name="input">The table.</param>
+    /// <param name="sort">The sort fields (at least one).</param>
+    /// <param name="location">The location reported for a failure.</param>
+    /// <returns>The values, row by row (<c>row * sort.Count + field</c>).</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the values would exceed the cell limit.</exception>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
+    private DataValue[] ReadSortKeys(DataTable input, IReadOnlyList<SortField> sort, VegaLiteLocation location)
+    {
+        if ((long)input.RowCount * sort.Count > TableLayout.MaxCells)
+        {
+            throw new VegaLiteRenderException(
+                $"The sort would read {(long)input.RowCount * sort.Count} values, more than the limit of {TableLayout.MaxCells} values (TableLayout.MaxCells).",
+                location);
+        }
+
+        var readers = sort.Select(s => new FieldReader(input, s.Field)).ToArray();
+        var keys = new DataValue[input.RowCount * sort.Count];
+        var evaluation = _context.Evaluator.Context;
+        for (var row = 0; row < input.RowCount; row++)
+        {
+            _context.Tick(row);
+            _meter.Add(readers.Length);
+            for (var f = 0; f < readers.Length; f++)
+            {
+                keys[(row * readers.Length) + f] = readers[f].Read(row, evaluation);
+            }
+        }
+
+        return keys;
+    }
+
+    /// <summary>
+    ///     Builds the comparison of two rows by their sort values.
+    /// </summary>
+    /// <param name="keys">The values of <see cref="ReadSortKeys"/>.</param>
+    /// <param name="sort">The sort fields.</param>
+    /// <returns>A comparison that is zero for rows with equal sort values (peers); the sort stays stable.</returns>
+    private static Func<int, int, int> RowComparison(DataValue[] keys, IReadOnlyList<SortField> sort)
+    {
+        var width = sort.Count;
+        var descending = sort.Select(s => s.Descending).ToArray();
+        return (a, b) =>
+        {
+            for (var f = 0; f < width; f++)
+            {
+                var c = DataValue.Compare(keys[(a * width) + f], keys[(b * width) + f]);
+                if (c != 0)
+                {
+                    return descending[f] ? -c : c;
+                }
+            }
+
+            return 0;
+        };
+    }
+
+    /// <summary>
+    ///     Sorts a range of row numbers stably, charging the comparisons to the step budget.
+    /// </summary>
+    /// <param name="rows">The array of row numbers.</param>
+    /// <param name="start">The first position of the range.</param>
+    /// <param name="count">The size of the range.</param>
+    /// <param name="buffer">Scratch space of at least <paramref name="count"/> items.</param>
+    /// <param name="compare">The comparison of two rows.</param>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
+    private void SortRows(int[] rows, int start, int count, int[] buffer, Func<int, int, int> compare)
+    {
+        if (count < 2)
+        {
+            return;
+        }
+
+        _meter.Add((long)count * (System.Numerics.BitOperations.Log2((uint)(count - 1)) + 1));
+        StableSorter.Sort(rows, start, count, buffer, compare, _context.CancellationToken);
     }
 
     /// <summary>

@@ -100,6 +100,57 @@ internal sealed partial class AggregateTransforms
         bool releaseInput)
     {
         // The texts of the specification are bounded by the limit of this call
+        CheckAggregateTexts(groupBy, measures, location);
+
+        var groupNames = groupBy.Select(g => FieldPath.Canonicalize(g)!).ToArray();
+        var layout = new TableLayout(
+            input,
+            [.. groupNames, .. measures.Select(m => TableLayout.Canonical(m.Name))],
+            keepInput: false,
+            _context.Limits,
+            location);
+        var width = layout.Fields.Length;
+        var perGroup = width + ((long)measures.Count * MeasureCell.StateCells);
+        var (_, groups, states) = AccumulateGroups(input, groupBy, measures, perGroup, reserveRows: true, location);
+
+        // Third pass: the output, a row per group
+        var count = measures.Count;
+        var evaluation = _context.Evaluator.Context;
+        var cells = layout.Allocate(groups.Count);
+        var whole = measures.Any(m => AggregateMeasures.IsArgOp(m.Op)) ? new FieldReader(input, string.Empty) : null;
+        Func<int, DataValue>? rowOf = whole is null ? null : r => whole.Read(r, evaluation);
+        for (var g = 0; g < groups.Count; g++)
+        {
+            _context.Tick(g);
+            var offset = (long)g * width;
+            for (var f = 0; f < groupNames.Length; f++)
+            {
+                cells[offset + layout.Added[f]] = groups[g][f];
+            }
+
+            var groupSeed = MeasureCell.GroupSeed(seed, g);
+            for (var m = 0; m < count; m++)
+            {
+                cells[offset + layout.Added[groupNames.Length + m]] = states[((long)g * count) + m].Result(measures[m].Op, measures[m].Param, groupSeed, _environment, rowOf);
+            }
+        }
+
+        if (releaseInput)
+        {
+            _context.Loader.ReleaseRows(input.RowCount);
+        }
+
+        return layout.Build(cells, groups.Count);
+    }
+
+    /// <summary>
+    ///     Checks the group-by paths and the measure names and fields against the string limit of the call.
+    /// </summary>
+    /// <param name="groupBy">The group-by field paths.</param>
+    /// <param name="measures">The measures.</param>
+    /// <param name="location">The location of the transform.</param>
+    private void CheckAggregateTexts(IReadOnlyList<string> groupBy, IReadOnlyList<AggregateSpec> measures, VegaLiteLocation location)
+    {
         foreach (var path in groupBy)
         {
             _context.CheckText(DataValue.FromString(path), "A group-by field of the aggregation", location);
@@ -110,16 +161,28 @@ internal sealed partial class AggregateTransforms
             _context.CheckText(DataValue.FromString(measure.Name), "An output name of the aggregation", location);
             _context.CheckText(DataValue.FromString(measure.Field), "A field of the aggregation", location);
         }
+    }
 
-        var groupNames = groupBy.Select(g => FieldPath.Canonicalize(g)!).ToArray();
-        var layout = new TableLayout(
-            input,
-            [.. groupNames, .. measures.Select(m => TableLayout.Canonical(m.Name))],
-            keepInput: false,
-            _context.Limits,
-            location);
-        var width = layout.Fields.Length;
-
+    /// <summary>
+    ///     Assigns the rows to groups and feeds every row to the measure cells of its group (the passes the aggregating transforms share).
+    /// </summary>
+    /// <param name="input">The input table.</param>
+    /// <param name="groupBy">The group-by field paths.</param>
+    /// <param name="measures">The measures.</param>
+    /// <param name="perGroup">The number of cells a group costs in the state and the output.</param>
+    /// <param name="reserveRows">Whether every group is an output row that is counted in the row budget.</param>
+    /// <param name="location">The location reported for a failure.</param>
+    /// <returns>The group of every row, the group-by values of every group, and the cells (<c>group * measures + measure</c>).</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when a limit is exceeded.</exception>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
+    private (int[] GroupOf, List<DataValue[]> Groups, MeasureCell[] States) AccumulateGroups(
+        DataTable input,
+        IReadOnlyList<string> groupBy,
+        IReadOnlyList<AggregateSpec> measures,
+        long perGroup,
+        bool reserveRows,
+        VegaLiteLocation location)
+    {
         // The values that some operations keep are bounded before the first row is read
         var storing = measures.Count(m => MeasureCell.StoresValues(m.Op));
         if ((long)input.RowCount * storing > TableLayout.MaxCells)
@@ -129,8 +192,7 @@ internal sealed partial class AggregateTransforms
                 location);
         }
 
-        var perGroup = width + ((long)measures.Count * MeasureCell.StateCells);
-        var (groupOf, groups) = GroupRows(input, groupBy, perGroup, location);
+        var (groupOf, groups) = GroupRows(input, groupBy, perGroup, location, reserveRows);
 
         // Second pass: every row goes to the cells of its group
         var count = measures.Count;
@@ -169,32 +231,69 @@ internal sealed partial class AggregateTransforms
             }
         }
 
-        // Third pass: the output, a row per group
-        var cells = layout.Allocate(groups.Count);
-        var whole = measures.Any(m => AggregateMeasures.IsArgOp(m.Op)) ? new FieldReader(input, string.Empty) : null;
-        Func<int, DataValue>? rowOf = whole is null ? null : r => whole.Read(r, evaluation);
-        for (var g = 0; g < groups.Count; g++)
+        return (groupOf, groups, states);
+    }
+
+    /// <summary>
+    ///     Adds the measures of every group to every row of the group, for a <c>joinaggregate</c> transform.
+    /// </summary>
+    /// <param name="input">The input table.</param>
+    /// <param name="entry">The transform object.</param>
+    /// <param name="operation">The array of measures.</param>
+    /// <returns>The input rows, in their order, with the measures of their group added.</returns>
+    private DataTable JoinAggregate(DataTable input, SpecNode entry, SpecNode operation)
+    {
+        var location = Locate(entry);
+        var groupBy = ReadGroupBy(entry);
+        var measures = ReadMeasures(operation);
+        try
         {
-            _context.Tick(g);
-            var offset = (long)g * width;
-            for (var f = 0; f < groupNames.Length; f++)
+            CheckAggregateTexts(groupBy, measures, location);
+            var layout = new TableLayout(input, [.. measures.Select(m => TableLayout.Canonical(m.Name))], keepInput: true, _context.Limits, location);
+            var width = layout.Fields.Length;
+            var count = measures.Count;
+
+            // A group costs its state, its results (one cell per measure) and its group values
+            var perGroup = ((long)count * (MeasureCell.StateCells + 1)) + groupBy.Length;
+            var (groupOf, groups, states) = AccumulateGroups(input, groupBy, measures, perGroup, reserveRows: false, location);
+
+            // The result of every group is computed once, so that a values array is shared by all rows of the group
+            var evaluation = _context.Evaluator.Context;
+            var whole = measures.Any(m => AggregateMeasures.IsArgOp(m.Op)) ? new FieldReader(input, string.Empty) : null;
+            Func<int, DataValue>? rowOf = whole is null ? null : r => whole.Read(r, evaluation);
+            var seed = RowSampler.Seed(entry.Pointer);
+            var results = new DataValue[(long)groups.Count * count];
+            for (var g = 0; g < groups.Count; g++)
             {
-                cells[offset + layout.Added[f]] = groups[g][f];
+                _context.Tick(g);
+                var groupSeed = MeasureCell.GroupSeed(seed, g);
+                for (var m = 0; m < count; m++)
+                {
+                    var at = ((long)g * count) + m;
+                    results[at] = states[at].Result(measures[m].Op, measures[m].Param, groupSeed, _environment, rowOf);
+                }
             }
 
-            var groupSeed = MeasureCell.GroupSeed(seed, g);
-            for (var m = 0; m < count; m++)
+            var cells = layout.Allocate(input.RowCount);
+            for (var row = 0; row < input.RowCount; row++)
             {
-                cells[offset + layout.Added[groupNames.Length + m]] = states[((long)g * count) + m].Result(measures[m].Op, measures[m].Param, groupSeed, _environment, rowOf);
+                _context.Tick(row);
+                _meter.Add(count + 1);
+                layout.CopyRow(input, row, cells, row);
+                var offset = (long)row * width;
+                var first = (long)groupOf[row] * count;
+                for (var m = 0; m < count; m++)
+                {
+                    cells[offset + layout.Added[m]] = results[first + m];
+                }
             }
-        }
 
-        if (releaseInput)
+            return layout.Build(cells, input.RowCount);
+        }
+        catch (ExpressionRuntimeException ex)
         {
-            _context.Loader.ReleaseRows(input.RowCount);
+            throw Located(ex, location);
         }
-
-        return layout.Build(cells, groups.Count);
     }
 
     /// <summary>
@@ -204,9 +303,10 @@ internal sealed partial class AggregateTransforms
     /// <param name="groupBy">The group-by field paths; none puts every row in one group.</param>
     /// <param name="perGroup">The number of cells that a group costs in the state and the output.</param>
     /// <param name="location">The location reported for a failure.</param>
+    /// <param name="reserveRows">Whether every group is an output row that is counted in the row budget.</param>
     /// <returns>The group of every row, and the values of the group-by fields of every group.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the groups exceed the row budget or the cell limit.</exception>
-    private (int[] GroupOf, List<DataValue[]> Groups) GroupRows(DataTable input, IReadOnlyList<string> groupBy, long perGroup, VegaLiteLocation location)
+    private (int[] GroupOf, List<DataValue[]> Groups) GroupRows(DataTable input, IReadOnlyList<string> groupBy, long perGroup, VegaLiteLocation location, bool reserveRows = true)
     {
         var groupOf = new int[input.RowCount];
         var groups = new List<DataValue[]>();
@@ -214,7 +314,7 @@ internal sealed partial class AggregateTransforms
         {
             if (input.RowCount > 0)
             {
-                NewGroup(0, perGroup, location);
+                NewGroup(0, perGroup, location, reserveRows);
                 groups.Add([]);
             }
 
@@ -231,7 +331,7 @@ internal sealed partial class AggregateTransforms
             if (!index.TryGetValue(key, out var group))
             {
                 group = groups.Count;
-                NewGroup(group, perGroup, location);
+                NewGroup(group, perGroup, location, reserveRows);
                 index[key] = group;
                 groups.Add(key.Values);
             }
@@ -248,8 +348,9 @@ internal sealed partial class AggregateTransforms
     /// <param name="group">The number of the group (zero based).</param>
     /// <param name="perGroup">The number of cells a group costs.</param>
     /// <param name="location">The location reported for a failure.</param>
+    /// <param name="reserveRows">Whether the group is an output row that is counted in the row budget.</param>
     /// <exception cref="VegaLiteRenderException">Thrown when the group exceeds a limit.</exception>
-    private void NewGroup(int group, long perGroup, VegaLiteLocation location)
+    private void NewGroup(int group, long perGroup, VegaLiteLocation location, bool reserveRows)
     {
         if (((long)group + 1) * perGroup > TableLayout.MaxCells)
         {
@@ -258,6 +359,9 @@ internal sealed partial class AggregateTransforms
                 location);
         }
 
-        _context.Loader.ReserveDerivedRows(1, "aggregate transform output", location);
+        if (reserveRows)
+        {
+            _context.Loader.ReserveDerivedRows(1, "aggregate transform output", location);
+        }
     }
 }
