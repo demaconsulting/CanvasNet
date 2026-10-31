@@ -93,6 +93,8 @@ input-files:
   - docs/verification/canvas-net-vega-lite/data/data-loader.md
   - docs/verification/canvas-net-vega-lite/data/data-file-resolver.md
   - docs/verification/canvas-net-vega-lite/data/delimited-text-parser.md
+  - docs/verification/canvas-net-vega-lite/data/time-calendar.md
+  - docs/verification/canvas-net-vega-lite/data/time-format.md
   - docs/verification/canvas-net-vega-lite/expressions.md
   - docs/verification/canvas-net-vega-lite/expressions/expression-parser.md
   - docs/verification/canvas-net-vega-lite/expressions/expression-evaluator.md
@@ -101,6 +103,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/transforms/row-transforms.md
   - docs/verification/canvas-net-vega-lite/transforms/aggregate-transforms.md
   - docs/verification/canvas-net-vega-lite/transforms/encoding-plan.md
+  - docs/verification/canvas-net-vega-lite/transforms/time-unit-transform.md
   - docs/verification/canvas-net-vega-lite/scales.md
   - docs/verification/canvas-net-vega-lite/scales/scale-model.md
   - docs/verification/canvas-net-vega-lite/scales/scale-resolver.md
@@ -114,6 +117,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/guides/axis-builder.md
   - docs/verification/canvas-net-vega-lite/guides/label-overlap.md
   - docs/verification/canvas-net-vega-lite/guides/legend-builder.md
+  - docs/verification/canvas-net-vega-lite/guides/time-labels.md
   - docs/verification/canvas-net-vega-lite/layout.md
   - docs/verification/canvas-net-vega-lite/layout/view-layout.md
   - docs/verification/canvas-net-vega-lite/layout/legend-layout.md

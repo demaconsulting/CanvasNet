@@ -77,3 +77,18 @@ the unit verification document passes without error or unexpected exception.
   stack start to their end in their colors, the bars of a histogram fill their bins less a pixel of spacing (the bars at
   x = 1, 41, and so on, 39 pixels wide, for the bins 0 to 35 by 5 over 280 pixels), and the bars of pre-binned data span
   their ranges, with the geometry of the scene items equal to the pixels that the painter draws.
+- **Time-Unit Marks Drawn Through The Whole Pipeline**:
+  `MarkBuilderTimeTests.MarkBuilder_Time_YearMonthBars_SpanTheirMonths`,
+  `MarkBuilderTimeTests.MarkBuilder_Time_PointsAtTheStartOfTheUnit`,
+  `MarkBuilderTimeTests.MarkBuilder_Time_Zone_BarsSpanLocalMonths`,
+  `VegaLiteTemporalScaleTests.VegaLiteTemporalScale_Points_SitAtTheirDates`,
+  `VegaLiteTemporalScaleTests.VegaLiteTemporalScale_RangeBars_SpanFromStartToEnd`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths`
+  — the real `SpecParser`,
+  `DataLoader` (in the calendar of the zone), the time-unit transform, `ScaleResolver` with its time scale, `Ticks`,
+  `AxisBuilder`, and `MarkBuilder` agree on one geometry: the bars of the first quarter of 2024 span their months of the
+  91 day domain (the bar of January starts at 1 and is 31 x 300 / 91 - 1 = 101.198 pixels wide, derived in the
+  _MarkBuilder Unit Verification Design_), points sit at their dates or at the start of their unit (three dates five days
+  apart are 100 pixels apart on 200), a range of two temporal fields is a bar from its start to its end (a bar over the
+  whole ten days is 200 pixels wide and one over the second half 100), and a zone moves the unit boundaries to local
+  midnights.

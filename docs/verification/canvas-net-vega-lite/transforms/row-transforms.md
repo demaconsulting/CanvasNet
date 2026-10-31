@@ -10,8 +10,11 @@ layout of a derived table, its cell bound, and the rebuilding of arrays and obje
 a JSON value to a `DataValue`), and `TransformContext` and `RowExpressions` (the per-call context that carries the tree,
 the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The executor also dispatches
 the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the `AggregateTransforms`
-unit, which has its own verification design; the transforms of later phases (`timeUnit`, `regression`, `loess`,
-`density`, `quantile`, and `extent`) are skipped by the executor and are reported by the feature catalog.
+unit, which has its own verification design, and the `timeUnit` transform to the `TimeUnitTransform` unit (see _Time Unit
+Transform Verification Design_); the transforms of later phases (`regression`, `loess`, `density`, `quantile`, and
+`extent`) are skipped by the executor and are reported by the feature catalog. The predicates of `filter` that have a time
+unit or compare with a date-time object are evaluated through the expressions that `SpecParser` compiled for them, in the
+calendar of the chart.
 
 #### Verification Approach
 
@@ -62,8 +65,26 @@ order evaluate to 6, 3, and 2 and give `6y` for `c + list[1]` with `list = ["x",
 and `11`; a chain of 2,000 parameters, each defined by the one declared after it, evaluates to 1999, which proves that
 the dependency order is computed once for the whole list.
 
-Unit tests reside in `RowTransformsTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Transforms` folder. The same file holds the tests of the sampler, of the parameter environment, and of the sort of a
+The time scenarios derive the kept ids from the dates by hand, with the zone arithmetic written out in the test
+comments. The month number of a unit predicate counts from 1 in the specification (`3` and `"Mar"` are March), the
+predicate text writes it as the index 2 (see _SpecParser Unit Verification Design_), and a number below 10,000 compared
+with a single local unit is that unit's part, so `equal: 3` on the unit `month` keeps the dates of March. A date-time
+object without a unit is compared as an instant: `{"year": 2024, "month": 3, "date": 1}` is 2024-03-01T00:00 in the zone
+of the chart. The zone arithmetic: at +05:30 the dates 2024-03-05T23:00Z, 2024-03-06T01:00Z, and 2024-03-07T00:00Z are
+the local times 2024-03-06 04:30, 2024-03-06 06:30, and 2024-03-07 05:30, so their local dates are 6, 6, and 7, while
+in UTC they are 5, 6, and 7; the local midnight of 2024-03-05 at +05:30 is 2024-03-04T18:30Z. The instant
+1,709,596,800,000 ms is 2024-03-05T00:00Z (19,787 days x 86,400,000 ms, the arithmetic of the _ExpressionFunctions Unit
+Verification Design_). For the `timeUnit` transform the six dates of the encoding scenario are counted per month as 2, 3,
+and 1; and the local month of 2024-03-01T02:00Z in a US-like zone (at -5 h before the change of 2024-03-10) is February
+(2024-02-29T21:00 local), so the month starts at 2024-02-01T00:00 local = 05:00Z and ends at 2024-03-01T00:00 local =
+05:00Z.
+
+Unit tests reside in `RowTransformsTests.cs` and `RowTransformsTimeTests.cs` (the time predicates and the `timeUnit`
+transform in a transform list; its helpers are in `TimeTestPipeline.cs`) within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
+`Transforms` folder. The file `RowTransformsTests.cs` holds the tests of the sampler, of the parameter environment, and
+of
+the sort of a
 discrete scale over transformed rows, because the sort needs the transformed table that this unit produces; the
 scale resolver's own unit design lists the sort scenarios as well.
 
@@ -107,12 +128,16 @@ the first row index (0).
 `RowTransformsTests.RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness`
 
 Asserts that an expression filter keeps the rows whose result is truthy (`datum.b` drops the row whose `b` is null;
-`datum.a > 1 && datum.a < 5` keeps the row with `a = 3`), and, as a theory of nineteen predicates over the rows
+`datum.a > 1 && datum.a < 5` keeps the row with `a = 3`), and, as a theory of twenty-three predicates over the rows
 `x = 1, 2, 3, null`, every operator with the comparison rules of JavaScript — `equal` is strict (`2` matches and `"2"`
 does not), `lt` and `lte` keep the null row because null converts to zero, `range` is inclusive with a `null` bound
 meaning open and reversed bounds swapped, `oneOf`, `valid` true and false, and the compositions `and`, `or` (with an
-expression string as a member), and `not`; that a `timeUnit` in a predicate is ignored and a date object as the value
-to compare with matches every row (both are reported by the catalog); that a filter on a variable parameter keeps every
+expression string as a member), and `not`; that a `timeUnit` in a predicate is now evaluated (the numbers are
+milliseconds after the epoch, so all four rows are in the year 1970 and the null row is no instant): `equal: 2` on the
+unit `year` compares the year part with the year 2 and keeps no row (its `not` keeps all four rows, and an `and` with it
+keeps none), `equal: 1970` on `year` keeps the rows 1, 2, and 3, `valid: true` with a unit tests the field itself and keeps
+the same three rows, and a date-time object `{"year": 2020}` as the value to compare with matches no row (its date is
+not 1970); that a filter on a variable parameter keeps every
 row or none depending on its truthiness (`true` keeps 3 rows, an override of `false` or `0` keeps none) while a filter
 on a selection parameter, by `param` or by the legacy `selection`, keeps every row.
 
@@ -268,3 +293,57 @@ text form; and, in the third test, that for `mean`, `average`, `median`, `min`, 
 value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The sort
 by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
 Verification Design_.
+
+##### Time Predicates Are Evaluated In The Calendar Of The Chart
+
+**Tests**: `RowTransformsTimeTests.RowTransforms_Filter_TimeUnitEqualMonth`,
+`RowTransformsTimeTests.RowTransforms_Filter_TimeUnitNumbersAndOneOfMonths`,
+`RowTransformsTimeTests.RowTransforms_Filter_RangeOfDatetimeObjects_NoUnit`,
+`RowTransformsTimeTests.RowTransforms_Filter_ComparisonsWithADatetimeObject`,
+`RowTransformsTimeTests.RowTransforms_Filter_OneOfDays_Utc`,
+`RowTransformsTimeTests.RowTransforms_Filter_ZoneChangesTheDate`,
+`RowTransformsTimeTests.RowTransforms_Filter_DatetimeObjectIsReadInTheChartZone`,
+`RowTransformsTimeTests.RowTransforms_Filter_UnparsedStringDatesAreParsedImplicitly`,
+`RowTransformsTimeTests.RowTransforms_Filter_ValidWithATimeUnit`
+
+Asserts, over rows `{id, d}` whose kept ids are read off by hand, that a month predicate with the value
+`{"month": "Mar"}` keeps the rows in March of any year (2023-03-10 and 2024-03-05, ids 0 and 1) and drops April and the
+leap day of February (the instant 2024-02-29T23:59:59Z is still February); that the month by number (`equal: 3` keeps
+March), a list (`oneOf: [3, "Apr"]` keeps March and April), `gt: 3` (April and May) and the reversed range `[4, 3]`
+(March and April) work over the dates of March, April, and May 2024; that a range of date-time objects without a unit is
+inclusive at both ends and compares instants: from 2024-02-01 to 2024-04-01 the rows at 2024-01-31T23:59:59.999Z and
+2024-04-01T00:00:00.001Z are out and the three rows at 2024-02-01T00:00:00Z, 2024-03-15, and 2024-04-01T00:00:00Z are in
+(ids 1, 2, and 3); that, against `{"year": 2024, "month": 3, "date": 1}` (2024-03-01T00:00), over the rows of
+February 29, March 1, and March 2 and a null date, `equal` keeps March 1, `lt` February 29, `lte` both, `gt` March 2,
+`gte` March 1
+and 2, the ranges `[March, null]` and `[null, March]` keep (1, 2) and (0, 1), a `oneOf` with March and 2030 keeps March
+1, and a `not` of the equality keeps the other three rows (the null date included), and that a null date never passes an
+ordered comparison. The zone decides: a UTC-unit list of the dates 5 and 6 (`utcdate` with `utc: true` objects) keeps the
+first two of the three dates above in UTC and at +05:30 alike, while the local unit `date` with `equal: 6` keeps only the
+second date in UTC (the dates are 5, 6, and 7) and the first two at +05:30 (the local dates are 6, 6, and 7); a
+date-time object that is written in the local zone is that zone's instant, so `{"year": 2024, "month": 3, "date": 5}`
+matches 2024-03-05T00:00Z in UTC, matches 2024-03-04T18:30Z at +05:30 (not the other), and with `utc: true` matches
+2024-03-05T00:00Z in either zone. Text dates are parsed implicitly: `"2024-03-05"`, `"Mar 5, 2024"`, and the number
+1,709,596,800,000 match March 5, 2024 and the text `not a date` never does (ids 0, 1, and 3). A `valid` test with the
+unit `year` tests the field itself natively: the date, the number 0, and null keep the first two rows.
+
+##### Time Predicates Are Charged To The Step Budget
+
+**Tests**: `RowTransformsTimeTests.RowTransforms_Filter_ExpressionPredicateIsCharged`
+
+Asserts that a filter on the unit `month` over a sequence of 2,000 numbers (all within a few milliseconds after the epoch,
+so all in January 1970, and `equal: 1` is January) keeps all 2,000 rows under the default budget, and that under a
+`MaxEvaluationSteps` of 1,000 it is a `VegaLiteRenderException` located at the predicate (`/transform/0/filter`) that
+names `MaxEvaluationSteps`, because the expression of each row is charged like any expression.
+
+##### The Time Unit Transform In A Transform List
+
+**Tests**: `RowTransformsTimeTests.RowTransforms_TimeUnitTransform_ThenAggregate`,
+`RowTransformsTimeTests.RowTransforms_TimeUnitTransform_UsesTheChartZone`
+
+Asserts that a `timeUnit` transform of `yearmonth` followed by an aggregate that counts by the new field gives the counts
+2, 3, and 1 for the six dates of January 5 and 20, February 10, 11, and 29, and March 1 (2024) with the groups starting
+at the first of January, February, and March in UTC; and that in the US-like zone the dates of the transform are in the
+zone of the chart: the local month of 2024-03-01T02:00Z is February, so `m` is 2024-02-01T05:00Z and `m_end` is
+2024-03-01T05:00Z (the local first of each month at -5 h). The computation of the unit itself is verified in the _Time
+Unit Transform Verification Design_.

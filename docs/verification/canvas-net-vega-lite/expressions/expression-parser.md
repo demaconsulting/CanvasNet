@@ -102,10 +102,10 @@ call name, the constants, and `datum` are not parameter references.
 `ExpressionParserTests.ExpressionParser_Parse_MixedCaseFunction_HasLowerCaseIdentifierAndOriginalName`,
 `ExpressionParserTests.ExpressionParser_Parse_DeferredOperators_AreNamed`
 
-Asserts that an unknown function (`foo`, `datetime`), the view state names `signal`, `event`, and `item`, and the
+Asserts that an unknown function (`foo`, `geoArea`), the view state names `signal`, `event`, and `item`, and the
 operators of a later phase (`&`, `|`, `^`, `<<`, `>>`, `>>>`, and `in`) parse and are collected in order of appearance
 with their kind, name, and offset, and with the stable identifiers `vl-expr-function-<name>` (the name lower-cased, while
-the construct keeps the name as written: `timeFormat` and `TIMEFORMAT` both give `vl-expr-function-timeformat`),
+the construct keeps the name as written: `geoArea` and `GEOAREA` both give `vl-expr-function-geoarea`),
 `vl-expr-view-state`, and `vl-expr-construct-<name>` (`bitwise-and`, `bitwise-or`, `bitwise-xor`, `bitwise-not`, `shift-left`,
 `shift-right`, `shift-right-unsigned`, and `in`); that the parameter names of the operands are still collected; and that
 each deferred operator evaluates to null, so the feature catalog and strict mode, not the parser, decide what happens to

@@ -1,14 +1,17 @@
 ## Data Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Data` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Data`), containing four units: `DataTable` (with the scalar value, field path, and
-JavaScript number helpers of its file), `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`.
+`DemaConsulting.CanvasNet.VegaLite.Data`), containing six units: `DataTable` (with the scalar value, field path, and
+JavaScript number helpers of its file), `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar` (the
+calendar, the zone rules, the d3-time intervals, the Vega-Lite time units, and the datetime objects), and `TimeFormat`
+(the d3-time-format formatter and parser, Vega's multi-format, and the `Date.parse` rules).
 
 ### Verification Approach
 
 The `Data` subsystem is verified at two tiers. The unit tests (see _DataTable Unit Verification Design_, _DataLoader
-Unit Verification Design_, _DataFileResolver Unit Verification Design_, and _DelimitedTextParser Unit Verification
-Design_ under `data/`) verify each unit in isolation, including its internal types. The subsystem-level scenarios
+Unit Verification Design_, _DataFileResolver Unit Verification Design_, _DelimitedTextParser Unit Verification
+Design_, _TimeCalendar Unit Verification Design_, and _TimeFormat Unit Verification Design_ under `data/`) verify each
+unit in isolation, including its internal types. The subsystem-level scenarios
 verify the units working together on specifications parsed by the real `SpecParser`: the loader reads the inline
 `values`, a local file, a named dataset, or a sequence of a parsed `data` node; for a file it asks the real resolver
 (over a real temporary folder or an in-memory callback) for decoded text and hands delimited text to the real parser;
@@ -21,6 +24,20 @@ values of the expression engine (see the _Expressions Subsystem Verification Des
 already use this combination (the loader tests build their input with `SpecParser.Parse`, read files through the real
 resolver, and read the result through the table's accessors), so the subsystem-level scenarios name the unit tests that
 cross the boundary and the system-level scenarios that exercise the subsystem through the public API.
+
+The calendar flow is verified end to end as one chain. `VegaLiteDocument.Render` creates the calendar with
+`TimeCalendar.Create` from the `TimeZone` of the render options (null is UTC, and a zone with a fixed offset of zero is
+UTC too) and gives it to the `DataLoader` and to the `ExpressionEvaluator`; the loader reads the dates of every source
+(inline values, a file, a sequence, and the rows of the caller) with that calendar, applying the `parse` directives of
+the `data` node (the explicit `date` and `utc` formats, read by `TimeFormat.TryParse`, and `parse: "auto"`, whose date
+test is `JsDateParser`) and the implicit date parse of the fields that `TemporalFields.Collect` found in the encoding,
+the transforms, and the predicates (an explicit `parse` entry and `parse: null` win). A date-time without an offset is
+therefore a wall time of the zone of the chart, a date alone is UTC midnight, an offset or `Z` is honored, the dates
+that the caller supplies are never moved, and the data of a lookup, which has no temporal fields of its own, stays
+text. The same calendar then reaches the transforms, the scales, the guides, and the marks (see the _Transforms_ and
+_Guides Subsystem Verification Designs_), so the system-level scenarios of the time chart draw it in a zone and compare
+its pixels with hand-derived columns. Every zone of these tests is a custom zone that the test creates, and no test
+reads the host's zone, clock, or culture.
 
 No mocking or stubbing is used: the subsystem depends only on the parser's tree types, `VegaLiteLimits`,
 `VegaLiteOpenOptions`, `VegaLiteLocation`, and `VegaLiteRenderException`, and its file sources are real implementations
@@ -39,12 +56,14 @@ Reported And Never Fetched" confirms. The subsystem is internal, so its tests re
   original fixtures under `Fixtures` in the test output folder; no network
 - **Isolation**: Each test parses and loads its own data with its own loader; the culture-independence scenario
   switches the current culture on the test thread and restores it afterwards. Tests that create real links skip only
-  where the host cannot create them
+  where the host cannot create them. Every time zone is a custom zone that the test creates with
+  `TimeZoneInfo.CreateCustomTimeZone`; no test reads `TimeZoneInfo.Local`, the clock, or the host's zone database, and
+  the time scenarios repeat under `tr-TR` and `de-DE`
 
 ### Acceptance Criteria
 
 The `Data` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario in
-the four unit verification documents passes without error or unexpected exception.
+the six unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -101,12 +120,15 @@ the four unit verification documents passes without error or unexpected exceptio
   located error.
 - **Parse Conversions And Failures**:
   `DataLoaderTests.DataLoader_Load_ParseFailuresAreCollectedAsWarnings`,
-  `DelimitedTextParserTests.DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText`,
-  `DelimitedTextParserTests.DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning`,
+  `JsDateParserTests.JsDateParser_Iso_ExpandedYears`,
+  `JsDateParserTests.JsDateParser_Iso_RangeBoundaries`,
+  `ParseDirectivesDateTests.ParseDirectives_Auto_InfersLegacyDatesAndIso`,
+  `ParseDirectivesDateTests.ParseDirectives_Date_NumberIsMillisecondsAndBooleanFails`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings` —
   values that an explicit conversion cannot read are null and give one warning per field, delivered after the reports of
-  the specification; ISO text beyond the supported date range stays text under inference and is null with the same
-  warning under an explicit date conversion.
+  the specification; ISO text beyond the years 1 to 9999 (the range of a `DataValue` date, plan decision P8-D2) is not a
+  date for the parser, so a conversion that needs a date gives null with the same warning, a number is a date in
+  milliseconds and a boolean is not one, and inference reads both the ISO and the legacy forms.
 - **Row, Field, File, And Byte Limits Fail Closed With The Location Of The Data**:
   `DataLoaderTests.DataLoader_Load_RowLimitFailsWithLocation`,
   `DataLoaderTests.DataLoader_Load_FieldLimitFailsWithLocationOfTheLeaf`,
@@ -152,3 +174,72 @@ the four unit verification documents passes without error or unexpected exceptio
   again), a second data source of the same call (the source of a lookup) reads a file once through the same cache and
   counts it once for `MaxDataFiles`, is refused outside the sandbox at its own `url`, shares the row budget, and stays an
   empty table that is never asked for when it is remote, and a fold over the limit fails at its transform.
+- **The Calendar Reaches Every Source And The Expression Context**:
+  `DataLoaderCalendarTests.DataLoader_Load_PassesTheCalendarToInlineCsvJsonAndCallerRows`,
+  `DataLoaderCalendarTests.DataLoader_Load_DefaultCalendarIsUtcAndCallerDatesAreNotMoved`,
+  `DataLoaderCalendarTests.DataLoader_Render_TimeZoneOptionReachesTheDataStage`,
+  `DataLoaderCalendarTests.ExpressionFunctionContext_Calendar_DefaultsToUtc`,
+  `DataLoaderCalendarTests.ExpressionEvaluator_Constructor_ForwardsTheCalendar`,
+  `TimeCalendarTests.TimeCalendar_Create_NullAndZeroOffsetZones_GiveUtc` — a date text without an offset that an
+  explicit parse reads from inline values, a CSV file, a JSON file, and the rows of the caller is the wall time of the
+  zone of the loader, a loader without a calendar reads in UTC and does not move the dates that a caller supplies, with
+  a zone of plus five hours a render places a date-time without an offset five hours away from the same date-time with
+  an offset, the expression context and the evaluator carry the calendar and are UTC when none is given, and a null
+  zone, the UTC zone, and a zone at +00:00 are the same UTC calendar.
+- **Implicit Date Parsing Applies To Temporal Fields Only**:
+  `DataLoaderCalendarTests.DataLoader_Load_ImplicitDateFieldsApplyOnlyWhenGiven`,
+  `DataLoaderCalendarTests.DataLoader_Load_SecondaryLookupDataIsNotImplicitlyParsed`,
+  `ParseDirectivesDateTests.ParseDirectives_Implicit_AppliesToTemporalFieldsOnly`,
+  `ParseDirectivesDateTests.ParseDirectives_Implicit_ExplicitParseWins`,
+  `ParseDirectivesDateTests.ParseDirectives_Implicit_ParseNullSuppresses`,
+  `ParseDirectivesDateTests.ParseDirectives_Implicit_UnparsableTextIsNullWithTheParseWarning`,
+  `TemporalFieldsTests.TemporalFields_Collect_TypeTimeUnitAndFormatType`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_ImplicitParseOfTemporalStrings` — the fields
+  that the encoding reads as dates (by type, time unit, or format type) are parsed with the rules of `Date.parse`
+  without a `parse` directive, so `March 5, 2024` is a date, a field outside that set stays text, an explicit entry or
+  `parse: null` wins, a text that is not a date is null with the one parse warning of the field, and the data of a
+  lookup loaded through the same loader stays text.
+- **Custom Date Formats And Date Inference Read Text By The d3 And ECMAScript Rules**:
+  `ParseDirectivesDateTests.ParseDirectives_CustomDate_ParsesDayMonthYear`,
+  `ParseDirectivesDateTests.ParseDirectives_CustomDate_Utc_IgnoresTheZone`,
+  `ParseDirectivesDateTests.ParseDirectives_CustomDate_FailureIsNullWithOneWarningPerField`,
+  `ParseDirectivesDateTests.ParseDirectives_Auto_InfersLegacyDatesAndIso`,
+  `ParseDirectivesDateTests.ParseDirectives_Auto_UsesTheCalendarZone`,
+  `DataLoaderCalendarTests.DataLoader_Render_CustomDateFormatRendersInStrictMode`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_CustomDateParseDirectiveReadsDayMonthYear` —
+  the directive `date:'%d/%m/%Y'` reads 05/03/2024 as March 5, `utc:` ignores the zone, a failure is null with one warning
+  per field, `parse: "auto"` infers the ISO and the legacy forms in the zone, and a CSV whose days are 5, 15, and 25
+  March 2024 draws its points 10 days apart (0, 100, and 200 pixels on a 200-pixel axis of 20 days) and is not reported
+  in strict mode, while without the directive `15/03/2024` is the fifteenth month, so those rows do not draw and the
+  load is reported.
+- **A Time Zone Moves Dates, Unit Boundaries, And Days End To End**:
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter` — three points sit at
+  their dates on an axis with a tick every two days (60 pixels apart over 300 pixels), a point at 2024-03-05T20:00Z is on
+  March 6 (local 01:30) in a zone 5:30 hours ahead and on March 5 in UTC, one day of the scale (40 pixels) apart, with
+  the same ticks and labels, a zone that follows the United States rule makes March 10, 2024 a day of 23 hours, so with
+  the days March 9, 10, and 11 across 470 pixels (47 hours, 10 pixels an hour) the middle day starts 240 pixels in and
+  not 235 as in UTC, a `utc` scale ignores the zone, and a chart without a zone and one in a zone with a zero offset are
+  byte-identical.
+- **Dates Do Not Depend On The Culture, The Host, Or The Run**:
+  `TimeFormatTests.TimeFormat_Format_IgnoresTheCurrentCulture`,
+  `TimeFormatParseTests.TimeFormatParse_IgnoresTheCurrentCulture`,
+  `JsDateParserTests.JsDateParser_IgnoresTheCurrentCulture`,
+  `ParseDirectivesDateTests.ParseDirectives_Date_IgnoresTheCurrentCulture`,
+  `TimeCalendarZoneTests.TimeCalendarZone_Results_DoNotDependOnTheHostZone`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_CurrentCultureDoesNotChangeTheOutput`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Determinism_RepeatedAndConcurrentRendersAreByteIdentical`
+  — the names, the digits, and the parse of dates are the English ASCII ones under `tr-TR` (with its dotted capital I)
+  and `de-DE`, the zone calendar never reads the host's zone, and charts that format dates in their axes and legends
+  render the same pixels under the other cultures and from concurrent renders.
+- **Date Parsing Is Bounded And Cancelable**:
+  `ParseDirectivesDateTests.ParseDirectives_Date_HugeCellIsNotADateAndCostsNothing`,
+  `ParseDirectivesDateTests.ParseDirectives_Apply_PollsCancellationEveryBatch`,
+  `ParseDirectivesDateTests.ParseDirectives_Apply_StopsInsideAColumnWhenCanceledMidway`,
+  `JsDateParserTests.JsDateParser_Rejects_OverLongText`,
+  `TimeFormatParseTests.TimeFormatParse_LongInputFailsFast` — a cell of a million characters is not a date and costs one
+  length test (the date parser examines 128 characters and the format parser 256), and a canceled token stops the parse
+  of the columns inside a column and between batches.

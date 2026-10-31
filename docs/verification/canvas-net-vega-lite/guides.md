@@ -1,11 +1,13 @@
 ## Guides Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Guides` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Guides`), containing five units: `TextMeasurer` (font resolution, text
+`DemaConsulting.CanvasNet.VegaLite.Guides`), containing six units: `TextMeasurer` (font resolution, text
 measurement, truncation, line splitting, and Vega text bounds), `TitleBuilder` (the title and subtitle scene items and
 their extent), `AxisBuilder` (the axis grid, ticks, labels, domain, and title, and the extent they need), `LabelOverlap`
-(Vega's parity and greedy removal of overlapping labels), and `LegendBuilder` (which channels have legends and how they
-merge, and the symbol, gradient, and discrete gradient legends with the box each needs).
+(Vega's parity and greedy removal of overlapping labels), `LegendBuilder` (which channels have legends and how they
+merge, and the symbol, gradient, and discrete gradient legends with the box each needs), and `TimeLabels` (the label
+format of a date, the interval `tickCount`, the default tick count rule of a time axis, and the dates of an explicit
+`values` list, shared by the axes and the legends of temporal fields).
 
 ### Verification Approach
 
@@ -18,6 +20,16 @@ text constants is checked through the whole chain. `AxisBuilderTests` additional
 `ChartTestHelpers`) to produce the scale and the axis request, and asserts the scene items and the extent of the whole
 axis. `VegaLiteDocumentLayoutTests` and the chart integration tests verify the guides as the layout and the painter see
 them: the title is painted inside the band that the layout reserves for it.
+
+The guides of temporal fields are verified through the whole calendar chain. The axis and the legend of a time scale
+get their ticks from the real `Ticks` over the real `TimeCalendar` (the d3 interval nearest to the span over the tick
+count, in the zone of the chart or in UTC), their labels from the one shared `TimeLabels` (the `format` text or object,
+the unit specifier, `config.timeFormat`, or Vega's multi-format of the real `TimeFormat`), and their `values` from the
+real `JsDateParser` and `DateTimeObject`; the axis and the legend of the same date therefore read the same label. The
+scenarios assert on the tick values and the labels derived by hand from the d3 interval table (for example ten days over
+400 pixels target one day and give eleven daily ticks, and three months over 300 pixels are limited to three ticks by
+the minimum step of a month and give the four month starts), and on the positions of the ticks on the scale. Every zone
+is a custom zone that the test creates and no test reads the host's zone, clock, or culture.
 
 No mocking or stubbing is used: font measurement is real, which is what makes the layout independent of installed
 fonts (the unit tests assert that generic and Arial-like family names resolve to the very same bundled font object
@@ -34,12 +46,13 @@ assembly's `InternalsVisibleTo` access.
 - **Fonts**: The Liberation fonts bundled with the core package; the single test that needs an installed non-generic
   font skips itself (`Assert.Skip`) on a machine without one, and every other test is independent of installed fonts
 - **Files**: A per-test temporary folder holding a copy of a bundled font file, deleted by the test
-- **Isolation**: Each test builds its own specification, measurer, and builders
+- **Isolation**: Each test builds its own specification, measurer, and builders. Every time zone is a custom zone that
+  the test creates; the time scenarios repeat under `tr-TR` and `de-DE` and never read the host's zone or clock
 
 ### Acceptance Criteria
 
 The `Guides` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario in
-the three unit verification documents passes without error or unexpected exception. A skipped scenario that is
+the six unit verification documents passes without error or unexpected exception. A skipped scenario that is
 documented above as machine-dependent is not a failure.
 
 ### Test Scenarios
@@ -96,3 +109,65 @@ documented above as machine-dependent is not a failure.
   `TextMeasurerTests.TextMeasurer_Resolve_DefaultUsesBundledFonts`,
   `CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation` — layout and pixels of text are identical
   with system fonts allowed or not, for every generic and Arial-like family name.
+- **A Time Axis Has The Ticks And Labels Of The Calendar**:
+  `AxisBuilderTimeTests.AxisBuilder_Time_DefaultLabelsAreMultiFormat`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_TickCountNumberObjectAndInterval`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_TickCountDefaultMonthUnitUsesVegaDefault10`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_TickMinStepFromTheUnit`,
+  `TimeLabelsTests.TimeLabels_UsesVegaDefaultCount_OnlyForSingleMonthHoursDayQuarter`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths`
+  — ten days over 400 pixels (the count is ceil(400 / 40) = 10, so the target is one day) have eleven daily ticks 40
+  pixels apart labeled by the coarsest boundary they sit on (`2024` for January 1, `Jan 07` for the Sunday, and the
+  weekday and date for the rest), a count of 5 targets two days, and `week`, `{day, 5}`, and `month` give one, three, and
+  one tick; three months as `yearmonth` over 300 pixels have the default count ceil(300 / 40) = 8 lowered to
+  floor(91 / 31) + 1 = 3 by the minimum step of a month and give the four month starts at 0, 102, 198, and 300 pixels
+  (31 / 91 x 300 = 102.198 and 60 / 91 x 300 = 197.802) with the labels `Jan 2024` to `Apr 2024`, and the bars of the
+  three months span their months with a pixel of spacing off every pair of edges.
+- **Time Axes Follow The Zone, The Format, And The Dates Of A Unit**:
+  `AxisBuilderTimeTests.AxisBuilder_Time_Zone_LabelsAndTicksUseLocalMidnights`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_UtcScale_IgnoresZone`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_FormatStringAndObject`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_FormatTypeNumberAndTime`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_ValuesAcceptDatetimeObjects`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_DiscreteDateLabels_UseUnitSpecifier`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_LabelFlushAndOverlapDefaults`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_NoRotationDefaultForTimeUnitOrdinal`,
+  `TimeLabelsTests.TimeLabels_Create_ChoosesTheFormatInTheOrderOfVegaLite`,
+  `TimeLabelsTests.TimeLabels_Create_FormatTypesNumberAndUtc`,
+  `TimeLabelsTests.TimeLabels_ReadInstant_NumbersTextsObjectsAndNonDates` — at +05:30 the domain of two dates at 00:00Z
+  runs from local 05:30, so the ticks are the ten local midnights, the first at 18.5 / 240 x 400 = 30.83 (31) pixels, a
+  `utc` scale has the UTC midnights whatever the zone is, a `format` text and object and the format types `number`,
+  `time`, and `utc` choose the labels in the order of Vega-Lite (`2024-01-01`, `1,704,067,200,000`, `00:00:00`), the
+  `values` take a timestamp, a date text, and a datetime object and drop what is not a date or is off the scale, the
+  dates of an ordinal time unit are labeled `Jan`, `Feb`, and `Mar` (or by the format) and not turned, and the labels of
+  a dense axis are thinned by parity unless the overlap method is off.
+- **Temporal Legends Are Labeled With Dates In The Zone Of The Chart**:
+  `LegendBuilderTimeTests.LegendBuilder_Time_TemporalGradient_LabelsUseConfigTimeFormat`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_LegendFormatOverridesAndUnitSpecifier`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_OrdinalTimeUnitSymbols_LabelWithTheUnitSpecifier`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_ExplicitValuesAcceptDatetimeObjects`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_Zone_LabelsUseLocalTime`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates` — a gradient
+  legend of a temporal color 200 pixels long has the tick count 4, so the target is 2.5 days and the labels are the
+  two-day ticks `Jan 01, 2024`, `Jan 03, 2024`, and so on in the format of `config.timeFormat`, its ramp is sampled at
+  the time ticks of a count of 15 (every 12 hours, 21 stops from the first date to the last), the legend format, the
+  configuration, and the unit specifier choose other labels, a size over dates has six symbols, an ordinal time unit has
+  one symbol and label per month, and at +05:30 the first tick is the 3rd because local midnight of the 1st is before
+  the domain.
+- **Time Guides Fail Closed, Are Deterministic, And Ignore The Culture**:
+  `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_Deterministic`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_LimitsAndCancellation`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`,
+  `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced` —
+  more ticks than `MaxTicks` and a label longer than `MaxStringLength` are located render errors that name the limit
+  (11 days, a millisecond interval over ten days, and six listed values against a limit of 5; a 43-character label
+  against 30), a canceled token stops the build, and the labels are the English ones with ASCII digits under `tr-TR` and
+  `de-DE` and the same on every call.

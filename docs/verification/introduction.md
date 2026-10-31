@@ -77,15 +77,18 @@ constituent software items, specifically:
   Vega-Lite JSON specification and measures and renders the supported chart subset to a `Surface`, containing a single
   direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
   exceptions), and nine internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
-  `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, and `DelimitedTextParser`), `Expressions` (units
+  `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, the calendar, the
+  d3-time intervals, the Vega-Lite time units, and the datetime objects, and `TimeFormat`, the d3-time-format
+  formatter and parser and the `Date.parse` rules), `Expressions` (units
   `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions`, the supported subset of the Vega expression
   language), `Transforms` (units `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
   `pivot`, and `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`,
-  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; and `EncodingPlan`, the implicit bin, aggregate, and stack of
-  the encoding), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
+  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; `EncodingPlan`, the implicit bin, time unit, aggregate, and
+  stack of the encoding; and `TimeUnitTransform`, the `timeUnit` transform and the start and end of the time unit of a
+  date), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
   `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units `TextMeasurer`, `TitleBuilder`,
-  `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`), `Layout` (units `ViewLayout` and `LegendLayout`), `Marks` (unit
-  `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
+  `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units `ViewLayout` and `LegendLayout`),
+  `Marks` (unit `MarkBuilder`), and `Scenegraph` (units `SceneModel`, `ScenePainter`, and `CssColor`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
@@ -143,7 +146,12 @@ original-work specification fixtures (including the data-file chart, its CSV fil
 provenance statement, are in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The file-backed data tests of the `Data` subsystem use the
 helpers in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs` (per-test temporary directories, an
-in-memory file set behind the file callback, and an endless stream). The units of the `Expressions` and `Transforms`
+in-memory file set behind the file callback, and an endless stream); the time units of that subsystem (`TimeCalendar`
+and `TimeFormat`) have the verification designs `data/time-calendar.md` and `data/time-format.md` and the tests
+`Data/TimeCalendar*Tests.cs`, `Data/TimeUnitSpec*Tests.cs`, `Data/DateTimeObjectTests.cs`, `Data/TimeFormat*Tests.cs`,
+and `Data/JsDateParserTests.cs`, which build every time zone with `TimeZoneInfo.CreateCustomTimeZone` in the helper
+`Data/TimeTestSupport.cs` and never read the host's zone, clock, or culture. The units of the `Expressions` and
+`Transforms`
 subsystems follow the same pattern, for example the verification design
 `docs/verification/canvas-net-vega-lite/expressions/expression-parser.md` and
 `docs/verification/canvas-net-vega-lite/transforms/row-transforms.md`, the requirements
@@ -156,7 +164,10 @@ subsystems follow the same pattern, for example the verification design
 `EncodingPlan` of the same subsystem have the verification designs `transforms/aggregate-transforms.md` and
 `transforms/encoding-plan.md` and the tests `Transforms/AggregateTransformsTests.cs` (with its companion test classes for
 the measures, the bin algorithm, and the window, stack, impute, and joinaggregate transforms) and
-`Transforms/EncodingPlanTests.cs` (with `Transforms/EncodingTransformsTests.cs`); the expression tests share the helpers
+`Transforms/EncodingPlanTests.cs` (with `Transforms/EncodingTransformsTests.cs`); the unit `TimeUnitTransform` has the
+verification design `transforms/time-unit-transform.md` and the tests `Transforms/TimeUnitTransformTests.cs` and
+`Transforms/TemporalFieldsTests.cs`, and the unit `TimeLabels` of the `Guides` subsystem has the verification design
+`guides/time-labels.md` and the tests `Guides/TimeLabelsTests.cs`; the expression tests share the helpers
 in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
 expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is

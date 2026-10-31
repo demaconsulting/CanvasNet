@@ -3,11 +3,11 @@
 This document describes the unit-level verification strategy for the `ScaleModel` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal immutable `ScaleModel` class (the factories
 `CreateLinear`, `CreateBand`, `CreatePoint`, `CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`,
-`CreateThreshold`, and `CreateBinOrdinal`, the mapping methods `Map`, `MapCenter`, `MapOrdinal`, `MapText`, `MapColor`,
-`MapIndex`, and `Invert`, `IndexOf`, and the static `BandSpace`), the `ScaleRange` struct, and the `ScaleKind`
-enumeration. The
-arithmetic is an own C# implementation of the d3-scale linear, band, point, ordinal, sequential, diverging, quantize,
-quantile, and
+`CreateThreshold`, `CreateBinOrdinal`, and `CreateTime`, the mapping methods `Map`, `MapCenter`, `MapOrdinal`,
+`MapText`, `MapColor`, `MapIndex`, and `Invert`, `IndexOf`, and the static `BandSpace`), the `ScaleRange` struct, and
+the `ScaleKind` enumeration (with its `Time` and `Utc` kinds). The
+arithmetic is an own C# implementation of the d3-scale linear, time, band, point, ordinal, sequential, diverging,
+quantize, quantile, and
 threshold scales, of Vega's bin-ordinal scale, and of the Vega `bandspace` rule.
 
 #### Verification Approach
@@ -33,6 +33,15 @@ tests state the arithmetic next to them:
   `BandSpace(0, ...)` is 0.
 - The ordinal scale cycles through its range: five categories over a range of two colors give red, blue, red, blue,
   red.
+- A time scale is the same linear arithmetic over milliseconds since the epoch (`ScaleModelTimeTests`). The domain of
+  the tests is January 1 to January 11, 2024 (ten days) over 0 to 400 pixels, so a day is 40 pixels, a quarter of a day
+  (six hours, 21,600,000 ms) is 10 pixels, and January 6 (five days) is 200. The instants are computed with the base
+  class library, never with the calendar under test, and the expected positions are worked out by hand: December 25 is
+  seven days before the start, 7 x 40 = 280 pixels before it (-280), and January 12 is 440. The inverse of 200 is
+  January 6 and of 40 is one day after the start; the inverse returns the number of milliseconds, not a date.
+
+The calendar of the ticks of a time scale (the interval arithmetic and the zone offsets) is verified with the calendar
+unit (see _TimeCalendar Unit Verification Design_); the scale model only stores it.
 
 The unit has no dependencies other than the data value type of the `Data` namespace (and the color type of the
 interpolator unit, which a
@@ -41,8 +50,8 @@ required; the internal type is reached through the test assembly's `InternalsVis
 resolver and the axis and mark builders is verified at the subsystem tier (see _Scales Subsystem Verification
 Design_).
 
-Unit tests reside in `ScaleModelTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales`
-folder.
+Unit tests reside in `ScaleModelTests.cs` and `ScaleModelTimeTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests`
+project, in the `Scales` folder.
 
 #### Test Environment
 
@@ -185,3 +194,58 @@ holds the
 ends); and the fraction of a value runs along the transformed domain (a decade is a third of three decades, 25 is
 half of the
 square root domain 0 to 100, a domain without span is 0.5).
+
+##### Time Scales Map Instants Linearly
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_MapsDatesLinearly`,
+`ScaleModelTimeTests.ScaleModel_Time_Invert_RoundTrips`
+
+The ten day domain over 400 pixels maps January 6 to 200 whether it is given as a number of milliseconds, as a `Date`
+value, or as a number value; the ends map to 0 and 400, six hours to 10, and a date outside the domain continues the
+line (December 25 gives -280, January 12 gives 440). The kind is `Time` and the scale is linear-like. The inverse of 200
+is January 6 and of 40 is January 2, the round trip `Invert(Map(ms))` returns each of four instants (the ends, an odd
+12,345,678 ms after the start, and 17:00 on January 9), and the inverse of NaN is NaN.
+
+##### Time Scales Clamp, Reverse, And Are Piecewise
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_Clamp`, `ScaleModelTimeTests.ScaleModel_Time_Reverse`,
+`ScaleModelTimeTests.ScaleModel_Time_Piecewise3Entries`
+
+A clamped scale maps December 25 to 0 and February 1 to 400 and leaves January 6 at 200; the inverse of -50 and 450
+are the two ends of the domain. A descending domain (January 11 to January 1) maps January 11 to 0, January 1 to 400,
+and the middle to 200, and reports January 11 as its `DomainStart`; a descending range maps January 1 to 400 and
+January 11 to 0, with the inverse of 200 at January 6. A three entry domain (January 1, 2, and 11) over the three
+entry range 0, 100, 300 puts half a day at 50 (half of the first segment), January 2 at 100, and 4.5 days past it at
+200 (half of the second segment, which spans nine days over 200 pixels), January 11 at 300; the domain start and end
+are the first and last entries.
+
+##### Time Scales Reject Invalid Values And Other Kinds' Operations
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_InvalidDateHasNoPosition`
+
+A null, a text that is not a number, and a NaN number have no position (null), NaN maps to NaN, and the ordinal and the
+color mappings of a time scale throw `InvalidOperationException`.
+
+##### UTC And Time Scales Do The Same Arithmetic
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_Utc_And_Time_MapIdentically`
+
+The time scale, the UTC scale, and a time scale with a fixed +05:30 zone calendar give exactly the same position for
+the start, 07:30 on January 3, and the day after the end, because the calendar only matters to the ticks; the UTC
+scale reports the `Utc` kind and is linear-like. With `round` the date January 2 of the domain January 1 to 4 over 0
+to 10 maps to 3, and without it to 10 / 3 = 3.33.
+
+##### Time Scales Store Their Calendar
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_Calendar_IsStored`
+
+The model returns the very calendar it was given (a US-like zone) and the UTC calendar for a UTC scale; a linear or a
+band scale has no calendar, the linear scale is linear-like and the band scale is not; a null calendar or domain is
+`ArgumentNullException`, and a domain or a range with fewer than two entries is `ArgumentException`.
+
+##### Time Scales Report The Fraction Along The Domain
+
+**Tests**: `ScaleModelTimeTests.ScaleModel_Time_Fraction_IsThePositionInTheDomain`
+
+January 3 is two tenths of the way along the domain (0.2) and the two ends are 0 and 1; legends use the fraction for
+their gradient stops.

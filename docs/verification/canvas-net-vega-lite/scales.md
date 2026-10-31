@@ -1,11 +1,19 @@
 ## Scales Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scales` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Scales`), containing six units: `ScaleModel` (the linear, band, point, ordinal,
-sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings), `ScaleResolver` (the inference of
-scales from a specification and its data), `Ticks` (the tick, tick step, and nice algorithms), `NumberFormat` (the
+`DemaConsulting.CanvasNet.VegaLite.Scales`), containing six units: `ScaleModel` (the linear, time, UTC, band, point,
+ordinal, sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings), `ScaleResolver` (the
+inference of scales from a specification and its data), `Ticks` (the tick, tick step, nice, log, and time tick
+algorithms), `NumberFormat` (the
 d3-format subset that labels axes), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range),
 and `ColorInterpolator` (the color interpolation).
+
+The time scales are verified in the same way. The resolver, the scale model, the tick algorithm, and the axis builder
+run for real over original specifications in `ScaleResolverTimeTests`, `ScaleModelTimeTests`, `TicksTimeTests`, and (in
+the `Guides` folder) `AxisBuilderTimeTests`, with the instants computed by the base class library and not by the
+calendar under test (the calendar is the `TimeCalendar` unit of the `Data` subsystem, see the _TimeCalendar Unit
+Verification Design_), and the zones built in the tests. The expected values are derived by hand from the days of 2024
+and from the d3 interval table.
 
 ### Verification Approach
 
@@ -86,3 +94,34 @@ the five unit verification documents passes without error or unexpected exceptio
 - **Formats Are Culture-Independent**:
   `NumberFormatTests.NumberFormat_Format_IgnoresTheCurrentCulture` — the label text is identical under a culture with
   a decimal comma.
+- **Temporal Fields Resolve To Time Scales That Map, Tick, And Nice By The Calendar**:
+  `ScaleResolverTimeTests.ScaleResolver_Temporal_XDefaultsToATimeScaleWithTheDataExtent`,
+  `ScaleResolverTimeTests.ScaleResolver_TimeUnitBarDomainIncludesTheEnd`,
+  `ScaleResolverTimeTests.ScaleResolver_NiceTrueAndInterval`,
+  `ScaleModelTimeTests.ScaleModel_Time_MapsDatesLinearly`,
+  `TicksTimeTests.Ticks_TimeTicks_InclusiveStop_Utc`,
+  `TicksTimeTests.Ticks_TimeNice_WeekExample`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier` — the resolver turns a temporal field into
+  a `Time` or `Utc` scale over the dates of the data (the unit starts and, for a bar, the unit ends) in the calendar of
+  the render's zone, the scale model maps the instants linearly, `Ticks` chooses the d3 interval nearest the target
+  and the calendar places its boundaries, and the axis labels them by the unit. The hand-derived chain of the month
+  bars is a domain of January 1 to April 1 (91 days, so 300 pixels give January 102.198 pixels) with the three ticks of
+  the month starts at 0, 102, 198, and 300 after the minimum step of a month lowered the count from 8 to 3, and `nice`
+  extends the domain of January 10 13:00Z to March 20 05:00Z to the Sundays January 7 and March 24 (6.97 days a tick,
+  the week).
+- **Time Scales Are Zone-Aware And UTC Scales Are Not**:
+  `ScaleResolverTimeTests.ScaleResolver_UtcTimeUnit_GivesAUtcScale`,
+  `ScaleResolverTimeTests.ScaleResolver_NiceInAZone_UsesLocalBoundaries`,
+  `TicksTimeTests.Ticks_TimeTicks_Month_Boundaries_InAZone`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_Zone_LabelsAndTicksUseLocalMidnights`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_UtcScale_IgnoresZone` — a local time unit keeps the zone's calendar and a UTC
+  one the UTC calendar, so the local `nice` and the ticks are local midnights (18:30Z of the day before in a +05:30
+  zone, and a day of 23 hours across the daylight saving change), while a UTC scale gives the same ticks and labels
+  whatever the zone is.
+- **Time Ticks And Labels Fail Closed And Do Not Depend On The Culture**:
+  `TicksTimeTests.Ticks_TimeTicks_MaxTicksExceeded_Throws`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
+  `TicksTimeTests.Ticks_Time_Culture_Invariant`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant` — a tick result over `MaxTicks` throws before it is
+  allocated and the axis reports it located at the channel, and the ticks and the English labels are identical under
+  the Turkish and German cultures.

@@ -9,8 +9,9 @@ and `RangeEnd` types of its file. The resolver reads the view of a parsed specif
 tables that the implicit stage produced (the Raw and the Main table), and the resolved configuration, and infers for
 each of the channels `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity`, `shape`, `strokeWidth`, `strokeDash`,
 `fillOpacity`, `strokeOpacity`, and `angle` the scale kind, the domain, the range, and the paddings according to the
-Vega-Lite rules for this release (linear, sequential, diverging, quantize, quantile, threshold, band, point, and ordinal
-scales; the types `quantitative`, `nominal`, and `ordinal`), including the fields that aggregates, bins, and stacks
+Vega-Lite rules for this release (linear, time, UTC, sequential, diverging, quantize, quantile, threshold, band, point,
+and ordinal scales; the types `quantitative`, `temporal`, `nominal`, and `ordinal`), including the fields that
+aggregates, bins, and stacks
 derive, the domains of stacked, binned, ranged, and `unaggregated` channels, the titles, and the sort of a discrete
 domain by another channel's aggregate.
 
@@ -57,10 +58,38 @@ The expected values are derived by hand from the Vega-Lite rules and arithmetic,
   1, 1) the orders are `c, a, b` and `b, c, a` (ties in first appearance order); the sample variance of `a` is 0.5 and
   the categories with one value have a null variance, which sorts first in either direction.
 
-Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, paddings, colors, and sizes) and
-`ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts) within the
+Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, paddings, colors, and sizes),
+`ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), and `ScaleResolverTimeTests.cs` (the
+scales of temporal fields and of fields with a time unit) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over rows made by a calculate
 transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
+
+The temporal scenarios resolve through the same pipeline the render uses (the `Resolve` helper of
+`ScaleResolverTimeTests` prepares the data stage in the calendar of a chosen zone, applies the explicit transforms and
+the real `EncodingPlan` and `EncodingTransforms`, and resolves), so the time-unit starts and ends, the zone, and the
+scale agree with the later stages. The instants are computed with the base class library (never with the calendar
+under test) and the expected values are derived by hand:
+
+- Dates January 1, 6, and 11, 2024 give the domain of ten days; over 400 pixels January 6 is five of ten days, pixel
+  200, and a temporal y runs upward (January 1 at 300 and January 11 at 0 of 300). Pixel padding of 10 on 400 pixels
+  leaves 380 for the span, so the domain grows by a factor of 400 / 380 about its middle: January 6 plus and minus
+  5 x 400 / 380 days. A bar of a month unit over January, February, and March 2024 has the domain January 1 to April 1,
+  the 31 + 29 + 31 = 91 days of the 2024 first quarter, so on 300 pixels February 1 (31 days in) is at 31 / 91 x
+  300 = 102.198, derived by arithmetic and not copied from a run.
+- The instants of 2024-01-10T13:00Z and 2024-03-20T05:00Z are 31 + 29 = 60 days from January 10 to March 10, plus 9 days
+  16 hours, so 69.667 days apart; `nice: true` is the count 10 with a target of 6.97 days, which is nearer to the week
+  (7 days) than to two days, so the domain becomes the Sundays January 7 and March 24, and the count 2 has a target of
+  34.8 days, which is the month, so January 1 to April 1; the interval `month` gives the same, and the quarter step 3
+  does too.
+- In a +05:30 zone local midnight is 18:30Z of the day before: the month `nice` gives December 31 18:30Z to March 31
+  18:30Z, the day of 2024-03-05T20:00Z (01:30 on March 6 local) starts at March 5 18:30Z, a date-time object at
+  February 1 is January 31 18:30Z, and a time of day without an offset (12:00) is 06:30Z; a date alone and a `utc`
+  object are UTC.
+- The reference year of a single month unit is 2012, so the month number 2 and the name "Mar" are February 1 and March
+  1, 2012, and 1,325,376,000,000 is January 1, 2012 (15,340 days x 86,400,000 ms, since 42 x 365 + 10 leap days is
+  15,340 days from 1970).
+- Opacity runs 0.3 to 0.8, so the middle date (January 6) is 0.55, and the angle 0 to 360 gives 180; January 1 and
+  January 11 are the ends of any numeric range. Three dates in a limit of three are accepted and four fail.
 
 #### Test Environment
 
@@ -86,7 +115,9 @@ discrete x is a band for `rect`, `bar`, `rule`, and `tick` and a point scale oth
 discrete like a nominal one while keeping its type for the color range; that size and opacity follow the field type
 (linear for numbers, point for categories); that fill and stroke are separate color scales; that an explicit scale type
 counts when the channel and the field type accept it and the default applies otherwise; that there is no scale for a
-quantitative color, a temporal field, a value definition, a datum-less definition, or `scale: null`; that a count (an
+value definition, a datum-less definition, or `scale: null`, while a temporal x has a `Time` scale (the migrated
+assertion of the former "a temporal field has no scale" scenario: the only scale of a specification with a temporal x
+and three scale-less channels is `x`, of kind `Time` and data type `temporal`); that a count (an
 aggregate without a field) is a field definition and so has a linear scale that reads `__count` and has the title
 "Count of Records"; that a field without a type is read as quantitative and a datum takes the type of its value; and
 that a view without a mark or encoding has no scales and no orientation.
@@ -443,3 +474,126 @@ Assert, over the sample data (the numbers 3, 5, 7, and 12 and the categories a, 
 holds the quantitative field `q` is a sequential scale over 3 to 12 read from `q`, that a shape whose condition holds the
 nominal field `k` has the ordinal scale of `a`, `b`, and `c`, and that a size and an opacity whose conditions hold only
 values have no scale (and no legend is planned for a color, an opacity, and a size with value conditions).
+
+##### Temporal Fields Get A Time Scale
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_Temporal_XDefaultsToATimeScaleWithTheDataExtent`,
+`ScaleResolverTimeTests.ScaleResolver_Temporal_EmptyDataGivesADefaultDomain`
+
+Assert that a temporal x is a `Time` scale of data type `temporal` over the data extent (January 1 to January 11), with
+no zero (zero would pull the domain to 1970), no `nice`, no padding, no time unit, the UTC calendar, and the field
+path `d`; that the model it creates over 400 pixels is a `Time` model sharing the calendar and puts January 6 at 200
+and the ends at 0 and 400, while the quantitative y stays linear; that a temporal y runs upward; and that a field
+without a valid date (no rows, an unparsable text, a null) still gets a time scale with the default domain 0 to 1,
+mapping the instant 1 to the end of a 100 pixel range, as a linear scale does.
+
+##### Time Units Choose The UTC Or Local Scale
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_UtcTimeUnit_GivesAUtcScale`,
+`ScaleResolverTimeTests.ScaleResolver_TimeUnit_InAZone_FollowsTheLocalDay`
+
+Assert that `utcyearmonthdate` gives a `Utc` scale with the UTC calendar in a +05:30 zone while `yearmonthdate` gives a
+`Time` scale with the zone's calendar (and each model has its kind), and that the local day of 2024-03-05T20:00Z in
++05:30 starts at March 5 18:30Z, where the UTC unit starts at March 5 00:00Z.
+
+##### Explicit Scale Types Of Temporal Fields
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_ExplicitTypeTimeAndUtc`,
+`ScaleResolverTimeTests.ScaleResolver_AcceptsScaleType_PinsTheTemporalTable`
+
+Assert that `time` and `utc` on a temporal x or size give a `Time` or `Utc` scale, that on a color or fill they give the
+sequential scale over the instants, that the types a temporal field refuses (`linear`, `band`, `ordinal`, and the
+others) are replaced by the default (the sequential scale for a color), that opacity, stroke width, fill and stroke
+opacity, and angle give a time scale while `shape` and `strokeDash` stay ordinal, and that `time` on a nominal,
+ordinal, or quantitative field is ignored. The acceptance question that the feature catalog asks is pinned over a
+table: `time` and `utc` are accepted for a temporal field on nine channels, refused on `shape` and `strokeDash`, no
+other type is accepted for a temporal field, and `time` and `utc` are refused for the other field types.
+
+##### Time-Unit Bars Span Their Unit
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_TimeUnitBarDomainIncludesTheEnd`,
+`ScaleResolverTimeTests.ScaleResolver_TimeUnitPointDomainIsTheStartsOnly`,
+`ScaleResolverTimeTests.ScaleResolver_BarPaddingNotAppliedForTimeUnit`
+
+Assert, for a date in each of January, February, and March 2024 under a `yearmonth` unit of a bar, that the scale reads
+`yearmonth_d` with the end field `yearmonth_d_end`, the domain is January 1 to April 1 with no padding and no `nice`,
+and February 1 maps to 31 / 91 x 300 = 102.198 on 300 pixels; that a point under the same unit has no end field and
+the domain January 1 to March 1; and Vega-Lite's padding rule (a bar on a time axis with no unit has 5 pixels, with a
+unit none, and a scale `padding` of 3 or a configured `continuousPadding` of 7 apply to both) and the 400 / 380 growth
+of the padded domain derived above.
+
+##### Explicit Domains Of Dates
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_DomainStringsAndDatetimeObjects`,
+`ScaleResolverTimeTests.ScaleResolver_DomainOfASingleUnit_NamesParts`,
+`ScaleResolverTimeTests.ScaleResolver_DomainMinMaxDatetime`,
+`ScaleResolverTimeTests.ScaleResolver_Datum_Temporal`
+
+Assert that a domain of date texts, date-time objects, and timestamps resolves to instants (UTC, and in a +05:30 zone
+the object is local midnight, a date alone and a `utc` object are UTC, and a time of day without an offset is local), that
+three entries make a piecewise scale that keeps its order, that an entry that is not a date, a boolean, or a domain
+with one entry fails with a located `VegaLiteSpecException` at `/encoding/x/scale/domain/1`, `.../0`, and
+`.../domain`; that for a
+single month unit the number 2 and the text "Mar" name the months of 2012 while a timestamp and a date text are what
+they say; that `domainMin` and `domainMax` (an object and a timestamp) replace the ends of the data domain
+(January 3 to February 1, or January 1 to March 1 for a `domainMax` of `{year: 2024, month: 3}`); and that a datum of a
+temporal channel (a date text or a timestamp) is a domain of that one instant.
+
+##### Nice Time Domains
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_NiceTrueAndInterval`,
+`ScaleResolverTimeTests.ScaleResolver_NiceInAZone_UsesLocalBoundaries`
+
+Assert the derivations above: no `nice` by default (the domain starts at the data, January 10 13:00Z), `true` is the
+count 10 and gives the week boundaries January 7 and March 24, the count 2 gives the month boundaries (January 1 and
+April 1), the interval texts and objects (`month`, and `month` with step 3) give the same boundaries and keep the
+interval and step on the scale (no count), `false`, 0, and a negative number switch it off, and in a +05:30 zone the
+boundaries are local midnights (December 31 18:30Z and March 31 18:30Z).
+
+##### Ordinal And Nominal Fields With A Time Unit
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_OrdinalTimeUnit_UsesABandScaleSortedByDate`,
+`ScaleResolverTimeTests.ScaleResolver_OrdinalTimeUnit_SortDescending`,
+`ScaleResolverTimeTests.ScaleResolver_SortArrayOfDatetimeObjects`
+
+Assert that an ordinal field with a `month` unit on a bar is a band scale over the dates of the unit (the months of the
+reference year 2012, with the two Januaries one category), sorted by date whatever the order of the data, with the
+field `month_d`, the data type `ordinal`, and the temporal flag set; that a point mark or a nominal field gives a point
+scale over the three dates; that a descending sort puts the latest unit first (March, February, January); and that a
+sort array `["Dec", 1]` puts the unlisted February first and then December and January, and an explicit domain of
+`"Dec"`, 1, and `{"month": "Feb"}` gives December, January, February of 2012.
+
+##### Colors And Numeric Channels Of Temporal Fields
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_TemporalColor_IsSequentialOverMilliseconds`,
+`ScaleResolverTimeTests.ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential`,
+`ScaleResolverTimeTests.ScaleResolver_TemporalSize_And_Opacity_UseTheTimeScale`
+
+Assert that the color of a temporal field is a sequential scale over the milliseconds (January 1 to January 11) with an
+interpolator, no `nice`, and the temporal flag, whose colors at the two ends and in the middle are the samples of the
+interpolator at 0, 1, and 0.5, with no color for a null; that a `domainMid` timestamp (January 6) makes a diverging
+scale of three
+entries; that `quantile`, `quantize`, `threshold`, `bin-ordinal`, and `ordinal` on a temporal color stay sequential;
+and that size, opacity, and angle get a time scale over their own ranges (opacity 0.3 to 0.8, angle 0 to 360), the
+first date of a size being its minimum and not zero, the middle date 0.55 and 180 as derived above, and `shape` an
+ordinal scale of three dates.
+
+##### Range, Reverse, Clamp, And Round Of Time Scales
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_TimeScale_RangeReverseClampRound`
+
+Asserts that an explicit range of 50 to 250 and the limits `rangeMin` 20 and `rangeMax` 380 map the ends of the domain to
+them, that `reverse` and a descending sort flip the range of the continuous domain (January 1 at 400), and that `clamp`
+and `round` reach the model: February 1 is clamped to 100 and 3.5 days of ten over 100 pixels is 35.
+
+##### Time Scales Respect The Limits, And Are Deterministic
+
+**Tests**: `ScaleResolverTimeTests.ScaleResolver_ConfigAndSpecArraysRespectMaxScaleDomainSize`,
+`ScaleResolverTimeTests.ScaleResolver_Deterministic_UnderCultures`
+
+Assert that with `MaxScaleDomainSize` 3 an explicit domain of four dates fails with a located `VegaLiteRenderException`
+at `/encoding/x/scale/domain` that names the limit of 3 and `MaxScaleDomainSize`, for a temporal field and for a
+discrete time-unit field, that exactly three entries are accepted, and that a discrete domain of four dates drawn
+from the data fails at `/encoding/x`; and that the resolution of a `yearmonth` bar with `nice` and an explicit
+domain (January 1 and April 2024) is identical under the Turkish and German cultures (kind `Time`, January 1 to
+April 1, count 10).

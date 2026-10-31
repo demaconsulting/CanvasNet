@@ -80,8 +80,24 @@ that is binned already as bars over their ranges; and the `window-cumulative` fi
 window transform (4, 7, 12, 14). The scenarios also assert that the groups count in the row budget (the five rows and
 three groups of the aggregate bars need `MaxDataRows` 8), that the marks of stacked and binned charts are counted
 exactly by the scene budget, that measuring equals rendering and renders are byte-identical for every fixture, and that
-an aggregate, bin, or stack is drawn without a report while a part that is still unsupported next to them (a time
+an aggregate, bin, or stack is drawn without a report while a part that is still unsupported next to them (a binned time
 unit) is reported once and stops a strict render.
+
+The time scenarios assert on what the system draws from temporal fields, time units, and the `TimeZone` render option,
+with expectations derived by hand from the calendar of 2024 (a leap year that starts on a Monday), the d3 time interval
+table, Vega's multi-format, and the layout of the chart, and never from the output of a real Vega-Lite: three points on
+January 1, 6, and 11 sit at 0, 150, and 300 pixels of 300 on a time axis whose ticks are every second day and whose
+labels are `2024`, `Wed 03`, `Fri 05`, `Jan 07`, `Tue 09`, and `Thu 11`; the bars of three months span the 91 days of
+January 1 to April 1 (the bar of January starts at 1 and is 31 x 300 / 91 - 1 = 101.198 wide); a zone 5:30 hours ahead of
+UTC moves a reading at 20:00Z to the next day, which shifts its point by exactly one day of the scale; in a zone that
+follows the United States rule the day of March 10, 2024 is 23 hours long, so the middle of three days is 240 pixels in
+of 470 instead of 235; a UTC time unit ignores the zone; a parse directive reads day-first dates that the default parse
+rejects; text dates are parsed like `Date.parse`; a filter by time unit and date-time object keeps four of eight rows; a
+temporal color has a gradient legend of dates; an ordinal time unit is a band scale; a binned time unit and a band
+position other than one half on a bar are reported and stop a strict render; the tick and string limits and the
+cancellation fail closed; and the renders are byte-identical on repeated and concurrent calls, under other cultures, and
+whatever the host's time zone is. The units under it are verified in the _TimeCalendar_, _TimeFormat_, _TimeLabels_, and
+_TimeUnitTransform_ Unit Verification Designs.
 
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
@@ -96,8 +112,9 @@ and the data limits fail before the scene limit is reached. The links of the san
 an injected link probe, and real links are additional evidence there.
 
 System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern scenarios, one per requirement
-topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios), and
-`VegaLiteAggregationIntegrationTests.cs` (the aggregation, binning, stacking, and window scenarios) within the
+topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios),
+`VegaLiteAggregationIntegrationTests.cs` (the aggregation, binning, stacking, and window scenarios), and
+`VegaLiteTimeIntegrationTests.cs` (the time scenarios) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project; the shared helpers (a pixel snapshot, uniform-color and
 region checks, ink bounds, and a data-reference projection) are in `VegaLiteTestHelpers.cs`, and the data helpers
 (temporary directories and virtual file sets) in `Data/DataTestSupport.cs`. The fixtures in
@@ -110,17 +127,28 @@ documented in `Fixtures/README.md` beside them.
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
   (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
-- **Dependencies**: No external services, databases, or network access required. The thirteen fixture files in
+- **Dependencies**: No external services, databases, or network access required. The twenty-seven fixture files in
   `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/` (`bar-inline.vl.json`, `point-inline.vl.json`,
   `rule-tick-inline.vl.json`, `titles-config.vl.json`, `unsupported.vl.json`, the data-file chart `data-files.vl.json`
-  with its `data-files.csv`, the nested JSON rows `data-values.json`, and the aggregation charts
-  `aggregate-bars.vl.json`, `histogram.vl.json`, `stacked-bars.vl.json`, `binned-ranges.vl.json`, and
-  `window-cumulative.vl.json`, plus a provenance `README.md`) are
-  copied to the test output directory and located relative to the test assembly
+  with its `data-files.csv`, the nested JSON rows `data-values.json`, the aggregation charts
+  `aggregate-bars.vl.json`, `histogram.vl.json`, `stacked-bars.vl.json`, `signed-stacks.vl.json`,
+  `binned-ranges.vl.json`, and `window-cumulative.vl.json`, the legend, scale, and encoding charts
+  `legend-symbols.vl.json`, `legend-merged.vl.json`, `legend-gradient.vl.json`, `log-scales.vl.json`,
+  `binned-channels.vl.json`, and `conditional-marks.vl.json`, and the time charts `time-points.vl.json`,
+  `time-bars.vl.json`, `time-zone.vl.json`, `time-filter.vl.json`, `time-legend.vl.json`, and `time-parse.vl.json`
+  with its `time-parse.csv`, plus a provenance `README.md`) are
+  copied to the test output directory and located relative to the test assembly. The time fixtures are original works
+  with made-up dates: `time-points` (three readings on January 1, 6, and 11, 2024), `time-bars` (six visits in the
+  months January to March 2024), `time-zone` (three readings, one at 2024-03-05T20:00Z), `time-filter` (eight readings
+  across 2023 and 2024), `time-legend` (three samples whose color is the date), and `time-parse` (three day-first dates
+  `05/03/2024`, `15/03/2024`, and `25/03/2024` in the CSV file)
 - **Fonts**: Rendering uses the Liberation fonts bundled with the core `DemaConsulting.CanvasNet` package; no
   installed font is required, and the font scenario proves that installed fonts are not consulted by default
 - **Time zone and culture**: Output does not depend on the machine's time zone or culture. The default time zone
-  of the render options is UTC, and number formatting uses fixed English separators and the Unicode minus sign
+  of the render options is UTC, the time scenarios build their zones from `TimeZoneInfo.CreateCustomTimeZone` (a fixed
+  +05:30 zone, a zone with the United States daylight saving rule, and a zone with a zero offset) and never read the
+  host's zone, and number and date formatting use fixed English names, separators, and the Unicode minus sign (the
+  culture scenarios render under `tr-TR` and `de-DE`)
 - **Threads**: The determinism scenario renders one document from sixteen concurrent tasks and compares each
   result with a single-threaded baseline, and the transforms scenario does the same from twelve tasks; the
   handler-thread scenario records the managed thread on which each handler ran and compares it with the caller's
@@ -471,9 +499,10 @@ center while the larger still covers a pixel there).
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`
 
-Renders a document whose first calculate calls `datetime(...)` (a function of a later phase) and whose second stores
+Renders a document whose first calculate calls `geoArea(...)` (a function of a later phase; `datetime`, which this
+scenario used before the time functions were supported, is computed now) and whose second stores
 `regexp('a')` (a value that has no cell form). Asserts that the chart renders and that the events are, in order,
-the unsupported feature `vl-expr-function-datetime` at `/transform/0/calculate`, line 2, column 33, the string value of
+the unsupported feature `vl-expr-function-geoarea` at `/transform/0/calculate`, line 2, column 33, the string value of
 the expression, and then the warning `vl-expr-runtime` at `/transform/1/calculate`, line 3, column 33 (the warning of the
 transform stage follows the reports of the specification); and that strict mode throws
 `VegaLiteUnsupportedFeatureException` for the first report, delivers only that report, and never delivers the warning
@@ -483,12 +512,12 @@ that would have come later.
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
-Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, `quantile`, and
-`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a condition on the `x` channel (which takes
-none). Asserts that each is
+Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, and `quantile`, a
+`timeUnit` transform (supported since Phase 8, so it is computed and not reported), a calculate that calls `now` and
+`format`, and a condition on the `x` channel (which takes none). Asserts that each is
 reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
-`vl-transform-density`, `vl-transform-quantile`, `vl-transform-timeunit`, `vl-expr-function-timeformat`,
-`vl-expr-function-now`, `vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that
+`vl-transform-density`, `vl-transform-quantile`, `vl-expr-function-now`, `vl-expr-function-format`,
+`vl-encoding-condition`), that nothing is executed silently, and that
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before they
 were supported are computed now and are covered by the aggregation scenarios below.
 
@@ -650,9 +679,9 @@ limit) and a canceled token stops the render with an `OperationCanceledException
 
 Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
 report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding a
-`timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
-once (`vl-encoding-timeunit` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render with a
-`VegaLiteUnsupportedFeatureException` for that feature.
+`binnedyearmonth` time unit (a binned time unit, still unsupported) next to the aggregate of `aggregate-bars.vl.json` is
+reported once (`vl-timeunit-binned` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render
+with a `VegaLiteUnsupportedFeatureException` for that feature.
 
 ### Limits: Oversized Source And Excessive Depth Fail Closed
 
@@ -812,8 +841,145 @@ one; and that a family list falls through unknown names to the next family.
 
 Asserts that the render options have no time zone set by default, which means UTC, that a caller-supplied
 `TimeZoneInfo` is stored as given, and that rendering with the default is byte-identical across repeated and
-concurrent calls. This release draws no temporal data, so the time zone is a contract of the options that later
-releases apply; the system-level evidence is that the default introduces no machine dependence into the output.
+concurrent calls. The time zone is applied by the time scenarios below (`VegaLiteTimeIntegrationTests`), which render the
+same data with and without a zone; the evidence here is that the default introduces no machine dependence into the
+output.
+
+### Time: Points Sit At Their Dates On A Multi-Format Axis
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis`
+
+Renders `time-points.vl.json` (three made-up readings on January 1, 6, and 11, 2024, a temporal x with `tickCount: 5`,
+300 pixels wide) in strict mode with a warning handler. Asserts that nothing is reported or warned; that the points are
+at the days 0, 5, and 10 of 10, so at 0, 150, and 300 pixels (30 pixels a day); that the x axis has the ticks of the
+d3 table for a count of 5 over 10 days (a target of 2 days: the days of the month 1, 3, 5, 7, 9, 11) labeled by Vega's
+multi-format as `2024` (January 1 starts a year; 2024 begins on a Monday), `Wed 03`, `Fri 05`, `Jan 07` (a Sunday: a
+week start that is not a month start), `Tue 09`, and `Thu 11`; that the axis title is `day`; and that the pixel of the
+grid line at the second tick (January 3, 60 pixels into the data rectangle) is the `#ddd` of a grid.
+
+### Time: Month Bars Span Their Months
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths`
+
+Renders `time-bars.vl.json` (six made-up visits: two in January, three in February, one in March 2024; a bar chart of
+the count per `yearmonth`, 300 by 150 pixels) in strict mode. The domain is January 1 to April 1, 31 + 29 + 31 = 91
+days over 300 pixels, so a day is 300 / 91 = 3.2967 pixels: the bars start at 1, 31 x 300 / 91 + 1 = 103.198, and 60 x
+300 / 91 + 1 = 198.802 and are 101.198, 94.604, and 101.198 wide (the days x 300 / 91 less the pixel of bin spacing;
+the half pixel of the axis translate is the extra 0.5 of the starts). The counts 2, 3, and 1 on the y domain 0 to 3
+(50 pixels a visit) are the heights 100, 150, and 50, all standing on y = 150. Asserts the axis labels `Jan 2024`, `Feb
+2024`, `Mar 2024`, and `Apr 2024` (the month starts of the domain, by the specifier of the unit), the title `visit
+(year-month)`, and that the pixel in the middle of the February bar near its foot is the bar color `#4c78a8`.
+
+### Time: The Time Zone Option Shifts Time-Unit Boundaries By Exactly One Day
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries`
+
+Renders `time-zone.vl.json` (three made-up level readings at 2024-03-01T12:00Z, 2024-03-05T20:00Z, and
+2024-03-11T12:00Z as points on the days of `yearmonthdate`, 400 pixels wide, a tick every second day) in UTC and with
+`TimeZone` set to a fixed zone 5:30 hours ahead. In UTC the points are on March 1, 5, and 11 of a domain of ten days
+(40 pixels a day): 0, 160, and 400 pixels. In the +05:30 zone the middle reading (20:00Z) is 01:30 on March 6, while
+12:00Z is 17:30 local on March 1 and March 11, so the points are on March 1, 6, and 11: 0, 200, and 400. The middle point
+moves by exactly one day of the scale (40 pixels); the date labels are the same text in both zones, and the ticks are
+every second local midnight (`Mar 01, 2024` to `Mar 11, 2024`, of which parity may drop some labels, so only their order
+and text are pinned and the first is always there).
+
+### Time: A Day Across The Daylight Saving Change Is 23 Hours
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours`
+
+Renders three afternoon readings on March 9, 10, and 11, 2024 (`yearmonthdate`, 470 pixels wide, a tick every day) in a
+zone that follows the United States rule (standard time minus five hours, daylight time from 2024-03-10T07:00Z, so
+the clocks go forward at 02:00 on March 10). The local midnights are 05:00Z on March 9 and March 10 and 04:00Z on March
+11, so the domain is 24 + 23 = 47 hours long, 10 pixels an hour: the points are at 0, 240 (24 hours), and 470 pixels
+(the short day is 230 pixels long), where UTC (three 24 hour days, 48 hours over 470 pixels) puts them at 0, 235, and 470.
+The labels `Mar 09, 2024`, `Mar 10, 2024`, and `Mar 11, 2024` are all drawn (235 pixels apart).
+
+### Time: A UTC Time Unit Ignores The Zone Option
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption`
+
+Renders three readings (March 1 12:00Z, March 5 20:00Z, and March 11 12:00Z) under `utcyearmonthdate` in a +05:30 zone
+and with no zone and asserts that the points are at 0, 160, and 400 pixels in both, and that the points and the axis
+labels of the two renders are identical.
+
+### Time: A Custom Parse Directive Reads Day-First Dates
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_CustomDateParseDirectiveReadsDayMonthYear`
+
+Renders `time-parse.vl.json`, whose data is `time-parse.csv` (three made-up ticket counts on `05/03/2024`,
+`15/03/2024`, and `25/03/2024`, day first) with the directive `date:'%d/%m/%Y'`, in strict mode: the dates are March 5,
+15, and 25 (ten days apart on 200 pixels, so the points are at 0, 100, and 200 pixels). The same specification without the
+directive reads the text as month first: `15/03/2024` and `25/03/2024` are not valid dates, so only the point of
+`05/03/2024` (May 3) is drawn and a warning "could not be read as" for the field `'visit'` is delivered.
+
+### Time: Text Dates Are Parsed Implicitly
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_ImplicitParseOfTemporalStrings`
+
+Renders points whose dates are texts such as `March 5, 2024`, `March 15, 2024`, and `March 25, 2024` (no `parse`
+directive) in strict mode and asserts that they are read as dates ten days apart (0, 100, and 200 pixels on 200).
+
+### Time: Filters By Time Unit And Date-Time Object
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject`
+
+Renders `time-filter.vl.json` (eight made-up readings across 2023 and 2024; a filter that is the conjunction of a
+`month` time-unit predicate `oneOf` February and March and a `range` of date-time objects covering the year 2024) in
+strict mode. The rows that remain are those of February 5, February 25, March 15, and March 30, 2024 (February 10,
+2023 is outside the year, January 20 and April 2 and June 1 are outside the months). The domain is 24 + 30 = 54 days
+over 270 pixels (5 pixels a day), so the points are at 0, 20 x 5 = 100, 39 x 5 = 195, and 270 pixels.
+
+### Time: A Temporal Color Has A Gradient Legend Of Dates
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates`
+
+Renders `time-legend.vl.json` (three made-up samples on January 1, 6, and 11, 2024 whose circle color is the date, on
+a 200 pixel view) in strict mode with a warning handler. Asserts that nothing is reported or warned; that there is one
+legend titled `sampled`; that its labels are the two-day ticks in the format of `config.timeFormat`: `Jan 01, 2024`,
+`Jan 03, 2024`, ..., `Jan 11, 2024` (a gradient 200 pixels long asks for 4 ticks, a target of 2.5 days, nearest 2 days);
+that the gradient has 21 stops (a count of 15 targets 16 hours, nearest 12 hours: 10 x 2 + 1); and that the circle of
+the first date has the color of the first stop, the circle of the last date the color of the last stop, and the three
+circles have three different colors.
+
+### Time: Ordinal Time Units Use A Band Scale
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_OrdinalTimeUnitUsesABandScale`
+
+Renders four readings (January 15, February 10 and 20, and March 20) with an ordinal field and the unit `month` on a
+bar chart of the count, 300 pixels wide, in strict mode. The bands are those of a band scale with the bar padding: step
+300 / (3 - 0.1 + 0.1) = 100, so the bars start at 5, 105, and 205 and are 90 wide; February has two rows so its bar is
+twice as high as January's; the labels are `Jan`, `Feb`, and `Mar` and are not turned (angle 0).
+
+### Time: Strict Mode Reports Only What Is Unsupported
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`
+
+Renders `time-bars.vl.json` and `time-parse.vl.json` in strict mode without a report: temporal fields, time units, and
+date parse directives are supported. Asserts that changing the unit to `binnedyearmonth` throws a
+`VegaLiteUnsupportedFeatureException` for `vl-timeunit-binned`, and that a bar with a `timeUnitBandPosition` of 0.2 (not
+one half) throws one for `vl-encoding-bandposition-rect`, each with a known line.
+
+### Time: Tick And String Limits Fail Closed
+
+**Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced`
+
+Renders `time-points.vl.json`, whose x axis has 6 ticks, with `MaxTicks` of 5 (a `VegaLiteRenderException` at
+`/encoding/x` that names `MaxTicks`) and of 6 (renders); and the same chart with the label format `%c` (21 characters,
+22 for `1/11/2024, 12:00:00 AM`) with `MaxStringLength` of 21 (a `VegaLiteRenderException` at `/encoding/x` that names
+`the limit of 21`) and of 22 (renders); and asserts that a canceled token stops the render with an
+`OperationCanceledException`.
+
+### Time: Renders Are Deterministic, Culture-Independent, And Host-Zone-Independent
+
+**Tests**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Determinism_RepeatedAndConcurrentRendersAreByteIdentical`,
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_CurrentCultureDoesNotChangeTheOutput`,
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter`
+
+Asserts that rendering `time-bars.vl.json` in a US-like zone gives the same pixels on a repeated call and from eight
+concurrent tasks as the baseline; that `time-points.vl.json`, `time-bars.vl.json`, and `time-legend.vl.json` render the
+same pixels under the Turkish and German cultures as under the invariant culture (dates are formatted with English
+names and ASCII digits); and that a chart with no zone, a chart in `TimeZoneInfo.Utc`, and a chart in a custom zone
+with a zero offset are byte-identical, so the host's zone is never consulted.
 
 ### Platform: Every System Scenario Runs On Every Target
 
