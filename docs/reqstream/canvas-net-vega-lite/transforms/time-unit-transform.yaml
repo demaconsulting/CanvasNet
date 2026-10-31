@@ -1,0 +1,145 @@
+---
+# Software Unit Requirements for TimeUnitTransform
+#
+# These requirements describe the design-level behavior of the TimeUnitTransform unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the row transform that adds the derived start
+# and end fields of a time unit (the timeUnit transform of a specification and the implicit step of an encoding with
+# a timeUnit), computed with the TimeUnitSpec and TimeCalendar types of the Data subsystem in the calendar of the
+# chart, and the collector of the fields that are implicitly parsed as dates (TemporalFields). It shares the table
+# layout, the work meter, and the limits of the Transforms subsystem. Each "tests" entry cites an existing test
+# method in the DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/transforms/time-unit-transform.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: TimeUnitTransform Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Floors
+                title: >-
+                  The TimeUnitTransform unit shall add to a table, for each time unit request, a field
+                  that holds the start of the unit of the date of the source field as a date value - the
+                  floor of the Vega timeUnit transform, with the year 2012 for a unit without a year, the
+                  weekday of January 2012 for a day of the week, the quarter, the day of the year, the
+                  hours, minutes, seconds, and milliseconds, and the step of the object form - leaving the
+                  other fields as they are and replacing a field of the same name.
+                justification: |
+                  The aggregate, the scale, and the marks of a time unit chart all read this field; it must be
+                  the start that Vega-Lite computes.
+                tests:
+                  - TimeUnitTransform_YearMonth_StartAndEnd
+                  - TimeUnitTransform_Month_UsesReferenceYear2012
+                  - TimeUnitTransform_Day_IsTheWeekdayOfJanuary2012
+                  - TimeUnitTransform_Hours_Minutes_Seconds_Milliseconds
+                  - TimeUnitTransform_Quarter_YearQuarter_Ends
+                  - TimeUnitTransform_Step_ThreeMonths
+                  - TimeUnitTransform_SeveralRequestsAndReplacedFields
+                  - RowTransforms_TimeUnitTransform_ThenAggregate
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Ends
+                title: >-
+                  The TimeUnitTransform unit shall add the end field of each request, the start moved
+                  forward by one step of the smallest part of the unit as the Vega timeUnit transform
+                  does, so that a bar or a rect can span its unit, and, for a binned unit, shall keep the
+                  value as the start and give the end one step later.
+                justification: |
+                  A bar over a month must reach the start of the next month, whatever the length of the
+                  month.
+                tests:
+                  - TimeUnitTransform_YearMonth_StartAndEnd
+                  - TimeUnitTransform_Quarter_YearQuarter_Ends
+                  - TimeUnitTransform_BinnedUnit_KeepsTheValueAsTheStart
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Zone
+                title: >-
+                  The TimeUnitTransform unit shall floor in the time zone of the chart for a local unit
+                  (so that a day is a local day, 23 or 25 hours long across a daylight saving change) and in
+                  UTC for a utc unit whatever the zone is, so that a time zone changes the groups of a local
+                  unit and never those of a utc unit.
+                justification: |
+                  A chart of days by month must follow the zone the caller chose, and a utc unit must not.
+                tests:
+                  - TimeUnitTransform_Utc_ZoneIndependent
+                  - TimeUnitTransform_Zone_LocalDayAcrossDst
+                  - RowTransforms_TimeUnitTransform_UsesTheChartZone
+                  - EncodingTransforms_TimeUnit_FollowsTheCalendarOfTheChart
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-MaxBins
+                title: >-
+                  The TimeUnitTransform unit shall resolve a time unit of the maxbins form from the extent of
+                  the dates of the table (one pass, skipped for an empty table, giving null fields when
+                  no date is valid) to the interval of the Vega timeBin, hand the resolved unit to the
+                  stages that name and draw it, and fail with a located error when maxbins is larger than the
+                  scale domain limit.
+                justification: |
+                  A time histogram picks its bins from its data; the unit that was picked must be known to
+                  the axis and the marks.
+                tests:
+                  - TimeUnitTransform_MaxBins_Day
+                  - TimeUnitTransform_MaxBins_Month
+                  - TimeUnitTransform_MaxBins_ResolvedUnitsAndEmptyTables
+                  - TimeUnitTransform_MaxBins_AboveTheLimitFails
+                  - EncodingTransforms_MaxBins_HandsOnTheResolvedUnit
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Invalid
+                title: >-
+                  The TimeUnitTransform unit shall give null in both fields for a value that is null, is not
+                  a date, is a boolean, is a date text that was not parsed, or is outside the supported
+                  range, and shall read a date text that the loader parsed implicitly as a date, never
+                  throwing for a value of the table.
+                justification: |
+                  A bad date must not stop the chart; it has no unit and is not drawn, like any null.
+                tests:
+                  - TimeUnitTransform_NullAndInvalidAndStringDates_YieldNull
+                  - TimeUnitTransform_ImplicitParseReadsTextDates
+                  - TimeUnitTransform_Apply_RejectsNullArguments
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
+                title: >-
+                  The TimeUnitTransform unit shall check the fields it adds against the field limit and
+                  the cells against the cell limit before it allocates the derived table, check the names of
+                  the derived fields against the string-length limit, charge the step budget per row and
+                  request (more for a zone than for UTC), and observe the cancellation token at least every
+                  1,024 rows, failing closed with a located VegaLiteRenderException.
+                justification: |
+                  A time unit adds two fields to every row; an untrusted specification must not be able to
+                  exhaust memory or time with it.
+                tests:
+                  - TimeUnitTransform_FieldLimit_IsCheckedBeforeAllocation
+                  - TimeUnitTransform_OutputNameIsCheckedAgainstTheStringLimit
+                  - TimeUnitTransform_Cancellation_StopsTheRowLoop
+                  - TimeUnitTransform_StepsAreCharged
+                  - TimeUnitTransform_ZonedRowsCostMoreThanUtcRows
+                  - EncodingTransforms_TimeUnit_FailureIsLocatedAtTheChannelUnit
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Determinism
+                title: >-
+                  The TimeUnitTransform unit shall give the same rows for the same table, unit, and calendar
+                  on every run, in every culture, and on every platform.
+                justification: |
+                  Reproducibility of the groups of a chart is required for golden tests and caching.
+                tests:
+                  - TimeUnitTransform_Deterministic_AcrossRunsAndCultures
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFields
+                title: >-
+                  The TimeUnitTransform unit shall collect, as canonical field names, the fields of a view
+                  that are implicitly parsed as dates - the fields of an encoding definition of type
+                  temporal, with a timeUnit, or with the time format type (also of a secondary channel,
+                  a condition, and an array of definitions), the fields of a timeUnit transform, and the
+                  fields of a filter or condition predicate that has a time unit or a datetime object,
+                  also inside and, or, and not - and nothing for a view without such a field.
+                justification: |
+                  Vega-Lite parses these fields as dates without a parse property; the loader needs the set
+                  to do the same, and only for the main data of the view.
+                tests:
+                  - TemporalFields_Collect_NothingWithoutTemporalFields
+                  - TemporalFields_Collect_TypeTimeUnitAndFormatType
+                  - TemporalFields_Collect_SecondaryChannelsConditionsArraysAndNames
+                  - TemporalFields_Collect_IgnoresDefinitionsWithoutAFieldName
+                  - TemporalFields_Collect_RejectsNull
+                  - TemporalFields_Collect_TimeUnitTransformFields
+                  - TemporalFields_Collect_FilterPredicatesWithTimeUnitsAndDatetimeObjects
+                  - TemporalFields_Collect_ConditionTests

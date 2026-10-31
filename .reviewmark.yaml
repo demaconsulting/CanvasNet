@@ -1908,8 +1908,11 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteScaleIntegrationTests.cs"  # scale integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBinnedChannelIntegrationTests.cs"  # binned channel tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteConditionalMarksIntegrationTests.cs"  # conditional tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTimeIntegrationTests.cs"  # time integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTemporalScaleTests.cs"  # temporal scale render tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # shared time test helpers (zones)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared chart test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/README.md"  # fixture provenance (original works)
@@ -2020,7 +2023,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserAggregatesTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTimeTests.cs"  # unit tests (time units)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
 
   # CanvasNetVegaLite-SpecModel-FeatureCatalog Review (one per unit)
@@ -2038,6 +2043,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/spec-model/feature-catalog.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/FeatureCatalog.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTimeTests.cs"  # unit tests (time ids)
 
   # CanvasNetVegaLite-SpecModel-ConfigResolver Review (one per unit)
   - id: CanvasNetVegaLite-SpecModel-ConfigResolver
@@ -2101,6 +2107,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/data/data-loader.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataLoader.cs"    # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderCalendarTests.cs"  # unit tests (time calendar)
 
   # CanvasNetVegaLite-Data-DataFileResolver Review (one per unit; the shared data test helpers live here)
   - id: CanvasNetVegaLite-Data-DataFileResolver
@@ -2135,6 +2142,48 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/data/delimited-text-parser.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DelimitedTextParser.cs"  # unit source (includes ParseDirectives)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DelimitedTextParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/ParseDirectivesDateTests.cs"  # unit tests (date parse)
+
+  # CanvasNetVegaLite-Data-TimeCalendar Review (one per unit)
+  - id: CanvasNetVegaLite-Data-TimeCalendar
+    title: Review that CanvasNetVegaLite Data TimeCalendar Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/time-calendar.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/time-calendar.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/data/time-calendar.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/time-calendar.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/TimeCalendar*.cs"  # unit source (calendar, zones, intervals)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/TimeUnits.cs"     # unit source (time units)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/TimeDateObject.cs"  # unit source (datetime objects)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported algorithms
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # unit test support (zones)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendar*Tests.cs"  # unit tests (calendar)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeUnitSpec*Tests.cs"  # unit tests (time units)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DateTimeObjectTests.cs"  # unit tests (datetime objects)
+
+  # CanvasNetVegaLite-Data-TimeFormat Review (one per unit)
+  - id: CanvasNetVegaLite-Data-TimeFormat
+    title: Review that CanvasNetVegaLite Data TimeFormat Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/data.md"
+      - "docs/reqstream/canvas-net-vega-lite/data.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/data/time-format.yaml"   # unit requirements
+      - "docs/design/canvas-net-vega-lite/data/time-format.md"        # unit design
+      - "docs/verification/canvas-net-vega-lite/data/time-format.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/data/time-format.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/TimeFormat*.cs"   # unit source (formatter, parser, multi-format)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/JsDateParser*.cs"  # unit source (JavaScript Date.parse rules)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported algorithms
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeFormat*Tests.cs"  # unit tests (formatter, parser)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/JsDateParserTests.cs"  # unit tests (Date.parse rules)
 
   # CanvasNetVegaLite-Expressions Review (one per subsystem)
   - id: CanvasNetVegaLite-Expressions
@@ -2201,6 +2250,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionFunctionContext.cs"  # unit source (context)
       - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionRegex.cs"  # unit source (regex translation)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTimeTests.cs"  # unit tests (time)
 
   # CanvasNetVegaLite-Transforms Review (one per subsystem)
   - id: CanvasNetVegaLite-Transforms
@@ -2234,6 +2284,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/ParameterEnvironment.cs"  # unit source (static parameters)
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TransformContext.cs"  # unit source (call context)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTimeTests.cs"  # unit tests (time)
 
   # CanvasNetVegaLite-Transforms-AggregateTransforms Review (one per unit)
   - id: CanvasNetVegaLite-Transforms-AggregateTransforms
@@ -2283,6 +2334,27 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/EncodingTransforms.cs"  # unit source (implicit pipeline)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTimeTests.cs"  # unit tests (time)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTimeTests.cs"  # unit tests (time)
+
+  # CanvasNetVegaLite-Transforms-TimeUnitTransform Review (one per unit)
+  - id: CanvasNetVegaLite-Transforms-TimeUnitTransform
+    title: Review that CanvasNetVegaLite Transforms TimeUnitTransform Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/transforms.md"
+      - "docs/reqstream/canvas-net-vega-lite/transforms.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/transforms/time-unit-transform.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/transforms/time-unit-transform.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/transforms/time-unit-transform.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/transforms/time-unit-transform.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TimeUnitTransform.cs"  # unit source (time unit fields)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TemporalFields.cs"  # unit source (implicit date fields)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeTestPipeline.cs"  # unit test support
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeUnitTransformTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TemporalFieldsTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scales Review (one per subsystem)
   - id: CanvasNetVegaLite-Scales
@@ -2312,6 +2384,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-model.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleModel.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTimeTests.cs"  # unit tests (time scales)
 
   # CanvasNetVegaLite-Scales-ScaleResolver Review (one per unit)
   - id: CanvasNetVegaLite-Scales-ScaleResolver
@@ -2331,6 +2404,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPlanTests.cs"  # unit tests (plan, sort)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverColorTests.cs"  # unit tests (colors)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverBinTests.cs"  # unit tests (binned channels)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTimeTests.cs"  # unit tests (temporal fields)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
@@ -2346,8 +2420,9 @@ reviews:
       - "docs/design/canvas-net-vega-lite/scales/ticks.md"            # unit design
       - "docs/verification/canvas-net-vega-lite/scales/ticks.md"      # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scales/ticks.sysml"   # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/Ticks.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/Ticks*.cs"      # unit source (linear and time ticks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/TicksTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/TicksTimeTests.cs"  # unit tests (time ticks)
 
   # CanvasNetVegaLite-Scales-NumberFormat Review (one per unit)
   - id: CanvasNetVegaLite-Scales-NumberFormat
@@ -2463,6 +2538,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/guides/axis-builder.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/AxisBuilder.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTimeTests.cs"  # unit tests (time axes)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
@@ -2499,10 +2575,28 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Symbols.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Gradient.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Grid.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Time.cs"  # unit source (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTimeTests.cs"  # unit tests (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Guides-TimeLabels Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-TimeLabels
+    title: Review that CanvasNetVegaLite Guides TimeLabels Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/time-labels.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/time-labels.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/time-labels.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/time-labels.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/TimeLabels.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TimeLabelsTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Layout Review (one per subsystem)
   - id: CanvasNetVegaLite-Layout
@@ -2579,6 +2673,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs"  # unit tests (Phase 7)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTimeTests.cs"  # unit tests (time units)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph Review (one per subsystem)

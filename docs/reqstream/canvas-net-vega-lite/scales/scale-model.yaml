@@ -2,8 +2,9 @@
 # Software Unit Requirements for ScaleModel
 #
 # These requirements describe the design-level behavior of the ScaleModel unit of the Scales subsystem
-# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable linear, band, point, and ordinal
-# scale mappings, with the d3-scale arithmetic and the Vega band-space rule, and the color and discretizing
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable linear, time and UTC, band, point,
+# and ordinal scale mappings, with the d3-scale arithmetic and the Vega band-space rule, and the color and
+# discretizing
 # scales (sequential, diverging, quantize, quantile, threshold, and bin-ordinal) with their output ranges. See
 # docs/verification/canvas-net-vega-lite/scales/scale-model.md for the test-evidence mapping.
 
@@ -32,6 +33,29 @@ sections:
                   - ScaleModel_CreateLinear_PiecewiseEdgeCases
                   - ScaleModel_BandSpace_MatchesVega
                   - ScaleModel_WrongKind_Throws
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-TimeScales
+                title: >-
+                  The ScaleModel unit shall provide the time and UTC scale kinds, which map a date (a
+                  millisecond instant) to a position with the arithmetic of d3 scaleTime - the same linear
+                  and piecewise mapping as a linear scale, with clamping, rounding, a reversed range,
+                  inversion to an instant, and the fraction of the domain - give no position to a value that
+                  is not a valid date, treat a time and a UTC scale identically in that arithmetic, and
+                  carry the time calendar for the ticks and the nice boundaries.
+                justification: |
+                  A time axis and the marks on it are placed by this mapping; it must equal the d3 mapping for
+                  dates, and the kind must stay distinct from the linear kind so that no site that handles
+                  numbers treats dates as numbers by accident.
+                tests:
+                  - ScaleModel_Time_MapsDatesLinearly
+                  - ScaleModel_Time_Invert_RoundTrips
+                  - ScaleModel_Time_Clamp
+                  - ScaleModel_Time_Reverse
+                  - ScaleModel_Time_Piecewise3Entries
+                  - ScaleModel_Time_InvalidDateHasNoPosition
+                  - ScaleModel_Time_Utc_And_Time_MapIdentically
+                  - ScaleModel_Time_Calendar_IsStored
+                  - ScaleModel_Time_Fraction_IsThePositionInTheDomain
 
               - id: CanvasNetVegaLite-Scales-ScaleModel-Ordinal
                 title: >-

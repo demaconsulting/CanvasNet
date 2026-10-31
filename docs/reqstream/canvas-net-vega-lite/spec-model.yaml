@@ -6,7 +6,9 @@
 # that builds an immutable tree with positions (SpecParser), the catalog that reports every recognized
 # construct outside the supported subset (FeatureCatalog), and the configuration resolver (ConfigResolver).
 # Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser); Phase 6
-# adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding.
+# adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding;
+# Phase 8 adds the validation of the time units, datetime objects, and tick intervals and the translation of
+# the time predicates, and retires the reports of the constructs that the time phase draws.
 # SpecModel knows everything about the specification text and nothing about data or pixels. Each requirement
 # here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/spec-model.md for the test-evidence mapping.
@@ -117,6 +119,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -125,7 +128,33 @@ sections:
               - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
               - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
               - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
+              - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
+              - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+
+          - id: CanvasNetVegaLite-SpecModel-TimeValidation
+            title: >-
+              The SpecModel subsystem shall validate, when a specification is parsed, the time units (a name
+              or an object, wherever it is written), the datetime objects (in a domain, a value list, a
+              predicate, a sort array, and a datum), the interval of a tick count or of nice, the timeUnit
+              transform, and the numeric time unit band properties of a mark, failing with a located
+              specification exception at the offending value, shall translate a time predicate to a compiled
+              expression, and shall classify the timeUnit transform as supported.
+            justification: |
+              A mistake in a time unit, a datetime object, or an interval must be found when the
+              specification is opened, with its location, before any data is read.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-TimeUnits
+              - CanvasNetVegaLite-SpecModel-SpecParser-DateTimeObjects
+              - CanvasNetVegaLite-SpecModel-SpecParser-TickIntervals
+              - CanvasNetVegaLite-SpecModel-SpecParser-TimePredicates
+            tests:
+              - SpecParser_TimeUnit_AcceptsEveryName
+              - SpecParser_TimeUnit_UnknownUnitIsLocated
+              - SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated
+              - SpecParser_TickCountInterval_Validated
+              - SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate
+              - PredicateSource_TimeUnit_Equal_Month
 
           - id: CanvasNetVegaLite-SpecModel-ExpressionValidation
             title: >-

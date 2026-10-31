@@ -7,7 +7,7 @@
 # the configuration - including the derived fields, domains, and sort orders of the implicit bin, aggregate, and
 # stack that the EncodingPlan unit plans, and the colors, schemes, and ranges of the color and non-position channels
 # (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
-# ScaleResolver.Range.cs). See
+# ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields). See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
@@ -372,3 +372,94 @@ sections:
                 tests:
                   - ScaleResolverColor_Resolve_FieldInAConditionGivesTheChannelItsScale
                   - LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TemporalTypes
+                title: >-
+                  The ScaleResolver unit shall give a temporal field a scale and choose its kind as Vega-Lite
+                  does - a time scale (a UTC scale when the time unit is utc) for the position, size, opacity,
+                  stroke width, and angle channels, a continuous color scale (drawn as a sequential scale
+                  over milliseconds) for the color channels, and an ordinal scale for shape and stroke
+                  dash - accept the explicit scale types time and utc for a temporal field (and only those),
+                  replace any other type, an explicit time or utc type of a quantitative, nominal, or ordinal
+                  field, and a temporal field on the shape and stroke dash channels by the default
+                  with a report, and keep the other scale rules (range, reverse, clamp, round, and descending
+                  sort) as for a linear scale, a vertical time axis running upward.
+                justification: |
+                  Which scale a temporal channel gets decides how dates are positioned; it must follow the
+                  Vega-Lite rules so the same specification gives the same chart.
+                tests:
+                  - ScaleResolver_Temporal_XDefaultsToATimeScaleWithTheDataExtent
+                  - ScaleResolver_UtcTimeUnit_GivesAUtcScale
+                  - ScaleResolver_ExplicitTypeTimeAndUtc
+                  - ScaleResolver_AcceptsScaleType_PinsTheTemporalTable
+                  - ScaleResolver_TemporalSize_And_Opacity_UseTheTimeScale
+                  - ScaleResolver_TimeScale_RangeReverseClampRound
+                  - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TemporalDomains
+                title: >-
+                  The ScaleResolver unit shall derive the domain of a time scale from the extent of the dates
+                  of its field (a bar or rect of a time unit with a band end also from the end field, a point
+                  from the starts only), with no zero and no nice by default and no padding for the bars of a
+                  time unit, an explicit domain whose entries are timestamps, date texts (read by the
+                  JavaScript date rules), datetime objects, or, for a single local unit, the part of the
+                  unit, domainMin, domainMax, and domainMid as timestamps or datetime objects, the default
+                  domain 0 to 1 for a field without a valid date, the single instant of a datum, the entries
+                  of an explicit domain and of a sort array bounded by the scale domain limit before any
+                  of them is converted, and the calendar of the scale for the entries (UTC for a UTC scale).
+                justification: |
+                  The domain decides which dates the chart shows; each of these rules is a Vega-Lite rule, and
+                  the limits keep a hostile domain from exhausting memory.
+                tests:
+                  - ScaleResolver_Temporal_EmptyDataGivesADefaultDomain
+                  - ScaleResolver_TimeUnitBarDomainIncludesTheEnd
+                  - ScaleResolver_TimeUnitPointDomainIsTheStartsOnly
+                  - ScaleResolver_BarPaddingNotAppliedForTimeUnit
+                  - ScaleResolver_DomainStringsAndDatetimeObjects
+                  - ScaleResolver_DomainOfASingleUnit_NamesParts
+                  - ScaleResolver_DomainMinMaxDatetime
+                  - ScaleResolver_Datum_Temporal
+                  - ScaleResolver_ConfigAndSpecArraysRespectMaxScaleDomainSize
+                  - ScaleResolver_TimeUnit_InAZone_FollowsTheLocalDay
+                  - ScaleResolver_Deterministic_UnderCultures
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TimeNice
+                title: >-
+                  The ScaleResolver unit shall apply the nice property of a time scale as true, as a count,
+                  as an interval name, or as an interval and a step to the domain with the time nice
+                  algorithm in the zone of the scale (a UTC scale in UTC), leaving a time scale not nice
+                  when nice is not given.
+                justification: |
+                  A nice time domain ends on a boundary a reader recognizes, and Vega-Lite does not make a
+                  time domain nice by default.
+                tests:
+                  - ScaleResolver_NiceTrueAndInterval
+                  - ScaleResolver_NiceInAZone_UsesLocalBoundaries
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-DiscreteTimeUnits
+                title: >-
+                  The ScaleResolver unit shall give a nominal or ordinal field with a time unit a band, point,
+                  or ordinal scale over the dates of the derived start field, in the order of the dates (or
+                  descending when the sort says so), with an explicit domain and a sort array converted by the
+                  rule of the unit.
+                justification: |
+                  A bar chart over months as categories is a common chart; its categories must be the unit
+                  starts in date order.
+                tests:
+                  - ScaleResolver_OrdinalTimeUnit_UsesABandScaleSortedByDate
+                  - ScaleResolver_OrdinalTimeUnit_SortDescending
+                  - ScaleResolver_SortArrayOfDatetimeObjects
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TemporalColor
+                title: >-
+                  The ScaleResolver unit shall resolve a temporal field on a color channel as a continuous
+                  scale over milliseconds with the range, scheme, interpolation, and domain rules of a
+                  sequential scale, replacing the discretizing types quantile, quantize, and threshold,
+                  which a temporal field does not accept, by the sequential scale, and shall let the legend and
+                  the marks read the calendar and the time unit of the scale.
+                justification: |
+                  A chart that colors by date needs the scale to be a continuous color scale and the legend to
+                  label dates; Vega-Lite does not discretize a temporal field.
+                tests:
+                  - ScaleResolver_TemporalColor_IsSequentialOverMilliseconds
+                  - ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential

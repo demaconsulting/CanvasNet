@@ -1,0 +1,72 @@
+---
+# Software Unit Requirements for TimeLabels
+#
+# These requirements describe the design-level behavior of the TimeLabels unit of the Guides subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Guides): the label rules that the axis and the legend builders share
+# for a time scale and for a field with a time unit - the choice of the label formatter in the order of Vega-Lite,
+# the reading of an interval tickCount, Vega-Lite's default tick count of a time unit, and the reading of a
+# date given as a value of an axis or a legend. It uses the TimeFormat, TimeCalendar, and TimeUnitSpec units of the
+# Data subsystem and the time ticks of the Scales subsystem. Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/guides/time-labels.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: TimeLabels Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-TimeLabels-FormatChoice
+                title: >-
+                  The TimeLabels unit shall choose the formatter of the labels of a time guide in the order of
+                  Vega-Lite: a format given as text is a d3 time format (in the zone of the scale, or UTC for
+                  a utc scale or a utc unit), a format given as an object is the Vega multi-format with its
+                  overrides, without a format a field with a time unit uses the default specifier of the
+                  unit, and otherwise the guide uses the default multi-format (an axis) or the configured
+                  time format (a legend), the format type number formatting the millisecond value with the
+                  number format, and the format types time and utc forcing the time labels.
+                justification: |
+                  The axis and the legend must label the same date the same way, and the choice is what
+                  decides whether a month axis reads Mar or 2024-03-01.
+                tests:
+                  - TimeLabels_Create_ChoosesTheFormatInTheOrderOfVegaLite
+                  - TimeLabels_Create_FormatTypesNumberAndUtc
+                  - TimeLabels_IsKnownFormatType_NumberTimeAndUtc
+
+              - id: CanvasNetVegaLite-Guides-TimeLabels-TickRequests
+                title: >-
+                  The TimeLabels unit shall read a tickCount that is an interval name or an object with an
+                  interval and a step as a time tick request, giving none for a number or a value that is
+                  not an interval, and shall use the Vega default tick count (ten) instead of the count
+                  from the size of the guide only for a field whose time unit is exactly a month, hours, a
+                  day, or a quarter.
+                justification: |
+                  The number of time ticks decides how readable the axis is; Vega-Lite's rule is a particular
+                  one and must be followed.
+                tests:
+                  - TimeLabels_IntervalRequest_ReadsNamesAndObjects
+                  - TimeLabels_UsesVegaDefaultCount_OnlyForSingleMonthHoursDayQuarter
+
+              - id: CanvasNetVegaLite-Guides-TimeLabels-Instants
+                title: >-
+                  The TimeLabels unit shall read a date given as a value of a guide (an axis or legend value)
+                  as an instant of the calendar of the scale - a number as milliseconds, a date text through
+                  the JavaScript date rules, and a datetime object - giving NaN for a value that is not a
+                  date, so that the value is not drawn.
+                justification: |
+                  Authors give the values of an axis as dates; a value that cannot be read must be skipped,
+                  not crash the chart.
+                tests:
+                  - TimeLabels_ReadInstant_NumbersTextsObjectsAndNonDates
+
+              - id: CanvasNetVegaLite-Guides-TimeLabels-Limits
+                title: >-
+                  The TimeLabels unit shall limit every label to the string-length limit of the call, failing
+                  closed with a located VegaLiteRenderException that names the limit before an over-long label
+                  is built.
+                justification: |
+                  A format string is untrusted text that can repeat a long directive; the label must be
+                  bounded by the limits of the call.
+                tests:
+                  - TimeLabels_Create_LabelsAreBoundedByTheLimit

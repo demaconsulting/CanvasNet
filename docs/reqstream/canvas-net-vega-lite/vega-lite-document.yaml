@@ -226,12 +226,22 @@ sections:
           - id: CanvasNetVegaLite-VegaLiteDocument-TimeZone
             title: >-
               The VegaLiteDocument unit shall use UTC when the TimeZone render option is not set, and
-              shall store and use the time zone the caller sets.
+              shall, for a time zone the caller sets, create one time calendar per call from it and give
+              it to the data loader, the expression evaluator, the transforms, the scales, the guides,
+              and the marks of that call, so that the time zone (and no other zone, the host time zone,
+              or clock) decides the local time units, the parsing of a date-time without an offset, the
+              time ticks, the labels, and the date functions of expressions, and so that a utc unit,
+              scale, or function ignores it.
             justification: |
-              Output must not depend on the local time zone of the machine that renders it.
+              Output must not depend on the local time zone of the machine that renders it, and the
+              caller's zone must reach every stage that reads a date.
             tests:
               - VegaLiteRenderOptions_Defaults_AreDocumented
               - VegaLiteRenderOptions_ValidValues_AreStored
+              - DataLoader_Render_TimeZoneOptionReachesTheDataStage
+              - CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries
+              - CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption
+              - CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter
 
           - id: CanvasNetVegaLite-VegaLiteDocument-DataSources
             title: >-

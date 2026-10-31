@@ -205,3 +205,28 @@ sections:
                   - LegendBuilder_Symbol_SizeLegendShowsTheFirstConditionValueOfAFixedColor
                   - LegendBuilder_Symbol_OpacityOfConditionalChannelIsTheLargestValue
                   - LegendBuilder_Symbol_ConditionalLegendIsDeterministic
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-TemporalLabels
+                title: >-
+                  The LegendBuilder unit shall build the legend of a temporal field with the time labels of the
+                  TimeLabels unit: the gradient of a temporal color with its labels at the time ticks of the
+                  scale (the tick count as a number or an interval, the minimum step of the unit) and the ramp
+                  sampled at them, the symbols of a size or opacity on a time scale at its time ticks, and the
+                  symbols of an ordinal time unit field over its date values, labeling a date with the legend
+                  format, else the default format of the time unit, else the time format of the
+                  configuration (%b %d, %Y by default), reading explicit legend values given as timestamps, date
+                  texts, or datetime objects, using the time zone of the scale, bounding the labels, the ticks,
+                  and the items by the limits with located errors, and giving the same legend in every culture
+                  and on every call.
+                justification: |
+                  A legend of dates must say which dates each color or size stands for, in the form Vega-Lite
+                  shows, in the zone the caller chose, and bounded.
+                tests:
+                  - LegendBuilder_Time_TemporalGradient_LabelsUseConfigTimeFormat
+                  - LegendBuilder_Time_LegendFormatOverridesAndUnitSpecifier
+                  - LegendBuilder_Time_OrdinalTimeUnitSymbols_LabelWithTheUnitSpecifier
+                  - LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels
+                  - LegendBuilder_Time_ExplicitValuesAcceptDatetimeObjects
+                  - LegendBuilder_Time_Zone_LabelsUseLocalTime
+                  - LegendBuilder_Time_LimitsAndCancellation
+                  - LegendBuilder_Time_Culture_InvariantAndDeterministic

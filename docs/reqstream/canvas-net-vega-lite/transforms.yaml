@@ -7,8 +7,10 @@
 # loader and before the scales, and the static parameter environment that its expressions read; the
 # AggregateTransforms unit that runs aggregate, joinaggregate, window, bin, stack, and impute (with the bin
 # algorithm, the aggregate and window operations, and the stack rules); and the EncodingPlan unit that derives the
-# implicit bin, aggregate, and stack of the encoding and runs them after the transforms. Time-unit and
-# statistical transforms are deferred to later phases and are reported by the FeatureCatalog; selection
+# implicit bin, time unit, aggregate, and stack of the encoding and runs them after the transforms; and the
+# TimeUnitTransform unit that adds the start and end fields of a time unit (the timeUnit transform and the time
+# unit of an encoding) and collects the fields that are implicitly parsed as dates. Statistical transforms are
+# deferred to later phases and are reported by the FeatureCatalog; selection
 # parameters and conditions on a parameter stay deferred. Each requirement
 # here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
 # for the test-evidence mapping.
@@ -21,10 +23,10 @@ sections:
           - id: CanvasNetVegaLite-Transforms-Pipeline
             title: >-
               The Transforms subsystem shall run the supported transforms of the drawn view (calculate,
-              filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, stack, and
-              impute) in their written order on the table that the Data subsystem loaded, before any scale is
-              resolved, each reading an immutable table and producing a new one, shall skip a transform of a
-              later phase without approximating it, and shall expose the recoverable problems of a transform
+              filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, timeUnit,
+              stack, and impute) in their written order on the table that the Data subsystem loaded, before any
+              scale is resolved, each reading an immutable table and producing a new one, shall skip a transform
+              of a later phase without approximating it, and shall expose the recoverable problems of a transform
               as located warnings.
             justification: |
               Where transforms sit in the pipeline decides what the scales and marks see, and a transform that
@@ -234,6 +236,7 @@ sections:
               - CanvasNetVegaLite-Transforms-AggregateTransforms-Cancellation
               - CanvasNetVegaLite-Transforms-EncodingPlan-Limits
               - CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
             tests:
               - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
               - RowTransforms_Apply_CanceledTokenStopsTheTransforms
@@ -241,6 +244,7 @@ sections:
               - AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure
               - AggregateTransforms_Aggregate_CancellationIsPolled
               - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
+              - TimeUnitTransform_Cancellation_StopsTheRowLoop
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
               - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply
 
@@ -256,9 +260,56 @@ sections:
               - CanvasNetVegaLite-Transforms-RowTransforms-Determinism
               - CanvasNetVegaLite-Transforms-AggregateTransforms-Determinism
               - CanvasNetVegaLite-Transforms-EncodingPlan-Determinism
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Determinism
             tests:
               - RowTransforms_Apply_SampleIsIdenticalWhenRepeatedAndConcurrent
               - AggregateTransforms_Apply_IsDeterministicAndCultureInvariant
               - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant
+              - TimeUnitTransform_Deterministic_AcrossRunsAndCultures
               - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
               - CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical
+
+          - id: CanvasNetVegaLite-Transforms-TimeUnits
+            title: >-
+              The Transforms subsystem shall group and draw by a time unit: the timeUnit transform and the
+              time unit of an encoding add a start field and an end field to every row (the floor of the
+              date in the time zone of the chart, or in UTC for a utc unit, and one step later), name them
+              as Vega-Lite does, resolve the maxbins form from the data, give the null of a value that is
+              not a date, run between the bin and the aggregate of the encoding pipeline, group an
+              aggregate by the start, and collect the fields that the loader parses implicitly as dates.
+            justification: |
+              A chart of a count per month or per day is the most common time chart; its groups must be the
+              calendar units of the chart's time zone and its bars must know where their unit ends.
+            children:
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Floors
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Ends
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Zone
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-MaxBins
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-Invalid
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFields
+              - CanvasNetVegaLite-Transforms-EncodingPlan-TimeUnits
+            tests:
+              - TimeUnitTransform_YearMonth_StartAndEnd
+              - TimeUnitTransform_Zone_LocalDayAcrossDst
+              - TimeUnitTransform_MaxBins_Month
+              - TimeUnitTransform_NullAndInvalidAndStringDates_YieldNull
+              - TemporalFields_Collect_TypeTimeUnitAndFormatType
+              - EncodingTransforms_TimeUnitThenAggregate_CountsByMonth
+              - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
+
+          - id: CanvasNetVegaLite-Transforms-TimePredicates
+            title: >-
+              The Transforms subsystem shall keep the rows whose date satisfies a filter predicate with a
+              time unit or a datetime object (equal, lt, lte, gt, gte, range, and oneOf, with the utc
+              functions for a utc unit), comparing in the time zone of the chart, and shall leave the week
+              and day-of-year parts of a predicate unit out of the comparison, as Vega-Lite does (the
+              feature catalog warns about them).
+            justification: |
+              Filtering by month or by a date range must read the same dates as the chart draws.
+            children:
+              - CanvasNetVegaLite-Transforms-RowTransforms-TimePredicates
+            tests:
+              - RowTransforms_Filter_TimeUnitEqualMonth
+              - RowTransforms_Filter_RangeOfDatetimeObjects_NoUnit
+              - RowTransforms_Filter_ZoneChangesTheDate
+              - CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject

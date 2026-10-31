@@ -7,7 +7,10 @@
 # not draw, plus the schema-version and empty-data warnings. The supported sets are the Supported* fields of
 # the unit; a construct that becomes supported is removed from the reported set in the same change (Phase 6
 # removed the reports of aggregate, stack, bin on x and y, the aggregating transforms, and the secondary
-# channels of bars, rects, and rules, and added the reports of the parts of them that stay unsupported). See
+# channels of bars, rects, and rules, and added the reports of the parts of them that stay unsupported; Phase 8
+# removed the reports of the temporal type, the time unit, the timeUnit transform, the time scale types, the
+# time unit and date object tests, and the custom date format, and added the reports of the parts of the time
+# phase that stay unsupported). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -68,8 +71,8 @@ sections:
                   parse map, a format property, a named dataset, and a sequence), shall report the data
                   that is recognized but not read with its own identifier (text values, geographic
                   sources, and a top-level dataset that a data name refers to given as text or as an
-                  object), shall report a custom date format of a parse entry with the stable identifier
-                  vl-data-parse-date-format, and shall warn with vl-data-empty when a data object has no
+                  object), shall not report a custom date format of a parse entry (date or utc with a d3 time
+                  format, which the data stage applies), and shall warn with vl-data-empty when a data object has no
                   rows.
                 justification: |
                   Data that was not used must be explained to the author instead of leaving an unexplained
@@ -77,7 +80,7 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported
                   - FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers
-                  - FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier
+                  - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
                   - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
@@ -86,9 +89,10 @@ sections:
                   square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
                   stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and
                   angle as vl-channel-name, the shape, angle, and strokeDash channels of a mark that does not
-                  draw them (as vl-channel-name, the channel being ignored), the temporal and geographic types, and the
-                  encoding properties timeUnit, condition, impute, and bandPosition when they change the
-                  chart, but not the properties aggregate, stack, and sort (in its supported forms) and the
+                  draw them (as vl-channel-name, the channel being ignored), the geographic types, and the
+                  encoding properties impute and bandPosition when they change the
+                  chart (a bandPosition of a field without a time unit), but not the temporal type, the time
+                  unit, the properties aggregate, stack, and sort (in its supported forms) and the
                   bin of x, y, and the channels that have a scale (which the renderer draws), and no implicit
                   bar stack; shall
                   accept the
@@ -119,17 +123,19 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
                   The FeatureCatalog unit shall report scale types other than linear, log, pow, sqrt, symlog,
-                  sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, scale
+                  time, utc, sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, scale
                   properties outside the supported set (the bins property, but not the properties of the
                   continuous color scales or the base, exponent, and constant of the log, pow, and symlog
                   scales), a cubehelix interpolation
                   (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
-                  properties that the legend builder does not draw (encode, labelExpr, formatType, a title
+                  properties that the legend builder does not draw (encode, labelExpr, a format type other than
+                  number, time, and utc, a title
                   orient other than top, clipHeight, and a custom symbol path), and the guide properties and
                   encode blocks that the axis builder does not honor, shall warn (vl-scale-type-ignored) about
                   a scale type that the channel
                   or the field type cannot use (the bin-ordinal type is accepted for a binned quantitative
-                  color only), and shall not report the continuous color scales, the color
+                  color only, and a temporal field accepts only time and utc), and shall not report the
+                  continuous color scales, the color
                   schemes, the legends (which are drawn), or the properties it does honor (the identifiers
                   vl-scale-color-ramp and vl-guide-legend are retired).
                 justification: |
@@ -149,15 +155,17 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
-                  The FeatureCatalog unit shall report each transform of a later phase (timeUnit, regression,
+                  The FeatureCatalog unit shall report each transform of a later phase (regression,
                   loess, density, quantile, and extent) as vl-transform-name, every transform and every
-                  variable parameter of a nested view that is not drawn (the aggregating transforms included),
+                  variable parameter of a nested view that is not drawn (the aggregating transforms and the
+                  timeUnit transform included),
                   each selection parameter (vl-param-selection), the conditions on a parameter
                   (vl-encoding-condition-param), each projection, composition (layer, concat, hconcat,
                   vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
                   composition, shall report each construct once at its own location, and shall not report
                   the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
-                  joinaggregate, window, bin, stack, and impute or the variable parameters of the drawn view.
+                  joinaggregate, window, bin, timeUnit, stack, and impute or the variable parameters of the
+                  drawn view.
                 justification: |
                   A construct that changes what a chart means and that the renderer does not implement must be
                   reported rather than skipped, and one that it implements must not make every chart noisy.
@@ -195,8 +203,7 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report the parts of a supported transform that the renderer
                   does not execute - a filter on a selection parameter or a selection (vl-transform-filter-param),
-                  a time unit or a date object in a filter predicate (vl-transform-filter-timeunit and
-                  vl-transform-filter-datetime), a pivot operation other than sum and count
+                  a pivot operation other than sum and count
                   (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param), and a bin
                   transform whose extent is a parameter (vl-transform-bin-extent-param) - and a channel sort
                   that is not ascending, descending, null, a value list, or a sort by an operation or a channel
@@ -245,7 +252,7 @@ sections:
                   opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, and angle
                   channels, shall report vl-encoding-condition for a condition on a channel that takes none,
                   vl-encoding-condition-param for a condition or a test on a parameter that is not a variable
-                  parameter, and vl-encoding-condition-test for a time unit or a date object in a test, each
+                  parameter (a time unit or a date object in a test is evaluated and not reported), each
                   at the construct, and shall visit the expressions and the field properties of a condition
                   like those of a channel.
                 justification: |
@@ -254,7 +261,45 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_ConditionsWithATestAreNotReported
                   - FeatureCatalog_Visit_ParameterConditionsAreReported
-                  - FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported
+                  - FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported
                   - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
                   - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
                   - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
+                title: >-
+                  The FeatureCatalog unit shall report, with stable identifiers and through the same sink, the
+                  parts of the time phase that the renderer does not draw - a binned time unit (a name that starts
+                  with binned, or binned true) as vl-timeunit-binned at the value, the maxbins form of a time
+                  unit in a predicate as vl-timeunit-maxbins, a band position or a time unit band position
+                  other than one half on a bar or rect with a time unit as vl-encoding-bandposition-rect, a
+                  band position on a field with neither a time unit nor a bin as vl-encoding-bandposition, a
+                  datetime object as the datum of a channel as vl-encoding-datum-datetime, and a format type
+                  other than number, time, and utc as vl-format-type-custom - and shall warn, without ever
+                  failing in strict mode, about a week or day-of-year part of the time unit of a predicate
+                  (vl-predicate-timeunit-part), a time interval as nice or as the tick count on a scale that
+                  is not a time scale (vl-scale-nice-interval and vl-guide-axis-tickcount-interval), a zero
+                  property of a time scale (vl-scale-zero-ignored), and a scale type that a temporal field
+                  cannot use (vl-scale-type-ignored); and shall no longer report the temporal type, a time unit
+                  in an encoding, the timeUnit transform of the drawn view, the time scale types, a time unit
+                  or datetime object in a filter predicate or condition test, and a custom date format
+                  (the identifiers vl-type-temporal, vl-encoding-timeunit, vl-transform-timeunit,
+                  vl-scale-time, vl-scale-utc, vl-transform-filter-timeunit, vl-transform-filter-datetime,
+                  vl-encoding-condition-test, and vl-data-parse-date-format are retired).
+                justification: |
+                  A time construct that the renderer cannot draw must be named at the place it is written, and
+                  one that it draws must not make every chart noisy; the names are what tools and builds react
+                  to, so the retired ones must be gone and the new ones stable.
+                tests:
+                  - FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported
+                  - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
+                  - FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly
+                  - FeatureCatalog_Visit_BandPositionIdentifiers
+                  - FeatureCatalog_Visit_DatumDatetimeIsReported
+                  - FeatureCatalog_Visit_IntervalsOnScalesThatAreNotTimeScales
+                  - FeatureCatalog_Visit_TimeAndUtcScaleTypesFollowVegaLite
+                  - FeatureCatalog_Visit_ZeroOnATimeScaleIsAWarning
+                  - FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings
+                  - FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone
+                  - FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows
+                  - FeatureCatalog_Visit_FormatTypesNumberTimeAndUtcAreEvaluated

@@ -66,7 +66,8 @@ sections:
                   numbers and strings in the total order.
                 justification: |
                   Dates parsed from data files must mean the same instant on every machine and must scale
-                  and sort predictably; the later time phase builds on this representation.
+                  and sort predictably; the TimeCalendar, TimeFormat, and time scale units build on this
+                  representation and share its range.
                 tests:
                   - DataTable_DateValuesHaveDeterministicQuantitativeAndTextForms
 

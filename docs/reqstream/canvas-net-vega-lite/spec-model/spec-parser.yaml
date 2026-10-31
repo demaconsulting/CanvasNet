@@ -7,7 +7,9 @@
 # partial file SpecParser.Validation.cs, the compilation of expressions and the validation of parameters and
 # transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), the validation
 # of the aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) and of the aggregate, bin,
-# stack, and sort of an encoding in SpecParser.Aggregates.cs, and the
+# stack, and sort of an encoding in SpecParser.Aggregates.cs, the validation of the time units, the datetime
+# objects, the tick and nice intervals, the timeUnit transform, and the time predicates in SpecParser.Time.cs
+# (with the predicate-to-expression translation of PredicateSource.cs), and the
 # SpecMetadata reader. See
 # docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
 
@@ -76,9 +78,11 @@ sections:
                   delimiter that is not exactly one character that can separate fields (an empty one, a
                   longer one, a quote, a line break, or a value that is not text), for a parse property that
                   is not auto, null, or an object, for a parse entry that is not a known type or a date
-                  format (number, boolean, date, string, date:format, utc:format), for a format property that
+                  format (number, boolean, date, string, date:'format', utc:'format') or whose date or utc
+                  format is not a quoted text, for a format property that
                   is not text, for a sequence step that is not a number, and for an empty sequence field
-                  name, and shall accept the documented valid forms, including a custom date format, a
+                  name, and shall accept the documented valid forms, including a custom date format in
+                  quotes, a
                   negative or zero sequence step, and top-level datasets of every kind.
                 justification: |
                   The data stage reads these properties as given; a malformed one must stop the renderer
@@ -143,7 +147,8 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Transforms
                 title: >-
                   The SpecParser unit shall validate the shape of the supported transforms of every view
-                  (calculate, filter and its predicates, fold, flatten, sample, pivot, and lookup, with their
+                  (calculate, filter and its predicates, fold, flatten, sample, pivot, lookup, and timeUnit,
+                  with their
                   required and optional properties, field lists, names, and counts) and of the predicates
                   that compose them with a located VegaLiteSpecException at the first wrong value in document
                   order, shall require that a predicate param names a declared parameter, and shall accept
@@ -238,6 +243,86 @@ sections:
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
                   - SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-TimeUnits
+                title: >-
+                  The SpecParser unit shall validate a timeUnit wherever it is written (a channel definition, a
+                  condition, a predicate, and the timeUnit transform with its field and as) - a name of the
+                  documented time units with the utc and binned prefixes, or an object with unit or maxbins,
+                  step, utc, and binned of the right kinds, warning about an unknown member of the object -
+                  with a located VegaLiteSpecException at the value for an unknown unit or a bad member,
+                  shall validate the numeric band properties of a mark (timeUnitBandPosition and
+                  timeUnitBandSize), a bad value being an error in the specification and ignored in a
+                  caller's configuration, and shall classify the timeUnit transform as supported.
+                justification: |
+                  The transform and encoding stages read a time unit as written; a misspelled unit must stop the
+                  renderer with its location instead of drawing an ungrouped chart.
+                tests:
+                  - SpecParser_TimeUnit_AcceptsEveryName
+                  - SpecParser_TimeUnit_UnknownUnitIsLocated
+                  - SpecParser_TimeUnit_ObjectForm_ValidatesMembers
+                  - SpecParser_TimeUnit_UnknownMemberIsAWarning
+                  - SpecParser_TimeUnit_Binned_ParsesAndIsReported
+                  - SpecParser_MarkTimeUnitBand_NonNumberIsAnErrorInTheSpecAndIgnoredInTheCallerConfig
+                  - SpecParser_TimeUnitTransform_ValidatesFieldAndAs
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-DateTimeObjects
+                title: >-
+                  The SpecParser unit shall validate a datetime object (the members year, quarter, month, date,
+                  day, hours, minutes, seconds, milliseconds, and utc, a month or day as a number or a name,
+                  an object with no member being an error) in a scale domain, domainMin and domainMax, the
+                  values of an axis and of a legend, the value of a predicate, the sort array of a temporal
+                  field, and the datum of a channel, with a located VegaLiteSpecException at the member that
+                  is wrong, and shall leave an expression reference and a repeated datum alone.
+                justification: |
+                  A datetime object that cannot be read must be found where it is written; a wrong month name
+                  would otherwise draw a wrong date.
+                tests:
+                  - SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated
+                  - SpecParser_DateTimeObject_ExpressionReferencesAndRepeatDatumsAreLeftAlone
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-TickIntervals
+                title: >-
+                  The SpecParser unit shall validate a time interval given as the tickCount of an axis or a
+                  legend or as the nice property of a scale - one of the eight interval names
+                  (millisecond, second, minute, hour, day, week, month, year), or an object with a known
+                  interval and a step above zero - with a located VegaLiteSpecException at the offending
+                  value.
+                justification: |
+                  An interval that the tick generator cannot read must stop the renderer with its location.
+                tests:
+                  - SpecParser_TickCountInterval_Validated
+                  - SpecParser_IsTimeInterval_NamesTheEightIntervals
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-TimePredicates
+                title: >-
+                  The SpecParser unit shall write a filter or condition predicate that has a time unit or a
+                  datetime object as an expression (the left side the datetime of the unit parts of the
+                  field, the right side the datetime of the value, the utc functions for a utc unit, the
+                  parts week and dayofyear omitted with a warning, a range as a pair of comparisons, and
+                  oneOf as an index test), in every culture identically, compile it once under the
+                  predicate so that the row transforms and the conditions evaluate it, and bound a oneOf
+                  list of times by the scale domain limit and the expression length limit.
+                justification: |
+                  A time predicate is an expression like any other; compiling it once keeps its cost bounded
+                  and its meaning that of Vega-Lite.
+                tests:
+                  - PredicateSource_TimeUnit_Equal_Month
+                  - PredicateSource_TimeUnit_Range_YearMonth
+                  - PredicateSource_TimeUnit_Range_OpenEnds
+                  - PredicateSource_TimeUnit_OneOf_Day
+                  - PredicateSource_TimeUnit_Utc_Uses_utc_functions
+                  - PredicateSource_TimeUnit_Quarter_UsesMonthTimesThree
+                  - PredicateSource_DatetimeWithoutUnit_WrapsLeftInTime
+                  - PredicateSource_WeekPart_IsOmittedAndWarned
+                  - PredicateSource_StringValueWithUnit_UsesDatetimeLiteral
+                  - PredicateSource_NumberBelow10000WithSingleUnit_UsesThePart
+                  - PredicateSource_UnitsThatApplyNothingAndExpressionValuesStayPlain
+                  - PredicateSource_IsTimeAware_AndReadUnit
+                  - PredicateSource_TimePredicates_AreCultureIndependent
+                  - PredicateSource_TimeMembers_RejectNull
+                  - SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate
+                  - SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
                 title: >-

@@ -105,6 +105,8 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/data/data-loader.yaml
   - docs/reqstream/canvas-net-vega-lite/data/data-file-resolver.yaml
   - docs/reqstream/canvas-net-vega-lite/data/delimited-text-parser.yaml
+  - docs/reqstream/canvas-net-vega-lite/data/time-calendar.yaml
+  - docs/reqstream/canvas-net-vega-lite/data/time-format.yaml
   - docs/reqstream/canvas-net-vega-lite/expressions.yaml
   - docs/reqstream/canvas-net-vega-lite/expressions/expression-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/expressions/expression-evaluator.yaml
@@ -113,6 +115,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/transforms/row-transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/encoding-plan.yaml
+  - docs/reqstream/canvas-net-vega-lite/transforms/time-unit-transform.yaml
   - docs/reqstream/canvas-net-vega-lite/scales.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml
@@ -126,6 +129,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/time-labels.yaml
   - docs/reqstream/canvas-net-vega-lite/layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml

@@ -133,3 +133,23 @@ sections:
             tests:
               - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
               - MarkBuilder_Build_LongDashPatternsExceedTheLimit
+
+          - id: CanvasNetVegaLite-Marks-TimeUnitBands
+            title: >-
+              The Marks subsystem shall draw a bar or rect of a time unit over its whole unit, from the start to
+              the end of the unit less the bar spacing and the share given by the band size (so that a month
+              bar spans its month in the time zone of the chart), draw the marks that do not span a unit
+              (points, ticks, and marks with a band position) at the point of their unit that the band position
+              names, and place the marks of a time scale at their dates.
+            justification: |
+              A time chart reads correctly only when its bars cover the calendar unit they count and its points
+              sit where the axis says.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-TimeUnitBands
+              - CanvasNetVegaLite-Marks-MarkBuilder-TimeUnitPositions
+            tests:
+              - MarkBuilder_Time_YearMonthBars_SpanTheirMonths
+              - MarkBuilder_Time_PointsAtTheStartOfTheUnit
+              - MarkBuilder_Time_Zone_BarsSpanLocalMonths
+              - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
+              - CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours

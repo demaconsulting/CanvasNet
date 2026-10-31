@@ -3,11 +3,12 @@
 #
 # These requirements describe the design-level behavior of the EncodingPlan unit of the Transforms subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the implicit data pipeline of a single view
-# that Vega-Lite derives from the encoding - the bins of a binned position channel, the aggregate of an aggregated
-# channel, and the stack of a stacked measure - split into the analysis of the specification that needs no data
-# (EncodingPlan.cs: the names of the derived fields, the default axis titles, and the stack decision) and its
-# execution on the transformed table (EncodingTransforms.cs), which runs the AggregateTransforms engine and the
-# bin algorithm. The scales, marks, and axes read the plan and the resulting tables, so that they agree on which
+# that Vega-Lite derives from the encoding - the bins of a binned position channel, the time units of a temporal
+# channel, the aggregate of an aggregated channel, and the stack of a stacked measure - split into the analysis
+# of the specification that needs no data (EncodingPlan.cs: the names of the derived fields, the default axis
+# titles, and the stack decision) and its execution on the transformed table (EncodingTransforms.cs), which runs
+# the AggregateTransforms engine, the bin algorithm, and the TimeUnitTransform unit. The scales, marks, and axes
+# read the plan and the resulting tables, so that they agree on which
 # field each channel draws. The naming and title rules follow Vega-Lite behavior, attributed in
 # src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
 # docs/verification/canvas-net-vega-lite/transforms/encoding-plan.md for the test-evidence mapping.
@@ -192,6 +193,46 @@ sections:
                   culture would break golden tests.
                 tests:
                   - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-TimeUnits
+                title: >-
+                  The EncodingPlan unit shall, for a channel whose field has a time unit (and no bin or
+                  aggregate), name its derived start field as Vega-Lite does (yearmonth_date,
+                  utcmonth_date, month_step_2_date, and timeunit_maxbins_10_date) with its _end companion,
+                  share one derived field between the channels that read the same field and unit, give the
+                  field a band end only when its mark spans the unit (a bar, rect, or tick on a temporal
+                  position channel without a secondary channel, and never a point, an ordinal channel, or a
+                  bin), title it with the verbal or functional default (date (year-month),
+                  YEARMONTH(date), UTCYEARMONTH(date), and TIMEUNIT(date) for maxbins), let a bin win over a
+                  unit, group an aggregate by the start (and the end when it spans), and place the time unit
+                  step between the bin and the aggregate of the pipeline (bin, time unit, aggregate,
+                  stack) in the time calendar of the chart, handing the resolved unit of a maxbins form to
+                  the scales and marks.
+                justification: |
+                  Scales, marks, and axes must agree on which derived field a time unit channel draws and
+                  on whether the bar spans its unit; Vega-Lite specifies the names, the titles, and the order.
+                tests:
+                  - EncodingPlan_Create_NamesATimeUnitFieldAndItsEnd
+                  - EncodingPlan_Create_ObjectFormNames
+                  - EncodingPlan_Create_MarksWithABandPositionSpanTheirUnit
+                  - EncodingPlan_Create_BarWithTimeUnit_HasBandEnd_PointWithTimeUnit_HasNoBandEnd
+                  - EncodingPlan_Create_OrdinalTimeUnit_HasNoBandEnd
+                  - EncodingPlan_Create_SecondaryChannel_SuppressesBandEnd
+                  - EncodingPlan_Create_TitlesVerbalFunctionalPlain
+                  - EncodingPlan_Create_AggregateGroupsByTimeUnitStart
+                  - EncodingPlan_Create_BinWinsOverTimeUnit
+                  - EncodingPlan_Create_SharedAndDistinctUnits
+                  - EncodingPlan_Create_StackUsesTheTimeUnitFields
+                  - EncodingPlan_Create_WithoutAnEncodingThereAreNoUnits
+                  - EncodingTransforms_TimeUnitThenAggregate_CountsByMonth
+                  - EncodingTransforms_TimeUnitThenAggregate_PointHasNoEndField
+                  - EncodingTransforms_BinThenTimeUnitThenAggregate_ThenStack
+                  - EncodingTransforms_StackByTimeUnitField
+                  - EncodingTransforms_SortByAggregate_KeepsTheUnitFieldsInTheRawTable
+                  - EncodingTransforms_MaxBins_HandsOnTheResolvedUnit
+                  - EncodingTransforms_TimeUnit_FollowsTheCalendarOfTheChart
+                  - EncodingTransforms_WithoutTimeUnits_HasNoUnits
+                  - EncodingTransforms_TimeUnit_FailureIsLocatedAtTheChannelUnit
 
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-ConditionalFields
                 title: >-

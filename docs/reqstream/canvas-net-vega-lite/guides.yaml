@@ -4,7 +4,8 @@
 # These requirements decompose the CanvasNetVegaLite system's guide responsibility into the Guides subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): text measurement with the bundled fonts
 # (TextMeasurer), the title and subtitle block (TitleBuilder), the axis guide with its grid, ticks, labels,
-# domain line, and title (AxisBuilder), the removal of overlapping labels (LabelOverlap), and the legend guides
+# domain line, and title (AxisBuilder), the shared rules for the labels of time guides (TimeLabels), the removal of
+# overlapping labels (LabelOverlap), and the legend guides
 # (LegendBuilder). Guides produce scene items and the extents they need; the layout places
 # them. Each requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/guides.md for the test-evidence mapping.
@@ -144,3 +145,48 @@ sections:
               - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
               - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
               - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated
+
+          - id: CanvasNetVegaLite-Guides-TimeAxes
+            title: >-
+              The Guides subsystem shall build the axis of a time or UTC scale, and of a field with a time
+              unit, with the d3 time ticks of the scale in its time zone (the tick count as a number, an
+              interval, or an interval and a step, the Vega-Lite default count and minimum step, explicit
+              values as dates), with labels chosen in the order of Vega-Lite (a d3 time format, a multi-format
+              with overrides, the default format of the time unit, or the default multi-format), with the
+              time defaults of Vega-Lite for the grid, the label flush, the overlap, and the rotation, in every
+              culture identically, and with the ticks and the label text bounded by the limits.
+            justification: |
+              A time axis is the axis of most time charts; it must read like a Vega-Lite time axis, in the zone
+              the caller chose.
+            children:
+              - CanvasNetVegaLite-Guides-AxisBuilder-TimeTicks
+              - CanvasNetVegaLite-Guides-AxisBuilder-TimeLabels
+              - CanvasNetVegaLite-Guides-AxisBuilder-TimeDefaults
+              - CanvasNetVegaLite-Guides-TimeLabels-FormatChoice
+              - CanvasNetVegaLite-Guides-TimeLabels-TickRequests
+              - CanvasNetVegaLite-Guides-TimeLabels-Instants
+              - CanvasNetVegaLite-Guides-TimeLabels-Limits
+            tests:
+              - AxisBuilder_Time_DefaultLabelsAreMultiFormat
+              - AxisBuilder_Time_TickCountNumberObjectAndInterval
+              - AxisBuilder_Time_LabelFlushAndOverlapDefaults
+              - TimeLabels_Create_ChoosesTheFormatInTheOrderOfVegaLite
+              - TimeLabels_UsesVegaDefaultCount_OnlyForSingleMonthHoursDayQuarter
+              - CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis
+
+          - id: CanvasNetVegaLite-Guides-TemporalLegends
+            title: >-
+              The Guides subsystem shall build the legends of temporal fields - the gradient of a temporal
+              color with labels at the time ticks of its scale, the symbols of a size or opacity on a time
+              scale, and the symbols of an ordinal time unit field - labeling the dates with the legend format,
+              else the default format of the time unit, else the time format of the configuration, in the time
+              zone of the scale and bounded by the limits.
+            justification: |
+              A legend of dates must say which dates each color or size stands for.
+            children:
+              - CanvasNetVegaLite-Guides-LegendBuilder-TemporalLabels
+            tests:
+              - LegendBuilder_Time_TemporalGradient_LabelsUseConfigTimeFormat
+              - LegendBuilder_Time_LegendFormatOverridesAndUnitSpecifier
+              - LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels
+              - CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates
