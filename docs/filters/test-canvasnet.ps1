@@ -124,6 +124,18 @@ try {
         '"data":{"url":"t.csv"},"mark":"bar","encoding":{"x":{"field":"k","type":"nominal"},' +
         '"y":{"field":"v","type":"quantitative"}}}')
 
+    # Charts whose data url is written the way the tool's DataFileResolver reads it: a backslash is a slash,
+    # and a percent sign is just a character (no decoding).
+    New-Item -ItemType Directory -Force -Path (Join-Path $guide 'data') | Out-Null
+    Set-Content (Join-Path $guide 'data/b.csv') -Value "k,v`na,1`nb,2"
+    Set-Content (Join-Path $guide 'pA.csv') -Value "k,v`na,1`nb,2"
+    Set-Content (Join-Path $guide 'p%41.csv') -Value "k,v`na,1`nb,2"
+    $urlSpec = '{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":120,"height":80,' +
+        '"data":{"url":"URL"},"mark":"bar","encoding":{"x":{"field":"k","type":"nominal"},' +
+        '"y":{"field":"v","type":"quantitative"}}}'
+    # In JSON, two backslashes are one: the url text is data\b.csv.
+    Set-Content (Join-Path $guide 'bs.vl.json') -Value $urlSpec.Replace('URL', 'data\\b.csv')
+    Set-Content (Join-Path $guide 'pct.vl.json') -Value $urlSpec.Replace('URL', 'p%41.csv')
     # --- Every handled input is drawn; others are left alone ---------------------------------------------
     $all = @'
 ![model](t.scad){view=iso width=50% define-h=6}
@@ -174,6 +186,26 @@ try {
 
     Invoke-Filter 'all' ($all -replace 'width=50%', 'width=70%') | Out-Null
     Write-Result (@(Get-Pictures).Count -eq $count4) 'an attribute that stays on the picture does not draw again'
+
+    # A data url is read as the tool reads it, so the filter hashes the file the tool will draw from.
+    Invoke-Filter 'bs' '![c](bs.vl.json)' | Out-Null
+    $bsBefore = @(Get-Pictures).Count
+    Set-Content (Join-Path $guide 'data/b.csv') -Value "k,v`na,1`nb,9"
+    Invoke-Filter 'bs' '![c](bs.vl.json)' | Out-Null
+    $bsAfter = @(Get-Pictures).Count
+    Write-Result ($bsAfter -eq $bsBefore + 1) 'a data file written with backslashes is hashed' "before $bsBefore, after $bsAfter"
+
+    Invoke-Filter 'pct' '![c](pct.vl.json)' | Out-Null
+    $pctBefore = @(Get-Pictures).Count
+    Set-Content (Join-Path $guide 'pA.csv') -Value "k,v`na,1`nb,9"
+    Invoke-Filter 'pct' '![c](pct.vl.json)' | Out-Null
+    $pctOther = @(Get-Pictures).Count
+    Write-Result ($pctOther -eq $pctBefore) 'a percent sign in a data url is not decoded: the other file is not hashed' `
+        "before $pctBefore, after $pctOther"
+    Set-Content (Join-Path $guide 'p%41.csv') -Value "k,v`na,1`nb,9"
+    Invoke-Filter 'pct' '![c](pct.vl.json)' | Out-Null
+    $pctAfter = @(Get-Pictures).Count
+    Write-Result ($pctAfter -eq $pctBefore + 1) 'a data file with a percent sign in its name is hashed' "before $pctBefore, after $pctAfter"
 
     # --- Pictures the filter ignores never start the tool -----------------------------------------------
     $saved = $env:CANVASNET_TOOL

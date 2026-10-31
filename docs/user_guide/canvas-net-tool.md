@@ -1215,7 +1215,7 @@ internet) is left alone, and the tool is not started for it.
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that lies
 outside the document's resource path stops the build with a message that names the picture. All other attributes
 (`width`, `height`, an identifier, a class) stay on the picture. The source is found on the document's resource path,
-like any picture.
+like any picture. The filter checks the file name only: it does not follow or check symbolic links.
 
 The filter writes each PNG to `docs/generated/canvasnet/`, a build-output folder that is ignored by Git: draw the
 pictures when you build, and never commit them. The file name is made from a hash of everything that decides the

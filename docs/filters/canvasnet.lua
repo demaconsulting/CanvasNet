@@ -36,8 +36,10 @@ Attributes this filter reads (all optional; "all" means every input type above):
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
 Every other attribute (width, height, an id or a class) stays on the picture.
 
-How it works. The source is found on the document's resource path, like a picture, and must lie inside
-one of its folders. It is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is
+How it works. The source is found on the document's resource path, like a picture, and its name must lie
+inside one of its folders. The check is on the path text (names are collapsed, so "..", and an absolute
+name, are caught); the filter does not resolve or check symbolic links or junctions, which Pandoc Lua
+cannot do, so a link inside the resource path may lead outside it. It is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is
 written to docs/generated/canvasnet/ (git-ignored through **/generated/) under a name made from a SHA-1
 of everything that decides the picture:
 
@@ -90,7 +92,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "1"
+local FILTER_VERSION = "2"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -372,8 +374,10 @@ local function resource_dirs()
   return dirs
 end
 
--- The source file as an absolute path. It must lie inside a folder of the resource path, which keeps a
--- document from reaching a file elsewhere on the machine with a "../../.." or an absolute name.
+-- The source file as an absolute path. Its collapsed name must lie inside a folder of the resource path,
+-- which keeps a document from reaching a file elsewhere on the machine with a "../../.." or an absolute
+-- name. Only the path text is checked: symbolic links and junctions are not resolved (Pandoc Lua cannot),
+-- so a link inside the resource path may lead outside it.
 local function find_source(src)
   local names = { src }
   local decoded = decode_percent(src)
@@ -446,11 +450,14 @@ end
 
 -- The data file a chart names, as an absolute path, or nil when it is not a relative file inside the
 -- specification's folder (the tool reports a remote or an outside file itself; this filter reads none).
+-- The same rules as the tool's DataFileResolver: a backslash is a slash, there is no percent decoding,
+-- and a blank text, a control character, a colon (a scheme or a drive) or a leading slash is no file.
+-- Only the path text is checked; symbolic links are not resolved (the tool itself refuses them).
 local function local_data_file(folder, url)
-  if url == "" or url:find("%c") or url:match("^%a[%w+.-]+:") or url:match("^%a:") or url:match("^[/\\]") then
+  if url:match("^%s*$") or url:find("%c") or url:find(":", 1, true) or url:match("^[/\\]") then
     return nil
   end
-  local resolved = collapse(pandoc.path.join({ folder, decode_percent(url) }))
+  local resolved = collapse(pandoc.path.join({ folder, (url:gsub("\\", "/")) }))
   if is_within(folder, resolved) and file_exists(resolved) then
     return resolved
   end
