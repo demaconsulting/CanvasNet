@@ -7553,7 +7553,7 @@ public class SvgCodecTests
     ///     transform's own literal argument is exactly at the bound (not <i>greater than</i> it,
     ///     so it is not rejected by <c>TryReadNumber</c>'s strict <c>&gt;</c> check either) -
     ///     nothing at the parse-time, pre-transform level rejects this document. Only composing the
-    ///     two - baking the transform into the path's points via <c>TransformPath</c> - produces a
+    ///     two - baking the transform into the path's points via <c>Path.Transform</c> - produces a
     ///     final magnitude (<c>10 * 1,000,000 = 10,000,000</c>) the new post-transform check
     ///     catches. The path's single degenerate cubic-curve command (<c>CubicBezierTo</c>, whose
     ///     control points coincide with its endpoint) combines with two straight-line commands

@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
 /// <summary>
-///     Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior and the shared internal
+///     Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior and the public
 ///     single-pixel <see cref="Rgba32.CompositeOver"/> Porter-Duff "over" alpha-blending helper
 ///     (reused by <c>DemaConsulting.CanvasNet.Pptx</c>'s <c>PaintPicture</c> and
 ///     <c>DemaConsulting.CanvasNet.Pdf</c>'s <c>CompositeImageOntoSurface</c>).
