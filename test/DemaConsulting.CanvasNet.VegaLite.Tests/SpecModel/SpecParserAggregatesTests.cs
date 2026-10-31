@@ -249,9 +249,9 @@ public class SpecParserAggregatesTests
     [InlineData("x", """{"field":"a","sort":["a",{}]}""", "/encoding/x/sort/1")]
     [InlineData("x", """{"field":"a","sort":["a","b",[]]}""", "/encoding/x/sort/2")]
     [InlineData("x", """{"field":"a","type":"nominal","sort":[{"year":2024}]}""", "/encoding/x/sort/0")]
-    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"yr":2024}]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"yr":2024}]}""", "/encoding/x/sort/0/yr")]
     [InlineData("x", """{"field":"a","type":"temporal","sort":[{"year":2024},{}]}""", "/encoding/x/sort/1")]
-    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"year":{"a":1}}]}""", "/encoding/x/sort/0")]
+    [InlineData("x", """{"field":"a","type":"temporal","sort":[{"year":{"a":1}}]}""", "/encoding/x/sort/0/year")]
     [InlineData("order", """{"field":"a","sort":"sideways"}""", "/encoding/order/sort")]
     [InlineData("order", """{"field":"a","sort":{"op":"sum"}}""", "/encoding/order/sort")]
     [InlineData("order", """[{"field":"a"},{"field":"b","sort":"sideways"}]""", "/encoding/order/1/sort")]
@@ -502,7 +502,7 @@ public class SpecParserAggregatesTests
     }
 
     /// <summary>
-    ///     Validates that every aggregating transform name is one the renderer accepts, and that the plain-transform predicate still
+    ///     Validates that every aggregating transform name (and the time unit transform) is one the renderer accepts, and that the plain-transform predicate still
     ///     rejects the names of later phases.
     /// </summary>
     [Fact]
@@ -510,10 +510,10 @@ public class SpecParserAggregatesTests
     {
         // Arrange / Act / Assert
         Assert.All(
-            new[] { "calculate", "filter", "fold", "flatten", "sample", "pivot", "lookup", "aggregate", "joinaggregate", "window", "bin", "stack", "impute" },
+            new[] { "calculate", "filter", "fold", "flatten", "sample", "pivot", "lookup", "aggregate", "joinaggregate", "window", "bin", "stack", "impute", "timeUnit" },
             name => Assert.True(SpecParser.IsSupportedTransform(name)));
         Assert.All(
-            new[] { "timeUnit", "regression", "loess", "density", "quantile", "extent", "" },
+            new[] { "regression", "loess", "density", "quantile", "extent", "timeunit", "" },
             name => Assert.False(SpecParser.IsSupportedTransform(name)));
     }
 }

@@ -175,6 +175,26 @@ internal sealed class DateTimeObject
     }
 
     /// <summary>
+    ///     Writes the object as the source of the expression that builds it (Vega-Lite's <c>dateTimeToExpr</c>): <c>datetime(2024, 2, 5, 0, 0, 0, 0)</c>
+    ///     for a local object and <c>utc(...)</c> for a UTC one.
+    /// </summary>
+    /// <remarks>
+    ///     The parts are the normalized ones (the month from 0, the weekday as a date), so the expression gives the same instant as
+    ///     <see cref="ToMilliseconds"/> in the calendar the expression is evaluated in.
+    /// </remarks>
+    /// <returns>The call, with every number in the invariant JavaScript form.</returns>
+    public string ToExpression() =>
+        string.Join(
+            ", ",
+            Utc ? "utc(" + JsNumber.ToString(_year) : "datetime(" + JsNumber.ToString(_year),
+            JsNumber.ToString(_month),
+            JsNumber.ToString(_date),
+            JsNumber.ToString(_hours),
+            JsNumber.ToString(_minutes),
+            JsNumber.ToString(_seconds),
+            JsNumber.ToString(_milliseconds) + ")");
+
+    /// <summary>
     ///     Reads a number compared with a field that has a time unit (Vega-Lite's <c>valueExpr</c>).
     /// </summary>
     /// <param name="value">The number.</param>
@@ -394,55 +414,83 @@ internal sealed class DateTimeObject
     /// <param name="text">The text when the value is text; otherwise null.</param>
     /// <param name="calendar">The calendar of local times.</param>
     /// <returns>The instant, or NaN when the value is not valid for the part. The parts <c>week</c> and <c>dayofyear</c> have no key in a <c>DateTime</c>, so they give the default date, as in Vega-Lite.</returns>
-    private static double FromUnitPart(string part, double number, string? text, TimeCalendar calendar)
+    private static double FromUnitPart(string part, double number, string? text, TimeCalendar calendar) =>
+        TryUnitParts(part, number, text, out var p)
+            ? calendar.FromParts(FullYear(p[0]), p[1], p[2], p[3], p[4], p[5], p[6])
+            : double.NaN;
+
+    /// <summary>
+    ///     Writes a single part of a time unit with the defaults for the others as the source of a <c>datetime(...)</c> call
+    ///     (Vega-Lite's <c>dateTimeToExpr({[unit]: value})</c>), for the comparison of a field that has a time unit with a number or a text.
+    /// </summary>
+    /// <param name="part">The part (see <see cref="FromUnitPart"/>).</param>
+    /// <param name="number">The number, or NaN when the value is the text.</param>
+    /// <param name="text">The text when the value is text; otherwise null.</param>
+    /// <param name="expression">Receives the call, for example <c>datetime(2012, 2, 1, 0, 0, 0, 0)</c> for the month <c>Mar</c>.</param>
+    /// <returns>True when the value is valid for the part.</returns>
+    internal static bool TryUnitPartExpression(string part, double number, string? text, [NotNullWhen(true)] out string? expression)
     {
-        double year = 2012;
-        double month = 0;
-        double date = 1;
-        double hours = 0;
-        double minutes = 0;
-        double seconds = 0;
-        double milliseconds = 0;
+        expression = null;
+        if (!TryUnitParts(part, number, text, out var p))
+        {
+            return false;
+        }
+
+        expression = "datetime(" + string.Join(", ", p.Select(x => JsNumber.ToString(x))) + ")";
+        return true;
+    }
+
+    /// <summary>
+    ///     Builds the seven calendar parts (year, month from 0, date, hours, minutes, seconds, milliseconds) of a single unit part with the defaults for the others.
+    /// </summary>
+    /// <param name="part">The part (see <see cref="FromUnitPart"/>).</param>
+    /// <param name="number">The number, or NaN when the value is the text.</param>
+    /// <param name="text">The text when the value is text; otherwise null.</param>
+    /// <param name="parts">Receives the seven parts.</param>
+    /// <returns>True when the value is valid for the part.</returns>
+    private static bool TryUnitParts(string part, double number, string? text, out double[] parts)
+    {
+        parts = [2012, 0, 1, 0, 0, 0, 0];
         if (!TryReadPart(part, number, text, out var value))
         {
-            return double.NaN;
+            return false;
         }
 
         switch (part)
         {
             case "year":
-                year = value;
+                parts[0] = value;
                 break;
             case "quarter":
-                month = (value - 1) * 3;
+                parts[1] = (value - 1) * 3;
                 break;
             case "month":
-                month = value;
+                parts[1] = value;
                 break;
             case "day":
-                date = value + 1;
+                parts[2] = value + 1;
                 break;
             case "date":
-                date = value;
+                parts[2] = value;
                 break;
             case "hours":
-                hours = value;
+                parts[3] = value;
                 break;
             case "minutes":
-                minutes = value;
+                parts[4] = value;
                 break;
             case "seconds":
-                seconds = value;
+                parts[5] = value;
                 break;
             case "milliseconds":
-                milliseconds = value;
+                parts[6] = value;
                 break;
             default:
                 // week and dayofyear cannot be written in a datetime object
                 break;
         }
 
-        return calendar.FromParts(FullYear(year), month, date, hours, minutes, seconds, milliseconds);
+        return true;
     }
 
     /// <summary>

@@ -658,4 +658,35 @@ public class TimeUnitSpecTests
         Assert.Equal(invariant, turkish);
         Assert.Equal(invariant, german);
     }
+
+    /// <summary>
+    ///     Validates the reader of a <c>timeUnit</c> value of a specification: a name or an object (a member that a time unit does not define is skipped, which the
+    ///     specification parser warned about), nothing for null and for other kinds of value, and the name that titles and field names are made from.
+    /// </summary>
+    [Fact]
+    public void TimeUnitSpec_TryRead_AcceptsNamesAndObjectsAndSkipsUnknownMembers()
+    {
+        // Act
+        var named = TimeUnitSpec.TryRead(TimeTestSupport.Node("\"utcyearmonth\""), out var name);
+        var described = TimeUnitSpec.TryRead(TimeTestSupport.Node("""{ "unit": "month", "step": 3, "bogus": 1 }"""), out var obj);
+        var strict = TimeUnitSpec.TryParse(TimeTestSupport.Node("""{ "unit": "month", "bogus": 1 }"""), out _, out var error);
+        var lenient = TimeUnitSpec.TryParse(TimeTestSupport.Node("""{ "unit": "month", "bogus": 1 }"""), out var kept, out _, ignoreUnknown: true);
+
+        // Assert
+        Assert.True(named);
+        Assert.True(name!.Utc);
+        Assert.Equal("utcyearmonth", name.Name);
+        Assert.True(described);
+        Assert.Equal(3, obj!.Step);
+        Assert.Equal("month_step_3", obj.Name);
+        Assert.False(strict);
+        Assert.Contains("bogus", error, StringComparison.Ordinal);
+        Assert.True(lenient);
+        Assert.Equal(["month"], kept!.Parts);
+        Assert.False(TimeUnitSpec.TryRead(TimeTestSupport.Node("null"), out _));
+        Assert.False(TimeUnitSpec.TryRead(TimeTestSupport.Node("3"), out _));
+        Assert.False(TimeUnitSpec.TryRead(TimeTestSupport.Node("\"foo\""), out _));
+        Assert.False(TimeUnitSpec.TryRead(TimeTestSupport.Node("""{ "step": 2 }"""), out _));
+        Assert.Throws<ArgumentNullException>(() => TimeUnitSpec.TryRead(null!, out _));
+    }
 }

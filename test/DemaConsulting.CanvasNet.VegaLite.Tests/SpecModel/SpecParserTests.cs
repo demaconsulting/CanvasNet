@@ -383,7 +383,7 @@ public class SpecParserTests
     [InlineData("{\"encoding\":{\"x\":{\"scale\":{\"type\":\"cubic\"}}}}", "/encoding/x/scale/type")]
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMid\":\"x\"}}}}", "/encoding/color/scale/domainMid")]
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMin\":true}}}}", "/encoding/color/scale/domainMin")]
-    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMax\":{\"a\":1}}}}}", "/encoding/color/scale/domainMax")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMax\":\"x\"}}}}", "/encoding/color/scale/domainMax")]
     [InlineData("{\"encoding\":{\"size\":{\"scale\":{\"rangeMin\":\"1\"}}}}", "/encoding/size/scale/rangeMin")]
     [InlineData("{\"encoding\":{\"size\":{\"scale\":{\"rangeMax\":[1]}}}}", "/encoding/size/scale/rangeMax")]
     [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":5}}}}", "/encoding/color/scale/interpolate")]
@@ -1108,10 +1108,10 @@ public class SpecParserTests
         // Act
         var tree = SpecParser.Parse(json);
 
-        // Assert: every site compiled, no warning (the viewing signal width is accepted in a text)
+        // Assert: every site compiled (the calculate, two filter texts, the two predicates written with the time functions and the parameter), no warning (the viewing signal width is accepted in a text)
         Assert.Empty(tree.Warnings);
         Assert.Equal(["limit", "twice", "brush", "empty"], SpecMetadata.Read(tree).ParameterNames);
-        Assert.Equal(4, tree.Expressions.Count);
+        Assert.Equal(6, tree.Expressions.Count);
     }
 
     /// <summary>

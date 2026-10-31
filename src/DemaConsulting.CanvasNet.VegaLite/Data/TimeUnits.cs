@@ -204,6 +204,9 @@ internal sealed class TimeUnitSpec
     /// <summary>Gets the local unit name without the <c>utc</c> and <c>binned</c> prefixes, or null for the <c>maxbins</c> form.</summary>
     public string? Unit { get; }
 
+    /// <summary>Gets the name Vega-Lite derives fields and functional titles from (<c>yearmonth</c>, <c>utcmonth</c>, <c>month_step_2</c>, <c>timeunit_maxbins_10</c>).</summary>
+    public string Name => _name;
+
     /// <summary>Gets a value indicating whether the unit keeps exactly one part and is a local, not binned unit (the kind a bare number can stand for).</summary>
     public bool IsSingleLocalUnit => _parts.Length == 1 && !Utc && !IsBinned;
 
@@ -249,8 +252,9 @@ internal sealed class TimeUnitSpec
     /// <param name="node">The object.</param>
     /// <param name="spec">The unit.</param>
     /// <param name="error">The reason when the object is not a time unit.</param>
+    /// <param name="ignoreUnknown">True to skip a member that a time unit does not define (the specification parser warns about it) instead of failing.</param>
     /// <returns>True when the object is a valid time unit.</returns>
-    public static bool TryParse(SpecNode node, [NotNullWhen(true)] out TimeUnitSpec? spec, out string? error)
+    public static bool TryParse(SpecNode node, [NotNullWhen(true)] out TimeUnitSpec? spec, out string? error, bool ignoreUnknown = false)
     {
         spec = null;
         error = null;
@@ -269,6 +273,11 @@ internal sealed class TimeUnitSpec
         var segments = new List<(string Key, string Value)>();
         foreach (var property in node.Properties)
         {
+            if (ignoreUnknown && property.Name is not ("unit" or "step" or "maxbins" or "utc" or "binned"))
+            {
+                continue;
+            }
+
             if (!TryReadMember(property, segments, ref unit, ref step, ref maxBins, ref utc, ref binned, out error))
             {
                 return false;
@@ -295,6 +304,29 @@ internal sealed class TimeUnitSpec
 
         spec = new TimeUnitSpec(unit is null ? [] : GetParts(unit), utc, binned, step ?? 1, maxBins, unit, core.ToString());
         return true;
+    }
+
+    /// <summary>
+    ///     Reads the <c>timeUnit</c> value of a specification that the parser has validated: a name or an object (a member that a time unit does not define is skipped).
+    /// </summary>
+    /// <param name="node">The <c>timeUnit</c> value.</param>
+    /// <param name="spec">The unit.</param>
+    /// <returns>True when the value is a time unit; false for null and for a value that is neither a string nor an object.</returns>
+    public static bool TryRead(SpecNode node, [NotNullWhen(true)] out TimeUnitSpec? spec)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (node.IsString)
+        {
+            return TryParse(node.StringValue!, out spec, out _);
+        }
+
+        if (node.IsObject)
+        {
+            return TryParse(node, out spec, out _, ignoreUnknown: true);
+        }
+
+        spec = null;
+        return false;
     }
 
     /// <summary>

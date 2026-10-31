@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
@@ -58,21 +59,23 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle; <c>shape</c> is drawn by a point, <c>angle</c> by a point, circle or square and <c>strokeDash</c> by every mark but a rect, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
-///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
+///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
-///         <item><term><c>vl-encoding-timeunit</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
+///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
+///         <item><term><c>vl-timeunit-binned</c>, <c>vl-timeunit-maxbins</c></term><description>a <c>timeUnit</c> that is not applied: a <c>binned</c> unit (a name that starts with <c>binned</c>, or <c>binned: true</c>) in an encoding, a condition, a predicate or the <c>timeUnit</c> transform (the unit is ignored and the field is used as it is), and the <c>{"maxbins": n}</c> form without a unit in a predicate (ignored). The encoding and the transform apply <c>maxbins</c>.</description></item>
+///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
+///         <item><term><c>vl-scale-nice-interval</c>, <c>vl-guide-axis-tickcount-interval</c> (warnings)</term><description>a time interval (a text or <c>{interval, step}</c>) as <c>scale.nice</c> or as the <c>tickCount</c> of an axis or legend on a scale that is not a time scale (it is ignored).</description></item>
 ///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition for every row.</description></item>
 ///         <item><term><c>vl-encoding-condition-param</c></term><description>a condition with a <c>param</c> (it never holds), and a <c>test</c> that names a selection or a parameter that is not a variable parameter.</description></item>
-///         <item><term><c>vl-encoding-condition-test</c></term><description>a predicate object in the <c>test</c> of a condition with a <c>timeUnit</c> or a date object (the condition never holds).</description></item>
 ///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
 ///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
 ///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; Vega-Lite does not stack on a log, pow, sqrt or symlog scale, so those marks are not stacked, and any other type is stacked on the linear scale.</description></item>
 ///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported. The message names the channel that the sort refers to when that is the problem (the sort stays a report, not a specification error, because a channel can come from a parent encoding after normalization).</description></item>
 ///         <item><term><c>vl-encoding-sort-ignored</c> (warning)</term><description>a <c>sort</c> array, channel shorthand, or object with a <c>field</c>, <c>op</c> or <c>encoding</c> on a quantitative field whose scale is continuous (no discrete <c>scale.type</c>): there are no categories to order and the sort is ignored. <c>ascending</c>, <c>descending</c> and null are not reported.</description></item>
 ///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
-///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize and threshold.</description></item>
+///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold and bin-ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax, interpolate, base, exponent and constant. An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
 ///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
@@ -80,8 +83,8 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c> and <c>legend.formatType</c>.</description></item>
 ///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>timeunit</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c> of the drawn view are computed and not reported.</description></item>
-///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeunit</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of the drawn view are computed and not reported.</description></item>
+///         <item><term><c>vl-transform-filter-param</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
 ///         <item><term><c>vl-composition-layer</c>, <c>-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too.</description></item>
 ///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
@@ -124,7 +127,7 @@ internal static class FeatureCatalog
     ];
 
     /// <summary>The scale types that the renderer implements.</summary>
-    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "log", "pow", "sqrt", "symlog", "sequential", "band", "point", "ordinal", "quantile", "quantize", "threshold", "bin-ordinal"];
+    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "log", "pow", "sqrt", "symlog", "sequential", "band", "point", "ordinal", "quantile", "quantize", "threshold", "bin-ordinal", "time", "utc"];
 
     /// <summary>The scale types that order categories (a quantitative field with one of them is not on a continuous scale).</summary>
     private static readonly HashSet<string> DiscreteScaleTypes = ["band", "point", "ordinal", "bin-ordinal", "quantile", "quantize", "threshold"];
@@ -220,6 +223,12 @@ internal static class FeatureCatalog
     {
         /// <summary>The specification.</summary>
         private readonly SpecTree _tree;
+
+        /// <summary>The mark definition object of the view whose encoding is visited, or null when the mark is a name.</summary>
+        private SpecNode? _mark;
+
+        /// <summary>The mark type of the view whose encoding is visited.</summary>
+        private string _markType = string.Empty;
 
         /// <summary>
         ///     Initializes a walker.
@@ -478,6 +487,8 @@ internal static class FeatureCatalog
 
             var mark = view["mark"];
             var markType = (mark is { IsString: true } ? mark.StringValue : mark?["type"]?.AsString()) ?? string.Empty;
+            _mark = mark is { IsObject: true } ? mark : null;
+            _markType = markType;
             // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
             var stacks = new Lazy<bool>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding) is not null);
             foreach (var channel in encoding.Properties)
@@ -559,28 +570,23 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitChannelDefinition(string name, SpecNode definition)
         {
-            if (definition["type"] is { IsString: true } type)
+            if (definition["type"] is { IsString: true, StringValue: "geojson" } type)
             {
-                switch (type.StringValue)
-                {
-                    case "temporal":
-                        Unsupported("vl-type-temporal", "Temporal fields are not supported yet.", type);
-                        break;
-                    case "geojson":
-                        Unsupported("vl-type-geojson", "GeoJSON fields are not supported.", type);
-                        break;
-                    default:
-                        break;
-                }
+                Unsupported("vl-type-geojson", "GeoJSON fields are not supported.", type);
             }
 
-            ReportProperty(definition, "timeUnit", n => !n.IsNull, "Time units are not supported yet.");
+            VisitTimeUnit(definition["timeUnit"], maxBinsUnsupported: false);
             VisitBin(name, definition);
             VisitStack(name, definition);
             VisitSort(name, definition);
             VisitCondition(name, definition);
             ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
-            ReportProperty(definition, "bandPosition", _ => true, "The band position of a field is not supported yet.");
+            VisitBandPosition(definition);
+            if (definition["datum"] is { IsObject: true } datum && SpecParser.IsDateTimeShaped(datum))
+            {
+                Unsupported("vl-encoding-datum-datetime", "A date-time object as the datum of a channel is not supported yet; the channel is ignored.", datum);
+            }
+
             if (name == "shape" && definition["value"] is { IsString: true } shape)
             {
                 VisitShapeName(shape);
@@ -593,6 +599,7 @@ internal static class FeatureCatalog
             }
 
             VisitScaleType(name, definition);
+            VisitIntervals(definition);
 
             if (definition["axis"] is { IsObject: true } axis)
             {
@@ -601,6 +608,114 @@ internal static class FeatureCatalog
 
             VisitLegend(name, definition);
         }
+
+        /// <summary>
+        ///     Reports a time unit that the renderer does not apply: a <c>binned</c> unit (the data is already floored; the unit is ignored and the field is used as it is),
+        ///     and, where it cannot be resolved (a predicate), the <c>maxbins</c> form that names no unit.
+        /// </summary>
+        /// <param name="timeUnit">The <c>timeUnit</c> value, or null.</param>
+        /// <param name="maxBinsUnsupported">Whether the <c>maxbins</c> form without a unit is not applied here (a predicate has no data extent to bin).</param>
+        private void VisitTimeUnit(SpecNode? timeUnit, bool maxBinsUnsupported)
+        {
+            if (timeUnit is not { IsNull: false } || !TryReadTimeUnit(timeUnit, out var unit))
+            {
+                return;
+            }
+
+            if (unit.IsBinned)
+            {
+                Unsupported("vl-timeunit-binned", "A binned time unit is not supported; the unit is ignored and the field is used as it is.", timeUnit);
+            }
+            else if (maxBinsUnsupported && unit.Parts.Count == 0)
+            {
+                Unsupported("vl-timeunit-maxbins", "A time unit given only as maxbins is not supported in a predicate; the unit is ignored and the field is compared as it is.", timeUnit);
+            }
+        }
+
+        /// <summary>
+        ///     Reads a <c>timeUnit</c> value, which the parser has validated.
+        /// </summary>
+        /// <param name="node">The string or object.</param>
+        /// <param name="unit">Receives the unit.</param>
+        /// <returns><see langword="true"/> when the value is a time unit.</returns>
+        private static bool TryReadTimeUnit(SpecNode node, [NotNullWhen(true)] out TimeUnitSpec? unit) =>
+            TimeUnitSpec.TryRead(node, out unit);
+
+        /// <summary>
+        ///     Reports the <c>bandPosition</c> that is not applied: one on a field without a time unit, and one other than 0.5 (or a mark
+        ///     <c>timeUnitBandPosition</c> other than 0.5) on a bar or rect whose field has a time unit.
+        /// </summary>
+        /// <remarks>
+        ///     Vega-Lite positions the rect of a time unit with shifted start and end fields when the band position is not the middle (0.5 with the band size 1,
+        ///     which spans the unit). The renderer spans the unit; a position on a field without a time unit, or with a bin, is not applied either.
+        /// </remarks>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitBandPosition(SpecNode definition)
+        {
+            var hasUnit = definition["timeUnit"] is { IsNull: false } timeUnit && TryReadTimeUnit(timeUnit, out var unit) && !unit.IsBinned && unit.Parts.Count > 0;
+            if (definition["bandPosition"] is { } position)
+            {
+                if (!hasUnit)
+                {
+                    Unsupported("vl-encoding-bandposition", "The band position of a field is not supported yet.", position);
+                }
+                else if (_markType is "bar" or "rect" && !(position.IsNumber && position.NumberValue.CompareTo(0.5) == 0))
+                {
+                    Unsupported("vl-encoding-bandposition-rect", "A band position other than 0.5 on the rect of a time unit is not supported; 0.5 is used.", position);
+                }
+
+                return;
+            }
+
+            if (hasUnit && _markType is "bar" or "rect" && TimeUnitBandPosition(_markType) is { } configured && configured.IsNumber && configured.NumberValue.CompareTo(0.5) != 0)
+            {
+                Unsupported("vl-encoding-bandposition-rect", "A timeUnitBandPosition other than 0.5 on a bar or rect is not supported; 0.5 is used.", configured);
+            }
+        }
+
+        /// <summary>
+        ///     Finds the <c>timeUnitBandPosition</c> that the specification gives a mark: in the mark definition, else in <c>config.&lt;mark&gt;</c> or <c>config.mark</c>.
+        /// </summary>
+        /// <param name="markType">The mark type.</param>
+        /// <returns>The value node, or null when the specification gives none.</returns>
+        private SpecNode? TimeUnitBandPosition(string markType) =>
+            _mark?["timeUnitBandPosition"]
+            ?? _tree.Root["config"]?[markType]?["timeUnitBandPosition"]
+            ?? _tree.Root["config"]?["mark"]?["timeUnitBandPosition"];
+
+        /// <summary>
+        ///     Warns about an interval given as <c>tickCount</c> or <c>nice</c> where the scale is not a time scale (the interval is ignored).
+        /// </summary>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitIntervals(SpecNode definition)
+        {
+            var scaleType = definition["scale"]?["type"]?.AsString();
+            var isTime = scaleType is null ? definition["type"]?.AsString() == "temporal" : scaleType is "time" or "utc";
+            if (isTime)
+            {
+                return;
+            }
+
+            if (definition["scale"]?["nice"] is { } nice && IsIntervalValue(nice))
+            {
+                Warn("vl-scale-nice-interval", "A time interval as 'nice' needs a time scale; it is ignored.", nice);
+            }
+
+            foreach (var guide in new[] { definition["axis"], definition["legend"] })
+            {
+                if (guide?["tickCount"] is { } tickCount && IsIntervalValue(tickCount))
+                {
+                    Warn("vl-guide-axis-tickcount-interval", "A time interval as 'tickCount' needs a time scale; the default tick count is used.", tickCount);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Tells whether a <c>tickCount</c> or <c>nice</c> value is an interval (a text or an object, not an expression reference).
+        /// </summary>
+        /// <param name="node">The value.</param>
+        /// <returns><see langword="true"/> for a text or an interval object.</returns>
+        private static bool IsIntervalValue(SpecNode node) => node.IsString || (node.IsObject && node["expr"] is not { IsString: true });
 
         /// <summary>
         ///     Reports a <c>sort</c> that is not applied: one the renderer cannot compute, one that refers to a channel the encoding does
@@ -785,11 +900,13 @@ internal static class FeatureCatalog
                 return;
             }
 
-            if (!test.IsObject || !PredicateSource.IsUnsupported(test))
+            if (!test.IsObject)
             {
                 return;
             }
 
+            // The strings inside a predicate that has a part nothing can evaluate are reported with it; a predicate that can be evaluated reports its time units only
+            var unsupported = PredicateSource.IsUnsupported(test);
             var pending = new Stack<SpecNode>();
             pending.Push(test);
             while (pending.Count > 0)
@@ -797,7 +914,10 @@ internal static class FeatureCatalog
                 var predicate = pending.Pop();
                 if (predicate.IsString)
                 {
-                    ReportConstructs(predicate);
+                    if (unsupported)
+                    {
+                        ReportConstructs(predicate);
+                    }
                 }
                 else if (predicate.IsObject)
                 {
@@ -830,9 +950,34 @@ internal static class FeatureCatalog
             {
                 Unsupported("vl-encoding-condition-param", "A test on a selection or a parameter that is not a variable is not supported yet; the condition never holds.", named);
             }
-            else if (PredicateSource.IsUnsupported(predicate))
+            else
             {
-                Unsupported("vl-encoding-condition-test", "A time unit or a date object in the test of a condition is not supported yet; the condition never holds.", predicate);
+                VisitPredicateTimeUnit(predicate);
+            }
+        }
+
+        /// <summary>
+        ///     Reports the time unit of a field predicate: a <c>binned</c> unit or the <c>maxbins</c> form (ignored), and the parts of a unit that a predicate does not apply.
+        /// </summary>
+        /// <remarks>
+        ///     Like Vega-Lite, a predicate does not apply the <c>week</c> and <c>dayofyear</c> parts of a time unit (the transform and the encoding do); the
+        ///     predicate then compares with the other parts of the unit, which is the warning <c>vl-predicate-timeunit-part</c>.
+        /// </remarks>
+        /// <param name="predicate">The field predicate object.</param>
+        private void VisitPredicateTimeUnit(SpecNode predicate)
+        {
+            if (predicate["timeUnit"] is not { IsNull: false } timeUnit)
+            {
+                return;
+            }
+
+            VisitTimeUnit(timeUnit, maxBinsUnsupported: true);
+            if (PredicateSource.ReadUnit(predicate) is { } unit && (unit.Parts.Contains("week") || unit.Parts.Contains("dayofyear")))
+            {
+                Warn(
+                    "vl-predicate-timeunit-part",
+                    "A predicate does not apply the week and dayofyear parts of a time unit (as in Vega-Lite); the other parts are compared.",
+                    timeUnit);
             }
         }
 
@@ -1031,8 +1176,8 @@ internal static class FeatureCatalog
         /// </summary>
         /// <remarks>
         ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
-        ///     window, bin, stack, impute) are reported only for the parts they do not support: expression constructs, filter
-        ///     predicates on time units, selection parameters or date objects, a pivot operation other than sum and count, a lookup
+        ///     window, bin, stack, impute, timeUnit) are reported only for the parts they do not support: expression constructs, a
+        ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), selection parameters, a pivot operation other than sum and count, a lookup
         ///     in the data of a parameter, and a bin extent that is a parameter. A transform of a view that is not drawn (a nested
         ///     view of a composition) is never applied and is reported as <c>vl-transform-&lt;name&gt;</c>, like every transform of a
         ///     later phase.
@@ -1063,6 +1208,9 @@ internal static class FeatureCatalog
                         break;
                     case "filter":
                         VisitPredicate(operation);
+                        break;
+                    case "timeUnit":
+                        VisitTimeUnit(operation, maxBinsUnsupported: false);
                         break;
                     case "pivot":
                         if (entry["op"] is { IsString: true } op && op.StringValue is not ("sum" or "count"))
@@ -1166,25 +1314,10 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Visits a field predicate: time units and date objects are not supported.
+        ///     Visits a field predicate: its time unit.
         /// </summary>
         /// <param name="predicate">The predicate object.</param>
-        private void VisitFieldPredicate(SpecNode predicate)
-        {
-            if (predicate["timeUnit"] is { } timeUnit && !timeUnit.IsNull)
-            {
-                Unsupported("vl-transform-filter-timeunit", "A time unit in a filter predicate is not supported yet; it is ignored.", timeUnit);
-            }
-
-            foreach (var comparison in new[] { "equal", "lt", "lte", "gt", "gte", "range", "oneOf" }.Select(name => predicate[name]).OfType<SpecNode>())
-            {
-                var date = comparison.IsObject ? comparison : comparison.Items.FirstOrDefault(i => i.IsObject);
-                if (date is not null)
-                {
-                    Unsupported("vl-transform-filter-datetime", "A date object in a filter predicate is not supported yet; the predicate is ignored.", date);
-                }
-            }
-        }
+        private void VisitFieldPredicate(SpecNode predicate) => VisitPredicateTimeUnit(predicate);
 
         /// <summary>
         ///     Reports the constructs of an expression that the engine parses but does not execute.

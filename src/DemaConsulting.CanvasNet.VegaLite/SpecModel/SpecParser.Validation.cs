@@ -108,7 +108,7 @@ internal sealed partial class SpecParser
         "discreteBandSize: NO", "cornerRadius: NE", "angle: NE", "dx: NE", "dy: NE", "filled: BE",
         "orient: SE=horizontal|vertical", "style: ST", "clip: BE", "shape: SE", "strokeDash: AE", "strokeCap: SE",
         "strokeJoin: SE", "interpolate: SE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
-        "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO");
+        "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO", "timeUnitBandPosition: NE", "timeUnitBandSize: NE");
 
     /// <summary>The rules for the properties of a channel definition.</summary>
     private static readonly Dictionary<string, Rule> ChannelDefRules = Rules(
@@ -126,7 +126,7 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ScaleRules = Rules(
         "type: S=" + string.Join('|', ScaleTypes), "zero: BE", "nice: BNSO", "padding: NE", "paddingInner: NE",
         "paddingOuter: NE", "reverse: BE", "round: BE", "clamp: BE", "domain: ASO", "range: ASO", "scheme: SO",
-        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NE", "domainMax: NE",
+        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NO", "domainMax: NO",
         "rangeMin: NE", "rangeMax: NE", "interpolate: SO", "bins: AO");
 
     /// <summary>The color spaces that <c>scale.interpolate</c> names (Vega-Lite's <c>ScaleInterpolateEnum</c>).</summary>
@@ -660,6 +660,12 @@ internal sealed partial class SpecParser
             WarnUnknown(property, "a channel definition");
         }
 
+        if (definition["timeUnit"] is { } timeUnit)
+        {
+            ValidateTimeUnit(timeUnit);
+        }
+
+        ValidateDatum(definition);
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);
@@ -669,12 +675,14 @@ internal sealed partial class SpecParser
         if (definition["axis"] is { IsObject: true } axis)
         {
             CheckObject(axis, AxisRules);
+            ValidateGuideTime(axis);
         }
 
         if (definition["legend"] is { IsObject: true } legend)
         {
             CheckObject(legend, LegendRules);
             ValidateLegendOptions(legend);
+            ValidateGuideTime(legend);
         }
 
         CompileChannelExpression(definition);
@@ -739,6 +747,7 @@ internal sealed partial class SpecParser
         }
 
         ValidateTransformOptions(scale);
+        ValidateScaleTime(scale);
 
         if (scale["interpolate"] is { } interpolate && interpolate["expr"] is not { IsString: true })
         {

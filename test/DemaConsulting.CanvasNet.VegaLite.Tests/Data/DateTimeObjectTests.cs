@@ -314,4 +314,63 @@ public class DateTimeObjectTests
         Assert.Equal(invariant, turkish);
         Assert.Equal(invariant, german);
     }
+
+    /// <summary>
+    ///     Validates the source of the call that builds an object: the normalized parts (the month from 0, the quarter as three months, the weekday as a date), the defaults,
+    ///     <c>utc(...)</c> for a UTC object and the invariant form of every number.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "year": 2024, "month": "Mar", "date": 5 }""", "datetime(2024, 2, 5, 0, 0, 0, 0)")]
+    [InlineData("""{ "month": 3 }""", "datetime(2012, 2, 1, 0, 0, 0, 0)")]
+    [InlineData("""{ "year": 2024, "quarter": 3 }""", "datetime(2024, 6, 1, 0, 0, 0, 0)")]
+    [InlineData("""{ "day": "Monday" }""", "datetime(2012, 0, 2, 0, 0, 0, 0)")]
+    [InlineData("""{ "day": 0 }""", "datetime(2012, 0, 1, 0, 0, 0, 0)")]
+    [InlineData("""{ "year": 2024, "hours": 12, "minutes": 30, "seconds": 15, "milliseconds": 250 }""", "datetime(2024, 0, 1, 12, 30, 15, 250)")]
+    [InlineData("""{ "year": 2024, "month": 12, "date": 31, "utc": true }""", "utc(2024, 11, 31, 0, 0, 0, 0)")]
+    [InlineData("""{ "year": 2024, "date": 32 }""", "datetime(2024, 0, 32, 0, 0, 0, 0)")]
+    [InlineData("""{ "seconds": 0.5 }""", "datetime(2012, 0, 1, 0, 0, 0.5, 0)")]
+    public void DateTimeObject_ToExpression_WritesTheNormalizedParts(string json, string expected) =>
+        Assert.Equal(expected, Read(json).ToExpression());
+
+    /// <summary>
+    ///     Validates that the expression gives the same instant as the object does, in a zone and in UTC (the expression is what the predicates evaluate).
+    /// </summary>
+    [Fact]
+    public void DateTimeObject_ToExpression_IsTheSameInstantAsToMilliseconds()
+    {
+        // Arrange
+        var zone = TimeTestSupport.Calendar(TimeTestSupport.Fixed(5, 30));
+        var value = Read("""{ "year": 2024, "month": "Mar", "date": 5, "hours": 8 }""");
+
+        // Act
+        var viaExpression = ExpressionTestSupport.EvalNumber("time(" + value.ToExpression() + ")");
+
+        // Assert: the expression is evaluated in UTC by the helper; in the zone the instant is the local wall time
+        Assert.Equal(value.ToMilliseconds(TimeCalendar.Utc), viaExpression);
+        Assert.Equal(TimeTestSupport.Ms(2024, 3, 5, 8) - ((5 * 3_600_000) + (30 * 60_000)), value.ToMilliseconds(zone));
+    }
+
+    /// <summary>
+    ///     Validates the source of the call for a single part of a time unit: the number 3 of a month is index 2, a name is found, the weekday is the date, and a value
+    ///     that is not valid for the part gives none.
+    /// </summary>
+    [Fact]
+    public void DateTimeObject_TryUnitPartExpression_WritesThePartWithDefaults()
+    {
+        // Act / Assert
+        Assert.True(DateTimeObject.TryUnitPartExpression("month", 3, null, out var month));
+        Assert.Equal("datetime(2012, 2, 1, 0, 0, 0, 0)", month);
+        Assert.True(DateTimeObject.TryUnitPartExpression("month", double.NaN, "Mar", out var name));
+        Assert.Equal(month, name);
+        Assert.True(DateTimeObject.TryUnitPartExpression("day", double.NaN, "Fri", out var day));
+        Assert.Equal("datetime(2012, 0, 6, 0, 0, 0, 0)", day);
+        Assert.True(DateTimeObject.TryUnitPartExpression("quarter", 2, null, out var quarter));
+        Assert.Equal("datetime(2012, 3, 1, 0, 0, 0, 0)", quarter);
+        Assert.True(DateTimeObject.TryUnitPartExpression("hours", 5, null, out var hours));
+        Assert.Equal("datetime(2012, 0, 1, 5, 0, 0, 0)", hours);
+        Assert.True(DateTimeObject.TryUnitPartExpression("week", 5, null, out var week));
+        Assert.Equal("datetime(2012, 0, 1, 0, 0, 0, 0)", week);
+        Assert.False(DateTimeObject.TryUnitPartExpression("month", double.NaN, "Foo", out _));
+        Assert.False(DateTimeObject.TryUnitPartExpression("month", double.NaN, null, out _));
+    }
 }

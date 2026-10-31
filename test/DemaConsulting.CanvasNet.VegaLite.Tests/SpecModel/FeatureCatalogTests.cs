@@ -68,8 +68,6 @@ public class FeatureCatalogTests
                 ("vl-transform-filter", "/transform/1"),
                 ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-arc", "/mark"),
-                ("vl-type-temporal", "/encoding/x/type"),
-                ("vl-encoding-timeunit", "/encoding/x/timeUnit"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-scale-type-ignored", "/encoding/color/scale/type"),
@@ -918,7 +916,6 @@ public class FeatureCatalogTests
             [
                 ("vl-expr-ref", "/width"),
                 ("vl-param-selection", "/params/1"),
-                ("vl-transform-timeunit", "/transform/1"),
                 ("vl-expr-ref", "/mark/size"),
             ],
             ids);
@@ -1147,10 +1144,10 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the six aggregating transforms are computed, the later phases are reported
+        // Assert: the seven computed transforms (the time unit among them) are not reported, the later phases are
         Assert.Equal(
             [
-                ("vl-param-selection", "/params/0"), ("vl-transform-timeunit", "/transform/6"), ("vl-transform-regression", "/transform/7"),
+                ("vl-param-selection", "/params/0"), ("vl-transform-regression", "/transform/7"),
                 ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
                 ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition-param", "/encoding/color/condition"),
             ],
@@ -1237,8 +1234,9 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the parts of the supported transforms that are not supported: a selection in a filter, a time unit or a
-    ///     date object in a predicate, a pivot operation, a lookup in a parameter and a remote lookup source.
+    ///     Validates the parts of the supported transforms that are not supported: a selection in a filter, a pivot operation, a lookup in a parameter
+    ///     and a remote lookup source; and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
+    ///     and a binned unit are reported, at the time unit).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported()
@@ -1257,7 +1255,12 @@ public class FeatureCatalogTests
                 { "pivot": "k", "value": "v", "op": "mean" },
                 { "pivot": "k", "value": "v", "op": "count" },
                 { "lookup": "k", "from": { "param": "brush" } },
-                { "lookup": "k", "from": { "data": { "url": "https://example.com/a.csv" }, "key": "a", "fields": ["b"] } }
+                { "lookup": "k", "from": { "data": { "url": "https://example.com/a.csv" }, "key": "a", "fields": ["b"] } },
+                { "filter": { "field": "x", "equal": 1, "timeUnit": "yearweek" } },
+                { "filter": { "field": "x", "equal": 1, "timeUnit": { "maxbins": 10 } } },
+                { "filter": { "field": "x", "equal": 1, "timeUnit": { "unit": "month", "binned": true } } },
+                { "timeUnit": "binnedyearmonth", "field": "d", "as": "m" },
+                { "timeUnit": { "maxbins": 10 }, "field": "d", "as": "n" }
               ],
               "mark": "point"
             }
@@ -1272,12 +1275,13 @@ public class FeatureCatalogTests
                 ("vl-param-selection", "/params/0"),
                 ("vl-transform-filter-param", "/transform/0/filter/param"),
                 ("vl-transform-filter-param", "/transform/1/filter/selection"),
-                ("vl-transform-filter-timeunit", "/transform/2/filter/timeUnit"),
-                ("vl-transform-filter-datetime", "/transform/3/filter/oneOf/0"),
-                ("vl-transform-filter-datetime", "/transform/4/filter/equal"),
                 ("vl-transform-pivot-op", "/transform/5/op"),
                 ("vl-transform-lookup-param", "/transform/7/from/param"),
                 ("vl-data-remote-url", "/transform/8/from/data"),
+                ("vl-predicate-timeunit-part", "/transform/9/filter/timeUnit"),
+                ("vl-timeunit-maxbins", "/transform/10/filter/timeUnit"),
+                ("vl-timeunit-binned", "/transform/11/filter/timeUnit"),
+                ("vl-timeunit-binned", "/transform/12/timeUnit"),
             ],
             reports);
     }
@@ -1491,19 +1495,23 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that a time unit or a date object in the predicate of a test is reported once, at the predicate, and that the supported
-    ///     parts of the same composition are not.
+    ///     Validates that a time unit or a date-time object in the predicate of a test is evaluated and not reported, that the parts a predicate does not
+    ///     apply are the warning <c>vl-predicate-timeunit-part</c> at the time unit, and that a binned unit is reported once.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported()
+    public void FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported()
     {
         // Act
         var timeUnit = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"year","equal":2020},"value":"red"}}""");
         var date = VisitColor("""{"condition":{"test":{"or":[{"field":"q","gt":1},{"field":"q","equal":{"year":2020}}]},"value":"red"}}""");
+        var part = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"yearweek","equal":2020},"value":"red"}}""");
+        var binned = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"binnedyearmonth","equal":2020},"value":"red"}}""");
 
         // Assert
-        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test")], timeUnit);
-        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test/or/1")], date);
+        Assert.Empty(timeUnit);
+        Assert.Empty(date);
+        Assert.Equal([("vl-predicate-timeunit-part", "/encoding/color/condition/test/timeUnit")], part);
+        Assert.Equal([("vl-timeunit-binned", "/encoding/color/condition/test/timeUnit")], binned);
     }
 
     /// <summary>
@@ -1530,10 +1538,12 @@ public class FeatureCatalogTests
         var test = VisitColor("""{"condition":{"test":"datum.q > now()","value":"red"}}""");
         var value = VisitColor("""{"condition":{"test":"datum.q > 1","value":{"expr":"now()"}}}""");
         var field = VisitColor("""{"condition":{"test":"datum.q > 1","field":"q","type":"temporal"},"value":"gray"}""");
+        var geo = VisitColor("""{"condition":{"test":"datum.q > 1","field":"q","type":"geojson"},"value":"gray"}""");
 
         // Assert
         Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/test")], test);
         Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/value/expr")], value);
-        Assert.Equal([("vl-type-temporal", "/encoding/color/condition/type")], field);
+        Assert.Empty(field);
+        Assert.Equal([("vl-type-geojson", "/encoding/color/condition/type")], geo);
     }
 }

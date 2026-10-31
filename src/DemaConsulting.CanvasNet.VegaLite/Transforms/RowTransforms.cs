@@ -29,8 +29,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///             predicates are <c>equal</c>, <c>lt</c>, <c>lte</c>, <c>gt</c>, <c>gte</c>, <c>range</c> (inclusive, an endpoint of
 ///             null is open, reversed endpoints are swapped), <c>oneOf</c> and <c>valid</c> on a <c>field</c> with the
 ///             comparison semantics of JavaScript, composed with <c>and</c>, <c>or</c> and <c>not</c>, and <c>param</c>, which
-///             reads the truthiness of a variable parameter (a selection parameter keeps every row and is reported). A time unit
-///             of a predicate is ignored and a predicate on a date object is ignored, both reported by the catalog.
+///             reads the truthiness of a variable parameter (a selection parameter keeps every row and is reported). A predicate with a
+///             <c>timeUnit</c>, or one that compares with a date-time object, is the expression that <see cref="PredicateSource"/> writes for it (compiled by the
+///             specification parser and evaluated in the calendar of the chart).
 ///         </description></item>
 ///         <item><description>
 ///             <b>fold</b> turns every row into one row per folded field with the field name in <c>as[0]</c> (default
@@ -53,6 +54,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///             local file, loaded by the loader of the call under the same sandbox and limits) whose <c>from.key</c> has the same
 ///             text, and copies <c>from.fields</c> into the <c>as</c> fields (without <c>fields</c> the whole row goes into the one
 ///             field <c>as</c>, <c>data</c> by default, as an object); a row without a match gets <c>default</c> (null by default).
+///         </description></item>
+///         <item><description>
+///             <b>timeUnit</b> adds the start (<c>as</c>) and the end (<c>as_end</c>) of the time unit of the date in <c>field</c> to every row
+///             (<see cref="TimeUnitTransform"/>).
 ///         </description></item>
 ///     </list>
 ///     <para>
@@ -134,6 +139,7 @@ internal sealed partial class RowTransforms
                 "sample" => Sample(table, entry, operation),
                 "pivot" => Pivot(table, entry, operation),
                 "lookup" => Lookup(table, entry, operation),
+                "timeUnit" => TimeUnit(table, entry, operation),
 
                 // The aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) are the aggregate transform unit's
                 _ => AggregateTransforms.Apply(table, entry, operation, _context),
@@ -269,6 +275,25 @@ internal sealed partial class RowTransforms
         }
 
         return layout.Build(cells, input.RowCount);
+    }
+
+    /// <summary>
+    ///     Adds the start and the end of a time unit to every row (<see cref="TimeUnitTransform"/>).
+    /// </summary>
+    /// <param name="input">The input table.</param>
+    /// <param name="entry">The transform object.</param>
+    /// <param name="operation">The <c>timeUnit</c> value: a unit name or a unit object.</param>
+    /// <returns>The table with the fields <c>as</c> and <c>as_end</c> added.</returns>
+    private DataTable TimeUnit(DataTable input, SpecNode entry, SpecNode operation)
+    {
+        if (!TimeUnitSpec.TryRead(operation, out var spec))
+        {
+            return input;
+        }
+
+        var name = entry["as"]!.StringValue!;
+        var request = new TimeUnitRequest(entry["field"]!.StringValue!, name, name + "_end", spec, operation);
+        return TimeUnitTransform.Apply(input, [request], _context, Locate(entry));
     }
 
     /// <summary>

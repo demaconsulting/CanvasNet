@@ -65,10 +65,10 @@ internal sealed partial class SpecParser
     ///     Determines whether a name is one of the transforms whose result the renderer computes or accepts.
     /// </summary>
     /// <param name="name">The transform name.</param>
-    /// <returns><see langword="true"/> for <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>.</returns>
+    /// <returns><see langword="true"/> for <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c>.</returns>
     public static bool IsSupportedTransform(string name) =>
         name is "calculate" or "filter" or "fold" or "flatten" or "sample" or "pivot" or "lookup"
-            or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute";
+            or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute" or "timeUnit";
 
     /// <summary>
     ///     Determines whether a view is the one the renderer draws: the root of a specification that is not a composition.
@@ -191,6 +191,12 @@ internal sealed partial class SpecParser
                 WarnUnknown(property, "a condition");
             }
 
+            if (item["timeUnit"] is { } timeUnit)
+            {
+                ValidateTimeUnit(timeUnit);
+            }
+
+            ValidateDatum(item);
             if (item["test"] is null && item["param"] is null)
             {
                 throw Error(item, "A condition needs a 'test' (an expression or a predicate) or a 'param'.");
@@ -228,12 +234,14 @@ internal sealed partial class SpecParser
         if (condition["axis"] is { IsObject: true } axis)
         {
             CheckObject(axis, AxisRules);
+            ValidateGuideTime(axis);
         }
 
         if (condition["legend"] is { IsObject: true } legend)
         {
             CheckObject(legend, LegendRules);
             ValidateLegendOptions(legend);
+            ValidateGuideTime(legend);
         }
     }
 
@@ -367,6 +375,9 @@ internal sealed partial class SpecParser
                 break;
             case "impute":
                 ValidateImputeTransform(entry, operation);
+                break;
+            case "timeUnit":
+                ValidateTimeUnitTransform(entry, operation);
                 break;
             default:
                 break;
@@ -574,6 +585,9 @@ internal sealed partial class SpecParser
 
                 break;
         }
+
+        ValidatePredicateTime(predicate, comparison);
+        CompileTimePredicate(predicate);
     }
 
     /// <summary>

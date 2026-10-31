@@ -992,7 +992,7 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(
             [
                 "vl-param-selection", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
-                "vl-transform-timeunit", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
+                "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
             ],
             reported);
         Assert.True(surface.Width > 0);

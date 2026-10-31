@@ -84,9 +84,6 @@ public class PredicateSourceTests
     /// </summary>
     [Theory]
     [InlineData("""{ "param": "sel" }""")]
-    [InlineData("""{ "field": "d", "timeUnit": "year", "equal": 2020 }""")]
-    [InlineData("""{ "field": "d", "equal": { "year": 2020 } }""")]
-    [InlineData("""{ "field": "d", "range": [ { "year": 2020 }, { "year": 2021 } ] }""")]
     [InlineData("""{ "and": [ { "field": "q", "gt": 1 }, { "param": "sel" } ] }""")]
     [InlineData("""{ "not": { "param": "sel" } }""")]
     public void PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay(string predicate)
