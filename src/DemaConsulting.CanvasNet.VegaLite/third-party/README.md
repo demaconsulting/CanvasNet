@@ -34,6 +34,10 @@ the language that is implemented.
 | d3-time-format | 4.1.0 | ISC | Copyright 2010-2021 Mike Bostock | `TimeFormat` (`Data/`) | The formatter and parser for the directives `%a %A %b %B %c %d %e %f %g %G %H %I %j %L %m %M %p %q %Q %s %S %u %U %V %w %W %x %X %y %Y %Z %%`, the padding flags (`-`, `_`, `0`) and the `pad` rule, the English locale (day and month names, the periods, and the `%c`, `%x` and `%X` expansions), the week-number arithmetic of `%U`, `%W`, `%V`, `%G` and `%g`, the parse rules (the width of each number, leading white space, names matched without regard to case, the pivot of `%y` at 68 and 69, the defaults for missing parts, no range check of the parsed fields, the `%Z` offset, the whole text consumed), and the treatment of an unknown directive; the regular expressions of the upstream parser are replaced by a hand-written scanner with the same acceptance |
 | Vega (`vega-time`, `vega-format`, `vega-transforms`, `vega-functions`, `vega-expression`) | `vega` 6.4.0 line, `main` branch read for the time rules | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `TimeCalendar` and `TimeFormat` (`Data/`), `ExpressionFunctions` (`Expressions/`), `TimeUnitTransform` (`Transforms/`) | The Vega time unit table (the unit names, their order and the parts of a unit), `timeFloor` and `utcFloor` (the reference year 2012 of a unit without a year, the Sunday-based week and the first week of a year, a step that applies to the last part only), `timeBin` (the choice of the interval and step for a `maxbins` request), `timeUnitSpecifier` and `timeMultiFormat` (the nine levels and their formats), the names accepted by `timeOffset` and `timeSequence`, the `week`, `quarter` and `dayofyear` helpers, the start and end fields of the `timeunit` transform, and the names, the argument rules and the results of the date and time expression functions (`datetime`, `utc`, the date part getters and their UTC forms, `timeOffset`, `timeSequence`, `timeFormat`, `timeParse`, `monthFormat` and the rest) |
 | Vega-Lite (`vega-lite`) | 6.5.0 (see the first row); the scale-type table and the rect position rules were read at 6.4.1 | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `TimeCalendar` (`Data/`), `TimeUnitTransform` and `TemporalFields` (`Transforms/`), `EncodingPlan`, `EncodingTransforms` (`Transforms/`), `PredicateSource` (`SpecModel/`), `ScaleResolver` (`Scales/`), `AxisBuilder`, `LegendBuilder` and `TimeLabels` (`Guides/`), `MarkBuilder` (`Marks/`) | The Vega-Lite time unit names (the 40 local names and their `utc` forms, the object form with `maxbins` and `step`), the derived field names and titles of a time unit (such as `yearmonth_date`) and the specifier overrides of the unit labels, the date-time object (its keys, the month and day names, the quarter, the rule for `day`, the default year 2012), the filter and condition expressions for time units and date-time values, the implicit parse of temporal fields, the scale types that a temporal field accepts, the `nice`, `tickCount` and `zero` rules of time scales, the default tick count and minimum tick step of a time axis, the default label, grid, flush and overlap rules of temporal axes, and the geometry of a bar, rect or tick over a time unit (the band size and band position) |
+| d3-shape | 3.2.0 | ISC | Copyright 2010-2022 Mike Bostock | `CurveBuilder` (`Marks/`), `ArcGeometry` (`Scenegraph/`) | The curve classes `linear`, `linearClosed`, `step`, `stepBefore`, `stepAfter`, `basis`, `basisOpen`, `basisClosed`, `bundle`, `cardinal`, `cardinalOpen`, `cardinalClosed`, `catmullRom`, `monotoneX`, `monotoneY` and `natural` (the point-by-point state machines, the toggle between the top line and the baseline of an area, the end-point rules for one, two and three points, the control point formulas, the monotone slope formulas and the tridiagonal solution of the natural spline), the `line` and `area` generators (the `defined` test that starts a new subpath, the baseline pass of an area) and the `arc` generator (the swap of the radii, the point, circle, annulus and sector cases, the pad angle and the corner radius with their clamps, the intersection and the corner tangents); the code of the curves is ported function by function in C# on a list of path segments |
+| d3-path | 3.1.0 | ISC | Copyright 2015-2022 Mike Bostock | `CurveBuilder` (`Marks/`), `ArcGeometry` and `ScenePainter` (`Scenegraph/`) | The path writer: `moveTo`, `lineTo`, `bezierCurveTo`, `closePath` and the canvas `arc` call (the coincident-start test with a tolerance of 1e-6, the line to the start of the arc, the large-arc and sweep flags of the SVG arc command, the two half circles of a full circle, the rule that a close needs an open subpath); the emission is written as SVG arc commands, which the core path builder accepts |
+| Vega (`vega-scenegraph`, `vega-parser`) | `vega` 6.4.0 line, `main` branch read on 2026-10-31 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `CurveBuilder` (`Marks/`), `ScenePainter` and `SceneModel` (`Scenegraph/`), `MarkBuilder` (`Marks/`) | The rule that a line, an area and a trail are drawn from the first item of their group (paint, stroke width, dash, interpolation and tension), the list of interpolation names that map to the d3-shape curves and the tension parameter of each, the `defined` rule of the path marks, the trail shape (two straight edges and two half circles between consecutive points, a width that follows the size of each point, a break at an undefined point), the arc mark's use of the d3-shape arc with the pad angle and the corner radius, and the text mark (the position, the rotation about it, the baselines, the line height, the polar offset, the truncation with an ellipsis, the line split of an array) |
+| Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `MarkBuilder` (`Marks/`), `EncodingPlan`, `EncodingTransforms`, `StackRules` and `AggregateTransforms` (`Transforms/`), `ScaleResolver` (`Scales/`), `SpecParser` and `FeatureCatalog` (`SpecModel/`), `LegendPlan` (`Guides/`) | The rules of the line, area, trail, text and arc marks: which channels group the paths (`pathGroupingFields`) and which sort them, the `order` channel, the default sort of a line by its position, the `orient` inference, the area baseline and its range form, the point and line overlays of a path mark (the overlay mark definitions and the default area opacity), the invalid-data modes, the implicit impute of a stacked path mark and the `impute` of an encoding, the stack of a polar channel, the rules of the polar scales (the types, the zero rule and the ranges), the arc as a rectangle in polar coordinates, the format of a text value (number, time, binned and plain text) and the position of a label on a stacked slice, and the legend symbol of the path marks (a trail's symbol is stroked) |
 
 ## Files read for `ConfigResolver`
 
@@ -274,6 +278,61 @@ parser know the English locale only and never read the current culture; the `now
 `isoweek` family is an addition; a predicate on a `utc` unit uses the UTC functions; and the time ticks, the label
 text and the sequences are bounded by `MaxTicks`, `MaxStringLength` and `MaxScaleDomainSize`.
 
+## Files read for the line, area, trail, arc, and text marks
+
+`CurveBuilder` (`Marks/`: `CurveBuilder.cs`, `CurveBuilder.Splines.cs`, `CurveBuilder.Generators.cs`), `ArcGeometry`
+(`Scenegraph/`, with its path writer), `ScenePainter.Paths.cs` (`Scenegraph/`), the files `MarkBuilder.Paths.cs`,
+`MarkBuilder.Order.cs`, `MarkBuilder.Overlays.cs`, `MarkBuilder.Text.cs` and `MarkBuilder.Arcs.cs` (`Marks/`), and the
+Phase 9 parts of `EncodingPlan`, `StackRules`, `ScaleResolver`, `SpecParser`, `FeatureCatalog`, `LegendPlan` and
+`TimeLabels` re-implement the following behavior in C#. The d3-shape and d3-path files were read from the repository
+tags of the versions of the provenance table and rewritten as ports (the control point formulas, the end-point rules and
+the arc construction are numeric algorithms whose results must match); the Vega and Vega-Lite files were read from the
+`main` branches for rules and numeric constants. No code, comments, tests, examples or output were copied: the tests of
+these units use values worked out by hand (the derivations are in the verification documents), never output of d3, Vega
+or Vega-Lite. The unit headers carry
+`Portions derived from d3-shape (ISC), d3-path (ISC), Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause)` (only the
+projects that apply to the file).
+
+| Project | File | What was taken |
+| ------- | ---- | -------------- |
+| d3-shape | `src/curve/linear.js`, `linearClosed.js` | the line toggle state machine, the first-point rule, the closing segment of the closed curve |
+| d3-shape | `src/curve/step.js` | the step at the middle, before and after a point, and the flush of the last segment |
+| d3-shape | `src/curve/basis.js`, `basisOpen.js`, `basisClosed.js` | the uniform cubic B-spline segments (the knot formulas), the end-point lines, the handling of two and three points, the closed variant |
+| d3-shape | `src/curve/bundle.js` | the straightening of a B-spline by `beta` (the buffering of the points, the interpolation toward the chord), and that the curve has no area form |
+| d3-shape | `src/curve/cardinal.js`, `cardinalOpen.js`, `cardinalClosed.js` | the tension factor `(1 - tension) / 6`, the control points of a segment, the duplicated end points |
+| d3-shape | `src/curve/catmullRom.js`, `catmullRomOpen.js`, `catmullRomClosed.js` | the chordal parameterization with `alpha`, the epsilon branches, the fallback to a cardinal spline for `alpha` of zero |
+| d3-shape | `src/curve/monotone.js` | the monotone slopes (`slope3`, `slope2`, the sign function), the control points of a segment, the swapped form for `monotoneY` |
+| d3-shape | `src/curve/natural.js` | the tridiagonal system of the natural spline and the control points computed from it |
+| d3-shape | `src/line.js`, `src/area.js` | the `defined` rule, the line and baseline passes of an area, the horizontal form |
+| d3-shape | `src/arc.js`, `src/math.js` | the arc outline: the swap of the radii, the cases (point, circle, annulus, sector), the pad angle, the corner radius, `intersect` and `cornerTangents`, the epsilons |
+| d3-path | `src/path.js` | `moveTo`, `lineTo`, `bezierCurveTo`, `closePath`, and the `arc` call with its tolerance and its full-circle rule |
+| Vega | `packages/vega-scenegraph/src/path/curves.js`, `path/shapes.js` | the mapping of the interpolation names to the d3-shape curves and their parameters, and the line and area generators of the path marks |
+| Vega | `packages/vega-scenegraph/src/path/trail.js` | the trail outline: the capsule of two consecutive points, the width from the size of each point, the break at an undefined point |
+| Vega | `packages/vega-scenegraph/src/marks/markMultiItemPath.js`, `marks/text.js` | the first-item rule of the path marks, the text position, offset and rotation |
+| Vega | `packages/vega-scenegraph/src/util/text.js` | the text lines, the baseline offsets and the line height (see also the scenegraph files above) |
+| Vega-Lite | `src/stack.ts`, `src/encoding.ts`, `src/channel.ts` | the stack of a polar channel and its dimension, the grouping fields of a path mark (`pathGroupingFields`), the channels that each mark supports |
+| Vega-Lite | `src/compile/mark/mark.ts` | the grouping of the path marks, the sort of a line, the facet by the grouping fields |
+| Vega-Lite | `src/compile/mark/line.ts`, `area.ts`, `arc.ts`, `text.ts`, `src/compile/mark/encode/base.ts` | the encoded properties of each mark, the orientation, the baseline of an area, the polar channels of an arc, the text properties |
+| Vega-Lite | `src/invalid.ts`, `src/compile/invalid/datasources.ts`, `ScaleInvalidDataMode.ts`, `src/compile/mark/encode/defined.ts` | the definition of a valid row and the invalid-data modes |
+| Vega-Lite | `src/compile/mark/encode/position-point.ts`, `position-rect.ts`, `position-range.ts`, `valueref.ts` | the point, the polar span and the range position of the marks, the middle of a slice (`bandPosition`), the interpolation of a stacked value |
+| Vega-Lite | `src/compile/mark/encode/text.ts`, `src/compile/format.ts` | the text of a row: the number, time, binned and plain formats |
+| Vega-Lite | `src/compile/mark/init.ts` | the orientation of the marks that follow the measure or the time |
+| Vega-Lite | `src/normalize/pathoverlay.ts` | the point and the line overlay of a path mark: which marks have them and the overlay mark definitions |
+| Vega-Lite | `src/compile/data/parse.ts`, `src/compile/data/impute.ts`, `src/compile/data/stack.ts` | the order of the implicit transforms, the implicit impute of a stacked path mark and the impute of an encoding |
+| Vega-Lite | `src/compile/scale/properties.ts`, `range.ts`, `type.ts`, `src/scale.ts` | the zero rule, the ranges and the types of the polar scales |
+| Vega-Lite | `src/compile/legend/encode.ts` | the legend symbol of a path mark (the symbol of a trail is stroked and not filled) |
+
+Where this package deliberately differs from the upstream behavior: the curve generators write into a bounded list of
+path segments and never throw (a point that is not finite is a gap); the number of segments is bounded and charged
+before the list is created; `catmull-rom-open` and `catmull-rom-closed` are not values of the Vega-Lite `interpolate`
+property and are not accepted; the curve `bundle` is not drawn for an area (a spec that asks for it is reported and the
+area is drawn with `linear`); the arc outline is a total function (an input that is not finite or whose magnitude is
+above 1e9 gives an empty path); two coincident points of a trail start their circle with a move rather than with a
+line; the invalid-data modes `show` and `null` are reported and not applied, and the scale domains are never filtered
+by the invalid-data mode; the overlay points are not enabled by a `shape` channel; the implicit impute of a stacked path
+mark is skipped for a binned dimension; a text longer than the string limit is an error; and the number of labels, the
+text length, the segments and the scene items are bounded by the render limits.
+
 ## Expression language and row transforms (nothing ported)
 
 The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` (except its date and time functions, see _Files
@@ -309,7 +368,7 @@ reproduced in binary distributions, and the ISC license requires that the copyri
 all copies. The license texts are therefore shipped in the NuGet package under `licenses\`:
 
 - `licenses\LICENSE-vega.txt` — BSD-3-Clause, Vega and Vega-Lite (both copyright notices, verbatim)
-- `licenses\LICENSE-d3.txt` — ISC, d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color and d3-scale-chromatic (all eight copyright notices, verbatim)
+- `licenses\LICENSE-d3.txt` — ISC, d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color, d3-scale-chromatic, d3-shape and d3-path (all ten copyright notices, verbatim)
 - `licenses\LICENSE-colorbrewer.txt` — Apache-2.0 notice of the ColorBrewer color schemes (verbatim, as published with d3-scale-chromatic)
 - `licenses\LICENSE-apache-2.0.txt` — the text of the Apache License, Version 2.0 (ColorBrewer and Turbo)
 - `licenses\LICENSE-turbo.txt` — the Google notice of the Turbo color map (Apache-2.0)
