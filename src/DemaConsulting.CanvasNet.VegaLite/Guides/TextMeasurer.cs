@@ -417,11 +417,18 @@ internal sealed class TextMeasurer
     /// <param name="limit">The width limit of each line; 0 or less means none.</param>
     /// <param name="lineHeight">The explicit line height, or null for the font size plus 2.</param>
     /// <param name="ellipsis">The ellipsis text, or null for the default.</param>
-    /// <returns>The extent: the width of the widest line, and the height of the first line (the font size) plus the line height of each further line.</returns>
+    /// <returns>The extent: the width of the widest line, and the height of the first line (the font size) plus the line height of each further line; all zero (but for the lines) for a font size that is not positive or not a finite number as a single.</returns>
     public TextExtent Measure(IEnumerable<string> lines, TextFont font, double limit = 0, double? lineHeight = null, string? ellipsis = null)
     {
         ArgumentNullException.ThrowIfNull(lines);
         var shown = lines.Select(l => TextValue(l, font, limit, ellipsis)).ToList();
+
+        // A size the renderer cannot use makes the text unmeasurable in every output, so that layout never sees a huge or non-finite height
+        if (!TryGetRenderSize(font, out _))
+        {
+            return new TextExtent(0, 0, 0, shown.AsReadOnly());
+        }
+
         var width = shown.Count == 0 ? 0 : shown.Max(l => MeasureWidth(l, font));
         var step = LineHeight(font.Size, lineHeight);
         var height = font.Size + (step * (Math.Max(shown.Count, 1) - 1));
@@ -438,11 +445,17 @@ internal sealed class TextMeasurer
     ///     rotated about the position by the angle.
     /// </remarks>
     /// <param name="text">The text item.</param>
-    /// <returns>The bounds; text without lines still has the width 0 and the height of one line.</returns>
+    /// <returns>The bounds; text without lines still has the width 0 and the height of one line; text whose font size is unmeasurable (see <see cref="MeasureWidth"/>) has an empty box at its position.</returns>
     public SceneBounds GetBounds(SceneText text)
     {
         ArgumentNullException.ThrowIfNull(text);
         var font = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
+        if (!TryGetRenderSize(font, out _))
+        {
+            // Unmeasurable text (it is never painted) has an empty box at its position, which the layout and the label-overlap pass skip
+            return new SceneBounds(0, 0, 0, 0).Translate(text.X, text.Y);
+        }
+
         var extent = Measure(text.Lines, font, text.Limit, text.LineHeight, text.Ellipsis);
         var dx = text.Dx;
         if (string.Equals(text.Align, "center", StringComparison.Ordinal))

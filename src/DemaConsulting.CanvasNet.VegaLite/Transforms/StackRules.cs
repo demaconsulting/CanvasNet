@@ -18,7 +18,7 @@ internal sealed record StackDecision(string Channel, string Offset, IReadOnlyLis
 /// <remarks>
 ///     <para>
 ///         The rule is the one of Vega-Lite's <c>stack</c> function (public algorithm, re-implemented here). A mark is stackable when
-///         it is one of arc, area, bar, rule, point, circle, square, line, text and tick; bar, area and arc stack by default and
+///         it is one of arc, area, bar, rule, point, circle, square, line, trail, text and tick (a trail is this renderer's addition: Vega-Lite does not stack it); bar, area and arc stack by default and
 ///         the others only with an explicit <c>stack</c>. The stacked channel is the unbinned quantitative one of <c>x</c> and
 ///         <c>y</c>; when both are (and neither says <c>stack</c>) the one that aggregates and the other does not wins, and then the
 ///         explicit <c>orient</c> of a bar or area decides. The other position channel names the group
@@ -36,8 +36,8 @@ internal sealed record StackDecision(string Channel, string Offset, IReadOnlyLis
 /// </remarks>
 internal static class StackRules
 {
-    /// <summary>The marks that can be stacked.</summary>
-    private static readonly HashSet<string> StackableMarks = ["arc", "area", "bar", "rule", "point", "circle", "square", "line", "text", "tick"];
+    /// <summary>The marks that can be stacked (Vega-Lite's set, plus <c>trail</c>, which this renderer stacks with an explicit <c>stack</c> so that the implicit impute of a path mark applies to it).</summary>
+    private static readonly HashSet<string> StackableMarks = ["arc", "area", "bar", "rule", "point", "circle", "square", "line", "trail", "text", "tick"];
 
     /// <summary>The marks that stack without an explicit <c>stack</c>.</summary>
     private static readonly HashSet<string> StackByDefaultMarks = ["arc", "area", "bar"];
