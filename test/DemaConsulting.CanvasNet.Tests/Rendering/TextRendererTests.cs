@@ -633,4 +633,331 @@ public class TextRendererTests
         // Act / Assert
         Assert.Throws<ArgumentOutOfRangeException>("align", () => TextRenderer.CreateTextPath("A", font, 16f, 0f, 0f, (TextAlign)99));
     }
+
+    /// <summary>
+    ///     Loads the bundled Liberation Sans font, a real font with kerning, used by the truncation tests.
+    /// </summary>
+    /// <returns>The font.</returns>
+    private static TrueTypeFont RealFont() =>
+        SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+    /// <summary>
+    ///     Test-local copy of the truncation algorithm the chart renderer used before
+    ///     <see cref="TextRenderer.TruncateToWidth"/> existed (cutting by UTF-16 unit, ASCII ellipsis,
+    ///     empty result when nothing fits); the independent oracle for ASCII text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="fontSize">The size in pixels.</param>
+    /// <param name="maxWidth">The width budget.</param>
+    /// <returns>The truncated text.</returns>
+    private static string LegacyTruncateToFit(string text, TrueTypeFont font, float fontSize, float maxWidth)
+    {
+        if (maxWidth <= 0f)
+        {
+            return string.Empty;
+        }
+
+        if (TextRenderer.MeasureText(text, font, fontSize).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        for (var length = text.Length - 1; length >= 0; length--)
+        {
+            var candidate = text[..length] + "...";
+            if (TextRenderer.MeasureText(candidate, font, fontSize).Width <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    ///     Proves that a text that fits (including exactly at the limit) is returned as the same instance.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TextFits_ReturnsTextUnchanged()
+    {
+        // Arrange: a text and a width budget equal to its measured width
+        var font = RealFont();
+        var text = new string('A', 3) + "bc";
+        var width = TextRenderer.MeasureText(text, font, 14f).Width;
+
+        // Act
+        var exact = TextRenderer.TruncateToWidth(text, font, 14f, width, "...");
+        var roomy = TextRenderer.TruncateToWidth(text, font, 14f, width + 100f, "...");
+
+        // Assert
+        Assert.Same(text, exact);
+        Assert.Same(text, roomy);
+    }
+
+    /// <summary>
+    ///     Proves that a too-wide text is cut to the longest beginning that, with the ellipsis, fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TextTooWide_ReturnsLongestPrefixPlusEllipsisThatFits()
+    {
+        // Arrange
+        var font = RealFont();
+        var text = "The quick brown fox jumps over the lazy dog";
+        const float maxWidth = 120f;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert: it fits, is a beginning of the text plus the ellipsis, and one more character would not fit
+        Assert.EndsWith("...", fitted);
+        var kept = fitted[..^3];
+        Assert.StartsWith(kept, text, StringComparison.Ordinal);
+        Assert.True(kept.Length > 0 && kept.Length < text.Length);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= maxWidth);
+        Assert.True(TextRenderer.MeasureText(text[..(kept.Length + 1)] + "...", font, 14f).Width > maxWidth);
+    }
+
+    /// <summary>
+    ///     Proves that for ASCII text and the ASCII ellipsis the result equals the algorithm the chart
+    ///     renderer used before the method existed, over a sweep of widths (including zero and negative).
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_AsciiEllipsis_MatchesLegacyChartsAlgorithmAcrossWidthSweep()
+    {
+        // Arrange: kerning-prone texts, an empty one, and a sweep of widths
+        var font = RealFont();
+        var texts = new[] { "AVATAR To Wa fi ffl Category label 2024", "Quarterly revenue (USD)", "W", string.Empty };
+
+        foreach (var text in texts)
+        {
+            for (var maxWidth = -5f; maxWidth <= 400f; maxWidth += 3.7f)
+            {
+                // Act
+                var actual = TextRenderer.TruncateToWidth(text, font, 12f, maxWidth, "...");
+                var expected = LegacyTruncateToFit(text, font, 12f, maxWidth);
+
+                // Assert
+                Assert.Equal(expected, actual);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an empty result is returned when not even the ellipsis fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EllipsisAloneDoesNotFit_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("A long label", font, 14f, 1f, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that an empty ellipsis gives a plain cut at the longest beginning that fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EmptyEllipsis_CutsWithoutSuffix()
+    {
+        // Arrange
+        var font = RealFont();
+        var text = "abcdefghijklmnopqrstuvwxyz";
+        const float maxWidth = 60f;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, string.Empty);
+
+        // Assert: a beginning of the text that fits, while one more character does not
+        Assert.StartsWith(fitted, text, StringComparison.Ordinal);
+        Assert.True(fitted.Length > 0 && fitted.Length < text.Length);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= maxWidth);
+        Assert.True(TextRenderer.MeasureText(text[..(fitted.Length + 1)], font, 14f).Width > maxWidth);
+    }
+
+    /// <summary>
+    ///     Proves that a surrogate pair is never split: every shortened result is well-formed UTF-16.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_SurrogatePair_IsNeverSplit()
+    {
+        // Arrange: astral characters (two UTF-16 units each) and a strict encoder that rejects a lone surrogate
+        var font = RealFont();
+        var text = string.Concat(Enumerable.Repeat("a\U0001F600", 20));
+        var strict = new System.Text.UTF8Encoding(false, true);
+        var shortened = 0;
+
+        for (var maxWidth = 1f; maxWidth <= 300f; maxWidth += 2.3f)
+        {
+            // Act
+            var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+            // Assert: encodes strictly; the kept beginning is a whole-character beginning of the text
+            Assert.Equal(fitted, strict.GetString(strict.GetBytes(fitted)));
+            if (fitted.EndsWith("...", StringComparison.Ordinal) && fitted.Length > 3)
+            {
+                Assert.StartsWith(fitted[..^3], text, StringComparison.Ordinal);
+                shortened++;
+            }
+        }
+
+        Assert.True(shortened > 10, "The sweep should have shortened the text for many widths.");
+    }
+
+    /// <summary>
+    ///     Proves that a lone surrogate in the input becomes U+FFFD in a shortened result.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_LoneSurrogate_IsNormalizedToReplacementCharacter()
+    {
+        // Arrange: a lone high surrogate at index 3, and a budget that exactly fits "abc" + U+FFFD + the ellipsis
+        var font = RealFont();
+        const string text = "abc\uD83Ddefghijklmnop";
+        const string expected = "abc\uFFFD...";
+        var maxWidth = TextRenderer.MeasureText(expected, font, 14f).Width;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert
+        Assert.Equal(expected, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that white space at the end of the kept beginning is not trimmed.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TrailingWhitespace_IsKeptInPrefix()
+    {
+        // Arrange: a budget that exactly fits "ab " + the ellipsis
+        var font = RealFont();
+        const string text = "ab cd ef gh ij kl";
+        const string expected = "ab ...";
+        var maxWidth = TextRenderer.MeasureText(expected, font, 14f).Width;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert
+        Assert.Equal(expected, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that the default ellipsis is the single character U+2026.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_DefaultEllipsis_IsHorizontalEllipsisCharacter()
+    {
+        // Arrange
+        var font = RealFont();
+        const string text = "The quick brown fox jumps over the lazy dog";
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, 100f);
+
+        // Assert
+        Assert.EndsWith("\u2026", fitted);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= 100f);
+    }
+
+    /// <summary>
+    ///     Proves that a NaN width budget never fits, so the result is empty.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NaNMaxWidth_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("Some label", font, 14f, float.NaN, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that a negative width budget never fits a non-empty text, so the result is empty.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NegativeMaxWidth_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("Some label", font, 14f, -10f, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that empty text is returned as empty text when the budget is not negative.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EmptyText_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var atZero = TextRenderer.TruncateToWidth(string.Empty, font, 14f, 0f, "...");
+        var wide = TextRenderer.TruncateToWidth(string.Empty, font, 14f, 100f);
+
+        // Assert
+        Assert.Equal(string.Empty, atZero);
+        Assert.Equal(string.Empty, wide);
+    }
+
+    /// <summary>
+    ///     Proves that a null text is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullText_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("text", () => TextRenderer.TruncateToWidth(null!, RealFont(), 14f, 50f));
+    }
+
+    /// <summary>
+    ///     Proves that a null font is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullFont_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("font", () => TextRenderer.TruncateToWidth("abc", null!, 14f, 50f));
+    }
+
+    /// <summary>
+    ///     Proves that a null ellipsis is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullEllipsis_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("ellipsis", () => TextRenderer.TruncateToWidth("abc", RealFont(), 14f, 50f, null!));
+    }
+
+    /// <summary>
+    ///     Proves that a size that is not finite and positive is rejected even when the text would fit.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NonPositiveSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act / Assert
+        foreach (var size in new[] { 0f, -14f, float.NaN, float.PositiveInfinity })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>("size", () => TextRenderer.TruncateToWidth("abc", font, size, 1000f));
+        }
+    }
 }

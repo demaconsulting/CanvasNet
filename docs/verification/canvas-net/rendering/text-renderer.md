@@ -31,6 +31,14 @@ The `TextRenderer` unit is verified by
   with a test-local copy of the glyph-run algorithm that the SVG codec used before the method
   existed (the independent oracle), over the synthetic and a bundled real font, several texts
   (kerning pairs, a surrogate pair, a missing glyph), sizes, alignments, and an offset anchor.
+- **Truncation**: the `TextRenderer_TruncateToWidth_*` tests use the bundled Liberation Sans font
+  (real kerning, so the non-monotonic-width case is exercised). The fit and cut scenarios assert the
+  defining properties directly: the result fits, is a whole-character beginning plus the ellipsis, and
+  one more character would not fit. Exact-budget scenarios derive the budget from `MeasureText` of the
+  expected result (so float equality is exact). A sweep compares the result with a test-local copy of the
+  algorithm the chart renderer used before the method existed (the independent oracle for ASCII text,
+  including zero and negative budgets and empty text); surrogate-pair and lone-surrogate scenarios check
+  well-formedness with a strict UTF-8 encoder.
 
 ### Test Environment
 
@@ -127,6 +135,38 @@ bit-for-bit identical to the independent oracle described under Verification App
 Verifies a `null` text or font is rejected with `ArgumentNullException`, a size of zero, a
 negative size, NaN, or infinity with `ArgumentOutOfRangeException`, and an undefined `TextAlign`
 value with `ArgumentOutOfRangeException`.
+
+#### CanvasNet-Rendering-TextRenderer-TruncateToWidth: TruncateToWidth Cuts at Whole Characters and Appends the Ellipsis
+
+**Tests**: `TextRenderer_TruncateToWidth_TextFits_ReturnsTextUnchanged`,
+`TextRenderer_TruncateToWidth_TextTooWide_ReturnsLongestPrefixPlusEllipsisThatFits`,
+`TextRenderer_TruncateToWidth_AsciiEllipsis_MatchesLegacyChartsAlgorithmAcrossWidthSweep`,
+`TextRenderer_TruncateToWidth_EllipsisAloneDoesNotFit_ReturnsEmptyString`,
+`TextRenderer_TruncateToWidth_EmptyEllipsis_CutsWithoutSuffix`,
+`TextRenderer_TruncateToWidth_SurrogatePair_IsNeverSplit`,
+`TextRenderer_TruncateToWidth_LoneSurrogate_IsNormalizedToReplacementCharacter`,
+`TextRenderer_TruncateToWidth_TrailingWhitespace_IsKeptInPrefix`,
+`TextRenderer_TruncateToWidth_DefaultEllipsis_IsHorizontalEllipsisCharacter`,
+`TextRenderer_TruncateToWidth_NaNMaxWidth_ReturnsEmptyString`,
+`TextRenderer_TruncateToWidth_NegativeMaxWidth_ReturnsEmptyString`,
+`TextRenderer_TruncateToWidth_EmptyText_ReturnsEmptyString`
+
+Verifies that a text at or under the budget is returned as the same instance; that a too-wide text is
+cut to the longest beginning that fits with the ellipsis; the equivalence with the previous chart algorithm
+across a width sweep; the empty result when not even the ellipsis fits and for a `NaN` or negative budget;
+the plain cut for an empty ellipsis; that a surrogate pair is never split, an unpaired surrogate becomes
+U+FFFD, and trailing white space is kept; that the default ellipsis is U+2026; and that empty text stays empty.
+
+#### CanvasNet-Rendering-TextRenderer-TruncateToWidthValidation: TruncateToWidth Rejects Invalid Arguments
+
+**Tests**: `TextRenderer_TruncateToWidth_NullText_ThrowsArgumentNullException`,
+`TextRenderer_TruncateToWidth_NullFont_ThrowsArgumentNullException`,
+`TextRenderer_TruncateToWidth_NullEllipsis_ThrowsArgumentNullException`,
+`TextRenderer_TruncateToWidth_NonPositiveSize_ThrowsArgumentOutOfRangeException`
+
+Verifies that a `null` text, font, or ellipsis is rejected with `ArgumentNullException` naming the
+parameter, and that a size of zero, a negative size, NaN, or infinity is rejected with
+`ArgumentOutOfRangeException` even when the text would fit the budget.
 
 ### Traceability
 

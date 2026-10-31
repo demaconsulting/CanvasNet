@@ -265,6 +265,25 @@ public class ChartRendererEdgeCaseTests
         Assert.Equal(300, surface.Height);
     }
 
+    /// <summary>Proves category labels of characters outside the Basic Multilingual Plane (surrogate pairs) render at every width, whichever character the truncation lands on.</summary>
+    [Fact]
+    public void Render_CategoryLabelWithSurrogatePairsNearTruncationPoint_RendersSuccessfully()
+    {
+        // Arrange: a label of astral characters (two UTF-16 units each) that is too long for the narrow bands
+        var label = string.Concat(Enumerable.Repeat("a\U0001F600", 40));
+        var series = new ChartSeries("S1", [5.0, 3.0], color: Red);
+        var chart = new Chart(ChartType.Column, [series], new ChartAxis([label, label]), new ChartAxis(minimum: 0f, maximum: 10f));
+
+        // Act / Assert: every width renders and keeps its size
+        for (var width = 40; width <= 400; width += 23)
+        {
+            using var surface = ChartRenderer.Render(chart, width, 200);
+
+            Assert.Equal(width, surface.Width);
+            Assert.Equal(200, surface.Height);
+        }
+    }
+
     /// <summary>Proves a very long legend label is truncated to fit rather than overflowing its allotted legend band or crashing.</summary>
     [Fact]
     public void Render_VeryLongLegendLabel_RendersSuccessfullyWithoutOverflow()

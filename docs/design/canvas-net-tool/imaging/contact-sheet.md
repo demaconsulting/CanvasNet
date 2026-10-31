@@ -57,7 +57,10 @@ below 128, otherwise black.
 
 **FitLabel(text, maxWidth, font, size)** (internal): the text when it is not wider than `maxWidth`; otherwise the longest
 beginning (by whole characters, so a surrogate pair is never split) followed by the ASCII text `...` that is not wider
-than `maxWidth`; `...` alone when none fits.
+than `maxWidth`; `...` alone when none fits. It delegates the cut to core `TextRenderer.TruncateToWidth`, passing `...`
+explicitly (the shared default ellipsis is the single character U+2026), and adds only the label rule that a cut label
+shows at least the ellipsis, because the shared method returns an empty string when nothing fits. Empty text stays empty
+for any width the empty text fits.
 
 **Detach()**: hands the sheet to the caller, who owns and disposes it; it can be taken once. **Dispose()** disposes the
 sheet if it was not handed out.
@@ -75,7 +78,7 @@ columns outside 0 to 64, a cell side below 16, negative spacing or padding, or a
 - **SourceLoader** (the `SurfaceOperations` helpers) - `FitInto`, `FlattenOver`, `HasTransparency`, and `FitMode`.
 - **ToolException** and **ErrorCodes** - the `size-limit` error.
 - **CanvasNet core library** - `Surface`, `Rgba32`, and `ResamplingMode`.
-- **CanvasNet rendering and fonts** - `Canvas`, `TextRenderer`, `TextAlign`, `SystemFontCatalog.LoadBundledFallback`, and
+- **CanvasNet rendering and fonts** - `Canvas`, `TextRenderer` (`MeasureText`, `TruncateToWidth`), `TextAlign`, `SystemFontCatalog.LoadBundledFallback`, and
   `TrueTypeFont`; only the bundled font is used.
 
 #### Callers

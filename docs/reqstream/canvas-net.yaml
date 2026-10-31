@@ -1542,12 +1542,14 @@ sections:
           The library shall measure and render TrueType text at a chosen pixel size, summing
           per-glyph advances plus kerning, honoring the current transform, and supporting
           Left/Center/Right alignment relative to the anchor x-coordinate with a baseline anchor
-          y-coordinate, and shall convert a text run into a single outline path.
+          y-coordinate, convert a text run into a single outline path, and shorten a text run
+          to a width with an ellipsis.
         tags: [system]
         justification: |
           Text rendering is a standard higher-level primitive callers need alongside path
           rendering; measurement and drawing must agree on layout, and text must inherit any
-          transform applied to the target. Vector renderers need the same layout as geometry.
+          transform applied to the target. Vector renderers need the same layout as geometry,
+          and labels must fit their allotted width.
         children:
           - CanvasNet-Rendering-TextRendering
         tests:

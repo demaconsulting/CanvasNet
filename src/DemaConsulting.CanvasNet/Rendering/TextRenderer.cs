@@ -161,6 +161,81 @@ public static class TextRenderer
     }
 
     /// <summary>
+    ///     Shortens a text run so that it fits a width, replacing the removed end with an ellipsis.
+    /// </summary>
+    /// <param name="text">The text to fit. Must not be <see langword="null"/>.</param>
+    /// <param name="font">The font the text is measured with. Must not be <see langword="null"/>.</param>
+    /// <param name="size">The text size in pixels. Must be finite and positive.</param>
+    /// <param name="maxWidth">The largest allowed advance width in pixels. A <see cref="float.NaN"/> or negative value never fits.</param>
+    /// <param name="ellipsis">
+    ///     The text that marks the removed end; defaults to the single character U+2026. May be empty (a plain
+    ///     cut) but must not be <see langword="null"/>. It is measured with the font like any other text.
+    /// </param>
+    /// <returns>
+    ///     <paramref name="text"/> itself when its measured width is at most <paramref name="maxWidth"/>;
+    ///     otherwise the longest beginning of the text, cut at a whole character, that followed by
+    ///     <paramref name="ellipsis"/> measures at most <paramref name="maxWidth"/>; otherwise
+    ///     <see cref="string.Empty"/> when not even the ellipsis alone fits.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/>, <paramref name="font"/>, or <paramref name="ellipsis"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="size"/> is not finite or is not positive.</exception>
+    /// <remarks>
+    ///     <para>
+    ///     Exists so charts, labels, and sheets share one correct truncation rule instead of each
+    ///     keeping its own copy. The cut is made between Unicode scalar values (runes): a surrogate pair
+    ///     is never split, and a lone surrogate in the input becomes U+FFFD in a shortened result, so a
+    ///     shortened result is always well-formed UTF-16. Trailing white space of the kept beginning is
+    ///     not trimmed.
+    ///     </para>
+    ///     <para>
+    ///     Beginnings are tried from longest to shortest in a linear scan, and the first that fits wins.
+    ///     A binary search would be faster but wrong: kerning makes the measured width of a beginning
+    ///     non-monotonic in its length, so only the scan returns the longest beginning that fits. The cost
+    ///     is quadratic in the text length, which is acceptable for labels. A text that already fits is
+    ///     returned (the same instance) without measuring any candidate. Pure function; safe for
+    ///     concurrent use.
+    ///     </para>
+    /// </remarks>
+    public static string TruncateToWidth(string text, TrueTypeFont font, float size, float maxWidth, string ellipsis = "\u2026")
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentNullException.ThrowIfNull(ellipsis);
+        ValidateSize(size);
+
+        // The whole text fits: nothing to cut.
+        if (MeasureText(text, font, size).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        // Normalize to whole runes and remember where each rune ends, so a candidate beginning
+        // is a slice that can never end inside a surrogate pair.
+        var normalized = new System.Text.StringBuilder(text.Length);
+        var ends = new List<int>(text.Length);
+        foreach (var rune in text.EnumerateRunes())
+        {
+            normalized.Append(rune.ToString());
+            ends.Add(normalized.Length);
+        }
+
+        var whole = normalized.ToString();
+
+        // Longest beginning first; a beginning of zero runes is the ellipsis alone.
+        for (var keep = ends.Count - 1; keep >= 0; keep--)
+        {
+            var length = keep == 0 ? 0 : ends[keep - 1];
+            var candidate = string.Concat(whole.AsSpan(0, length), ellipsis);
+            if (MeasureText(candidate, font, size).Width <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
     ///     Walks a text run exactly as <see cref="MeasureText"/> measures it and yields, for every
     ///     glyph that has contour data, its outline and the pen position it is placed at.
     /// </summary>

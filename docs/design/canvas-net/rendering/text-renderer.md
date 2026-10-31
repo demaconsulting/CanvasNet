@@ -2,8 +2,8 @@
 
 The `TextRenderer` class is a stateless static class that measures and renders TrueType text
 against a `Rendering.Canvas`, and converts text into outline geometry. Its entry points are the
-static `MeasureText` and `CreateTextPath` methods and the `DrawText` extension method on
-`Rendering.Canvas`.
+static `MeasureText`, `CreateTextPath`, and `TruncateToWidth` methods and the `DrawText` extension
+method on `Rendering.Canvas`.
 
 #### Purpose
 
@@ -12,7 +12,9 @@ to measure and draw strings of text, so callers do not need to hand-write glyph 
 advance-width/kerning accumulation, or alignment-offset math themselves. `CreateTextPath` exposes
 the same layout as a single `Geometry.Path`, for renderers that need text as geometry (to apply
 their own accumulated transform later, or to build clips and masks) and previously each kept
-their own copy of the glyph-placement loop.
+their own copy of the glyph-placement loop. `TruncateToWidth` shortens a run to a width with an
+ellipsis, a rule that the chart renderer and the command-line contact sheet each used to keep a
+private copy of.
 
 #### Data Model
 
@@ -79,6 +81,27 @@ transform into each glyph matrix, which is bit-for-bit what the existing tests p
 private walker, so the rune iteration, kerning-before-advance order, and float accumulation order
 cannot drift apart.
 
+##### TruncateToWidth
+
+Given a string, a `TrueTypeFont`, a pixel `size`, a width budget `maxWidth`, and an `ellipsis`
+(default U+2026), `TruncateToWidth` returns the text, shortened when needed:
+
+1. If `MeasureText(text).Width <= maxWidth`, the text is returned unchanged (the same instance).
+2. Otherwise the text is normalized to whole runes (a lone surrogate becomes U+FFFD) and the
+   end offset of every rune is recorded, so a candidate beginning is always a slice that ends on a rune
+   boundary and a surrogate pair is never split.
+3. Beginnings are tried from `runeCount - 1` runes down to zero runes (the ellipsis alone); the first
+   `beginning + ellipsis` whose measured width is at most `maxWidth` is returned.
+4. If none fits, the empty string is returned. A `NaN` or negative budget therefore yields the empty string
+   for non-empty text.
+
+The scan is deliberately linear, not a binary search: kerning makes the measured width of a beginning
+non-monotonic in its length, so only a scan from the longest beginning returns the longest one that fits.
+The cost is quadratic in the text length (each candidate is measured in full), acceptable for labels.
+The size is validated up front, independent of the budget, so a bad size is reported even for text that
+would fit. The consumers (`ChartRenderer`, `ContactSheet`) pass the ASCII ellipsis `...` explicitly; the
+shared default is the single character U+2026, a pure API-design choice.
+
 ##### Glyph-placement walker (private)
 
 An iterator over the run that mirrors `MeasureText`'s arithmetic: for each rune it looks up the
@@ -88,11 +111,12 @@ advance the pen and take part in kerning.
 
 #### Error Handling
 
-- `MeasureText`, `DrawText`, and `CreateTextPath` throw `ArgumentNullException` on a null `text`
-  or null `font`.
-- `MeasureText`, `DrawText`, and `CreateTextPath` throw `ArgumentOutOfRangeException` on a size
-  that is not finite and positive.
+- `MeasureText`, `DrawText`, `CreateTextPath`, and `TruncateToWidth` throw `ArgumentNullException` on a null
+  `text` or null `font`; `TruncateToWidth` also on a null `ellipsis`.
+- `MeasureText`, `DrawText`, `CreateTextPath`, and `TruncateToWidth` throw `ArgumentOutOfRangeException` on a
+  size that is not finite and positive.
 - `DrawText` and `CreateTextPath` throw `ArgumentOutOfRangeException` on an undefined `TextAlign`.
+- `TruncateToWidth` never throws for the width budget: a `NaN` or negative budget is a budget nothing fits.
 
 #### Dependencies
 
@@ -107,4 +131,6 @@ Library.
 
 `TextRenderer` is a public API entry point, invoked directly by consumers of the CanvasNet
 package. Within this repository the SVG codec (`DemaConsulting.CanvasNet.Svg`) calls
-`CreateTextPath` to lay out text runs (see _SvgCodec Unit Design_).
+`CreateTextPath` to lay out text runs (see _SvgCodec Unit Design_), the chart renderer
+(`DemaConsulting.CanvasNet.Charts`) calls `TruncateToWidth` to fit category and legend labels, and the
+command-line tool's contact sheet calls `TruncateToWidth` to fit file-name labels.

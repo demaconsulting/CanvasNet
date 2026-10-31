@@ -1962,6 +1962,32 @@ fill rule (`DrawText` composites them one after another). `size` must be finite 
 `null` text or font throws `ArgumentNullException`, and an undefined `TextAlign` throws
 `ArgumentOutOfRangeException`. The method is pure and safe for concurrent use.
 
+#### TruncateToWidth
+
+```csharp
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
+
+using var stream = File.OpenRead("OpenSans-Regular.ttf");
+var font = TrueTypeFont.Load(stream);
+
+// Fit a label into 120 pixels at 14 px; the removed end is replaced by the ellipsis.
+var label = TextRenderer.TruncateToWidth("Quarterly revenue by region and product line", font, size: 14f, maxWidth: 120f);
+Console.WriteLine(label); // Output: a beginning of the text followed by "…" that measures at most 120 pixels
+
+// Choose the ellipsis explicitly (here plain ASCII).
+var ascii = TextRenderer.TruncateToWidth("Quarterly revenue by region", font, 14f, 120f, ellipsis: "...");
+```
+
+`TruncateToWidth` returns the text itself when it fits, otherwise the longest beginning that, followed
+by the ellipsis (default U+2026), fits `maxWidth`, and the empty string when not even the ellipsis fits
+(including a `NaN` or negative `maxWidth` for non-empty text). The cut is made between whole characters,
+so a surrogate pair is never split, and an unpaired surrogate in a shortened result becomes U+FFFD.
+Trailing white space of the kept beginning is not trimmed. An empty `ellipsis` gives a plain cut. A
+`null` text, font, or ellipsis throws `ArgumentNullException`; a `size` that is not finite and
+positive throws `ArgumentOutOfRangeException`, even for text that would fit. The method is pure and
+safe for concurrent use.
+
 #### Shape helpers
 
 ```csharp

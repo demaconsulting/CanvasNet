@@ -183,11 +183,16 @@ painted).
 ##### CanvasNetCharts-ChartModel-ChartRenderer-LongLabelTruncation: ChartRenderer Truncates Over-Long Labels
 
 **Tests**: `ChartRendererEdgeCaseTests.Render_VeryLongCategoryLabel_RendersSuccessfullyWithoutOverflow`,
-`ChartRendererEdgeCaseTests.Render_VeryLongLegendLabel_RendersSuccessfullyWithoutOverflow`
+`ChartRendererEdgeCaseTests.Render_VeryLongLegendLabel_RendersSuccessfullyWithoutOverflow`,
+`ChartRendererEdgeCaseTests.Render_CategoryLabelWithSurrogatePairsNearTruncationPoint_RendersSuccessfully`
 
 Renders a chart with an unusually long category-axis label, and separately with an unusually
 long series/legend name, at a modest render-target size, asserting both render successfully
-without exception.
+without exception. A further test renders category labels made of surrogate-pair characters at
+many widths (so the cut lands on different characters), asserting each render succeeds and keeps
+its size; the cut rule itself (never splitting a pair, and equivalence with the previous
+chart algorithm for ASCII text) is verified by the `TextRenderer_TruncateToWidth_*` unit tests of
+the core library.
 
 ##### CanvasNetCharts-ChartModel-ChartRenderer-RenderTargetSizeExtremes: ChartRenderer Handles Tiny and Huge Render Targets
 

@@ -687,28 +687,17 @@ public static partial class ChartRenderer
     ///     ellipsis-suffixed prefix that fits; or <see cref="string.Empty"/> when
     ///     <paramref name="maxWidth"/> is non-positive or too small for even the ellipsis alone.
     /// </returns>
+    /// <remarks>
+    ///     A thin adapter over <see cref="TextRenderer.TruncateToWidth"/>, which owns the cut
+    ///     rules (whole characters, so a label with surrogate pairs is never cut inside a pair).
+    ///     This chart passes the ASCII ellipsis explicitly and keeps its own early exit for a
+    ///     non-positive budget, which needs no measuring at all.
+    /// </remarks>
     private static string TruncateToFit(string text, TrueTypeFont font, float fontSize, float maxWidth)
     {
-        if (maxWidth <= 0f)
-        {
-            return string.Empty;
-        }
-
-        if (TextRenderer.MeasureText(text, font, fontSize).Width <= maxWidth)
-        {
-            return text;
-        }
-
-        for (var length = text.Length - 1; length >= 0; length--)
-        {
-            var candidate = text[..length] + "...";
-            if (TextRenderer.MeasureText(candidate, font, fontSize).Width <= maxWidth)
-            {
-                return candidate;
-            }
-        }
-
-        return string.Empty;
+        return maxWidth <= 0f
+            ? string.Empty
+            : TextRenderer.TruncateToWidth(text, font, fontSize, maxWidth, "...");
     }
 
     /// <summary>

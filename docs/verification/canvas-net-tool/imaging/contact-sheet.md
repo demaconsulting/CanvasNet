@@ -55,7 +55,14 @@ text pixels are gray levels up to white, and on white they are gray levels down 
 
 **ContactSheet_FitLabel_LongText_IsTruncatedWithAsciiEllipsisToFit**: a long file name is cut to a beginning followed by
 `...` that measures at most the cell width while one more character would not fit; a short name is unchanged; a width
-too small for any beginning gives `...`; null arguments throw.
+too small for any beginning gives `...`; null arguments throw. The cut itself is verified in depth by the
+`TextRenderer_TruncateToWidth_*` unit tests of the core library; two characterization tests written before the label
+fitting was delegated to it pin the behavior that must not change.
+
+**ContactSheet_FitLabel_SurrogatePairText_NeverSplitsPair**: a label of astral characters is cut at many widths and every
+result encodes strictly (no lone surrogate), is a whole-character beginning plus `...`, and fits.
+
+**ContactSheet_FitLabel_EmptyText_ReturnsEmpty**: an empty label stays empty for the smallest and a wide cell.
 
 **ContactSheet_Add_MoreImagesThanCells_Throws** and **ContactSheet_Constructor_InvalidArguments_Throw**: a second image
 for a one-cell sheet, a second `Detach`, and an `Add` after `Detach` throw; every invalid option (count below 1, columns

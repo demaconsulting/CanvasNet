@@ -114,3 +114,45 @@ sections:
                   - TextRenderer_CreateTextPath_NullFont_ThrowsArgumentNullException
                   - TextRenderer_CreateTextPath_NonPositiveOrNonFiniteSize_ThrowsArgumentOutOfRangeException
                   - TextRenderer_CreateTextPath_InvalidAlign_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Rendering-TextRenderer-TruncateToWidth
+                title: >-
+                  The TextRenderer class shall shorten a string, for a given font, pixel size, width
+                  budget, and ellipsis text (a single horizontal-ellipsis character by default), to
+                  the string itself when its measured width fits the budget, otherwise to the
+                  longest beginning, cut only between whole characters (a surrogate pair is never
+                  split and an unpaired surrogate becomes the replacement character), that
+                  followed by the ellipsis measures within the budget, and otherwise to the empty
+                  string when not even the ellipsis fits.
+                justification: |
+                  Labels in charts and sheets must never overflow their allotted width, and the
+                  cut must never produce malformed text; one shared rule keeps every renderer's
+                  truncation identical instead of each keeping its own, slightly different copy.
+                tests:
+                  - TextRenderer_TruncateToWidth_TextFits_ReturnsTextUnchanged
+                  - TextRenderer_TruncateToWidth_TextTooWide_ReturnsLongestPrefixPlusEllipsisThatFits
+                  - TextRenderer_TruncateToWidth_AsciiEllipsis_MatchesLegacyChartsAlgorithmAcrossWidthSweep
+                  - TextRenderer_TruncateToWidth_EllipsisAloneDoesNotFit_ReturnsEmptyString
+                  - TextRenderer_TruncateToWidth_EmptyEllipsis_CutsWithoutSuffix
+                  - TextRenderer_TruncateToWidth_SurrogatePair_IsNeverSplit
+                  - TextRenderer_TruncateToWidth_LoneSurrogate_IsNormalizedToReplacementCharacter
+                  - TextRenderer_TruncateToWidth_TrailingWhitespace_IsKeptInPrefix
+                  - TextRenderer_TruncateToWidth_DefaultEllipsis_IsHorizontalEllipsisCharacter
+                  - TextRenderer_TruncateToWidth_NaNMaxWidth_ReturnsEmptyString
+                  - TextRenderer_TruncateToWidth_NegativeMaxWidth_ReturnsEmptyString
+                  - TextRenderer_TruncateToWidth_EmptyText_ReturnsEmptyString
+
+              - id: CanvasNet-Rendering-TextRenderer-TruncateToWidthValidation
+                title: >-
+                  The TextRenderer truncation operation shall reject null text, a null font, or a
+                  null ellipsis with ArgumentNullException, and a size that is not finite and
+                  positive with ArgumentOutOfRangeException, regardless of the width budget.
+                justification: |
+                  Fail-fast validation surfaces caller bugs immediately, and checking the size
+                  independent of the budget keeps the behavior from depending on whether the text
+                  happens to fit.
+                tests:
+                  - TextRenderer_TruncateToWidth_NullText_ThrowsArgumentNullException
+                  - TextRenderer_TruncateToWidth_NullFont_ThrowsArgumentNullException
+                  - TextRenderer_TruncateToWidth_NullEllipsis_ThrowsArgumentNullException
+                  - TextRenderer_TruncateToWidth_NonPositiveSize_ThrowsArgumentOutOfRangeException
