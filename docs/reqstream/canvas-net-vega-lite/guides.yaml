@@ -132,6 +132,7 @@ sections:
               - CanvasNetVegaLite-Guides-LegendBuilder-Planning
               - CanvasNetVegaLite-Guides-LegendBuilder-Merging
               - CanvasNetVegaLite-Guides-LegendBuilder-Symbols
+              - CanvasNetVegaLite-Guides-LegendBuilder-PathMarkSymbols
               - CanvasNetVegaLite-Guides-LegendBuilder-Entries
               - CanvasNetVegaLite-Guides-LegendBuilder-Grid
               - CanvasNetVegaLite-Guides-LegendBuilder-Gradient
@@ -141,6 +142,8 @@ sections:
               - CanvasNetVegaLite-Guides-LegendBuilder-Determinism
             tests:
               - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
+              - LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor
+              - LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles
               - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
               - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
               - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend

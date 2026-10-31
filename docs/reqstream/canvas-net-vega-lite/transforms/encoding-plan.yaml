@@ -4,9 +4,11 @@
 # These requirements describe the design-level behavior of the EncodingPlan unit of the Transforms subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the implicit data pipeline of a single view
 # that Vega-Lite derives from the encoding - the bins of a binned position channel, the time units of a temporal
-# channel, the aggregate of an aggregated channel, and the stack of a stacked measure - split into the analysis
+# channel, the aggregate of an aggregated channel, the impute of a missing key, and the stack of a stacked
+# measure (cartesian or polar) - split into the analysis
 # of the specification that needs no data (EncodingPlan.cs: the names of the derived fields, the default axis
-# titles, and the stack decision) and its execution on the transformed table (EncodingTransforms.cs), which runs
+# titles, the stack decision, the path grouping fields, and the order fields) and its execution on the
+# transformed table (EncodingTransforms.cs), which runs
 # the AggregateTransforms engine, the bin algorithm, and the TimeUnitTransform unit. The scales, marks, and axes
 # read the plan and the resulting tables, so that they agree on which
 # field each channel draws. The naming and title rules follow Vega-Lite behavior, attributed in
@@ -246,3 +248,86 @@ sections:
                   legend from that field; the plan must name the same field as the scale and the legend.
                 tests:
                   - EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-PolarStack
+                title: >-
+                  The EncodingPlan unit shall stack the theta channel of an arc (or text) mark within each group
+                  of the radius channel - and the radius channel within each group of theta when theta is not
+                  the stacked field - into a start and an end field named after the measure, with the same layer
+                  fields, offsets, and ascending layer order as the horizontal stack, linking the secondary
+                  channels theta2 and radius2 to their main channels as x2 and y2 are linked, deciding no stack
+                  for a ranged polar mark, and not grouping the stack by the stacked field itself (a radial chart
+                  that reads theta and radius from one field).
+                justification: |
+                  A pie chart is a stacked theta; the slices must follow one another around the circle as the
+                  layers of a bar follow one another along the axis.
+                tests:
+                  - StackRules_Decide_StacksThetaWithRadiusAsTheDimension
+                  - StackRules_Decide_RangedPolarMarkIsNotStacked
+                  - EncodingPlan_Create_PlansAPolarStackWithAscendingLayers
+                  - EncodingPlan_Create_PolarDimensionAndOrderDecideTheStackGroups
+                  - EncodingPlan_Create_LinksTheSecondaryPolarChannels
+                  - EncodingPlan_Create_CartesianStackKeepsPrecedenceOverPolar
+                  - EncodingPlan_Create_StackDoesNotGroupByTheStackedField
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-PathGroups
+                title: >-
+                  The EncodingPlan unit shall list, from the specification alone, the fields that group the rows
+                  of a path mark into paths, as Vega-Lite's path grouping fields do (the value fields of the
+                  definitions that do not aggregate of detail, key, color, fill, stroke, the opacity channels,
+                  stroke dash, stroke width, size - but not for a trail, whose size is per point - and order -
+                  but not for a line or a trail - each field once, in the order of the channels) and the fields
+                  and directions of the order channel.
+                justification: |
+                  The marks, the encoding impute, and the stack impute must agree on which rows form one path.
+                tests:
+                  - EncodingPlan_PathGroupFields_FollowVegaLiteGroupingRules
+                  - EncodingPlan_OrderFields_ListTheOrderChannelWithDirections
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-EncodingImpute
+                title: >-
+                  The EncodingPlan unit shall execute the impute property of an x or y definition that has both
+                  position field definitions - after the aggregate and before the stack - with the other position
+                  field as the key, the path group fields as the groups, and the method (value, mean, median, max,
+                  or min), the constant value (0 by default), the frame, and the keyvals of the definition,
+                  through the AggregateTransforms impute engine, and shall refuse a keyvals list longer than the
+                  scale-domain limit with a located specification error.
+                justification: |
+                  Imputing a missing combination turns a gap of a line into an explicit value; the encoding
+                  property must act as the impute transform does.
+                tests:
+                  - EncodingPlan_Impute_PlansFieldKeyAndPathGroups
+                  - EncodingTransforms_Apply_ImputesBeforeTheStack
+                  - EncodingTransforms_Apply_ImputeMethodMeanUsesTheGroupWindow
+                  - EncodingTransforms_Apply_ImputeOnXUsesYAsTheKey
+                  - EncodingTransforms_Apply_ImputeObjectParametersReachTheEngine
+                  - SpecParser_Parse_RejectsABadImputeObjectWithItsLocation
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-StackImpute
+                title: >-
+                  The EncodingPlan unit shall impute the stacked field with zero for every missing combination of
+                  a stack-by group and a dimension key before the stack of a line, area, or trail (so that every layer
+                  has a vertex at every key and the layers meet), unless the definition says impute null, the
+                  dimension is binned (the FeatureCatalog warning vl-encoding-stack-impute-bin), has a band end, or
+                  the stack has no stack-by field.
+                justification: |
+                  A stacked area whose layers lack a key would pinch to nothing between its neighbors; Vega-Lite
+                  imputes the missing keys, and a layer must start where the one below it ends.
+                tests:
+                  - EncodingTransforms_Apply_StackedPathMarkImputesMissingKeysWithZero
+                  - EncodingTransforms_Apply_ImputeNullDisablesTheStackImpute
+                  - EncodingPlan_StackImpute_SkipsABinnedDimension
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-ImputeLimits
+                title: >-
+                  The EncodingPlan unit shall bound the encoding and stack impute by the row limit and the cell
+                  limit of the call (counting the appended rows, and the number of groups times keys, before it
+                  materializes them), charge its work to the evaluation-step budget, and observe the cancellation
+                  token, failing with a located VegaLiteRenderException when a limit is exceeded.
+                justification: |
+                  An impute multiplies the groups by the keys; the cost must be bounded before it is spent and a
+                  caller must be able to abandon it.
+                tests:
+                  - EncodingTransforms_Apply_ImputeRespectsTheRowAndCellLimits
+                  - EncodingTransforms_Apply_ImputePollsCancellation
+                  - EncodingTransforms_Apply_ImputeBoundsSeriesTimesKeys

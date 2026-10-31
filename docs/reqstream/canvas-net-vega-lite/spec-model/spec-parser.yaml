@@ -4,10 +4,11 @@
 # These requirements describe the design-level behavior of the SpecParser unit of the SpecModel subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded UTF-8 JSON reader that builds
 # the immutable SpecNode tree with positions, the structural validation and unknown-property warnings in the
-# partial file SpecParser.Validation.cs, the compilation of expressions and the validation of parameters and
+# partial file SpecParser.Validation.cs (including the properties of the line, area, trail, text, and arc marks and
+# their overlay objects), the compilation of expressions and the validation of parameters and
 # transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), the validation
 # of the aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) and of the aggregate, bin,
-# stack, and sort of an encoding in SpecParser.Aggregates.cs, the validation of the time units, the datetime
+# stack, sort, and impute of an encoding in SpecParser.Aggregates.cs, the validation of the time units, the datetime
 # objects, the tick and nice intervals, the timeUnit transform, and the time predicates in SpecParser.Time.cs
 # (with the predicate-to-expression translation of PredicateSource.cs), and the
 # SpecMetadata reader. See
@@ -409,3 +410,48 @@ sections:
                   - ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField
                   - ChannelDefinitions_Conditions_ListsConditionsInOrder
                   - ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives
+                  - SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-PathMarkRules
+                title: >-
+                  The SpecParser unit shall validate the properties of the line, area, and trail marks with a
+                  located error at the offending value - interpolate (one of the fifteen Vega-Lite names),
+                  tension (a number), point (a boolean, an object that is validated as a mark definition, the
+                  text transparent, or null), line (a boolean, an object that is validated as a mark definition, or
+                  null), invalid (one of the five modes or null), order (a boolean or null), strokeDashOffset,
+                  strokeMiterLimit, padAngle, innerRadius, outerRadius, radius, radius2, theta, and theta2 (numbers
+                  or expression references) - warn about an unknown key of an overlay object at the key, and compile
+                  the expression of a size value for the line and trail marks.
+                justification: |
+                  The properties of the new marks arrive as untrusted JSON; each must be checked once, with the
+                  location of the mistake, before the builders rely on its type.
+                tests:
+                  - SpecParser_Parse_AcceptsTheFifteenInterpolateNames
+                  - SpecParser_Parse_RejectsABadInterpolateOrInvalidOrPointValue
+                  - SpecParser_Parse_ValidatesOverlayObjectsLikeMarkDefinitions
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-TextRules
+                title: >-
+                  The SpecParser unit shall validate the properties of the text mark with a located error at the
+                  offending value - text (a string, an array of strings, or an expression reference), fontStyle,
+                  ellipsis, and lineBreak (text), fontWeight (text or a number), limit and lineHeight (numbers) -
+                  and compile the expression of a size value of a text mark.
+                justification: |
+                  Text properties arrive as untrusted JSON and decide what is drawn and how much memory the
+                  labels use.
+                tests:
+                  - SpecParser_Parse_ValidatesTextMarkProperties
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ImputeRules
+                title: >-
+                  The SpecParser unit shall validate the impute property of a position definition - null, or an
+                  object with keyvals (an array or a sequence object whose length is bounded by the scale-domain
+                  limit), method (value, mean, median, max, or min), value, and frame (two numbers or nulls) - with
+                  a located error at the offending member, and warn about an unknown member at the key.
+                justification: |
+                  The impute of an encoding is executed by the pipeline; its parameters must be validated and
+                  bounded before the pipeline reads them.
+                tests:
+                  - SpecParser_Parse_RejectsABadImputeObjectWithItsLocation
+                  - SpecParser_Parse_AcceptsTheImputeForms
+                  - SpecParser_Parse_WarnsAboutUnknownImputeMembers

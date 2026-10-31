@@ -25,7 +25,7 @@ sections:
               ordinal positions by mark, a time scale for a temporal field (a UTC scale for a utc time
               unit), a sequential scale for a quantitative color, an ordinal scale for a discrete color,
               shape, or stroke dash, and the documented continuous ranges for size and
-              opacity - and shall infer the orientation of bar, tick, and rule marks.
+              opacity - and shall infer the orientation of bar, tick, rule, line, area, trail, and arc marks.
             justification: |
               The scale type decides how every value is positioned; inferring it as Vega-Lite does is what
               makes the same specification produce the same chart.
@@ -36,7 +36,26 @@ sections:
             tests:
               - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
               - ScaleResolver_InferOrient_FollowsVegaLite
+              - ScaleResolver_InferOrient_AreaRangeAndTemporalRulesFollowVegaLite
               - ScaleResolver_Temporal_XDefaultsToATimeScaleWithTheDataExtent
+
+          - id: CanvasNetVegaLite-Scales-PolarScales
+            title: >-
+              The Scales subsystem shall resolve the theta and radius channels of the arc and text marks as
+              scales - the angle over a whole turn and the radius over half of the smaller side of the view,
+              linear by default with zero and no nice or padding, band or point for a discrete field, the
+              explicit transformed types, and a domain that spans a stack - and shall give a channel a scale
+              only for the marks that draw it.
+            justification: |
+              Pie, donut, and radial charts are drawn through the polar scales, and a channel that a mark does
+              not draw must be ignored rather than resolved.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-PolarScales
+              - CanvasNetVegaLite-Scales-ScaleResolver-ChannelGating
+            tests:
+              - ScaleResolver_Resolve_ThetaHasTheFullCircleRange
+              - ScaleResolver_Resolve_StackedThetaDomainSpansTheStack
+              - ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable
 
           - id: CanvasNetVegaLite-Scales-Domains
             title: >-

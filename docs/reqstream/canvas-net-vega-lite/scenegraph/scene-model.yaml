@@ -3,8 +3,9 @@
 #
 # These requirements describe the design-level behavior of the SceneModel unit of the Scenegraph subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene records (Scene,
-# SceneGroup, SceneRect, SceneRule, ScenePath, SceneSymbol, SceneText, SceneClip, ScenePoint, SceneEntry), the
-# deterministic enumeration, and SceneBounds. The records and their defaults follow the Vega scenegraph. See
+# SceneGroup, SceneRect, SceneRule, ScenePath, SceneSymbol, SceneText, SceneArc, SceneTrail, SceneClip, ScenePoint,
+# SceneEntry, ScenePathSegment, and SceneTrailPoint), the deterministic enumeration, and SceneBounds. The records and
+# their defaults follow the Vega scenegraph. See
 # docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md for the test-evidence mapping.
 
 sections:
@@ -60,3 +61,36 @@ sections:
                   Bounds decide the extent of guides and titles and thereby the size of the canvas.
                 tests:
                   - SceneBounds_UnionTranslateAndRotate_AreExact
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-CurvedPaths
+                title: >-
+                  The SceneModel unit shall let a path item carry a list of absolute segments (move, line, cubic
+                  Bezier with its two control points, and close) that replaces its points, copy the segments it is
+                  given into a read-only list, and report an empty segment list for a path of points, so that the
+                  curved outline of a line or an area is asserted as data.
+                justification: |
+                  The line and area marks are curves; the segment list is the assertion surface of their geometry
+                  and must be as immutable as the rest of the scene.
+                tests:
+                  - SceneModel_PathSegments_AreCopiedAndTakePrecedenceOverPoints
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-ArcAndTrailItems
+                title: >-
+                  The SceneModel unit shall provide the arc item (a center, an inner and an outer radius, a start
+                  and an end angle in radians, a pad angle, and a corner radius) and the trail item (runs of points
+                  that each carry a position and a size), with the roles and the paints of every item, and copy the
+                  runs of a trail it is given into read-only lists.
+                justification: |
+                  The geometry of a pie slice and of a variable-width trail is asserted from the scene; the painter
+                  and the tests read the same parameters.
+                tests:
+                  - SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-StrokeMiterLimit
+                title: >-
+                  The SceneModel unit shall let any item carry an optional stroke miter limit that defaults to none
+                  (the painter then uses the Vega default) and survives the copy that changes another property.
+                justification: |
+                  The strokeMiterLimit property of a mark must reach the painter as data.
+                tests:
+                  - SceneModel_StrokeMiterLimit_DefaultsToNullAndSurvivesWith

@@ -4,7 +4,8 @@
 # These requirements decompose the CanvasNetVegaLite system's output responsibility into the Scenegraph
 # subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene model that
 # is the assertion surface for analytic tests (SceneModel), the painter that draws a scene onto a CanvasNet
-# Surface with only the public CanvasNet APIs (ScenePainter), and the CSS color parser (CssColor). Each
+# Surface with only the public CanvasNet APIs (ScenePainter), the geometry of the arc mark (ArcGeometry), and the
+# CSS color parser (CssColor). Each
 # requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/scenegraph.md for the test-evidence mapping.
 
@@ -16,9 +17,10 @@ sections:
           - id: CanvasNetVegaLite-Scenegraph-Model
             title: >-
               The Scenegraph subsystem shall represent a chart as an immutable scene of groups,
-              rectangles, rules, paths, symbols, and text items with roles, CSS-string colors, and Vega
-              defaults, enumerated in deterministic drawing order without recursion, with exact bounds
-              arithmetic, so that tests can assert geometry and paint analytically.
+              rectangles, rules, paths (of points or of curved segments), symbols, text items, arcs, and
+              trails with roles, CSS-string colors, and Vega defaults, enumerated in deterministic drawing
+              order without recursion, with exact bounds arithmetic, so that tests can assert geometry and
+              paint analytically.
             justification: |
               Separating the scene from the pixels makes the chart logic verifiable without comparing
               images.
@@ -27,18 +29,24 @@ sections:
               - CanvasNetVegaLite-Scenegraph-SceneModel-Defaults
               - CanvasNetVegaLite-Scenegraph-SceneModel-Gradient
               - CanvasNetVegaLite-Scenegraph-SceneModel-Bounds
+              - CanvasNetVegaLite-Scenegraph-SceneModel-CurvedPaths
+              - CanvasNetVegaLite-Scenegraph-SceneModel-ArcAndTrailItems
+              - CanvasNetVegaLite-Scenegraph-SceneModel-StrokeMiterLimit
             tests:
               - SceneModel_Create_GroupsAndItemsPreservesDeterministicOrder
               - SceneModel_Create_ListsAreCopiedAndReadOnly
               - SceneModel_Gradient_DefaultsCopiesAndLimits
               - SceneBounds_UnionTranslateAndRotate_AreExact
+              - SceneModel_PathSegments_AreCopiedAndTakePrecedenceOverPoints
+              - SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists
 
           - id: CanvasNetVegaLite-Scenegraph-Painting
             title: >-
               The Scenegraph subsystem shall paint a scene onto a Surface at a uniform scale and offset
-              with fill, stroke, dash, opacity, rotation, rounded rectangles, symbols, paths, text with
-              baseline and limit, and clipping with fractional coverage, drawing nothing for an item
-              without paint, producing the same pixels on every platform, and observing cancellation.
+              with fill, stroke, dash, miter limit, opacity, rotation, rounded rectangles, symbols, paths
+              (including curved segments), arcs, trails, text with baseline and limit, and clipping with
+              fractional coverage, drawing nothing for an item without paint, producing the same pixels on
+              every platform, and observing cancellation.
             justification: |
               The painter turns the verified scene into pixels, and its output must be correct and
               deterministic.
@@ -49,11 +57,40 @@ sections:
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Text
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Arguments
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-CurvedPaths
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Arcs
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
             tests:
               - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
               - ScenePainter_Paint_GradientFillRunsAlongTheItemBox
               - ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels
               - ScenePainter_Paint_TextUsesBaselineRotationAndScale
+              - ScenePainter_Paint_SegmentPathStrokesThroughItsCubicCurve
+              - ScenePainter_Paint_ArcFillsOnlyItsWedgeAndLeavesTheHoleEmpty
+              - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
+
+          - id: CanvasNetVegaLite-Scenegraph-ArcGeometry
+            title: >-
+              The Scenegraph subsystem shall build the outline of an arc - a sector or ring slice between two
+              radii and two angles, with a pad angle and rounded corners, or a full circle or annulus - as a
+              core Path centered at the origin, exactly as d3-shape draws it, for any number that a
+              specification or the data supplies.
+            justification: |
+              The pie and donut charts are made of arcs; their outlines must follow the d3-shape arc that
+              Vega-Lite uses, and a value that is not a number must not stop the renderer.
+            children:
+              - CanvasNetVegaLite-Scenegraph-ArcGeometry-Sector
+              - CanvasNetVegaLite-Scenegraph-ArcGeometry-FullCircle
+              - CanvasNetVegaLite-Scenegraph-ArcGeometry-PadAngle
+              - CanvasNetVegaLite-Scenegraph-ArcGeometry-CornerRadius
+              - CanvasNetVegaLite-Scenegraph-ArcGeometry-Totality
+            tests:
+              - ArcGeometry_Build_QuarterSectorHasHandDerivedCommands
+              - ArcGeometry_Build_FullCircleAndAnnulusUseOppositeWindingSubpaths
+              - ArcGeometry_Build_PadAngleMovesTheEdgesByTheDerivedAngles
+              - ArcGeometry_Build_CornerRadiusRoundsTheCornersAndClampsToHalfTheRing
+              - ArcGeometry_Build_DegenerateAndNonFiniteInputsGiveEmptyOrPointPaths
 
           - id: CanvasNetVegaLite-Scenegraph-Colors
             title: >-

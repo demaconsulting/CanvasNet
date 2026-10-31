@@ -61,6 +61,20 @@ sections:
                   - LegendBuilder_Symbol_FixedAndBasePaintsComeFromTheMarkAndTheConfiguration
                   - LegendBuilder_Symbol_OpacityStrokeWidthAndDashChannelsShowTheirValues
 
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-PathMarkSymbols
+                title: >-
+                  The LegendBuilder unit shall draw the symbols of the legend of a line, rule, or trail mark as
+                  the stroke shape (a short line) painted with the stroke color of the entry (a trail being filled
+                  by default but drawn with a stroke in its legend, as Vega-Lite does), with the stroke width of
+                  the mark or the legend default, and the symbols of the legend of an area, arc, or text mark as
+                  filled circles in the color of the entry.
+                justification: |
+                  The symbol of a legend must look like the mark that it explains; Vega-Lite draws the legend of a
+                  line with a stroke and that of an area, arc, or text with a filled circle.
+                tests:
+                  - LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor
+                  - LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles
+
               - id: CanvasNetVegaLite-Guides-LegendBuilder-Entries
                 title: >-
                   The LegendBuilder unit shall take the entries of a symbol legend from the domain of a discrete

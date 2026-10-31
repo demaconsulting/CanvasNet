@@ -67,7 +67,8 @@ sections:
                   that length together, failing closed with a located VegaLiteRenderException that names the
                   limit before an over-long label is built or kept, and shall refuse a time format longer than
                   1,024 characters or expanding to more than 4,096 pieces with a located VegaLiteSpecException
-                  at the format.
+                  at the format; and shall give the text mark a formatter with its own per-label limit
+                  (CreateBounded, which returns no label when a label would be longer than the limit it is given).
                 justification: |
                   A format string is untrusted text that can repeat a long directive, and a guide can have a
                   thousand ticks; the labels must be bounded by the limits of the call individually and in
@@ -76,3 +77,4 @@ sections:
                   - TimeLabels_Create_LabelsAreBoundedByTheLimit
                   - TimeLabels_Create_LabelsOfAGuideAreBoundedTogether
                   - TimeLabels_Create_LongSpecifier_IsASpecificationError
+                  - TimeLabels_CreateBounded_ReturnsNullWhenTheLabelIsLongerThanTheLimit

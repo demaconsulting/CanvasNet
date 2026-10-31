@@ -14,8 +14,9 @@
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, timeUnit, stack, and impute with a closed subset of the Vega expression language (including
 # the date and time functions) and static variable
-# parameters, the aggregate, bin, time unit, and stack of an encoding, the marks bar, rect, point, circle, square,
-# rule, and tick (with stacked, binned, time-unit, and ranged geometry), the color, size, shape, opacity, stroke,
+# parameters, the aggregate, bin, time unit, stack, and impute of an encoding, the marks bar, rect, point, circle,
+# square, rule, tick, line, area, trail, text, and arc (with stacked, binned, time-unit, ranged, interpolated, and
+# polar geometry), the color, size, shape, opacity, stroke,
 # and angle channels with color schemes, linear, logarithmic, power, symlog, time, UTC, band, point, ordinal, and
 # discretizing scales, axes, legends, and titles, all dates in one caller-chosen time zone (UTC by default) - and
 # reports every recognized construct outside that subset with a stable vl-*
@@ -80,6 +81,7 @@ sections:
         children:
           - CanvasNetVegaLite-SpecModel-Locations
           - CanvasNetVegaLite-SpecModel-StructuralValidation
+          - CanvasNetVegaLite-SpecModel-MarkValidation
           - CanvasNetVegaLite-VegaLiteDocument-ErrorContract
         tests:
           - CanvasNetVegaLite_SystemIntegration_Spec_MalformedJsonReportsLineAndColumn
@@ -179,9 +181,11 @@ sections:
       - id: CanvasNetVegaLite-SupportedSubset
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
-          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, opacity, fillOpacity,
-          strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2 and y2 ranges of
-          bar, rect, and rule) with field, value, and datum forms, quantitative, nominal, ordinal, and
+          point, circle, square, rule, tick, line, area, trail, text, and arc, the x, y, theta, radius, text,
+          order, detail, color, fill, stroke, size, opacity, fillOpacity,
+          strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2, y2, theta2, and
+          radius2 ranges of the marks that draw them) with field, value, and datum forms, quantitative,
+          nominal, ordinal, and
           temporal types, and the documented scale types (linear, log, pow, sqrt, symlog, time, utc,
           sequential, band, point,
           ordinal, quantile, quantize, threshold, and bin-ordinal) with their documented properties - and
@@ -193,6 +197,9 @@ sections:
         children:
           - CanvasNetVegaLite-Marks-SupportedSubset
           - CanvasNetVegaLite-Marks-Properties
+          - CanvasNetVegaLite-Marks-PathMarks
+          - CanvasNetVegaLite-Marks-TextMarks
+          - CanvasNetVegaLite-Marks-ArcMarks
           - CanvasNetVegaLite-Scales-Types
           - CanvasNetVegaLite-Scales-Domains
         tests:
@@ -357,8 +364,9 @@ sections:
           transforms, parameters, compositions, and data sources - as an unsupported-feature report with
           a stable vl-* identifier, a message, and the RFC 6901 pointer with one-based line and column of
           the construct, once per feature and location, and shall never skip such a construct silently,
-          while not reporting a construct that it draws (the aggregate, bin of x and y, and stack of an
-          encoding, the aggregating transforms, and the secondary channels of bars, rects, and rules).
+          while not reporting a construct that it draws (the aggregate, bin of x and y, stack, and impute of
+          an encoding, the aggregating transforms, the secondary channels of bars, rects, rules, and areas,
+          and the marks line, area, trail, text, and arc).
         tags: [system]
         justification: |
           Unsupported features are a different problem from mistakes and must be distinguishable from
@@ -1235,3 +1243,216 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Time_Determinism_RepeatedAndConcurrentRendersAreByteIdentical
           - CanvasNetVegaLite_SystemIntegration_Time_CurrentCultureDoesNotChangeTheOutput
           - CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter
+
+      - id: CanvasNetVegaLite-LineAndAreaMarks
+        title: >-
+          The library shall draw the line and area marks as Vega-Lite does - one path for each group of
+          rows that share the values of the grouping channels, sorted by the position or the order channel,
+          an area between its value and its baseline (the start of the stack, the second channel of a range,
+          or zero) with stacked layers that meet, vertical or horizontal by the orientation - stroking a
+          line and filling an area with the documented paint, so that the geometry of the paths is the
+          analytic outline of the data.
+        tags: [system]
+        justification: |
+          Line and area charts are the most common time series charts; their paths are the data that the
+          reader follows.
+        children:
+          - CanvasNetVegaLite-Marks-PathMarks
+          - CanvasNetVegaLite-Marks-MarkBuilder-Lines
+          - CanvasNetVegaLite-Marks-MarkBuilder-Areas
+          - CanvasNetVegaLite-Scenegraph-SceneModel-CurvedPaths
+          - CanvasNetVegaLite-Scenegraph-ScenePainter-CurvedPaths
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Lines_PolylineHasTheDocumentedSegmentsAndPixels
+          - CanvasNetVegaLite_SystemIntegration_Lines_InterpolatedLineCoversItsCurvePixels
+          - CanvasNetVegaLite_SystemIntegration_Areas_StackedAreasFillBetweenTheirLayers
+
+      - id: CanvasNetVegaLite-TrailMarks
+        title: >-
+          The library shall draw the trail mark as a line whose width follows the size channel of each
+          point, broken at the rows that have no value, with capsule joins between the points.
+        tags: [system]
+        justification: |
+          A trail carries a second measure in its width; the width must change with the data and must break
+          where the data has a gap.
+        children:
+          - CanvasNetVegaLite-Marks-MarkBuilder-Trails
+          - CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Trails_WidthFollowsTheSizeChannel
+
+      - id: CanvasNetVegaLite-CurveInterpolation
+        title: >-
+          The library shall interpolate lines and areas with the fifteen interpolation values of Vega-Lite
+          (the linear, step, basis, bundle, cardinal, catmull-rom, monotone, and natural families and their
+          open, closed, and tension variants), as the d3-shape curves do, drawing every one of them to finite
+          coordinates and drawing an area with the bundle interpolation as a linear one, reported.
+        tags: [system]
+        justification: |
+          The interpolation is how a line is smoothed or stepped; every value must be drawn as d3-shape
+          draws it and none may produce an invalid coordinate.
+        children:
+          - CanvasNetVegaLite-Marks-CurveBuilder-LinearAndStep
+          - CanvasNetVegaLite-Marks-CurveBuilder-Basis
+          - CanvasNetVegaLite-Marks-CurveBuilder-Cardinal
+          - CanvasNetVegaLite-Marks-CurveBuilder-Splines
+          - CanvasNetVegaLite-Marks-CurveBuilder-DefinedGaps
+          - CanvasNetVegaLite-Marks-CurveBuilder-Area
+          - CanvasNetVegaLite-Marks-CurveBuilder-Names
+          - CanvasNetVegaLite-Marks-MarkBuilder-Interpolation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Curves_AllFifteenInterpolationsRenderAndAreFinite
+
+      - id: CanvasNetVegaLite-PathOverlays
+        title: >-
+          The library shall draw the point overlay of a line, area, trail, or rule (a symbol at every row)
+          and the line overlay of an area (a line along its top edge), from the mark definition or the
+          configuration, with the base encoding and the documented default opacity.
+        tags: [system]
+        justification: |
+          A line with points and an area with a line are common forms of the path marks.
+        children:
+          - CanvasNetVegaLite-Marks-MarkBuilder-Overlays
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn
+
+      - id: CanvasNetVegaLite-InvalidData
+        title: >-
+          The library shall break a line, area, or trail at a row that has no number on a continuous channel
+          (and connect its neighbors in the filter mode), keep such rows in the scale domains, and report the
+          invalid modes that it cannot draw (show and null) and the filter modes that should leave the rows
+          out of the domains.
+        tags: [system]
+        justification: |
+          A gap in the data must show as a gap, and a mode that is not honored must be reported.
+        children:
+          - CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
+          - CanvasNetVegaLite-Marks-InvalidDataAndOrder
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported
+
+      - id: CanvasNetVegaLite-Impute
+        title: >-
+          The library shall impute the missing keys of an encoding with the impute property of a position
+          channel (a constant or a statistic of the group, over the groups of the path) and of the layers of
+          a stacked line or area (zero), so that the paths have a point at every key.
+        tags: [system]
+        justification: |
+          A series with a missing key must show the value that the author chose, and the layers of a stacked
+          area must meet.
+        children:
+          - CanvasNetVegaLite-Transforms-EncodingPlan-EncodingImpute
+          - CanvasNetVegaLite-Transforms-EncodingPlan-StackImpute
+          - CanvasNetVegaLite-SpecModel-SpecParser-ImputeRules
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Impute_EncodingAndStackImputeFillMissingKeys
+
+      - id: CanvasNetVegaLite-TextMarks
+        title: >-
+          The library shall draw the text mark as one label per row, with the text from the text channel or
+          the text property formatted with the d3 number and time formats (a binned field as its range),
+          split into lines, positioned, offset, rotated, sized, and painted as Vega-Lite does, with
+          the default alignment center and baseline middle.
+        tags: [system]
+        justification: |
+          Labels make a chart readable and must read as Vega-Lite would print them, whatever the culture.
+        children:
+          - CanvasNetVegaLite-Marks-TextMarks
+          - CanvasNetVegaLite-Marks-MarkBuilder-TextItems
+          - CanvasNetVegaLite-Marks-MarkBuilder-TextContent
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Text_LabelsAreFormattedPositionedAndPainted
+
+      - id: CanvasNetVegaLite-ArcMarks
+        title: >-
+          The library shall draw the arc mark - the slices of a pie, a donut, and a radial chart - from the
+          theta and radius channels (stacked slices in the order of the data) with the center, the pad angle,
+          the corner radius, and the paint of the mark, the geometry of d3-shape, and place the labels of a
+          text mark by the polar channels at the middle of their slices.
+        tags: [system]
+        justification: |
+          Pie and donut charts are the polar charts of Vega-Lite; the angle and the area of each slice are
+          the proportions that the reader compares.
+        children:
+          - CanvasNetVegaLite-Marks-ArcMarks
+          - CanvasNetVegaLite-Marks-MarkBuilder-Arcs
+          - CanvasNetVegaLite-Marks-MarkBuilder-PolarText
+          - CanvasNetVegaLite-Scenegraph-ArcGeometry
+          - CanvasNetVegaLite-Scenegraph-ScenePainter-Arcs
+          - CanvasNetVegaLite-Scales-PolarScales
+          - CanvasNetVegaLite-Transforms-EncodingPlan-PolarStack
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Arcs_PieAndDonutCoverTheirWedges
+          - CanvasNetVegaLite_SystemIntegration_Arcs_PieLabelsAreAtTheSliceMiddles
+
+      - id: CanvasNetVegaLite-DrawOrder
+        title: >-
+          The library shall draw the marks in the order of the order channel (so that the last is on top) and
+          sort the points of a line, area, or trail by that channel, keeping the order of the data for an
+          order of null.
+        tags: [system]
+        justification: |
+          Which mark is on top of which, and the direction of a path, are decided by the order channel.
+        children:
+          - CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Order_OrderChannelControlsOverlapAndPathSort
+
+      - id: CanvasNetVegaLite-PathMarkLimits
+        title: >-
+          The library shall bound the work of the line, area, trail, text, and arc marks - the segments of a
+          path, the characters and lines of a label, the scene items, and the rows that an impute adds -
+          failing closed with a located exception before the memory is spent, accepting exactly the limit, and
+          shall stop at a cancellation while it builds paths.
+        tags: [system, security]
+        justification: |
+          The cost of a curve, a label, or an impute is a multiple of the data; no specification may exhaust
+          memory or time, and a caller must be able to abandon the work.
+        children:
+          - CanvasNetVegaLite-Marks-MarkBuilder-PathLimits
+          - CanvasNetVegaLite-Marks-MarkBuilder-TextLimits
+          - CanvasNetVegaLite-Marks-MarkBuilder-ArcLimits
+          - CanvasNetVegaLite-Marks-CurveBuilder-Limits
+          - CanvasNetVegaLite-Transforms-EncodingPlan-ImputeLimits
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_PathLimits_SegmentsTextAndItemsFailClosedBeforeAllocation
+          - CanvasNetVegaLite_SystemIntegration_PathLimits_CancellationIsHonoredWhileBuildingPaths
+
+      - id: CanvasNetVegaLite-PathMarkDeterminism
+        title: >-
+          The library shall give the same image and the same reports for a chart of line, area, trail, text,
+          and arc marks on every platform and in every culture, and for repeated and concurrent renders,
+          using no clock and no host font, zone, or culture.
+        tags: [system]
+        justification: |
+          Reproducibility is required for golden tests and caching; the curves and arcs are computed with
+          trigonometry and must not depend on the machine.
+        children:
+          - CanvasNetVegaLite-Marks-PathMarks
+          - CanvasNetVegaLite-Marks-TextMarks
+          - CanvasNetVegaLite-Marks-ArcMarks
+          - CanvasNetVegaLite-Scenegraph-ArcGeometry
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_PathMarks_RepeatedAndConcurrentRendersAreIdentical
+          - CanvasNetVegaLite_SystemIntegration_PathMarks_CultureDoesNotChangeTheScenesOrThePixels
+          - CanvasNetVegaLite_SystemIntegration_PathMarks_ScaleKeepsTheGeometryAndMultipliesThePixels
+
+      - id: CanvasNetVegaLite-PathUnsupportedFeatures
+        title: >-
+          The library shall report, with stable identifiers, the parts of the line, area, trail, text, and arc
+          marks that it does not draw (the geoshape and image marks, the show and null invalid modes, the
+          filter modes that keep the rows in the scale domains, an area with the bundle interpolation, a custom
+          format type, the impute of a channel other than x and y, and the polar channels of a mark that
+          ignores them) and shall not report the marks and channels that it draws.
+        tags: [system]
+        justification: |
+          A construct that is not drawn must be named where it is written, and one that is drawn must not make
+          every chart noisy.
+        children:
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-TextMark
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-ArcMark
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Unsupported_GeoshapeImageAndSpecialInvalidModesAreReported
+          - CanvasNetVegaLite_SystemIntegration_PathMarks_SupportedSubsetDeliversNoDiagnosticsInStrictMode

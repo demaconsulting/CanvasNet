@@ -4,8 +4,10 @@
 # These requirements decompose the CanvasNetVegaLite system's mark responsibility into the Marks subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the builder that turns the rows of a table, the
 # scales, and the resolved configuration into the scene items of the marks bar, rect, point, circle, square,
-# rule, and tick. Each requirement here links down to the unit requirements that implement it. See
-# docs/verification/canvas-net-vega-lite/marks.md for the test-evidence mapping.
+# rule, tick, line, area, trail, text, and arc (MarkBuilder), and the curve generator that interpolates the
+# paths of the line, area, and trail marks (CurveBuilder). Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-vega-lite/marks.md for the test-evidence
+# mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -15,8 +17,9 @@ sections:
           - id: CanvasNetVegaLite-Marks-SupportedSubset
             title: >-
               The Marks subsystem shall build the scene items of the marks bar, rect, point, circle,
-              square, rule, and tick - one item per row, positioned by the x and y scales with the
-              documented thickness, size, and orientation rules - in a marks group, each item having a
+              square, rule, tick, line, area, trail, text, and arc - one item per row (one path or trail per
+              group for the path marks) - positioned by the x, y, theta, and radius scales with the
+              documented thickness, size, and orientation rules, in a marks group, each item having a
               role that names its mark type.
             justification: |
               The marks are the data of the chart; their geometry must match analytic expectations.
@@ -123,16 +126,25 @@ sections:
 
           - id: CanvasNetVegaLite-Marks-Limits
             title: >-
-              The Marks subsystem shall bound the number of scene items, failing closed with a located
-              VegaLiteRenderException before the memory is spent, shall observe the cancellation token
+              The Marks subsystem shall bound the number of scene items (and the segments of a path, the
+              characters and lines of a label, and the work of grouping and sorting), failing closed with a
+              located VegaLiteRenderException before the memory is spent, shall observe the cancellation token
               at bounded intervals, and shall build nothing for a mark that is not supported.
             justification: |
               Marks scale with the data, so they must be bounded and cancelable.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-Limits
+              - CanvasNetVegaLite-Marks-MarkBuilder-PathLimits
+              - CanvasNetVegaLite-Marks-MarkBuilder-TextLimits
+              - CanvasNetVegaLite-Marks-MarkBuilder-ArcLimits
+              - CanvasNetVegaLite-Marks-CurveBuilder-Limits
             tests:
               - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
               - MarkBuilder_Build_LongDashPatternsExceedTheLimit
+              - MarkBuilder_Build_PathSegmentsAreChargedBeforeCreation
+              - MarkBuilder_Build_TextCharactersAreChargedBeforeFormatting
+              - MarkBuilder_Build_ArcsAreChargedPerSliceAndPollCancellation
+              - CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind
 
           - id: CanvasNetVegaLite-Marks-TimeUnitBands
             title: >-
@@ -153,3 +165,84 @@ sections:
               - MarkBuilder_Time_Zone_BarsSpanLocalMonths
               - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
               - CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours
+
+          - id: CanvasNetVegaLite-Marks-PathMarks
+            title: >-
+              The Marks subsystem shall draw the line, area, and trail marks as paths - one for each group of
+              rows that share the values of the grouping channels, in the order of the data, sorted by the
+              position or the order channel, interpolated by the fifteen Vega-Lite curves (the area with its
+              baseline along the same curve, stacked layers meeting, and ranges between two channels), with
+              the point and line overlays, the dash, cap, join, and miter properties, and a width that varies
+              with the data for a trail.
+            justification: |
+              Line and area charts are the most common charts after bars; their paths must be what Vega-Lite
+              draws.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-Lines
+              - CanvasNetVegaLite-Marks-MarkBuilder-Areas
+              - CanvasNetVegaLite-Marks-MarkBuilder-Trails
+              - CanvasNetVegaLite-Marks-MarkBuilder-Interpolation
+              - CanvasNetVegaLite-Marks-MarkBuilder-StrokeProperties
+              - CanvasNetVegaLite-Marks-MarkBuilder-Overlays
+              - CanvasNetVegaLite-Marks-CurveBuilder-LinearAndStep
+              - CanvasNetVegaLite-Marks-CurveBuilder-Basis
+              - CanvasNetVegaLite-Marks-CurveBuilder-Cardinal
+              - CanvasNetVegaLite-Marks-CurveBuilder-Splines
+              - CanvasNetVegaLite-Marks-CurveBuilder-Area
+              - CanvasNetVegaLite-Marks-CurveBuilder-Names
+            tests:
+              - MarkBuilder_Build_LineHasHandDerivedSegmentsAndPaint
+              - MarkBuilder_Build_AreaPolygonRunsBetweenTheValueAndTheBaseline
+              - MarkBuilder_Build_TrailPointsCarryTheSizeChannel
+              - MarkBuilder_Build_InterpolateAndTensionSelectTheCurve
+              - MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition
+              - CurveBuilder_Line_BasisFamilyMatchesTheHandDerivedBeziers
+              - CurveBuilder_Area_VerticalAndHorizontalPolygonsMatchTheAnchors
+              - CanvasNetVegaLite_SystemIntegration_Lines_PolylineHasTheDocumentedSegmentsAndPixels
+
+          - id: CanvasNetVegaLite-Marks-InvalidDataAndOrder
+            title: >-
+              The Marks subsystem shall break (or, in the filter mode, connect) a path at a row that has no
+              number on a continuous channel, keep such rows in the domains of the scales, and draw the items of
+              every mark in the order of the order channel.
+            justification: |
+              A gap in the data must show as a gap, and the order of drawing decides which mark is on top.
+            children:
+              - CanvasNetVegaLite-Marks-CurveBuilder-DefinedGaps
+              - CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
+              - CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
+            tests:
+              - CurveBuilder_Line_UndefinedPointsStartNewSubpaths
+              - MarkBuilder_Build_DefaultInvalidModeBreaksThePath
+              - MarkBuilder_Build_OrderChannelSortsTheDrawOrderOfAnyMark
+
+          - id: CanvasNetVegaLite-Marks-TextMarks
+            title: >-
+              The Marks subsystem shall draw the text mark as one label per row, with the text formatted from
+              the field (the d3 number and time formats and the text of the value), the lines of an array or of
+              a line break, the position, offset, angle, alignment, baseline, font, and limit of the mark, and
+              the paint of a filled mark.
+            justification: |
+              Labels make a chart readable; they must read as Vega-Lite would print them.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-TextItems
+              - CanvasNetVegaLite-Marks-MarkBuilder-TextContent
+            tests:
+              - MarkBuilder_Build_TextHasPositionDefaultsAndPaint
+              - MarkBuilder_Build_TextFormatsNumbersTimesAndNulls
+
+          - id: CanvasNetVegaLite-Marks-ArcMarks
+            title: >-
+              The Marks subsystem shall draw the arc mark as one slice per row with the angles and radii of the
+              theta and radius channels (a pie, a donut, and a radial chart, stacked slices in the order of the
+              data) around the center of the view or the position of the row, and place the labels of a text
+              mark by the same polar channels.
+            justification: |
+              Pie and donut charts are the polar charts of Vega-Lite and the labels that go with them.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-Arcs
+              - CanvasNetVegaLite-Marks-MarkBuilder-PolarText
+            tests:
+              - MarkBuilder_Build_PieSlicesHaveHandDerivedAnglesAndRadii
+              - MarkBuilder_Build_PieLabelsSitAtTheMiddleOfTheirSlice
+              - CanvasNetVegaLite_SystemIntegration_Arcs_PieAndDonutCoverTheirWedges

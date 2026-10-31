@@ -1,0 +1,83 @@
+---
+# Software Unit Requirements for ArcGeometry
+#
+# These requirements describe the design-level behavior of the ArcGeometry unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the geometry of the arc mark (ArcGeometry.cs) -
+# the port of the d3-shape arc generator (the sector or ring between two radii and two angles, with a pad angle and
+# rounded corners) on the port of the d3-path commands (the SVG elliptical arc and the two half circles of a full
+# circle) that produces a core Path centered at the origin. The geometry follows d3-shape and d3-path (ISC) and
+# Vega behavior, attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ArcGeometry Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-ArcGeometry-Sector
+                title: >-
+                  The ArcGeometry unit shall build the outline of a sector or ring slice between an inner and an
+                  outer radius and a start and an end angle (in radians, clockwise from twelve o'clock as Vega
+                  measures them) as a closed core Path centered at the origin - a move to the start of the outer
+                  arc, the outer arc, the line to the inner radius, the inner arc back, and the close - whose area
+                  is the area of the sector formula (the half of the angle times the difference of the squared
+                  radii).
+                justification: |
+                  The pie and the donut chart are drawn from these outlines, and the area of each slice is the
+                  proportion that the reader compares.
+                tests:
+                  - ArcGeometry_Build_QuarterSectorHasHandDerivedCommands
+                  - ArcGeometry_Build_FlattenedAreaMatchesTheSectorFormula
+
+              - id: CanvasNetVegaLite-Scenegraph-ArcGeometry-FullCircle
+                title: >-
+                  The ArcGeometry unit shall build a full circle or a full annulus (an angle span of a whole turn or
+                  more) from two half arcs for each circle, with the outer and the inner circle wound in opposite
+                  directions so that the inner circle is a hole, shall draw a ring whose inner radius is not above
+                  zero as a wedge to the center, shall swap radii that are given in the wrong order, and shall
+                  accept an end angle that is below the start angle.
+                justification: |
+                  An arc of a whole turn is the usual single-slice or progress chart, and a reversed scale or a
+                  swapped radius pair must still draw the slice that the data describes.
+                tests:
+                  - ArcGeometry_Build_FullCircleAndAnnulusUseOppositeWindingSubpaths
+                  - ArcGeometry_Build_SwapsRadiiAndAcceptsReversedAngles
+
+              - id: CanvasNetVegaLite-Scenegraph-ArcGeometry-PadAngle
+                title: >-
+                  The ArcGeometry unit shall apply a pad angle as d3-shape does - each edge of the slice is moved
+                  inward by the angle that leaves a gap of constant width between neighbors (the arcsine of the
+                  pad radius, the root of the sum of the squared radii, over the radius times the sine of half the
+                  pad angle, separately for the outer and the inner radius) - and a pad angle that leaves no
+                  sector collapses the slice to its middle angle.
+                justification: |
+                  The padAngle property separates the slices of a pie with a gap of constant width, and its
+                  geometry is not the naive subtraction of an angle.
+                tests:
+                  - ArcGeometry_Build_PadAngleMovesTheEdgesByTheDerivedAngles
+
+              - id: CanvasNetVegaLite-Scenegraph-ArcGeometry-CornerRadius
+                title: >-
+                  The ArcGeometry unit shall round the corners of a slice with the corner radius as d3-shape does
+                  (the corner tangents and the circle arcs that join the edges with the outer and the inner arc),
+                  clamping the radius to half the thickness of the ring and to what the angle allows, and merging
+                  the two corners of an edge that meet.
+                justification: |
+                  The cornerRadius property rounds the slices of a pie or donut; an unbounded radius must not
+                  produce a curve that crosses itself.
+                tests:
+                  - ArcGeometry_Build_CornerRadiusRoundsTheCornersAndClampsToHalfTheRing
+
+              - id: CanvasNetVegaLite-Scenegraph-ArcGeometry-Totality
+                title: >-
+                  The ArcGeometry unit shall be a total function: it shall give an empty path for a radius, an
+                  angle, a pad angle, or a corner radius that is not finite or is beyond one billion, a single point
+                  for an outer radius of zero, treat negative radii, pad angles, and corner radii as zero, and never
+                  throw or emit a coordinate that is not finite.
+                justification: |
+                  The arc parameters come from the data and the specification; any number must be drawable (or draw
+                  nothing) without stopping the renderer.
+                tests:
+                  - ArcGeometry_Build_DegenerateAndNonFiniteInputsGiveEmptyOrPointPaths
