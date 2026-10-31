@@ -1935,6 +1935,33 @@ canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new 
 
 `DrawText` respects the Canvas current transform, so translated/rotated text works too.
 
+#### CreateTextPath
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
+using System.Numerics;
+
+using var stream = File.OpenRead("OpenSans-Regular.ttf");
+var font = TrueTypeFont.Load(stream);
+
+// The text as one outline path: baseline at y = 100, right edge at x = 180, no canvas transform applied.
+var outline = TextRenderer.CreateTextPath("Hello", font, size: 32f, x: 180, y: 100, TextAlign.Right);
+
+// Move it, then fill it (or stroke it, or use it as a clip) like any other path.
+using var surface = new Surface(200, 200);
+PathFiller.Fill(surface, outline.Transform(Matrix3x2.CreateTranslation(0, 20)), new Rgba32(0, 0, 0, 255));
+```
+
+`CreateTextPath` places glyphs with the same pen advance, kerning, and alignment as `DrawText` and
+`MeasureText`, in y-down coordinates, and returns `Path.Empty` for empty or whitespace-only text. All
+glyphs are merged into one path, so overlapping glyphs are filled as a single shape under the
+fill rule (`DrawText` composites them one after another). `size` must be finite and positive; a
+`null` text or font throws `ArgumentNullException`, and an undefined `TextAlign` throws
+`ArgumentOutOfRangeException`. The method is pure and safe for concurrent use.
+
 #### Shape helpers
 
 ```csharp

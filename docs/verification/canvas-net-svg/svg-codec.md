@@ -400,6 +400,17 @@ correctly-kerned layout, and would remain unfilled if kerning were ignored). Sep
 expected text region while far corners of the canvas remain transparent, mirroring
 `TrueTypeFontRealFontIntegrationTests`'s real-font integration pattern.
 
+#### Non-Positive Font-Size Renders No Text (Regression)
+
+**Tests**: `SvgCodec_Load_ZeroFontSize_RendersNoText`, `SvgCodec_Load_NegativeFontSize_RendersNoText`
+
+Both tests load a one-glyph `text` element using the synthetic test font with `font-size='0'`
+(characterization of behavior that predates the shared text-to-path method) and `font-size='-100'`
+(a deliberate change: negative sizes used to draw point-mirrored glyphs), and assert that `Load`
+does not throw and that every pixel of the surface stays transparent. The glyph-run layout itself is
+verified by the `TextRenderer_CreateTextPath_*` unit tests of the core library, including an
+equivalence test against the algorithm this codec used before the method existed.
+
 #### CanvasNetSvg-SvgCodec-TextFontDefaultFallback: Unregistered Font Families Render With a Default Font
 
 **Tests**: `SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont`,

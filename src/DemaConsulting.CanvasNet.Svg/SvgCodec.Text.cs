@@ -246,70 +246,32 @@ public static partial class SvgCodec
     /// <param name="origin">The text element's <c>x</c>/<c>y</c> anchor position, in local space.</param>
     /// <returns>
     ///     The combined local-space path (empty if every glyph in <paramref name="text"/> has no
-    ///     contour data, for example an all-whitespace run).
+    ///     contour data, for example an all-whitespace run, or if the cascaded <c>font-size</c> is
+    ///     not a positive finite number).
     /// </returns>
+    /// <remarks>
+    ///     A thin adapter over <c>Rendering.TextRenderer.CreateTextPath</c>, which owns the
+    ///     advance, kerning, alignment, and y-flip rules. This method adds only the two SVG
+    ///     specifics: the mapping of <c>text-anchor</c> to a text alignment, and the rule that a
+    ///     zero or negative <c>font-size</c> renders nothing (the core method rejects a
+    ///     non-positive size, and a negative size is invalid per CSS/SVG), so a document with such
+    ///     a value degrades to blank text instead of failing.
+    /// </remarks>
     private static Path BuildGlyphRunPath(string text, TrueTypeFont font, RenderState state, Vector2 origin)
     {
-        var scale = state.FontSize / font.UnitsPerEm;
-        var totalAdvance = MeasureTextAdvance(text, font, scale);
-        var anchorOffset = state.TextAnchor switch
+        // Non-positive (or non-finite) font sizes draw nothing, per the remarks above
+        if (!(state.FontSize > 0f) || !float.IsFinite(state.FontSize))
         {
-            TextAnchor.Middle => totalAdvance / 2f,
-            TextAnchor.End => totalAdvance,
-            _ => 0f
+            return Path.Empty;
+        }
+
+        var align = state.TextAnchor switch
+        {
+            TextAnchor.Middle => Rendering.TextAlign.Center,
+            TextAnchor.End => Rendering.TextAlign.Right,
+            _ => Rendering.TextAlign.Left
         };
 
-        var builder = new PathBuilder();
-        var pen = origin.X - anchorOffset;
-        int? previousGlyph = null;
-
-        foreach (var rune in text.EnumerateRunes())
-        {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            if (previousGlyph.HasValue)
-            {
-                pen += font.GetKerning(previousGlyph.Value, glyphIndex) * scale;
-            }
-
-            var outline = font.GetGlyphOutline(glyphIndex);
-            if (outline.Subpaths.Count > 0)
-            {
-                // The font's own outline is Y-up, in design units - flipping the y-axis scale
-                // maps it into this codec's Y-down pixel-space convention in the same step as
-                // applying the font-size scale and positioning the glyph's origin at the pen
-                var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, origin.Y);
-                builder.AppendPath(outline, glyphMatrix);
-            }
-
-            pen += font.GetAdvanceWidth(glyphIndex) * scale;
-            previousGlyph = glyphIndex;
-        }
-
-        return builder.Build();
-    }
-
-    /// <summary>Measures a text run's total advance width, including inter-glyph kerning.</summary>
-    /// <param name="text">The text to measure.</param>
-    /// <param name="font">The font to measure with.</param>
-    /// <param name="scale">The font-design-units-to-local-space scale factor.</param>
-    /// <returns>The total advance width, in local-space units.</returns>
-    private static float MeasureTextAdvance(string text, TrueTypeFont font, float scale)
-    {
-        var total = 0f;
-        int? previousGlyph = null;
-
-        foreach (var rune in text.EnumerateRunes())
-        {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            if (previousGlyph.HasValue)
-            {
-                total += font.GetKerning(previousGlyph.Value, glyphIndex) * scale;
-            }
-
-            total += font.GetAdvanceWidth(glyphIndex) * scale;
-            previousGlyph = glyphIndex;
-        }
-
-        return total;
+        return Rendering.TextRenderer.CreateTextPath(text, font, state.FontSize, origin.X, origin.Y, align);
     }
 }

@@ -1,14 +1,18 @@
 ### TextRenderer Unit Design
 
 The `TextRenderer` class is a stateless static class that measures and renders TrueType text
-against a `Rendering.Canvas`. Its two entry points are the static `MeasureText` method and the
-`DrawText` extension method on `Rendering.Canvas`.
+against a `Rendering.Canvas`, and converts text into outline geometry. Its entry points are the
+static `MeasureText` and `CreateTextPath` methods and the `DrawText` extension method on
+`Rendering.Canvas`.
 
 #### Purpose
 
 `TextRenderer` composes `Fonts.TrueTypeFont` glyph/metric queries with `Rendering.Canvas` fills
 to measure and draw strings of text, so callers do not need to hand-write glyph iteration,
-advance-width/kerning accumulation, or alignment-offset math themselves.
+advance-width/kerning accumulation, or alignment-offset math themselves. `CreateTextPath` exposes
+the same layout as a single `Geometry.Path`, for renderers that need text as geometry (to apply
+their own accumulated transform later, or to build clips and masks) and previously each kept
+their own copy of the glyph-placement loop.
 
 #### Data Model
 
@@ -35,7 +39,8 @@ where:
 
 Given a `Rendering.Canvas`, a string, an anchor `(x, y)` at the text baseline, a `TextAlign`,
 a `TrueTypeFont`, a pixel `size`, and a fill `Rgba32`, `DrawText` walks the string as Unicode
-runes and for each glyph:
+runes (through the private glyph-placement walker described below) and for each glyph with an
+outline:
 
 1. Retrieves the outline `Path` from the font.
 2. Computes the per-glyph transform
@@ -52,21 +57,54 @@ runes and for each glyph:
 `alignOffset` is `0` for `Left`, `-width / 2` for `Center`, and `-width` for `Right`, where
 `width` is the pre-measured run width.
 
+##### CreateTextPath
+
+Given a string, a `TrueTypeFont`, a pixel `size`, an anchor `(x, y)` at the text baseline, and a
+`TextAlign` (default `Left`), `CreateTextPath` returns one combined `Geometry.Path`:
+
+1. The run width is measured with `MeasureText` and the alignment offset is computed exactly as
+   for `DrawText`.
+2. The private glyph-placement walker yields, for every glyph that has an outline, the outline and
+   its pen x-position.
+3. Each outline is appended to one `PathBuilder` with
+   `AppendPath(outline, Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y))`.
+   No canvas transform is involved: the caller applies its own transform to the returned path.
+4. The builder's path is returned; text with no contour data (empty or whitespace) yields
+   `Path.Empty`.
+
+`CreateTextPath` is deliberately **not** the implementation of `DrawText`: `DrawText` fills every
+glyph separately (so overlapping glyphs composite one after another) and composes the canvas
+transform into each glyph matrix, which is bit-for-bit what the existing tests pin, whereas
+`CreateTextPath` produces one merged shape for a single fill-rule evaluation. Both share the
+private walker, so the rune iteration, kerning-before-advance order, and float accumulation order
+cannot drift apart.
+
+##### Glyph-placement walker (private)
+
+An iterator over the run that mirrors `MeasureText`'s arithmetic: for each rune it looks up the
+glyph index, adds the scaled kerning against the previous glyph, yields `(outline, pen)` when the
+outline has at least one subpath, then adds the scaled advance. Glyphs without outlines still
+advance the pen and take part in kerning.
+
 #### Error Handling
 
-- `MeasureText` and `DrawText` throw `ArgumentNullException` on a null `text` or null `font`.
-- `MeasureText` throws `ArgumentOutOfRangeException` on a non-finite `size`.
-- `DrawText` throws `ArgumentOutOfRangeException` on an undefined `TextAlign`.
+- `MeasureText`, `DrawText`, and `CreateTextPath` throw `ArgumentNullException` on a null `text`
+  or null `font`.
+- `MeasureText`, `DrawText`, and `CreateTextPath` throw `ArgumentOutOfRangeException` on a size
+  that is not finite and positive.
+- `DrawText` and `CreateTextPath` throw `ArgumentOutOfRangeException` on an undefined `TextAlign`.
 
 #### Dependencies
 
 `TextRenderer` depends on this subsystem's own `Canvas` unit, the `Fonts` subsystem's
 `TrueTypeFont` unit (glyph outlines, advance widths, kerning, and `Ascender`/`Descender`/
-`UnitsPerEm` metrics), the `Geometry` subsystem's `Path` unit, the `Drawing` subsystem's
+`UnitsPerEm` metrics), the `Geometry` subsystem's `Path` and `PathBuilder` units
+(`PathBuilder.AppendPath` places each outline in `CreateTextPath`), the `Drawing` subsystem's
 `PathFiller` unit, and `System.Numerics.Matrix3x2`/`System.Text.Rune` from the .NET Base Class
 Library.
 
 #### Callers
 
 `TextRenderer` is a public API entry point, invoked directly by consumers of the CanvasNet
-package. No unit within CanvasNet calls `TextRenderer` internally.
+package. Within this repository the SVG codec (`DemaConsulting.CanvasNet.Svg`) calls
+`CreateTextPath` to lay out text runs (see _SvgCodec Unit Design_).

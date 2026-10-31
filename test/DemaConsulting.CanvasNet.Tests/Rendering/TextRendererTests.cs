@@ -2,8 +2,10 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
+using GeoPath = DemaConsulting.CanvasNet.Geometry.Path;
 using RenderCanvas = DemaConsulting.CanvasNet.Rendering.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Rendering;
@@ -345,5 +347,290 @@ public class TextRendererTests
         }
 
         Assert.True(paintedPixelCount > 0, "DrawText under a rotated canvas produced no pixels");
+    }
+
+    /// <summary>
+    ///     Describes a path as one token per start point and per command, in the round-trip text
+    ///     format, so two paths can be compared bit for bit.
+    /// </summary>
+    /// <param name="path">The path to describe.</param>
+    /// <returns>The tokens in order, with <c>!closed</c> on a closed subpath's start token.</returns>
+    private static List<string> Describe(GeoPath path)
+    {
+        static string P(Vector2 v) => $"{v.X:R},{v.Y:R}";
+
+        var tokens = new List<string>();
+        foreach (var subpath in path.Subpaths)
+        {
+            tokens.Add($"M{P(subpath.Start)}{(subpath.IsClosed ? "!closed" : string.Empty)}");
+            foreach (var c in subpath.Commands)
+            {
+                tokens.Add(c.Type switch
+                {
+                    PathCommandType.LineTo => $"L{P(c.EndPoint)}",
+                    PathCommandType.QuadraticBezierTo => $"Q{P(c.Control1)} {P(c.EndPoint)}",
+                    PathCommandType.CubicBezierTo => $"C{P(c.Control1)} {P(c.Control2)} {P(c.EndPoint)}",
+                    _ => "Z",
+                });
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    ///     Test-local copy of the glyph-run algorithm the SVG codec used before
+    ///     <see cref="TextRenderer.CreateTextPath"/> existed (its own measurement pass, anchor offset,
+    ///     and per-point re-issue of each glyph outline); the independent oracle for the equivalence test.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="fontSize">The font size.</param>
+    /// <param name="origin">The anchor position.</param>
+    /// <param name="anchor">0 = start, 1 = middle, 2 = end.</param>
+    /// <returns>The combined path.</returns>
+    private static GeoPath LegacyGlyphRun(string text, TrueTypeFont font, float fontSize, Vector2 origin, int anchor)
+    {
+        var scale = fontSize / font.UnitsPerEm;
+
+        // Measurement pass: total advance including kerning
+        var total = 0f;
+        int? previous = null;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = font.GetGlyphIndex(rune.Value);
+            if (previous.HasValue)
+            {
+                total += font.GetKerning(previous.Value, glyph) * scale;
+            }
+
+            total += font.GetAdvanceWidth(glyph) * scale;
+            previous = glyph;
+        }
+
+        var offset = anchor switch { 1 => total / 2f, 2 => total, _ => 0f };
+        var builder = new PathBuilder();
+        var pen = origin.X - offset;
+        previous = null;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = font.GetGlyphIndex(rune.Value);
+            if (previous.HasValue)
+            {
+                pen += font.GetKerning(previous.Value, glyph) * scale;
+            }
+
+            var outline = font.GetGlyphOutline(glyph);
+            if (outline.Subpaths.Count > 0)
+            {
+                var m = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, origin.Y);
+                foreach (var subpath in outline.Subpaths)
+                {
+                    builder.MoveTo(Vector2.Transform(subpath.Start, m));
+                    foreach (var c in subpath.Commands)
+                    {
+                        switch (c.Type)
+                        {
+                            case PathCommandType.LineTo:
+                                builder.LineTo(Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.QuadraticBezierTo:
+                                builder.QuadraticBezierTo(Vector2.Transform(c.Control1, m), Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.CubicBezierTo:
+                                builder.CubicBezierTo(Vector2.Transform(c.Control1, m), Vector2.Transform(c.Control2, m), Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.Close:
+                                builder.Close();
+                                break;
+                        }
+                    }
+                }
+            }
+
+            pen += font.GetAdvanceWidth(glyph) * scale;
+            previous = glyph;
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    ///     Proves that a left-aligned run places each glyph outline at the pen position (previous advance plus
+    ///     kerning), y-flipped about the baseline and scaled to the requested size.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_LeftAlign_MatchesGlyphOutlinesPlacedAtPenWithKerning()
+    {
+        // Arrange: "AA" at size 100 (scale 0.1): the glyph is a triangle (0,0) (500,0) (250,800); the second
+        // glyph's pen is 10 + 50 (advance) - 5 (kern -50 units) = 55
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 10f, 200f);
+
+        // Assert: two triangles with baseline y = 200 and apex 80 units above it
+        Assert.Equal(2, path.Subpaths.Count);
+        var expectedPens = new[] { 10f, 55f };
+        for (var i = 0; i < 2; i++)
+        {
+            var subpath = path.Subpaths[i];
+            Assert.Equal(expectedPens[i], subpath.Start.X, 3);
+            Assert.Equal(200f, subpath.Start.Y, 3);
+            Assert.Equal(expectedPens[i] + 50f, subpath.Commands[0].EndPoint.X, 3);
+            Assert.Equal(200f, subpath.Commands[0].EndPoint.Y, 3);
+            Assert.Equal(expectedPens[i] + 25f, subpath.Commands[1].EndPoint.X, 3);
+            Assert.Equal(120f, subpath.Commands[1].EndPoint.Y, 3);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that center alignment shifts the run left by half of its measured width.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_CenterAlign_ShiftsRunByHalfMeasuredWidth()
+    {
+        // Arrange: "AA" measures 95 at size 100
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 100f, 0f, TextAlign.Center);
+
+        // Assert: the first glyph starts at 100 - 47.5
+        Assert.Equal(52.5f, path.Subpaths[0].Start.X, 3);
+    }
+
+    /// <summary>
+    ///     Proves that right alignment shifts the run left by its full measured width.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_RightAlign_ShiftsRunByFullMeasuredWidth()
+    {
+        // Arrange: "AA" measures 95 at size 100
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 100f, 0f, TextAlign.Right);
+
+        // Assert: the first glyph starts at 100 - 95
+        Assert.Equal(5f, path.Subpaths[0].Start.X, 3);
+    }
+
+    /// <summary>
+    ///     Proves that a run of glyphs without contours (spaces) yields the empty path.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_WhitespaceOnlyText_ReturnsEmptyPath()
+    {
+        // Arrange: a real font whose space glyph has an advance but no contours
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+        // Act
+        var path = TextRenderer.CreateTextPath("   ", font, 16f, 5f, 20f);
+
+        // Assert
+        Assert.Empty(path.Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that empty text yields the empty path.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_EmptyText_ReturnsEmptyPath()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath(string.Empty, font, 16f, 5f, 20f);
+
+        // Assert
+        Assert.Same(GeoPath.Empty, path);
+    }
+
+    /// <summary>
+    ///     Proves that the result is bit-identical to the glyph-run algorithm the SVG codec used before the
+    ///     method existed, across texts (kerning pairs, a surrogate pair, a missing glyph), sizes, anchors and
+    ///     positions.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_MatchesLegacyGlyphRunOracle()
+    {
+        // Arrange: a bundled real font with kerning and the synthetic font
+        var real = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var fonts = new[] { real, NewFont() };
+        var texts = new[] { "Hello, World!", "AVATAR To Wa fi", "A\U0001F600 AA ü", "AAAA", " " };
+        var aligns = new[] { TextAlign.Left, TextAlign.Center, TextAlign.Right };
+
+        foreach (var font in fonts)
+        {
+            foreach (var text in texts)
+            {
+                foreach (var size in new[] { 7.5f, 16f, 33.3f })
+                {
+                    for (var a = 0; a < aligns.Length; a++)
+                    {
+                        // Act
+                        var actual = TextRenderer.CreateTextPath(text, font, size, 12.25f, 40.5f, aligns[a]);
+                        var oracle = LegacyGlyphRun(text, font, size, new Vector2(12.25f, 40.5f), a);
+
+                        // Assert: identical structure and coordinates
+                        Assert.Equal(Describe(oracle), Describe(actual));
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a null text is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NullText_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("text", () => TextRenderer.CreateTextPath(null!, font, 16f, 0f, 0f));
+    }
+
+    /// <summary>
+    ///     Proves that a null font is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NullFont_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("font", () => TextRenderer.CreateTextPath("A", null!, 16f, 0f, 0f));
+    }
+
+    /// <summary>
+    ///     Proves that a size that is not finite and positive is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NonPositiveOrNonFiniteSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert: zero, negative, NaN, and infinity
+        foreach (var size in new[] { 0f, -16f, float.NaN, float.PositiveInfinity })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>("size", () => TextRenderer.CreateTextPath("A", font, size, 0f, 0f));
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an undefined alignment value is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_InvalidAlign_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>("align", () => TextRenderer.CreateTextPath("A", font, 16f, 0f, 0f, (TextAlign)99));
     }
 }

@@ -19,7 +19,7 @@ produce output byte-identical to direct calls into `Drawing.PathFiller` / `Drawi
 - **Canvas** — the sole stateful unit of the subsystem. Wraps a `Canvas.Surface`, owns the
   transform stack, and bakes the current transform into every fill or stroke; see _Canvas Unit
   Design_ (`rendering/canvas.md`).
-- **TextRenderer** — a stateless static class exposing `MeasureText` and the `DrawText`
+  - **TextRenderer** — a stateless static class exposing `MeasureText`, `CreateTextPath`, and the `DrawText`
   extension on `Rendering.Canvas`; see _TextRenderer Unit Design_ (`rendering/text-renderer.md`).
 - **Shapes** — a stateless static class of `FillRect` / `StrokeRect` / `FillRoundRect` /
   `StrokeRoundRect` / `FillCircle` / `StrokeCircle` extension methods on `Rendering.Canvas`;

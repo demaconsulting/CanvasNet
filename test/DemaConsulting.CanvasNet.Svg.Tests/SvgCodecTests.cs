@@ -6273,6 +6273,31 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a negative <c>font-size</c> (invalid per CSS/SVG) renders no text, instead of
+    ///     mirrored glyphs, and does not fail the document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NegativeFontSize_RendersNoText()
+    {
+        // Arrange: a glyph whose negative size would otherwise be drawn point-mirrored around its origin
+        const string svg = "<svg viewBox='0 0 100 100'><text x='50' y='60' font-family='TestFont' font-size='-100' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: every pixel of the surface is still transparent
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that kerning between a known glyph pair shifts the second glyph's position,
     ///     by comparing against the position a naive (kerning-ignoring) layout would produce.
     /// </summary>

@@ -24,13 +24,21 @@ The `TextRenderer` unit is verified by
   translation-only test cannot.
 - **Validation**: null-text, null-font, non-finite-size, and invalid-align tests cover the
   validation contract.
+- **Text path**: the `TextRenderer_CreateTextPath_*` tests check the placement of each glyph
+  outline against hand-computed pen positions (advance 500 units and kerning -50 units of the
+  synthetic font at size 100), the center and right alignment shifts, the empty-path cases (a real
+  bundled font supplies a space glyph with an advance but no contour), and bit-for-bit equivalence
+  with a test-local copy of the glyph-run algorithm that the SVG codec used before the method
+  existed (the independent oracle), over the synthetic and a bundled real font, several texts
+  (kerning pairs, a surrogate pair, a missing glyph), sizes, alignments, and an offset anchor.
 
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; synthetic fonts are constructed in memory via `TestSupport/
-  SyntheticFontBuilder`
+  SyntheticFontBuilder`, and the bundled Liberation fallback font (`SystemFontCatalog.LoadBundledFallback`)
+  supplies realistic metrics, kerning, and a contour-less space glyph
 - **Isolation**: Each test constructs its own `Surface`/`Canvas`/synthetic-font fixture, with no
   shared state between tests
 
@@ -94,6 +102,31 @@ cannot.
 Verifies `null` text or `null` font arguments are rejected with `ArgumentNullException`, a
 non-finite size argument is rejected with `ArgumentOutOfRangeException`, and an undefined
 `TextAlign` value is rejected with `ArgumentOutOfRangeException`.
+
+#### CanvasNet-Rendering-TextRenderer-TextPath: CreateTextPath Returns One Outline Path Matching Drawn and Measured Text
+
+**Tests**: `TextRenderer_CreateTextPath_LeftAlign_MatchesGlyphOutlinesPlacedAtPenWithKerning`,
+`TextRenderer_CreateTextPath_CenterAlign_ShiftsRunByHalfMeasuredWidth`,
+`TextRenderer_CreateTextPath_RightAlign_ShiftsRunByFullMeasuredWidth`,
+`TextRenderer_CreateTextPath_WhitespaceOnlyText_ReturnsEmptyPath`,
+`TextRenderer_CreateTextPath_EmptyText_ReturnsEmptyPath`,
+`TextRenderer_CreateTextPath_MatchesLegacyGlyphRunOracle`
+
+Verifies the pen position (advance plus kerning), baseline placement, and y-flip of every glyph
+outline against hand-computed values; that center and right alignment shift the run by half and by
+the whole measured width; that text with no contours yields the empty path; and that the result is
+bit-for-bit identical to the independent oracle described under Verification Approach.
+
+#### CanvasNet-Rendering-TextRenderer-TextPathValidation: CreateTextPath Rejects Invalid Arguments
+
+**Tests**: `TextRenderer_CreateTextPath_NullText_ThrowsArgumentNullException`,
+`TextRenderer_CreateTextPath_NullFont_ThrowsArgumentNullException`,
+`TextRenderer_CreateTextPath_NonPositiveOrNonFiniteSize_ThrowsArgumentOutOfRangeException`,
+`TextRenderer_CreateTextPath_InvalidAlign_ThrowsArgumentOutOfRangeException`
+
+Verifies a `null` text or font is rejected with `ArgumentNullException`, a size of zero, a
+negative size, NaN, or infinity with `ArgumentOutOfRangeException`, and an undefined `TextAlign`
+value with `ArgumentOutOfRangeException`.
 
 ### Traceability
 

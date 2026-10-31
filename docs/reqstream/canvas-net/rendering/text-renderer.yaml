@@ -79,3 +79,38 @@ sections:
                   - TextRenderer_DrawText_NullText_ThrowsArgumentNullException
                   - TextRenderer_DrawText_NullFont_ThrowsArgumentNullException
                   - TextRenderer_DrawText_InvalidAlign_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Rendering-TextRenderer-TextPath
+                title: >-
+                  The TextRenderer class shall convert a string, at a pixel size and baseline anchor
+                  with Left, Center, or Right alignment, into a single outline path in the caller's
+                  own coordinate space (y increasing downward, no canvas transform applied), placing
+                  each glyph outline at the same pen position, kerning, and alignment as DrawText
+                  and MeasureText, and returning the empty path when no glyph has contour data.
+                justification: |
+                  Vector renderers need text as geometry - to apply their own accumulated transform
+                  later, to build clips and masks, or to stroke glyph outlines - and the geometry
+                  must agree exactly with the drawn and measured text, so the layout rules live in
+                  one place instead of in every renderer.
+                tests:
+                  - TextRenderer_CreateTextPath_LeftAlign_MatchesGlyphOutlinesPlacedAtPenWithKerning
+                  - TextRenderer_CreateTextPath_CenterAlign_ShiftsRunByHalfMeasuredWidth
+                  - TextRenderer_CreateTextPath_RightAlign_ShiftsRunByFullMeasuredWidth
+                  - TextRenderer_CreateTextPath_WhitespaceOnlyText_ReturnsEmptyPath
+                  - TextRenderer_CreateTextPath_EmptyText_ReturnsEmptyPath
+                  - TextRenderer_CreateTextPath_MatchesLegacyGlyphRunOracle
+
+              - id: CanvasNet-Rendering-TextRenderer-TextPathValidation
+                title: >-
+                  The TextRenderer text-to-path conversion shall reject null text or a null font
+                  with ArgumentNullException, a size that is not finite and positive with
+                  ArgumentOutOfRangeException, and an undefined TextAlign with
+                  ArgumentOutOfRangeException.
+                justification: |
+                  Fail-fast validation surfaces caller bugs immediately instead of returning a
+                  misleading empty or mirrored outline.
+                tests:
+                  - TextRenderer_CreateTextPath_NullText_ThrowsArgumentNullException
+                  - TextRenderer_CreateTextPath_NullFont_ThrowsArgumentNullException
+                  - TextRenderer_CreateTextPath_NonPositiveOrNonFiniteSize_ThrowsArgumentOutOfRangeException
+                  - TextRenderer_CreateTextPath_InvalidAlign_ThrowsArgumentOutOfRangeException
