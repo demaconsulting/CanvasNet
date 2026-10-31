@@ -2525,3 +2525,17 @@ using var gapPicture = gap.Render(new VegaLiteRenderOptions { WarningHandler = w
 Console.WriteLine(warnings.Count);                                                  // Output: 1
 Console.WriteLine(warnings[0].Message.StartsWith("vl-mark-invalid-domains:"));      // Output: True
 ```
+
+### Example 39: Drawing a Vega-Lite Chart in a Pandoc Document
+
+The Pandoc filter `docs/filters/canvasnet.lua` draws a picture whose file is a `.vl.json` (or `.vl`) specification.
+`scale` makes the picture sharper, and `width` stays on the picture. The chart below reads its values from the data
+file `examples/stall-sales.csv`, which the specification names with a relative `data.url`. The filter hashes that
+file with the specification, so changing the data draws the chart again, and the tool reads it only from the
+specification's folder.
+
+```markdown
+![Crates sold per stall](examples/stall-sales.vl.json){scale=2 width=60%}
+```
+
+![Crates sold per stall](examples/stall-sales.vl.json){scale=2 width=60%}

@@ -184,3 +184,17 @@ Console.WriteLine(pageInfo.Name);
 using var surface = doc.Render(0, 150);
 Console.WriteLine($"{surface.Width}x{surface.Height}");
 ```
+
+### Example 40: Drawing a Visio Page in a Pandoc Document
+
+The Pandoc filter `docs/filters/canvasnet.lua` draws one page of a `.vsdx` file; `page` counts from 1 and `dpi`
+sets the resolution (a whole number for Visio). The drawing below is page 2 of `test4_connectors.vsdx` from the
+[dave-howard/vsdx](https://github.com/dave-howard/vsdx) project (BSD 3-Clause License; the notice is in
+`docs/images/README.md`), which this repository keeps unmodified as a test fixture. The page is A4, so most of it is
+blank.
+
+```markdown
+![Page 2 of a Visio drawing with three connected shapes](davehoward-test4-connectors.vsdx){page=2 dpi=96 width=40%}
+```
+
+![Page 2 of a Visio drawing with three connected shapes](davehoward-test4-connectors.vsdx){page=2 dpi=96 width=40%}

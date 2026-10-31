@@ -114,3 +114,14 @@ var options = new PptxRenderOptions
 using var slide = deck.Render(0, 96f, options);
 PngCodec.Save(slide, "slide1.png");
 ```
+
+### Example 41: Drawing a Slide in a Pandoc Document
+
+The Pandoc filter `docs/filters/canvasnet.lua` draws one slide of a `.pptx` file; `page` counts from 1 and `dpi`
+sets the resolution. The slide below is the original `docs/images/showcase/slide.pptx` of this repository.
+
+```markdown
+![The showcase slide](slide.pptx){page=1 dpi=80 width=60%}
+```
+
+![The showcase slide](slide.pptx){page=1 dpi=80 width=60%}

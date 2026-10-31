@@ -238,6 +238,15 @@ tests:
         html:
           - query: "//head/title"
             count: 1
+          # The Pandoc filter (docs/filters/canvasnet.lua) draws the example pictures; a source file that still
+          # names a .scad, .vl.json, .vsdx, .pptx, or .pdf picture means the filter did not run, and a src that
+          # is not relative to this file would leave the picture out of the PDF without an error.
+          - query: "//img[starts-with(@src,'../../generated/canvasnet/')]"
+            min: 5
+          - query: >-
+              //img[contains(@src,'.scad') or contains(@src,'.vl.json') or contains(@src,'.vsdx')
+              or contains(@src,'.pptx') or contains(@src,'.pdf')]
+            count: 0
         text:
           - contains: "User Guide"
 
