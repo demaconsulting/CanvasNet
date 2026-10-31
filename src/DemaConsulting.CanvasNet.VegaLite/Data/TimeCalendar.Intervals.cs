@@ -249,25 +249,72 @@ internal sealed class TimeInterval
     /// <summary>
     ///     Gets the earliest boundary at or after an instant (d3 <c>interval.ceil</c>).
     /// </summary>
+    /// <remarks>
+    ///     d3 computes <c>floor(offset(floor(date - 1), 1))</c>, which needs the instant one millisecond before the date. At the earliest
+    ///     supported instant that instant does not exist, so an instant that is already a boundary is returned as it is (the same
+    ///     result for every other instant, because the floor of a boundary is the boundary), and an instant whose floor is
+    ///     before the supported range steps forward from the instant itself. At the latest end the next boundary may be beyond the
+    ///     range; the result is then NaN, as it is for <see cref="Offset"/>.
+    /// </remarks>
     /// <param name="ms">The instant in milliseconds since the Unix epoch.</param>
-    /// <returns>The boundary, or NaN when the instant or the result is out of range.</returns>
+    /// <returns>The boundary, or NaN when the instant is out of range or no boundary at or after it is in range.</returns>
     public double Ceil(double ms)
     {
-        // d3: floor(date - 1), offset by one, floor again
         var t = Clip(ms);
-        return Floor(Offset(Floor(t - 1), 1));
+        if (double.IsNaN(t))
+        {
+            return double.NaN;
+        }
+
+        var floor = Floor(t);
+        if (!double.IsNaN(floor) && !(floor < t))
+        {
+            // The floor is never after the instant, so it is not before it only when the instant is a boundary
+            return t;
+        }
+
+        // The floor is the one of date - 1 for a date that is not a boundary; when it is out of range the first boundary is after the date
+        return double.IsNaN(floor) ? FirstBoundaryAfter(t) : Floor(Offset(floor, 1));
+    }
+
+    /// <summary>
+    ///     Gets the first boundary after an instant whose own floor is not in the supported range.
+    /// </summary>
+    /// <param name="t">A valid instant.</param>
+    /// <returns>The boundary, or NaN when it is out of range.</returns>
+    private double FirstBoundaryAfter(double t)
+    {
+        if (_mode != Mode.Filter)
+        {
+            return Floor(Offset(t, 1));
+        }
+
+        // A filter interval steps from a plain boundary, as its offset expects a floored instant
+        var plain = _calendar.Interval(_kind);
+        var boundary = plain.Floor(plain.Offset(t, 1));
+        return double.IsNaN(boundary) || Test(boundary) ? boundary : Offset(boundary, 1);
     }
 
     /// <summary>
     ///     Gets the nearer of <see cref="Floor"/> and <see cref="Ceil"/> (d3 <c>interval.round</c>).
     /// </summary>
     /// <param name="ms">The instant in milliseconds since the Unix epoch.</param>
-    /// <returns>The nearer boundary; the later one when both are equally near.</returns>
+    /// <returns>The nearer boundary; the later one when both are equally near, and the only one in range when the other is not.</returns>
     public double Round(double ms)
     {
         var t = Clip(ms);
         var lower = Floor(t);
         var upper = Ceil(t);
+        if (double.IsNaN(lower))
+        {
+            return upper;
+        }
+
+        if (double.IsNaN(upper))
+        {
+            return lower;
+        }
+
         return t - lower < upper - t ? lower : upper;
     }
 

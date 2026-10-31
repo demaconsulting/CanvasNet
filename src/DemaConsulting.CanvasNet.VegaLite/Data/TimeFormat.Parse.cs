@@ -82,13 +82,16 @@ internal static partial class TimeFormat
     ///         directly. The text must be consumed completely.
     ///     </para>
     ///     <para>
-    ///         The method never throws: any text, any specifier. The cost is linear in the text and the specifier.
+    ///         The method never throws: any text, any specifier. The cost is linear in the text and the specifier. A specifier
+    ///         that fails <see cref="ValidateSpecifier"/> (longer than <see cref="MaxSpecifierLength"/> characters, or more than
+    ///         <see cref="MaxTokenCount"/> pieces once <c>%c</c>, <c>%x</c> and <c>%X</c> are expanded) never matches, so the
+    ///         specifier is not walked at all; callers that need the reason validate it first.
     ///     </para>
     /// </remarks>
     public static bool TryParse(string specifier, string text, TimeCalendar calendar, out double ms)
     {
         ms = double.NaN;
-        if (text.Length > MaxParseTextLength)
+        if (text.Length > MaxParseTextLength || !IsWithinLimits(specifier))
         {
             return false;
         }
@@ -101,6 +104,24 @@ internal static partial class TimeFormat
 
         ms = ToInstant(fields, calendar);
         return !double.IsNaN(ms);
+    }
+
+    /// <summary>
+    ///     Tells whether a specifier passes <see cref="ValidateSpecifier"/>.
+    /// </summary>
+    /// <param name="specifier">The specifier.</param>
+    /// <returns>True when the specifier is within the limits.</returns>
+    private static bool IsWithinLimits(string specifier)
+    {
+        try
+        {
+            ValidateSpecifier(specifier);
+            return true;
+        }
+        catch (TimeFormatSpecifierException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

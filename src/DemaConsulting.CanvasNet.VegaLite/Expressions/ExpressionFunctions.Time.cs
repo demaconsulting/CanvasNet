@@ -479,9 +479,13 @@ internal static partial class ExpressionFunctions
         var text = Text(arguments, 0, context);
         var specifier = Text(arguments, 1, context);
         context.ChargeSize(text.Length + (long)specifier.Length);
-        if (specifier.Length > TimeFormat.MaxSpecifierLength)
+        try
         {
-            throw new ExpressionRuntimeException($"The time format is longer than the limit of {TimeFormat.MaxSpecifierLength} characters.");
+            TimeFormat.ValidateSpecifier(specifier);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
         }
 
         var calendar = utc ? TimeCalendar.Utc : context.Calendar;

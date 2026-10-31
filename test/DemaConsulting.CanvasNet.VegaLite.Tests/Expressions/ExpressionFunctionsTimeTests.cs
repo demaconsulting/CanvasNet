@@ -1071,11 +1071,13 @@ public class ExpressionFunctionsTimeTests
         var multiLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeFormat", Multi(), context));
         var parseLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeParse", ParseArgs(longText), context));
         var utcParseLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("utcParse", ParseArgs(longText), context));
+        var parsePieces = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeParse", ParseArgs(manyPieces), context));
+        var utcParsePieces = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("utcParse", ParseArgs(manyPieces), context));
         var atLimit = ExpressionFunctions.Invoke("utcFormat", Args(new string('x', TimeFormat.MaxSpecifierLength)), context);
 
         // Assert: each error names its limit, and the longest specifier is formatted
         Assert.All([formatLong, utcLong, multiLong, parseLong, utcParseLong], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
-        Assert.Contains("the limit of 4096 pieces", formatPieces.Message, StringComparison.Ordinal);
+        Assert.All([formatPieces, parsePieces, utcParsePieces], e => Assert.Contains("the limit of 4096 pieces", e.Message, StringComparison.Ordinal));
         Assert.Equal(TimeFormat.MaxSpecifierLength, atLimit.Text!.Length);
     }
 

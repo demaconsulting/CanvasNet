@@ -264,11 +264,39 @@ internal static partial class TimeFormat
     public static TimeFormatter Compile(string specifier)
     {
         ArgumentNullException.ThrowIfNull(specifier);
+        return new TimeFormatter([.. TokenizeWithinLimits(specifier)]);
+    }
+
+    /// <summary>
+    ///     Checks that a specifier is within the limits of both the formatter and the parser: at most <see cref="MaxSpecifierLength"/>
+    ///     characters, and at most <see cref="MaxTokenCount"/> pieces once <c>%c</c>, <c>%x</c> and <c>%X</c> are expanded.
+    /// </summary>
+    /// <remarks>
+    ///     This is the one validation of the limits: <see cref="Compile"/> uses it for a format, a <c>date:'...'</c> or <c>utc:'...'</c>
+    ///     parse format is validated with it at specification time, and <see cref="TryParse"/> refuses a specifier that fails it.
+    /// </remarks>
+    /// <param name="specifier">The specifier.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="specifier"/> is null.</exception>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the specifier is longer than <see cref="MaxSpecifierLength"/> or has more than <see cref="MaxTokenCount"/> pieces.</exception>
+    internal static void ValidateSpecifier(string specifier)
+    {
+        ArgumentNullException.ThrowIfNull(specifier);
+        TokenizeWithinLimits(specifier);
+    }
+
+    /// <summary>
+    ///     Splits a specifier into tokens after checking its length, and checks the number of tokens.
+    /// </summary>
+    /// <param name="specifier">The specifier.</param>
+    /// <returns>The tokens.</returns>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the specifier is too long or has too many pieces.</exception>
+    private static List<FormatToken> TokenizeWithinLimits(string specifier)
+    {
         CheckSpecifierLength(specifier);
         var tokens = new List<FormatToken>();
         Tokenize(specifier, tokens, 0);
         CheckTokenCount(tokens);
-        return new TimeFormatter([.. tokens]);
+        return tokens;
     }
 
     /// <summary>

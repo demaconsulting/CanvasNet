@@ -428,6 +428,37 @@ public class TimeFormatParseTests
     }
 
     /// <summary>
+    ///     Validates that a parse specifier that expands (through <c>%c</c>, <c>%x</c> and <c>%X</c>) to more than <see cref="TimeFormat.MaxTokenCount"/> pieces, or
+    ///     is longer than <see cref="TimeFormat.MaxSpecifierLength"/> characters, never matches and is refused by <see cref="TimeFormat.ValidateSpecifier"/> with the
+    ///     same message as the formatter, while one at the limit still parses.
+    /// </summary>
+    [Fact]
+    public void TimeFormatParse_SpecifierLimits_FailClosedAndAreValidated()
+    {
+        // Arrange: hundreds of %c (13 pieces each), a text that would match the first ones, and a short specifier that expands to a few pieces
+        var manyPieces = string.Concat(Enumerable.Repeat("%c", 400));
+        var tooLong = new string('x', TimeFormat.MaxSpecifierLength + 1);
+        var longest = new string('x', TimeFormat.MaxSpecifierLength);
+
+        // Act
+        var pieces = Parse(manyPieces, "3/5/2024, 1:04:09 PM");
+        var tooLongResult = Parse(tooLong, tooLong);
+        var piecesError = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.ValidateSpecifier(manyPieces));
+        var compileError = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.Compile(manyPieces));
+        var lengthError = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.ValidateSpecifier(tooLong));
+
+        // Assert: nothing matches past the limits, the errors are the formatter's, and a specifier at the limits is valid
+        Assert.True(double.IsNaN(pieces));
+        Assert.True(double.IsNaN(tooLongResult));
+        Assert.Equal(compileError.Message, piecesError.Message);
+        Assert.Contains("the limit of 4096 pieces", piecesError.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 1024 characters", lengthError.Message, StringComparison.Ordinal);
+        TimeFormat.ValidateSpecifier(longest);
+        TimeFormat.ValidateSpecifier("%c");
+        Assert.Equal(Instant - 7, Parse("%c", "3/5/2024, 1:04:09 PM"));
+    }
+
+    /// <summary>
     ///     Validates that the parser never throws, whatever the specifier and the text.
     /// </summary>
     [Fact]

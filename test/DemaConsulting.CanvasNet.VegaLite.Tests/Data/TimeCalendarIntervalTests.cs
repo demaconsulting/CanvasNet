@@ -600,4 +600,144 @@ public class TimeCalendarIntervalTests
         Assert.Equal(invariant, turkish);
         Assert.Equal(invariant, german);
     }
+
+    /// <summary>
+    ///     Validates the lower supported instant (0001-01-01T00:00Z) for every UTC interval: <c>ceil</c> and <c>round</c> are the instant itself when it is a boundary and the
+    ///     first boundary otherwise (the week starts on Sunday, and 0001-01-01 is a Monday), and <c>range</c> starts there instead of giving no ticks.
+    /// </summary>
+    /// <param name="kindName">The name of the kind of interval.</param>
+    /// <param name="firstBoundaryAfterMin">The distance in milliseconds from the instant to the first boundary at or after it.</param>
+    [Theory]
+    [InlineData("Millisecond", 0.0)]
+    [InlineData("Second", 0.0)]
+    [InlineData("Minute", 0.0)]
+    [InlineData("Hour", 0.0)]
+    [InlineData("Day", 0.0)]
+    [InlineData("Week", 6 * Day)]
+    [InlineData("Month", 0.0)]
+    [InlineData("Year", 0.0)]
+    public void TimeCalendarInterval_LowerBound_CeilRoundAndRangeStartAtTheFirstBoundary(string kindName, double firstBoundaryAfterMin)
+    {
+        // Arrange: the interval and the earliest supported instant
+        var interval = Utc(Enum.Parse<TimeIntervalKind>(kindName));
+        const double min = DataValue.MinDateMilliseconds;
+        var first = min + firstBoundaryAfterMin;
+        var second = interval.Floor(interval.Offset(first, 1));
+
+        // Act
+        var ceil = interval.Ceil(min);
+        var round = interval.Round(min);
+        var range = interval.Range(min, second + 1, 1, 100, CancellationToken.None);
+
+        // Assert: the first boundary, and a range of the first two boundaries
+        Assert.Equal(first, ceil);
+        Assert.Equal(first, round);
+        Assert.True(second > first);
+        Assert.Equal([first, second], range);
+    }
+
+    /// <summary>
+    ///     Validates the lower supported instant in zones whose wall time at that instant is not a boundary: the boundary before the instant is not supported, so
+    ///     <c>ceil</c>, <c>round</c> and <c>range</c> use the first boundary after it, for plain intervals and for a filter interval.
+    /// </summary>
+    [Fact]
+    public void TimeCalendarInterval_LowerBound_ZonesStepToTheFirstSupportedBoundary()
+    {
+        // Arrange: at plus two hours the instant is 02:00 local; at plus 5:30 it is 05:30 local; at minus five hours it is 19:00 on the last day of year 0
+        const double min = DataValue.MinDateMilliseconds;
+        var plusTwoDay = Zoned(TimeTestSupport.Fixed(2), TimeIntervalKind.Day);
+        var halfHour = Zoned(TimeTestSupport.Fixed(5, 30), TimeIntervalKind.Hour);
+        var minusFiveDay = Zoned(TimeTestSupport.Fixed(-5), TimeIntervalKind.Day);
+        var minusFiveMonth = Zoned(TimeTestSupport.Fixed(-5), TimeIntervalKind.Month);
+        var minusFiveYear = Zoned(TimeTestSupport.Fixed(-5), TimeIntervalKind.Year);
+        var everyThree = halfHour.Every(3)!;
+        var everyFour = halfHour.Every(4)!;
+
+        // Act / Assert: local midnight of January 2 is 22 hours later at plus two
+        Assert.Equal(min + (22 * Hour), plusTwoDay.Ceil(min));
+        Assert.Equal(min + (22 * Hour), plusTwoDay.Round(min));
+        Assert.Equal([min + (22 * Hour), min + (46 * Hour)], plusTwoDay.Range(min, min + (47 * Hour), 1, 100, CancellationToken.None));
+
+        // Assert: the next local hour at +05:30 is half an hour later
+        Assert.Equal(min + (Hour / 2), halfHour.Ceil(min));
+        Assert.Equal(min + (Hour / 2), halfHour.Round(min));
+
+        // Assert: local 06:00 passes every third hour; every fourth hour is local 08:00
+        Assert.Equal(min + (Hour / 2), everyThree.Ceil(min));
+        Assert.Equal(min + (2.5 * Hour), everyFour.Ceil(min));
+        Assert.Equal([min + (2.5 * Hour)], everyFour.Range(min, min + (6 * Hour), 1, 100, CancellationToken.None));
+
+        // Assert: at minus five hours local midnight of January 1, year 1 is five hours later, for the day, the month and the year
+        Assert.Equal(min + (5 * Hour), minusFiveDay.Ceil(min));
+        Assert.Equal(min + (5 * Hour), minusFiveMonth.Ceil(min));
+        Assert.Equal(min + (5 * Hour), minusFiveYear.Ceil(min));
+        Assert.Equal(min + (5 * Hour), minusFiveYear.Round(min));
+        Assert.Equal(min + (5 * Hour), minusFiveYear.Range(min, min + (6 * Hour), 1, 100, CancellationToken.None).Single());
+    }
+
+    /// <summary>
+    ///     Validates the upper supported instant (9999-12-31T23:59:59.999Z) for every UTC interval: the floor is the start of the unit, <c>ceil</c> is NaN when the
+    ///     next boundary is beyond the range (the instant itself for the millisecond), <c>round</c> falls back to the floor, and <c>range</c> stops instead of overflowing.
+    /// </summary>
+    [Fact]
+    public void TimeCalendarInterval_UpperBound_CeilIsNaNAndRoundAndRangeStop()
+    {
+        // Arrange: the latest instant and the start of each unit (December 31, 9999 is a Friday; the week starts on Sunday)
+        const double max = DataValue.MaxDateMilliseconds;
+        var friday = (int)new DateTime(9999, 12, 31, 0, 0, 0, DateTimeKind.Utc).DayOfWeek;
+        var floors = new (TimeIntervalKind Kind, double Floor)[]
+        {
+            (TimeIntervalKind.Millisecond, max),
+            (TimeIntervalKind.Second, TimeTestSupport.Ms(9999, 12, 31, 23, 59, 59)),
+            (TimeIntervalKind.Minute, TimeTestSupport.Ms(9999, 12, 31, 23, 59)),
+            (TimeIntervalKind.Hour, TimeTestSupport.Ms(9999, 12, 31, 23)),
+            (TimeIntervalKind.Day, TimeTestSupport.Ms(9999, 12, 31)),
+            (TimeIntervalKind.Week, TimeTestSupport.Ms(9999, 12, 31) - (friday * Day)),
+            (TimeIntervalKind.Month, TimeTestSupport.Ms(9999, 12, 1)),
+            (TimeIntervalKind.Year, TimeTestSupport.Ms(9999, 1, 1)),
+        };
+
+        foreach (var (kind, floor) in floors)
+        {
+            // Act
+            var interval = Utc(kind);
+            var previous = interval.Offset(floor, -1);
+
+            // Assert: the floor, the range end and the previous boundary
+            Assert.Equal(floor, interval.Floor(max));
+            Assert.Equal(floor, interval.Ceil(floor));
+            Assert.Equal(floor, interval.Round(max));
+            Assert.Equal(kind == TimeIntervalKind.Millisecond ? max : double.NaN, interval.Ceil(max));
+            Assert.True(double.IsNaN(interval.Offset(floor, 1)) || kind == TimeIntervalKind.Millisecond);
+            Assert.True(previous < floor);
+            Assert.Equal([floor], interval.Range(floor, double.MaxValue, 1, 100, CancellationToken.None));
+            Assert.Equal([previous, floor], interval.Range(previous, double.MaxValue, 1, 100, CancellationToken.None));
+        }
+    }
+
+    /// <summary>
+    ///     Validates the upper supported instant for filter and closed-form intervals: the last boundary is the floor, <c>ceil</c> is NaN, <c>round</c> is the floor, and
+    ///     <c>range</c> ends there.
+    /// </summary>
+    [Fact]
+    public void TimeCalendarInterval_UpperBound_FilterAndClosedFormsStop()
+    {
+        // Arrange: every fifth hour (the last is 20:00), every third day of the month (the last is the 31st: day 30 passes) and every 5 years (the last is 9995)
+        const double max = DataValue.MaxDateMilliseconds;
+        var everyFiveHours = Utc(TimeIntervalKind.Hour).Every(5)!;
+        var everyThirdDay = Utc(TimeIntervalKind.Day).Every(3)!;
+        var everyFiveYears = Utc(TimeIntervalKind.Year).Every(5)!;
+        var lastHour = TimeTestSupport.Ms(9999, 12, 31, 20);
+        var lastDay = TimeTestSupport.Ms(9999, 12, 31);
+        var lastYear = TimeTestSupport.Ms(9995, 1, 1);
+
+        // Act / Assert: each interval has no boundary after its last one, so ceil is NaN and round and range keep the last
+        foreach (var (interval, last) in new[] { (everyFiveHours, lastHour), (everyThirdDay, lastDay), (everyFiveYears, lastYear) })
+        {
+            Assert.Equal(last, interval.Floor(max));
+            Assert.True(double.IsNaN(interval.Ceil(max)));
+            Assert.Equal(last, interval.Round(max));
+            Assert.Equal([last], interval.Range(last, double.MaxValue, 1, 100, CancellationToken.None));
+        }
+    }
 }

@@ -395,10 +395,12 @@ public class SpecParserTimeTests
         var unit = Fail(X("\"axis\":{\"format\":\"" + tooLong + "\"}", "\"type\":\"ordinal\",\"timeUnit\":\"month\""), "/encoding/x/axis/format");
         var forced = Fail(X("\"axis\":{\"formatType\":\"utc\",\"format\":\"" + tooLong + "\"}", "\"type\":\"quantitative\""), "/encoding/x/axis/format");
         var parse = Fail("{\"data\":{\"values\":[{\"d\":\"x\"}],\"format\":{\"parse\":{\"d\":\"date:'" + tooLong + "'\"}}},\"mark\":\"point\"}", "/data/format/parse/d");
+        var parsePieces = Fail("{\"data\":{\"values\":[{\"d\":\"x\"}],\"format\":{\"parse\":{\"d\":\"date:'" + manyPieces + "'\"}}},\"mark\":\"point\"}", "/data/format/parse/d");
+        var utcParsePieces = Fail("{\"data\":{\"values\":[{\"d\":\"x\"}],\"format\":{\"parse\":{\"d\":\"utc:\\\"" + manyPieces + "\\\"\"}}},\"mark\":\"point\"}", "/data/format/parse/d");
 
         // Assert: the messages name the limits
         Assert.All([axisText, axisMulti, legend, unit, forced, parse], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
-        Assert.Contains("the limit of 4096 pieces", axisPieces.Message, StringComparison.Ordinal);
+        Assert.All([axisPieces, parsePieces, utcParsePieces], e => Assert.Contains("the limit of 4096 pieces", e.Message, StringComparison.Ordinal));
 
         // Assert: the specifier at the limit, a number format, a custom format type and a field that is not read as a time are accepted
         Assert.Empty(SpecParser.Parse(X("\"axis\":{\"format\":\"" + longest + "\"}"), "t.json").Warnings);

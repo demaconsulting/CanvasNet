@@ -508,9 +508,16 @@ internal sealed partial class SpecParser
                 throw Error(entry, $"The parse type of '{entry.Name}' must be \"number\", \"boolean\", \"date\", \"string\" or a date format such as \"date:'%Y-%m-%d'\".");
             }
 
-            if (spec.Format is { Length: > TimeFormat.MaxSpecifierLength })
+            if (spec.Format is not null)
             {
-                throw Error(entry, $"The date format of '{entry.Name}' is longer than the limit of {TimeFormat.MaxSpecifierLength} characters.");
+                try
+                {
+                    TimeFormat.ValidateSpecifier(spec.Format);
+                }
+                catch (TimeFormatSpecifierException ex)
+                {
+                    throw Error(entry, $"The date format of '{entry.Name}' is not valid: {ex.Message}");
+                }
             }
         }
     }
