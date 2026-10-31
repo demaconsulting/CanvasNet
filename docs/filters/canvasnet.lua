@@ -38,7 +38,9 @@ Every other attribute (width, height, an id or a class) stays on the picture.
 
 How it works. The source is found on the document's resource path, like a picture, and its name must lie
 inside one of its folders. The check is on the path text (names are collapsed, so "..", and an absolute
-name, are caught); the filter does not resolve or check symbolic links or junctions, which Pandoc Lua
+name, are caught). Names are compared without regard to case on Windows only, and exactly on Linux and
+macOS (whose file systems are often case-insensitive, but the safe choice for containment is to treat a
+name that differs only by case as outside); the filter does not resolve or check symbolic links or junctions, which Pandoc Lua
 cannot do, so a link inside the resource path may lead outside it. It is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is
 written to docs/generated/canvasnet/ (git-ignored through **/generated/) under a name made from a SHA-1
 of everything that decides the picture:
@@ -46,7 +48,9 @@ of everything that decides the picture:
   - the file, and every file it pulls in: for a model every file it names with include <...> or use <...>
     (followed recursively, relative to the including file, within the model's folder, each file once);
     for a chart every relative data file named by a "url" in a "data" object of the specification
-    (within the specification's folder only; a remote URL is not a file and is not read);
+    (within the specification's folder only; a remote URL is not a file and is not read); a chart that
+    names more than 512 different data files stops the build, since a file left out of the hash could
+    change without the picture being drawn again;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
     fingerprint of the DLLs beside it; and this filter's version.
@@ -92,7 +96,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "2"
+local FILTER_VERSION = "3"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -168,6 +172,21 @@ local function absolute(path)
   return collapse(pandoc.path.join({ pandoc.system.get_working_directory(), path }))
 end
 
+-- Path names are compared without regard to case on Windows only (its file systems are case-insensitive by
+-- default) and exactly everywhere else. macOS file systems are usually case-insensitive too, but treating
+-- them as case-sensitive is the safe choice for containment: a name that differs only by case from the
+-- resource path is then "outside" it, never wrongly "inside". Every place that folds case (the containment
+-- check, the relative path of the picture, and the keys that detect a file met twice) uses fold_case.
+-- pandoc.system.os is "mingw32" on Windows, "linux" on Linux and "darwin" on macOS.
+local IS_WINDOWS = pandoc.system.os == "mingw32" or pandoc.system.os == "windows"
+
+local function fold_case(text)
+  if IS_WINDOWS then
+    return text:lower()
+  end
+  return text
+end
+
 -- Whether a path is the folder itself or inside it, comparing whole segments.
 local function is_within(folder, path)
   local inner = pandoc.path.split(path)
@@ -176,7 +195,7 @@ local function is_within(folder, path)
     return false
   end
   for index, part in ipairs(outer) do
-    if part:lower() ~= inner[index]:lower() then
+    if fold_case(part) ~= fold_case(inner[index]) then
       return false
     end
   end
@@ -190,7 +209,7 @@ local function relative_path(from, target)
   local target_parts = pandoc.path.split(target)
   local common = 0
   while common < #from_parts and common < #target_parts
-    and from_parts[common + 1]:lower() == target_parts[common + 1]:lower() do
+    and fold_case(from_parts[common + 1]) == fold_case(target_parts[common + 1]) do
     common = common + 1
   end
   if common == 0 then
@@ -410,7 +429,7 @@ end
 -- never leave one out. A file outside the model's folder is not followed: the tool refuses it, and the
 -- build fails on that, not here.
 local function add_scad_sources(path, root, seen, parts)
-  local key = path:lower()
+  local key = fold_case(path)
   if seen[key] then
     return
   end
@@ -486,16 +505,24 @@ local function add_chart_sources(path, root, parts)
   -- Sorted, so the order a JSON object is walked in cannot change the picture's name.
   table.sort(files)
   local seen = {}
-  for index, file in ipairs(files) do
-    if index > MAX_DEPENDENCIES then
-      break
+  local unique = {}
+  for _, file in ipairs(files) do
+    local key = fold_case(file)
+    if not seen[key] then
+      seen[key] = true
+      table.insert(unique, file)
     end
-    if not seen[file:lower()] then
-      seen[file:lower()] = true
-      local data = read_file(file)
-      if data then
-        table.insert(parts, pandoc.path.make_relative(file, root) .. "\n" .. data)
-      end
+  end
+  -- A file left out of the hash could change without drawing the picture again, so more files than the
+  -- limit is an error, never a silent cut-off.
+  if #unique > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' names " .. #unique .. " data files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every data file must be hashed so that a changed one is drawn again)")
+  end
+  for _, file in ipairs(unique) do
+    local data = read_file(file)
+    if data then
+      table.insert(parts, pandoc.path.make_relative(file, root) .. "\n" .. data)
     end
   end
 end

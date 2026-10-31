@@ -248,6 +248,48 @@ try {
         Write-Result ($run.ExitCode -ne 0 -and $run.Log -match [regex]::Escape($errors[$case][1])) `
             "rejects $case" $run.Log
     }
+
+    # --- Case sensitivity of the resource-path check ------------------------------------------------------
+    # Windows compares names without regard to case, so docs/GUIDE is the resource folder docs/guide and a
+    # source named through it is accepted. Elsewhere docs/GUIDE is a different folder (a real sibling on
+    # Linux; on a case-insensitive macOS file system the same folder, still named differently), so a source
+    # reached through it is outside the resource path.
+    $onWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows)
+    $sibling = Join-Path $tree 'docs/GUIDE'
+    New-Item -ItemType Directory -Force -Path $sibling | Out-Null
+    Copy-Item (Join-Path $showcase 'mesh-shading.pdf') (Join-Path $sibling 'case.pdf')
+    $case = Invoke-Filter 'case-variant' '![m](../GUIDE/case.pdf){dpi=48}'
+    if ($onWindows) {
+        Write-Result ($case.ExitCode -eq 0) 'Windows: a case-variant of the resource folder is the same folder' $case.Log
+    }
+    else {
+        Write-Result ($case.ExitCode -ne 0 -and $case.Log -match "outside the document's resource path") `
+            'a case-variant sibling of the resource folder is outside it' $case.Log
+    }
+
+    # --- Dependency limit ---------------------------------------------------------------------------------
+    # A chart that names more data files than the filter hashes (512) must fail, not draw from a partial hash.
+    $many = Join-Path $guide 'many'
+    New-Item -ItemType Directory -Force -Path $many | Out-Null
+    function New-ManyChart([int]$Count) {
+        $layers = foreach ($n in 1..$Count) {
+            Set-Content (Join-Path $many "d$n.csv") -Value "k,v`na,$n"
+            '{"data":{"url":"d' + $n + '.csv"},"mark":"bar"}'
+        }
+        Set-Content (Join-Path $many "chart$Count.vl.json") -Value (
+            '{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":120,"height":80,"layer":[' +
+            ($layers -join ',') + ']}')
+    }
+    New-ManyChart 513
+    $over = Invoke-Filter 'many-over' '![c](many/chart513.vl.json)'
+    Write-Result ($over.ExitCode -ne 0 -and $over.Log -match 'chart513\.vl\.json' -and
+        $over.Log -match 'names 513 data files; the limit is 512') `
+        'a chart with more than 512 data files fails naming the source and the limit' $over.Log
+    New-ManyChart 512
+    $at = Invoke-Filter 'many-at' '![c](many/chart512.vl.json)'
+    Write-Result ($at.ExitCode -eq 0 -and $at.Log -notmatch 'the limit is 512') `
+        'a chart with exactly 512 data files is not rejected by the limit' $at.Log
 }
 catch {
     $script:failures++
