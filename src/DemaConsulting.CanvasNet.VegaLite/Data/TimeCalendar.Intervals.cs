@@ -119,6 +119,9 @@ internal sealed class TimeInterval
     /// <summary>The step of a filter or closed-form interval; 1 for a plain interval.</summary>
     private readonly double _step;
 
+    /// <summary>Whether a day filter counts the days since the epoch (d3's <c>unixDay</c>) instead of the day of the month.</summary>
+    private readonly bool _epochDays;
+
     /// <summary>
     ///     Initializes a plain interval.
     /// </summary>
@@ -136,12 +139,14 @@ internal sealed class TimeInterval
     /// <param name="kind">The kind of boundary.</param>
     /// <param name="mode">The flavor.</param>
     /// <param name="step">The step (at least 1 and whole).</param>
-    private TimeInterval(TimeCalendar calendar, TimeIntervalKind kind, Mode mode, double step)
+    /// <param name="epochDays">Whether a day filter counts the days since the epoch.</param>
+    private TimeInterval(TimeCalendar calendar, TimeIntervalKind kind, Mode mode, double step, bool epochDays = false)
     {
         _calendar = calendar;
         _kind = kind;
         _mode = mode;
         _step = step;
+        _epochDays = epochDays;
     }
 
     /// <summary>The flavors of interval.</summary>
@@ -363,6 +368,29 @@ internal sealed class TimeInterval
                 // Steps beyond the range of the field select only its first value, so clamping keeps the same boundaries
                 return new TimeInterval(_calendar, _kind, Mode.Filter, Math.Min(k, FieldRange(_kind)));
         }
+    }
+
+    /// <summary>
+    ///     Gets the interval that keeps every nth day counted from the epoch (d3's <c>unixDay.every</c>, which the UTC time ticks use for two-day ticks).
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="Every"/> on the day interval, which keeps the days whose day of the month is a multiple of the step, this
+    ///     keeps the days whose number since 1970-01-01 is a multiple of the step. It exists for the UTC calendar only.
+    /// </remarks>
+    /// <param name="step">The step; a fraction is rounded down.</param>
+    /// <returns>
+    ///     The day interval itself for a step of 1 or less; null for a step that is not finite or not positive, for a step above 64, for an
+    ///     interval that is not the plain day interval and for a calendar that is not UTC; otherwise the filter interval.
+    /// </returns>
+    public TimeInterval? EveryEpochDay(double step)
+    {
+        var k = Math.Floor(step);
+        if (_kind != TimeIntervalKind.Day || _mode != Mode.Plain || !_calendar.IsUtc || !double.IsFinite(k) || !(k > 0) || k > MaxWeekStep)
+        {
+            return null;
+        }
+
+        return k > 1 ? new TimeInterval(_calendar, _kind, Mode.Filter, k, epochDays: true) : this;
     }
 
     /// <summary>
@@ -614,7 +642,11 @@ internal sealed class TimeInterval
         }
 
         double field;
-        if (_kind == TimeIntervalKind.Second)
+        if (_epochDays)
+        {
+            field = Math.Floor(t / TimeCalendar.MillisecondsPerDay);
+        }
+        else if (_kind == TimeIntervalKind.Second)
         {
             // d3 reads the UTC second, which is the same in every zone
             field = TimeCalendar.FloorMod((long)Math.Floor(t / 1000.0), 60);

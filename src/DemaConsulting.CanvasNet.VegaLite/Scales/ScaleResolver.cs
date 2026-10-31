@@ -53,7 +53,7 @@ internal sealed class ResolvedScale
     /// <summary>Gets the offset of the stack the channel carries, or null when its marks are not stacked.</summary>
     public StackOffset? Stack { get; init; }
 
-    /// <summary>Gets the field type: <c>quantitative</c>, <c>nominal</c> or <c>ordinal</c>.</summary>
+    /// <summary>Gets the field type: <c>quantitative</c>, <c>temporal</c>, <c>nominal</c> or <c>ordinal</c>.</summary>
     public string DataType { get; init; } = string.Empty;
 
     /// <summary>Gets the location of the channel definition in the specification.</summary>
@@ -137,6 +137,20 @@ internal sealed class ResolvedScale
     /// <summary>Gets the interpolator of a sequential or diverging color scale (a color for a position from 0 to 1, after the scheme extent and the reversal), or null.</summary>
     public Func<double, RgbColor>? Interpolator { get; init; }
 
+    /// <summary>
+    ///     Gets the calendar of the field's instants (UTC for a UTC scale or a UTC time unit, otherwise the time zone of the chart), or null when the field is neither temporal nor has a time unit.
+    /// </summary>
+    public TimeCalendar? Calendar { get; init; }
+
+    /// <summary>Gets the time unit of the field (the resolved unit for the <c>maxbins</c> form), or null.</summary>
+    public TimeUnitSpec? TimeUnit { get; init; }
+
+    /// <summary>Gets a value indicating whether the values of the field are instants: the field is temporal or has a time unit.</summary>
+    public bool IsTemporalField { get; init; }
+
+    /// <summary>Gets the interval (a name with an optional step) that <c>nice</c> extends a time scale to, or null when <c>nice</c> uses <see cref="NiceCount"/> or is off.</summary>
+    public TimeTickRequest? NiceInterval { get; init; }
+
     /// <summary>Gets a value indicating whether the channel is a position channel (<c>x</c> or <c>y</c>).</summary>
     public bool IsPosition => Channel is "x" or "y";
 
@@ -187,6 +201,9 @@ internal sealed class ResolvedScale
             case ScaleKind.Linear:
                 var range = ResolveRange(extent);
                 return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round, Transform);
+            case ScaleKind.Time or ScaleKind.Utc:
+                var timeRange = ResolveRange(extent);
+                return ScaleModel.CreateTime(ExtendedDomain(Math.Abs(timeRange[^1] - timeRange[0])), timeRange, Clamp, Round, Calendar ?? TimeCalendar.Utc, Kind == ScaleKind.Utc);
             case ScaleKind.Sequential or ScaleKind.Diverging:
                 return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp, Transform);
             case ScaleKind.Quantize:
@@ -277,8 +294,16 @@ internal sealed class ResolvedScale
             }
         }
 
-        // Then the domain is extended to round values, if that gives a usable domain (a log scale to powers of its base)
-        if (NiceCount is { } count)
+        // Then the domain is extended to round values, if that gives a usable domain (a log scale to powers of its base, a time scale to the boundaries of a calendar interval)
+        if (Kind is ScaleKind.Time or ScaleKind.Utc)
+        {
+            var request = NiceInterval ?? (NiceCount is { } niceCount ? new TimeTickRequest(niceCount) : (TimeTickRequest?)null);
+            if (request is { } timeRequest)
+            {
+                (start, end) = Ticks.TimeNice(start, end, timeRequest, Calendar ?? TimeCalendar.Utc, Kind == ScaleKind.Utc);
+            }
+        }
+        else if (NiceCount is { } count)
         {
             var (niceStart, niceEnd) = Transform.Kind == ScaleTransformKind.Log
                 ? Ticks.LogNice(start, end, Transform.Parameter)
@@ -312,7 +337,7 @@ internal sealed class ResolvedScale
             if (IsPosition)
             {
                 // The origin of a view is its top left corner, so a continuous y scale runs upward
-                range = Channel == "y" && Kind == ScaleKind.Linear ? [extent, 0.0] : [0.0, extent];
+                range = Channel == "y" && Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc ? [extent, 0.0] : [0.0, extent];
             }
             else if (ValueRange is { } values)
             {
@@ -346,7 +371,7 @@ internal sealed class ResolvedScale
 /// <remarks>
 ///     The class is immutable. It holds one <see cref="ResolvedScale"/> per channel that has a scale; channels with a
 ///     <c>value</c> or without a field have none, and neither do channels whose scale is not drawn in this package
-///     (temporal fields, a <c>size</c> on a mark without sizes, a <c>shape</c> on a mark other than <c>point</c>).
+///     (a <c>size</c> on a mark without sizes, a <c>shape</c> on a mark other than <c>point</c>).
 /// </remarks>
 internal sealed class ResolvedScales
 {
@@ -792,7 +817,7 @@ internal static partial class ScaleResolver
         }
 
         var type = ReadType(definition, datum);
-        if (type is not ("quantitative" or "nominal" or "ordinal"))
+        if (type is not ("quantitative" or "temporal" or "nominal" or "ordinal"))
         {
             return null;
         }
@@ -803,9 +828,11 @@ internal static partial class ScaleResolver
         }
 
         var binning = plan is { Bin: BinKind.Binning } && type == "quantitative";
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, out var transformKind);
+        var (unit, isTemporal) = ReadTimeUnit(plan, type, context);
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, unit is { Utc: true }, out var transformKind);
         var location = definition.GetLocation(context.SourceName);
-        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind);
+        var time = MakeTimeFacts(unit, isTemporal, kind, context);
+        var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind, time);
         return kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.BinOrdinal
             ? BuildDiscrete(common, kind, context)
             : BuildContinuous(common, kind, context);
@@ -869,9 +896,10 @@ internal static partial class ScaleResolver
     /// <param name="specified">The explicit <c>scale.type</c>, or null.</param>
     /// <param name="markType">The mark type.</param>
     /// <param name="binning">Whether the encoding bins the quantitative field (a binned color gets the bin-ordinal scale by default).</param>
+    /// <param name="utcUnit">Whether the field has a UTC time unit (its temporal default scale is a UTC scale).</param>
     /// <param name="transformKind">Receives the transform of the scale: log, pow (also for sqrt) or symlog for the matching explicit type, else linear.</param>
     /// <returns>The kind.</returns>
-    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, out ScaleTransformKind transformKind)
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, bool utcUnit, out ScaleTransformKind transformKind)
     {
         var group = GroupOf(channel);
         transformKind = ScaleTransformKind.Linear;
@@ -887,6 +915,16 @@ internal static partial class ScaleResolver
                 _ => ScaleKind.Linear,
             };
         }
+        else if (type == "temporal")
+        {
+            // A temporal color is sequential, shape and dash are discrete, everything else is a time scale (UTC for a UTC unit)
+            defaultKind = group switch
+            {
+                ChannelGroup.Color => ScaleKind.Sequential,
+                ChannelGroup.Discrete => ScaleKind.Ordinal,
+                _ => utcUnit ? ScaleKind.Utc : ScaleKind.Time,
+            };
+        }
         else if (group is ChannelGroup.Color or ChannelGroup.Discrete)
         {
             defaultKind = ScaleKind.Ordinal;
@@ -900,7 +938,7 @@ internal static partial class ScaleResolver
             defaultKind = ScaleKind.Point;
         }
 
-        if (!TryParseKind(specified, group, out var requested, out var requestedTransform) || !Accepts(group, type, requested, binning))
+        if (!TryParseKind(specified, group, out var requested, out var requestedTransform, out var timeName) || !Accepts(group, type, requested, binning, timeName))
         {
             return defaultKind;
         }
@@ -916,12 +954,27 @@ internal static partial class ScaleResolver
     /// <param name="group">The group of the channel (a color channel's <c>linear</c> is a sequential scale).</param>
     /// <param name="kind">Receives the kind.</param>
     /// <param name="transform">Receives the transform: log, pow (for <c>pow</c> and <c>sqrt</c>) or symlog for those types, else linear.</param>
-    /// <returns><see langword="false"/> for null and for a type this package does not draw (identity, time, utc).</returns>
-    private static bool TryParseKind(string? specified, ChannelGroup group, out ScaleKind kind, out ScaleTransformKind transform)
+    /// <param name="timeName">Receives whether the name is <c>time</c> or <c>utc</c>, which only a temporal field accepts.</param>
+    /// <returns><see langword="false"/> for null and for a type this package does not draw (identity).</returns>
+    private static bool TryParseKind(string? specified, ChannelGroup group, out ScaleKind kind, out ScaleTransformKind transform, out bool timeName)
     {
         transform = ScaleTransformKind.Linear;
+        timeName = false;
         switch (specified)
         {
+            case "time" or "utc":
+                // On a color channel a time scale is the sequential scale over the instants, as linear is for numbers
+                timeName = true;
+                if (group == ChannelGroup.Color)
+                {
+                    kind = ScaleKind.Sequential;
+                }
+                else
+                {
+                    kind = specified == "time" ? ScaleKind.Time : ScaleKind.Utc;
+                }
+
+                return true;
             case "linear":
                 kind = group == ChannelGroup.Color ? ScaleKind.Sequential : ScaleKind.Linear;
                 return true;
@@ -972,27 +1025,41 @@ internal static partial class ScaleResolver
     /// <param name="type">The field type.</param>
     /// <param name="kind">The requested kind.</param>
     /// <param name="binning">Whether the encoding bins the field: the bin-ordinal scale needs bins to place the values in.</param>
+    /// <param name="timeName">Whether the explicit type was <c>time</c> or <c>utc</c>: Vega-Lite accepts only those for a temporal field, and only a temporal field accepts them.</param>
     /// <returns><see langword="true"/> when both the channel and the field type accept the kind.</returns>
     /// <remarks>
     ///     The bin-ordinal scale is accepted for a binned quantitative field of a color channel only. Vega-Lite also lets a nominal or
     ///     ordinal field ask for it, but then the field is the text of the bin, which no bin-ordinal scale can place; the default scale is used for that
     ///     (and for a field that is not binned, which has no bins to place values in).
     /// </remarks>
-    private static bool Accepts(ChannelGroup group, string type, ScaleKind kind, bool binning)
+    private static bool Accepts(ChannelGroup group, string type, ScaleKind kind, bool binning, bool timeName = false)
     {
         var discretizing = kind is ScaleKind.Quantile or ScaleKind.Quantize or ScaleKind.Threshold;
         var channelAccepts = group switch
         {
-            ChannelGroup.Position => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point,
+            ChannelGroup.Position => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Time or ScaleKind.Utc,
             ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal or ScaleKind.BinOrdinal || discretizing,
             ChannelGroup.Discrete => kind == ScaleKind.Ordinal || discretizing,
-            _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal || discretizing,
+            _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.Time or ScaleKind.Utc || discretizing,
         };
 
-        // A quantitative field takes the continuous and the discretizing scales, a nominal or ordinal field the discrete ones
-        var typeAccepts = type == "quantitative"
-            ? kind is ScaleKind.Linear or ScaleKind.Sequential || discretizing || (kind == ScaleKind.BinOrdinal && binning)
-            : kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal;
+        // A temporal field takes the time and utc types only; a quantitative field the continuous and the discretizing scales, a nominal or ordinal field the discrete ones
+        bool typeAccepts;
+        if (type == "temporal")
+        {
+            typeAccepts = timeName;
+        }
+        else if (timeName)
+        {
+            typeAccepts = false;
+        }
+        else
+        {
+            typeAccepts = type == "quantitative"
+                ? kind is ScaleKind.Linear or ScaleKind.Sequential || discretizing || (kind == ScaleKind.BinOrdinal && binning)
+                : kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal;
+        }
+
         return channelAccepts && typeAccepts;
     }
 
@@ -1001,7 +1068,7 @@ internal static partial class ScaleResolver
     ///     an explicit type is replaced by the default one.
     /// </summary>
     /// <param name="channel">The channel name.</param>
-    /// <param name="fieldType">The field type (<c>quantitative</c>, <c>nominal</c> or <c>ordinal</c>).</param>
+    /// <param name="fieldType">The field type (<c>quantitative</c>, <c>temporal</c>, <c>nominal</c> or <c>ordinal</c>).</param>
     /// <param name="scaleType">The scale type name.</param>
     /// <param name="binned">Whether the encoding bins the field (<c>bin</c> is true or an object, not <c>"binned"</c>).</param>
     /// <returns><see langword="true"/> when the type is one this package draws and both the channel and the field type accept it; <see langword="false"/> for any other type, whether Vega-Lite rejects it or this package does not draw it yet.</returns>
@@ -1011,7 +1078,7 @@ internal static partial class ScaleResolver
         ArgumentNullException.ThrowIfNull(fieldType);
         ArgumentNullException.ThrowIfNull(scaleType);
         var group = GroupOf(channel);
-        return TryParseKind(scaleType, group, out var kind, out _) && Accepts(group, fieldType, kind, binned && EncodingPlan.CanBin(channel));
+        return TryParseKind(scaleType, group, out var kind, out _, out var timeName) && Accepts(group, fieldType, kind, binned && EncodingPlan.CanBin(channel), timeName);
     }
 
     /// <summary>
@@ -1035,7 +1102,9 @@ internal static partial class ScaleResolver
     {
         var group = GroupOf(input.Channel);
         var scaleDef = input.ScaleDef;
-        var continuousToContinuous = kind is ScaleKind.Linear or ScaleKind.Sequential;
+        var time = input.Time;
+        var isTimeKind = kind is ScaleKind.Time or ScaleKind.Utc;
+        var continuousToContinuous = kind is ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Time or ScaleKind.Utc;
 
         // The domain: explicit, or the extent of the valid values; an explicit domain of more than two numbers is piecewise
         double start;
@@ -1052,9 +1121,15 @@ internal static partial class ScaleResolver
         {
             CheckSpecArray(domainNode, input, context, "domain");
             var minimum = kind == ScaleKind.Threshold ? 1 : 2;
-            var explicitDomain = ReadNumericDomain(domainNode, context, minimum);
+            var explicitDomain = time is not null ? ReadTemporalDomain(domainNode, time, context, minimum) : ReadNumericDomain(domainNode, context, minimum);
             (start, end) = (explicitDomain[0], explicitDomain[^1]);
             entries = explicitDomain.Length > 2 || kind == ScaleKind.Threshold ? explicitDomain : null;
+        }
+        else if (time is { IsTemporal: true } && input.Datum is not null)
+        {
+            // A temporal datum is one instant (a text is a date text)
+            var instant = ReadTemporalDatum(input.Datum, time);
+            (start, end) = instant is { } at ? (at, at) : (0d, 1d);
         }
         else
         {
@@ -1073,8 +1148,9 @@ internal static partial class ScaleResolver
         }
 
         // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty),
-        // and neither has a log scale, whose domain cannot reach zero
+        // and neither has a log scale, whose domain cannot reach zero, or a time scale, for which zero is not meaningful
         var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold)
+            && !isTimeKind
             && input.TransformKind != ScaleTransformKind.Log
             && (scaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, kind, context));
         if (zero)
@@ -1099,7 +1175,7 @@ internal static partial class ScaleResolver
         // domainMin, domainMax and domainMid belong to the continuous-to-continuous scales (domainMid to colors only)
         if (continuousToContinuous)
         {
-            if (scaleDef?["domainMin"]?.AsNumber() is { } domainMin)
+            if (ReadDomainBound(scaleDef?["domainMin"], time) is { } domainMin)
             {
                 start = domainMin;
                 if (entries is not null)
@@ -1108,7 +1184,7 @@ internal static partial class ScaleResolver
                 }
             }
 
-            if (scaleDef?["domainMax"]?.AsNumber() is { } domainMax)
+            if (ReadDomainBound(scaleDef?["domainMax"], time) is { } domainMax)
             {
                 end = domainMax;
                 if (entries is not null)
@@ -1117,7 +1193,7 @@ internal static partial class ScaleResolver
                 }
             }
 
-            if (group == ChannelGroup.Color && scaleDef?["domainMid"]?.AsNumber() is { } mid)
+            if (group == ChannelGroup.Color && ReadDomainBound(scaleDef?["domainMid"], time) is { } mid)
             {
                 // Vega puts the middle value before the first entry, after the last, or between the ends (the last entry is moved up for two entries)
                 var all = (entries ?? [start, end]).ToList();
@@ -1167,7 +1243,18 @@ internal static partial class ScaleResolver
 
         var isPosition = group == ChannelGroup.Position;
         var reverse = ReverseOf(input, kind);
-        var supportsRangeLimits = kind == ScaleKind.Linear;
+        var supportsRangeLimits = kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc;
+        var timeNice = isTimeKind ? TimeNiceRequest(scaleDef) : null;
+        double? niceCount;
+        if (isTimeKind)
+        {
+            niceCount = timeNice is { Interval: null } counted ? counted.Count : null;
+        }
+        else
+        {
+            niceCount = NiceRule(input, kind, domainNode is not null, isPosition);
+        }
+
         return new ResolvedScale
         {
             Channel = input.Channel,
@@ -1183,11 +1270,12 @@ internal static partial class ScaleResolver
             DomainStart = start,
             DomainEnd = end,
             Domain = entries,
-            NiceCount = NiceRule(input, kind, domainNode is not null, isPosition),
+            NiceCount = niceCount,
+            NiceInterval = timeNice is { Interval: not null } ? timeNice : null,
             PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
             Clamp = continuousToContinuous && (scaleDef?["clamp"]?.AsBool() ?? false),
             Transform = transform,
-            Round = kind == ScaleKind.Linear && (scaleDef?["round"]?.AsBool() ?? false),
+            Round = supportsRangeLimits && (scaleDef?["round"]?.AsBool() ?? false),
             Reverse = reverse,
             ExplicitRange = outputs.ExplicitRange,
             RangeMin = supportsRangeLimits ? scaleDef?["rangeMin"]?.AsNumber() : null,
@@ -1198,6 +1286,9 @@ internal static partial class ScaleResolver
             ShapeRange = outputs.Shapes,
             DashRange = outputs.Dashes,
             Interpolator = outputs.Interpolator,
+            Calendar = time?.Calendar,
+            TimeUnit = time?.Unit,
+            IsTemporalField = time is not null,
         };
     }
 
@@ -1320,6 +1411,9 @@ internal static partial class ScaleResolver
             ColorRange = outputs.Colors,
             ShapeRange = outputs.Shapes,
             DashRange = outputs.Dashes,
+            Calendar = input.Time?.Calendar,
+            TimeUnit = input.Time?.Unit,
+            IsTemporalField = input.Time is not null,
         };
     }
 
@@ -1449,8 +1543,9 @@ internal static partial class ScaleResolver
     /// <returns>The tick count to nice with, or null for no nice.</returns>
     private static double? NiceRule(CommonInputs input, ScaleKind kind, bool hasDomain, bool isPosition)
     {
-        if (kind is not (ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize))
+        if (kind is not (ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize) || input.Time is not null)
         {
+            // The ms of a temporal color scale are not "nice" numbers; time scales have their own rule (TimeNiceRequest)
             return null;
         }
         // Explicit nice: true uses the d3 default count of 10, a number is the count, false switches nice off
@@ -1487,9 +1582,9 @@ internal static partial class ScaleResolver
             return Math.Max(0, configured);
         }
 
-        // A bar on the axis that carries its width gets room for half the bar
+        // A bar on the axis that carries its width gets room for half the bar, unless its field is binned or has a time unit (the bar then spans the bin or the unit)
         var carriesBandWidth = (context.Orient == "vertical" && input.Channel == "x") || (context.Orient == "horizontal" && input.Channel == "y");
-        if (context.MarkType == "bar" && carriesBandWidth && !IsEnabled(input.Definition["bin"]))
+        if (context.MarkType == "bar" && carriesBandWidth && !IsEnabled(input.Definition["bin"]) && input.Definition["timeUnit"] is not { IsNull: false })
         {
             return Math.Max(0, context.Config.GetNumber("bar.continuousBandSize") ?? 5);
         }
@@ -1624,7 +1719,7 @@ internal static partial class ScaleResolver
             CheckSpecArray(explicitDomain, input, context, "domain");
             foreach (var item in explicitDomain.Items)
             {
-                var value = ToDataValue(item);
+                var value = ToDataValue(item, input.Time);
                 if (seen.Add(value))
                 {
                     domain.Add(value);
@@ -1693,14 +1788,24 @@ internal static partial class ScaleResolver
     ///     Converts a JSON node to a data value.
     /// </summary>
     /// <param name="node">The node.</param>
-    /// <returns>The value; null for anything but a string, number or boolean.</returns>
-    private static DataValue ToDataValue(SpecNode node) => node.Kind switch
+    /// <param name="time">The time facts of the field: for a temporal field or a field with a time unit a date or a date-time object is the date it names, as the field's values are dates; null otherwise.</param>
+    /// <returns>The value; null for anything but a string, number or boolean (or a date when the field is temporal), and for a date out of range.</returns>
+    private static DataValue ToDataValue(SpecNode node, TimeFacts? time = null)
     {
-        SpecNodeKind.String => DataValue.FromString(node.StringValue),
-        SpecNodeKind.Number => DataValue.FromNumber(node.NumberValue),
-        SpecNodeKind.Boolean => DataValue.FromBoolean(node.BoolValue),
-        _ => DataValue.Null,
-    };
+        if (time is not null && node.Kind is SpecNodeKind.Number or SpecNodeKind.String or SpecNodeKind.Object)
+        {
+            var ms = ToMilliseconds(node, time);
+            return double.IsNaN(ms) ? DataValue.Null : DataValue.FromDate(ms);
+        }
+
+        return node.Kind switch
+        {
+            SpecNodeKind.String => DataValue.FromString(node.StringValue),
+            SpecNodeKind.Number => DataValue.FromNumber(node.NumberValue),
+            SpecNodeKind.Boolean => DataValue.FromBoolean(node.BoolValue),
+            _ => DataValue.Null,
+        };
+    }
 
     /// <summary>The facts about the view that every channel needs.</summary>
     private sealed class Context
@@ -1752,6 +1857,7 @@ internal static partial class ScaleResolver
     /// <param name="Location">The location of the channel definition.</param>
     /// <param name="Plan">The plan of the channel definition, or null.</param>
     /// <param name="TransformKind">The transform of a continuous scale: <see cref="ScaleTransformKind.Linear"/> unless the scale type is <c>log</c>, <c>pow</c>, <c>sqrt</c> or <c>symlog</c> and the channel accepts it.</param>
+    /// <param name="Time">The calendar, the time unit and the type facts of a temporal field or a field with a time unit, or null.</param>
     private sealed record CommonInputs(
         string Channel,
         string Type,
@@ -1761,5 +1867,6 @@ internal static partial class ScaleResolver
         SpecNode? ScaleDef,
         VegaLiteLocation Location,
         ChannelPlan? Plan,
-        ScaleTransformKind TransformKind);
+        ScaleTransformKind TransformKind,
+        TimeFacts? Time = null);
 }

@@ -218,12 +218,22 @@ internal sealed class MarkBuilder
             Datum = fieldNode["datum"] switch
             {
                 { IsNumber: true } n => DataValue.FromNumber(n.NumberValue),
+                { IsString: true } s when scale is { IsTemporalField: true, Calendar: not null } => ParseDate(s.StringValue!, scale.Calendar),
                 { IsString: true } s => DataValue.FromString(s.StringValue),
                 { IsBoolean: true } b => DataValue.FromBoolean(b.BoolValue),
                 _ => null,
             };
             Value = node["value"];
         }
+
+        /// <summary>
+        ///     Reads the text of a <c>datum</c> of a temporal channel as a date.
+        /// </summary>
+        /// <param name="text">The text.</param>
+        /// <param name="calendar">The calendar of the scale.</param>
+        /// <returns>The date value; null when the text is not a date (the datum then has no position).</returns>
+        private static DataValue? ParseDate(string text, TimeCalendar calendar) =>
+            JsDateParser.TryParse(text, calendar, out var ms) ? DataValue.FromDate(ms) : null;
 
         /// <summary>Gets the conditions of the channel whose test the call can evaluate, in order.</summary>
         public IReadOnlyList<ChannelCondition> Conditions { get; }
@@ -259,10 +269,10 @@ internal sealed class MarkBuilder
         public bool HasBinEnds => Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null);
 
         /// <summary>Gets a value indicating whether the scale of the channel has a continuous domain, so that a row whose value is not a number is not drawn (Vega-Lite's invalid filter).</summary>
-        public bool HasContinuousDomain => Model is { Kind: ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold };
+        public bool HasContinuousDomain => Model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold };
 
         /// <summary>Gets a value indicating whether the channel spans a range that the encoding gives: <c>x2</c> or <c>y2</c> next to a field that is not binned by the encoding and not stacked.</summary>
-        public bool HasRange => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: null, Bin: not BinKind.Binning } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
+        public bool HasRange => Model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc } && Scale is { Stack: null, Bin: not BinKind.Binning } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
 
         /// <summary>Gets the datum of the channel, or null.</summary>
         public DataValue? Datum { get; }
@@ -1214,7 +1224,7 @@ internal sealed class MarkBuilder
                     return null;
                 }
 
-                if (model is { Kind: ScaleKind.Linear })
+                if (model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc })
                 {
                     var center = Center(channel!, model, row);
                     var length = thickness ?? Prop("continuousBandSize")?.AsNumber() ?? 5;

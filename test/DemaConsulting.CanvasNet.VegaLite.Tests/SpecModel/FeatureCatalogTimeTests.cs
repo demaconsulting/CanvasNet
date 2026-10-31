@@ -164,10 +164,58 @@ public class FeatureCatalogTimeTests
                 ("vl-guide-axis-tickcount-interval", "/encoding/color/legend/tickCount"),
             ],
             quantitative);
-        Assert.Equal([("vl-scale-nice-interval", "/encoding/x/scale/nice")], temporalLinear);
+        Assert.Equal([("vl-scale-type-ignored", "/encoding/x/scale/type")], temporalLinear);
         Assert.Empty(timeOnDates);
         Assert.Empty(defaultTime);
         Assert.Empty(numeric);
+    }
+
+    /// <summary>
+    ///     Validates the <c>scale.type</c> table of temporal fields: <c>time</c> and <c>utc</c> are accepted (silently) on a temporal field, every other type is replaced by
+    ///     the default with <c>vl-scale-type-ignored</c>, and <c>time</c> and <c>utc</c> on a quantitative, nominal or ordinal field are ignored with the same warning.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_TimeAndUtcScaleTypesFollowVegaLite()
+    {
+        // Act
+        var accepted = VisitView("\"point\"", """{"x":{"field":"d","type":"temporal","scale":{"type":"utc"}},"y":{"field":"d","type":"temporal","scale":{"type":"time"}},"color":{"field":"d","type":"temporal","scale":{"type":"time"}}}""");
+        var temporalRefused = VisitView(
+            "\"point\"",
+            """{"x":{"field":"d","type":"temporal","scale":{"type":"band"}},"color":{"field":"d","type":"temporal","scale":{"type":"sequential"}},"size":{"field":"d","type":"temporal","scale":{"type":"quantile"}}}""");
+        var shape = VisitView("\"point\"", """{"shape":{"field":"d","type":"temporal","scale":{"type":"time"}}}""");
+        var others = VisitView(
+            "\"point\"",
+            """{"x":{"field":"d","type":"nominal","scale":{"type":"time"}},"y":{"field":"d","type":"ordinal","scale":{"type":"utc"}},"size":{"field":"d","type":"quantitative","scale":{"type":"time"}}}""");
+
+        // Assert
+        Assert.Empty(accepted);
+        Assert.Equal(
+            [("vl-scale-type-ignored", "/encoding/x/scale/type"), ("vl-scale-type-ignored", "/encoding/color/scale/type"), ("vl-scale-type-ignored", "/encoding/size/scale/type")],
+            temporalRefused);
+        Assert.Equal([("vl-scale-type-ignored", "/encoding/shape/scale/type")], shape);
+
+        // Assert: a temporal field on a channel that shows categories gets an ordinal scale, with the same warning as a quantitative one
+        Assert.Equal([("vl-scale-type-ignored", "/encoding/shape/type")], VisitView("\"point\"", """{"shape":{"field":"d","type":"temporal"}}"""));
+        Assert.Equal(
+            [("vl-scale-type-ignored", "/encoding/x/scale/type"), ("vl-scale-type-ignored", "/encoding/y/scale/type"), ("vl-scale-type-ignored", "/encoding/size/scale/type")],
+            others);
+    }
+
+    /// <summary>
+    ///     Validates the warning for <c>scale.zero</c> on a temporal field (Vega-Lite drops it for a time scale), and that other fields and other types are silent.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ZeroOnATimeScaleIsAWarning()
+    {
+        // Act
+        var temporal = VisitView("\"point\"", """{"x":{"field":"d","type":"temporal","scale":{"zero":true}},"y":{"field":"d","type":"temporal","scale":{"type":"utc","zero":false}}}""");
+        var quantitative = VisitView("\"point\"", """{"x":{"field":"d","type":"quantitative","scale":{"zero":true}}}""");
+        var ignoredType = VisitView("\"point\"", """{"x":{"field":"d","type":"temporal","scale":{"type":"linear","zero":true}}}""");
+
+        // Assert
+        Assert.Equal([("vl-scale-zero-ignored", "/encoding/x/scale/zero"), ("vl-scale-zero-ignored", "/encoding/y/scale/zero")], temporal);
+        Assert.Empty(quantitative);
+        Assert.Equal([("vl-scale-type-ignored", "/encoding/x/scale/type")], ignoredType);
     }
 
     /// <summary>

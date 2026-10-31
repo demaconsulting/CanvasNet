@@ -123,8 +123,8 @@ internal static partial class ScaleResolver
         }
 
         // Linear, band and point scales map to positions of a numeric range; the others pick one number per category or interval
-        var explicitRange = ReadRange(input, context, kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point ? 2 : 1);
-        if (kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point)
+        var explicitRange = ReadRange(input, context, kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Band or ScaleKind.Point ? 2 : 1);
+        if (kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Band or ScaleKind.Point)
         {
             return new Outputs { ExplicitRange = explicitRange, ValueRange = valueRange };
         }
@@ -175,7 +175,7 @@ internal static partial class ScaleResolver
     private static bool ReverseOf(CommonInputs input, ScaleKind kind)
     {
         var explicitReverse = input.ScaleDef?["reverse"]?.AsBool();
-        var continuousDomain = kind is ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold;
+        var continuousDomain = kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold;
         return explicitReverse ?? (continuousDomain && input.Definition["sort"]?.AsString() == "descending");
     }
 

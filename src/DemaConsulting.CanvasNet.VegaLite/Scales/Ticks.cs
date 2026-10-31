@@ -28,7 +28,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 ///         axis. The other non-linear scales (pow, sqrt, symlog) use the ordinary ticks of their domain, as in d3.
 ///     </para>
 /// </remarks>
-internal static class Ticks
+internal static partial class Ticks
 {
     /// <summary>The error threshold above which the step is rounded to a 10 multiple: sqrt(50).</summary>
     private static readonly double E10 = Math.Sqrt(50);
@@ -218,8 +218,9 @@ internal static class Ticks
     /// <param name="count">The desired tick count.</param>
     /// <param name="minStep">The minimum step, or null for none.</param>
     /// <param name="logarithmic">Whether the scale is a log scale (Vega does not lower the count by the tick step for it).</param>
+    /// <param name="temporal">Whether the scale is a time or UTC scale (the d3 tick step describes numbers, not calendar intervals, so the count is not lowered by it).</param>
     /// <returns>The tick count to pass to <see cref="GetTicks"/>.</returns>
-    public static double ResolveTickCount(double domainStart, double domainEnd, double count, double? minStep, bool logarithmic = false)
+    public static double ResolveTickCount(double domainStart, double domainEnd, double count, double? minStep, bool logarithmic = false, bool temporal = false)
     {
         if (minStep is not { } min)
         {
@@ -234,7 +235,7 @@ internal static class Ticks
         count = Math.Min(count, Math.Floor(steps) + 1);
 
         // A logarithmic scale does not lower the count further: its ticks are not evenly spaced, so the d3 step does not describe them
-        if (lo < hi && !logarithmic)
+        if (lo < hi && !logarithmic && !temporal)
         {
             while (count > 1 && TickStep(lo, hi, count) < min)
             {

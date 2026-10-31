@@ -67,6 +67,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-timeunit-binned</c>, <c>vl-timeunit-maxbins</c></term><description>a <c>timeUnit</c> that is not applied: a <c>binned</c> unit (a name that starts with <c>binned</c>, or <c>binned: true</c>) in an encoding, a condition, a predicate or the <c>timeUnit</c> transform (the unit is ignored and the field is used as it is), and the <c>{"maxbins": n}</c> form without a unit in a predicate (ignored). The encoding and the transform apply <c>maxbins</c>.</description></item>
 ///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
 ///         <item><term><c>vl-scale-nice-interval</c>, <c>vl-guide-axis-tickcount-interval</c> (warnings)</term><description>a time interval (a text or <c>{interval, step}</c>) as <c>scale.nice</c> or as the <c>tickCount</c> of an axis or legend on a scale that is not a time scale (it is ignored).</description></item>
+///         <item><term><c>vl-scale-zero-ignored</c> (warning)</term><description>a <c>scale.zero</c> on a temporal field with a time or UTC scale, where zero is not meaningful (it is ignored, as Vega-Lite does).</description></item>
 ///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition for every row.</description></item>
 ///         <item><term><c>vl-encoding-condition-param</c></term><description>a condition with a <c>param</c> (it never holds), and a <c>test</c> that names a selection or a parameter that is not a variable parameter.</description></item>
 ///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
@@ -599,7 +600,7 @@ internal static class FeatureCatalog
             }
 
             VisitScaleType(name, definition);
-            VisitIntervals(definition);
+            VisitIntervals(name, definition);
 
             if (definition["axis"] is { IsObject: true } axis)
             {
@@ -686,11 +687,14 @@ internal static class FeatureCatalog
         /// <summary>
         ///     Warns about an interval given as <c>tickCount</c> or <c>nice</c> where the scale is not a time scale (the interval is ignored).
         /// </summary>
+        /// <param name="channel">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
-        private void VisitIntervals(SpecNode definition)
+        private void VisitIntervals(string channel, SpecNode definition)
         {
+            // A temporal field has a time scale whatever type is written (only time and utc are accepted for it; on a color channel it is the time scale of Vega-Lite, drawn here as a sequential one)
             var scaleType = definition["scale"]?["type"]?.AsString();
-            var isTime = scaleType is null ? definition["type"]?.AsString() == "temporal" : scaleType is "time" or "utc";
+            var isTemporal = definition["type"]?.AsString() == "temporal";
+            var isTime = isTemporal ? channel is not ("shape" or "strokeDash") : scaleType is "time" or "utc";
             if (isTime)
             {
                 return;
@@ -1068,9 +1072,16 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitScaleType(string channel, SpecNode definition)
         {
-            if (definition["type"] is not { IsString: true, StringValue: "quantitative" or "nominal" or "ordinal" } fieldType || definition["field"] is null)
+            if (definition["type"] is not { IsString: true, StringValue: "quantitative" or "temporal" or "nominal" or "ordinal" } fieldType || definition["field"] is null)
             {
                 return;
+            }
+
+            // Zero is not meaningful for time: Vega-Lite drops the property and says so
+            if (fieldType.StringValue == "temporal" && definition["scale"]?["zero"] is { } zero
+                && definition["scale"]?["type"]?.AsString() is null or "time" or "utc")
+            {
+                Warn("vl-scale-zero-ignored", "The scale property 'zero' is not applicable to a time scale; it is ignored.", zero);
             }
 
             if (definition["scale"]?["type"] is { IsString: true } scaleType)
@@ -1083,11 +1094,11 @@ internal static class FeatureCatalog
                         scaleType);
                 }
             }
-            else if (channel is "shape" or "strokeDash" && fieldType.StringValue == "quantitative")
+            else if (channel is "shape" or "strokeDash" && fieldType.StringValue is "quantitative" or "temporal")
             {
                 Warn(
                     "vl-scale-type-ignored",
-                    $"The '{channel}' channel shows categories, so a quantitative field gets an ordinal scale; use a nominal or ordinal field or a discretizing scale type (quantize, quantile, threshold).",
+                    $"The '{channel}' channel shows categories, so a {fieldType.StringValue} field gets an ordinal scale; use a nominal or ordinal field{(fieldType.StringValue == "quantitative" ? " or a discretizing scale type (quantize, quantile, threshold)" : string.Empty)}.",
                     fieldType);
             }
         }

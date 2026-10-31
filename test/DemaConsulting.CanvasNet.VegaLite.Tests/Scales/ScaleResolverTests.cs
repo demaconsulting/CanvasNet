@@ -121,8 +121,8 @@ public class ScaleResolverTests
         Assert.Equal(ScaleKind.Band, Resolve(Spec("bar", """{ "x": {"field":"k","type":"nominal","scale":{"type":"ordinal"}} }"""))["x"]!.Kind);
         Assert.Equal(ScaleKind.Linear, Resolve(Spec("bar", """{ "x": {"field":"q","type":"quantitative","scale":{"type":"log"}} }"""))["x"]!.Kind);
 
-        // Assert: no scale for a temporal field, a value, a datum-less definition, "scale": null
-        var none = Resolve(Spec(
+        // Assert: a temporal field has a time scale; a value, a datum-less definition and "scale": null have none
+        var temporal = Resolve(Spec(
             "point",
             """
             { "x": {"field":"q","type":"temporal"},
@@ -130,7 +130,9 @@ public class ScaleResolverTests
               "size": {"field":"q","type":"quantitative","scale":null},
               "opacity": {"type":"quantitative"} }
             """));
-        Assert.Empty(none.Scales);
+        Assert.Equal(["x"], temporal.Scales.Select(s => s.Channel).ToArray());
+        Assert.Equal(ScaleKind.Time, temporal["x"]!.Kind);
+        Assert.Equal("temporal", temporal["x"]!.DataType);
 
         // Assert: a quantitative color is a sequential scale (a continuous color ramp), its linear scale type too
         Assert.Equal(ScaleKind.Sequential, Resolve(Spec("point", """{ "color": {"field":"q","type":"quantitative"} }"""))["color"]!.Kind);
