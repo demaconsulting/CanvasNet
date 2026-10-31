@@ -733,8 +733,8 @@ each `PptxGlyphPlacement`, a `glyphMatrix = Matrix3x2.CreateScale(glyph.SizeEmu 
 glyph.Font.UnitsPerEm) * Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu) *
 shapeToSurfaceTransform` is composed (scale to EMU-per-unit, then translate to the shape-local
 baseline origin, then compose with the shape's own frame transform), the glyph's outline
-(`TrueTypeFont.GetGlyphOutline`) is re-issued through a fresh `Geometry.PathBuilder` with every
-point transformed by `glyphMatrix`, and the result filled via `Drawing.PathFiller.Fill(surface,
+(`TrueTypeFont.GetGlyphOutline`) is appended to a fresh `Geometry.PathBuilder` with every
+point transformed by `glyphMatrix` (`PathBuilder.AppendPath(outline, glyphMatrix)`), and the result filled via `Drawing.PathFiller.Fill(surface,
 path, glyph.Color, Drawing.FillRule.NonZero)`. A glyph whose outline has zero subpaths (a
 whitespace or control character) is skipped entirely, rather than issuing an empty fill.
 
@@ -866,7 +866,7 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   bilinear-samples an area-prefiltered copy of the same cropped window per destination pixel whose
   inverse-mapped coordinate falls within `[0,1]x[0,1]`. Each sampled source pixel is
   alpha-blended "over" the existing destination
-  pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard
+  pixel via the public `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)` helper (standard
   Porter-Duff "over" alpha compositing - straight/unassociated alpha in and out, `outA = fgA +
   bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when
   `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than overwritten
@@ -876,8 +876,7 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   shipped: a logo PNG with an unassociated-alpha white matte around its letters previously painted
   a solid white rectangle instead of a transparent background). This same helper is reused, not
   duplicated, by `DemaConsulting.CanvasNet.Pdf`'s own `CompositeImageOntoSurface` (see that
-  package's own design documentation) - exposed cross-assembly via this package's own
-  `InternalsVisibleTo` grant from `DemaConsulting.CanvasNet`. A singular (non-invertible)
+  package's own design documentation) - it is public API of the core library. A singular (non-invertible)
   `shapeTransform` (for example a zero-area shape frame) paints nothing, rather than throwing or
   dividing by zero. The optional `clipPath` parameter (default `null`, preserving the original
   unclipped behavior) clips the painted image to the picture's own resolved non-rectangular

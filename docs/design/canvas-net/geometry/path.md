@@ -88,6 +88,37 @@ always returns to its own `Start`.
 
 - `InvalidOperationException` - under the same conditions as the drawing commands above
 
+##### PathBuilder.AppendPath(Path path) / AppendPath(Path path, Matrix3x2 transform)
+
+Appends every subpath of `path` to the builder, in order, and returns the builder. Each source
+subpath is replayed as a `MoveTo` to its start followed by its commands, so the existing
+`MoveTo` rule applies unchanged: a subpath the builder still had open is committed as open, and a
+source subpath ending in `Close` is committed as closed. An empty `path` appends nothing and leaves
+the builder (including its open subpath) untouched.
+
+- **`AppendPath(Path)`** copies every point and command exactly as stored. No arithmetic touches
+  the coordinates, so the copy is bit-exact (a negative zero stays negative zero, an infinity stays
+  an infinity) and an `ArcTo` command stays an arc. A separate overload instead of an optional
+  identity matrix is deliberate: multiplying by the identity is not neutral for non-finite values or
+  negative zero, and a verbatim copy must not lose the arc.
+- **`AppendPath(Path, Matrix3x2)`** maps every start, control, and end point through
+  `Vector2.Transform` (row-vector convention). `LineTo`, `QuadraticBezierTo`, `CubicBezierTo`, and
+  `Close` keep their command type and order. An `ArcTo` command is converted to cubic Bezier
+  segments by `SvgArcConverter` in the source (untransformed) space - tracking the untransformed pen
+  position per subpath - and each segment is then transformed, because SVG arc radii and flags
+  cannot be re-derived for a non-uniform, sheared, or rotated transform. Non-finite results are
+  stored unchecked, as `Path.Transform` always did.
+
+`Path.Transform(Matrix3x2)` is `new PathBuilder().AppendPath(this, transform).Build()`, so a
+single definition of the transform and arc rules serves both the immutable and the accumulating
+form. The accumulating form exists so a renderer can append many transformed outlines (one per
+glyph of a text run) into one long-lived builder and obtain a single combined `Path` without an
+intermediate `Path` per outline.
+
+**Throws:**
+
+- `ArgumentNullException` - when `path` is `null` (either overload)
+
 ##### PathBuilder.Build()
 
 Returns an immutable `Path` snapshot of every subpath recorded so far (including the
@@ -161,17 +192,18 @@ of reimplementing it.
 #### Error Handling
 
 `PathBuilder`'s drawing-command guard (`InvalidOperationException` before the first `MoveTo`, or
-after `Close` without an intervening `MoveTo`) is the only validation this unit performs; every
-other input (any finite `Vector2`, any `float` rotation, any `bool` flag combination) is accepted
-without further checking. `Path` itself performs no validation - it can only ever be constructed,
-internally, from a well-formed `PathBuilder` snapshot (or as the `Empty` singleton).
+after `Close` without an intervening `MoveTo`) is the only state validation this unit performs;
+`AppendPath` additionally rejects a `null` path with `ArgumentNullException`. Every
+other input (any finite `Vector2`, any `float` rotation, any `bool` flag combination, any matrix)
+is accepted without further checking. `Path` itself performs no validation - it can only ever be
+constructed, internally, from a well-formed `PathBuilder` snapshot (or as the `Empty` singleton).
 
 #### Dependencies
 
-`Path`/`PathBuilder` depend only on `System.Numerics.Vector2` (in-box BCL type, no new NuGet
-package) and, within this subsystem, on `Rect` (the return type of `GetBounds`),
-`BezierFlattening`, and `SvgArcConverter` (both used internally by `GetBounds`'s flattening mode
-and by its `ArcTo` handling, respectively).
+`Path`/`PathBuilder` depend only on `System.Numerics.Vector2` and `Matrix3x2` (in-box BCL types, no
+new NuGet package) and, within this subsystem, on `Rect` (the return type of `GetBounds`),
+`BezierFlattening`, and `SvgArcConverter` (used internally by `GetBounds`'s flattening mode, by its
+`ArcTo` handling, and by the transformed `AppendPath` overload's `ArcTo` handling).
 
 #### Callers
 
@@ -179,6 +211,10 @@ and by its `ArcTo` handling, respectively).
 CanvasNet package. `Path` has no dependency on any consumer; within this repository, `Path` is
 consumed by the `Drawing` subsystem's `PathFiller` (scan-conversion fill rasterization) and
 `PathStroker` (stroke-outline generation), both of which rasterize a `Path` into a `Surface`.
+`PathBuilder.AppendPath` is called by `Path.Transform` and by the text renderers of the PDF, PPTX,
+and VSDX packages (accumulating glyph outlines), by the SVG codec's glyph-run and clip assembly
+through `TextRenderer.CreateTextPath`, and by the PPTX preset-geometry donut builder (verbatim
+overload, combining its two ellipses).
 `PathCommand.LineTo` and `PathCommand.ComputeTangents`
 are, likewise, public API entry points with an external caller: the separate
 `DemaConsulting.CanvasNet.Svg` package's marker-rendering feature calls both - synthesizing a

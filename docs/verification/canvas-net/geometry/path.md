@@ -7,7 +7,8 @@ classes (and their supporting `Subpath` and `PathCommandType` data types, plus `
 #### Verification Approach
 
 The `Path`/`PathBuilder` unit is verified through unit tests that exercise every fluent builder
-method, the `InvalidOperationException` guards, `Build()`'s snapshot semantics, `Clear()`,
+method, `PathBuilder.AppendPath` (both overloads), the `InvalidOperationException` guards,
+`Build()`'s snapshot semantics, `Clear()`,
 `Path.Empty`, both modes of `Path.GetBounds`, and `PathCommand`'s own public `LineTo`/
 `ComputeTangents` API, in isolation. Expected bounding rectangles are hand-computed independently
 of the implementation for both the conservative (control-point convex-hull) mode and the
@@ -169,6 +170,40 @@ zero.
 Calls `Path.Circle` with a negative `radius` and asserts the result equals `Path.Empty` -
 confirming the "non-positive radius returns an empty path" contract holds for negative values,
 not only for exactly zero.
+
+##### CanvasNet-Geometry-PathBuilder-AppendPath: Appending a Path, Verbatim or Transformed
+
+**Tests**: `PathBuilder_AppendPath_Transformed_MatchesPerPointTransformOfEveryCommandType`,
+`PathBuilder_AppendPath_Untransformed_CopiesEveryCommandVerbatimIncludingArcTo`,
+`PathBuilder_AppendPath_ClosedAndOpenSubpaths_PreservesClosureFlags`,
+`PathBuilder_AppendPath_CalledRepeatedly_AccumulatesSubpathsInOrder`,
+`PathBuilder_AppendPath_EmptyPath_LeavesBuilderUnchanged`,
+`PathBuilder_AppendPath_ReturnsSameBuilderForChaining`
+
+The transformed overload is compared, bit for bit through a round-trip text description of every
+start, control, and end point, with a test-local copy of the per-point re-issue loop that the
+renderer packages used before the operation existed (an independent oracle for arc-free paths),
+using a matrix with scale, rotation, shear, and translation. The verbatim overload is compared with
+the source path itself, including an `ArcTo` command and a negative-zero coordinate, which must
+survive unchanged. Further scenarios assert that closed and open subpaths keep their state, that
+repeated calls accumulate subpaths in call order (committing a subpath the builder had open as open),
+that an empty path changes nothing, and that both overloads return the same builder for chaining.
+
+##### CanvasNet-Geometry-PathBuilder-AppendPathArcTo: Arcs Are Converted Only When Transformed
+
+**Tests**: `PathBuilder_AppendPath_Transformed_ArcTo_ConvertsToTransformedCubicBeziers`,
+`PathBuilder_AppendPath_Untransformed_CopiesEveryCommandVerbatimIncludingArcTo`
+
+A path with a line followed by an elliptical arc is appended with a non-uniform scale and rotation;
+the expected commands are the line plus one transformed cubic per `SvgArcConverter.ToBeziers`
+segment (computed independently in the test), no arc remains, and the result equals `Path.Transform`
+of the same path. The verbatim scenario above asserts the arc is kept as an arc.
+
+##### CanvasNet-Geometry-PathBuilder-AppendPathValidation: Null Path Rejected
+
+**Test**: `PathBuilder_AppendPath_NullPath_ThrowsArgumentNullException`
+
+Calls both overloads with a `null` path and asserts `ArgumentNullException` naming `path`.
 
 ##### CanvasNet-Geometry-PathCommand-PublicLineToFactory: Public LineTo Factory
 

@@ -87,10 +87,10 @@
          substitute-font resolution path - see PdfDocument.FontFallback.cs's
          ResolveSymbolicNotoFallback. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pdf" />
-    <!-- Grants DemaConsulting.CanvasNet.Pptx access to Rgba32's internal per-pixel
-         CompositeOver helper, reused (not duplicated) by PptxDocument.Images.cs's PaintPicture
-         image-compositing loop - the same Porter-Duff "over" helper DemaConsulting.CanvasNet.Pdf's
-         PdfDocument.Images.cs's CompositeImageOntoSurface also reuses. -->
+    <!-- Grants DemaConsulting.CanvasNet.Pptx access to the internal SurfaceResampler engine, reused
+         (not duplicated) by PptxDocument.Images.cs's PaintPicture image-compositing loop for smooth
+         raster image resampling (the per-pixel Porter-Duff Rgba32.CompositeOver it also uses is
+         public API). -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pptx" />
     <!-- Grants DemaConsulting.CanvasNet.Svg access to the internal SurfaceResampler engine, reused
          (not duplicated) by SvgCodec.Image.cs and SvgCodec.Patterns.cs for smooth raster

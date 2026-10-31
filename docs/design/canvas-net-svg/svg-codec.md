@@ -1346,7 +1346,7 @@ calculations proving this.
 
 `MaxCoordinateMagnitude`'s enforcement above is entirely **pre-transform**: it bounds a source
 literal at parse time, before any `transform` attribute has been applied. `RenderShape` calls
-`TransformPath` to bake every shape/glyph-run outline's local-space points into final pixel-space
+`Path.Transform` to bake every shape/glyph-run outline's local-space points into final pixel-space
 coordinates through `Vector2.Transform` - but a `transform="scale(...)"` function's own argument
 only needs to stay _at or under_ `MaxCoordinateMagnitude` to pass its own parse-time check (the
 comparison is strict `>`, so a literal of exactly `1,000,000` is not rejected), so an in-bound
@@ -1355,11 +1355,11 @@ pixel-space magnitude the flattening/stroking pipeline was never meant to see - 
 independent gap from the parse-time one above, since neither individual literal involved is
 itself out of bounds. `RenderShape` therefore additionally checks the transformed path's every
 point (each subpath's start, and every command's `EndPoint`/`Control1`/`Control2` where
-applicable) against the same `MaxCoordinateMagnitude` bound immediately after `TransformPath`,
+applicable) against the same `MaxCoordinateMagnitude` bound immediately after `Path.Transform`,
 before entering the fill/stroke pipeline. This single check point uniformly covers every shape
 this class renders - plain shapes, text/glyph runs, and arc-converted rounded-rect/ellipse
 geometry alike - because arc conversion happens before, and its output is just more path commands
-consumed by the same `TransformPath` call. On failure, the whole shape is tolerantly skipped
+consumed by the same `Path.Transform` call. On failure, the whole shape is tolerantly skipped
 (fill and stroke both omitted), mirroring `BuildRectPath`/`BuildEllipsePath`'s existing
 tolerant-skip convention for an overflowing arc conversion, rather than the parse-time check's hard
 `InvalidDataException` rejection: unlike a malformed literal (a document-authoring mistake), a huge
@@ -1441,11 +1441,21 @@ normal-weight/normal-style face) is therefore unaffected by this algorithm: with
 candidate, it is always selected regardless of the requested `font-weight`/`font-style`,
 preserving that overload's pre-existing behavior exactly.
 
-Each mapped character's glyph outline, advance
-width, and kerning (against the previous glyph) are looked up via
-`Fonts.TrueTypeFont.GetGlyphIndex`/`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`, and the
-resulting glyph run is offset horizontally according to `text-anchor` before each glyph's outline
-is transformed into pixel space and filled.
+Each mapped character's glyph outline, advance width, and kerning (against the previous glyph) are
+looked up by core `Rendering.TextRenderer.CreateTextPath` (through `Fonts.TrueTypeFont.GetGlyphIndex`/
+`GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`), which lays the run out as one combined local-space
+outline path. A private `BuildGlyphRunPath` helper is a thin adapter: it maps `text-anchor`
+(`start`/`middle`/`end`) to `TextAlign.Left`/`Center`/`Right` and passes the cascaded `font-size` and
+the element's `x`/`y` as the baseline anchor. The resulting path is transformed into pixel space and
+filled like any other shape.
+
+**Non-positive `font-size` renders nothing.** The cascaded `font-size` is only validated as finite
+and within the coordinate magnitude bound at parse time, so zero or a negative value reaches the
+text renderer. `BuildGlyphRunPath` returns the empty path for any `font-size` that is not finite and
+positive, so such a `text` element (and a `clipPath`/`mask`/filter that uses it) draws nothing and
+the document still loads. Zero behaves exactly as before; a negative size, invalid per CSS and SVG,
+previously drew point-mirrored glyphs and now draws nothing, because the shared text-to-path method
+rejects a non-positive size.
 
 **Default font resolution.** A `text` element is never dropped for want of a registered font. A
 private `ResolveFont` helper (`SvgCodec.Fonts.cs`), shared by text rendering, a `clipPath`'s `text`
@@ -1584,13 +1594,14 @@ parsing is attempted.
 
 `SvgCodec` depends on the `CanvasNet` system's `Canvas.Surface` (constructing the destination
 surface and compositing filled/stroked pixels into it), `Geometry` subsystem's `Path`/
-`PathBuilder` (assembling transformed shape/glyph outlines) and `SvgArcConverter` (converting
+`PathBuilder` (the pixel-space transform `Path.Transform` and shape/glyph outlines) and `SvgArcConverter` (converting
 elliptical arc path commands to Bezier curves in local space before they are transformed — arc
 math itself is never reimplemented here), `Drawing` subsystem's `PathFiller`/`PathStroker`
 (rasterizing the already-transformed, pixel-space paths this codec builds) and `Gradient`/
 `LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` (representing resolved gradient
-paint), and `Fonts` subsystem's `TrueTypeFont` (glyph outline/metrics/kerning lookup for text
-rendering). This is a cross-system dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
+paint), `Fonts` subsystem's `TrueTypeFont` (font selection and metrics), and `Rendering` subsystem's
+`TextRenderer.CreateTextPath` (laying a text run out as one outline path). This is a cross-system
+dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
 system, referencing the separate `CanvasNet` system's public API — see the Dependencies section
 of _CanvasNetSvg System Design_ (`../canvas-net-svg.md`). Beyond these
 units, `SvgCodec` uses only the .NET base class library's `System.Xml.Linq` (`XDocument`/

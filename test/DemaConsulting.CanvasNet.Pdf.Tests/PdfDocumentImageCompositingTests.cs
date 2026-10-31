@@ -9,7 +9,7 @@ namespace DemaConsulting.CanvasNet.Pdf.Tests;
 ///     Regression test for the raw-overwrite alpha-compositing bug in <c>PdfDocument.Images.cs</c>'s
 ///     private <c>CompositeImageOntoSurface</c> method: proves it now alpha-blends each sampled
 ///     source pixel "over" the existing destination pixel (standard Porter-Duff "over"
-///     compositing, via the shared internal <c>Rgba32.CompositeOver</c> helper) rather than
+///     compositing, via the shared public <c>Rgba32.CompositeOver</c> helper) rather than
 ///     overwriting it outright.
 /// </summary>
 /// <remarks>

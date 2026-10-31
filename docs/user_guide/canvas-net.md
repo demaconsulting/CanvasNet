@@ -287,6 +287,25 @@ Never throws. `Canvas.Clear(Rgba32)` is a thin, transform-independent passthroug
 The `Rgba32` struct represents a single 32-bit RGBA pixel, with public `R`, `G`, `B`, and `A`
 `byte` fields and value equality (`Equals`, `GetHashCode`, `==`, `!=`).
 
+#### Rgba32.CompositeOver
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+
+var background = new Rgba32(0, 255, 0, 255);   // opaque green
+var foreground = new Rgba32(255, 0, 0, 128);   // half-transparent red
+
+var blended = Rgba32.CompositeOver(background, foreground);
+Console.WriteLine(blended); // Output: Rgba32(128, 127, 0, 255)
+```
+
+`Rgba32.CompositeOver(background, foreground)` blends one `foreground` pixel over one `background`
+pixel with the standard Porter-Duff "over" operator. Both pixels are straight (not premultiplied)
+alpha, and so is the result; each result channel is rounded half away from zero. When the
+result alpha is zero (both pixels fully transparent) the result is `(0, 0, 0, 0)`. Every byte
+combination is valid, the method never throws, and it uses the same formula and rounding as
+`Surface.CompositeOver(Rgba32)`. For many pixels use the `Surface` operations, which are vectorized.
+
 ### ImageInfo
 
 ```csharp
@@ -1852,6 +1871,40 @@ PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```
 
+### Example 14: Combining Paths with PathBuilder.AppendPath
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
+
+var square = Path.Rectangle(0, 0, 10, 10);
+
+// Append the same outline several times, each moved by its own transform, into one combined path.
+var builder = new PathBuilder();
+for (var i = 0; i < 3; i++)
+{
+    builder.AppendPath(square, Matrix3x2.CreateTranslation(i * 20, 0));
+}
+
+// The overload without a matrix copies the subpaths exactly as stored (elliptical arcs stay arcs).
+builder.AppendPath(Path.Circle(15, 30, 8));
+
+var combined = builder.Build();
+Console.WriteLine(combined.Subpaths.Count); // Output: 4
+
+using var surface = new Surface(64, 64);
+PathFiller.Fill(surface, combined, new Rgba32(0, 128, 255, 255));
+```
+
+`AppendPath(path, transform)` maps every point through the matrix (row-vector convention, like
+`Path.Transform`, which is implemented with it); an elliptical-arc command is converted to cubic
+Bezier segments first because an arc cannot be re-expressed under an arbitrary matrix.
+A subpath the builder still had open is kept as open when the next one is appended, and a `null`
+path throws `ArgumentNullException`. The builder is not thread-safe.
+
 ### Rendering (transform-aware Canvas, text, and shapes)
 
 The `Rendering` subsystem adds a transform-aware `Canvas` wrapper over `Surface`, along with
@@ -1900,6 +1953,59 @@ canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new 
 ```
 
 `DrawText` respects the Canvas current transform, so translated/rotated text works too.
+
+#### CreateTextPath
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
+using System.Numerics;
+
+using var stream = File.OpenRead("OpenSans-Regular.ttf");
+var font = TrueTypeFont.Load(stream);
+
+// The text as one outline path: baseline at y = 100, right edge at x = 180, no canvas transform applied.
+var outline = TextRenderer.CreateTextPath("Hello", font, size: 32f, x: 180, y: 100, TextAlign.Right);
+
+// Move it, then fill it (or stroke it, or use it as a clip) like any other path.
+using var surface = new Surface(200, 200);
+PathFiller.Fill(surface, outline.Transform(Matrix3x2.CreateTranslation(0, 20)), new Rgba32(0, 0, 0, 255));
+```
+
+`CreateTextPath` places glyphs with the same pen advance, kerning, and alignment as `DrawText` and
+`MeasureText`, in y-down coordinates, and returns `Path.Empty` for empty or whitespace-only text. All
+glyphs are merged into one path, so overlapping glyphs are filled as a single shape under the
+fill rule (`DrawText` composites them one after another). `size` must be finite and positive; a
+`null` text or font throws `ArgumentNullException`, and an undefined `TextAlign` throws
+`ArgumentOutOfRangeException`. The method is pure and safe for concurrent use.
+
+#### TruncateToWidth
+
+```csharp
+using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
+
+using var stream = File.OpenRead("OpenSans-Regular.ttf");
+var font = TrueTypeFont.Load(stream);
+
+// Fit a label into 120 pixels at 14 px; the removed end is replaced by the ellipsis.
+var label = TextRenderer.TruncateToWidth("Quarterly revenue by region and product line", font, size: 14f, maxWidth: 120f);
+Console.WriteLine(label); // Output: a beginning of the text followed by "…" that measures at most 120 pixels
+
+// Choose the ellipsis explicitly (here plain ASCII).
+var ascii = TextRenderer.TruncateToWidth("Quarterly revenue by region", font, 14f, 120f, ellipsis: "...");
+```
+
+`TruncateToWidth` returns the text itself when it fits, otherwise the longest beginning that, followed
+by the ellipsis (default U+2026), fits `maxWidth`, and the empty string when not even the ellipsis fits
+(including a `NaN` or negative `maxWidth` for non-empty text). The cut is made between whole characters,
+so a surrogate pair is never split, and an unpaired surrogate in a shortened result becomes U+FFFD.
+Trailing white space of the kept beginning is not trimmed. An empty `ellipsis` gives a plain cut. A
+`null` text, font, or ellipsis throws `ArgumentNullException`; a `size` that is not finite and
+positive throws `ArgumentOutOfRangeException`, even for text that would fit. The method is pure and
+safe for concurrent use.
 
 #### Shape helpers
 

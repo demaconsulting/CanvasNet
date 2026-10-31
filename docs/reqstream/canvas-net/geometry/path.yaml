@@ -279,6 +279,51 @@ sections:
                   - PathBuilder_TangentArcTo_NegativeRadius_ThrowsArgumentOutOfRangeException
                   - PathBuilder_TangentArcTo_NoCurrentPoint_ThrowsInvalidOperationException
 
+              - id: CanvasNet-Geometry-PathBuilder-AppendPath
+                title: >-
+                  The PathBuilder class shall provide an AppendPath operation that appends every
+                  subpath of a given path to the builder, in order, either unchanged or with every
+                  start, control, and end point mapped through a given 3x2 affine matrix,
+                  preserving each subpath's closed or open state and the command types of
+                  non-arc commands, committing any subpath the builder still had open as open, and
+                  leaving the builder unchanged when the given path is empty.
+                justification: |
+                  Renderers combine several finished outlines (the glyphs of a text run, the outer
+                  and inner contour of a ring) into one path; a single authoritative operation
+                  keeps the transform and accumulation rules identical everywhere and avoids an
+                  intermediate path per piece.
+                tests:
+                  - PathBuilder_AppendPath_Transformed_MatchesPerPointTransformOfEveryCommandType
+                  - PathBuilder_AppendPath_Untransformed_CopiesEveryCommandVerbatimIncludingArcTo
+                  - PathBuilder_AppendPath_ClosedAndOpenSubpaths_PreservesClosureFlags
+                  - PathBuilder_AppendPath_CalledRepeatedly_AccumulatesSubpathsInOrder
+                  - PathBuilder_AppendPath_EmptyPath_LeavesBuilderUnchanged
+                  - PathBuilder_AppendPath_ReturnsSameBuilderForChaining
+
+              - id: CanvasNet-Geometry-PathBuilder-AppendPathArcTo
+                title: >-
+                  The PathBuilder class shall, when appending a path with a transform, replace
+                  each elliptical-arc command by the cubic Bezier segments of the equivalent arc
+                  with every point transformed, and shall, when appending without a transform,
+                  keep each elliptical-arc command as an arc.
+                justification: |
+                  SVG arc parameters cannot be preserved under an arbitrary affine map, so a
+                  transformed copy must use Bezier segments; an untransformed copy has no reason
+                  to lose the exact arc.
+                tests:
+                  - PathBuilder_AppendPath_Transformed_ArcTo_ConvertsToTransformedCubicBeziers
+                  - PathBuilder_AppendPath_Untransformed_CopiesEveryCommandVerbatimIncludingArcTo
+
+              - id: CanvasNet-Geometry-PathBuilder-AppendPathValidation
+                title: >-
+                  The PathBuilder class shall throw ArgumentNullException from AppendPath when the
+                  given path is null.
+                justification: |
+                  A missing path is a caller defect that must fail fast and visibly instead of
+                  silently producing an incomplete combined path.
+                tests:
+                  - PathBuilder_AppendPath_NullPath_ThrowsArgumentNullException
+
               - id: CanvasNet-Geometry-PathCommand-PublicLineToFactory
                 title: >-
                   The PathCommand class shall provide a public LineTo(end) static factory that

@@ -287,6 +287,138 @@ public sealed class PathBuilder
     }
 
     /// <summary>
+    ///     Appends every subpath of <paramref name="path"/> to this builder exactly as stored,
+    ///     with no coordinate change.
+    /// </summary>
+    /// <param name="path">The path whose subpaths are appended. Must not be <see langword="null"/>; an empty path appends nothing.</param>
+    /// <returns>This builder, for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     <para>
+    ///     Exists so callers can combine several finished paths (for example the outer and inner
+    ///     outline of a ring, or the glyph outlines of a text run) into one path without
+    ///     re-issuing every command by hand or allocating an intermediate <see cref="Path"/> per
+    ///     piece. Because no arithmetic touches the coordinates, the copy is bit-exact (a
+    ///     <c>-0</c> stays <c>-0</c>, an infinity stays an infinity) and every
+    ///     <see cref="PathCommandType.ArcTo"/> command is preserved as an arc.
+    ///     </para>
+    ///     <para>
+    ///     Each source subpath starts with <see cref="MoveTo"/>, so a subpath this builder still
+    ///     had open is committed as open first, and a source subpath that was closed stays closed.
+    ///     Mutates only this builder; <paramref name="path"/> is immutable and unchanged. Not
+    ///     thread-safe, like the rest of <see cref="PathBuilder"/>.
+    ///     </para>
+    /// </remarks>
+    public PathBuilder AppendPath(Path path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        foreach (var subpath in path.Subpaths)
+        {
+            MoveTo(subpath.Start);
+
+            // MoveTo opened the subpath, so a stored command can be recorded directly; Close goes
+            // through the builder so the subpath is committed as closed.
+            foreach (var command in subpath.Commands)
+            {
+                if (command.Type == PathCommandType.Close)
+                {
+                    Close();
+                }
+                else
+                {
+                    _currentCommands.Add(command);
+                }
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Appends every subpath of <paramref name="path"/> to this builder with each point mapped
+    ///     through <paramref name="transform"/>.
+    /// </summary>
+    /// <param name="path">The path whose subpaths are appended. Must not be <see langword="null"/>; an empty path appends nothing.</param>
+    /// <param name="transform">
+    ///     The transform applied to every start point, control point, and end point, using the
+    ///     row-vector convention of <see cref="Vector2.Transform(Vector2, Matrix3x2)"/>. Any matrix
+    ///     is accepted; non-finite results flow into the stored coordinates unchecked.
+    /// </param>
+    /// <returns>This builder, for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     <para>
+    ///     Exists so that the "bake a local outline into another space" step is written once:
+    ///     <see cref="Path.Transform"/> uses it on a fresh builder, and renderers use it on a
+    ///     long-lived builder to accumulate many transformed outlines (such as one glyph per
+    ///     character) into a single combined path without an intermediate <see cref="Path"/>.
+    ///     </para>
+    ///     <para>
+    ///     A <see cref="PathCommandType.ArcTo"/> command is converted to cubic Bezier segments with
+    ///     <see cref="SvgArcConverter"/> in the source (untransformed) space and each segment is
+    ///     then transformed, because SVG arc radii and flags cannot be re-derived for an arbitrary
+    ///     (non-uniform, sheared, or rotated) transform. Subpath and closure handling is as for
+    ///     <see cref="AppendPath(Path)"/>: each source subpath starts with <see cref="MoveTo"/>,
+    ///     committing a still-open subpath of this builder as open. Mutates only this builder;
+    ///     not thread-safe, like the rest of <see cref="PathBuilder"/>.
+    ///     </para>
+    /// </remarks>
+    public PathBuilder AppendPath(Path path, Matrix3x2 transform)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        foreach (var subpath in path.Subpaths)
+        {
+            // The untransformed pen position is needed to convert an arc into Bezier segments.
+            var current = subpath.Start;
+            MoveTo(Vector2.Transform(current, transform));
+
+            foreach (var command in subpath.Commands)
+            {
+                switch (command.Type)
+                {
+                    case PathCommandType.LineTo:
+                        LineTo(Vector2.Transform(command.EndPoint, transform));
+                        current = command.EndPoint;
+                        break;
+                    case PathCommandType.QuadraticBezierTo:
+                        QuadraticBezierTo(
+                            Vector2.Transform(command.Control1, transform),
+                            Vector2.Transform(command.EndPoint, transform));
+                        current = command.EndPoint;
+                        break;
+                    case PathCommandType.CubicBezierTo:
+                        CubicBezierTo(
+                            Vector2.Transform(command.Control1, transform),
+                            Vector2.Transform(command.Control2, transform),
+                            Vector2.Transform(command.EndPoint, transform));
+                        current = command.EndPoint;
+                        break;
+                    case PathCommandType.ArcTo:
+                        var segments = new List<(Vector2 Control1, Vector2 Control2, Vector2 End)>();
+                        SvgArcConverter.ToBeziers(current, command.Radius, command.RotationDegrees, command.LargeArc, command.Sweep, command.EndPoint, segments);
+                        foreach (var segment in segments)
+                        {
+                            CubicBezierTo(
+                                Vector2.Transform(segment.Control1, transform),
+                                Vector2.Transform(segment.Control2, transform),
+                                Vector2.Transform(segment.End, transform));
+                        }
+
+                        current = command.EndPoint;
+                        break;
+                    case PathCommandType.Close:
+                        Close();
+                        break;
+                }
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
     ///     Produces an immutable <see cref="Path"/> snapshot of every subpath built so far
     ///     (including the current, possibly still-open, subpath).
     /// </summary>

@@ -7,8 +7,8 @@ channel layout, this unit design covers the `Parse` and `TryParse` methods that 
 #### Purpose
 
 `Rgba32` is a plain, four-byte carrier of RGBA channel values with no additional behavior beyond
-value equality, hex-string parsing, and (internal only) a single-pixel Porter-Duff "over"
-alpha-blending helper reused by sibling renderer packages. Keeping it a minimal, fixed-layout
+value equality, hex-string parsing, and a public single-pixel Porter-Duff "over"
+alpha-blending helper. Keeping it a minimal, fixed-layout
 struct lets `Surface`
 row buffers be reinterpreted between raw `byte` spans and `Rgba32` spans via
 `System.Runtime.InteropServices.MemoryMarshal` with no copying or conversion. Additional pixel
@@ -64,30 +64,29 @@ missing `#`, wrong length, and non-hex characters are all rejected.
 Both methods share a single private `TryParseCore` implementation so their accept/reject
 behavior is guaranteed to agree.
 
-##### CompositeOver(Rgba32 background, Rgba32 foreground) — internal
+##### CompositeOver(Rgba32 background, Rgba32 foreground)
 
-A single-pixel counterpart of `Surface.CompositeOver(Rgba32)`'s own per-row blend pipeline,
-computing the identical standard Porter-Duff "over" alpha-compositing formula for exactly one
-pixel: with `fgA`/`bgA` normalized to `[0, 1]`, `outA = fgA + bgA * (1 - fgA)`, and for each color
-channel, `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA` when `outA != 0`, otherwise `outC = 0`
-(the same "alpha == 0 implies every color channel is 0" degenerate case `Surface`'s own
-`ZeroColorWhereAlphaByteIsZero` documents). Every intermediate result is rounded
-half-away-from-zero and clamped to `[0, 255]` before narrowing to a `byte`, matching `Surface`'s
-own `NarrowRoundedClamp` rounding rule exactly.
+A public static single-pixel counterpart of `Surface.CompositeOver(Rgba32)`'s own per-row blend
+pipeline, computing the same standard Porter-Duff "over" alpha-compositing formula for exactly one
+pixel (straight, unassociated alpha in and out): with `fgA`/`bgA` normalized to `[0, 1]`,
+`outA = fgA + bgA * (1 - fgA)`, and for each color channel, `outC = (fgC * fgA + bgC * bgA * (1 -
+fgA)) / outA` when `outA != 0`, otherwise `outC = 0` (the same "alpha == 0 implies every color
+channel is 0" degenerate case `Surface`'s own `ZeroColorWhereAlphaByteIsZero` documents). Every
+intermediate result is rounded half-away-from-zero and clamped to `[0, 255]` before narrowing to a
+`byte`, matching `Surface`'s own `NarrowRoundedClamp` rounding rule. Any combination of byte values
+is valid; the method never throws, is a pure function, and is safe for concurrent use.
 
-`internal` (not a public API): exposed cross-assembly only to the two sibling renderer packages
-that each composite a decoded source image onto a destination `Surface` one sampled pixel at a
-time — `DemaConsulting.CanvasNet.Pptx`'s `PptxDocument.Images.cs`'s `PaintPicture` and
-`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument.Images.cs`'s `CompositeImageOntoSurface` — via this
-assembly's `InternalsVisibleTo` grants (alongside the existing grant to
-`DemaConsulting.CanvasNet.Pdf` for `Fonts.SystemFontCatalog` reuse). Introduced to fix a
-confirmed real-world bug: both renderers previously overwrote the destination pixel outright
+It is public so that any caller that blends one sampled pixel at a time - for example an image
+resampler compositing each sample onto a destination `Surface`, as the PDF and PPTX renderer
+packages do - uses the same formula as the surface operation instead of keeping a private copy
+(it was `internal` and shared through `InternalsVisibleTo` grants before). It was introduced to fix
+a confirmed real-world bug: both renderers previously overwrote the destination pixel outright
 with the raw sampled source pixel, ignoring its alpha channel entirely — a source pixel with a
 non-opaque (including fully transparent) alpha channel replaced existing destination content with
 whatever RGB value happened to be stored alongside that non-opaque alpha (for example a logo PNG
 with an unassociated-alpha white matte painting a solid white rectangle instead of a transparent
-background). Factored into this one shared helper, rather than duplicated independently in both
-renderer assemblies, so the identical blending math is written and tested exactly once.
+background). Agreement with `Surface.CompositeOver(Rgba32)` is verified over a grid of alphas and
+colors. For many pixels the vectorized `Surface` operations are the better choice.
 
 #### Error Handling
 
@@ -108,7 +107,7 @@ Class Library. It has no dependency on any other CanvasNet unit.
 
 `Rgba32` is a public API entry point, used throughout CanvasNet wherever a pixel color value is
 read or written: `Surface` (as the element type of its pixel spans), every `Codecs` unit, and
-every `Drawing` and `Fonts`/`Rendering` unit that accepts or returns a fill color. The internal
-`CompositeOver(Rgba32, Rgba32)` helper is additionally called cross-assembly by
+every `Drawing` and `Fonts`/`Rendering` unit that accepts or returns a fill color. The public
+`CompositeOver(Rgba32, Rgba32)` helper is additionally called by
 `DemaConsulting.CanvasNet.Pptx`'s `PaintPicture` and `DemaConsulting.CanvasNet.Pdf`'s
 `CompositeImageOntoSurface` (see those packages' own design documentation).

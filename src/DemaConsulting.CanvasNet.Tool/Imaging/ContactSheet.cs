@@ -289,27 +289,16 @@ internal sealed class ContactSheet : IDisposable
     ///     by the ASCII text <c>...</c>, fits - or just <c>...</c> when no beginning does.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> or <paramref name="font"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     A thin adapter over <see cref="TextRenderer.TruncateToWidth"/>, which owns the cut rules. The shared
+    ///     method returns an empty string when not even the ellipsis fits; a label must still show that something
+    ///     was cut, so this method returns the ellipsis in that case. The one exception is a width that the empty
+    ///     text itself fits, which stays empty (there is nothing to cut).
+    /// </remarks>
     internal static string FitLabel(string text, int maxWidth, TrueTypeFont font, float size)
     {
-        ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(font);
-
-        if (TextRenderer.MeasureText(text, font, size).Width <= maxWidth)
-        {
-            return text;
-        }
-
-        var characters = text.EnumerateRunes().Select(rune => rune.ToString()).ToList();
-        for (var length = characters.Count - 1; length > 0; length--)
-        {
-            var candidate = string.Concat(characters.Take(length)) + Ellipsis;
-            if (TextRenderer.MeasureText(candidate, font, size).Width <= maxWidth)
-            {
-                return candidate;
-            }
-        }
-
-        return Ellipsis;
+        var fitted = TextRenderer.TruncateToWidth(text, font, size, maxWidth, Ellipsis);
+        return fitted.Length != 0 || (text.Length == 0 && maxWidth >= 0) ? fitted : Ellipsis;
     }
 
     /// <inheritdoc />

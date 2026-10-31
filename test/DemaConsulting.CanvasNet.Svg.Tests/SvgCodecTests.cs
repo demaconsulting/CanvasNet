@@ -6249,6 +6249,55 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Characterization test that a <c>font-size</c> of zero renders no text at all (and does not fail the document).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ZeroFontSize_RendersNoText()
+    {
+        // Arrange: the same glyph as the start-anchored test, but with a zero font size
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='0' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: every pixel of the surface is still transparent
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a negative <c>font-size</c> (invalid per CSS/SVG) renders no text, instead of
+    ///     mirrored glyphs, and does not fail the document.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_NegativeFontSize_RendersNoText()
+    {
+        // Arrange: a glyph whose negative size would otherwise be drawn point-mirrored around its origin
+        const string svg = "<svg viewBox='0 0 100 100'><text x='50' y='60' font-family='TestFont' font-size='-100' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: every pixel of the surface is still transparent
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that kerning between a known glyph pair shifts the second glyph's position,
     ///     by comparing against the position a naive (kerning-ignoring) layout would produce.
     /// </summary>
@@ -7504,7 +7553,7 @@ public class SvgCodecTests
     ///     transform's own literal argument is exactly at the bound (not <i>greater than</i> it,
     ///     so it is not rejected by <c>TryReadNumber</c>'s strict <c>&gt;</c> check either) -
     ///     nothing at the parse-time, pre-transform level rejects this document. Only composing the
-    ///     two - baking the transform into the path's points via <c>TransformPath</c> - produces a
+    ///     two - baking the transform into the path's points via <c>Path.Transform</c> - produces a
     ///     final magnitude (<c>10 * 1,000,000 = 10,000,000</c>) the new post-transform check
     ///     catches. The path's single degenerate cubic-curve command (<c>CubicBezierTo</c>, whose
     ///     control points coincide with its endpoint) combines with two straight-line commands

@@ -52,17 +52,25 @@ sections:
               The Rendering subsystem shall measure and render TrueType text at a chosen pixel
               size, summing per-glyph advances plus kerning, honoring the Canvas current
               transform, and supporting Left/Center/Right alignment relative to the anchor
-              x-coordinate with a baseline anchor y-coordinate.
+              x-coordinate with a baseline anchor y-coordinate, convert a run into a single
+              outline path in the caller's coordinate space, and shorten a run to a width with an
+              ellipsis.
             justification: |
               Text rendering is a standard higher-level primitive callers need alongside path
               rendering; measurement and drawing must agree on layout, and text must inherit
-              any transform applied to the Canvas.
+              any transform applied to the Canvas. Vector renderers additionally need the same
+              layout as geometry, so they need not re-implement it, and labels must fit their
+              allotted width without a private truncation rule in every renderer.
             children:
               - CanvasNet-Rendering-TextRenderer-Measure
               - CanvasNet-Rendering-TextRenderer-Draw
               - CanvasNet-Rendering-TextRenderer-Alignment
               - CanvasNet-Rendering-TextRenderer-TransformComposition
               - CanvasNet-Rendering-TextRenderer-Validation
+              - CanvasNet-Rendering-TextRenderer-TextPath
+              - CanvasNet-Rendering-TextRenderer-TextPathValidation
+              - CanvasNet-Rendering-TextRenderer-TruncateToWidth
+              - CanvasNet-Rendering-TextRenderer-TruncateToWidthValidation
 
           - id: CanvasNet-Rendering-Shapes
             title: >-

@@ -85,21 +85,173 @@ public static class TextRenderer
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(font);
         ValidateSize(size);
-        if (!Enum.IsDefined(align))
-        {
-            throw new ArgumentOutOfRangeException(nameof(align), align, "Alignment must be a defined TextAlign value.");
-        }
+        ValidateAlign(align);
 
         var scale = size / font.UnitsPerEm;
         var totalAdvance = MeasureText(text, font, size).Width;
-        var alignOffset = align switch
-        {
-            TextAlign.Center => -totalAdvance / 2f,
-            TextAlign.Right => -totalAdvance,
-            _ => 0f,
-        };
+        var alignOffset = AlignmentOffset(align, totalAdvance);
 
-        var pen = x + alignOffset;
+        foreach (var (outline, pen) in EnumerateGlyphPlacements(text, font, scale, x + alignOffset))
+        {
+            // Bake the glyph's local-space y-flip + font-units-to-pixel scale + baseline
+            // translation, then compose the canvas' current transform on the outside so the
+            // glyph inherits any translate/rotate the caller has already stacked.
+            var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y) * canvas.CurrentTransform;
+            var transformed = outline.Transform(glyphMatrix);
+            Drawing.PathFiller.Fill(canvas.Surface, transformed, color);
+        }
+    }
+
+    /// <summary>
+    ///     Converts a text run into a single combined outline <see cref="Path"/> in the caller's own
+    ///     coordinate space, ready to be transformed, filled, stroked, or used as a clip.
+    /// </summary>
+    /// <param name="text">The text to convert. Must not be <see langword="null"/>.</param>
+    /// <param name="font">The font whose glyph outlines and metrics are used. Must not be <see langword="null"/>.</param>
+    /// <param name="size">The text size in pixels. Must be finite and positive.</param>
+    /// <param name="x">The horizontal anchor coordinate, interpreted per <paramref name="align"/>.</param>
+    /// <param name="y">The baseline y-coordinate. Glyphs extend upward (toward smaller y) from this line.</param>
+    /// <param name="align">Horizontal alignment relative to <paramref name="x"/>; defaults to <see cref="TextAlign.Left"/>.</param>
+    /// <returns>
+    ///     One path holding the outlines of every glyph with contour data, in y-down coordinates with
+    ///     no canvas transform applied; <see cref="Path.Empty"/> when the text is empty or no glyph has
+    ///     contours (for example whitespace only).
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> or <paramref name="font"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when <paramref name="size"/> is not finite or is not positive, or <paramref name="align"/>
+    ///     is not a defined <see cref="TextAlign"/> value.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///     Exists for callers that need the text as geometry instead of pixels: a vector renderer that
+    ///     applies its own accumulated transform later, builds a clip or mask from text, or strokes the
+    ///     glyph outlines. Pen advance, kerning, alignment, and the y-flip are exactly those of
+    ///     <see cref="DrawText"/> and <see cref="MeasureText"/> (the same glyph-placement code runs for
+    ///     all three), so <c>CreateTextPath</c> followed by a fill matches the drawn text.
+    ///     </para>
+    ///     <para>
+    ///     The glyphs are merged into one path, so overlapping glyphs are filled as one shape under the
+    ///     caller's fill rule rather than composited one after another as <see cref="DrawText"/> does.
+    ///     Pure function: no shared state is touched, so it is safe for concurrent use.
+    ///     </para>
+    /// </remarks>
+    public static Path CreateTextPath(string text, TrueTypeFont font, float size, float x, float y, TextAlign align = TextAlign.Left)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(font);
+        ValidateSize(size);
+        ValidateAlign(align);
+
+        var scale = size / font.UnitsPerEm;
+        var totalAdvance = MeasureText(text, font, size).Width;
+        var alignOffset = AlignmentOffset(align, totalAdvance);
+
+        // Every glyph is appended to one builder so the run becomes a single path without an
+        // intermediate Path per glyph.
+        var builder = new PathBuilder();
+        foreach (var (outline, pen) in EnumerateGlyphPlacements(text, font, scale, x + alignOffset))
+        {
+            // The font's outline is Y-up in design units; flipping the y scale maps it into
+            // Y-down space in the same step as scaling to pixels and moving the origin to the pen.
+            builder.AppendPath(outline, Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y));
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    ///     Shortens a text run so that it fits a width, replacing the removed end with an ellipsis.
+    /// </summary>
+    /// <param name="text">The text to fit. Must not be <see langword="null"/>.</param>
+    /// <param name="font">The font the text is measured with. Must not be <see langword="null"/>.</param>
+    /// <param name="size">The text size in pixels. Must be finite and positive.</param>
+    /// <param name="maxWidth">The largest allowed advance width in pixels. A <see cref="float.NaN"/> or negative value never fits.</param>
+    /// <param name="ellipsis">
+    ///     The text that marks the removed end; defaults to the single character U+2026. May be empty (a plain
+    ///     cut) but must not be <see langword="null"/>. It is measured with the font like any other text.
+    /// </param>
+    /// <returns>
+    ///     <paramref name="text"/> itself when its measured width is at most <paramref name="maxWidth"/>;
+    ///     otherwise the longest beginning of the text, cut at a whole character, that followed by
+    ///     <paramref name="ellipsis"/> measures at most <paramref name="maxWidth"/>; otherwise
+    ///     <see cref="string.Empty"/> when not even the ellipsis alone fits.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/>, <paramref name="font"/>, or <paramref name="ellipsis"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="size"/> is not finite or is not positive.</exception>
+    /// <remarks>
+    ///     <para>
+    ///     Exists so charts, labels, and sheets share one correct truncation rule instead of each
+    ///     keeping its own copy. The cut is made between Unicode scalar values (runes): a surrogate pair
+    ///     is never split, and a lone surrogate in the input becomes U+FFFD in a shortened result, so a
+    ///     shortened result is always well-formed UTF-16. Trailing white space of the kept beginning is
+    ///     not trimmed.
+    ///     </para>
+    ///     <para>
+    ///     Beginnings are tried from longest to shortest in a linear scan, and the first that fits wins.
+    ///     A binary search would be faster but wrong: kerning makes the measured width of a beginning
+    ///     non-monotonic in its length, so only the scan returns the longest beginning that fits. The cost
+    ///     is quadratic in the text length, which is acceptable for labels. A text that already fits is
+    ///     returned (the same instance) without measuring any candidate. Pure function; safe for
+    ///     concurrent use.
+    ///     </para>
+    /// </remarks>
+    public static string TruncateToWidth(string text, TrueTypeFont font, float size, float maxWidth, string ellipsis = "\u2026")
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentNullException.ThrowIfNull(ellipsis);
+        ValidateSize(size);
+
+        // The whole text fits: nothing to cut.
+        if (MeasureText(text, font, size).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        // Normalize to whole runes and remember where each rune ends, so a candidate beginning
+        // is a slice that can never end inside a surrogate pair.
+        var normalized = new System.Text.StringBuilder(text.Length);
+        var ends = new List<int>(text.Length);
+        foreach (var rune in text.EnumerateRunes())
+        {
+            normalized.Append(rune.ToString());
+            ends.Add(normalized.Length);
+        }
+
+        var whole = normalized.ToString();
+
+        // Longest beginning first; a beginning of zero runes is the ellipsis alone.
+        for (var keep = ends.Count - 1; keep >= 0; keep--)
+        {
+            var length = keep == 0 ? 0 : ends[keep - 1];
+            var candidate = string.Concat(whole.AsSpan(0, length), ellipsis);
+            if (MeasureText(candidate, font, size).Width <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    ///     Walks a text run exactly as <see cref="MeasureText"/> measures it and yields, for every
+    ///     glyph that has contour data, its outline and the pen position it is placed at.
+    /// </summary>
+    /// <param name="text">The text to walk.</param>
+    /// <param name="font">The font providing glyph indices, kerning, advances, and outlines.</param>
+    /// <param name="scale">The design-units-to-pixel scale (<c>size / UnitsPerEm</c>).</param>
+    /// <param name="startPen">The pen x-position before the first glyph, with any alignment shift applied.</param>
+    /// <returns>The outline and pen x-position of each glyph with at least one subpath, in text order.</returns>
+    /// <remarks>
+    ///     The single home of the rune iteration, kerning-before-advance order, and float accumulation
+    ///     order, so <see cref="DrawText"/> and <see cref="CreateTextPath"/> cannot drift apart.
+    ///     Glyphs without outlines (spaces) still advance the pen and take part in kerning.
+    /// </remarks>
+    private static IEnumerable<(Path Outline, float Pen)> EnumerateGlyphPlacements(string text, TrueTypeFont font, float scale, float startPen)
+    {
+        var pen = startPen;
         int? previousGlyph = null;
 
         foreach (var rune in text.EnumerateRunes())
@@ -113,12 +265,7 @@ public static class TextRenderer
             var outline = font.GetGlyphOutline(glyphIndex);
             if (outline.Subpaths.Count > 0)
             {
-                // Bake the glyph's local-space y-flip + font-units-to-pixel scale + baseline
-                // translation, then compose the canvas' current transform on the outside so the
-                // glyph inherits any translate/rotate the caller has already stacked.
-                var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y) * canvas.CurrentTransform;
-                var transformed = outline.Transform(glyphMatrix);
-                Drawing.PathFiller.Fill(canvas.Surface, transformed, color);
+                yield return (outline, pen);
             }
 
             pen += font.GetAdvanceWidth(glyphIndex) * scale;
@@ -126,6 +273,39 @@ public static class TextRenderer
         }
     }
 
+    /// <summary>
+    ///     Computes the shift applied to the pen start so a run of the given width is aligned
+    ///     relative to its anchor.
+    /// </summary>
+    /// <param name="align">The alignment; any value other than center or right means left.</param>
+    /// <param name="totalAdvance">The measured advance width of the run.</param>
+    /// <returns>Zero for left, minus half the width for center, minus the full width for right.</returns>
+    private static float AlignmentOffset(TextAlign align, float totalAdvance) =>
+        align switch
+        {
+            TextAlign.Center => -totalAdvance / 2f,
+            TextAlign.Right => -totalAdvance,
+            _ => 0f,
+        };
+
+    /// <summary>
+    ///     Rejects an alignment that is not a defined <see cref="TextAlign"/> value.
+    /// </summary>
+    /// <param name="align">The alignment to check.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="align"/> is not defined.</exception>
+    private static void ValidateAlign(TextAlign align)
+    {
+        if (!Enum.IsDefined(align))
+        {
+            throw new ArgumentOutOfRangeException(nameof(align), align, "Alignment must be a defined TextAlign value.");
+        }
+    }
+
+    /// <summary>
+    ///     Rejects a text size that is not a finite, positive number.
+    /// </summary>
+    /// <param name="size">The size to check.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="size"/> is not finite or not positive.</exception>
     private static void ValidateSize(float size)
     {
         if (!float.IsFinite(size) || size <= 0f)

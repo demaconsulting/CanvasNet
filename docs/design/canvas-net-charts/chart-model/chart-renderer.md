@@ -55,8 +55,10 @@ Every other rendering decision degrades gracefully rather than throwing:
   `ChartRenderer.Layout.cs`), rather than throwing or painting a corrupted layout
 - A legend with more entries than fit its reserved band omits the entries that do not fit,
   rather than overlapping the plot area or throwing
-- A category/legend label too long to fit its available width is truncated, rather than
-  overflowing its region or throwing
+- A category/legend label too long to fit its available width is truncated (by whole characters,
+  through `TextRenderer.TruncateToWidth` with the ASCII `...` ellipsis; a label with
+  non-BMP characters is never cut inside a surrogate pair), rather than overflowing its region
+  or throwing
 - A single-value `Pie`/`Doughnut` series, or a series whose total is zero, paints a well-defined
   degenerate full-circle (or omits wedges) rather than dividing by zero
 

@@ -400,6 +400,17 @@ correctly-kerned layout, and would remain unfilled if kerning were ignored). Sep
 expected text region while far corners of the canvas remain transparent, mirroring
 `TrueTypeFontRealFontIntegrationTests`'s real-font integration pattern.
 
+#### Non-Positive Font-Size Renders No Text (Regression)
+
+**Tests**: `SvgCodec_Load_ZeroFontSize_RendersNoText`, `SvgCodec_Load_NegativeFontSize_RendersNoText`
+
+Both tests load a one-glyph `text` element using the synthetic test font with `font-size='0'`
+(characterization of behavior that predates the shared text-to-path method) and `font-size='-100'`
+(a deliberate change: negative sizes used to draw point-mirrored glyphs), and assert that `Load`
+does not throw and that every pixel of the surface stays transparent. The glyph-run layout itself is
+verified by the `TextRenderer_CreateTextPath_*` unit tests of the core library, including an
+equivalence test against the algorithm this codec used before the method existed.
+
 #### CanvasNetSvg-SvgCodec-TextFontDefaultFallback: Unregistered Font Families Render With a Default Font
 
 **Tests**: `SvgCodec_Load_TextWithoutFontsDictionary_RendersWithDefaultFont`,
@@ -2081,7 +2092,7 @@ proves the fix: a small, entirely in-bound closed-square path (built from `LineT
 degenerate `CubicBezierTo` command, exercising the new check's `Control1`/`Control2` handling as
 well as its `EndPoint` handling) combined with a `scale(1000000)` transform produces a final
 magnitude of `10,000,000`, far past the bound; `RenderShape` now re-checks every point of the
-transformed path immediately after `TransformPath` and, on failure, tolerantly skips the whole
+transformed path immediately after `Path.Transform` and, on failure, tolerantly skips the whole
 shape - proven by the sampled pixel (which the scaled square's huge bounding box would otherwise
 cover if the shape were not skipped) staying unfilled, with `Load` not throwing.
 

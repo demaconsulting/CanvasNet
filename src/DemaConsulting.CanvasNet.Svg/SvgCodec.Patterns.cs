@@ -338,7 +338,7 @@ public static partial class SvgCodec
         // approach, generalized here to a fractional (not merely binary) coverage-multiply since
         // this buffer also carries the sampled tile's own color, not only its alpha
         var coverage = new Surface(pixelWidth, pixelHeight);
-        var outlineInRegion = TransformPath(outline, Matrix3x2.CreateTranslation(-pixelX, -pixelY));
+        var outlineInRegion = outline.Transform(Matrix3x2.CreateTranslation(-pixelX, -pixelY));
         PathFiller.Fill(coverage, outlineInRegion, OpaqueWhite, fillRule);
 
         var finalSurface = SampleTileIntoRegion(tileBuffer, coverage, pixelX, pixelY, tile, inverseGridTransform);

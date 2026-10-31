@@ -255,18 +255,15 @@ sections:
 
       - id: CanvasNet-Lib-PixelCompositing
         title: >-
-          The library shall provide a single-pixel Porter-Duff "over" alpha-compositing helper on
-          Rgba32, identical to Surface's own per-row CompositeOver formula, exposed cross-assembly
-          for a sibling renderer package's own one-sampled-pixel-at-a-time image-compositing
-          loops.
+          The library shall provide a public single-pixel Porter-Duff "over" alpha-compositing
+          helper on Rgba32 that yields the same result as Surface's own CompositeOver of a
+          constant color for every pixel.
         tags: [system]
         justification: |
-          Both sibling renderer packages (DemaConsulting.CanvasNet.Pptx and
-          DemaConsulting.CanvasNet.Pdf) composite a decoded source image onto a destination
-          Surface one sampled pixel at a time; sharing one tested helper rather than duplicating
-          the blending math independently in both assemblies avoids a second, divergent
-          implementation of the same formula drifting out of sync with Surface's own row-based
-          CompositeOver formula.
+          Code that blends one sampled pixel at a time (for example an image resampler
+          compositing each sample onto a destination Surface) needs the same result as the
+          row-based surface operation; one tested public helper avoids each such caller keeping
+          its own, divergent copy of the blending math.
         children:
           - CanvasNet-Canvas-PixelCompositing
         tests:
@@ -1120,7 +1117,8 @@ sections:
           in either a conservative or a tighter, flattening-based mode; individual path commands
           shall also expose a public standalone-line-segment factory and tangent-direction
           computation for use by external format-codec packages implementing marker/arrowhead
-          rendering.
+          rendering, and the builder shall be able to append all subpaths of an existing path,
+          optionally transformed, so finished paths can be combined into one.
         tags: [system]
         justification: |
           A vector path is the foundational shape-description primitive future drawing/rendering
@@ -1129,6 +1127,8 @@ sections:
           packages built on top of Path (such as the SVG codec's marker rendering) additionally
           need a shared, authoritative way to compute a path segment's direction of travel,
           without duplicating that math themselves or depending on this package's internals.
+          Renderer packages likewise need one shared way to merge outlines (for example the
+          glyphs of a text run) into a single path.
         children:
           - CanvasNet-Geometry-Path
         tests:
@@ -1539,12 +1539,14 @@ sections:
           The library shall measure and render TrueType text at a chosen pixel size, summing
           per-glyph advances plus kerning, honoring the current transform, and supporting
           Left/Center/Right alignment relative to the anchor x-coordinate with a baseline anchor
-          y-coordinate.
+          y-coordinate, convert a text run into a single outline path, and shorten a text run
+          to a width with an ellipsis.
         tags: [system]
         justification: |
           Text rendering is a standard higher-level primitive callers need alongside path
           rendering; measurement and drawing must agree on layout, and text must inherit any
-          transform applied to the target.
+          transform applied to the target. Vector renderers need the same layout as geometry,
+          and labels must fit their allotted width.
         children:
           - CanvasNet-Rendering-TextRendering
         tests:

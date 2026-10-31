@@ -1,9 +1,12 @@
 using System.Numerics;
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
+using GeoPath = DemaConsulting.CanvasNet.Geometry.Path;
 using RenderCanvas = DemaConsulting.CanvasNet.Rendering.Canvas;
 
 namespace DemaConsulting.CanvasNet.Tests.Rendering;
@@ -345,5 +348,617 @@ public class TextRendererTests
         }
 
         Assert.True(paintedPixelCount > 0, "DrawText under a rotated canvas produced no pixels");
+    }
+
+    /// <summary>
+    ///     Describes a path as one token per start point and per command, in the round-trip text
+    ///     format, so two paths can be compared bit for bit.
+    /// </summary>
+    /// <param name="path">The path to describe.</param>
+    /// <returns>The tokens in order, with <c>!closed</c> on a closed subpath's start token.</returns>
+    private static List<string> Describe(GeoPath path)
+    {
+        static string P(Vector2 v) => $"{v.X:R},{v.Y:R}";
+
+        var tokens = new List<string>();
+        foreach (var subpath in path.Subpaths)
+        {
+            tokens.Add($"M{P(subpath.Start)}{(subpath.IsClosed ? "!closed" : string.Empty)}");
+            foreach (var c in subpath.Commands)
+            {
+                tokens.Add(c.Type switch
+                {
+                    PathCommandType.LineTo => $"L{P(c.EndPoint)}",
+                    PathCommandType.QuadraticBezierTo => $"Q{P(c.Control1)} {P(c.EndPoint)}",
+                    PathCommandType.CubicBezierTo => $"C{P(c.Control1)} {P(c.Control2)} {P(c.EndPoint)}",
+                    _ => "Z",
+                });
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    ///     Test-local copy of the glyph-run algorithm the SVG codec used before
+    ///     <see cref="TextRenderer.CreateTextPath"/> existed (its own measurement pass, anchor offset,
+    ///     and per-point re-issue of each glyph outline); the independent oracle for the equivalence test.
+    /// </summary>
+    /// <param name="text">The text to lay out.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="fontSize">The font size.</param>
+    /// <param name="origin">The anchor position.</param>
+    /// <param name="anchor">0 = start, 1 = middle, 2 = end.</param>
+    /// <returns>The combined path.</returns>
+    private static GeoPath LegacyGlyphRun(string text, TrueTypeFont font, float fontSize, Vector2 origin, int anchor)
+    {
+        var scale = fontSize / font.UnitsPerEm;
+
+        // Measurement pass: total advance including kerning
+        var total = 0f;
+        int? previous = null;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = font.GetGlyphIndex(rune.Value);
+            if (previous.HasValue)
+            {
+                total += font.GetKerning(previous.Value, glyph) * scale;
+            }
+
+            total += font.GetAdvanceWidth(glyph) * scale;
+            previous = glyph;
+        }
+
+        var offset = anchor switch { 1 => total / 2f, 2 => total, _ => 0f };
+        var builder = new PathBuilder();
+        var pen = origin.X - offset;
+        previous = null;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = font.GetGlyphIndex(rune.Value);
+            if (previous.HasValue)
+            {
+                pen += font.GetKerning(previous.Value, glyph) * scale;
+            }
+
+            var outline = font.GetGlyphOutline(glyph);
+            if (outline.Subpaths.Count > 0)
+            {
+                var m = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, origin.Y);
+                foreach (var subpath in outline.Subpaths)
+                {
+                    builder.MoveTo(Vector2.Transform(subpath.Start, m));
+                    foreach (var c in subpath.Commands)
+                    {
+                        switch (c.Type)
+                        {
+                            case PathCommandType.LineTo:
+                                builder.LineTo(Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.QuadraticBezierTo:
+                                builder.QuadraticBezierTo(Vector2.Transform(c.Control1, m), Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.CubicBezierTo:
+                                builder.CubicBezierTo(Vector2.Transform(c.Control1, m), Vector2.Transform(c.Control2, m), Vector2.Transform(c.EndPoint, m));
+                                break;
+                            case PathCommandType.Close:
+                                builder.Close();
+                                break;
+                        }
+                    }
+                }
+            }
+
+            pen += font.GetAdvanceWidth(glyph) * scale;
+            previous = glyph;
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    ///     Proves that a left-aligned run places each glyph outline at the pen position (previous advance plus
+    ///     kerning), y-flipped about the baseline and scaled to the requested size.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_LeftAlign_MatchesGlyphOutlinesPlacedAtPenWithKerning()
+    {
+        // Arrange: "AA" at size 100 (scale 0.1): the glyph is a triangle (0,0) (500,0) (250,800); the second
+        // glyph's pen is 10 + 50 (advance) - 5 (kern -50 units) = 55
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 10f, 200f);
+
+        // Assert: two triangles with baseline y = 200 and apex 80 units above it
+        Assert.Equal(2, path.Subpaths.Count);
+        var expectedPens = new[] { 10f, 55f };
+        for (var i = 0; i < 2; i++)
+        {
+            var subpath = path.Subpaths[i];
+            Assert.Equal(expectedPens[i], subpath.Start.X, 3);
+            Assert.Equal(200f, subpath.Start.Y, 3);
+            Assert.Equal(expectedPens[i] + 50f, subpath.Commands[0].EndPoint.X, 3);
+            Assert.Equal(200f, subpath.Commands[0].EndPoint.Y, 3);
+            Assert.Equal(expectedPens[i] + 25f, subpath.Commands[1].EndPoint.X, 3);
+            Assert.Equal(120f, subpath.Commands[1].EndPoint.Y, 3);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that center alignment shifts the run left by half of its measured width.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_CenterAlign_ShiftsRunByHalfMeasuredWidth()
+    {
+        // Arrange: "AA" measures 95 at size 100
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 100f, 0f, TextAlign.Center);
+
+        // Assert: the first glyph starts at 100 - 47.5
+        Assert.Equal(52.5f, path.Subpaths[0].Start.X, 3);
+    }
+
+    /// <summary>
+    ///     Proves that right alignment shifts the run left by its full measured width.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_RightAlign_ShiftsRunByFullMeasuredWidth()
+    {
+        // Arrange: "AA" measures 95 at size 100
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("AA", font, 100f, 100f, 0f, TextAlign.Right);
+
+        // Assert: the first glyph starts at 100 - 95
+        Assert.Equal(5f, path.Subpaths[0].Start.X, 3);
+    }
+
+    /// <summary>
+    ///     Proves that a run of glyphs without contours (spaces) yields the empty path.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_WhitespaceOnlyText_ReturnsEmptyPath()
+    {
+        // Arrange: a real font whose space glyph has an advance but no contours
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+        // Act
+        var path = TextRenderer.CreateTextPath("   ", font, 16f, 5f, 20f);
+
+        // Assert
+        Assert.Empty(path.Subpaths);
+    }
+
+    /// <summary>
+    ///     Proves that empty text yields the empty path.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_EmptyText_ReturnsEmptyPath()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath(string.Empty, font, 16f, 5f, 20f);
+
+        // Assert
+        Assert.Same(GeoPath.Empty, path);
+    }
+
+    /// <summary>
+    ///     Proves that the result is bit-identical to the glyph-run algorithm the SVG codec used before the
+    ///     method existed, across texts (kerning pairs, a surrogate pair, a missing glyph), sizes, anchors and
+    ///     positions.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_MatchesLegacyGlyphRunOracle()
+    {
+        // Arrange: a bundled real font with kerning and the synthetic font
+        var real = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var fonts = new[] { real, NewFont() };
+        var texts = new[] { "Hello, World!", "AVATAR To Wa fi", "A\U0001F600 AA ü", "AAAA", " " };
+        var aligns = new[] { TextAlign.Left, TextAlign.Center, TextAlign.Right };
+
+        foreach (var font in fonts)
+        {
+            foreach (var text in texts)
+            {
+                foreach (var size in new[] { 7.5f, 16f, 33.3f })
+                {
+                    for (var a = 0; a < aligns.Length; a++)
+                    {
+                        // Act
+                        var actual = TextRenderer.CreateTextPath(text, font, size, 12.25f, 40.5f, aligns[a]);
+                        var oracle = LegacyGlyphRun(text, font, size, new Vector2(12.25f, 40.5f), a);
+
+                        // Assert: identical structure and coordinates
+                        Assert.Equal(Describe(oracle), Describe(actual));
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that a null text is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NullText_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("text", () => TextRenderer.CreateTextPath(null!, font, 16f, 0f, 0f));
+    }
+
+    /// <summary>
+    ///     Proves that a null font is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NullFont_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("font", () => TextRenderer.CreateTextPath("A", null!, 16f, 0f, 0f));
+    }
+
+    /// <summary>
+    ///     Proves that a size that is not finite and positive is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_NonPositiveOrNonFiniteSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert: zero, negative, NaN, and infinity
+        foreach (var size in new[] { 0f, -16f, float.NaN, float.PositiveInfinity })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>("size", () => TextRenderer.CreateTextPath("A", font, size, 0f, 0f));
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an undefined alignment value is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_InvalidAlign_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = NewFont();
+
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>("align", () => TextRenderer.CreateTextPath("A", font, 16f, 0f, 0f, (TextAlign)99));
+    }
+
+    /// <summary>
+    ///     Loads the bundled Liberation Sans font, a real font with kerning, used by the truncation tests.
+    /// </summary>
+    /// <returns>The font.</returns>
+    private static TrueTypeFont RealFont() =>
+        SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+    /// <summary>
+    ///     Test-local copy of the truncation algorithm the chart renderer used before
+    ///     <see cref="TextRenderer.TruncateToWidth"/> existed (cutting by UTF-16 unit, ASCII ellipsis,
+    ///     empty result when nothing fits); the independent oracle for ASCII text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="fontSize">The size in pixels.</param>
+    /// <param name="maxWidth">The width budget.</param>
+    /// <returns>The truncated text.</returns>
+    private static string LegacyTruncateToFit(string text, TrueTypeFont font, float fontSize, float maxWidth)
+    {
+        if (maxWidth <= 0f)
+        {
+            return string.Empty;
+        }
+
+        if (TextRenderer.MeasureText(text, font, fontSize).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        for (var length = text.Length - 1; length >= 0; length--)
+        {
+            var candidate = text[..length] + "...";
+            if (TextRenderer.MeasureText(candidate, font, fontSize).Width <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    ///     Proves that a text that fits (including exactly at the limit) is returned as the same instance.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TextFits_ReturnsTextUnchanged()
+    {
+        // Arrange: a text and a width budget equal to its measured width
+        var font = RealFont();
+        var text = new string('A', 3) + "bc";
+        var width = TextRenderer.MeasureText(text, font, 14f).Width;
+
+        // Act
+        var exact = TextRenderer.TruncateToWidth(text, font, 14f, width, "...");
+        var roomy = TextRenderer.TruncateToWidth(text, font, 14f, width + 100f, "...");
+
+        // Assert
+        Assert.Same(text, exact);
+        Assert.Same(text, roomy);
+    }
+
+    /// <summary>
+    ///     Proves that a too-wide text is cut to the longest beginning that, with the ellipsis, fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TextTooWide_ReturnsLongestPrefixPlusEllipsisThatFits()
+    {
+        // Arrange
+        var font = RealFont();
+        var text = "The quick brown fox jumps over the lazy dog";
+        const float maxWidth = 120f;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert: it fits, is a beginning of the text plus the ellipsis, and one more character would not fit
+        Assert.EndsWith("...", fitted);
+        var kept = fitted[..^3];
+        Assert.StartsWith(kept, text, StringComparison.Ordinal);
+        Assert.True(kept.Length > 0 && kept.Length < text.Length);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= maxWidth);
+        Assert.True(TextRenderer.MeasureText(text[..(kept.Length + 1)] + "...", font, 14f).Width > maxWidth);
+    }
+
+    /// <summary>
+    ///     Proves that for ASCII text and the ASCII ellipsis the result equals the algorithm the chart
+    ///     renderer used before the method existed, over a sweep of widths (including zero and negative).
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_AsciiEllipsis_MatchesLegacyChartsAlgorithmAcrossWidthSweep()
+    {
+        // Arrange: kerning-prone texts, an empty one, and a sweep of widths
+        var font = RealFont();
+        var texts = new[] { "AVATAR To Wa fi ffl Category label 2024", "Quarterly revenue (USD)", "W", string.Empty };
+
+        foreach (var text in texts)
+        {
+            for (var maxWidth = -5f; maxWidth <= 400f; maxWidth += 3.7f)
+            {
+                // Act
+                var actual = TextRenderer.TruncateToWidth(text, font, 12f, maxWidth, "...");
+                var expected = LegacyTruncateToFit(text, font, 12f, maxWidth);
+
+                // Assert
+                Assert.Equal(expected, actual);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves that an empty result is returned when not even the ellipsis fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EllipsisAloneDoesNotFit_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("A long label", font, 14f, 1f, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that an empty ellipsis gives a plain cut at the longest beginning that fits.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EmptyEllipsis_CutsWithoutSuffix()
+    {
+        // Arrange
+        var font = RealFont();
+        var text = "abcdefghijklmnopqrstuvwxyz";
+        const float maxWidth = 60f;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, string.Empty);
+
+        // Assert: a beginning of the text that fits, while one more character does not
+        Assert.StartsWith(fitted, text, StringComparison.Ordinal);
+        Assert.True(fitted.Length > 0 && fitted.Length < text.Length);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= maxWidth);
+        Assert.True(TextRenderer.MeasureText(text[..(fitted.Length + 1)], font, 14f).Width > maxWidth);
+    }
+
+    /// <summary>
+    ///     Proves that a surrogate pair is never split: every shortened result is well-formed UTF-16.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_SurrogatePair_IsNeverSplit()
+    {
+        // Arrange: astral characters (two UTF-16 units each) and a strict encoder that rejects a lone surrogate
+        var font = RealFont();
+        var text = string.Concat(Enumerable.Repeat("a\U0001F600", 20));
+        var strict = new System.Text.UTF8Encoding(false, true);
+        var shortened = 0;
+
+        for (var maxWidth = 1f; maxWidth <= 300f; maxWidth += 2.3f)
+        {
+            // Act
+            var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+            // Assert: encodes strictly; the kept beginning is a whole-character beginning of the text
+            Assert.Equal(fitted, strict.GetString(strict.GetBytes(fitted)));
+            if (fitted.EndsWith("...", StringComparison.Ordinal) && fitted.Length > 3)
+            {
+                Assert.StartsWith(fitted[..^3], text, StringComparison.Ordinal);
+                shortened++;
+            }
+        }
+
+        Assert.True(shortened > 10, "The sweep should have shortened the text for many widths.");
+    }
+
+    /// <summary>
+    ///     Proves that a lone surrogate in the input becomes U+FFFD in a shortened result.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_LoneSurrogate_IsNormalizedToReplacementCharacter()
+    {
+        // Arrange: a lone high surrogate at index 3, and a budget that exactly fits "abc" + replacement character + the ellipsis
+        var font = RealFont();
+        var text = "abc" + (char)0xD83D + " and the remaining words of the label";
+        var expected = "abc" + Rune.ReplacementChar + "...";
+        var maxWidth = TextRenderer.MeasureText(expected, font, 14f).Width;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert
+        Assert.Equal(expected, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that white space at the end of the kept beginning is not trimmed.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_TrailingWhitespace_IsKeptInPrefix()
+    {
+        // Arrange: a budget that exactly fits "ab " + the ellipsis
+        var font = RealFont();
+        const string text = "ab cd ef gh ij kl";
+        const string expected = "ab ...";
+        var maxWidth = TextRenderer.MeasureText(expected, font, 14f).Width;
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, maxWidth, "...");
+
+        // Assert
+        Assert.Equal(expected, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that the default ellipsis is the single character U+2026.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_DefaultEllipsis_IsHorizontalEllipsisCharacter()
+    {
+        // Arrange
+        var font = RealFont();
+        const string text = "The quick brown fox jumps over the lazy dog";
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth(text, font, 14f, 100f);
+
+        // Assert
+        Assert.EndsWith("\u2026", fitted);
+        Assert.True(TextRenderer.MeasureText(fitted, font, 14f).Width <= 100f);
+    }
+
+    /// <summary>
+    ///     Proves that a NaN width budget never fits, so the result is empty.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NaNMaxWidth_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("Some label", font, 14f, float.NaN, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that a negative width budget never fits a non-empty text, so the result is empty.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NegativeMaxWidth_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var fitted = TextRenderer.TruncateToWidth("Some label", font, 14f, -10f, "...");
+
+        // Assert
+        Assert.Equal(string.Empty, fitted);
+    }
+
+    /// <summary>
+    ///     Proves that empty text is returned as empty text when the budget is not negative.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_EmptyText_ReturnsEmptyString()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var atZero = TextRenderer.TruncateToWidth(string.Empty, font, 14f, 0f, "...");
+        var wide = TextRenderer.TruncateToWidth(string.Empty, font, 14f, 100f);
+
+        // Assert
+        Assert.Equal(string.Empty, atZero);
+        Assert.Equal(string.Empty, wide);
+    }
+
+    /// <summary>
+    ///     Proves that a null text is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullText_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("text", () => TextRenderer.TruncateToWidth(null!, RealFont(), 14f, 50f));
+    }
+
+    /// <summary>
+    ///     Proves that a null font is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullFont_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("font", () => TextRenderer.TruncateToWidth("abc", null!, 14f, 50f));
+    }
+
+    /// <summary>
+    ///     Proves that a null ellipsis is rejected.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NullEllipsis_ThrowsArgumentNullException()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>("ellipsis", () => TextRenderer.TruncateToWidth("abc", RealFont(), 14f, 50f, null!));
+    }
+
+    /// <summary>
+    ///     Proves that a size that is not finite and positive is rejected even when the text would fit.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_NonPositiveSize_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act / Assert
+        foreach (var size in new[] { 0f, -14f, float.NaN, float.PositiveInfinity })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>("size", () => TextRenderer.TruncateToWidth("abc", font, size, 1000f));
+        }
     }
 }

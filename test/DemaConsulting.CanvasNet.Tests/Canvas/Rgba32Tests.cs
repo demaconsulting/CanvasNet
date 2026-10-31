@@ -4,7 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
 /// <summary>
-///     Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior and the shared internal
+///     Unit tests for the <see cref="Rgba32"/> parse/tryparse behavior and the public
 ///     single-pixel <see cref="Rgba32.CompositeOver"/> Porter-Duff "over" alpha-blending helper
 ///     (reused by <c>DemaConsulting.CanvasNet.Pptx</c>'s <c>PaintPicture</c> and
 ///     <c>DemaConsulting.CanvasNet.Pdf</c>'s <c>CompositeImageOntoSurface</c>).
@@ -235,6 +235,63 @@ public class Rgba32Tests
         var result = Rgba32.CompositeOver(background, foreground);
 
         Assert.Equal(default, result);
+    }
+
+    /// <summary>
+    ///     Proves the single-pixel helper agrees with the row-based <see cref="Surface.CompositeOver(Rgba32)"/>
+    ///     for every combination of a grid of background and foreground alphas and colors, so the public
+    ///     helper and the surface operation are interchangeable.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_MatchesSurfaceCompositeOverColor_AcrossAlphaGrid()
+    {
+        // Arrange: a grid of alphas (including 0, 255 and rounding-sensitive values) crossed with colors
+        byte[] alphas = [0, 1, 64, 127, 128, 200, 254, 255];
+        (byte R, byte G, byte B)[] colors = [(0, 0, 0), (255, 255, 255), (200, 50, 100), (13, 240, 77)];
+        var pixels = new List<Rgba32>();
+        foreach (var alpha in alphas)
+        {
+            foreach (var (r, g, b) in colors)
+            {
+                pixels.Add(new Rgba32(r, g, b, alpha));
+            }
+        }
+
+        // Act / Assert: one surface row of every background, composited with each foreground in turn
+        foreach (var foreground in pixels)
+        {
+            using var surface = new Surface(pixels.Count, 1);
+            for (var x = 0; x < pixels.Count; x++)
+            {
+                surface[x, 0] = pixels[x];
+            }
+
+            surface.CompositeOver(foreground);
+
+            for (var x = 0; x < pixels.Count; x++)
+            {
+                Assert.Equal(surface[x, 0], Rgba32.CompositeOver(pixels[x], foreground));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves the helper is part of the public API: a public static method of the public struct.
+    /// </summary>
+    [Fact]
+    public void Rgba32_CompositeOver_IsPublicStaticMethod()
+    {
+        // Arrange / Act: look the method up by its public signature
+        var method = typeof(Rgba32).GetMethod(
+            nameof(Rgba32.CompositeOver),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+            [typeof(Rgba32), typeof(Rgba32)]);
+
+        // Assert
+        Assert.NotNull(method);
+        Assert.True(method.IsPublic);
+        Assert.True(typeof(Rgba32).IsPublic);
+        Assert.Equal(typeof(Rgba32), method.ReturnType);
     }
 
     /// <summary>

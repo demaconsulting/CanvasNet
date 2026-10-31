@@ -29,7 +29,9 @@ fill, and stroke-to-fill conversion) by consuming `Geometry`'s `Path`/`PathBuild
   mutable, fluent `PathBuilder`, together with the supporting `Subpath`, `PathCommand`, and
   `PathCommandType` data types, documented inline within the `Path` unit design rather than as
   their own units, because none of them has any independent behavior beyond being a data carrier
-  consumed exclusively by `Path`/`PathBuilder`; see _Path Unit Design_ (`geometry/path.md`)
+  consumed exclusively by `Path`/`PathBuilder`; `PathBuilder.AppendPath` appends the subpaths of an
+  existing path (optionally transformed) and is the implementation of `Path.Transform`; see
+  _Path Unit Design_ (`geometry/path.md`)
 - **BezierFlattening** — adaptive, tolerance-driven flattening of quadratic and cubic Bezier
   curves into polylines, writing into a caller-supplied output collection; see
   _BezierFlattening Unit Design_ (`geometry/bezier-flattening.md`)
@@ -55,7 +57,8 @@ used throughout.
 ### Callers
 
 `Rect`, `PathBuilder`/`Path`, `BezierFlattening`, and `SvgArcConverter` are all public API entry
-points, invoked externally by consumers of the CanvasNet package. The `Drawing` subsystem is the
+points, invoked externally by consumers of the CanvasNet package, including the `PathBuilder.AppendPath`
+operation used by the PDF, PPTX, and VSDX renderer packages. The `Drawing` subsystem is the
 primary internal caller of this subsystem's output: `Drawing.PathFiller` and `Drawing.PathStroker`
 consume `Path`/`PathBuilder` (and, via `Path.GetBounds`, `BezierFlattening` and
 `SvgArcConverter` indirectly) to rasterize and stroke-to-fill vector geometry onto a
