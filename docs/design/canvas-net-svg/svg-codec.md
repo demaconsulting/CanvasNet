@@ -1600,7 +1600,8 @@ math itself is never reimplemented here), `Drawing` subsystem's `PathFiller`/`Pa
 (rasterizing the already-transformed, pixel-space paths this codec builds) and `Gradient`/
 `LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` (representing resolved gradient
 paint), `Fonts` subsystem's `TrueTypeFont` (font selection and metrics), and `Rendering` subsystem's
-`TextRenderer.CreateTextPath` (laying a text run out as one outline path). This is a cross-system dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
+`TextRenderer.CreateTextPath` (laying a text run out as one outline path). This is a cross-system
+dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
 system, referencing the separate `CanvasNet` system's public API — see the Dependencies section
 of _CanvasNetSvg System Design_ (`../canvas-net-svg.md`). Beyond these
 units, `SvgCodec` uses only the .NET base class library's `System.Xml.Linq` (`XDocument`/

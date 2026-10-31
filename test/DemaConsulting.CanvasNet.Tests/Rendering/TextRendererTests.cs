@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
@@ -815,10 +816,10 @@ public class TextRendererTests
     [Fact]
     public void TextRenderer_TruncateToWidth_LoneSurrogate_IsNormalizedToReplacementCharacter()
     {
-        // Arrange: a lone high surrogate at index 3, and a budget that exactly fits "abc" + U+FFFD + the ellipsis
+        // Arrange: a lone high surrogate at index 3, and a budget that exactly fits "abc" + replacement character + the ellipsis
         var font = RealFont();
-        const string text = "abc\uD83Ddefghijklmnop";
-        const string expected = "abc\uFFFD...";
+        var text = "abc" + (char)0xD83D + " and the remaining words of the label";
+        var expected = "abc" + Rune.ReplacementChar + "...";
         var maxWidth = TextRenderer.MeasureText(expected, font, 14f).Width;
 
         // Act

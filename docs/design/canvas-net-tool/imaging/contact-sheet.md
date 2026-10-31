@@ -78,8 +78,8 @@ columns outside 0 to 64, a cell side below 16, negative spacing or padding, or a
 - **SourceLoader** (the `SurfaceOperations` helpers) - `FitInto`, `FlattenOver`, `HasTransparency`, and `FitMode`.
 - **ToolException** and **ErrorCodes** - the `size-limit` error.
 - **CanvasNet core library** - `Surface`, `Rgba32`, and `ResamplingMode`.
-- **CanvasNet rendering and fonts** - `Canvas`, `TextRenderer` (`MeasureText`, `TruncateToWidth`), `TextAlign`, `SystemFontCatalog.LoadBundledFallback`, and
-  `TrueTypeFont`; only the bundled font is used.
+- **CanvasNet rendering and fonts** - `Canvas`, `TextRenderer` (`MeasureText`, `TruncateToWidth`), `TextAlign`,
+  `SystemFontCatalog.LoadBundledFallback`, and `TrueTypeFont`; only the bundled font is used.
 
 #### Callers
 

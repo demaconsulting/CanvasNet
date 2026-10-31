@@ -7,7 +7,8 @@ classes (and their supporting `Subpath` and `PathCommandType` data types, plus `
 #### Verification Approach
 
 The `Path`/`PathBuilder` unit is verified through unit tests that exercise every fluent builder
-method, `PathBuilder.AppendPath` (both overloads), the `InvalidOperationException` guards, `Build()`'s snapshot semantics, `Clear()`,
+method, `PathBuilder.AppendPath` (both overloads), the `InvalidOperationException` guards,
+`Build()`'s snapshot semantics, `Clear()`,
 `Path.Empty`, both modes of `Path.GetBounds`, and `PathCommand`'s own public `LineTo`/
 `ComputeTangents` API, in isolation. Expected bounding rectangles are hand-computed independently
 of the implementation for both the conservative (control-point convex-hull) mode and the
