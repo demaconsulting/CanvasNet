@@ -61,7 +61,8 @@ linear, band, or point scale of a numeric channel, the `NumberRange` of an ordin
 sequential or diverging scale,
 `IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
 discrete scale). The time facts of the channel are `Calendar` (the `TimeCalendar` of its instants: UTC for a `utc` scale
-or a `utc` time unit or a color that asked for the scale type `utc`, otherwise the zone of the chart; null when the field is neither temporal nor has a time unit),
+or a `utc` time unit or a color that asked for the scale type `utc`, otherwise the zone of the chart;
+null when the field is neither temporal nor has a time unit),
 `IsUtcTime` (the scale follows the UTC rules: kind `Utc`, a `utc` unit, or the `utc` type of a color channel, which the
 `Sequential` kind does not show),
 `TimeUnit` (the `TimeUnitSpec` of the field, the resolved one for the `maxbins` form, or null), `IsTemporalField` (the
@@ -126,7 +127,8 @@ transform) for a
   for a binned field,
   and only
   when a custom domain already spans zero; never for quantile and threshold scales, never for a time or UTC scale or any
-  temporal field (also the sequential scale of a temporal color: zero is not meaningful for dates), and never for a log scale, whose domain
+  temporal field (also the sequential scale of a temporal color: zero is not meaningful for dates), and never for a log
+  scale, whose domain
   cannot reach zero, even when `zero: true` is given), then `domainMin` and `domainMax`
   replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
   before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. **A log scale refuses a
@@ -365,8 +367,8 @@ parameter) resolve no scale.
 - `ReadTimeUnit` and `MakeTimeFacts` (`ScaleResolver.Time.cs`) - find the time unit of a channel (from the plan; the
   resolved unit of `EncodingData.TimeUnits` for the `maxbins` form) and, once the kind is known, build the private
   `TimeFacts(Calendar, Unit, IsTemporal, IsUtc)` record: UTC (and `IsUtc`) for a `Utc` scale, a `utc` unit, or an
-  accepted explicit `utc` type of a color (`ChooseKind` reports it through its `utcRequested` output, since the kind of a
-  color is `Sequential`), otherwise the calendar of the
+  accepted explicit `utc` type of a color (`ChooseKind` reports it through its `utcRequested` output, since the kind of
+  a color is `Sequential`), otherwise the calendar of the
   evaluation facts; null for a field that is neither temporal nor has a unit.
 - `ReadTemporalDomain`, `ToMilliseconds`, `ReadDomainBound`, and `ReadTemporalDatum` - read an explicit temporal domain
   (at least two entries, each a date; otherwise a located `VegaLiteSpecException`), convert one number, text, or

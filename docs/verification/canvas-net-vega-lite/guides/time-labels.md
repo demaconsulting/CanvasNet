@@ -214,7 +214,8 @@ Asserts the 11 daily ticks, labels, and positions of the ten-day axis (with the 
 the title, and the labels thinned by parity unless the overlap method is off); the month ticks, labels, positions
 (0, 102, 198, and 300), and title of the `yearmonth` axis derived above; the text format and the multi-format object
 (the labels `2024-01-01` to `2024-01-11` and `Y2024`, `02`, ..., `Jan 07`, ..., `11`); the number format of the
-milliseconds and the time (in the zone of the chart: `05:30:00` to `05:30:10` at +05:30) and UTC formats of a quantitative axis; the count, interval, and step forms of `tickCount`; the
+milliseconds and the time (in the zone of the chart: `05:30:00` to `05:30:10` at +05:30) and UTC formats of a
+quantitative axis; the count, interval, and step forms of `tickCount`; the
 default of 10 for the unit `hours` (eight ticks) against 20 for `hoursminutes` (24 ticks); the 13 Sundays under
 `tickMinStep: 1`; and the values given as a timestamp, a text, and an object, in the order of the scale at 80, 160, and
 360 pixels, with the dropped date and text.

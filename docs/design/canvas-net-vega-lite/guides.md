@@ -41,11 +41,12 @@ The subsystem's namespace documentation is in `Guides/NamespaceDoc.cs`. Its beha
 `Truncate`, `TextValue`, `GetBounds`, `GetMetrics`, and the static helpers `IsBold`, `IsItalic`, `SplitFamilies`,
 `SplitLines`, `LineHeight`, `BaselineOffset`, and `RoundHalfUp`; `new TitleBuilder(TextMeasurer).Build(SpecNode?,
 ResolvedConfig, bool)`, which returns a `TitleBlock` whose `Place` produces the positioned title group;
-`new AxisBuilder(TextMeasurer, ResolvedConfig, VegaLiteLimits?, string?, TimeCalendar?).Build(AxisRequest, CancellationToken)`, which
-returns an `AxisResult`, and the static `AxisBuilder.GetExtents(axes, dataWidth, dataHeight)`;
+`new AxisBuilder(TextMeasurer, ResolvedConfig, VegaLiteLimits?, string?, TimeCalendar?).Build(AxisRequest,`
+`CancellationToken)`, which returns an `AxisResult`, and the static `AxisBuilder.GetExtents(axes, dataWidth, dataHeight)`;
 `LegendPlan.Create(SpecNode, ResolvedScales, ResolvedConfig, string?)`, which returns the planned `LegendSpec`s, and
-`new LegendBuilder(TextMeasurer, VegaLiteLimits?, string?).Build(LegendSpec, double, double, SceneBudget, CancellationToken)`,
-which returns a `LegendResult`, with the static `LegendBuilder.GridLayout(boxes, options)` (the grid layout that the
+`new LegendBuilder(TextMeasurer, VegaLiteLimits?, string?).Build(LegendSpec, double, double, SceneBudget,`
+`CancellationToken)`, which returns a `LegendResult`, with the static `LegendBuilder.GridLayout(boxes, options)` (the
+grid layout that the
 `Layout` subsystem also uses to place the legends); the static `LabelOverlap.Hidden(...)`; and the static `TimeLabels`
 (`Create(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`).
 

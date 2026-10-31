@@ -259,8 +259,9 @@ the day and year levels of the multi-format while a missing level keeps the Vega
 ...); that `formatType: number` formats the milliseconds (`1,704,067,200,000` and `1,704,931,200,000`, ten days
 later, which is 10 x 86,400,000 = 864,000,000 more) and that `formatType: time` on a quantitative axis of 0 to
 10,000 reads the numbers as times in the zone of the chart (`00:00:00`, `00:00:01`, ..., `00:00:10` in UTC, and
-`05:30:00`, ..., `05:30:10` at +05:30, whose wall time at the epoch is 05:30) while `utc` reads them in UTC in every zone; that `tickCount` as
-a number, an interval, and `{interval, step}` gives the ticks derived above; and that `values` take a timestamp, a date
+`05:30:00`, ..., `05:30:10` at +05:30, whose wall time at the epoch is 05:30) while `utc` reads them in UTC in
+every zone; that `tickCount` as a number, an interval, and `{interval, step}` gives the ticks derived above; and that
+`values` take a timestamp, a date
 text, and a date-time object (the 10th, 5th, and 3rd of January), drop a date outside the scale and a text that is not
 a date, and keep the scale order (the 3rd, 5th, and 10th at 80, 160, and 360 pixels, labeled `Wed 03`, `Fri 05`,
 `Wed 10`).

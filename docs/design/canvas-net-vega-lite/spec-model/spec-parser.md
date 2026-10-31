@@ -327,7 +327,8 @@ beyond `MaxExpressionDepth`, an invalid regular expression literal, or a referen
 cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
 of the wrong shape are located at the offending value. A time unit that does not exist, a date-time object with an
 unknown key or a month, quarter, or day that is not one, a `tickCount` or `nice` interval that is not one of the eight
-(or a `step` that is not positive), a time format of more than 1,024 characters or 4,096 pieces, a `parse` entry `date:` or
+(or a `step` that is not positive), a time format of more than 1,024 characters or 4,096 pieces, a `parse` entry
+`date:` or
 `utc:` without a quoted format or with a format of more than 1,024 characters, and a time-aware `oneOf`
 of more
 than `MaxScaleDomainSize` values are located at the offending value or member. A null argument is a programming error and

@@ -4961,8 +4961,8 @@ zone of the chart for its ticks and its `nice` boundaries and a `utc` scale uses
 type `utc` keeps the legend of the dates in UTC whatever the zone of the chart is). The properties `domain` (timestamps,
 date texts, or date-time objects), `domainMin`, `domainMax`, `domainMid` (a timestamp, for a color), `range`,
 `rangeMin`, `rangeMax`, `reverse`, `clamp`, `round`, `padding`, and `nice` apply as for a linear scale; there is no
-zero rule, and `scale.zero` is ignored (also on a temporal color) with the warning `vl-scale-zero-ignored`. A temporal field without a valid date
-gets the default domain 0 to 1, as a quantitative field does.
+zero rule, and `scale.zero` is ignored (also on a temporal color) with the warning `vl-scale-zero-ignored`. A temporal
+field without a valid date gets the default domain 0 to 1, as a quantitative field does.
 
 - **Ticks.** The default tick count is one tick for every 40 pixels (`ceil(length / 40)`); a field whose unit is exactly
   `month`, `hours`, `day`, or `quarter` uses 10 (Vega's default). The count is lowered so that no tick is closer than

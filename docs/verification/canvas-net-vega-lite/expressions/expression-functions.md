@@ -471,5 +471,5 @@ remaining 10 steps is accepted and one more fails with the `MaxEvaluationSteps` 
 specifier gives the same cached formatter, the string-limit error names `MaxStringLength`, 70 distinct specifiers
 overflow the 64-entry formatter cache so that an old entry is compiled again (a different object that still formats
 the anchor as `2024`), a specifier of 202 characters (over the 64 the cache keeps) is a different formatter object at
-every call while `%Y` is the same object, a failed compilation caches nothing, and a context with no calendar reads in UTC while one with +02:00 reads 14 for the hour of
-12:34 UTC.
+every call while `%Y` is the same object, a failed compilation caches nothing, and a context with no calendar reads in
+UTC while one with +02:00 reads 14 for the hour of 12:34 UTC.
