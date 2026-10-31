@@ -1067,8 +1067,13 @@ jobs:
       # This section uploads all generated documentation artifacts.
       # Downstream projects: Add any additional artifact uploads here.
 
+      # The Pandoc filter's intermediate PNGs (docs/generated/canvasnet/) stay out of the artifact:
+      # release.yaml attaches everything in the downloaded artifact to the release.
       - name: Upload documentation
         uses: actions/upload-artifact@v7
         with:
           name: documents
-          path: docs/generated/*
+          path: |-
+            docs/generated/*
+            !docs/generated/canvasnet
+            !docs/generated/canvasnet/**
