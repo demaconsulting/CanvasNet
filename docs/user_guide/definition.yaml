@@ -5,6 +5,15 @@ resource-path:
 input-files:
   - docs/user_guide/title.txt
   - docs/user_guide/introduction.md
+  - docs/user_guide/canvas-net.md
+  - docs/user_guide/canvas-net-svg.md
+  - docs/user_guide/canvas-net-pdf.md
+  - docs/user_guide/canvas-net-vsdx.md
+  - docs/user_guide/canvas-net-charts.md
+  - docs/user_guide/canvas-net-pptx.md
+  - docs/user_guide/canvas-net-render3d.md
+  - docs/user_guide/canvas-net-scad.md
+  - docs/user_guide/canvas-net-vega-lite.md
   - docs/user_guide/canvas-net-tool.md
 template: template.html
 table-of-contents: true
