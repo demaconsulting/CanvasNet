@@ -254,38 +254,39 @@ public struct Rgba32 : IEquatable<Rgba32>
     private static bool IsHexDigit(char c) => char.IsAsciiHexDigit(c);
 
     /// <summary>
-    ///     Computes the standard Porter-Duff "over" alpha compositing formula for a single pixel:
-    ///     <paramref name="foreground"/> composited over <paramref name="background"/>, both
-    ///     treated as straight (unassociated) alpha in and straight alpha out.
+    ///     Composites <paramref name="foreground"/> over <paramref name="background"/> for a single
+    ///     pixel with the standard Porter-Duff "over" operator; both are treated as straight
+    ///     (unassociated, not premultiplied) alpha in and straight alpha out.
     /// </summary>
-    /// <param name="background">The existing destination pixel.</param>
+    /// <param name="background">The existing destination pixel (the pixel being painted over).</param>
     /// <param name="foreground">The source pixel being painted over <paramref name="background"/>.</param>
-    /// <returns>The alpha-blended result pixel.</returns>
+    /// <returns>
+    ///     The blended pixel. A fully opaque <paramref name="foreground"/> returns the foreground, a
+    ///     fully transparent one returns the background, and when the result alpha is zero (both pixels
+    ///     fully transparent) the result is <c>(0, 0, 0, 0)</c>, whatever color channels the inputs held.
+    /// </returns>
     /// <remarks>
     ///     <para>
-    ///     This is the exact single-pixel equivalent of <see cref="Surface.CompositeOver(Rgba32)"/>'s
-    ///     own per-row formula (see that method's own XML doc remarks for the full derivation):
-    ///     with <c>fgA</c>/<c>bgA</c> normalized to <c>[0, 1]</c>,
+    ///     Exists so code that blends one sampled pixel at a time (for example an image resampler that
+    ///     composites each sample onto a destination <see cref="Surface"/>) uses the same formula and
+    ///     rounding as <see cref="Surface.CompositeOver(Rgba32)"/>'s row-based compositing instead of a
+    ///     private copy of the math. With <c>fgA</c>/<c>bgA</c> normalized to <c>[0, 1]</c>,
     ///     <c>outA = fgA + bgA * (1 - fgA)</c>, and for each color channel,
     ///     <c>outC = (fgC * fgA + bgC * bgA * (1 - fgA)) / outA</c> when <c>outA != 0</c>,
     ///     otherwise <c>outC = 0</c> (the documented "alpha == 0 implies every color channel is
     ///     0" degenerate case - see <see cref="Surface"/>'s own <c>ZeroColorWhereAlphaByteIsZero</c>
     ///     remarks). Every intermediate result is rounded half-away-from-zero and clamped to
-    ///     <c>[0, 255]</c> before narrowing to a <see cref="byte"/>, exactly matching
-    ///     <see cref="Surface"/>'s own <c>NarrowRoundedClamp</c> rounding rule.
+    ///     <c>[0, 255]</c> before narrowing to a <see cref="byte"/>, using the same rounding rule as
+    ///     <see cref="Surface"/>'s own <c>NarrowRoundedClamp</c>.
     ///     </para>
     ///     <para>
-    ///     Internal (not a public API) and exposed cross-assembly only to the two sibling
-    ///     renderer packages that each composite a decoded source image onto a destination
-    ///     <see cref="Surface"/> one sampled pixel at a time - <c>DemaConsulting.CanvasNet.Pptx</c>'s
-    ///     <c>PptxDocument.Images.cs</c>'s <c>PaintPicture</c> and
-    ///     <c>DemaConsulting.CanvasNet.Pdf</c>'s <c>PdfDocument.Images.cs</c>'s
-    ///     <c>CompositeImageOntoSurface</c> - via this assembly's own <c>InternalsVisibleTo</c>
-    ///     grants, so the identical blending math is written and tested exactly once rather than
-    ///     duplicated across both renderer assemblies.
+    ///     Any combination of byte values is valid and the method never throws. It is a pure function
+    ///     of its arguments and is safe for concurrent use. For many pixels prefer
+    ///     <see cref="Surface.CompositeOver(Rgba32)"/>, <see cref="Surface.CompositeOver(Surface)"/>, or
+    ///     <see cref="Surface.CompositeOverSpan(int, int, ReadOnlySpan{float}, Rgba32)"/>, which are vectorized.
     ///     </para>
     /// </remarks>
-    internal static Rgba32 CompositeOver(Rgba32 background, Rgba32 foreground)
+    public static Rgba32 CompositeOver(Rgba32 background, Rgba32 foreground)
     {
         var bgA = background.A / 255f;
         var fgA = foreground.A / 255f;

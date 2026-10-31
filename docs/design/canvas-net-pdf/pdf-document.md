@@ -825,7 +825,7 @@ its own distinguishable `Feature` token.
   rather than dropped, and enlarged images are interpolated rather than shown as blocks.
   `/Interpolate` is not consulted.
   Each sampled source pixel is alpha-blended "over" the
-  existing destination pixel via the shared internal `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
+  existing destination pixel via the public `Canvas.Rgba32.CompositeOver(Rgba32, Rgba32)`
   helper (standard Porter-Duff "over" alpha compositing — straight/unassociated alpha in and out,
   `outA = fgA + bgA * (1 - fgA)`, each color channel `outC = (fgC * fgA + bgC * bgA * (1 - fgA)) /
   outA` when `outA != 0` else `0`, round-half-away-from-zero, clamped to `[0, 255]`) rather than

@@ -287,6 +287,25 @@ Never throws. `Canvas.Clear(Rgba32)` is a thin, transform-independent passthroug
 The `Rgba32` struct represents a single 32-bit RGBA pixel, with public `R`, `G`, `B`, and `A`
 `byte` fields and value equality (`Equals`, `GetHashCode`, `==`, `!=`).
 
+#### Rgba32.CompositeOver
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+
+var background = new Rgba32(0, 255, 0, 255);   // opaque green
+var foreground = new Rgba32(255, 0, 0, 128);   // half-transparent red
+
+var blended = Rgba32.CompositeOver(background, foreground);
+Console.WriteLine(blended); // Output: Rgba32(128, 127, 0, 255)
+```
+
+`Rgba32.CompositeOver(background, foreground)` blends one `foreground` pixel over one `background`
+pixel with the standard Porter-Duff "over" operator. Both pixels are straight (not premultiplied)
+alpha, and so is the result; each result channel is rounded half away from zero. When the
+result alpha is zero (both pixels fully transparent) the result is `(0, 0, 0, 0)`. Every byte
+combination is valid, the method never throws, and it uses the same formula and rounding as
+`Surface.CompositeOver(Rgba32)`. For many pixels use the `Surface` operations, which are vectorized.
+
 ### ImageInfo
 
 ```csharp

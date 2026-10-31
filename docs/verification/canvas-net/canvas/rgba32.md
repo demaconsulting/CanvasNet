@@ -1,6 +1,6 @@
 ### Rgba32 Unit Verification Design
 
-The `Rgba32` `Parse`/`TryParse` methods and the internal single-pixel `CompositeOver` helper are
+The `Rgba32` `Parse`/`TryParse` methods and the public single-pixel `CompositeOver` helper are
 verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs`.
 
 ### Verification Approach
@@ -22,12 +22,13 @@ verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs`.
   `default` on failure.
 - **ToString**: representative channel values (including a multi-digit and a zero channel) render
   as `Rgba32(R, G, B, A)` under a non-invariant current culture.
-- **CompositeOver** (internal, shared single-pixel Porter-Duff "over" helper): a fully
+- **CompositeOver** (public single-pixel Porter-Duff "over" helper): a fully
   transparent foreground leaves the background unchanged; a fully opaque foreground exactly
   replaces it; a partially transparent foreground over an opaque background, and both background
   and foreground partially transparent, each blend to exact expected bytes computed
   independently per the documented formula; both fully transparent composite to the zeroed
-  degenerate result rather than a `NaN`.
+  degenerate result rather than a `NaN`; a grid of 1,024 background/foreground pairs agrees with
+  `Surface.CompositeOver(Rgba32)`, and a reflection test confirms the member is public.
 
 ### Test Environment
 
@@ -99,10 +100,12 @@ current culture.
 `Rgba32_CompositeOver_FullyOpaqueForeground_ReturnsForegroundExactly`,
 `Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly`,
 `Rgba32_CompositeOver_BothBackgroundAndForegroundPartiallyTransparent_BlendsExactly`,
-`Rgba32_CompositeOver_BothBackgroundAndForegroundFullyTransparent_ReturnsZeroedResult`
+`Rgba32_CompositeOver_BothBackgroundAndForegroundFullyTransparent_ReturnsZeroedResult`,
+`Rgba32_CompositeOver_MatchesSurfaceCompositeOverColor_AcrossAlphaGrid`,
+`Rgba32_CompositeOver_IsPublicStaticMethod`
 
-Proves the internal single-pixel `CompositeOver(Rgba32, Rgba32)` helper - reused cross-assembly
-by `DemaConsulting.CanvasNet.Pptx`'s `PaintPicture` and `DemaConsulting.CanvasNet.Pdf`'s
+Proves the public single-pixel `CompositeOver(Rgba32, Rgba32)` helper - called by
+`DemaConsulting.CanvasNet.Pptx`'s `PaintPicture` and `DemaConsulting.CanvasNet.Pdf`'s
 `CompositeImageOntoSurface` - implements the documented Porter-Duff "over" formula: a fully
 transparent foreground (`alpha == 0`) leaves the background pixel completely unchanged,
 regardless of the (irrelevant) RGB stored alongside that zero alpha; a fully opaque foreground
@@ -110,7 +113,12 @@ regardless of the (irrelevant) RGB stored alongside that zero alpha; a fully opa
 composited over a fully opaque background, and two partially transparent pixels composited
 together, each blend to exact expected bytes computed independently via the documented formula
 with round-half-away-from-zero; and two fully transparent pixels composite to the fully
-transparent, zeroed-color degenerate result rather than a division-by-zero `NaN`.
+transparent, zeroed-color degenerate result rather than a division-by-zero `NaN`. The grid test
+crosses eight alphas (0, 1, 64, 127, 128, 200, 254, 255) with four colors for both background and
+foreground (1,024 pairs) and asserts every result equals what `Surface.CompositeOver(Rgba32)`
+writes into a one-row surface holding the backgrounds, so the single-pixel helper and the
+vectorized surface operation are interchangeable. A reflection test asserts the method is a
+public static member of the public struct.
 
 ### Traceability
 

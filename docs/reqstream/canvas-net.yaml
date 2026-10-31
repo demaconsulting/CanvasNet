@@ -255,18 +255,15 @@ sections:
 
       - id: CanvasNet-Lib-PixelCompositing
         title: >-
-          The library shall provide a single-pixel Porter-Duff "over" alpha-compositing helper on
-          Rgba32, identical to Surface's own per-row CompositeOver formula, exposed cross-assembly
-          for a sibling renderer package's own one-sampled-pixel-at-a-time image-compositing
-          loops.
+          The library shall provide a public single-pixel Porter-Duff "over" alpha-compositing
+          helper on Rgba32 that yields the same result as Surface's own CompositeOver of a
+          constant color for every pixel.
         tags: [system]
         justification: |
-          Both sibling renderer packages (DemaConsulting.CanvasNet.Pptx and
-          DemaConsulting.CanvasNet.Pdf) composite a decoded source image onto a destination
-          Surface one sampled pixel at a time; sharing one tested helper rather than duplicating
-          the blending math independently in both assemblies avoids a second, divergent
-          implementation of the same formula drifting out of sync with Surface's own row-based
-          CompositeOver formula.
+          Code that blends one sampled pixel at a time (for example an image resampler
+          compositing each sample onto a destination Surface) needs the same result as the
+          row-based surface operation; one tested public helper avoids each such caller keeping
+          its own, divergent copy of the blending math.
         children:
           - CanvasNet-Canvas-PixelCompositing
         tests:
