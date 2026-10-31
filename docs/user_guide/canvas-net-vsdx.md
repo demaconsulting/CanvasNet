@@ -41,8 +41,8 @@ malformed geometry row is skipped, never thrown, and reported with the token
 `vsdx-geometry-row-<Type>` (for example `vsdx-geometry-row-NURBSTo`): a `PolylineTo`, `NURBSTo` or
 `SplineStart`/`SplineKnot` row with a missing, malformed, non-finite or over-limit cell or formula;
 an orphan `SplineStart`/`SplineKnot`; a row that continues a subpath before any `MoveTo`; or an
-unrecognized row type such as `InfiniteLine`. See `canvas-net-vsdx.md`'s Design Constraints
-section for the complete deferred-feature boundary.
+unrecognized row type such as `InfiniteLine`. See the Design Constraints section of the
+*CanvasNetVsdx System Design* document for the complete deferred-feature boundary.
 
 ```csharp
 using var doc = VsdxDocument.Open("diagram.vsdx");

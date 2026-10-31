@@ -180,9 +180,10 @@ Test project names are `DemaConsulting.CanvasNet.{Name}` as in the table (the co
   run `pwsh ./fix.ps1` and the relevant lint checks instead.
 - **Changes outside a single project** (solution file, `global.json`, `.editorconfig`, package or
   build configuration, `build.ps1`) affect everything - run the full `pwsh ./build.ps1`.
-- **Before opening or updating a pull request**, run the full `pwsh ./build.ps1` and `pwsh ./lint.ps1`
-  once (via the lint-fix agent for lint). Scoped runs are for the inner development loop only and are
-  not a substitute for the full build.
+- **Before opening or updating a pull request** that changes code or build configuration, run the full
+  `pwsh ./build.ps1` and `pwsh ./lint.ps1` once (via the lint-fix agent for lint). A documentation-only
+  pull request needs only `pwsh ./fix.ps1` and `pwsh ./lint.ps1`. Scoped runs are for the inner
+  development loop only and are not a substitute for the full build.
 
 # Scope Discipline (ALL Agents Must Follow)
 
