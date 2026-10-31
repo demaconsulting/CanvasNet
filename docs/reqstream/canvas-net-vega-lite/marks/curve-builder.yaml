@@ -122,15 +122,22 @@ sections:
                 title: >-
                   The CurveBuilder unit shall give an upper bound of the number of segments of a path from the
                   curve, the defined points, the runs, and whether the path is an area (a bound that is never
-                  below the real count, and that saturates at the largest long instead of overflowing) so that
-                  the caller can charge the scene items before the segments are generated, shall poll the
-                  cancellation token at the first point and then every 1,024 points, and shall emit only
-                  finite coordinates.
+                  below the real count, that charges a run of isolated points only its own cost and not the
+                  worst case of a long run, and that saturates at the largest long instead of overflowing) so
+                  that the caller can charge the scene items before the segments are generated, shall poll the
+                  cancellation token at the first point and then every 1,024 points, shall treat a point whose
+                  coordinate is not finite or is beyond the magnitude bound of the painter as undefined, and
+                  shall emit only coordinates within that bound, replacing a cubic whose control point is beyond
+                  it (for example through a huge tension) by a line to its end point.
                 justification: |
                   The number of segments of a curved path is a multiple of the number of points; the bound lets the
                   builder fail closed before the memory is spent and the polling lets a caller abandon a long
-                  path.
+                  path. A coordinate or a tangent beyond the bound would make the painter spend seconds on one
+                  curve, and d3 and Vega-Lite accept any tension, so the bound is applied to what is written.
                 tests:
                   - CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind
+                  - CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost
                   - CurveBuilder_Line_PollsCancellationEvery1024Points
                   - CurveBuilder_Line_NeverEmitsNonFiniteCoordinates
+                  - CurveBuilder_Line_PointsBeyondTheMagnitudeBoundAreUndefined
+                  - CurveBuilder_Line_HugeTensionDegradesCubicsToLines

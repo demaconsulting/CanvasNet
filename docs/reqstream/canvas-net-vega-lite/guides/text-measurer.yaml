@@ -46,11 +46,15 @@ sections:
                   The TextMeasurer unit shall measure the width of text by the advance widths of the
                   resolved font, split text into lines, truncate a line to a limit with an ellipsis, and
                   provide the Vega baseline offsets and text bounds including the alignment and rotation
-                  rules.
+                  rules, and shall measure as zero, without any exception, a font size that is not
+                  positive, not finite, or finite as a double but not a finite single (a size such as 1e300
+                  that the core text renderer cannot take).
                 justification: |
                   The width and height of every label decide the extents of the axes and the size of the
-                  canvas.
+                  canvas, and a font size from an untrusted specification must never make the renderer
+                  throw.
                 tests:
                   - TextMeasurer_Measure_TruncatesAndSplitsLines
                   - TextMeasurer_BaselineOffset_FollowsVegaConstants
                   - TextMeasurer_GetBounds_FollowsVegaTextBounds
+                  - TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows

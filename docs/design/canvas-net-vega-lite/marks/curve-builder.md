@@ -80,12 +80,13 @@ segments) to the output list in the order d3-path would write the commands. It a
 output and two guards of its own:
 
 - a close segment is written only after a move has been written (d3-path writes a close only when a subpath is open);
-- a move or a line to a point whose coordinate is not finite is not written;
-- a cubic whose control point is not finite becomes a line to its end point, and a cubic or line whose end point is not
-  finite is not written.
+- a move or a line to a point that cannot be drawn (not finite, or beyond `ScenePainter.MaxMagnitude`, the one bound of
+  the painter) is not written;
+- a cubic whose control point cannot be drawn becomes a line to its end point, and a cubic or line whose end point
+  cannot be drawn is not written.
 
-So **no segment with a coordinate that is not finite is ever emitted**, even when huge coordinates overflow inside a
-curve formula.
+So **no segment with a coordinate that is not finite, or beyond the bound, is ever emitted**, even when huge coordinates
+overflow inside a curve formula or a huge `tension` makes the tangents as long as it likes.
 
 **The curve state machine.** The abstract `Curve` holds the sink and the area pass (`Pass`, the `_line` of d3-shape:
 not a number outside an area, 0 on the top line of an area, 1 on its baseline). Its helpers are `Begin` (a line to the
@@ -135,7 +136,11 @@ curve is two closed polygons; `BundleCurve` throws `NotSupportedException` from 
 **Tension and alpha.** Vega-Lite's `tension` property has a different meaning for three curves (Vega's `curves()`):
 the `beta` of a bundle (default 0.85), the tension of a cardinal curve (default 0, all three variants), and the `alpha`
 of a Catmull-Rom curve (default 0.5). Every other curve ignores it. A tension that is not a finite number counts as
-absent (d3-shape would produce geometry that is not a number).
+absent (d3-shape would produce geometry that is not a number). Any finite tension is otherwise accepted, as d3 and
+Vega-Lite accept any number (the Vega-Lite schema gives no range, so the parser applies none, to a mark definition or
+to the configuration); a tension large enough to make the control points of a spline unreasonably long cannot make an
+unbounded drawing, because the path context turns a cubic with a control point beyond the painter's bound into a
+line to its end point.
 
 **The area.** An area is generated per run of defined points: the curve draws the top line forward (`AreaStart`,
 `LineStart`, the points `(Along, Top)`, `LineEnd`), then the baseline backward from the last point of the run to the
@@ -158,13 +163,27 @@ point is drawn as d3-shape draws it: a move and a close for the curves that togg
   loader) and charges the
   segments.
 - _Segments_: `MaxSegments(kind, definedPoints, runs, area)` is the upper bound of the number of segments that `Line` or
-  `Area` writes: `factor * definedPoints * (area ? 2 : 1) + 6 * max(runs, 1)`, with `factor` 2 for the three step curves
-  (two lines per interval) and 1 for every other curve, and 0 when there are no defined points. The additive part
-  covers the moves, the closes, and the end pieces of the curves; its worst case is the baseline pass of an area of basis
-  curves, which writes `2 * points + 5` segments per run. A run that has points counts as at least one run. The result
-  saturates at the largest `long` instead of overflowing (an input above one sixteenth of it gives the largest `long`).
-  A test checks that the real count never exceeds the bound, for every kind, for lines and areas, and for every pattern
-  of defined points up to a length.
+  `Area` writes: `factor * definedPoints * (area ? 2 : 1)` plus the extra segments of the runs, with `factor` 2 for the
+  three step curves (two lines per interval) and 1 for every other curve, and 0 when there are no defined points. The
+  extra part covers the moves, the closes, and the end pieces of the curves and depends on the curve and on whether an
+  area is generated: a run of `n` points writes `e(n)` segments beyond the points part, which is 0 or 1 for most curves
+  (one move or one close), 2 for the closed area outlines and the lines of the basis curves (the end pieces), and 5 for
+  the area of a basis curve with three points or more (the end pieces of the top line and of the baseline, and the
+  close); the open curves and the step-before and step-after curves write fewer segments than their points and count
+  as 0. The bound keeps two numbers for each curve and mode, `small` for runs of one or two points and `big` for any
+  run, and counts at most `(D - R) / 2` runs as long (a run of three or more points has two points more than the one
+  that every run has), `big` for those and `small` for the other runs, so a line of isolated points (`D = R`) is
+  charged one point and `small` (at most one) segment per run, not the worst case of a long run: 500,000 isolated
+  points cost at most 1,000,000 segments for every curve. A bundle has the numbers of the basis curve (a beta of 1 is
+  the basis curve). The proof in
+  the remarks of `MaxSegments` rests on three facts: the runs are independent, the segment count of a d3-shape curve does
+  not depend on the coordinates (the path context can only drop a segment), and the curves are state machines with at
+  most four states, so `e(n)` is constant from three points on. A run that has points counts as at least one run, and
+  there are never more runs than points. The caller must count the points that are drawable by the same rule as the
+  generators (finite and within the painter's bound), because a point that the generators treat as undefined would
+  split a run. The result saturates at the largest `long` instead of overflowing (an input above one sixteenth of it
+  gives the largest `long`). A test checks that the real count never exceeds the bound, for every kind, for lines and
+  areas, for the tensions that change the class of a curve, and for every pattern of defined points up to a length.
 - _Cancellation_: the generators poll the token when the loop index is 0 and then every 1,024 points (the loop index
   includes the one step past the end), so a canceled token stops even a line of one point, and a path of a million
   points can be abandoned.
@@ -175,8 +194,9 @@ every call and thread.
 
 **Documented deviations from d3-shape and Vega-Lite**:
 
-1. **`MaxSegments`** adds `6 * max(runs, 1)`, not a smaller constant per run: the baseline pass of an area of basis
-   curves needs `2 * points + 5` segments per run.
+1. **`MaxSegments`** counts the extra segments of the runs by curve and mode (see Limits) and not by one constant: the
+   worst case is the area of a basis curve with three points or more, which needs `2 * points + 5` segments per run, and
+   most other cases need one or none.
 2. **`catmull-rom-open` and `catmull-rom-closed`** are Vega-only values, not Vega-Lite values, and are not ported; the
    sixteen-member `CurveKind` is the contract.
 3. **`bundle` has no area**: `SupportsArea` is false and `Area` refuses it; `MarkBuilder` draws such an area with the
@@ -184,9 +204,10 @@ every call and thread.
 4. **The closed curves** (`BasisClosed`, `CardinalClosed`) end a loop of three or more points with the replayed
    segments and write no close segment, as their state machines do; a closed outline is therefore not marked closed
    for those curves.
-5. **A `tension` that is not finite** counts as absent.
-6. **A point with a coordinate that is not finite** is undefined, and no non-finite coordinate is written (a cubic with
-   a non-finite control point becomes a line).
+5. **A `tension` that is not finite** counts as absent; **any finite tension** is accepted (no range check, as in d3 and
+   Vega-Lite) and cannot produce a drawing of unbounded cost, because control points beyond the painter's bound become lines.
+6. **A point with a coordinate that is not finite, or beyond `ScenePainter.MaxMagnitude`**, is undefined, and no such
+   coordinate is written (a cubic with such a control point becomes a line).
 7. **`TryParse`** takes a nullable name; null is not a name.
 
 #### Key Methods
@@ -211,7 +232,8 @@ only, or an exception was thrown (the list may then hold the segments written so
 #### Error Handling
 
 The unit has few failure modes, because a point that cannot be drawn is a gap and not an error: a point that is not
-defined or whose coordinates are not finite ends the current run; a coordinate that is not finite inside a curve is
+defined or whose coordinates are not drawable (not finite, or beyond the painter's bound) ends the current run; a
+coordinate that cannot be drawn inside a curve is
 skipped or turned into a line, as described above; no warning is produced. `Area` with `Bundle` throws
 `NotSupportedException`, a programming error that `MarkBuilder` avoids by asking `SupportsArea` first. A canceled token
 is an `OperationCanceledException`, never wrapped. A null output list is an `ArgumentNullException`. The unit raises no

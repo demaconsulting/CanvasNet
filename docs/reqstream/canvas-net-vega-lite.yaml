@@ -1321,16 +1321,19 @@ sections:
           The library shall break a line, area, or trail at a row that has no number on a continuous channel
           (and connect its neighbors in the filter mode), keep such rows in the scale domains, and report the
           invalid modes that it cannot draw (show and null) and the filter modes that should leave the rows
-          out of the domains.
+          out of the domains, and report the unsupported invalid mode and interpolation that the
+          configuration of the specification gives a mark, at the configuration.
         tags: [system]
         justification: |
-          A gap in the data must show as a gap, and a mode that is not honored must be reported.
+          A gap in the data must show as a gap, and a mode that is not honored must be reported, whether the
+          mark or the configuration writes it.
         children:
           - CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
           - CanvasNetVegaLite-Marks-InvalidDataAndOrder
           - CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
         tests:
           - CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported
+          - CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig
 
       - id: CanvasNetVegaLite-Impute
         title: >-
@@ -1402,12 +1405,16 @@ sections:
       - id: CanvasNetVegaLite-PathMarkLimits
         title: >-
           The library shall bound the work of the line, area, trail, text, and arc marks - the segments of a
-          path, the characters and lines of a label, the scene items, and the rows that an impute adds -
-          failing closed with a located exception before the memory is spent, accepting exactly the limit, and
+          path, the characters and lines of a label, the scene items, the rows that an impute adds, and the
+          cost of painting an item (a coordinate, size, radius, font size, or tension that is not finite or is
+          beyond the magnitude bound of the painter makes a point undefined, a label skipped, or a curve a
+          line, and never an exception) - failing closed with a located
+          exception before the memory is spent, accepting exactly the limit, and
           shall stop at a cancellation while it builds paths.
         tags: [system, security]
         justification: |
-          The cost of a curve, a label, or an impute is a multiple of the data; no specification may exhaust
+          The cost of a curve, a label, or an impute is a multiple of the data, and a single huge value can
+          cost seconds in the painter or make a library call throw; no specification may exhaust
           memory or time, and a caller must be able to abandon the work.
         children:
           - CanvasNetVegaLite-Marks-MarkBuilder-PathLimits
@@ -1415,9 +1422,13 @@ sections:
           - CanvasNetVegaLite-Marks-MarkBuilder-ArcLimits
           - CanvasNetVegaLite-Marks-CurveBuilder-Limits
           - CanvasNetVegaLite-Transforms-EncodingPlan-ImputeLimits
+          - CanvasNetVegaLite-Scenegraph-ScenePainter-Bounds
+          - CanvasNetVegaLite-Guides-TextMeasurer-Measurement
         tests:
           - CanvasNetVegaLite_SystemIntegration_PathLimits_SegmentsTextAndItemsFailClosedBeforeAllocation
           - CanvasNetVegaLite_SystemIntegration_PathLimits_CancellationIsHonoredWhileBuildingPaths
+          - CanvasNetVegaLite_SystemIntegration_ExtremeValues_FarPointsAndHugeTensionsAreBounded
+          - CanvasNetVegaLite_SystemIntegration_ExtremeValues_AHugeFontSizeDrawsNoLabelAndNeverThrows
 
       - id: CanvasNetVegaLite-PathMarkDeterminism
         title: >-

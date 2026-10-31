@@ -142,12 +142,23 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
 - `vl-encoding-stack-nonlinear` also checks the `theta` and `radius` channels.
 - `vl-format-type-custom` is also reported for a `formatType` of a `text` channel that is not `number`, `time`, or `utc`
   (the default format is used and the `format` is ignored).
-- `vl-mark-invalid-show` - the `invalid` property of a mark definition when it is `show` or null: the marks are not drawn
+- `vl-mark-invalid-show` - the `invalid` property of a mark when it is `show` or null: the marks are not drawn
   at a fallback position and the default mode applies (`UnsupportedFeature`, located at the value).
 - `vl-mark-invalid-domains` (warning) - an `invalid` of `filter` or `break-paths-filter-domains`: those modes leave the
   invalid rows out of the scale domains, and the domains of this renderer always include them.
 - `vl-mark-interpolate-bundle-area` - the `interpolate: "bundle"` of an `area`, which d3-shape cannot draw as an area
   (`UnsupportedFeature`; the area is drawn with the linear interpolation).
+- `vl-mark-interpolate-unknown` - the `interpolate` of a `line` or `area` that is not one of the fifteen names of
+  Vega-Lite (`UnsupportedFeature`; the line is drawn with the linear interpolation). The parser rejects such a name
+  in a mark definition, so it can only come from the configuration, which the parser does not check.
+
+  These identifiers are reported for the value that the mark builder reads, which can come from the configuration
+  of the specification: `MarkSetting` resolves a property in the order of `MarkBuilder.Vl`, that is the mark
+  definition, then the `config.style` entries named by the mark type and by the `style` of the mark (the later ones
+  win), then `config.<mark>`, then `config.mark`. A value that comes from the configuration is located **at the
+  configuration** (for example `/config/line/invalid`) and reported once however many marks use it (`ReportOnce`
+  keys a report by identifier and node). Only the configuration inside the specification is visible to the catalog:
+  the configuration that a caller passes to the renderer is not part of the parsed tree and is not checked.
 - `vl-encoding-stack-impute-bin` (warning) - the dimension channel of a stacked `line`, `area`, or `trail` that has
   stack-by fields, is binned, and whose stacked channel does not say `impute: null`: Vega-Lite fills the layers with zeros
   for the bins they lack, and this renderer does not impute a binned dimension. It is located at the dimension definition.
@@ -178,9 +189,11 @@ The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **
   `vl-data-sequence`, `vl-data-parse`, `vl-data-parse-date-format`, `vl-data-format-<type>`, and `vl-data-property` are
   no longer produced.
 - `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set and, for a supported mark, visits the
-  `shape` name, the `invalid` property (`VisitMarkInvalid`: `vl-mark-invalid-show` for `show` and null, the warning
-  `vl-mark-invalid-domains` for `filter` and `break-paths-filter-domains`), and the `interpolate: "bundle"` of an `area`
-  (`vl-mark-interpolate-bundle-area`). `VisitEncoding` reports the
+  `shape` name, the `invalid` and `interpolate` properties of the mark or of the configuration (`MarkSetting`;
+  `VisitMarkInvalid`: `vl-mark-invalid-show` for `show` and null, the warning
+  `vl-mark-invalid-domains` for `filter` and `break-paths-filter-domains`; `VisitMarkInterpolate`: the `interpolate: "bundle"`
+  of an `area` (`vl-mark-interpolate-bundle-area`) and a name of a `line` or `area` that Vega-Lite does not know
+  (`vl-mark-interpolate-unknown`)). `VisitEncoding` reports the
   channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-geojson`; a
   `temporal` field is supported), the encoding properties (`vl-encoding-<name>`), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the parts

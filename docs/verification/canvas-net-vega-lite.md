@@ -1240,8 +1240,8 @@ are byte-identical and that the labels of the text chart are `1,234.5`, `7.0`, a
 Renders a line, an area, and a trail of 2,000 points with `MaxSceneItems` of 500 and asserts a located
 `VegaLiteRenderException` at `/mark` that names `MaxSceneItems` (the path is charged one item plus an upper bound of its
 segments before the segment list exists), while the same charts render with the default limits. A line of 300 points
-costs 1 + 300 + 6 = 307 items (one item, one segment for each point, and the allowance of 6 for its one run) and fits
-500 items, but with `point: true` its 300 symbols (one item each) bring the cost to 607 and fail with `MaxSceneItems`.
+costs 1 + 300 + 1 = 302 items (one item, one segment for each point, and the one extra segment of its one run) and fits
+500 items, but with `point: true` its 300 symbols (one item each) bring the cost to 602 and fail with `MaxSceneItems`.
 A pie of 600 slices (one item for each) fails with `MaxSceneItems` at `/mark`. Three labels of 40 characters render with
 `MaxStringLength` of 64 and fail with `MaxStringLength` at 39 (a label above the limit); twenty labels of 40 characters
 with the limit 40 are 800 characters, above 16 x 40 = 640, and fail with `MaxStringLength` at `/mark`, while sixteen
@@ -1254,6 +1254,40 @@ labels (exactly 640) render; and a label of four lines renders with `MaxSceneIte
 Renders a line, an area, a trail, a text, and an arc chart of 200 rows with a token that is already canceled and asserts
 an `OperationCanceledException` from `Render`, from the exact-size `Render`, and from `Measure`, that no report is delivered
 to either handler, and that the same documents render with a live token.
+
+### Unsupported: Config-Sourced Invalid Modes And Interpolations Are Reported At The Configuration
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig`
+
+Renders four small specifications whose mark has no property of its own and whose configuration gives the value, and
+asserts the exact report, once, with the identifier and the pointer into the configuration: a line with
+`config.line.invalid: "show"` (`vl-mark-invalid-show` at `/config/line/invalid`), an area with
+`config.mark.interpolate: "bundle"` (`vl-mark-interpolate-bundle-area` at `/config/mark/interpolate`), a line with
+`config.line.interpolate: "zigzag"` (`vl-mark-interpolate-unknown` at `/config/line/interpolate`), and a line with the
+style `loud` whose `config.style.loud.invalid` is null (`vl-mark-invalid-show` at `/config/style/loud/invalid`); that the
+chart is still drawn (at least 210 pixels wide), and that strict mode throws a `VegaLiteUnsupportedFeatureException` with
+the same identifier and pointer.
+
+### ExtremeValues: Far Points And Huge Tensions Are Bounded
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_ExtremeValues_FarPointsAndHugeTensionsAreBounded`
+
+Renders in strict mode a line whose y scale has the fixed domain 0 to 10 (y(v) = 200 - 20 v) over five rows with x
+from 0 to 4 (75 pixels each) and the y values 1, 2, 1e300, 2, 1, and asserts no diagnostic and the two subpaths
+`M0,180 L75,160 M225,160 L300,180` (the row of 1e300 is undefined, as a null is). Renders the three points of the
+basic chart with the `cardinal` interpolation with and without a `tension` of 1e300 and asserts that the curve
+without it has cubics, the one with it has none, and both have the same end points: every control point is far
+beyond the bound of 32,768, so each cubic is a line to its end point.
+
+### ExtremeValues: A Huge Font Size Draws No Label And Never Throws
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_ExtremeValues_AHugeFontSizeDrawsNoLabelAndNeverThrows`
+
+Builds the scene and renders a text mark of one label with the font sizes 1e300 (also with a limit of 100), 3e38
+(with a limit of 100), and 1e-300, with no exception, a surface, and no label whose font size is above 1e-100 in the
+scene (the labels with a font size above the magnitude bound are not built; the label of 1e-300 is built and the
+painter draws nothing for a size that is zero as a single); and that the same chart with the font size 14 and the
+limit 100 has its label `Hello` of size 14.
 
 ### Platform: Every System Scenario Runs On Every Target
 

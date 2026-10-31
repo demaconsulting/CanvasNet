@@ -61,6 +61,7 @@ sections:
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Arcs
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
               - CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Bounds
             tests:
               - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
               - ScenePainter_Paint_GradientFillRunsAlongTheItemBox
@@ -69,6 +70,7 @@ sections:
               - ScenePainter_Paint_SegmentPathStrokesThroughItsCubicCurve
               - ScenePainter_Paint_ArcFillsOnlyItsWedgeAndLeavesTheHoleEmpty
               - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
+              - ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem
 
           - id: CanvasNetVegaLite-Scenegraph-ArcGeometry
             title: >-

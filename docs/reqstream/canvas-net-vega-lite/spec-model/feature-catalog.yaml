@@ -131,17 +131,25 @@ sections:
                   invalid modes that the renderer cannot draw (vl-mark-invalid-show for show and for null, at the
                   value), warn that the filter modes should leave the invalid rows out of the scale domains
                   (vl-mark-invalid-domains, for filter and break-paths-filter-domains), report an area with the
-                  bundle interpolation (vl-mark-interpolate-bundle-area, drawn with the linear interpolation), keep
+                  bundle interpolation (vl-mark-interpolate-bundle-area, drawn with the linear interpolation) and a
+                  line or area whose interpolation is not one of the fifteen names of Vega-Lite
+                  (vl-mark-interpolate-unknown, drawn with the linear interpolation), read the invalid mode and
+                  the interpolation as the mark builder does (the mark definition, then the styles, config.<mark>,
+                  and config.mark of the specification) and report one that comes from the configuration at the
+                  configuration, once, keep
                   reporting geoshape and image, report the impute of a channel other than x and y
                   (vl-encoding-impute), and warn that a stacked path mark does not impute a binned dimension
                   (vl-encoding-stack-impute-bin).
                 justification: |
                   A path mark that is drawn must not make every chart noisy, and the parts of it that are not drawn
-                  as Vega-Lite draws them must be named where they are written.
+                  as Vega-Lite draws them must be named where they are written, whether the mark or the
+                  configuration writes them; a value from the configuration that is not reported would be
+                  silently ignored, and the strict mode could not stop it.
                 tests:
                   - FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot
                   - FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable
                   - FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds
+                  - FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig
                   - FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY
                   - FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension
 

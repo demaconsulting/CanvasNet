@@ -377,11 +377,17 @@ input:
   to `float` (an unusable width draws nothing, an overflowing offset counts as zero, an unusable pattern is solid) and
   draws a dash pattern solid when its period is below 0.25 surface pixels or the path would have more than 50,000
   dashes, so a specification cannot make the stroker do unbounded work or throw an argument exception. The path marks
-  follow the same rule: the curve generators write only finite coordinates (a point that is not finite is a gap), the
-  number of segments of a path is bounded and charged before its list is created, `ArcGeometry` is total (a value that
+  follow the same rule: the curve generators write only coordinates that can be drawn (a point that is not finite, or is
+  beyond the one magnitude bound of the painter, 32,768 surface pixels, is a gap, and a cubic with a control point
+  beyond it, which a huge `tension` makes, is a line), the
+  number of segments of a path is bounded and charged before its list is created (by curve and mode, so that a line of
+  isolated points is charged one point and one segment per run), `ArcGeometry` is total (a value that
   is not finite or is above 1e9 in magnitude gives an empty path and a negative radius, pad angle, or corner radius
-  counts as zero), a trail point above 1e9 in magnitude ends its run, a path with a command that is not finite draws
-  nothing, and the miter limit of a stroke is clamped (4 by default, at least 1, at most 1,000).
+  counts as zero), the painter draws nothing for a trail point, arc, path command, text, group offset, or stroke
+  width that is not finite or is beyond the bound (the cost of an item is bounded, and the painter paints a trail in
+  chunks with a cancellation poll between them), the text measurer measures a font size that does not fit a single
+  as zero instead of letting the core text renderer throw, and the miter limit of a stroke is clamped (4 by default,
+  at least 1, at most 1,000).
 - **Error classification.** The library reports a limit of the parser as a `VegaLiteSpecException` (depth, string
   length), a source longer than `MaxSourceLength` as an `InvalidDataException`, a limit of the layout or the render as a
   `VegaLiteRenderException` whose message names the limit (`the limit of N` or `VegaLiteLimits.<Name>`), and a size of

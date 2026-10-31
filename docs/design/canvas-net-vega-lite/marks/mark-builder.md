@@ -173,7 +173,8 @@ and then one step per group:
    null or false or, without an `order` channel, an `order` mark property of null or false) or the dimension is not a
    field. The path takes its **paint, stroke width, and dash from its first defined row** after the sort (Vega draws all
    the items of a path with the first one); the number of defined points and of runs of consecutive defined rows is
-   counted; the scene budget is charged `1 + CurveBuilder.MaxSegments(...)`, the step budget `defined + bound`, and only
+   counted by the rule of the bound (a point beyond `ScenePainter.MaxMagnitude` is not defined); the scene budget is
+   charged `1 + CurveBuilder.MaxSegments(...)`, the step budget `defined + bound`, and only
    then are the points listed and `CurveBuilder.Line` or `CurveBuilder.Area` generate the segments.
 
 The rules of the three marks:
@@ -204,14 +205,17 @@ or `config.mark` (linear by default), resolved by `CurveBuilder.TryParse` (a hor
 monotone-y curve); the `tension` property is the bundle `beta`, the cardinal tension, or the Catmull-Rom `alpha`. A name
 that Vega-Lite does not know (which can come from the configuration, which the parser does not check) is the linear
 curve, and so is `bundle` for an area, which d3-shape cannot draw (the feature catalog reports
-`vl-mark-interpolate-bundle-area`). `interpolate` and `tension` are properties of the mark, constant for all its rows.
+`vl-mark-interpolate-bundle-area` and, for the unknown name, `vl-mark-interpolate-unknown`, also when the value comes
+from the configuration, located at the configuration). `interpolate` and `tension` are properties of the mark,
+constant for all its rows.
 
 **Invalid data modes.** The `invalid` property of the mark definition, else of the style, `config.<mark>`, or
 `config.mark`, selects what a path does at an undefined row: every mode that starts with `break-paths` (the default,
 `break-paths-show-path-domains`) **breaks the path** (the undefined row ends the run, and the next defined row starts a
 new subpath), and `filter` **drops** the row (the path connects its neighbors). `show`, null, and a text that is not a
 known mode (from the configuration) give the default; the feature catalog reports `show` and null
-(`vl-mark-invalid-show`). The scale domains are not filtered by the mode, so the invalid rows stay in the domains in
+(`vl-mark-invalid-show`), also when the mode comes from the configuration (located at the configuration). The scale
+domains are not filtered by the mode, so the invalid rows stay in the domains in
 every mode; `filter` and `break-paths-filter-domains` are reported with a warning (`vl-mark-invalid-domains`). A mark
 other than a path keeps its behavior: a row with an invalid continuous channel is not drawn.
 
@@ -357,9 +361,13 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
     and a tick only (see _ScaleResolver_).
 13. **Stack grouping**: the stack of the encoding plan does not group by the stacked field when a dimension channel reads
     it, as in a radial chart whose `theta` and `radius` share a field (see _EncodingPlan_).
-14. **Totality of the painter**: the outline of an arc whose parameters have a magnitude above 1e9 is empty, and a
-    trail point that has a magnitude above 1e9 or a size that is not positive ends its run (see _ArcGeometry_ and
-    _ScenePainter_); the builder itself drops only the rows whose values are not finite and passes the large values on.
+14. **Totality of the painter**: the painter draws nothing for a value beyond `ScenePainter.MaxMagnitude` (32,768
+    surface pixels), and the path and text builders use the same bound so that the scene never holds what the
+    painter would skip: a path row whose position (or, for an area, baseline, or for a trail, size) is not finite or
+    is beyond the bound is **undefined** like a row without a value, so it breaks the path, and the points are
+    counted with the same rule before `MaxSegments` is asked; a text row whose font size, position, or angle is
+    beyond the bound is skipped like an invalid row, and a text mark whose `dx`, `dy`, or `lineHeight` is beyond it
+    draws no label (see _ScenePainter_ and _CurveBuilder_).
 
 #### Key Methods
 

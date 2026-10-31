@@ -134,25 +134,41 @@ evaluated for the x and the y coordinate separately:
   `natural`) map to their curves, `monotone` to `MonotoneX`; the empty text, other cases (`Linear`, `LINEAR`), trailing
   blanks, the Vega-only `catmull-rom-open` and `catmull-rom-closed`, `monotone-x`, `cubic`, `none`, and null are
   rejected. The `monotone` name is `MonotoneY` only when the area is horizontal.
-- **Segment bound.** `MaxSegments` is `factor x points x (area ? 2 : 1) + 6 x max(runs, 1)` with a factor of 2 for the
-  three step curves (two lines per interval) and 1 otherwise, 0 for no defined points, and saturating at
-  `long.MaxValue` instead of overflowing. The additive part (6 per run) covers the move, the close, and the end pieces
-  of the curves; its worst case is the baseline pass of an area of basis curves, which needs `2 x points + 5`
-  segments in a run (a constant of 4 per run would be one segment short). The test sweeps the sixteen curves, every
-  point count from 0 to 12, every
-  defined or undefined pattern for up to 8 points (2^n patterns) and four patterns for 9 to 12 points (8,432 cases),
-  with a line and a vertical and a horizontal area of every curve that supports one, and requires the generated
-  count never to exceed the bound; it also asserts the edges: 0 for no points, 0 for a negative count, `long.MaxValue`
-  for `long.MaxValue` points, `2 x 5 x 2 + 6 = 26` for five points of a step area in one run, and `5 + 6 = 11` for five
-  points of a natural line in one run.
+- **Segment bound.** `MaxSegments` is `factor x points x (area ? 2 : 1)` plus the extra segments of the runs, with a
+  factor of 2 for the three step curves (two lines per interval) and 1 otherwise, 0 for no defined points, and
+  saturating at `long.MaxValue` instead of overflowing. The extra part covers the move, the close, and the end
+  pieces of the curves and is `small` for the runs of one or two points and `big` for the others (a run of three or
+  more points needs two points beyond the first, so at most `(D - R) / 2` of the `R` runs of `D` points are long):
+  `(small, big)` is `(0, 0)` for the open curves and the step-before and step-after curves (and for the step line),
+  `(1, 1)` for the linear, cardinal, Catmull-Rom, monotone, and natural curves and for the closed lines and the step
+  area, `(2, 2)` for the closed areas, `(1, 2)` for a line of a basis or bundle curve, and `(1, 5)` for the area of
+  a basis or bundle curve, the worst case: the baseline pass of an area of basis curves needs `2 x points + 5`
+  segments in a run of three points or more. The table was read off the sweep: the extra of a run is constant from
+  three points on (the curves are state machines of at most four states). The test sweeps the sixteen curves, every
+  point count from 0 to 12, every defined or undefined pattern for up to 8 points (2^n patterns) and four patterns
+  for 9 to 12 points (8,432 cases), with a line and a vertical and a horizontal area of every curve that supports
+  one, for the tensions none, 1, and 0 (so that the bundle with a beta of 1, which is a basis curve, and the
+  Catmull-Rom curve with an alpha of 0, which is a cardinal curve, are covered), and requires the generated count
+  never to exceed the bound; it also asserts the edges: 0 for no points, 0 for a negative count, `long.MaxValue`
+  for `long.MaxValue` points, `4 x 5 + 1 = 21` for five points of a step area in one run, `5 + 1 = 6` for five
+  points of a natural line in one run, `5 + 5 = 10` for five points of a basis line with nine runs (more runs than
+  points count as one run per point, each of them short), and `2 x 2 + 1 = 5` for two points of a basis area.
 - **Cancellation and finite coordinates.** The generators poll the token at the first point and then at every 1,024
   points, so a canceled token stops even a line of one point (and the area generator the same), and a line of 3,000
   points throws before it has written the 3,000 segments, while the same line with a live token writes exactly 3,000
-  segments. No curve ever writes a coordinate that is not finite: the test feeds five inputs (gaps with not-a-number and
-  infinite coordinates, coincident points, points on one vertical line with repeated y values, and huge values of 1e308
-  as x and y and as y alone, whose control points overflow) to all sixteen curves with the tensions absent, 0, 1, -3,
-  7, and not-a-number,
-  and checks the six coordinates of every segment.
+  segments. No curve ever writes a coordinate that is not finite: the test feeds five inputs (gaps with
+  not-a-number and infinite coordinates, coincident points, points on one vertical line with repeated y values, and
+  huge values of 1e308 as x and y and as y alone, which are undefined points since the magnitude bound) to all
+  sixteen curves with the tensions absent, 0, 1, -3, 7, and not-a-number, and checks the six coordinates of every
+  segment.
+- **Magnitude bound, isolated points, and huge tensions.** A point whose coordinate is beyond
+  `ScenePainter.MaxMagnitude` (32,768) is undefined, exactly as a point that is not finite is, so a line breaks
+  there and an area splits into two closed polygons; the bound itself is drawn. The bound of a line of 500,000
+  isolated points is one point and at most one extra segment for each (1,000,000 for a linear or basis line), and
+  the generators stay below it for runs of one, two, and three points. A cardinal spline through four points 10
+  apart with a tension of 1e7 (and 1e300) has a control point beyond the bound in every cubic, so each cubic is
+  replaced by a line to its end point and the end points are those of the curve without tension; whatever the curve
+  and the tension, no coordinate is beyond the bound.
 
 Unit tests reside in `CurveBuilderTests.cs`, `CurveBuilderSplineTests.cs`, and `CurveBuilderAreaTests.cs` within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks` folder; the spline and area tests share the
@@ -259,8 +275,45 @@ output empty, and that the line generator draws the bundle.
 `CurveBuilderTests.CurveBuilder_Line_PollsCancellationEvery1024Points`,
 `CurveBuilderTests.CurveBuilder_Line_NeverEmitsNonFiniteCoordinates`
 
-Asserts that the bound is never below the count that the generators write for the 8,432 cases above and the five edge
-values (0, 0 for a negative count, `long.MaxValue`, 26, and 11); that a canceled token throws
+Asserts that the bound is never below the count that the generators write for the 8,432 cases above (each with no
+tension, with a tension of 1, for which a bundle is a basis curve, and with a tension of 0, for which a Catmull-Rom
+curve is a cardinal curve) and the seven edge values (0, 0 for a negative count, `long.MaxValue`, and the
+hand-derived 21 = 20 + 1 for a step area of five points in one run, 6 = 5 + 1 for a natural line of five points,
+10 = 5 + 5 for a basis line of five points with nine runs, which count as five, and 5 = 4 + 1 for a basis area of
+two points); that a canceled token throws
 `OperationCanceledException` from the line generator for 3,000 points (writing fewer than 3,000 segments), for the
 natural curve of one point, and from the area generator, while a live token writes 3,000 segments; and that every
 coordinate of every segment of the five-input sweep over the sixteen curves and the six tensions is finite.
+
+##### Isolated Points Are Charged Their Own Cost
+
+**Tests**: `CurveBuilderTests.CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost`
+
+The run extras of a curve differ for runs of one or two points (`small`) and longer ones (`big`), and a run of three or
+more points needs two points beyond the first, so `D` points in `R` runs have at most `(D - R) / 2` long runs; for
+isolated points (`D = R`) none. The test asserts that for every curve the bound of a line of 500,000 isolated points
+is at most one extra segment per point beyond the points part and below the default scene item limit of 2,000,000
+(the old constant of 6 per run charged 3,500,000 for a linear line), that a linear and a basis line cost exactly 2
+per point (1,000,000), and that the generators never write more than the bound for 40 runs of one, two, or three
+points for every curve.
+
+##### Points Beyond The Magnitude Bound Are Undefined
+
+**Tests**: `CurveBuilderTests.CurveBuilder_Line_PointsBeyondTheMagnitudeBoundAreUndefined`
+
+Asserts the bound `ScenePainter.MaxMagnitude` = 32,768 and that a point of x = 2,000,000, or of y = -32,769, ends the
+subpath (`M0,0 L10,10 M20,0 L30,10`), that the bound itself is drawn (`M0,0 L32768,-32768`), that a run left with a
+lone point is a move and a close (`M0,0 Z`, as d3 closes a lone point), and that an area whose baseline is 5,000,000
+away splits into two closed polygons of two points each (`M0,5 L10,6 L10,10 L0,10 Z M30,8 L40,9 L40,10 L30,10 Z`).
+
+##### A Huge Tension Cannot Make An Unbounded Drawing
+
+**Tests**: `CurveBuilderTests.CurveBuilder_Line_HugeTensionDegradesCubicsToLines`
+
+For four points with x = 0, 10, 20, 30 every tangent of a cardinal spline is `k` times a difference of at least 10
+with `k = (1 - tension) / 6`, about -1.7 million for a tension of 10 million, so every cubic has a control point
+beyond 32,768. The test asserts that for the tensions 1e7, -1e7, 1e300, and -1e300 no cubic is left and the
+sequence of (kind is a move, x, y) of the segments equals that of the curve without tension with every cubic
+replaced by a line to its end point; that the tension -1 (k = 1/3, control points within the bound) keeps its
+cubics; and that for every curve and the tensions 1e7, -1e7, 1e300, -1e300, `double.MaxValue`, `-double.MaxValue`,
+and 1e-300 every coordinate of every segment is within the bound.

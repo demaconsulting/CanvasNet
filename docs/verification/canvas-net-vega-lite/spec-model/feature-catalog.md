@@ -471,6 +471,7 @@ use the format type `myFormat` for its report, because `time` is evaluated now.
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot`,
 `FeatureCatalogTests.FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable`,
 `FeatureCatalogTests.FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds`,
+`FeatureCatalogTests.FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig`,
 `FeatureCatalogTests.FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY`,
 `FeatureCatalogTests.FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension`
 
@@ -490,7 +491,18 @@ the `null` of an area are `vl-mark-invalid-show`, unsupported, at `/mark/invalid
 `break-paths-filter-domains` are `vl-mark-invalid-domains`, of kind `Warning`, at the same place; that
 `break-paths-show-domains` and `break-paths-show-path-domains` are silent; and that the `bundle` interpolation of an
 area is `vl-mark-interpolate-bundle-area`, unsupported, at `/mark/interpolate`, while the same interpolation of a line
-and the `step` interpolation of an area are silent. For the impute it asserts, on a bar chart so that no mark report is
+and the `step` interpolation of an area are silent. The configuration scenario writes the mark with no property of
+its own and gives the value in the configuration, and asserts the same reports at the value in the configuration:
+`show` at `/config/line/invalid`, a null at `/config/mark/invalid` (for an area written as a mark definition),
+`filter` of `config.mark` on a trail as the warning `vl-mark-invalid-domains`, the bundle interpolation of an area
+from `config.area` and `config.mark` as `vl-mark-interpolate-bundle-area`, and an `interpolate` of `zigzag` (a
+line, from `config.line`) or `catmull-rom-open` (an area, from `config.mark`) as `vl-mark-interpolate-unknown`;
+silence for the configuration of another mark type, for the bundle of a line, for an unknown name on a trail, a
+bar, or a number, and for a mode that keeps the domains; the precedence mark definition over `config.line` over
+`config.mark`, a `config.style` entry of the mark's `style` over those (the later style of an array winning) and
+the entry named by the mark type itself, as the mark builder reads them; that a value in `config.mark` used by a
+`line` and a `point` of a layer is reported once; and that an unsupported mark is reported at the mark only. For
+the impute it asserts, on a bar chart so that no mark report is
 mixed in, that an impute object on `x` and on `y` (with `value`, `method`, and `keyvals`) is silent because the pipeline
 runs it, that the one on a `color` is `vl-encoding-impute`, unsupported, at `/encoding/color/impute` with a message that
 names the channel, and that `impute: null` on a `size` is silent. For the stack impute it asserts that the warning

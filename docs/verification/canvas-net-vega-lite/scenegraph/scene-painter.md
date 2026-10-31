@@ -224,11 +224,17 @@ pixel column and row.
 ##### Text
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_TextUsesBaselineRotationAndScale`,
-`ScenePainterTests.ScenePainter_Paint_TextLimitTruncatesTheDrawnLine`
+`ScenePainterTests.ScenePainter_Paint_TextLimitTruncatesTheDrawnLine`,
+`ScenePainterTests.ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows`
 
 Asserts the derived text placement, rotation, alignment, scaling, and determinism, and that a limit of 60 pixels
 truncates the drawn line so that its ink ends between 40 and 60 pixels while the same line without a limit is wider than
-100 pixels.
+100 pixels. Asserts that text with a font size of 1e300 (infinity as a single; with and without a limit of 50), 3e38,
+2,000,000, or 1e-300 (zero as a single), a position of 1e300 or -2,000,000, an offset of 1e300 or -5,000,000, an
+angle of 1e7, a line height of 1e300, or a limit that is not a number draws no ink and throws nothing, one at a
+time and all together; that a limit of 1e300 is clamped to the bound and gives a surface identical to the same text
+without a limit; and that a font size of 20,000 draws no ink at a scale of 2 (40,000 pixels, beyond the bound of
+32,768).
 
 ##### Invalid Arguments And Cancellation
 
@@ -277,6 +283,44 @@ Asserts that every pixel of a 30 by 30 surface stays white when the scene holds 
 with an infinite control point, arcs with a NaN center coordinate, an infinite outer radius, and a NaN end angle, a trail
 whose first run has a NaN coordinate (so its one remaining point draws nothing) and whose second run has a NaN size, and
 a trail with the sizes 0, -3, and infinity: each of them would cover a large part of the surface if it were drawn.
+
+##### Items Beyond The Magnitude Bound Draw Nothing Or Become Lines
+
+**Tests**: `ScenePainterPathTests.ScenePainter_Paint_SegmentsBeyondTheMagnitudeBoundDrawNothingOrBecomeLines`,
+`ScenePainterPathTests.ScenePainter_Paint_ArcsBeyondTheMagnitudeBoundDrawNothing`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailPointsBeyondTheMagnitudeBoundEndTheRun`,
+`ScenePainterPathTests.ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing`,
+`ScenePainterPathTests.ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels`
+
+The bound is `ScenePainter.MaxMagnitude` = 32,768 surface pixels (the value times the scale of the placement).
+Asserts that a path whose last end point is 2,000,000 away, or 1e300 (finite as a double, infinity as a single), or
+-1e7 on the y axis, or whose first move is at -2,000,000, leaves the 30 by 30 surface white; that a cubic from
+(2, 10) to (28, 10) whose control points are 2,000,000 above and below it (finite) and one whose control points are
+1e300 are each the straight line between their end points: the rows 9 and 10 (the line is 2 wide around y = 10) and
+the rows 19 and 20 are black at the columns 3, 15, and 27 and the rows 6, 13, 16, and 23 and the column 1 are
+white; that full circles with the center 1e7 away, the outer radius 5e8, the inner radius 2e6, the corner radius
+1.5e6, and the outer radius 1e300 draw nothing while a circle of radius 10 at (15, 15) has a red center and a white
+corner; that in a trail the point 2,000,000 away ends its run (the capsules from 2 to 15 and from 25 to 36 are
+black at x = 8 and x = 30 and the gap at x = 20 is white) and a size of 2,000,000 ends its run in the same way;
+that groups at x = 1e300 and at y = 2,000,000 hide their children; and that the bound is applied to the value times
+the scale: a 2-wide line to (20000, 15) is drawn at a scale of 1 (rows 14 and 15 black at x = 10, row 12 white)
+and not at a scale of 2 (40,000 pixels), a stroke width of 40,000 or 1e300 is not stroked, and a ring of radius
+20,000 draws nothing at a scale of 2.
+
+##### Trails Are Painted In Chunks With A Poll Between Them
+
+**Tests**: `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`
+
+The estimated cost of a capsule is `1 + sqrt(radius x scale / 0.02)`: 1 for no radius, 11 for a radius of 2
+(`sqrt(100)`), 21 for a radius of 2 at a scale of 4 (`sqrt(400)`), and about 906.1 for the largest radius that the
+bound allows (16,384: `sqrt(819,200) = 905.1`). A chunk is complete when its weight reaches `TrailChunkWeight` =
+100,000; for the largest capsules `110 x 906.1 = 99,671` is below it and `111 x 906.1 = 100,577` is not, so the
+first chunk of a trail of 450 points of size 32,768 has 111 capsules (the 112th point). The test asserts the four
+weights, that the observer `TrailChunkFlushed` is told `[111]` and that a token canceled by the observer stops the
+painting with an `OperationCanceledException` before the first chunk is filled (so no second chunk is reached and
+no capsule of that size is ever filled: the test also runs in milliseconds), and that an ordinary trail (100 points
+of size 4, 99 capsules of weight 11, a total of 1,089) is one chunk that the observer never sees and is drawn whole
+(black at its middle). The test counts capsules and does not measure time.
 
 ##### Arcs Fill Their Wedge, Stroke, And Scale
 

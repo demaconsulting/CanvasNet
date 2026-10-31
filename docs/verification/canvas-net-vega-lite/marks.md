@@ -81,6 +81,23 @@ the unit verification document passes without error or unexpected exception.
   `vl-mark-interpolate-bundle-area /mark/interpolate`, `vl-channel-size /encoding/size`,
   `vl-channel-theta /encoding/theta`, `vl-channel-text /encoding/text`, and
   `vl-channel-strokedash /encoding/strokeDash`) while the chart is still drawn, and strict mode stops at the first.
+- **Config-Sourced Invalid Modes And Interpolations Are Reported At The Configuration**:
+  `FeatureCatalogTests.FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig`,
+  `CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig` — an
+  `invalid` mode and an `interpolate` name that a mark gets from `config.<mark>`, `config.mark`, or `config.style` are
+  reported like those of a mark definition, at the value in the configuration (`vl-mark-invalid-show /config/line/invalid`,
+  `vl-mark-interpolate-bundle-area /config/mark/interpolate`, `vl-mark-interpolate-unknown /config/line/interpolate`,
+  `vl-mark-invalid-show /config/style/loud/invalid`), once, while the chart is drawn, and strict mode throws the report.
+- **Extreme Values Are Bounded**:
+  `MarkBuilderPathTests.MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath`,
+  `MarkBuilderTextTests.MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped`,
+  `CurveBuilderTests.CurveBuilder_Line_PointsBeyondTheMagnitudeBoundAreUndefined`,
+  `CurveBuilderTests.CurveBuilder_Line_HugeTensionDegradesCubicsToLines`,
+  `CanvasNetVegaLite_SystemIntegration_ExtremeValues_FarPointsAndHugeTensionsAreBounded`,
+  `CanvasNetVegaLite_SystemIntegration_ExtremeValues_AHugeFontSizeDrawsNoLabelAndNeverThrows` — a position, a font
+  size, an offset, or an angle that is not finite or is beyond the one magnitude bound of the painter (32,768) makes
+  a row undefined or skipped, a huge `tension` cannot make control points beyond the bound (the cubics are lines),
+  and a font size of 1e300 draws no label and does not make the render throw.
 - **Scene Budget And Cancellation**:
   `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks`,
   `MarkBuilderTests.MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation`,
@@ -88,13 +105,15 @@ the unit verification document passes without error or unexpected exception.
   `MarkBuilderTextTests.MarkBuilder_Build_TextCharactersAreChargedBeforeFormatting`,
   `MarkBuilderArcTests.MarkBuilder_Build_ArcsAreChargedPerSliceAndPollCancellation`,
   `CurveBuilderTests.CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind`,
+  `CurveBuilderTests.CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost`,
   `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations`,
   `CanvasNetVegaLite_SystemIntegration_PathLimits_SegmentsTextAndItemsFailClosedBeforeAllocation`,
   `CanvasNetVegaLite_SystemIntegration_PathLimits_CancellationIsHonoredWhileBuildingPaths` — more items than
   `MaxSceneItems` fail with a `VegaLiteRenderException` at the mark's pointer before the memory is spent, and a canceled
   token stops the build. A path is charged with its upper bound of segments before they exist (a line of three points in
   one
-  run costs the marks group, the path, and 3 + 6 = 9 segments, 11 items, and an area 1 + 1 + 12 = 14), a label with its
+  run costs the marks group, the path, and 3 + 1 = 4 segments, 6 items, and an area 1 + 1 + 7 = 9; a line of isolated
+  points is charged one point and at most one segment per run, not the worst case of a long run), a label with its
   characters (`MaxStringLength`, and sixteen times it for all the labels of a mark) and its lines, and an arc with one
   item; the system tests refuse a line, an area, and a trail of 2,000 points, the 300 symbols of a point overlay, and 600
   arcs at a limit of 500 items, refuse a label of 40 characters at a `MaxStringLength` of 39 and twenty such labels at a

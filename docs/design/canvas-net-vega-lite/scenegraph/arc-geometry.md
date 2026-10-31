@@ -135,7 +135,9 @@ input, and the unit performs no I/O.
 1. **Totality**: a value that is not finite or is beyond one billion gives the empty path, and so does any outline
    with a
    coordinate that does not fit a single; a negative radius, pad angle, or corner radius counts as 0
-   (`ArcGeometry_Build_DegenerateAndNonFiniteInputsGiveEmptyOrPointPaths`).
+   (`ArcGeometry_Build_DegenerateAndNonFiniteInputsGiveEmptyOrPointPaths`). This bound is the totality of the geometry
+   alone; the painter draws nothing for a center, radius, or corner radius beyond its much smaller bound of 32,768 surface
+   pixels (see _ScenePainter_), which is what keeps the cost of painting an arc bounded.
 2. **Arc commands**: the canvas `arc` call is recorded as SVG arc commands of the core path, and a full circle as two half
    circles (`ArcGeometry_Build_FullCircleAndAnnulusUseOppositeWindingSubpaths`).
 3. **Precision**: the writer works in double precision and rounds to the single precision of the core path when it

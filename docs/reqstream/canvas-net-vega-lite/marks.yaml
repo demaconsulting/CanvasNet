@@ -145,6 +145,9 @@ sections:
               - MarkBuilder_Build_TextCharactersAreChargedBeforeFormatting
               - MarkBuilder_Build_ArcsAreChargedPerSliceAndPollCancellation
               - CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind
+              - CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost
+              - MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath
+              - MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped
 
           - id: CanvasNetVegaLite-Marks-TimeUnitBands
             title: >-

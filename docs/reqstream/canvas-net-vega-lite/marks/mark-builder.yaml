@@ -427,15 +427,19 @@ sections:
                   segments by the CurveBuilder unit) before it generates the segments, charge the grouping, the
                   sorting, and the comparisons of the paths to the evaluation-step budget, poll the cancellation
                   token for each group (and while the curve is built), fail with a located
-                  VegaLiteRenderException when a limit is exceeded, and charge nothing for a group that has fewer
-                  than two points.
+                  VegaLiteRenderException when a limit is exceeded, charge nothing for a group that has fewer
+                  than two points, and treat a row whose position (or baseline, or trail size) is not finite or is
+                  beyond the magnitude bound of the painter as an undefined row, counting the defined points
+                  by the same rule as the curve generators.
                 justification: |
                   The cost of a path is a multiple of its points; it must be bounded before the memory is spent
-                  and a caller must be able to abandon it.
+                  and a caller must be able to abandon it. A position that the painter would skip must not split
+                  a run after its segments were charged.
                 tests:
                   - MarkBuilder_Build_PathSegmentsAreChargedBeforeCreation
                   - MarkBuilder_Build_PathBuildPollsCancellationAndChargesSteps
                   - MarkBuilder_Build_GroupsWithoutTwoPointsCostNothing
+                  - MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-TextItems
                 title: >-
@@ -474,14 +478,19 @@ sections:
                 title: >-
                   The MarkBuilder unit shall fail with a located VegaLiteRenderException before it formats a label
                   that would exceed the string-length limit (or, summed over the marks, sixteen times the limit),
-                  charge the characters and lines of the labels to the evaluation-step budget, and charge each line
-                  of a label as a scene item before the item is created.
+                  charge the characters and lines of the labels to the evaluation-step budget, charge each line
+                  of a label as a scene item before the item is created, and skip a row whose font size,
+                  position, or angle is not finite or is beyond the magnitude bound of the painter (and draw no
+                  label for a mark whose dx, dy, or line height is beyond it), so that a font size such as 1e300
+                  never reaches the text measurer.
                 justification: |
                   A label comes from the data and can be arbitrarily long or have arbitrarily many lines; the cost
-                  must be bounded before the memory is spent.
+                  must be bounded before the memory is spent. A font size or offset from an untrusted
+                  specification must not be able to make the renderer throw or spend seconds on one label.
                 tests:
                   - MarkBuilder_Build_TextCharactersAreChargedBeforeFormatting
                   - MarkBuilder_Build_TextLinesAreChargedAsItems
+                  - MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-Arcs
                 title: >-

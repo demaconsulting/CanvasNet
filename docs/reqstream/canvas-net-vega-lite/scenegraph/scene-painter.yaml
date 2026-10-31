@@ -157,3 +157,28 @@ sections:
                 tests:
                   - ScenePainter_Paint_StrokeMiterLimitBevelsASharpJoin
                   - ScenePainter_Paint_PathStrokeHonorsDashCapJoinAndOffset
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Bounds
+                title: >-
+                  The ScenePainter unit shall bound the cost of painting every item with one magnitude bound of
+                  32,768 surface pixels (the value times the scale of the placement): it shall draw nothing for
+                  a path with an end point, an arc with a center, radius, or corner radius, a trail point with a
+                  coordinate or size, a text with a position, offset, font size, or line height, a group with an
+                  offset, or a stroke with a width that is not finite or is beyond the bound; it shall draw a
+                  cubic with a control point beyond the bound as a line to its end point; it shall paint a trail
+                  in chunks of a bounded estimated cost and poll the cancellation token before each chunk; and it
+                  shall never throw for such values (in particular not for a font size that is finite as a double
+                  and infinity as a single).
+                justification: |
+                  A coordinate or size that overflows a single, or that is beyond the precision of the core
+                  filler, makes the flattening of one curve cost seconds and cannot be interrupted, and a
+                  font size of 1e300 made the core text renderer throw; the cost of one item must be bounded
+                  and the painting must honor cancellation.
+                tests:
+                  - ScenePainter_Paint_SegmentsBeyondTheMagnitudeBoundDrawNothingOrBecomeLines
+                  - ScenePainter_Paint_ArcsBeyondTheMagnitudeBoundDrawNothing
+                  - ScenePainter_Paint_TrailPointsBeyondTheMagnitudeBoundEndTheRun
+                  - ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem
+                  - ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing
+                  - ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels
+                  - ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows

@@ -5198,8 +5198,14 @@ names of Vega-Lite, and the `tension` property sets the shape parameter of three
 <!-- markdownlint-enable MD013 -->
 
 A name that is not one of these is a located error when the document is opened (`catmull-rom-open` and
-`catmull-rom-closed` belong to Vega, not to Vega-Lite). The `bundle` curve cannot draw an area: the area is drawn
-with `linear` and the specification is reported (`vl-mark-interpolate-bundle-area`). A trail has no curve.
+`catmull-rom-closed` belong to Vega, not to Vega-Lite); in the configuration, which is not checked when the document
+is opened, such a name draws a `linear` curve and is reported (`vl-mark-interpolate-unknown`). The `bundle` curve
+cannot draw an area: the area is drawn
+with `linear` and the specification is reported (`vl-mark-interpolate-bundle-area`), also when the name comes from the
+configuration. A trail has no curve. Any finite `tension` is accepted, as in Vega-Lite; a tension that makes the control
+points of a spline unreasonably long (more than 32,768 pixels from the chart) draws the affected pieces as straight lines
+between the points, and a point that lies more than 32,768 pixels from the chart (which only an explicit scale domain
+can cause) is treated like an invalid row and breaks the path.
 
 **Invalid data.** A row of a path mark is **invalid** when a channel with a continuous scale (`x`, `y`, `size`, an
 opacity, or a continuous color) has no finite number. The `invalid` property of the mark definition (or
@@ -5207,7 +5213,8 @@ opacity, or a continuous color) has no finite number. The `invalid` property of 
 `break-paths-` (`break-paths-show-path-domains`, the default, `break-paths-show-domains`, and
 `break-paths-filter-domains`) **break the path** at the row, so a gap appears and the next valid row starts a new part,
 and `filter` **drops** the row, so the path connects its neighbors. The modes `show` and `null` (draw the invalid
-value at a fallback position) are reported (`vl-mark-invalid-show`) and the default applies. The scale domains of
+value at a fallback position) are reported (`vl-mark-invalid-show`, also when the mode comes from the configuration)
+and the default applies. The scale domains of
 this renderer **always include the rows of invalid values**, so `filter` and `break-paths-filter-domains` are reported
 with the warning `vl-mark-invalid-domains`. A mark that is not a path drops the rows that have an invalid value, as before.
 
@@ -5275,8 +5282,13 @@ default), and an `area`, `arc`, or `text` shows a filled circle.
 | `MaxDataRows`, `MaxFieldCount`, and the cell limit | The rows and fields of the table, which the rows that an impute adds count against, and the number of `keyvals` of an `impute` (at most `MaxScaleDomainSize`) |
 <!-- markdownlint-enable MD013 -->
 
-The cancellation token is checked every 1,024 rows, per group, while the points of a curve are made, and for every item
-that is painted. The output does not depend on the machine, the culture, or the time: the curves and the arcs use
+The cancellation token is checked every 1,024 rows, per group, while the points of a curve are made, for every item
+that is painted, and (for a trail of very large points, which is painted in chunks) between the chunks. A value that
+no chart can show is not an error: a position, size, radius, font size, offset, or stroke width that is not finite,
+or that is more than 32,768 pixels (four times the largest image) away or large, makes the point undefined, skips
+the label, or draws nothing for the item, so a font size of `1e300` draws no label instead of failing and no single
+value can make the painter spend seconds on one item. The output does not depend on the machine, the culture, or the
+time: the curves and the arcs use
 `Math.Sin`, `Math.Cos`, and the other math functions of the host, which can differ in the last bit between platforms,
 and the tests compare with a tolerance.
 
@@ -5366,9 +5378,10 @@ thread, after the work finished and before the method returns or throws.
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, and arc (`image`, `geoshape`, `boxplot`, `errorbar`, and `errorband`); the chart is drawn without marks and without axes |
-| `vl-mark-invalid-show` | Unsupported | An `invalid` of `show` or `null` in a mark definition (invalid values are not drawn at a fallback position; the default mode applies) |
-| `vl-mark-invalid-domains` | Warning | An `invalid` of `filter` or `break-paths-filter-domains`: the scale domains of this renderer always include the rows of invalid values |
-| `vl-mark-interpolate-bundle-area` | Unsupported | An `interpolate` of `bundle` on an `area`, which has no outline in d3-shape (the area is drawn with `linear`) |
+| `vl-mark-invalid-show` | Unsupported | An `invalid` of `show` or `null` in a mark definition, or in `config.<mark>`, `config.mark`, or the `config.style` of the mark (reported at the value, in the configuration when it is written there; invalid values are not drawn at a fallback position; the default mode applies) |
+| `vl-mark-invalid-domains` | Warning | An `invalid` of `filter` or `break-paths-filter-domains`, in the mark definition or the configuration: the scale domains of this renderer always include the rows of invalid values |
+| `vl-mark-interpolate-bundle-area` | Unsupported | An `interpolate` of `bundle` on an `area`, in the mark definition or the configuration, which has no outline in d3-shape (the area is drawn with `linear`) |
+| `vl-mark-interpolate-unknown` | Unsupported | An `interpolate` of a `line` or `area` that is not one of the 15 names of Vega-Lite; only the configuration can give one (a mark definition with such a name is an error); the line is drawn with `linear` |
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, theta, radius, theta2, radius2, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, order, and detail (tooltip, href, description, and key are ignored); `shape` is drawn by a point mark, `angle` by a point, circle, square, or text, `text` by a text mark, `theta` and `radius` by an arc or text mark, `theta2` and `radius2` by an arc, `size` by every mark but a rect, area, and arc, and `strokeDash` by every mark but a rect, area, trail, text, and arc, and the channel is reported and ignored on any other mark. `x2` and `y2` are supported on a bar, rect, rule, or area that has the `x` or `y` they extend, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it. `order` and `detail` are accepted by every mark |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-type-geojson` | Unsupported | The `type` of a channel |

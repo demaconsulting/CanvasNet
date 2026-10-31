@@ -49,6 +49,30 @@ translations), and the scale.
   than the eye can tell from a solid line) or when the path would have more than 50,000 dashes (`MaxDashSegments`). The
   caps are generous for charts (a 1,000-pixel gridline with a 2-pixel period has 500 dashes), so ordinary dashes
   are unchanged.
+- **Magnitude bound.** One constant, `ScenePainter.MaxMagnitude` (32,768 surface pixels, four times
+  `Surface.MaxDimension`), and one helper, `ScenePainter.IsBoundedAt(scale, values)` (`IsBounded(values)` is the case
+  of a scale of one, used by the scene builders), decide whether a value can be drawn: it must be finite and its
+  size in surface pixels (the value times the scale of the placement) must be at most the bound. The painter applies
+  it to **everything that has a position or a length**: the end points of the segments of a path (a cubic with a
+  finite control point beyond the bound is drawn as a line to its end point instead), the center, radii, and corner
+  radius of an arc, the coordinates and sizes of the points of a trail, the position, offsets, font size, and line
+  height of text (the angle is bounded in degrees and the limit is clamped to the bound), the offset of a group, and
+  the stroke width of every item. An item that needs a larger value is not drawn, like an item with a value that is
+  not finite. *Why*: a value that overflows a single (a `double` of 1e300 converted to `float` is infinity) makes the
+  flattening of a curve in the core filler recurse to its maximum depth, which costs seconds for one curve, and
+  beyond a few tens of thousands of pixels the spacing of a single is no longer below the flattening tolerance of
+  0.02 either, so a circle or a capsule is flattened to the maximum depth as well (measured: about 1.8 seconds for
+  an annular arc and about 60 milliseconds for a trail capsule at radii of 130,000 pixels and more, against a
+  millisecond or less for radii of a few thousand pixels). The cost of every item is therefore bounded. The largest
+  surface is 8,192 pixels wide, so what lies beyond four times that is invisible on every chart a renderer can make.
+- **Trail chunks.** The core filler cannot be interrupted, so a trail is painted in chunks: every capsule has an
+  estimated cost (`TrailCapsuleWeight`, `1 + sqrt(radius * scale / 0.02)`, the number of line pieces of its round
+  caps), and when the capsules written so far weigh `TrailChunkWeight` (100,000) they are filled and stroked, the
+  cancellation token is polled before that, and a new path starts. A trail of ordinary size (a weight of about 11 per
+  capsule) is one chunk up to about 9,000 capsules, so ordinary charts are painted exactly as before; the largest
+  capsule the bound allows (a size of 32,768, a weight of about 906) gives chunks of 111 capsules. The capsules of
+  two chunks overlap at the shared point, so the only difference from one fill is that the anti-aliased rim of the
+  round caps at that joint is composited twice.
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
   Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row). The
   background can be a gradient.
@@ -76,14 +100,15 @@ translations), and the scale.
   continues at the start of the closed subpath** (the painter reopens it with a move, as d3-path does); a move starts a
   new subpath, so one item can hold several. A command with a coordinate that is **not finite makes the whole item draw
   nothing** (checked with `ScenePathSegment.IsFinite` before anything is built, as a points path does), and so does an
-  opacity of zero. The fill is nonzero and the stroke is that of the item, so a gradient fill, a dash, a cap, and a join
+  end point beyond the magnitude bound and an opacity of zero. The fill is nonzero and the stroke is that of the item,
+  so a gradient fill, a dash, a cap, and a join
   work as for any path. A `ScenePath` without segments is drawn from its points as before (nothing for fewer than two
   points).
 - **Arcs.** A `SceneArc` is the outline that `ArcGeometry.Build` returns for its radii, angles, pad angle, and corner
   radius, **translated to the center** of the item (a translation to the center composed with the transform of the
   enclosing groups), then filled and stroked like any path. An arc with a member that is not finite, or an opacity of
-  zero, draws nothing; a member that is beyond one billion gives the empty outline of the geometry unit and draws
-  nothing.
+  zero, draws nothing; a center, radius, or corner radius beyond the magnitude bound draws nothing either (the
+  geometry unit alone accepts up to one billion, which would cost seconds).
 - **Trails.** A `SceneTrail` is drawn as Vega's trail shape does it, described here in the painter's own words. Within
   a run, every pair of consecutive points becomes a **capsule**: the unit normal of the segment is scaled by half the
   size at each point (the radius), the capsule starts at the first point moved by its radius against the normal, runs
@@ -92,19 +117,22 @@ translations), and the scale.
   around the first point with a half circle on the backward side, and closes. The width is therefore the size at each
   point, tapering linearly between two points of different size, with round ends. The capsules of **all runs are one
   path**, filled with the nonzero rule (so overlapping capsules are one shape and have no seams) and stroked as one path
-  with the stroke of the item. A point whose coordinates or size are not finite, whose coordinates or size are above 1e9
-  in magnitude, or whose size is not positive **ends its run** (the next usable point starts the run again, so a run
+  with the stroke of the item. A point whose coordinates or size are not finite, whose coordinates or size are beyond the
+  magnitude bound, or whose size is not positive **ends its run** (the next usable point starts the run again, so a run
   with a gap draws two pieces), and a run needs two usable points to draw anything (a run of one point draws nothing).
   *Deviation from Vega* (the coincident points): two coincident points (the normal has no length) draw a circle of the
   radius at the second point; Vega starts that circle with a line from the previous capsule, and this painter starts it
   with a move, which has the same fill and no stray line in the stroke. The painter polls the cancellation token **every
-  1,024 points** across all runs, and its cost is proportional to the total number of points.
+  1,024 points** across all runs and before every chunk (see Trail chunks), and its cost is proportional to the total
+  number of points.
 - **Miter limit.** The stroke takes the miter limit of its item through `ScenePainter.ResolveMiterLimit`: **4 when the item
   has none** (`StrokeMiterLimit` is null), **1 when the value is not finite or is below 1**, **1,000 when it is above
   1,000**, and the value itself otherwise (as a `float`).
 - **Text** is filled only (a stroke on text is ignored), at the scaled font size, with the font that the measurer resolves,
   each line drawn at its baseline using Vega's baseline offsets and alignment, rotated about the text position; the lines
-  are those the measurer produced (trimmed and truncated to the limit).
+  are those the measurer produced (trimmed and truncated to the limit). A text whose position, offsets, font size, or
+  line height is beyond the magnitude bound, or whose font size would not be a finite positive single after scaling, draws
+  nothing (a font size of 1e300 once made the core text renderer throw an `ArgumentOutOfRangeException`).
 
 #### Key Methods
 
@@ -117,6 +145,11 @@ translations), and the scale.
   size that is not positive and finite.
 - `ResolveMiterLimit(double?)` (internal static) - the miter limit that the stroker receives: 4 for null, 1 for a value
   that is not finite or is below 1, at most 1,000 otherwise.
+- `IsBoundedAt(float scale, params double[] values)` and `IsBounded(...)` (internal static) - the magnitude bound described
+  above, shared with `CurveBuilder` and `MarkBuilder` so that the scene never holds what the painter would skip.
+- `TrailCapsuleWeight(double, float)` (internal static) and the `TrailChunkFlushed` observer (internal, null in production,
+  told the capsule count of every chunk before its poll) - the estimate that chunks a trail, and the hook that lets a test
+  count the chunks and cancel at a boundary without measuring time.
 - `ScenePlacement.Uniform` and `ScenePlacement.Fit` - the two placements `VegaLiteDocument` uses.
 
 **Pre- and postconditions**: the scene is non-null; on return the surface holds the drawing, deterministic for the
@@ -128,8 +161,9 @@ A null scene or surface is `ArgumentNullException` and a scale that is not finit
 `ArgumentOutOfRangeException`; these are programming errors and are not converted. A width or height outside the surface
 limits is rejected by the `Surface` constructor (the document validates sizes first). A canceled token is an
 `OperationCanceledException`, and the surface that an overload created is disposed; the token is also polled every 1,024
-points inside a trail. Bad content never throws: an unparseable color draws nothing, a non-finite coordinate or a
-zero-sized rectangle or clip is skipped, a segment path, arc, or trail member that is not finite draws nothing (a trail
+points inside a trail and before every chunk of its capsules. Bad content never throws: an unparseable color draws
+nothing, a non-finite coordinate or a zero-sized rectangle or clip is skipped, a segment path, arc, trail, or text
+member that is not finite or is beyond the magnitude bound draws nothing (a trail
 point that is not usable only ends its run), and an unknown shape is a circle.
 
 #### Dependencies

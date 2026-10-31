@@ -659,13 +659,21 @@ null), the sorted line `M0,200 L150,0 L300,100` without it, and the area polygon
 
 **Tests**: `MarkBuilderPathTests.MarkBuilder_Build_PathSegmentsAreChargedBeforeCreation`,
 `MarkBuilderPathTests.MarkBuilder_Build_PathBuildPollsCancellationAndChargesSteps`,
-`MarkBuilderPathTests.MarkBuilder_Build_GroupsWithoutTwoPointsCostNothing`
+`MarkBuilderPathTests.MarkBuilder_Build_GroupsWithoutTwoPointsCostNothing`,
+`MarkBuilderPathTests.MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath`
 
-Assert that a budget of 11 (the group, the path, and the bound of 9 segments) passes with the count 11 and the real
-segment count within the bound, that a budget of 10 fails at `/mark` naming `MaxSceneItems` with the count 11, that the
-area costs exactly 14, that a line of 2,000 points fails a limit of 500 items, that a canceled token stops the build, that
-640 rows exceed 5 evaluation steps at `/mark` naming `MaxEvaluationSteps` (and are drawn by default), and that the groups
-of one point and of no defined point draw nothing and cost nothing (11 for the line and 5 for the trail of the same data).
+Assert that a budget of 6 (the group, the path, and the bound of 4 segments: the three points and the move of the
+one run) passes with the count 6 and the real segment count within the bound, that a budget of 5 fails at `/mark`
+naming `MaxSceneItems` with the count 6, that the area costs exactly 9 (the group, the path, and the bound of
+2 x 3 + 1 = 7), that a line of 2,000 points fails a limit of 500 items, that a canceled token stops the build, that
+640 rows exceed 5 evaluation steps at `/mark` naming `MaxEvaluationSteps` (and are drawn by default), and that the
+groups of one point and of no defined point draw nothing and cost nothing (6 for the line and 5 for the trail of
+the same data). They also assert, on a 100 by 100 chart with identity scales (x(v) = v, y(v) = 100 - v) whose third
+row (by x) has a y of 1e9, that the row is undefined like a row without a value: the line is
+`M0,100 L10,90 M20,80 L30,90`, the basis line has four segments and costs 1 + 1 + 7 (4 defined points in 2 runs of
+two: 4 + 2 for the one run that could be long + 1 for the other), the trail has the two runs `0,100 10,90` and
+`20,80 30,90`, and an area with a baseline (`y2`) of 1e9 at the third row is the two closed polygons
+`M0,100 L10,90 L10,95 L0,95 Z M20,80 L30,90 L30,95 L20,95 Z`.
 
 ##### Text Has Its Defaults, Properties, And Size
 
@@ -680,6 +688,16 @@ from a color field (blue, orange) and from a value (`red`, opacity 0.5); that `d
 its text (`700`), that an unknown alignment is `left` and an unknown baseline `alphabetic`, the precedence of the mark over
 `config.text` and an angle channel (45) over the mark angle; and the font sizes 24 and 40 of the size channel and the
 documented order of the size value, `fontSize`, `size`, the expression, and the default 11.
+
+##### Labels Beyond The Magnitude Bound Are Skipped
+
+**Tests**: `MarkBuilderTextTests.MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped`
+
+Asserts that a text mark whose `fontSize` is 1e300, 32,769, or 3e38, whose `dx` is 1e300, whose `dy` is -40,000,
+whose `angle` is 1e7, or whose `lineHeight` is 1e300 builds no label, that the values 32,768 (and -32,768 for `dy`)
+at the bound itself build both labels, and that on a fixed x scale (x(v) = 300 v) the row at x = 1e9 (a billion
+pixels to the right) is skipped like an invalid row while the rows at 0 and 0.5 are built at x = 0 and 150, charged
+as the group and two items (3).
 
 ##### Labels Are Formatted And Split Into Lines
 

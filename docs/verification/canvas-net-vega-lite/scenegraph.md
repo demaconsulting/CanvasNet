@@ -81,6 +81,19 @@ in the four unit verification documents passes without error or unexpected excep
   `SceneModelTests.SceneBounds_UnionTranslateAndRotate_AreExact`,
   `TextMeasurerTests.TextMeasurer_GetBounds_FollowsVegaTextBounds` — the bounds that layout derives from the model
   records have no rounding noise for translation and quarter turns.
+- **The Cost Of Painting An Item Is Bounded**:
+  `ScenePainterPathTests.ScenePainter_Paint_SegmentsBeyondTheMagnitudeBoundDrawNothingOrBecomeLines`,
+  `ScenePainterPathTests.ScenePainter_Paint_ArcsBeyondTheMagnitudeBoundDrawNothing`,
+  `ScenePainterPathTests.ScenePainter_Paint_TrailPointsBeyondTheMagnitudeBoundEndTheRun`,
+  `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`,
+  `ScenePainterPathTests.ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing`,
+  `ScenePainterPathTests.ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels`,
+  `ScenePainterTests.ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows`,
+  `TextMeasurerTests.TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows` — a path end point, an arc, a
+  trail point, a group offset, a stroke width, or a text that is not finite or is beyond 32,768 surface pixels draws
+  nothing (a cubic control point beyond it is a line), a trail is painted in chunks of a bounded estimated cost with
+  a cancellation poll before each (the chunk of the largest capsules has 111 capsules, counted and not timed), and a
+  font size that does not fit a single is unmeasurable instead of throwing.
 - **Scene Budget And Cancellation**:
   `ScenePainterTests.ScenePainter_Paint_InvalidArgumentsAndCancellation`,
   `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks` — the painter honors cancellation and
