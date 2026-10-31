@@ -431,13 +431,13 @@ public sealed partial class PdfDocument
         var trm = ComputeTextRenderingMatrix();
         var glyphMatrix = Matrix3x2.CreateScale(1f / resolvedTtf.UnitsPerEm) * trm;
         var builder = new PathBuilder();
-        AppendTransformedGlyphOutline(builder, outline, glyphMatrix);
+        builder.AppendPath(outline, glyphMatrix);
         var path = builder.Build();
 
         if (clipMode)
         {
             _textClipBuilder ??= new PathBuilder();
-            AppendTransformedGlyphOutline(_textClipBuilder, outline, glyphMatrix);
+            _textClipBuilder.AppendPath(outline, glyphMatrix);
         }
 
         if (_gs.RenderMode is 0 or 2 or 4 or 6)
@@ -483,56 +483,5 @@ public sealed partial class PdfDocument
             0f, (float)_gs.FontSize,
             0f, (float)_gs.TextRise);
         return parameterMatrix * _textMatrix * _gs.CurrentTransform;
-    }
-
-    /// <summary>
-    ///     Re-issues a glyph outline's subpaths/commands into <paramref name="builder"/>, mapping
-    ///     every point through <paramref name="transform"/> - the same "re-issue through a fresh
-    ///     <see cref="PathBuilder"/>" pattern <c>SvgCodec.PathRender.cs</c>'s own
-    ///     <c>AppendTransformedPathInto</c> uses (this package cannot call that method directly,
-    ///     since it is private to the <c>DemaConsulting.CanvasNet.Svg</c> assembly).
-    /// </summary>
-    /// <exception cref="NotSupportedException">
-    ///     Thrown for a <see cref="PathCommandType.ArcTo"/> command - <see cref="Fonts.TrueTypeFont.GetGlyphOutline"/>
-    ///     never produces one (TrueType glyph outlines are built only from lines and quadratic
-    ///     Bezier curves), so encountering one indicates an internal defect, not a data-driven
-    ///     condition.
-    /// </exception>
-    private static void AppendTransformedGlyphOutline(PathBuilder builder, Path outline, Matrix3x2 transform)
-    {
-        foreach (var subpath in outline.Subpaths)
-        {
-            builder.MoveTo(Vector2.Transform(subpath.Start, transform));
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.LineTo:
-                        builder.LineTo(Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.QuadraticBezierTo:
-                        builder.QuadraticBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.CubicBezierTo:
-                        builder.CubicBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.Control2, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.Close:
-                        builder.Close();
-                        break;
-
-                    default:
-                        throw new NotSupportedException(
-                            $"Unsupported path command type '{command.Type}' encountered while transforming a glyph outline.");
-                }
-            }
-        }
     }
 }

@@ -261,7 +261,7 @@ public static partial class SvgCodec
             shapeCount++;
 
             var clipRule = ParseFillRule(ResolveElementProperty(child, "clip-rule", context)) ?? FillRule.NonZero;
-            var pixelPath = TransformPath(childPath, localToTemp);
+            var pixelPath = childPath.Transform(localToTemp);
             PathFiller.Fill(coverage, pixelPath, OpaqueWhite, clipRule);
         }
 

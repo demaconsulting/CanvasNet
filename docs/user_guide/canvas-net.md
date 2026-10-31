@@ -1852,6 +1852,40 @@ PathFiller.Fill(surface, canvasOutline, new Rgba32(20, 120, 255, 255));
 Console.WriteLine(font.GetAdvanceWidth(glyphIndex));
 ```
 
+### Example 14: Combining Paths with PathBuilder.AppendPath
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Geometry;
+using System.Numerics;
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
+
+var square = Path.Rectangle(0, 0, 10, 10);
+
+// Append the same outline several times, each moved by its own transform, into one combined path.
+var builder = new PathBuilder();
+for (var i = 0; i < 3; i++)
+{
+    builder.AppendPath(square, Matrix3x2.CreateTranslation(i * 20, 0));
+}
+
+// The overload without a matrix copies the subpaths exactly as stored (elliptical arcs stay arcs).
+builder.AppendPath(Path.Circle(15, 30, 8));
+
+var combined = builder.Build();
+Console.WriteLine(combined.Subpaths.Count); // Output: 4
+
+using var surface = new Surface(64, 64);
+PathFiller.Fill(surface, combined, new Rgba32(0, 128, 255, 255));
+```
+
+`AppendPath(path, transform)` maps every point through the matrix (row-vector convention, like
+`Path.Transform`, which is implemented with it); an elliptical-arc command is converted to cubic
+Bezier segments first because an arc cannot be re-expressed under an arbitrary matrix.
+A subpath the builder still had open is kept as open when the next one is appended, and a `null`
+path throws `ArgumentNullException`. The builder is not thread-safe.
+
 ### Rendering (transform-aware Canvas, text, and shapes)
 
 The `Rendering` subsystem adds a transform-aware `Canvas` wrapper over `Surface`, along with

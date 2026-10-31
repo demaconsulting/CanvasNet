@@ -1298,9 +1298,8 @@ its own distinguishable `Feature` token.
   `Fonts.TrueTypeFont.GetGlyphOutline`, computes the text-rendering matrix `Trm = [Tfs·Th, 0, 0,
   Tfs, 0, Trise] × Tm × CTM` (row-vector composition, matching `OpConcatMatrix`'s own convention),
   combines it with a `1/UnitsPerEm` glyph-space scale, transforms every glyph outline point
-  through the result (`AppendTransformedGlyphOutline`, reimplementing - since it is `private` in
-  a different assembly - the exact glyph-outline-to-`Geometry.Path` re-issuing pattern
-  `SvgCodec.Text.cs` established), then paints the transformed outline per the current render
+  through the result (`PathBuilder.AppendPath(outline, glyphMatrix)` in core `Geometry`, the same
+  operation the PPTX, VSDX, and SVG renderers use), then paints the transformed outline per the current render
   mode (skipped entirely for render mode `3`): fills via `Drawing.PathFiller.Fill` with
   `_gs.FillColor` for modes `0`/`2` (a known, documented pre-existing simplification: unlike the
   stroke step below, this fill does not mirror a `/Pattern` fill color space - out of this

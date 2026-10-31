@@ -33,86 +33,8 @@ namespace DemaConsulting.CanvasNet.Svg;
 public static partial class SvgCodec
 {
     // ================================================================================================
-    // Path transform mapping and shape rendering
+    // Shape rendering
     // ================================================================================================
-
-    /// <summary>
-    ///     Re-issues every subpath/command of <paramref name="source"/> through a fresh
-    ///     <see cref="PathBuilder"/>, mapping every point through <paramref name="transform"/>.
-    /// </summary>
-    /// <param name="source">The local, untransformed-space path to remap.</param>
-    /// <param name="transform">The transform mapping local-space points to pixel-space points.</param>
-    /// <returns>A new path with every point transformed, and the same command structure.</returns>
-    /// <remarks>
-    ///     Mirrors <c>TrueTypeFontRealFontIntegrationTests</c>' "re-issue through a fresh
-    ///     <see cref="PathBuilder"/> with a point-mapping lambda" pattern: this is the one place
-    ///     every shape/glyph outline this codec builds gets baked into final pixel-space
-    ///     coordinates, since <see cref="Drawing.PathFiller"/>/<see cref="Drawing.PathStroker"/>
-    ///     have no transform parameter of their own.
-    /// </remarks>
-    private static Path TransformPath(Path source, Matrix3x2 transform)
-    {
-        var builder = new PathBuilder();
-        AppendTransformedPathInto(builder, source, transform);
-        return builder.Build();
-    }
-
-    /// <summary>
-    ///     Appends every subpath of <paramref name="source"/> into <paramref name="builder"/>'s
-    ///     already-in-progress build, transformed through <paramref name="transform"/> - the
-    ///     shared core of <see cref="TransformPath"/> (a fresh builder) and glyph-run assembly (an
-    ///     existing builder accumulating multiple glyphs' outlines into one combined path).
-    /// </summary>
-    /// <param name="builder">The destination builder.</param>
-    /// <param name="source">The local, untransformed-space path to append.</param>
-    /// <param name="transform">The transform mapping local-space points to the destination space.</param>
-    private static void AppendTransformedPathInto(PathBuilder builder, Path source, Matrix3x2 transform)
-    {
-        foreach (var subpath in source.Subpaths)
-        {
-            builder.MoveTo(Vector2.Transform(subpath.Start, transform));
-            AppendTransformedCommands(builder, subpath.Commands, transform);
-        }
-    }
-
-    /// <summary>Appends one subpath's already-open commands to <paramref name="builder"/>, transformed.</summary>
-    /// <param name="builder">The destination builder, already positioned via a preceding <see cref="PathBuilder.MoveTo"/>.</param>
-    /// <param name="commands">The source subpath's commands, in local/untransformed space.</param>
-    /// <param name="transform">The transform mapping local-space points to pixel-space points.</param>
-    /// <exception cref="NotSupportedException">
-    ///     Thrown for a <see cref="PathCommandType.ArcTo"/> command - this codec never issues one
-    ///     (arcs are always pre-converted to cubic Beziers before reaching this method), so
-    ///     encountering one indicates an internal defect rather than a data-driven condition.
-    /// </exception>
-    private static void AppendTransformedCommands(PathBuilder builder, IReadOnlyList<PathCommand> commands, Matrix3x2 transform)
-    {
-        foreach (var command in commands)
-        {
-            switch (command.Type)
-            {
-                case PathCommandType.LineTo:
-                    builder.LineTo(Vector2.Transform(command.EndPoint, transform));
-                    break;
-                case PathCommandType.QuadraticBezierTo:
-                    builder.QuadraticBezierTo(
-                        Vector2.Transform(command.Control1, transform),
-                        Vector2.Transform(command.EndPoint, transform));
-                    break;
-                case PathCommandType.CubicBezierTo:
-                    builder.CubicBezierTo(
-                        Vector2.Transform(command.Control1, transform),
-                        Vector2.Transform(command.Control2, transform),
-                        Vector2.Transform(command.EndPoint, transform));
-                    break;
-                case PathCommandType.Close:
-                    builder.Close();
-                    break;
-                default:
-                    throw new NotSupportedException(
-                        $"Unsupported path command type '{command.Type}' encountered while transforming a path.");
-            }
-        }
-    }
 
     /// <summary>
     ///     Renders one shape's local-space outline: transforms it into pixel space once, then
@@ -137,7 +59,7 @@ public static partial class SvgCodec
             return;
         }
 
-        var pixelPath = TransformPath(localPath, transform);
+        var pixelPath = localPath.Transform(transform);
 
         // Post-transform coordinate-magnitude re-check: a source-literal coordinate is already
         // bounded by MaxCoordinateMagnitude at parse time (see ParseCoordinate/TryReadNumber), but
@@ -146,10 +68,10 @@ public static partial class SvgCodec
         // TryReadNumber's remarks on the strict '>' boundary), so an in-bound local coordinate
         // composed with an in-bound-but-large transform (e.g. scale(1000000)) can still produce a
         // final pixel-space magnitude the flattening/stroking pipeline was never meant to see.
-        // This single check point, immediately after TransformPath, uniformly covers every shape
+        // This single check point, immediately after Path.Transform, uniformly covers every shape
         // built by this class - plain shapes, text/glyph runs, and arc-converted rounded-rect/
         // ellipse geometry alike - because all of them are baked into pixel space through this
-        // same TransformPath call. On failure, tolerantly skip rendering this shape entirely,
+        // same Path.Transform call. On failure, tolerantly skip rendering this shape entirely,
         // mirroring BuildRectPath/BuildEllipsePath's existing tolerant-skip convention for an
         // overflowing arc conversion, rather than the parse-time check's hard reject: unlike a
         // malformed literal (a document-authoring mistake), a huge final magnitude can arise from
@@ -176,10 +98,9 @@ public static partial class SvgCodec
     /// </returns>
     /// <remarks>
     ///     <paramref name="path"/> is expected to have already passed through
-    ///     <see cref="TransformPath"/>, so every <see cref="PathCommandType.ArcTo"/> command has
-    ///     already been converted to cubic Bezier segments by
-    ///     <see cref="AppendTransformedCommands"/> - this method therefore never needs to handle
-    ///     <see cref="PathCommandType.ArcTo"/> itself.
+    ///     <see cref="Path.Transform"/>, so every <see cref="PathCommandType.ArcTo"/> command has
+    ///     already been converted to cubic Bezier segments - this method therefore never needs to
+    ///     handle <see cref="PathCommandType.ArcTo"/> itself.
     /// </remarks>
     private static bool IsWithinCoordinateMagnitudeBudget(Path path)
     {

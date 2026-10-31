@@ -733,8 +733,8 @@ each `PptxGlyphPlacement`, a `glyphMatrix = Matrix3x2.CreateScale(glyph.SizeEmu 
 glyph.Font.UnitsPerEm) * Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu) *
 shapeToSurfaceTransform` is composed (scale to EMU-per-unit, then translate to the shape-local
 baseline origin, then compose with the shape's own frame transform), the glyph's outline
-(`TrueTypeFont.GetGlyphOutline`) is re-issued through a fresh `Geometry.PathBuilder` with every
-point transformed by `glyphMatrix`, and the result filled via `Drawing.PathFiller.Fill(surface,
+(`TrueTypeFont.GetGlyphOutline`) is appended to a fresh `Geometry.PathBuilder` with every
+point transformed by `glyphMatrix` (`PathBuilder.AppendPath(outline, glyphMatrix)`), and the result filled via `Drawing.PathFiller.Fill(surface,
 path, glyph.Color, Drawing.FillRule.NonZero)`. A glyph whose outline has zero subpaths (a
 whitespace or control character) is skipped entirely, rather than issuing an empty fill.
 

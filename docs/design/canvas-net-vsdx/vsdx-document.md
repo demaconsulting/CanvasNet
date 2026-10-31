@@ -441,8 +441,9 @@ opts into the exception instead (see _Unsupported-feature reporting_ above).
   colors, including built-in palette index, literal hex, and `"Themed"`-sentinel resolution — not
   a document-declared `<Colors>` table, which is never parsed; see the Data Model section's own
   correction note above)
-- **`CanvasNet.Geometry`** — `Path`/`PathBuilder` (resolved shape/connector outlines), `Rect`
-  (resolved bounding boxes)
+- **`CanvasNet.Geometry`** — `Path`/`PathBuilder` (resolved shape/connector outlines, and
+  `PathBuilder.AppendPath` to place each glyph outline of a text run into shape-local space),
+  `Rect` (resolved bounding boxes)
 - **`CanvasNet.Drawing`** — `PathFiller`/`PathStroker` (rasterizing resolved paths/strokes/
   arrowheads). Correction note (Milestone 8): an earlier revision of this design also listed
   `Gradient`/`LinearGradient`/`GradientStop` here for a best-effort linear fill-pattern

@@ -1346,7 +1346,7 @@ calculations proving this.
 
 `MaxCoordinateMagnitude`'s enforcement above is entirely **pre-transform**: it bounds a source
 literal at parse time, before any `transform` attribute has been applied. `RenderShape` calls
-`TransformPath` to bake every shape/glyph-run outline's local-space points into final pixel-space
+`Path.Transform` to bake every shape/glyph-run outline's local-space points into final pixel-space
 coordinates through `Vector2.Transform` - but a `transform="scale(...)"` function's own argument
 only needs to stay _at or under_ `MaxCoordinateMagnitude` to pass its own parse-time check (the
 comparison is strict `>`, so a literal of exactly `1,000,000` is not rejected), so an in-bound
@@ -1355,11 +1355,11 @@ pixel-space magnitude the flattening/stroking pipeline was never meant to see - 
 independent gap from the parse-time one above, since neither individual literal involved is
 itself out of bounds. `RenderShape` therefore additionally checks the transformed path's every
 point (each subpath's start, and every command's `EndPoint`/`Control1`/`Control2` where
-applicable) against the same `MaxCoordinateMagnitude` bound immediately after `TransformPath`,
+applicable) against the same `MaxCoordinateMagnitude` bound immediately after `Path.Transform`,
 before entering the fill/stroke pipeline. This single check point uniformly covers every shape
 this class renders - plain shapes, text/glyph runs, and arc-converted rounded-rect/ellipse
 geometry alike - because arc conversion happens before, and its output is just more path commands
-consumed by the same `TransformPath` call. On failure, the whole shape is tolerantly skipped
+consumed by the same `Path.Transform` call. On failure, the whole shape is tolerantly skipped
 (fill and stroke both omitted), mirroring `BuildRectPath`/`BuildEllipsePath`'s existing
 tolerant-skip convention for an overflowing arc conversion, rather than the parse-time check's hard
 `InvalidDataException` rejection: unlike a malformed literal (a document-authoring mistake), a huge

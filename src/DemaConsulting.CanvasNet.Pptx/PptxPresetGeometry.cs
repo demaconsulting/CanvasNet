@@ -559,41 +559,6 @@ internal static class PptxPresetGeometry
     ///     <see cref="Donut"/> to combine its outer and inner ellipse subpaths into one
     ///     nonzero-fill-rule ring).
     /// </summary>
-    private static Path CombineSubpaths(Path first, Path second)
-    {
-        var builder = new PathBuilder();
-        AppendSubpaths(builder, first);
-        AppendSubpaths(builder, second);
-        return builder.Build();
-    }
-
-    /// <summary>Replays every subpath of <paramref name="path"/> into <paramref name="builder"/>.</summary>
-    private static void AppendSubpaths(PathBuilder builder, Path path)
-    {
-        foreach (var subpath in path.Subpaths)
-        {
-            builder.MoveTo(subpath.Start);
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.LineTo:
-                        builder.LineTo(command.EndPoint);
-                        break;
-                    case PathCommandType.QuadraticBezierTo:
-                        builder.QuadraticBezierTo(command.Control1, command.EndPoint);
-                        break;
-                    case PathCommandType.CubicBezierTo:
-                        builder.CubicBezierTo(command.Control1, command.Control2, command.EndPoint);
-                        break;
-                    case PathCommandType.ArcTo:
-                        builder.ArcTo(command.Radius, command.RotationDegrees, command.LargeArc, command.Sweep, command.EndPoint);
-                        break;
-                    case PathCommandType.Close:
-                        builder.Close();
-                        break;
-                }
-            }
-        }
-    }
+    private static Path CombineSubpaths(Path first, Path second) =>
+        new PathBuilder().AppendPath(first).AppendPath(second).Build();
 }

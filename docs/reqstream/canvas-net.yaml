@@ -1120,7 +1120,8 @@ sections:
           in either a conservative or a tighter, flattening-based mode; individual path commands
           shall also expose a public standalone-line-segment factory and tangent-direction
           computation for use by external format-codec packages implementing marker/arrowhead
-          rendering.
+          rendering, and the builder shall be able to append all subpaths of an existing path,
+          optionally transformed, so finished paths can be combined into one.
         tags: [system]
         justification: |
           A vector path is the foundational shape-description primitive future drawing/rendering
@@ -1129,6 +1130,8 @@ sections:
           packages built on top of Path (such as the SVG codec's marker rendering) additionally
           need a shared, authoritative way to compute a path segment's direction of travel,
           without duplicating that math themselves or depending on this package's internals.
+          Renderer packages likewise need one shared way to merge outlines (for example the
+          glyphs of a text run) into a single path.
         children:
           - CanvasNet-Geometry-Path
         tests:

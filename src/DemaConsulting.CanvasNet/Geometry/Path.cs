@@ -197,59 +197,12 @@ public sealed class Path
     /// <remarks>
     ///     Row-vector convention matches <c>Vector2.Transform(p, A * B)</c>, which applies
     ///     <c>A</c> first, then <c>B</c> — the same order used by the <c>Rendering.Canvas</c>
-    ///     transform stack.
+    ///     transform stack. The work is done by <see cref="PathBuilder.AppendPath(Path, Matrix3x2)"/>
+    ///     on a fresh builder, so this method and every renderer that accumulates transformed
+    ///     outlines share one definition of the transform and arc rules.
     /// </remarks>
-    public Path Transform(Matrix3x2 transform)
-    {
-        var builder = new PathBuilder();
-        foreach (var subpath in Subpaths)
-        {
-            var current = subpath.Start;
-            builder.MoveTo(Vector2.Transform(current, transform));
-
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.LineTo:
-                        builder.LineTo(Vector2.Transform(command.EndPoint, transform));
-                        current = command.EndPoint;
-                        break;
-                    case PathCommandType.QuadraticBezierTo:
-                        builder.QuadraticBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        current = command.EndPoint;
-                        break;
-                    case PathCommandType.CubicBezierTo:
-                        builder.CubicBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.Control2, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        current = command.EndPoint;
-                        break;
-                    case PathCommandType.ArcTo:
-                        var segments = new List<(Vector2 Control1, Vector2 Control2, Vector2 End)>();
-                        SvgArcConverter.ToBeziers(current, command.Radius, command.RotationDegrees, command.LargeArc, command.Sweep, command.EndPoint, segments);
-                        foreach (var segment in segments)
-                        {
-                            builder.CubicBezierTo(
-                                Vector2.Transform(segment.Control1, transform),
-                                Vector2.Transform(segment.Control2, transform),
-                                Vector2.Transform(segment.End, transform));
-                        }
-
-                        current = command.EndPoint;
-                        break;
-                    case PathCommandType.Close:
-                        builder.Close();
-                        break;
-                }
-            }
-        }
-
-        return builder.Build();
-    }
+    public Path Transform(Matrix3x2 transform) =>
+        new PathBuilder().AppendPath(this, transform).Build();
 
     /// <summary>
     ///     Builds a new <see cref="Path"/> describing an axis-aligned rectangle with its top-left

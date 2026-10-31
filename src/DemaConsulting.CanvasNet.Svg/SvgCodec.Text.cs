@@ -278,7 +278,7 @@ public static partial class SvgCodec
                 // maps it into this codec's Y-down pixel-space convention in the same step as
                 // applying the font-size scale and positioning the glyph's origin at the pen
                 var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, origin.Y);
-                AppendTransformedPathInto(builder, outline, glyphMatrix);
+                builder.AppendPath(outline, glyphMatrix);
             }
 
             pen += font.GetAdvanceWidth(glyphIndex) * scale;

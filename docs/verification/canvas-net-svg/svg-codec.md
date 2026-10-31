@@ -2081,7 +2081,7 @@ proves the fix: a small, entirely in-bound closed-square path (built from `LineT
 degenerate `CubicBezierTo` command, exercising the new check's `Control1`/`Control2` handling as
 well as its `EndPoint` handling) combined with a `scale(1000000)` transform produces a final
 magnitude of `10,000,000`, far past the bound; `RenderShape` now re-checks every point of the
-transformed path immediately after `TransformPath` and, on failure, tolerantly skips the whole
+transformed path immediately after `Path.Transform` and, on failure, tolerantly skips the whole
 shape - proven by the sampled pixel (which the scaled square's huge bounding box would otherwise
 cover if the shape were not skipped) staying unfilled, with `Load` not throwing.
 

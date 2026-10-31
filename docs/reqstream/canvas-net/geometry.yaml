@@ -45,7 +45,9 @@ sections:
               (control-point convex hull) or tighter (flattening-based) mode; individual path
               commands shall also expose a public standalone-line-segment factory and a
               tangent-direction computation for use by external format-codec packages
-              implementing marker/arrowhead rendering.
+              implementing marker/arrowhead rendering, and a builder operation that appends all
+              subpaths of an existing path, optionally transformed, so finished paths can be
+              combined into one.
             justification: |
               A vector path (potentially several independent subpaths of mixed line, curve, and
               arc segments) is the foundational shape-description primitive future
@@ -54,7 +56,9 @@ sections:
               per-path allocation overhead. Format-codec packages built on top of Path (such as
               the SVG codec's marker rendering) additionally need a shared, authoritative way to
               compute a path segment's direction of travel, without duplicating that math
-              themselves or depending on this package's internals.
+              themselves or depending on this package's internals. Renderers that lay text out
+              as several outlines, or combine shapes into one compound path, need one
+              authoritative way to merge paths so each renderer need not keep its own copy.
             children:
               - CanvasNet-Geometry-Path-BuildEveryCommandType
               - CanvasNet-Geometry-Path-ArcToStoresRawParameters
@@ -76,6 +80,9 @@ sections:
               - CanvasNet-Geometry-Path-RoundRectangle
               - CanvasNet-Geometry-Path-Circle
               - CanvasNet-Geometry-PathBuilder-TangentArcTo
+              - CanvasNet-Geometry-PathBuilder-AppendPath
+              - CanvasNet-Geometry-PathBuilder-AppendPathArcTo
+              - CanvasNet-Geometry-PathBuilder-AppendPathValidation
               - CanvasNet-Geometry-PathCommand-PublicLineToFactory
               - CanvasNet-Geometry-PathCommand-ComputeTangents
             tests:

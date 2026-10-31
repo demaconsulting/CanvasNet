@@ -282,6 +282,10 @@ The system exposes the following public API to external consumers:
 - **PathBuilder.Build()**: Returns an immutable `Path` snapshot of every command issued so far;
   the builder remains usable afterward.
 - **PathBuilder.Clear()**: Resets the builder to its initial empty state for reuse.
+- **PathBuilder.AppendPath(Path)** / **PathBuilder.AppendPath(Path, Matrix3x2)**: Fluent methods
+  appending every subpath of an existing path, as stored or with every point transformed (arcs
+  converted to cubic Bezier segments in the transformed form); `ArgumentNullException` for a `null`
+  path. `Path.Transform` is implemented with the transformed form.
 - **Path.Subpaths**: Read-only property exposing the path's ordered, independent subpaths.
 - **Path.GetBounds(float flattenTolerance = 0)**: Returns a conservative (default) or, given a
   positive `flattenTolerance`, a tighter flattening-based axis-aligned bounding `Rect`.
@@ -389,6 +393,7 @@ The system exposes the following public API to external consumers:
 | `Rect.Transform(Matrix3x2)`                  | Inbound/Outbound | Method call / `Rect` return    | None                          |
 | `PathBuilder.*To(...)`                       | Inbound/Outbound | Method call / `this` return    | Called after `MoveTo`         |
 | `PathBuilder.Build()`                        | Outbound         | Method call / `Path` return    | None                          |
+| `PathBuilder.AppendPath(...)`                | Inbound/Outbound | Method call / `this` return    | `path` not null               |
 | `Path.GetBounds(float)`                      | Outbound         | Method call / `Rect` return    | None                          |
 | `BezierFlattening.Flatten*(...)`             | Inbound/Outbound | Method call / list append      | `tolerance` greater than zero |
 | `SvgArcConverter.ToBeziers(...)`             | Inbound/Outbound | Method call / list append      | None                          |

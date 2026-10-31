@@ -106,7 +106,7 @@ public sealed partial class PptxDocument
                 Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.OriginYEmu);
 
             var builder = new PathBuilder();
-            AppendTransformedGlyphOutline(builder, outline, localGlyphMatrix);
+            builder.AppendPath(outline, localGlyphMatrix);
             var localPath = builder.Build();
 
             PathFiller.Fill(surface, localPath.Transform(shapeToSurfaceTransform), glyph.Color, FillRule.NonZero);
@@ -204,55 +204,4 @@ public sealed partial class PptxDocument
     ///     sharing one instance across layouts and documents is behavior-identical.
     /// </summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont> SystemFontCache = new();
-
-    /// <summary>
-    ///     Re-issues a glyph outline's subpaths/commands into <paramref name="builder"/>, mapping
-    ///     every point through <paramref name="transform"/> - the same local re-implementation
-    ///     pattern <c>PdfDocument.Text.cs</c>'s own <c>AppendTransformedGlyphOutline</c> already
-    ///     establishes (that method is private to the <c>DemaConsulting.CanvasNet.Pdf</c> assembly
-    ///     and cannot be called from here).
-    /// </summary>
-    /// <exception cref="NotSupportedException">
-    ///     Thrown for a <see cref="PathCommandType.ArcTo"/> command - <see cref="TrueTypeFont.GetGlyphOutline"/>
-    ///     never produces one (TrueType glyph outlines are built only from lines and quadratic
-    ///     Bezier curves), so encountering one indicates an internal defect, not a data-driven
-    ///     condition.
-    /// </exception>
-    private static void AppendTransformedGlyphOutline(PathBuilder builder, Path outline, Matrix3x2 transform)
-    {
-        foreach (var subpath in outline.Subpaths)
-        {
-            builder.MoveTo(Vector2.Transform(subpath.Start, transform));
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.LineTo:
-                        builder.LineTo(Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.QuadraticBezierTo:
-                        builder.QuadraticBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.CubicBezierTo:
-                        builder.CubicBezierTo(
-                            Vector2.Transform(command.Control1, transform),
-                            Vector2.Transform(command.Control2, transform),
-                            Vector2.Transform(command.EndPoint, transform));
-                        break;
-
-                    case PathCommandType.Close:
-                        builder.Close();
-                        break;
-
-                    default:
-                        throw new NotSupportedException(
-                            $"Unsupported path command type '{command.Type}' encountered while transforming a glyph outline.");
-                }
-            }
-        }
-    }
 }
