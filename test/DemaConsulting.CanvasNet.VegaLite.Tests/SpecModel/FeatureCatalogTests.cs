@@ -1719,6 +1719,59 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
+    ///     Validates that the <c>invalid</c> mode and the <c>interpolate</c> name that a mark gets from the configuration (<c>config.&lt;mark&gt;</c>, <c>config.mark</c> and <c>config.style</c>) are reported
+    ///     exactly as when the mark definition gives them, at the value in the configuration, with the same precedence as the mark builder uses, and once however many marks use the value.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig()
+    {
+        // Arrange
+        static List<(string Id, string Pointer, FeatureReportKind Kind)> Report(string json) =>
+            [.. FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id.StartsWith("vl-mark-", StringComparison.Ordinal)).Select(r => (r.Id, r.Location.Pointer, r.Kind))];
+
+        // Assert: show and null from config.<mark> and config.mark, at the value in the configuration; the filter modes warn
+        Assert.Equal([("vl-mark-invalid-show", "/config/line/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "line", "config": { "line": { "invalid": "show" } } }"""));
+        Assert.Equal([("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": { "type": "area" }, "config": { "mark": { "invalid": null } } }"""));
+        Assert.Equal([("vl-mark-invalid-domains", "/config/mark/invalid", FeatureReportKind.Warning)], Report("""{ "mark": "trail", "config": { "mark": { "invalid": "filter" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "invalid": "break-paths-show-domains" } } }"""));
+
+        // Assert: the configuration of another mark type does not apply
+        Assert.Empty(Report("""{ "mark": "line", "config": { "area": { "invalid": "show" } } }"""));
+
+        // Assert: the bundle interpolation of an area from the configuration is reported, that of a line is not; an unknown name is reported for a line and an area (it is drawn as a linear
+        // line), but not for a mark that has no curve
+        Assert.Equal([("vl-mark-interpolate-bundle-area", "/config/area/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "area": { "interpolate": "bundle" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-bundle-area", "/config/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "mark": { "interpolate": "bundle" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "interpolate": "bundle" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-unknown", "/config/line/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "line", "config": { "line": { "interpolate": "zigzag" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-unknown", "/config/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "mark": { "interpolate": "catmull-rom-open" } } }"""));
+        Assert.Empty(Report("""{ "mark": "trail", "config": { "mark": { "interpolate": "zigzag" } } }"""));
+        Assert.Empty(Report("""{ "mark": "bar", "config": { "mark": { "interpolate": "zigzag" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "interpolate": 3 } } }"""));
+
+        // Assert: the mark definition wins over the configuration, config.<mark> over config.mark, and a style of the mark over both of those (the later style wins)
+        Assert.Empty(Report("""{ "mark": { "type": "line", "invalid": "break-paths-show-domains" }, "config": { "line": { "invalid": "show" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "invalid": "break-paths-show-domains" }, "mark": { "invalid": "show" } } }"""));
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/style/loud/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "mark": { "type": "line", "style": "loud" }, "config": { "line": { "invalid": "filter" }, "style": { "loud": { "invalid": "show" } } } }"""));
+        Assert.Empty(Report("""{ "mark": { "type": "line", "style": ["loud", "quiet"] }, "config": { "style": { "loud": { "invalid": "show" }, "quiet": { "invalid": "break-paths-show-domains" } } } }"""));
+
+        // Assert: the style of the mark type itself (config.style.line) is read, as the mark builder reads it
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/style/line/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "mark": "line", "config": { "style": { "line": { "invalid": "show" } } } }"""));
+
+        // Assert: a value in the configuration that two marks use is reported once
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "layer": [ { "mark": "line" }, { "mark": "point" } ], "config": { "mark": { "invalid": "show" } } }"""));
+
+        // Assert: an unsupported mark is reported at the mark only, as before
+        Assert.Equal([("vl-mark-geoshape", "/mark", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "geoshape", "config": { "mark": { "invalid": "show" } } }"""));
+    }
+
+    /// <summary>
     ///     Validates that the text mark is supported, that the <c>text</c> channel is drawn by it only (any other mark reports <c>vl-channel-text</c> and ignores the channel), that a binned
     ///     text field is supported, that a custom <c>formatType</c> of the channel is reported and the evaluated ones are not, and that the <c>size</c> and <c>angle</c> channels are drawn by text.
     /// </summary>

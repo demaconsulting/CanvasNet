@@ -210,6 +210,13 @@ internal sealed partial class SpecParser
     public static bool IsChannelName(string name) => ChannelNames.Contains(name);
 
     /// <summary>
+    ///     Determines whether a name is one of the 15 interpolations of Vega-Lite 6 (<c>Interpolate</c>).
+    /// </summary>
+    /// <param name="name">The name; the comparison is case-sensitive.</param>
+    /// <returns><see langword="true"/> when Vega-Lite defines the interpolation (the feature catalog reports any other name that comes from the configuration, which the parser does not validate).</returns>
+    public static bool IsInterpolateName(string name) => Array.IndexOf(InterpolateNames, name) >= 0;
+
+    /// <summary>
     ///     Finds the property that names a transform: the first property of the entry that is a transform name.
     /// </summary>
     /// <param name="entry">The transform entry object.</param>

@@ -58,7 +58,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text and arc.</description></item>
-///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c></term><description>the <c>invalid</c> of a mark definition: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; and the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation).</description></item>
+///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
@@ -237,6 +237,9 @@ internal static class FeatureCatalog
 
         /// <summary>The mark definition object of the view whose encoding is visited, or null when the mark is a name.</summary>
         private SpecNode? _mark;
+
+        /// <summary>The findings that <see cref="ReportOnce"/> has recorded, by identifier and node.</summary>
+        private readonly HashSet<(string Id, SpecNode Node)> _reported = [];
 
         /// <summary>The mark type of the view whose encoding is visited.</summary>
         private string _markType = string.Empty;
@@ -488,32 +491,127 @@ internal static class FeatureCatalog
                     VisitShapeName(shape);
                 }
 
-                VisitMarkInvalid(mark);
-                if (type == "area" && mark["interpolate"] is { IsString: true, StringValue: "bundle" } bundle)
+                VisitMarkInvalid(MarkSetting(mark, type, "invalid"));
+                if (type is "line" or "area" && MarkSetting(mark, type, "interpolate") is { IsString: true } interpolate)
                 {
-                    Unsupported("vl-mark-interpolate-bundle-area", "The 'bundle' interpolation cannot draw an area (d3-shape gives it no area outline); the area is drawn with the 'linear' interpolation.", bundle);
+                    VisitMarkInterpolate(type, interpolate);
                 }
             }
         }
 
         /// <summary>
-        ///     Visits the <c>invalid</c> property of a mark definition: <c>show</c> (and null) are not drawn, and the modes that filter the scale domains keep the rows in the domains.
+        ///     Finds a property that the specification gives a mark, the way the mark builder reads it: in the mark definition, else in the configuration (the
+        ///     <c>config.style</c> entries named by the mark type and by the <c>style</c> of the mark, the later ones winning, then <c>config.&lt;mark&gt;</c>, then <c>config.mark</c>).
         /// </summary>
-        /// <param name="mark">The mark value.</param>
-        private void VisitMarkInvalid(SpecNode mark)
+        /// <remarks>
+        ///     A value that comes from the configuration is reported at the configuration, not at the mark that uses it; the same value used by several marks is reported once.
+        ///     Only the configuration of the specification is visible here; the configuration that a caller passes to the renderer is not part of the tree.
+        /// </remarks>
+        /// <param name="mark">The mark value (a mark type or a mark definition).</param>
+        /// <param name="type">The mark type, or null.</param>
+        /// <param name="name">The property.</param>
+        /// <returns>The value node, or null when the specification gives none.</returns>
+        private SpecNode? MarkSetting(SpecNode mark, string? type, string name)
         {
-            if (mark["invalid"] is not { } invalid)
+            if (mark[name] is { } own)
+            {
+                return own;
+            }
+
+            if (_tree.Root["config"] is not { IsObject: true } config)
+            {
+                return null;
+            }
+
+            SpecNode? found = null;
+            if (config["style"] is { IsObject: true } styles)
+            {
+                var names = new List<string>();
+                if (type is not null)
+                {
+                    names.Add(type);
+                }
+
+                if (mark["style"] is { } style)
+                {
+                    if (style.IsString)
+                    {
+                        names.Add(style.StringValue!);
+                    }
+                    else if (style.Kind == SpecNodeKind.Array)
+                    {
+                        names.AddRange(style.Items.Where(i => i.IsString).Select(i => i.StringValue!));
+                    }
+                }
+
+                foreach (var styleName in names)
+                {
+                    found = styles[styleName]?[name] ?? found;
+                }
+            }
+
+            return found ?? (type is null ? null : config[type]?[name]) ?? config["mark"]?[name];
+        }
+
+        /// <summary>
+        ///     Visits the <c>interpolate</c> of a line or an area: a name that Vega-Lite does not know is drawn as <c>linear</c> (only the configuration can hold one, the parser rejects it in a mark),
+        ///     and <c>bundle</c> cannot draw an area.
+        /// </summary>
+        /// <param name="type">The mark type, <c>line</c> or <c>area</c>.</param>
+        /// <param name="interpolate">The string value.</param>
+        private void VisitMarkInterpolate(string type, SpecNode interpolate)
+        {
+            if (!SpecParser.IsInterpolateName(interpolate.StringValue!))
+            {
+                ReportOnce(
+                    "vl-mark-interpolate-unknown",
+                    $"The interpolation '{interpolate.StringValue}' is not one of Vega-Lite's interpolations; the 'linear' interpolation is used.",
+                    interpolate,
+                    FeatureReportKind.UnsupportedFeature);
+            }
+            else if (type == "area" && interpolate.StringValue == "bundle")
+            {
+                ReportOnce(
+                    "vl-mark-interpolate-bundle-area",
+                    "The 'bundle' interpolation cannot draw an area (d3-shape gives it no area outline); the area is drawn with the 'linear' interpolation.",
+                    interpolate,
+                    FeatureReportKind.UnsupportedFeature);
+            }
+        }
+
+        /// <summary>
+        ///     Records a finding once for a node (a configuration value that several marks use is reported once).
+        /// </summary>
+        /// <param name="id">The identifier.</param>
+        /// <param name="message">The description.</param>
+        /// <param name="node">The node the finding is about.</param>
+        /// <param name="kind">The kind of finding.</param>
+        private void ReportOnce(string id, string message, SpecNode node, FeatureReportKind kind)
+        {
+            if (_reported.Add((id, node)))
+            {
+                Reports.Add(new FeatureReport(id, message, _tree.Locate(node), kind));
+            }
+        }
+
+        /// <summary>
+        ///     Visits the <c>invalid</c> property of a mark: <c>show</c> (and null) are not drawn, and the modes that filter the scale domains keep the rows in the domains.
+        /// </summary>
+        /// <param name="invalid">The value of the property (from the mark or from the configuration), or null when there is none.</param>
+        private void VisitMarkInvalid(SpecNode? invalid)
+        {
+            if (invalid is null)
             {
                 return;
             }
 
             if (invalid.IsNull || invalid is { IsString: true, StringValue: "show" })
             {
-                Unsupported("vl-mark-invalid-show", "The 'show' invalid mode (and null) is not supported: invalid values are not drawn at a fallback position; the default mode applies.", invalid);
+                ReportOnce("vl-mark-invalid-show", "The 'show' invalid mode (and null) is not supported: invalid values are not drawn at a fallback position; the default mode applies.", invalid, FeatureReportKind.UnsupportedFeature);
             }
             else if (invalid is { IsString: true, StringValue: "filter" or "break-paths-filter-domains" })
             {
-                Warn("vl-mark-invalid-domains", $"The invalid mode '{invalid.StringValue}' should leave the invalid rows out of the scale domains; the domains of this renderer always include them.", invalid);
+                ReportOnce("vl-mark-invalid-domains", $"The invalid mode '{invalid.StringValue}' should leave the invalid rows out of the scale domains; the domains of this renderer always include them.", invalid, FeatureReportKind.Warning);
             }
         }
 
