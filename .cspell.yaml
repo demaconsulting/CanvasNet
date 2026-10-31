@@ -772,6 +772,17 @@ words:
   - utcweek
   - utcyear
   - STAE
+  - Zapf
+  - SASLprep
+  - halign
+  - multmatrix
+  - newsize
+  - textmetrics
+  - fontmetrics
+  - tessellators
+  - unitless
+  - SMIL
+  - asvg
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

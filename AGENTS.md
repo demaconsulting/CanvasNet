@@ -65,7 +65,7 @@ yet cover something.
 - **`pip-requirements.txt`** - Python dependencies for yamllint and yamlfix
 - **`docs/sysml2/`** - SysML2 architecture model; authoritative source for software structure
 - **`fix.ps1`** - Applies all auto-fixers silently (dotnet format, markdown, YAML). Always exits 0.
-- **`build.ps1`** - Builds the solution and runs all tests.
+- **`build.ps1`** - Builds the solution and runs all tests (see *Scoped Validation* for development use).
 
 # Standards Application (ALL Agents Must Follow)
 
@@ -136,6 +136,53 @@ responsibility - invoke the lint-fix agent once before submitting a pull request
 
 CI runs `lint.ps1` which checks: markdownlint-cli2, cspell, yamllint, dotnet format,
 reqstream, versionmark, reviewmark, and sysml2tools.
+
+# Scoped Validation (ALL Agents Must Follow)
+
+The solution has ten source projects and ten test projects, and a full `pwsh ./build.ps1` builds and
+tests all of them. While developing, build and test **only the affected test projects**; run the full
+build once before a pull request. `build.ps1` is a template-owned script and is deliberately not
+modified for this - use plain `dotnet test` on the test project instead. This policy refines any
+"run `pwsh ./build.ps1`" step in the agent definitions under `.github/agents/`, which are template-owned:
+use the scoped commands during development and the full build before a pull request. For example:
+
+```pwsh
+dotnet test test/DemaConsulting.CanvasNet.Svg.Tests --configuration Release
+```
+
+`dotnet test` on a test project also builds the source projects it references.
+
+## Which Test Projects to Run
+
+A source project is a dependency of every project that references it, directly or transitively
+(derived from the `ProjectReference` graph). Run the test projects listed for each changed source project:
+
+| Changed project | Test projects to run (all under `test/`) |
+| --- | --- |
+| `DemaConsulting.CanvasNet` (core) | **All** test projects (every other project depends on it) |
+| `DemaConsulting.CanvasNet.Svg` | `Svg.Tests`, `Pptx.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Charts` | `Charts.Tests`, `Pptx.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Pdf` | `Pdf.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Pptx` | `Pptx.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Vsdx` | `Vsdx.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Render3D` | `Render3D.Tests`, `Scad.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Tool` | `Tool.Tests` |
+| A test project only | That test project only |
+
+Test project names are `DemaConsulting.CanvasNet.{Name}` as in the table (the core project is
+`DemaConsulting.CanvasNet.Tests`).
+
+## Rules
+
+- **Documentation-only changes** (`docs/`, `README.md`, agent files) need no build or test run;
+  run `pwsh ./fix.ps1` and the relevant lint checks instead.
+- **Changes outside a single project** (solution file, `global.json`, `.editorconfig`, package or
+  build configuration, `build.ps1`) affect everything - run the full `pwsh ./build.ps1`.
+- **Before opening or updating a pull request**, run the full `pwsh ./build.ps1` and `pwsh ./lint.ps1`
+  once (via the lint-fix agent for lint). Scoped runs are for the inner development loop only and are
+  not a substitute for the full build.
 
 # Scope Discipline (ALL Agents Must Follow)
 
