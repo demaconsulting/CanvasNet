@@ -54,16 +54,25 @@ internal sealed class ExpressionFunctionContext
     /// </summary>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">The cancellation token of the call.</param>
-    public ExpressionFunctionContext(VegaLiteLimits? limits, CancellationToken cancellationToken)
+    /// <param name="calendar">The calendar of the date and time functions (the zone of local dates); UTC when null.</param>
+    public ExpressionFunctionContext(VegaLiteLimits? limits, CancellationToken cancellationToken, TimeCalendar? calendar = null)
     {
         limits ??= VegaLiteLimits.Default;
         MaxStringLength = limits.MaxStringLength;
         MaxSteps = limits.MaxEvaluationSteps;
+        MaxArrayLength = limits.MaxScaleDomainSize;
+        Calendar = calendar ?? TimeCalendar.Utc;
         _cancellationToken = cancellationToken;
     }
 
     /// <summary>Gets the longest string an expression may produce.</summary>
     public int MaxStringLength { get; }
+
+    /// <summary>Gets the most elements a function may build into one array (the date sequences); the limit of a scale domain.</summary>
+    public int MaxArrayLength { get; }
+
+    /// <summary>Gets the calendar of the date and time functions: the zone of local dates, UTC unless the render was given a time zone.</summary>
+    public TimeCalendar Calendar { get; }
 
     /// <summary>Gets the step budget of the evaluation.</summary>
     public long MaxSteps { get; }

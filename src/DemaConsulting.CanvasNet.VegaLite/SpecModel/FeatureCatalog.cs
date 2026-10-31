@@ -54,7 +54,6 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-schema-version</c> (warning)</term><description><c>$schema</c>, when the major version is not 5 or 6 or the URL names no Vega-Lite version; the text is interpreted with the version 6 defaults.</description></item>
 ///         <item><term><c>vl-data-empty</c> (warning)</term><description>the <c>data</c> object, when it has an empty <c>values</c> array or no source at all.</description></item>
 ///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
-///         <item><term><c>vl-data-parse-date-format</c></term><description>an entry of <c>format.parse</c> that names a date with a custom format (<c>date:'%d/%m/%Y'</c>, <c>utc:'...'</c>); the field is left as read.</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
@@ -442,21 +441,6 @@ internal static class FeatureCatalog
         /// <param name="format">The format object.</param>
         private void VisitFormat(SpecNode format)
         {
-            // Custom date formats are the one part of format.parse that is recognized and not applied
-            if (format["parse"] is { IsObject: true } parse)
-            {
-                foreach (var entry in parse.Properties)
-                {
-                    if (entry.IsString && ParseDirectives.TryClassify(entry.StringValue!, out var parseType) && parseType == ParseType.CustomDate)
-                    {
-                        Unsupported(
-                            "vl-data-parse-date-format",
-                            $"The date format {entry.StringValue} of the field '{entry.Name}' is not supported; the field is left as read (use ISO 8601 dates and 'date').",
-                            entry);
-                    }
-                }
-            }
-
             if (format["type"] is { IsString: true } type && type.StringValue == "topojson")
             {
                 Unsupported("vl-data-geo", "The topojson data format is not supported.", type);

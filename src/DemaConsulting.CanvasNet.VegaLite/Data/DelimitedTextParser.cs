@@ -15,14 +15,23 @@ internal enum ParseType
     /// <summary>A boolean (<c>"boolean"</c>).</summary>
     Boolean,
 
-    /// <summary>An ISO 8601 date or date-time in UTC (<c>"date"</c>).</summary>
+    /// <summary>A date (<c>"date"</c>: the <c>Date.parse</c> rules; <c>"date:'%d/%m/%Y'"</c> and <c>"utc:'...'"</c>: a d3 time format, see <see cref="ParseSpec"/>).</summary>
     Date,
 
     /// <summary>The text of the value (<c>"string"</c>).</summary>
     String,
+}
 
-    /// <summary>A date with a custom format (<c>"date:'%d/%m/%Y'"</c>, <c>"utc:'...'"</c>); recognized but not applied.</summary>
-    CustomDate,
+/// <summary>
+///     One conversion of a <c>format.parse</c> entry: its type and, for a date, the optional d3 time format.
+/// </summary>
+/// <param name="Type">The type.</param>
+/// <param name="Format">The d3 time format of <c>date:'%fmt'</c> and <c>utc:'%fmt'</c>; null for every other conversion (a plain <c>date</c> uses the <c>Date.parse</c> rules).</param>
+/// <param name="Utc">Whether the format is read as UTC (<c>utc:'%fmt'</c>) instead of in the zone of the calendar (<c>date:'%fmt'</c>).</param>
+internal readonly record struct ParseSpec(ParseType Type, string? Format = null, bool Utc = false)
+{
+    /// <summary>Gets a value indicating whether this is a date with a custom format.</summary>
+    public bool IsCustomDate => Type == ParseType.Date && Format is not null;
 }
 
 /// <summary>
@@ -58,56 +67,57 @@ internal enum ParseMode
 ///     <para>
 ///         <b>Auto inference</b> looks at a whole column, as Vega does: a column is a boolean column when every non-empty
 ///         text is <c>true</c> or <c>false</c> (any case), a number column when every non-empty text is a finite
-///         invariant integer, decimal or exponent number, and a date column when every non-empty text is an ISO 8601
-///         date or date-time (tested in that order); otherwise it stays text. In a typed column an empty text is null.
-///         A column that holds a value that is not text (JSON) is left alone. Dates are read in UTC: a date without a
-///         time zone is midnight UTC, and a date-time without a zone is taken as UTC.
+///         invariant integer, decimal or exponent number, and a date column when every non-empty text is a date that
+///         JavaScript's <c>Date.parse</c> reads (see <see cref="JsDateParser"/>), tested in that order; otherwise it stays
+///         text. In a typed column an empty text is null. A column that holds a value that is not text (JSON) is left alone.
+///         A date without a time is UTC and a date-time without an offset is in the zone of the calendar (UTC by default).
 ///     </para>
 ///     <para>
 ///         <b>Explicit conversion</b> never invents a value: a text that cannot be converted becomes null and is counted
 ///         in a <see cref="ParseFailures"/> record, which the loader reports as the warning <c>vl-data-parse-failed</c>.
-///         Null stays null and an empty text becomes null (except for <c>string</c>). Custom date formats are not
-///         implemented and leave the field as read (the feature catalog reports <c>vl-data-parse-date-format</c>).
+///         Null stays null and an empty text becomes null (except for <c>string</c>). <c>date</c> uses the
+///         <c>Date.parse</c> rules, and <c>date:'%fmt'</c> and <c>utc:'%fmt'</c> read the text with a d3 time format
+///         (<see cref="TimeFormat.TryParse"/>) in the zone of the calendar or in UTC; a number is read through its
+///         JavaScript text. A text of more than 128 characters (256 for a custom format) is never a date, so a huge cell
+///         costs no more than a short one.
+///     </para>
+///     <para>
+///         <b>Implicit dates.</b> A temporal field of the encoding is date-parsed even when <c>parse</c> does not name it
+///         (Vega-Lite's implicit <c>parse</c>): the loader passes those fields for the main data only. An explicit entry
+///         for the field wins, and <c>parse: null</c> switches the implicit parse off; with <c>parse: "auto"</c> the
+///         inference runs first and an implicit field that is still text is date-parsed afterwards.
+///     </para>
+///     <para>
+///         <b>Cancellation</b> is polled before every field and every 4,096 rows.
 ///     </para>
 /// </remarks>
 internal sealed class ParseDirectives
 {
-    /// <summary>The ISO 8601 date format: year, month and day.</summary>
-    private const string DateFormat = "yyyy'-'MM'-'dd";
-
-    /// <summary>The ISO 8601 date and time format down to the minute.</summary>
-    private const string MinuteFormat = DateFormat + "'T'HH':'mm";
-
-    /// <summary>The ISO 8601 date and time format down to the second.</summary>
-    private const string SecondFormat = MinuteFormat + "':'ss";
-
-    /// <summary>The ISO 8601 date and time format with up to seven digits of fraction.</summary>
-    private const string FractionFormat = SecondFormat + "'.'FFFFFFF";
-
-    /// <summary>The ISO 8601 formats of dates and date-times that are recognized, in the invariant culture; <c>K</c> adds the optional zone.</summary>
-    private static readonly string[] IsoFormats =
-    [
-        DateFormat,
-        MinuteFormat, MinuteFormat + "K",
-        SecondFormat, SecondFormat + "K",
-        FractionFormat, FractionFormat + "K",
-    ];
+    /// <summary>The number of rows between two cancellation checks.</summary>
+    private const int CancellationInterval = 4_096;
 
     /// <summary>The directives that convert nothing.</summary>
-    private static readonly ParseDirectives NoneInstance = new(ParseMode.None, new Dictionary<string, ParseType>());
+    private static readonly ParseDirectives NoneInstance = new(ParseMode.None, new Dictionary<string, ParseSpec>(), [], suppressed: false);
 
     /// <summary>The directives that infer the type of each column.</summary>
-    private static readonly ParseDirectives AutoInstance = new(ParseMode.Auto, new Dictionary<string, ParseType>());
+    private static readonly ParseDirectives AutoInstance = new(ParseMode.Auto, new Dictionary<string, ParseSpec>(), [], suppressed: false);
+
+    /// <summary>The fields that stay to be date-parsed after the inference of <see cref="ParseMode.Auto"/> when they are still text.</summary>
+    private readonly IReadOnlyCollection<string> _implicitDates;
 
     /// <summary>
     ///     Initializes directives.
     /// </summary>
     /// <param name="mode">The mode.</param>
     /// <param name="fields">The explicit conversions by canonical field name.</param>
-    private ParseDirectives(ParseMode mode, IReadOnlyDictionary<string, ParseType> fields)
+    /// <param name="implicitDates">The implicit date fields that <see cref="ParseMode.Auto"/> parses when inference left them as text.</param>
+    /// <param name="suppressed">Whether the <c>parse</c> was JSON null.</param>
+    private ParseDirectives(ParseMode mode, IReadOnlyDictionary<string, ParseSpec> fields, IReadOnlyCollection<string> implicitDates, bool suppressed)
     {
         Mode = mode;
         Fields = fields;
+        _implicitDates = implicitDates;
+        Suppressed = suppressed;
     }
 
     /// <summary>Gets the directives that convert nothing.</summary>
@@ -119,67 +129,102 @@ internal sealed class ParseDirectives
     /// <summary>Gets the mode.</summary>
     public ParseMode Mode { get; }
 
-    /// <summary>Gets the explicit conversions by canonical field name (empty unless <see cref="Mode"/> is <see cref="ParseMode.Fields"/>).</summary>
-    public IReadOnlyDictionary<string, ParseType> Fields { get; }
+    /// <summary>Gets the explicit conversions by canonical field name (empty unless <see cref="Mode"/> is <see cref="ParseMode.Fields"/>); the implicit date fields are included.</summary>
+    public IReadOnlyDictionary<string, ParseSpec> Fields { get; }
+
+    /// <summary>Gets a value indicating whether the <c>parse</c> property was JSON null, which converts nothing and also switches the implicit date parse off.</summary>
+    public bool Suppressed { get; }
 
     /// <summary>
     ///     Reads the directives of a data format.
     /// </summary>
     /// <param name="format">The <c>format</c> object, or null.</param>
     /// <param name="defaultAuto">Whether an absent <c>parse</c> means <see cref="ParseMode.Auto"/> or <see cref="ParseMode.None"/>; the loader always passes <see langword="false"/> (Vega applies no inference unless <c>parse</c> is <c>"auto"</c>).</param>
+    /// <param name="implicitDateFields">The canonical names of the fields that are date-parsed unless <c>parse</c> says otherwise (the temporal fields of the encoding); null or empty for none.</param>
     /// <returns>The directives.</returns>
-    public static ParseDirectives Read(SpecNode? format, bool defaultAuto)
+    public static ParseDirectives Read(SpecNode? format, bool defaultAuto, IReadOnlyCollection<string>? implicitDateFields = null)
     {
         var parse = format is { IsObject: true } ? format["parse"] : null;
+        IReadOnlyCollection<string> implicitDates = implicitDateFields ?? [];
         if (parse is null)
         {
-            return defaultAuto ? Auto : None;
+            // An absent parse is the one case where the implicit dates are the whole conversion
+            if (defaultAuto)
+            {
+                return implicitDates.Count == 0 ? Auto : new ParseDirectives(ParseMode.Auto, new Dictionary<string, ParseSpec>(), implicitDates, suppressed: false);
+            }
+
+            return implicitDates.Count == 0 ? None : new ParseDirectives(ParseMode.Fields, ImplicitOnly(implicitDates), [], suppressed: false);
         }
 
         if (parse.IsObject)
         {
-            var fields = new Dictionary<string, ParseType>(StringComparer.Ordinal);
+            var fields = new Dictionary<string, ParseSpec>(StringComparer.Ordinal);
             foreach (var entry in parse.Properties)
             {
                 // Entries that validation would have rejected are skipped; the specification parser makes them errors
-                if (entry.IsString && TryClassify(entry.StringValue!, out var type))
+                if (entry.IsString && TryClassify(entry.StringValue!, out var spec))
                 {
-                    fields[FieldPath.Canonicalize(entry.Name) ?? FieldPath.Escape(entry.Name!)] = type;
+                    fields[FieldPath.Canonicalize(entry.Name) ?? FieldPath.Escape(entry.Name!)] = spec;
                 }
             }
 
-            return new ParseDirectives(ParseMode.Fields, fields);
+            // An explicit entry of the field wins over the implicit date parse
+            foreach (var name in implicitDates)
+            {
+                fields.TryAdd(name, new ParseSpec(ParseType.Date));
+            }
+
+            return new ParseDirectives(ParseMode.Fields, fields, [], suppressed: false);
         }
 
-        return parse.IsString && string.Equals(parse.StringValue, "auto", StringComparison.Ordinal) ? Auto : None;
+        if (parse.IsString && string.Equals(parse.StringValue, "auto", StringComparison.Ordinal))
+        {
+            return implicitDates.Count == 0 ? Auto : new ParseDirectives(ParseMode.Auto, new Dictionary<string, ParseSpec>(), implicitDates, suppressed: false);
+        }
+
+        return parse.IsNull ? new ParseDirectives(ParseMode.None, new Dictionary<string, ParseSpec>(), [], suppressed: true) : None;
     }
 
     /// <summary>
     ///     Classifies the text of a <c>format.parse</c> entry.
     /// </summary>
     /// <param name="text">The entry value, such as <c>number</c> or <c>date:'%Y'</c>.</param>
-    /// <param name="type">Receives the type.</param>
-    /// <returns><see langword="true"/> when the text is a known conversion.</returns>
-    public static bool TryClassify(string text, out ParseType type)
+    /// <param name="spec">Receives the conversion.</param>
+    /// <returns><see langword="true"/> when the text is a known conversion; a <c>date:</c> or <c>utc:</c> entry needs its format in single or double quotes.</returns>
+    public static bool TryClassify(string text, out ParseSpec spec)
     {
         switch (text)
         {
             case "number":
-                type = ParseType.Number;
+                spec = new ParseSpec(ParseType.Number);
                 return true;
             case "boolean":
-                type = ParseType.Boolean;
+                spec = new ParseSpec(ParseType.Boolean);
                 return true;
             case "date":
-                type = ParseType.Date;
+                spec = new ParseSpec(ParseType.Date);
                 return true;
             case "string":
-                type = ParseType.String;
+                spec = new ParseSpec(ParseType.String);
                 return true;
             default:
-                // date:'%fmt' and utc:'%fmt' carry a custom time format
-                type = ParseType.CustomDate;
-                return text.StartsWith("date:", StringComparison.Ordinal) || text.StartsWith("utc:", StringComparison.Ordinal);
+                // date:'%fmt' and utc:'%fmt' carry a custom time format in quotes
+                var utc = text.StartsWith("utc:", StringComparison.Ordinal);
+                spec = default;
+                if (!utc && !text.StartsWith("date:", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                var quoted = text.AsSpan(utc ? 4 : 5);
+                if (quoted.Length < 2 || quoted[0] is not ('\'' or '"') || quoted[^1] != quoted[0])
+                {
+                    return false;
+                }
+
+                spec = new ParseSpec(ParseType.Date, quoted[1..^1].ToString(), utc);
+                return true;
         }
     }
 
@@ -188,27 +233,45 @@ internal sealed class ParseDirectives
     /// </summary>
     /// <param name="records">The rows; each maps canonical field names to values.</param>
     /// <param name="failures">Collects the values that could not be converted.</param>
-    /// <param name="cancellation">The token polled between fields.</param>
-    public void Apply(IReadOnlyList<Dictionary<string, DataValue>> records, ParseFailures failures, CancellationToken cancellation)
+    /// <param name="cancellation">The token polled before every field and every 4,096 rows.</param>
+    /// <param name="calendar">The calendar of dates without an offset and of <c>date:'%fmt'</c> formats; UTC when null.</param>
+    public void Apply(IReadOnlyList<Dictionary<string, DataValue>> records, ParseFailures failures, CancellationToken cancellation, TimeCalendar? calendar = null)
     {
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(failures);
+        var effective = calendar ?? TimeCalendar.Utc;
         switch (Mode)
         {
             case ParseMode.Auto:
-                ApplyAuto(records, cancellation);
+                ApplyAuto(records, failures, cancellation, effective);
                 break;
             case ParseMode.Fields:
-                foreach (var (field, type) in Fields.OrderBy(f => f.Key, StringComparer.Ordinal))
+                foreach (var (field, spec) in Fields.OrderBy(f => f.Key, StringComparer.Ordinal))
                 {
                     cancellation.ThrowIfCancellationRequested();
-                    ApplyField(records, field, type, failures);
+                    ApplyField(records, field, spec, failures, cancellation, effective);
                 }
 
                 break;
             default:
                 break;
         }
+    }
+
+    /// <summary>
+    ///     Creates the conversions of the implicit date fields alone.
+    /// </summary>
+    /// <param name="implicitDates">The canonical field names.</param>
+    /// <returns>The conversions, a plain date each.</returns>
+    private static Dictionary<string, ParseSpec> ImplicitOnly(IReadOnlyCollection<string> implicitDates)
+    {
+        var fields = new Dictionary<string, ParseSpec>(StringComparer.Ordinal);
+        foreach (var name in implicitDates)
+        {
+            fields[name] = new ParseSpec(ParseType.Date);
+        }
+
+        return fields;
     }
 
     /// <summary>
@@ -245,46 +308,26 @@ internal sealed class ParseDirectives
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
 
     /// <summary>
-    ///     Tries to read an ISO 8601 date or date-time as milliseconds since the epoch in UTC.
+    ///     Tries to read a date from text with the rules of JavaScript's <c>Date.parse</c>.
     /// </summary>
     /// <remarks>
-    ///     The forms are <c>yyyy-MM-dd</c> (midnight UTC), and <c>yyyy-MM-ddTHH:mm</c>, <c>...:ss</c> and <c>...:ss.f</c> (up
-    ///     to seven fraction digits), each with an optional <c>Z</c> or <c>+HH:mm</c> offset; without an offset the time is
-    ///     taken as UTC, so the result never depends on the host time zone or culture. A date beyond the supported range of
-    ///     <c>DataValue</c> (years 1 to 9999, whole milliseconds) is not a date.
+    ///     Surrounding white space is ignored; the trimmed text is handed to <see cref="JsDateParser"/> only when it is short
+    ///     enough to be a date, so a huge cell is not copied or scanned beyond its white space.
     /// </remarks>
-    /// <param name="text">The text; surrounding white space is ignored.</param>
+    /// <param name="text">The text.</param>
+    /// <param name="calendar">The calendar whose zone reads a date-time without an offset.</param>
     /// <param name="milliseconds">Receives the milliseconds since 1970-01-01T00:00:00Z.</param>
-    /// <returns><see langword="true"/> when the text is a valid date or date-time.</returns>
-    public static bool TryParseIsoDate(string text, out double milliseconds)
+    /// <returns><see langword="true"/> when the text is a date in the supported range.</returns>
+    public static bool TryParseDate(string text, TimeCalendar calendar, out double milliseconds)
     {
-        milliseconds = 0;
-        var trimmed = text.Trim();
-
-        // A cheap shape test first: four digits, dash, two digits, dash, two digits
-        if (trimmed.Length < 10
-            || !char.IsAsciiDigit(trimmed[0]) || !char.IsAsciiDigit(trimmed[1]) || !char.IsAsciiDigit(trimmed[2]) || !char.IsAsciiDigit(trimmed[3])
-            || trimmed[4] != '-' || !char.IsAsciiDigit(trimmed[5]) || !char.IsAsciiDigit(trimmed[6])
-            || trimmed[7] != '-' || !char.IsAsciiDigit(trimmed[8]) || !char.IsAsciiDigit(trimmed[9]))
+        var trimmed = text.AsSpan().Trim();
+        if (trimmed.Length == 0 || trimmed.Length > JsDateParser.MaxLength)
         {
+            milliseconds = double.NaN;
             return false;
         }
 
-        if (!DateTime.TryParseExact(trimmed, IsoFormats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
-        {
-            return false;
-        }
-
-        milliseconds = DataValue.MillisecondsSinceEpoch(parsed);
-
-        // A sub-millisecond fraction in the last millisecond of year 9999 is beyond the supported date range, so it is not a date
-        if (milliseconds < DataValue.MinDateMilliseconds || milliseconds > DataValue.MaxDateMilliseconds)
-        {
-            milliseconds = 0;
-            return false;
-        }
-
-        return true;
+        return JsDateParser.TryParse(trimmed.Length == text.Length ? text : trimmed.ToString(), calendar, out milliseconds);
     }
 
     /// <summary>
@@ -297,18 +340,35 @@ internal sealed class ParseDirectives
         ParseType.Number => "number",
         ParseType.Boolean => "boolean",
         ParseType.Date => "date",
-        ParseType.String => "string",
-        _ => "date with a custom format",
+        _ => "string",
     };
 
     /// <summary>
-    ///     Converts one value to a type.
+    ///     Gets the name of a conversion for messages, telling a date with a custom format from a plain date.
+    /// </summary>
+    /// <param name="spec">The conversion.</param>
+    /// <returns>The name; <c>date with a custom format</c> for <c>date:'%fmt'</c> and <c>utc:'%fmt'</c>.</returns>
+    public static string NameOf(ParseSpec spec) => spec.IsCustomDate ? "date with a custom format" : NameOf(spec.Type);
+
+    /// <summary>
+    ///     Converts one value to a type; a date is read in UTC.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <param name="type">The target type.</param>
     /// <param name="result">Receives the converted value (null when the value is null, empty or cannot be converted).</param>
     /// <returns><see langword="false"/> when a value that is present could not be converted; otherwise <see langword="true"/>.</returns>
-    public static bool TryConvert(DataValue value, ParseType type, out DataValue result)
+    public static bool TryConvert(DataValue value, ParseType type, out DataValue result) =>
+        TryConvert(value, new ParseSpec(type), TimeCalendar.Utc, out result);
+
+    /// <summary>
+    ///     Converts one value to a type.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="spec">The conversion.</param>
+    /// <param name="calendar">The calendar of dates without an offset and of <c>date:'%fmt'</c> formats.</param>
+    /// <param name="result">Receives the converted value (null when the value is null, empty or cannot be converted).</param>
+    /// <returns><see langword="false"/> when a value that is present could not be converted; otherwise <see langword="true"/>.</returns>
+    public static bool TryConvert(DataValue value, ParseSpec spec, TimeCalendar calendar, out DataValue result)
     {
         result = DataValue.Null;
         if (value.IsNull)
@@ -316,26 +376,13 @@ internal sealed class ParseDirectives
             return true;
         }
 
-        return type switch
+        return spec.Type switch
         {
             ParseType.Number => TryToNumber(value, out result),
             ParseType.Boolean => TryToBoolean(value, out result),
-            ParseType.Date => TryToDate(value, out result),
-            ParseType.String => TryToString(value, out result),
-            _ => KeepAsRead(value, out result),
+            ParseType.Date => TryToDate(value, spec, calendar, out result),
+            _ => TryToString(value, out result),
         };
-    }
-
-    /// <summary>
-    ///     Leaves a value as read (the custom date formats, which are not implemented).
-    /// </summary>
-    /// <param name="value">The value.</param>
-    /// <param name="result">Receives the same value.</param>
-    /// <returns>Always <see langword="true"/>.</returns>
-    private static bool KeepAsRead(DataValue value, out DataValue result)
-    {
-        result = value;
-        return true;
     }
 
     /// <summary>
@@ -421,9 +468,11 @@ internal sealed class ParseDirectives
     ///     Converts a value to a date.
     /// </summary>
     /// <param name="value">The non-null value.</param>
+    /// <param name="spec">The conversion: a plain date or a date with a custom format.</param>
+    /// <param name="calendar">The calendar of dates without an offset and of <c>date:'%fmt'</c> formats.</param>
     /// <param name="result">Receives the result.</param>
     /// <returns><see langword="false"/> when the value is not a date.</returns>
-    private static bool TryToDate(DataValue value, out DataValue result)
+    private static bool TryToDate(DataValue value, ParseSpec spec, TimeCalendar calendar, out DataValue result)
     {
         result = DataValue.Null;
         switch (value.Kind)
@@ -431,42 +480,53 @@ internal sealed class ParseDirectives
             case DataValueKind.Date:
                 result = value;
                 return true;
-            case DataValueKind.Number:
+            case DataValueKind.Number when !spec.IsCustomDate:
                 // A number is taken as milliseconds since the epoch, like JavaScript's new Date(number)
-                try
-                {
-                    result = DataValue.FromDate(value.Number);
-                    return true;
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return false;
-                }
-
+                return TryMakeDate(value.Number, out result);
             case DataValueKind.Boolean:
                 return false;
             default:
-                if (string.IsNullOrWhiteSpace(value.Text))
+                // A number with a custom format is read through its JavaScript text, as d3's parser coerces its input to a string
+                var text = value.Kind == DataValueKind.Number ? value.ToText() : value.Text ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(text))
                 {
                     return true;
                 }
 
-                // The ISO reader only returns milliseconds inside the supported range; a failure to convert is still the
-                // ordinary "not a date" outcome (null with a warning, or text under auto inference), never a raw exception
-                if (TryParseIsoDate(value.Text, out var milliseconds))
+                // Both readers only return milliseconds inside the supported range; a failure to convert is the ordinary
+                // "not a date" outcome (null with a warning, or text under auto inference), never a raw exception
+                bool parsed;
+                double milliseconds;
+                if (spec.IsCustomDate)
                 {
-                    try
-                    {
-                        result = DataValue.FromDate(milliseconds);
-                        return true;
-                    }
-                    catch (ArgumentOutOfRangeException)
-                    {
-                        return false;
-                    }
+                    parsed = TimeFormat.TryParse(spec.Format!, text, spec.Utc ? TimeCalendar.Utc : calendar, out milliseconds);
+                }
+                else
+                {
+                    parsed = TryParseDate(text, calendar, out milliseconds);
                 }
 
-                return false;
+                return parsed && TryMakeDate(milliseconds, out result);
+        }
+    }
+
+    /// <summary>
+    ///     Makes a date value from milliseconds.
+    /// </summary>
+    /// <param name="milliseconds">The milliseconds since the epoch.</param>
+    /// <param name="result">Receives the date.</param>
+    /// <returns><see langword="false"/> when the milliseconds are not a supported date.</returns>
+    private static bool TryMakeDate(double milliseconds, out DataValue result)
+    {
+        try
+        {
+            result = DataValue.FromDate(milliseconds);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            result = DataValue.Null;
+            return false;
         }
     }
 
@@ -487,26 +547,33 @@ internal sealed class ParseDirectives
     /// </summary>
     /// <param name="records">The rows.</param>
     /// <param name="field">The canonical field name.</param>
-    /// <param name="type">The target type.</param>
+    /// <param name="spec">The target conversion.</param>
     /// <param name="failures">Collects the failures.</param>
-    private static void ApplyField(IReadOnlyList<Dictionary<string, DataValue>> records, string field, ParseType type, ParseFailures failures)
+    /// <param name="cancellation">The token polled every 4,096 rows.</param>
+    /// <param name="calendar">The calendar of dates.</param>
+    private static void ApplyField(
+        IReadOnlyList<Dictionary<string, DataValue>> records,
+        string field,
+        ParseSpec spec,
+        ParseFailures failures,
+        CancellationToken cancellation,
+        TimeCalendar calendar)
     {
-        // A custom date format is reported by the feature catalog and leaves the field as read
-        if (type == ParseType.CustomDate)
-        {
-            return;
-        }
-
         for (var row = 0; row < records.Count; row++)
         {
+            if (row % CancellationInterval == CancellationInterval - 1)
+            {
+                cancellation.ThrowIfCancellationRequested();
+            }
+
             if (!records[row].TryGetValue(field, out var value))
             {
                 continue;
             }
 
-            if (!TryConvert(value, type, out var converted))
+            if (!TryConvert(value, spec, calendar, out var converted))
             {
-                failures.Add(field, type, row, value.ToText());
+                failures.Add(field, spec, row, value.ToText());
             }
 
             records[row][field] = converted;
@@ -514,11 +581,14 @@ internal sealed class ParseDirectives
     }
 
     /// <summary>
-    ///     Infers the type of every text column and converts the columns that have one.
+    ///     Infers the type of every text column and converts the columns that have one; the implicit date fields that
+    ///     inference leaves alone are date-parsed.
     /// </summary>
     /// <param name="records">The rows.</param>
-    /// <param name="cancellation">The token polled between fields.</param>
-    private static void ApplyAuto(IReadOnlyList<Dictionary<string, DataValue>> records, CancellationToken cancellation)
+    /// <param name="failures">Collects the values of an implicit date field that are not dates.</param>
+    /// <param name="cancellation">The token polled before every field and every 4,096 rows.</param>
+    /// <param name="calendar">The calendar of dates.</param>
+    private void ApplyAuto(IReadOnlyList<Dictionary<string, DataValue>> records, ParseFailures failures, CancellationToken cancellation, TimeCalendar calendar)
     {
         var fields = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var record in records)
@@ -529,16 +599,29 @@ internal sealed class ParseDirectives
         foreach (var field in fields)
         {
             cancellation.ThrowIfCancellationRequested();
-            var type = InferColumn(records, field);
+            var type = InferColumn(records, field, cancellation, calendar);
             if (type is null)
             {
+                // A temporal field of the encoding that is still text (or a mixed column) is a date column all the same
+                if (_implicitDates.Contains(field))
+                {
+                    ApplyField(records, field, new ParseSpec(ParseType.Date), failures, cancellation, calendar);
+                }
+
                 continue;
             }
 
             // Every non-empty text of the column converts by construction, so no failure can occur here
-            foreach (var record in records)
+            var spec = new ParseSpec(type.Value);
+            for (var row = 0; row < records.Count; row++)
             {
-                if (record.TryGetValue(field, out var value) && value.IsString && TryConvert(value, type.Value, out var converted))
+                if (row % CancellationInterval == CancellationInterval - 1)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                }
+
+                var record = records[row];
+                if (record.TryGetValue(field, out var value) && value.IsString && TryConvert(value, spec, calendar, out var converted))
                 {
                     record[field] = converted;
                 }
@@ -551,16 +634,23 @@ internal sealed class ParseDirectives
     /// </summary>
     /// <param name="records">The rows.</param>
     /// <param name="field">The canonical field name.</param>
+    /// <param name="cancellation">The token polled every 4,096 rows.</param>
+    /// <param name="calendar">The calendar of dates.</param>
     /// <returns>The type, or <see langword="null"/> when the column stays as it is.</returns>
-    private static ParseType? InferColumn(IReadOnlyList<Dictionary<string, DataValue>> records, string field)
+    private static ParseType? InferColumn(IReadOnlyList<Dictionary<string, DataValue>> records, string field, CancellationToken cancellation, TimeCalendar calendar)
     {
         var canBeBoolean = true;
         var canBeNumber = true;
         var canBeDate = true;
         var seen = false;
-        foreach (var record in records)
+        for (var row = 0; row < records.Count; row++)
         {
-            if (!record.TryGetValue(field, out var value) || value.IsNull)
+            if (row % CancellationInterval == CancellationInterval - 1)
+            {
+                cancellation.ThrowIfCancellationRequested();
+            }
+
+            if (!records[row].TryGetValue(field, out var value) || value.IsNull)
             {
                 continue;
             }
@@ -580,7 +670,7 @@ internal sealed class ParseDirectives
             seen = true;
             canBeBoolean = canBeBoolean && TryParseBoolean(text, out _);
             canBeNumber = canBeNumber && TryParseNumber(text, out _);
-            canBeDate = canBeDate && TryParseIsoDate(text, out _);
+            canBeDate = canBeDate && TryParseDate(text, calendar, out _);
             if (!canBeBoolean && !canBeNumber && !canBeDate)
             {
                 return null;
@@ -610,12 +700,12 @@ internal sealed class ParseFailures
     /// <summary>The longest part of a value that is quoted in a message.</summary>
     private const int MaxQuoted = 40;
 
-    /// <summary>The failures by field and type: how many, and the first row and text.</summary>
-    private readonly SortedDictionary<(string Field, ParseType Type), (long Count, long FirstRow, string FirstText)> _failures =
-        new(Comparer<(string Field, ParseType Type)>.Create((a, b) =>
+    /// <summary>The failures by field and conversion name: how many, and the first row and text.</summary>
+    private readonly SortedDictionary<(string Field, string Type), (long Count, long FirstRow, string FirstText)> _failures =
+        new(Comparer<(string Field, string Type)>.Create((a, b) =>
         {
             var byField = string.CompareOrdinal(a.Field, b.Field);
-            return byField != 0 ? byField : a.Type.CompareTo(b.Type);
+            return byField != 0 ? byField : string.CompareOrdinal(a.Type, b.Type);
         }));
 
     /// <summary>Gets a value indicating whether no failure was recorded.</summary>
@@ -625,12 +715,12 @@ internal sealed class ParseFailures
     ///     Records one value that could not be converted.
     /// </summary>
     /// <param name="field">The canonical field name.</param>
-    /// <param name="type">The type the value was converted to.</param>
+    /// <param name="spec">The conversion the value was converted with.</param>
     /// <param name="row">The zero-based row of the value.</param>
     /// <param name="text">The text of the value.</param>
-    public void Add(string field, ParseType type, long row, string text)
+    public void Add(string field, ParseSpec spec, long row, string text)
     {
-        var key = (field, type);
+        var key = (field, ParseDirectives.NameOf(spec));
         _failures[key] = _failures.TryGetValue(key, out var existing)
             ? (existing.Count + 1, existing.FirstRow, existing.FirstText)
             : (1, row, text);
@@ -643,7 +733,7 @@ internal sealed class ParseFailures
     /// <returns>The warnings, in field order.</returns>
     public IEnumerable<FeatureReport> ToReports(VegaLiteLocation location)
     {
-        foreach (var ((field, type), (count, firstRow, firstText)) in _failures)
+        foreach (var ((field, typeName), (count, firstRow, firstText)) in _failures)
         {
             var quoted = new string(firstText.Take(MaxQuoted).Select(c => c < ' ' || c == '\u007F' ? '?' : c).ToArray());
             var more = firstText.Length > MaxQuoted ? "..." : string.Empty;
@@ -651,7 +741,7 @@ internal sealed class ParseFailures
                 "vl-data-parse-failed",
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{count} value(s) of the field '{field}' could not be read as {ParseDirectives.NameOf(type)} and are null (the first is in row {firstRow + 1}: '{quoted}{more}')."),
+                    $"{count} value(s) of the field '{field}' could not be read as {typeName} and are null (the first is in row {firstRow + 1}: '{quoted}{more}')."),
                 location,
                 FeatureReportKind.Warning);
         }
@@ -668,6 +758,7 @@ internal sealed class ParseFailures
 /// <param name="Display">The name of the data in messages.</param>
 /// <param name="Location">The location of the data in the specification, for errors.</param>
 /// <param name="Cancellation">The token that stops the read.</param>
+/// <param name="Calendar">The calendar of the date conversions; UTC when null.</param>
 internal sealed record DelimitedOptions(
     char Delimiter,
     ParseDirectives Directives,
@@ -675,7 +766,8 @@ internal sealed record DelimitedOptions(
     long RowBudget,
     string Display,
     VegaLiteLocation Location,
-    CancellationToken Cancellation);
+    CancellationToken Cancellation,
+    TimeCalendar? Calendar = null);
 
 /// <summary>
 ///     The rows that a delimited text yields, and the values that conversion could not read.
@@ -778,7 +870,7 @@ internal static class DelimitedTextParser
             records.Add(record);
         }
 
-        options.Directives.Apply(records, failures, options.Cancellation);
+        options.Directives.Apply(records, failures, options.Cancellation, options.Calendar);
         return new DelimitedResult(records, failures);
     }
 

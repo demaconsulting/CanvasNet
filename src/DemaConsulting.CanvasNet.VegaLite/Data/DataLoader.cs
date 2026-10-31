@@ -39,8 +39,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     <para>
 ///         <b>Conversion.</b> <c>format.parse</c> converts values as described at <see cref="ParseDirectives"/>; as in
 ///         Vega, delimited text keeps every cell as a string unless <c>parse</c> asks for more (<c>"auto"</c> infers
-///         booleans, numbers and ISO dates per column; a field map converts the named fields only), and JSON keeps its
-///         types. Values that an explicit conversion cannot read
+///         booleans, numbers and dates per column; a field map converts the named fields only), and JSON keeps its
+///         types. The temporal fields of the encoding of the main data are additionally date-parsed unless <c>parse</c>
+///         names them or is null (the lookup sources are never parsed implicitly); dates without an offset and
+///         <c>date:'%fmt'</c> formats are read in the zone of the calendar of the loader (UTC by default). Values that an
+///         explicit conversion cannot read
 ///         become null and are reported once per field as the warning <c>vl-data-parse-failed</c> (see
 ///         <see cref="Warnings"/>). <c>format.property</c> selects the array of rows inside a JSON document by a dotted
 ///         path.
@@ -56,7 +59,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     </para>
 ///     <para>
 ///         <b>Transforms.</b> The loader of the call is also the context of the row transforms: the data of a lookup is
-///         loaded by <see cref="Load(SpecNode?)"/> on the same instance (so with the sandbox, the file cache, the file and
+///         loaded by <see cref="Load(SpecNode?, IReadOnlySet{string}?)"/> on the same instance (so with the sandbox, the file cache, the file and
 ///         byte limits and the row total of the main data), and the rows of a derived table are counted by
 ///         <see cref="ReserveDerivedRows"/> before they are allocated and given back by <see cref="ReleaseRows"/> when the table
 ///         they came from is no longer needed.
@@ -88,6 +91,9 @@ internal sealed class DataLoader
     /// <summary>The datasets supplied by the caller, or null.</summary>
     private readonly IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>? _callerDatasets;
 
+    /// <summary>The calendar of the date conversions.</summary>
+    private readonly TimeCalendar _calendar;
+
     /// <summary>The warnings found while loading.</summary>
     private readonly List<FeatureReport> _warnings = [];
 
@@ -104,6 +110,7 @@ internal sealed class DataLoader
     /// <param name="callerDatasets">The named datasets supplied by the caller, or null.</param>
     /// <param name="cancellationToken">A token that stops the loading.</param>
     /// <param name="isLink">The link probe handed to the file resolver; <see langword="null"/> uses the file system. A seam for tests.</param>
+    /// <param name="calendar">The calendar that reads dates without an offset and <c>date:'%fmt'</c> formats; UTC when null.</param>
     public DataLoader(
         string? sourceName,
         VegaLiteLimits? limits = null,
@@ -111,13 +118,15 @@ internal sealed class DataLoader
         SpecNode? specDatasets = null,
         IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>? callerDatasets = null,
         CancellationToken cancellationToken = default,
-        Func<string, bool>? isLink = null)
+        Func<string, bool>? isLink = null,
+        TimeCalendar? calendar = null)
     {
         _sourceName = sourceName;
         _limits = limits ?? VegaLiteLimits.Default;
         _cancellation = cancellationToken;
         _specDatasets = specDatasets;
         _callerDatasets = callerDatasets;
+        _calendar = calendar ?? TimeCalendar.Utc;
         _resolver = new DataFileResolver(openOptions ?? new VegaLiteOpenOptions(), _limits, cancellationToken, isLink);
     }
 
@@ -173,10 +182,11 @@ internal sealed class DataLoader
     ///     Loads the rows of a <c>data</c> property.
     /// </summary>
     /// <param name="data">The <c>data</c> node of the view; null (or anything but an object) gives an empty table.</param>
+    /// <param name="implicitDateFields">The canonical names of the fields that are date-parsed unless <c>format.parse</c> says otherwise (the temporal fields of the encoding); only the main data of a view passes them, never a lookup source.</param>
     /// <returns>The table: the rows of the source, or an empty table for a source that is only reported.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when a local file or a named dataset cannot be used, the data is malformed or a limit is exceeded; carries the location of the data.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the cancellation token is canceled.</exception>
-    public DataTable Load(SpecNode? data)
+    public DataTable Load(SpecNode? data, IReadOnlySet<string>? implicitDateFields = null)
     {
         if (data is not { IsObject: true })
         {
@@ -189,12 +199,12 @@ internal sealed class DataLoader
         // The source is chosen by precedence, exactly as the feature catalog and the data references do
         if (data["values"] is { } values)
         {
-            return values.IsArray ? LoadSpecRows(values, "inline data", format, data) : DataTable.Empty;
+            return values.IsArray ? LoadSpecRows(values, "inline data", format, data, implicitDateFields) : DataTable.Empty;
         }
 
         if (data["url"] is { IsString: true } url)
         {
-            return LoadUrl(data, url, format);
+            return LoadUrl(data, url, format, implicitDateFields);
         }
 
         if (data["sequence"] is { IsObject: true } sequence)
@@ -202,7 +212,7 @@ internal sealed class DataLoader
             return LoadSequence(sequence);
         }
 
-        return data["name"] is { IsString: true } name ? LoadNamed(data, name, format) : DataTable.Empty;
+        return data["name"] is { IsString: true } name ? LoadNamed(data, name, format, implicitDateFields) : DataTable.Empty;
     }
 
     /// <summary>
@@ -381,8 +391,9 @@ internal sealed class DataLoader
     /// <param name="what">What the rows are, for messages.</param>
     /// <param name="format">The <c>format</c> object of the data, or null.</param>
     /// <param name="data">The <c>data</c> object, for the location of warnings.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table.</returns>
-    private DataTable LoadSpecRows(SpecNode rows, string what, SpecNode? format, SpecNode data)
+    private DataTable LoadSpecRows(SpecNode rows, string what, SpecNode? format, SpecNode data, IReadOnlySet<string>? implicitDateFields)
     {
         var location = rows.GetLocation(_sourceName);
         Charge(rows.Items.Count, what, location);
@@ -412,7 +423,7 @@ internal sealed class DataLoader
         }
 
         var failures = new ParseFailures();
-        ParseDirectives.Read(format, defaultAuto: false).Apply(records, failures, _cancellation);
+        ParseDirectives.Read(format, defaultAuto: false, implicitDateFields).Apply(records, failures, _cancellation, _calendar);
         return Complete(records, failures, location, data.GetLocation(_sourceName));
     }
 
@@ -422,9 +433,10 @@ internal sealed class DataLoader
     /// <param name="data">The <c>data</c> object.</param>
     /// <param name="name">The <c>name</c> value.</param>
     /// <param name="format">The <c>format</c> object, or null.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when no dataset of that name is defined.</exception>
-    private DataTable LoadNamed(SpecNode data, SpecNode name, SpecNode? format)
+    private DataTable LoadNamed(SpecNode data, SpecNode name, SpecNode? format, IReadOnlySet<string>? implicitDateFields)
     {
         var key = name.StringValue!;
 
@@ -432,13 +444,13 @@ internal sealed class DataLoader
         if (_callerDatasets is not null && _callerDatasets.TryGetValue(key, out var callerRows))
         {
             var dataLocation = data.GetLocation(_sourceName);
-            return LoadCallerRows(callerRows, key, format, dataLocation);
+            return LoadCallerRows(callerRows, key, format, dataLocation, implicitDateFields);
         }
 
         if (_specDatasets?[key] is { } dataset)
         {
             // A dataset given as text or as an object is reported by the feature catalog and is empty here
-            return dataset.IsArray ? LoadSpecRows(dataset, $"dataset '{key}'", format, data) : DataTable.Empty;
+            return dataset.IsArray ? LoadSpecRows(dataset, $"dataset '{key}'", format, data, implicitDateFields) : DataTable.Empty;
         }
 
         throw new VegaLiteRenderException(
@@ -453,8 +465,9 @@ internal sealed class DataLoader
     /// <param name="name">The name of the dataset.</param>
     /// <param name="format">The <c>format</c> object, or null.</param>
     /// <param name="location">The location of the <c>data</c> object.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table.</returns>
-    private DataTable LoadCallerRows(IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string name, SpecNode? format, VegaLiteLocation location)
+    private DataTable LoadCallerRows(IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string name, SpecNode? format, VegaLiteLocation location, IReadOnlySet<string>? implicitDateFields)
     {
         Charge(rows.Count, $"dataset '{name}'", location);
         var records = new List<Dictionary<string, DataValue>>(rows.Count);
@@ -483,7 +496,7 @@ internal sealed class DataLoader
         }
 
         var failures = new ParseFailures();
-        ParseDirectives.Read(format, defaultAuto: false).Apply(records, failures, _cancellation);
+        ParseDirectives.Read(format, defaultAuto: false, implicitDateFields).Apply(records, failures, _cancellation, _calendar);
         return Complete(records, failures, location, location);
     }
 
@@ -599,9 +612,10 @@ internal sealed class DataLoader
     /// <param name="data">The <c>data</c> object.</param>
     /// <param name="url">The <c>url</c> value.</param>
     /// <param name="format">The <c>format</c> object, or null.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table; empty (and never read) when the URL is remote or the format is geographic.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the file cannot be used.</exception>
-    private DataTable LoadUrl(SpecNode data, SpecNode url, SpecNode? format)
+    private DataTable LoadUrl(SpecNode data, SpecNode url, SpecNode? format, IReadOnlySet<string>? implicitDateFields)
     {
         var text = url.StringValue!;
 
@@ -622,10 +636,10 @@ internal sealed class DataLoader
         var dataLocation = data.GetLocation(_sourceName);
         return type switch
         {
-            "csv" => LoadDelimited(file, ',', format, location, dataLocation),
-            "tsv" => LoadDelimited(file, '\t', format, location, dataLocation),
-            "dsv" => LoadDelimited(file, ReadDelimiter(format, location), format, location, dataLocation),
-            _ => LoadJson(file, format, location, dataLocation),
+            "csv" => LoadDelimited(file, ',', format, location, dataLocation, implicitDateFields),
+            "tsv" => LoadDelimited(file, '\t', format, location, dataLocation, implicitDateFields),
+            "dsv" => LoadDelimited(file, ReadDelimiter(format, location), format, location, dataLocation, implicitDateFields),
+            _ => LoadJson(file, format, location, dataLocation, implicitDateFields),
         };
     }
 
@@ -637,17 +651,19 @@ internal sealed class DataLoader
     /// <param name="format">The <c>format</c> object, or null.</param>
     /// <param name="location">The location of the <c>url</c>.</param>
     /// <param name="dataLocation">The location of the <c>data</c> object.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table.</returns>
-    private DataTable LoadDelimited(DataFile file, char delimiter, SpecNode? format, VegaLiteLocation location, VegaLiteLocation dataLocation)
+    private DataTable LoadDelimited(DataFile file, char delimiter, SpecNode? format, VegaLiteLocation location, VegaLiteLocation dataLocation, IReadOnlySet<string>? implicitDateFields)
     {
         var options = new DelimitedOptions(
             delimiter,
-            ParseDirectives.Read(format, defaultAuto: false),
+            ParseDirectives.Read(format, defaultAuto: false, implicitDateFields),
             _limits,
             _limits.MaxDataRows - _rowsLoaded,
             file.Display,
             location,
-            _cancellation);
+            _cancellation,
+            _calendar);
         var result = DelimitedTextParser.Parse(file.Text, options);
         return Complete(result.Records, result.Failures, location, dataLocation);
     }
@@ -659,9 +675,10 @@ internal sealed class DataLoader
     /// <param name="format">The <c>format</c> object, or null.</param>
     /// <param name="location">The location of the <c>url</c>.</param>
     /// <param name="dataLocation">The location of the <c>data</c> object.</param>
+    /// <param name="implicitDateFields">The implicit date fields of the main data, or null.</param>
     /// <returns>The table.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the text is not JSON, the property is missing, or the selected value is not an array.</exception>
-    private DataTable LoadJson(DataFile file, SpecNode? format, VegaLiteLocation location, VegaLiteLocation dataLocation)
+    private DataTable LoadJson(DataFile file, SpecNode? format, VegaLiteLocation location, VegaLiteLocation dataLocation, IReadOnlySet<string>? implicitDateFields)
     {
         JsonDocument document;
         try
@@ -681,7 +698,7 @@ internal sealed class DataLoader
         {
             var records = ReadJsonRecords(document.RootElement, format, file, location);
             var failures = new ParseFailures();
-            ParseDirectives.Read(format, defaultAuto: false).Apply(records, failures, _cancellation);
+            ParseDirectives.Read(format, defaultAuto: false, implicitDateFields).Apply(records, failures, _cancellation, _calendar);
             return Complete(records, failures, location, dataLocation);
         }
     }

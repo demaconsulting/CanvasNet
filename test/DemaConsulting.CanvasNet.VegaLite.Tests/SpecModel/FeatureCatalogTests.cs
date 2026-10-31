@@ -64,7 +64,6 @@ public class FeatureCatalogTests
                 ("vl-layout-autosize-fit", "/autosize"),
                 ("vl-param-selection", "/params/1"),
                 ("vl-projection", "/projection"),
-                ("vl-data-parse-date-format", "/data/format/parse/d"),
                 ("vl-transform-calculate", "/transform/0"),
                 ("vl-transform-filter", "/transform/1"),
                 ("vl-transform-regression", "/transform/2"),
@@ -190,11 +189,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that a custom date format of a parse map reports <c>vl-data-parse-date-format</c> at the entry (it
-    ///     is not applied) and that plain <c>date</c> does not.
+    ///     Validates that a custom date format of a parse map is supported (the data stage applies it), so that the feature
+    ///     catalog reports nothing for it and the retired identifier <c>vl-data-parse-date-format</c> never appears.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier()
+    public void FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing()
     {
         // Arrange
         const string json = """
@@ -206,12 +205,9 @@ public class FeatureCatalogTests
         // Act
         var reports = FeatureCatalog.Visit(SpecParser.Parse(json, "dates.json"));
 
-        // Assert
-        Assert.Equal(
-            [("vl-data-parse-date-format", "/data/format/parse/b"), ("vl-data-parse-date-format", "/data/format/parse/c")],
-            reports.Select(r => (r.Id, r.Location.Pointer)));
-        Assert.All(reports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
-        Assert.All(reports, r => Assert.Equal("dates.json", r.Location.File));
+        // Assert: nothing is unsupported, so a strict render would not stop here
+        Assert.Empty(reports);
+        Assert.DoesNotContain(reports, r => r.Id == "vl-data-parse-date-format");
     }
 
     /// <summary>

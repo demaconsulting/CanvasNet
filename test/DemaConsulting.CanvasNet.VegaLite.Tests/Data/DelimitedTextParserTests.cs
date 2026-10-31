@@ -219,7 +219,9 @@ public class DelimitedTextParserTests
     }
 
     /// <summary>
-    ///     Validates the ISO 8601 date rules: the accepted forms, UTC for text without a zone, and the invalid forms.
+    ///     Validates the date rules of <c>parse: "date"</c> and of the inference: the ECMAScript forms (a date is UTC, a
+    ///     date-time without an offset is in the zone of the calendar, UTC here), the legacy forms of <c>Date.parse</c>, and
+    ///     the texts that are not dates.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="valid">Whether it is a date.</param>
@@ -234,23 +236,22 @@ public class DelimitedTextParserTests
     [InlineData("2024-03-05T10:20:30-08:00", true)]
     [InlineData("2024-02-29", true)]
     [InlineData("9999-12-31T23:59:59.999", true)]
-    [InlineData("9999-12-31T23:59:59.9995", false)]
-    [InlineData("9999-12-31T23:59:59.9999999", false)]
+    [InlineData("9999-12-31T23:59:59.9995", true)]
+    [InlineData("2024-03-05 10:20:30", true)]
+    [InlineData("March 5, 2024", true)]
+    [InlineData("2024/03/05", true)]
+    [InlineData("2024", true)]
+    [InlineData("+010000-01-01T00:00:00Z", false)]
     [InlineData("2023-02-29", false)]
     [InlineData("2024-13-01", false)]
-    [InlineData("2024-3-5", false)]
     [InlineData("24-03-05", false)]
-    [InlineData("2024/03/05", false)]
-    [InlineData("2024-03-05 10:20:30", false)]
     [InlineData("2024-03-05T25:00", false)]
-    [InlineData("2024-03-05T10:20:30.123456789", false)]
-    [InlineData("March 5, 2024", false)]
-    [InlineData("2024", false)]
+    [InlineData("not a date", false)]
     [InlineData("", false)]
-    public void DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly(string text, bool valid)
+    public void DelimitedTextParser_Parse_DatesAreRecognizedByTheDateParseRules(string text, bool valid)
     {
         // Arrange / Act
-        var result = ParseDirectives.TryParseIsoDate(text, out var milliseconds);
+        var result = ParseDirectives.TryParseDate(text, TimeCalendar.Utc, out var milliseconds);
 
         // Assert
         Assert.Equal(valid, result);
@@ -261,35 +262,35 @@ public class DelimitedTextParserTests
     }
 
     /// <summary>
-    ///     Validates that ISO text beyond the supported date range stays text under automatic inference: a column holding
+    ///     Validates that text beyond the supported date range stays text under automatic inference: a column holding
     ///     one is not a date column, and nothing throws.
     /// </summary>
     [Fact]
-    public void DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText()
+    public void DelimitedTextParser_Parse_AutoOutOfRangeDateStaysText()
     {
-        // Arrange: a column whose second cell is past the last whole millisecond of year 9999, and a column in range
-        const string text = "late,ok\n2024-03-05,9999-12-31T23:59:59.999\n9999-12-31T23:59:59.9995,2024-03-05";
+        // Arrange: a column whose second cell is past the supported range of year 9999, and a column in range
+        const string text = "late,ok\n2024-03-05,9999-12-31T23:59:59.999\n+010000-01-01T00:00:00Z,2024-03-05";
 
         // Act
         var result = Parse(text, directives: ParseDirectives.Auto);
 
         // Assert: the column with the out-of-range cell is text; the other column is dates, the maximum being exact
         Assert.All(result.Records, r => Assert.True(r["late"].IsString));
-        Assert.Equal("9999-12-31T23:59:59.9995", result.Records[1]["late"].Text);
+        Assert.Equal("+010000-01-01T00:00:00Z", result.Records[1]["late"].Text);
         Assert.All(result.Records, r => Assert.Equal(DataValueKind.Date, r["ok"].Kind));
         Assert.Equal(253402300799999.0, result.Records[0]["ok"].Milliseconds);
         Assert.True(result.Failures.IsEmpty);
     }
 
     /// <summary>
-    ///     Validates that an explicit date conversion of ISO text beyond the supported range is the ordinary failure: the
+    ///     Validates that an explicit date conversion of text beyond the supported range is the ordinary failure: the
     ///     value is null, one warning counts it, and no exception escapes.
     /// </summary>
     [Fact]
-    public void DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning()
+    public void DelimitedTextParser_Parse_ExplicitOutOfRangeDateBecomesNullAndWarning()
     {
         // Arrange
-        const string text = "d\n2024-03-05\n9999-12-31T23:59:59.9995";
+        const string text = "d\n2024-03-05\n+010000-01-01T00:00:00Z";
 
         // Act
         var result = Parse(text, directives: Directives("{\"parse\":{\"d\":\"date\"}}"));
@@ -300,7 +301,7 @@ public class DelimitedTextParserTests
         var report = Assert.Single(result.Failures.ToReports(Where));
         Assert.Equal("vl-data-parse-failed", report.Id);
         Assert.Equal(FeatureReportKind.Warning, report.Kind);
-        Assert.Contains("1 value(s) of the field 'd' could not be read as date and are null (the first is in row 2: '9999-12-31T23:59:59.9995')", report.Message, StringComparison.Ordinal);
+        Assert.Contains("1 value(s) of the field 'd' could not be read as date and are null (the first is in row 2: '+010000-01-01T00:00:00Z')", report.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -374,7 +375,7 @@ public class DelimitedTextParserTests
         Assert.Equal("1.5", text.Text);
         Assert.True(ParseDirectives.TryConvert(date, ParseType.String, out var iso));
         Assert.Equal("2024-01-02T00:00:00.000Z", iso.Text);
-        foreach (var type in new[] { ParseType.Number, ParseType.Boolean, ParseType.Date, ParseType.String, ParseType.CustomDate })
+        foreach (var type in new[] { ParseType.Number, ParseType.Boolean, ParseType.Date, ParseType.String })
         {
             Assert.True(ParseDirectives.TryConvert(DataValue.Null, type, out var nothing));
             Assert.True(nothing.IsNull);
@@ -382,11 +383,11 @@ public class DelimitedTextParserTests
     }
 
     /// <summary>
-    ///     Validates that a custom date format is recognized but not applied (the field stays text, with no failure), and
-    ///     that the feature catalog reports it with the stable identifier.
+    ///     Validates that a custom date format is applied (it is no longer an unsupported feature): the field becomes a date
+    ///     and no failure is recorded, next to a plain ISO column.
     /// </summary>
     [Fact]
-    public void DelimitedTextParser_Parse_CustomDateFormatIsReportedAndNotApplied()
+    public void DelimitedTextParser_Parse_CustomDateFormatIsApplied()
     {
         // Arrange: a date column with a custom format next to a plain ISO column
         const string spec = """{"data":{"url":"x.csv","format":{"parse":{"d":"date:'%d/%m/%Y'","u":"utc:'%Y%m%d'","iso":"date"}}}}""";
@@ -395,18 +396,12 @@ public class DelimitedTextParserTests
 
         // Act
         var result = Parse("d,u,iso\n05/03/2024,20240305,2024-03-05\n", directives: directives);
-        var reports = FeatureCatalog.Visit(tree);
 
-        // Assert: the custom formats are left as read and cause no failure; the ISO one is converted
-        Assert.Equal("05/03/2024", result.Records[0]["d"].Text);
-        Assert.Equal("20240305", result.Records[0]["u"].Text);
-        Assert.Equal(DataValueKind.Date, result.Records[0]["iso"].Kind);
+        // Assert: all three are the same UTC date, with no failure, and the catalog has nothing to report
+        Assert.All(new[] { "d", "u", "iso" }, field => Assert.Equal(Ms(2024, 3, 5), result.Records[0][field].Milliseconds));
+        Assert.All(new[] { "d", "u", "iso" }, field => Assert.Equal(DataValueKind.Date, result.Records[0][field].Kind));
         Assert.True(result.Failures.IsEmpty);
-
-        // Assert: the catalog reports each custom format at its entry
-        Assert.Equal(
-            [("vl-data-parse-date-format", "/data/format/parse/d"), ("vl-data-parse-date-format", "/data/format/parse/u")],
-            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Empty(FeatureCatalog.Visit(tree));
     }
 
     /// <summary>
@@ -492,9 +487,10 @@ public class DelimitedTextParserTests
         Assert.Equal(ParseMode.Auto, auto.Mode);
         Assert.Equal(ParseMode.None, none.Mode);
         Assert.Equal(ParseMode.Fields, fields.Mode);
-        Assert.Equal(ParseType.Number, fields.Fields["a"]);
-        Assert.Equal(ParseType.Date, fields.Fields["b.c"]);
-        Assert.Equal(ParseType.CustomDate, fields.Fields["d"]);
+        Assert.Equal(new ParseSpec(ParseType.Number), fields.Fields["a"]);
+        Assert.Equal(new ParseSpec(ParseType.Date), fields.Fields["b.c"]);
+        Assert.Equal(new ParseSpec(ParseType.Date, "%Y", Utc: false), fields.Fields["d"]);
+        Assert.Equal(new ParseSpec(ParseType.Date, "%Y%m", Utc: true), Directives("{\"parse\":{\"e\":\"utc:\\\"%Y%m\\\"\"}}").Fields["e"]);
     }
 
     /// <summary>

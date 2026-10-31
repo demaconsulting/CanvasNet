@@ -151,8 +151,8 @@ internal sealed class EncodingTransforms
         ArgumentNullException.ThrowIfNull(view);
         var effective = limits ?? VegaLiteLimits.Default;
         var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
-        var evaluator = new ExpressionEvaluator(effective, cancellationToken, parameters);
-        var loader = new DataLoader(sourceName, effective, cancellationToken: cancellationToken);
+        var evaluator = new ExpressionEvaluator(effective, cancellationToken, parameters, TimeCalendar.Utc);
+        var loader = new DataLoader(sourceName, effective, cancellationToken: cancellationToken, calendar: TimeCalendar.Utc);
         var context = new TransformContext(new SpecTree(view, sourceName, []), loader, evaluator, parameters, effective, cancellationToken, []);
         return Apply(plan, table, context);
     }
