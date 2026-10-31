@@ -667,6 +667,10 @@ internal sealed partial class SpecParser
     {
         CheckObject(definition, ChannelDefRules);
         ValidateAggregationProperties(definition);
+        if (definition["impute"] is { IsObject: true } impute)
+        {
+            ValidateEncodingImpute(impute);
+        }
         foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
         {
             WarnUnknown(property, "a channel definition");

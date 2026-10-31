@@ -19,13 +19,70 @@ internal sealed partial class AggregateTransforms
     /// <returns>The input rows followed by one imputed row for every missing combination of group and key.</returns>
     private DataTable Impute(DataTable input, SpecNode entry, SpecNode operation)
     {
-        var location = Locate(entry);
-        var field = operation.StringValue!;
-        var key = entry["key"]!.StringValue!;
-        var groupBy = ReadGroupBy(entry);
-        var method = entry["method"]?.AsString() ?? "value";
-        var value = entry["value"] is { } given ? SpecValues.ToDataValue(given) : DataValue.FromNumber(0);
-        var (frameStart, frameEnd) = entry["frame"] is { IsArray: true } frame ? ReadFrame(frame) : (null, null);
+        var (method, value, frame) = ReadImputeParameters(entry);
+        return ImputeField(
+            input,
+            operation.StringValue!,
+            entry["key"]!.StringValue!,
+            ReadGroupBy(entry),
+            method,
+            value,
+            frame,
+            entry["keyvals"],
+            RowSampler.Seed(entry.Pointer),
+            Locate(entry));
+    }
+
+    /// <summary>
+    ///     Reads the parameters that an <c>impute</c> transform and an encoding <c>impute</c> object share.
+    /// </summary>
+    /// <param name="parameters">The transform object or the <c>impute</c> object of a channel definition (validated by the parser).</param>
+    /// <returns>The method (<c>value</c> by default), the constant of the <c>value</c> method (0 by default) and the frame.</returns>
+    internal static (string Method, DataValue Value, (int? Start, int? End) Frame) ReadImputeParameters(SpecNode parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        var method = parameters["method"]?.AsString() ?? "value";
+        var value = parameters["value"] is { } given ? SpecValues.ToDataValue(given) : DataValue.FromNumber(0);
+        var frame = parameters["frame"] is { IsArray: true } frameNode ? ReadFrame(frameNode) : (null, null);
+        return (method, value, frame);
+    }
+
+    /// <summary>
+    ///     Appends the missing (group, key) combinations to the rows: the <c>impute</c> transform behind a typed entry, which the encoding
+    ///     <c>impute</c> and the implicit impute of a stacked path mark call as well.
+    /// </summary>
+    /// <param name="input">The input table.</param>
+    /// <param name="field">The imputed field.</param>
+    /// <param name="key">The key field.</param>
+    /// <param name="groupBy">The group-by field paths.</param>
+    /// <param name="method">The method: <c>value</c>, <c>mean</c>, <c>median</c>, <c>min</c> or <c>max</c>.</param>
+    /// <param name="value">The constant of the <c>value</c> method.</param>
+    /// <param name="frame">The frame of the other methods.</param>
+    /// <param name="keyValues">The <c>keyvals</c> array or sequence <c>{start, stop, step}</c>, or null.</param>
+    /// <param name="seed">The seed of the transform.</param>
+    /// <param name="location">The location reported for a failure.</param>
+    /// <param name="releaseInput">Whether the rows of <paramref name="input"/> are given back to the row budget (the table is replaced by the result); false when the caller keeps the input table in use.</param>
+    /// <returns>The input rows followed by one imputed row for every missing combination of group and key; <paramref name="input"/> itself when it has no rows.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, at <paramref name="location"/>, when a limit is exceeded.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the token of the context is canceled.</exception>
+    internal DataTable ImputeField(
+        DataTable input,
+        string field,
+        string key,
+        string[] groupBy,
+        string method,
+        DataValue value,
+        (int? Start, int? End) frame,
+        SpecNode? keyValues,
+        ulong seed,
+        VegaLiteLocation location,
+        bool releaseInput = true)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(field);
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(groupBy);
+        ArgumentNullException.ThrowIfNull(method);
         try
         {
             CheckTexts("A field of the impute", location, [field, key], groupBy);
@@ -37,8 +94,8 @@ internal sealed partial class AggregateTransforms
 
             var domain = new List<DataValue>();
             var domainIndex = new Dictionary<GroupKey, int>();
-            ReadKeyValues(entry["keyvals"], domain, domainIndex, location);
-            return ImputeRows(input, field, key, groupBy, method, value, (frameStart, frameEnd), domain, domainIndex, RowSampler.Seed(entry.Pointer), location);
+            ReadKeyValues(keyValues, domain, domainIndex, location);
+            return ImputeRows(input, field, key, groupBy, method, value, frame, domain, domainIndex, seed, location, releaseInput);
         }
         catch (ExpressionRuntimeException ex)
         {
@@ -115,6 +172,7 @@ internal sealed partial class AggregateTransforms
     /// <param name="domainIndex">The position of every key of the domain.</param>
     /// <param name="seed">The seed of the transform.</param>
     /// <param name="location">The location reported for a failure.</param>
+    /// <param name="releaseInput">Whether the rows of the input are given back to the row budget once the result exists.</param>
     /// <returns>The table with the imputed rows appended.</returns>
     private DataTable ImputeRows(
         DataTable input,
@@ -127,7 +185,8 @@ internal sealed partial class AggregateTransforms
         List<DataValue> domain,
         Dictionary<GroupKey, int> domainIndex,
         ulong seed,
-        VegaLiteLocation location)
+        VegaLiteLocation location,
+        bool releaseInput)
     {
         var rows = input.RowCount;
         var evaluation = _context.Evaluator.Context;
@@ -274,7 +333,11 @@ internal sealed partial class AggregateTransforms
             }
         }
 
-        _context.Loader.ReleaseRows(rows);
+        if (releaseInput)
+        {
+            _context.Loader.ReleaseRows(rows);
+        }
+
         return DataTable.FromSortedCells(fields, cells, (int)total);
     }
 }

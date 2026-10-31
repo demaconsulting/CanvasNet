@@ -63,7 +63,8 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
-///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
+///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (<c>vl-encoding-impute</c> is the <c>impute</c> of a channel other than <c>x</c> and <c>y</c>: the impute of a position channel is run by the pipeline, the impute of any other channel is ignored). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
+///         <item><term><c>vl-encoding-stack-impute-bin</c> (warning)</term><description>the dimension channel of a stacked <c>line</c>, <c>area</c> or <c>trail</c> that is binned and has stack-by fields (and whose stacked channel does not say <c>impute: null</c>): Vega-Lite fills the layers with zeros for the bins they lack, this renderer does not impute a binned dimension.</description></item>
 ///         <item><term><c>vl-timeunit-binned</c>, <c>vl-timeunit-maxbins</c></term><description>a <c>timeUnit</c> that is not applied: a <c>binned</c> unit (a name that starts with <c>binned</c>, or <c>binned: true</c>) in an encoding, a condition, a predicate or the <c>timeUnit</c> transform (the unit is ignored and the field is used as it is), and the <c>{"maxbins": n}</c> form without a unit in a predicate (ignored). The encoding and the transform apply <c>maxbins</c>.</description></item>
 ///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
 ///         <item><term><c>vl-scale-nice-interval</c>, <c>vl-guide-axis-tickcount-interval</c> (warnings)</term><description>a time interval (a text or <c>{interval, step}</c>) as <c>scale.nice</c> or as the <c>tickCount</c> of an axis or legend on a scale that is not a time scale (it is ignored).</description></item>
@@ -499,7 +500,8 @@ internal static class FeatureCatalog
             _mark = mark is { IsObject: true } ? mark : null;
             _markType = markType;
             // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
-            var stacks = new Lazy<bool>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding) is not null);
+            var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
+            var stacks = new Lazy<bool>(() => stackDecision.Value is not null);
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;
@@ -554,6 +556,34 @@ internal static class FeatureCatalog
                     VisitChannelDefinition(name, channel);
                 }
             }
+
+            VisitStackImpute(markType, encoding, stackDecision.Value);
+        }
+
+        /// <summary>
+        ///     Warns that the implicit impute of a stacked line or area does not impute a binned dimension.
+        /// </summary>
+        /// <remarks>
+        ///     Vega-Lite fills the layers of a stacked path mark with zeros for every key they lack. It does so for a binned dimension through a computed mid-point field, which this renderer does not
+        ///     have, so a binned dimension is stacked as it is (a layer that lacks a bin has no point there).
+        /// </remarks>
+        /// <param name="markType">The mark type.</param>
+        /// <param name="encoding">The encoding object.</param>
+        /// <param name="decision">The stack decision of the view, or null when the marks are not stacked.</param>
+        private void VisitStackImpute(string markType, SpecNode encoding, StackDecision? decision)
+        {
+            if (decision is null || markType is not ("line" or "area" or "trail") || decision.StackBy.Count == 0 || encoding[decision.Channel]?["impute"] is { IsNull: true })
+            {
+                return;
+            }
+
+            var dimensionChannel = StackRules.DimensionChannel(decision.Channel);
+            if (encoding[dimensionChannel] is not { IsObject: true } dimension || !StackRules.IsFieldDef(dimension) || !StackRules.IsEnabled(dimension["bin"]))
+            {
+                return;
+            }
+
+            Warn("vl-encoding-stack-impute-bin", $"The layers of a stacked '{markType}' mark are not imputed along the binned '{dimensionChannel}' channel; a layer that lacks a bin has no point there.", dimension);
         }
 
         /// <summary>
@@ -589,7 +619,11 @@ internal static class FeatureCatalog
             VisitStack(name, definition);
             VisitSort(name, definition);
             VisitCondition(name, definition);
-            ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
+            if (name is not ("x" or "y"))
+            {
+                // The impute of a position channel is run by the pipeline (EncodingPlan.Impute); on any other channel it is not
+                ReportProperty(definition, "impute", n => !n.IsNull, $"Imputation is only supported on the 'x' and 'y' channels, not on '{name}'; the impute is ignored.");
+            }
             VisitBandPosition(definition);
             if (definition["datum"] is { IsObject: true } datum && SpecParser.IsDateTimeShaped(datum))
             {

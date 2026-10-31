@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;
 using static DemaConsulting.CanvasNet.VegaLite.Tests.Transforms.AggregateTestSupport;
 
@@ -312,6 +313,57 @@ public class AggregateTransformsImputeTests
     [Fact]
     public void AggregateTransforms_Impute_CancellationIsPolled() =>
         Assert.Throws<OperationCanceledException>(() => ApplyCanceled(Spec(Series, """[{"impute":"y","key":"x","groupby":["g"],"keyvals":[1,2,3]}]""")));
+
+    /// <summary>
+    ///     Validates that the typed entry gives the rows of the transform for the same parameters, that the member parameters of an object are read with their defaults
+    ///     (method <c>value</c>, constant 0, no frame), and the checks of the arguments.
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_ImputeField_MatchesTheTransformAndReadsTheParameters()
+    {
+        // Arrange
+        var json = Spec(Series, """[{"impute":"y","key":"x","groupby":["g"],"method":"max","frame":[null,0],"keyvals":[1,2,3,4]}]""");
+        var (table, context, _, tree) = Prepare(json);
+        var entry = tree.Root["transform"]!.Items[0];
+        var engine = new AggregateTransforms(context);
+        var defaults = SpecParser.Parse("""{"transform":[{"impute":"y","key":"x"},{"impute":"y","key":"x","value":"n/a","method":"min","frame":[-1,1]}]}""");
+
+        // Act
+        var expected = Run(json);
+        var actual = engine.ImputeField(table, "y", "x", ["g"], "max", DataValue.FromNumber(0), (null, 0), entry["keyvals"], 1, tree.Locate(entry));
+        var (method, value, frame) = AggregateTransforms.ReadImputeParameters(defaults.Root["transform"]!.Items[0]);
+        var (givenMethod, givenValue, givenFrame) = AggregateTransforms.ReadImputeParameters(defaults.Root["transform"]!.Items[1]);
+
+        // Assert: the same rows, in the same order
+        Assert.Equal(Rows(expected, "g", "x", "y"), Rows(actual, "g", "x", "y"));
+        Assert.Equal(("value", 0d, (int?)null, (int?)null), (method, value.Number, frame.Start, frame.End));
+        Assert.Equal(("min", "n/a", (int?)-1, (int?)1), (givenMethod, givenValue.Text, givenFrame.Start, givenFrame.End));
+        Assert.Throws<ArgumentNullException>(() => engine.ImputeField(null!, "y", "x", [], "value", default, (null, null), null, 1, tree.Locate(entry)));
+        Assert.Throws<ArgumentNullException>(() => AggregateTransforms.ReadImputeParameters(null!));
+    }
+
+    /// <summary>
+    ///     Validates the row accounting of the typed entry: by default the rows of the input are given back once the result exists (3 + 6 combinations - 3 = 6 rows
+    ///     stay counted), and when the caller keeps the input table in use they stay counted (9).
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_ImputeField_GivesBackTheInputRowsUnlessTheCallerKeepsThem()
+    {
+        // Arrange
+        var json = Spec(Series, "[]");
+        var (table, context, loader, tree) = Prepare(json);
+        var (keptTable, keptContext, keptLoader, _) = Prepare(json);
+
+        // Act
+        var released = new AggregateTransforms(context).ImputeField(table, "y", "x", ["g"], "value", DataValue.FromNumber(0), (null, null), null, 1, tree.Locate(tree.Root));
+        var kept = new AggregateTransforms(keptContext).ImputeField(keptTable, "y", "x", ["g"], "value", DataValue.FromNumber(0), (null, null), null, 1, tree.Locate(tree.Root), releaseInput: false);
+
+        // Assert
+        Assert.Equal(6, released.RowCount);
+        Assert.Equal(6, loader.RowsLoaded);
+        Assert.Equal(6, kept.RowCount);
+        Assert.Equal(9, keptLoader.RowsLoaded);
+    }
 
     /// <summary>
     ///     Validates that every grouped transform gives the same result on a second run and under other cultures, in a pipeline that

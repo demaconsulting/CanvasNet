@@ -29,6 +29,13 @@ internal sealed partial class SpecParser
     /// <summary>The imputation methods of Vega-Lite.</summary>
     private static readonly HashSet<string> ImputeMethods = Set("value mean median max min");
 
+    /// <summary>The members of the <c>impute</c> object of a channel definition; any other key is warned about.</summary>
+    private static readonly HashSet<string> ImputeParameterKeys = Set("frame keyvals method value");
+
+    /// <summary>The rules for the members of the <c>impute</c> object of a channel definition (the <c>value</c> is checked on its own).</summary>
+    private static readonly Dictionary<string, Rule> ImputeParameterRules = Rules(
+        "keyvals: AO", "method: S=value|mean|median|max|min", "frame: A");
+
     /// <summary>The channels a <c>sort</c> can name (the encoding channels that carry a scale of their own).</summary>
     private static readonly HashSet<string> SortChannels = Set("x y color fill stroke strokeWidth size shape fillOpacity strokeOpacity opacity text");
 
@@ -499,6 +506,53 @@ internal sealed partial class SpecParser
         if (entry["frame"] is { } frame)
         {
             ValidateFrame(frame, "The 'frame' of an impute must be an array of two values, each an integer or null.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the <c>impute</c> object of a channel definition: <c>keyvals</c>, <c>method</c>, <c>value</c> and <c>frame</c>.
+    /// </summary>
+    /// <remarks>
+    ///     The members have the rules of the <c>impute</c> transform, and the number of key values is bounded by <see cref="VegaLiteLimits.MaxScaleDomainSize"/>
+    ///     (the array length, or the length of the sequence <c>{start, stop, step}</c>), so that a specification cannot ask for an unbounded key domain. A
+    ///     member that Vega-Lite does not define is a warning.
+    /// </remarks>
+    /// <param name="impute">The <c>impute</c> value (an object; null is the explicit "no impute" and is not validated).</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, when a member is not valid.</exception>
+    private void ValidateEncodingImpute(SpecNode impute)
+    {
+        if (!impute.IsObject)
+        {
+            return;
+        }
+
+        foreach (var property in impute.Properties.Where(p => !ImputeParameterKeys.Contains(p.Name!)))
+        {
+            WarnUnknown(property, "an impute definition");
+        }
+
+        CheckObject(impute, ImputeParameterRules);
+        if (impute["value"] is { } value && (value.IsObject || value.IsArray))
+        {
+            throw Error(value, "The 'value' of an impute must be a text, a number, a boolean or null.");
+        }
+
+        if (impute["frame"] is { } frame)
+        {
+            ValidateFrame(frame, "The 'frame' of an impute must be an array of two values, each an integer or null.");
+        }
+
+        if (impute["keyvals"] is { } keyValues)
+        {
+            ValidateKeyValues(keyValues);
+            var limit = _limits.MaxScaleDomainSize;
+            var count = keyValues.IsArray
+                ? keyValues.Items.Count
+                : Math.Max(0, Math.Ceiling((keyValues["stop"]!.NumberValue - (keyValues["start"]?.AsNumber() ?? 0)) / (keyValues["step"]?.AsNumber() ?? 1)));
+            if (!(count <= limit))
+            {
+                throw Error(keyValues, $"The 'keyvals' of an impute have more values than the limit of {limit} (VegaLiteLimits.MaxScaleDomainSize).");
+            }
         }
     }
 

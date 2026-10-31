@@ -1546,4 +1546,74 @@ public class FeatureCatalogTests
         Assert.Empty(field);
         Assert.Equal([("vl-type-geojson", "/encoding/color/condition/type")], geo);
     }
+
+    /// <summary>
+    ///     Validates that <c>vl-encoding-impute</c> is reported only for a channel other than <c>x</c> and <c>y</c> (the impute of a position channel is run by the
+    ///     pipeline), that an explicit null is never reported, and that the report is at the <c>impute</c> value.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY()
+    {
+        // Arrange: a bar chart, so that no mark report is mixed in
+        const string json = """
+            {
+              "data": { "values": [ { "t": 1, "v": 2, "g": "a" } ] },
+              "mark": "bar",
+              "encoding": {
+                "x": { "field": "t", "type": "quantitative", "impute": { "value": 0 } },
+                "y": { "field": "v", "type": "quantitative", "impute": { "method": "mean", "keyvals": [1, 2] } },
+                "color": { "field": "g", "type": "nominal", "impute": { "value": 1 } },
+                "size": { "field": "v", "type": "quantitative", "impute": null }
+              }
+            }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
+
+        // Assert
+        Assert.Equal([("vl-encoding-impute", "/encoding/color/impute")], reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Contains("'color'", reports[0].Message, StringComparison.Ordinal);
+        Assert.Equal(FeatureReportKind.UnsupportedFeature, reports[0].Kind);
+    }
+
+    /// <summary>
+    ///     Validates the warning <c>vl-encoding-stack-impute-bin</c>: a stacked line or area with stack-by fields whose dimension channel is binned is not imputed, and
+    ///     the warning is located at the dimension definition; no warning without the bin, without a layer, with <c>impute: null</c> on the stacked channel, for a mark that
+    ///     is not a path mark or when the marks are not stacked.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension()
+    {
+        // Arrange
+        static string Area(string mark, string x, string y, string color) =>
+            "{\"mark\":\"" + mark + "\",\"encoding\":{\"x\":" + x + ",\"y\":" + y + color + "}}";
+        const string Binned = """{"field":"t","type":"quantitative","bin":true}""";
+        const string Plain = """{"field":"t","type":"ordinal"}""";
+        const string Measure = """{"field":"v","type":"quantitative"}""";
+        const string Layer = ",\"color\":{\"field\":\"g\",\"type\":\"nominal\"}";
+        static List<(string Id, string Pointer)> Stack(string json) => [.. FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id == "vl-encoding-stack-impute-bin").Select(r => (r.Id, r.Location.Pointer))];
+
+        // Act
+        var area = FeatureCatalog.Visit(SpecParser.Parse(Area("area", Binned, Measure, Layer))).Where(r => r.Id == "vl-encoding-stack-impute-bin").ToList();
+        var line = Stack(Area("line", Binned, """{"field":"v","type":"quantitative","stack":"zero"}""", Layer));
+        var horizontal = Stack("{\"mark\":\"area\",\"encoding\":{\"y\":" + Binned + ",\"x\":" + Measure + Layer + "}}");
+
+        // Assert: located at the dimension definition, as a warning
+        Assert.Single(area);
+        Assert.Equal("/encoding/x", area[0].Location.Pointer);
+        Assert.Equal(FeatureReportKind.Warning, area[0].Kind);
+        Assert.Contains("binned 'x' channel", area[0].Message, StringComparison.Ordinal);
+        Assert.Equal([("vl-encoding-stack-impute-bin", "/encoding/x")], line);
+        Assert.Equal([("vl-encoding-stack-impute-bin", "/encoding/y")], horizontal);
+
+        // Assert: nothing to warn about without the bin, a layer or the stack impute, or for another mark
+        Assert.Empty(Stack(Area("area", Plain, Measure, Layer)));
+        Assert.Empty(Stack(Area("area", Binned, Measure, string.Empty)));
+        Assert.Empty(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","impute":null}""", Layer)));
+        Assert.Empty(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","stack":null}""", Layer)));
+        Assert.Empty(Stack(Area("bar", Binned, Measure, Layer)));
+        Assert.Empty(Stack(Area("line", Binned, Measure, Layer)));
+        Assert.Single(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","impute":{"value":1}}""", Layer)));
+    }
 }

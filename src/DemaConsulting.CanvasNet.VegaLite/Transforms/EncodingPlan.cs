@@ -121,12 +121,12 @@ internal sealed record ArgField(string Measure, string Source, string Output);
 /// <summary>
 ///     The implicit stack of an encoding.
 /// </summary>
-/// <param name="Channel">The stacked channel (<c>x</c> or <c>y</c>).</param>
+/// <param name="Channel">The stacked channel (<c>x</c>, <c>y</c>, <c>theta</c> or <c>radius</c>); its second end is <c>x2</c>, <c>y2</c>, <c>theta2</c> or <c>radius2</c>.</param>
 /// <param name="Offset">The baseline.</param>
 /// <param name="Field">The field path that is stacked (the value field of the channel).</param>
 /// <param name="StartName">The literal name of the field that receives the lower end.</param>
 /// <param name="EndName">The literal name of the field that receives the upper end.</param>
-/// <param name="GroupBy">The field paths that split the rows into stacks (the fields of the other position channel).</param>
+/// <param name="GroupBy">The field paths that split the rows into stacks (the fields of the dimension channel: <c>y</c> for <c>x</c>, <c>x</c> for <c>y</c>, <c>radius</c> for <c>theta</c>, <c>theta</c> for <c>radius</c>).</param>
 /// <param name="Sort">The order of the rows inside a stack, bottom first.</param>
 /// <param name="Definition">The definition of the stacked channel (the location of failures).</param>
 internal sealed record StackPlan(
@@ -140,6 +140,27 @@ internal sealed record StackPlan(
     SpecNode Definition);
 
 /// <summary>
+///     The impute that the <c>impute</c> property of the <c>x</c> or <c>y</c> channel asks for (Vega-Lite's <c>ImputeNode.makeFromEncoding</c>).
+/// </summary>
+/// <remarks>
+///     The <c>method</c>, <c>value</c>, <c>frame</c> and <c>keyvals</c> are read from the <c>impute</c> object of <paramref name="Definition"/> when the transform runs.
+/// </remarks>
+/// <param name="Field">The field path that is imputed: the value field of the channel that has the <c>impute</c>.</param>
+/// <param name="Key">The field path of the key: the value field of the other position channel.</param>
+/// <param name="GroupBy">The field paths that split the rows into the series that are imputed (<see cref="EncodingPlan.PathGroupFields"/>).</param>
+/// <param name="Definition">The definition of the channel that has the <c>impute</c> (its <c>impute</c> object is the source of the parameters, and the location of failures).</param>
+internal sealed record ImputePlan(string Field, string Key, IReadOnlyList<string> GroupBy, SpecNode Definition);
+
+/// <summary>
+///     The impute that precedes the stack of a line or area mark: every layer of the stack gets a zero for each key of the dimension it lacks, so that the stacked paths have a point at every key.
+/// </summary>
+/// <param name="Field">The field path of the stacked measure (the same as <see cref="StackPlan.Field"/>).</param>
+/// <param name="Key">The field path of the dimension channel (its start field for a time unit).</param>
+/// <param name="GroupBy">The field paths of the stack-by definitions, in channel order (the layers of the stack).</param>
+/// <param name="Definition">The definition of the stacked channel (the location of failures).</param>
+internal sealed record StackImputePlan(string Field, string Key, IReadOnlyList<string> GroupBy, SpecNode Definition);
+
+/// <summary>
 ///     What a view's encoding asks the data pipeline to do beyond the explicit transforms: bin the binned fields, compute the time units, aggregate the
 ///     aggregated ones and stack the stacked channel; and the field every channel then reads.
 /// </summary>
@@ -151,8 +172,7 @@ internal sealed record StackPlan(
 ///         <c>_end</c> for the upper boundary and <c>_range</c> for the text of a discrete channel); an aggregate is named
 ///         <c>sum_x</c> (a count <c>__count</c>); a stack writes <c>&lt;field&gt;_start</c> and <c>&lt;field&gt;_end</c> where the field is the
 ///         (derived) measure. When any definition aggregates, the rows are grouped by every other field definition of every
-///         channel (a binned field by its start and end); the stack follows <see cref="StackRules"/>, groups by the fields of the
-///         other position channel and orders the layers by the <c>order</c> channel or by the stack-by fields (descending when
+///         channel (a binned field by its start and end); the stack follows <see cref="StackRules"/> (on <c>x</c>/<c>y</c>, else on <c>theta</c>/<c>radius</c>), groups by the fields of the dimension channel and orders the layers by the <c>order</c> channel or by the stack-by fields (descending when
 ///         the stacked channel is <c>y</c>, ascending otherwise). Titles are Vega-Lite's defaults: <c>Sum of x</c>,
 ///         <c>Count of Records</c> (<c>countTitle</c>), <c>x (binned)</c>, <c>y for max x</c>, two titles of a range merged
 ///         as <c>a, b</c>; the configuration <c>fieldTitle</c> selects <c>verbal</c> (the default), <c>functional</c>
@@ -160,6 +180,11 @@ internal sealed record StackPlan(
 ///         (<c>yearmonth_date</c>, <c>month_step_2_date</c>, <c>timeunit_maxbins_10_date</c>, with <c>_end</c> for the end of the unit), is computed before the
 ///         aggregate, titled <c>date (year-month)</c> (verbal), <c>YEARMONTH(date)</c> (functional) or <c>date</c> (plain), and the dimension of an aggregate is its start
 ///         (and its end for a channel that spans the unit: a <c>temporal</c> <c>x</c> or <c>y</c> without a secondary channel whose mark has a band position).
+///     </para>
+///     <para>
+///         For the path marks (line, area, trail) the plan also lists the fields that group the rows into paths (<see cref="PathGroupFields"/>) and the fields of the
+///         <c>order</c> channel (<see cref="OrderFields"/>), and the imputes that run between the aggregate and the stack: the one of an <c>impute</c> property of <c>x</c> or <c>y</c>
+///         (<see cref="Impute"/>) and the zeros that a stack of lines or areas adds for the keys a layer lacks (<see cref="StackImpute"/>).
 ///     </para>
 ///     <para>
 ///         <b>Differences from Vega-Lite.</b> <c>bin</c> is planned on <c>x</c> and <c>y</c> and on the channels that have a scale (<c>color</c>, <c>fill</c>,
@@ -193,6 +218,10 @@ internal sealed class EncodingPlan
     /// <param name="aggregate">The aggregate, or null.</param>
     /// <param name="stack">The stack, or null.</param>
     /// <param name="needsRaw">Whether a scale reads the table as it was before the aggregate.</param>
+    /// <param name="pathGroupFields">The fields that split the rows of a path mark into paths.</param>
+    /// <param name="orderFields">The fields of the <c>order</c> channel.</param>
+    /// <param name="impute">The impute of the <c>impute</c> property of <c>x</c> or <c>y</c>, or null.</param>
+    /// <param name="stackImpute">The impute of the stack of a path mark, or null.</param>
     private EncodingPlan(
         string markType,
         string? orient,
@@ -201,7 +230,11 @@ internal sealed class EncodingPlan
         IReadOnlyList<TimeUnitPlan> timeUnits,
         AggregatePlan? aggregate,
         StackPlan? stack,
-        bool needsRaw)
+        bool needsRaw,
+        IReadOnlyList<string>? pathGroupFields = null,
+        IReadOnlyList<SortField>? orderFields = null,
+        ImputePlan? impute = null,
+        StackImputePlan? stackImpute = null)
     {
         MarkType = markType;
         Orient = orient;
@@ -211,6 +244,10 @@ internal sealed class EncodingPlan
         Aggregate = aggregate;
         Stack = stack;
         NeedsRaw = needsRaw;
+        PathGroupFields = pathGroupFields ?? [];
+        OrderFields = orderFields ?? [];
+        Impute = impute;
+        StackImpute = stackImpute;
     }
 
     /// <summary>Gets the mark type; empty when the view has none.</summary>
@@ -237,8 +274,24 @@ internal sealed class EncodingPlan
     /// <summary>Gets a value indicating whether a scale reads the Raw table (a sort by field, or an unaggregated domain).</summary>
     public bool NeedsRaw { get; }
 
-    /// <summary>Gets a value indicating whether the encoding asks for no implicit bin, time unit, aggregate or stack.</summary>
-    public bool IsIdentity => Bins.Count == 0 && TimeUnits.Count == 0 && Aggregate is null && Stack is null;
+    /// <summary>
+    ///     Gets the canonical field paths that split the rows of a path mark (line, area, trail) into paths, in channel order and without duplicates:
+    ///     the fields of the <c>detail</c> and <c>key</c> channels, of the <c>order</c> channel (except for a line and a trail), of <c>size</c> (except for a trail)
+    ///     and of the paint channels; a definition that aggregates, and the position, polar, <c>text</c>, <c>shape</c>, <c>angle</c> and link channels, never split.
+    /// </summary>
+    public IReadOnlyList<string> PathGroupFields { get; }
+
+    /// <summary>Gets the fields of the <c>order</c> channel with their direction (the order of the stack layers, of the points of a path or of the marks); empty when the encoding has no <c>order</c> field.</summary>
+    public IReadOnlyList<SortField> OrderFields { get; }
+
+    /// <summary>Gets the impute that the <c>impute</c> property of <c>x</c> or <c>y</c> asks for, or null (it needs a field definition on both channels).</summary>
+    public ImputePlan? Impute { get; }
+
+    /// <summary>Gets the impute that precedes the stack of a line or area mark, or null.</summary>
+    public StackImputePlan? StackImpute { get; }
+
+    /// <summary>Gets a value indicating whether the encoding asks for no implicit bin, time unit, aggregate, impute or stack.</summary>
+    public bool IsIdentity => Bins.Count == 0 && TimeUnits.Count == 0 && Aggregate is null && Impute is null && StackImpute is null && Stack is null;
 
     /// <summary>
     ///     Gets the plan of the first definition of a channel.
@@ -299,8 +352,12 @@ internal sealed class EncodingPlan
 
         channels = LinkRanges(channels);
         var aggregate = PlanAggregate(channels);
-        var needsRaw = channels.Any(c => c.Channel is not ("x2" or "y2") && (UsesFieldSort(c.FieldDef) || c.FieldDef["scale"]?["domain"]?.AsString() == "unaggregated"));
-        return new EncodingPlan(markType, orient, channels, binPlans, unitPlans, aggregate, stack, needsRaw);
+        var needsRaw = channels.Any(c => c.Channel is not ("x2" or "y2" or "theta2" or "radius2") && (UsesFieldSort(c.FieldDef) || c.FieldDef["scale"]?["domain"]?.AsString() == "unaggregated"));
+        var groupFields = PlanPathGroupFields(markType, channels);
+        var orderFields = PlanOrderFields(encoding, channels);
+        var impute = PlanImpute(channels, groupFields);
+        var stackImpute = PlanStackImpute(markType, decision, stack, channels);
+        return new EncodingPlan(markType, orient, channels, binPlans, unitPlans, aggregate, stack, needsRaw, groupFields, orderFields, impute, stackImpute);
     }
 
     /// <summary>
@@ -560,7 +617,7 @@ internal sealed class EncodingPlan
     }
 
     /// <summary>
-    ///     Gives the range channels (<c>x2</c>, <c>y2</c>) to the position channel they extend: the second field, the merged title.
+    ///     Gives the range channels (<c>x2</c>, <c>y2</c>, <c>theta2</c>, <c>radius2</c>) to the position or polar channel they extend: the second field, the merged title.
     /// </summary>
     /// <param name="channels">The channel plans.</param>
     /// <returns>The plans with the secondary fields linked.</returns>
@@ -569,7 +626,7 @@ internal sealed class EncodingPlan
         var linked = new List<ChannelPlan>(channels.Count);
         foreach (var plan in channels)
         {
-            var secondary = plan.Channel is "x" or "y" && !plan.IsStacked && plan.Bin != BinKind.Binning
+            var secondary = plan.Channel is "x" or "y" or "theta" or "radius" && !plan.IsStacked && plan.Bin != BinKind.Binning
                 ? channels.FirstOrDefault(c => c.Channel == plan.Channel + "2" && c.ValueField is not null)
                 : null;
             if (secondary is null)
@@ -677,7 +734,7 @@ internal sealed class EncodingPlan
 
         // The literal base of the two output names: the derived name of a measure, else the field as written
         var baseName = stacked.Measure?.Name ?? stacked.SourceField!;
-        var other = decision.Channel == "x" ? "y" : "x";
+        var other = StackRules.DimensionChannel(decision.Channel);
         var groupBy = new List<string>();
         foreach (var plan in channels.Where(c => c.Channel == other || c.Channel == other + "2"))
         {
@@ -697,21 +754,10 @@ internal sealed class EncodingPlan
             }
         }
 
-        var sort = new List<SortField>();
-        var orderDefinitions = OrderDefinitions(encoding);
-        if (orderDefinitions.Count > 0)
+        var sort = OrderSort(encoding, channels);
+        if (sort.Count == 0 && OrderDefinitions(encoding).Count == 0)
         {
-            foreach (var definition in orderDefinitions)
-            {
-                var plan = channels.FirstOrDefault(c => c.Definition == definition);
-                if (plan?.ValueField is { } orderField)
-                {
-                    sort.Add(new SortField(orderField, definition["sort"]?.AsString() == "descending"));
-                }
-            }
-        }
-        else
-        {
+            // The layers are ordered by the stack-by fields, descending when the stacked channel is y (as Vega-Lite does) and ascending otherwise
             var descending = decision.Channel == "y";
             foreach (var definition in decision.StackBy)
             {
@@ -744,6 +790,135 @@ internal sealed class EncodingPlan
         }
 
         return [.. (order.IsArray ? order.Items : [order]).Where(i => i.IsObject)];
+    }
+
+    /// <summary>
+    ///     Lists the fields of the <c>order</c> channel with their direction.
+    /// </summary>
+    /// <param name="encoding">The encoding object.</param>
+    /// <param name="channels">The channel plans.</param>
+    /// <returns>One entry for every definition of the channel that reads a field, in order (a definition without a field, such as <c>{"value": null}</c>, adds none); descending when the definition says so.</returns>
+    private static List<SortField> OrderSort(SpecNode encoding, List<ChannelPlan> channels)
+    {
+        var sort = new List<SortField>();
+        foreach (var definition in OrderDefinitions(encoding))
+        {
+            if (channels.FirstOrDefault(c => c.Definition == definition)?.ValueField is { } orderField)
+            {
+                sort.Add(new SortField(orderField, definition["sort"]?.AsString() == "descending"));
+            }
+        }
+
+        return sort;
+    }
+
+    /// <summary>
+    ///     Plans the order fields: the <c>order</c> channel with its directions.
+    /// </summary>
+    /// <param name="encoding">The encoding object.</param>
+    /// <param name="channels">The channel plans.</param>
+    /// <returns>The fields in order of significance; empty when the encoding has no <c>order</c> field.</returns>
+    private static List<SortField> PlanOrderFields(SpecNode encoding, List<ChannelPlan> channels) => OrderSort(encoding, channels);
+
+    /// <summary>
+    ///     Lists the fields that split the rows of a path mark into paths (Vega-Lite's <c>pathGroupingFields</c>).
+    /// </summary>
+    /// <remarks>
+    ///     <c>detail</c> and <c>key</c> always group; <c>order</c> groups every mark but a line and a trail (a stack of areas is ordered by it); <c>size</c> groups
+    ///     every mark but a trail (a line's width is per path, a trail's is per point); <c>color</c>, <c>fill</c>, <c>stroke</c>, the opacities, <c>strokeDash</c> and
+    ///     <c>strokeWidth</c> group. A definition that aggregates never groups, and every other channel (positions, polar channels, <c>text</c>, <c>shape</c>,
+    ///     <c>angle</c>, <c>tooltip</c>, <c>href</c>, <c>url</c>, <c>description</c>) does not either. The fields are those of the table after the bin and the time unit
+    ///     (a bin is its start field, or its range text on a discrete channel).
+    /// </remarks>
+    /// <param name="markType">The mark type.</param>
+    /// <param name="channels">The channel plans.</param>
+    /// <returns>The canonical field paths in channel order, without duplicates.</returns>
+    private static List<string> PlanPathGroupFields(string markType, List<ChannelPlan> channels)
+    {
+        var fields = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var plan in channels)
+        {
+            var groups = plan.Channel switch
+            {
+                "order" => markType is not ("line" or "trail"),
+                "detail" or "key" => true,
+                "size" => markType != "trail",
+                "color" or "fill" or "stroke" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeDash" or "strokeWidth" => true,
+                _ => false,
+            };
+            if (groups && plan.Measure is null && FieldPath.Canonicalize(plan.ValueField) is { } canonical && seen.Add(canonical))
+            {
+                fields.Add(canonical);
+            }
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    ///     Plans the impute of the <c>impute</c> property of <c>x</c> or <c>y</c> (Vega-Lite's <c>ImputeNode.makeFromEncoding</c>).
+    /// </summary>
+    /// <param name="channels">The channel plans.</param>
+    /// <param name="groupFields">The path grouping fields.</param>
+    /// <returns>The plan, or null when neither channel has an <c>impute</c> object, or when one of the two is not a field definition (Vega-Lite needs both: the key is the other one).</returns>
+    private static ImputePlan? PlanImpute(List<ChannelPlan> channels, List<string> groupFields)
+    {
+        var x = channels.FirstOrDefault(c => c.Channel == "x" && !c.Definition.Parent!.IsArray);
+        var y = channels.FirstOrDefault(c => c.Channel == "y" && !c.Definition.Parent!.IsArray);
+        if (x?.ValueField is null || y?.ValueField is null || !StackRules.IsFieldDef(x.Definition) || !StackRules.IsFieldDef(y.Definition))
+        {
+            return null;
+        }
+
+        // The x channel wins when both ask for an impute; the other channel is the key
+        var imputed = x.Definition["impute"] is { IsObject: true } ? x : null;
+        imputed ??= y.Definition["impute"] is { IsObject: true } ? y : null;
+        if (imputed is null)
+        {
+            return null;
+        }
+
+        var keyPlan = ReferenceEquals(imputed, x) ? y : x;
+        return new ImputePlan(imputed.ValueField!, keyPlan.ValueField!, groupFields, imputed.Definition);
+    }
+
+    /// <summary>
+    ///     Plans the impute that precedes the stack of a line or area mark (Vega-Lite's <c>StackNode</c> with <c>impute</c>).
+    /// </summary>
+    /// <remarks>
+    ///     The impute exists when the mark is a path mark (line, area or trail), the marks are stacked, the stacked definition does not say <c>impute: null</c>, the
+    ///     dimension channel is an unbinned field and there is at least one stack-by field (without one there is a single layer, which has every key already).
+    ///     Vega-Lite imputes a binned dimension through a computed mid-point field; this renderer does not, so a binned dimension is not imputed.
+    /// </remarks>
+    /// <param name="markType">The mark type.</param>
+    /// <param name="decision">The stack decision, or null.</param>
+    /// <param name="stack">The stack plan, or null.</param>
+    /// <param name="channels">The channel plans.</param>
+    /// <returns>The plan, or null when no impute is needed.</returns>
+    private static StackImputePlan? PlanStackImpute(string markType, StackDecision? decision, StackPlan? stack, List<ChannelPlan> channels)
+    {
+        if (decision is null || stack is null || markType is not ("line" or "area" or "trail") || stack.Definition["impute"] is { IsNull: true })
+        {
+            return null;
+        }
+
+        var dimension = channels.FirstOrDefault(c => c.Channel == StackRules.DimensionChannel(decision.Channel) && !c.Definition.Parent!.IsArray);
+        if (dimension?.ValueField is not { } key || !StackRules.IsFieldDef(dimension.Definition) || dimension.HasBandEnd || StackRules.IsEnabled(dimension.FieldDef["bin"]))
+        {
+            return null;
+        }
+
+        var groupBy = new List<string>();
+        foreach (var definition in decision.StackBy)
+        {
+            if (channels.FirstOrDefault(c => c.Definition == definition)?.ValueField is { } field && FieldPath.Canonicalize(field) is { } canonical && !groupBy.Contains(canonical))
+            {
+                groupBy.Add(canonical);
+            }
+        }
+
+        return groupBy.Count == 0 || FieldPath.Canonicalize(key) is null ? null : new StackImputePlan(stack.Field, key, groupBy, stack.Definition);
     }
 
     /// <summary>
