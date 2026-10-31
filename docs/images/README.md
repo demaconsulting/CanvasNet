@@ -4,8 +4,8 @@ This folder holds the images used by the project README.
 
 ## showcase.png
 
-`showcase.png` (1248x680) is a montage of six panels, each rendered by the `canvasnet` command-line tool
-(a version that reads SCAD and Vega-Lite files): SVG, OpenSCAD 3D, Vega-Lite, PDF, PowerPoint,
+`showcase.png` (1248x680) is a montage of six panels, each rendered by the `canvasnet` command-line tool:
+SVG, OpenSCAD 3D, Vega-Lite, PDF, PowerPoint,
 and Visio. It is referenced from the README by an absolute URL, because the README is also shipped inside the
 NuGet packages.
 
@@ -61,37 +61,43 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Regenerating
 
-Run these commands from the repository root with the `canvasnet` tool on the `PATH`. Each panel is rendered at
-800x600 and shown at 400x300. The `--labels` option prints the input file name, so the panels are copied to
-extensionless files named after their labels before the montage is built.
+`render-images.ps1` in this folder is the one place that knows how each image is drawn. It needs the `canvasnet`
+tool (the command `dotnet canvasnet`, from a tool manifest or installed with
+`dotnet tool install DemaConsulting.CanvasNet.Tool`), and runs from any folder:
 
 ```powershell
-$o = "docs/images/showcase"
-$w = "$env:TEMP/showcase"
-New-Item -ItemType Directory -Force "$w/labeled" | Out-Null
+# Draw every image again and replace the committed files; commit the images that changed
+pwsh docs/images/render-images.ps1
 
-canvasnet render "$o/dashboard.svg" --size 800x600 -o "$w/1-svg.png"
-canvasnet render "$o/hull.scad" --azimuth 25 --elevation 32 --default-color "#4a90d9" --size 800x600 -o "$w/2-scad.png"
-canvasnet render "$o/sales.vl.json" --strict --scale 2.4 --pad "0,15,0,15" --pad-color white -o "$w/3-vl.png"
-canvasnet render "$o/mesh-shading.pdf" --dpi 144 --resize 600x600 `
-    --pad "100,0,100,0" --pad-color white -o "$w/4-pdf.png"
-canvasnet render "$o/slide.pptx" --page 1 --dpi 80 --resize 800x600 -o "$w/5-pptx.png"
-canvasnet render test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/davehoward-test4-connectors.vsdx `
-    --page 1 --dpi 288 --trim --pad 40 --pad "59,0,60,0" --pad-color white --resize 800x600 -o "$w/6-vsdx.png"
-
-$map = [ordered]@{
-    '1-svg.png' = 'SVG'; '2-scad.png' = 'OpenSCAD 3D'; '3-vl.png' = 'Vega-Lite'
-    '4-pdf.png' = 'PDF'; '5-pptx.png' = 'PowerPoint'; '6-vsdx.png' = 'Visio'
-}
-foreach ($k in $map.Keys) { Copy-Item "$w/$k" "$w/labeled/$($map[$k])" }
-Push-Location "$w/labeled"
-canvasnet montage "SVG" "OpenSCAD 3D" "Vega-Lite" "PDF" "PowerPoint" "Visio" `
-    --columns 3 --cell 400x300 --spacing 12 --padding 12 --background "#e5e7eb" --labels -o ../showcase.png
-Pop-Location
+# Draw every image again and compare it with the committed file, without changing anything
+pwsh docs/images/render-images.ps1 -Check
 ```
 
-Then copy `showcase.png` from the working folder over `docs/images/showcase.png`. To rebuild the PowerPoint
-input, run `python make-slide.py` in `docs/images/showcase` (it needs `pip install python-pptx`).
+To use a freshly built tool instead of an installed one, name its command with `-ToolCommand` or the
+`CANVASNET_TOOL` environment variable (a program and optional leading arguments), for example
+`dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/DemaConsulting.CanvasNet.Tool.dll`.
+
+For `showcase.png`, each panel is rendered at 800x600 and shown at 400x300. The `--labels` option of
+`canvasnet montage` prints the input file name, so the script copies the panels to extensionless files named after
+their labels before it builds the montage. To rebuild the PowerPoint input, run `python make-slide.py` in
+`docs/images/showcase` (it needs `pip install python-pptx`).
+
+### Checking That the Images Are Current
+
+`-Check` fails (exit code 1) when a committed image is missing, has a different size, or differs from a fresh
+drawing by more than a tolerance. It runs in the documents job of the build workflow, so a change that alters how
+a panel looks cannot be merged with a stale image. It compares with
+`canvasnet compare <committed> <fresh> --threshold rmse=1 --threshold diff-ratio=0.001 --json` rather than
+byte for byte, because a drawing is not bit-for-bit the same on every operating system: a last-bit difference in
+floating point moves a few anti-aliased pixels, and installed fonts can differ.
+
+- `rmse=1` is the root-mean-square difference of the color levels (0-255). A one-degree change of the 3D view
+  gives about 3.8, a one-level change of a color about 0.08, and a different resampling filter about 0.2.
+- `diff-ratio=0.001` allows 0.1% of the pixels to differ by more than 8 levels in any color. A one-degree change
+  of the 3D view alters 0.35% of them.
+
+When the check fails it prints the metrics and keeps the fresh image and a side-by-side picture in a temporary
+folder. If the change is intended, run the script without `-Check` and commit the new image.
 
 Notes:
 
