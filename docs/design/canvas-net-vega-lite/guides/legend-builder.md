@@ -2,12 +2,15 @@
 
 ![Guides Structure](VegaLiteGuidesView.svg)
 
-The `LegendBuilder` unit is the fifth unit in the `Guides` subsystem. It is five source files in the
+The `LegendBuilder` unit is the fifth unit in the `Guides` subsystem. It is six source files in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: `LegendPlan.cs` (the planning types and the static class
 `LegendPlan`), `LegendBuilder.cs` (the sealed partial class `LegendBuilder` with its result records),
-`LegendBuilder.Symbols.cs` (symbol legends), `LegendBuilder.Gradient.cs` (gradient and discrete gradient legends), and
-`LegendBuilder.Grid.cs` (the grid layout of Vega's `layout` transform). The files carry the provenance header comment
-`Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause)`.
+`LegendBuilder.Symbols.cs` (symbol legends), `LegendBuilder.Gradient.cs` (gradient and discrete gradient legends),
+`LegendBuilder.Grid.cs` (the grid layout of Vega's `layout` transform), and `LegendBuilder.Time.cs` (the ticks, labels,
+and `values` of temporal legends). The files carry the provenance header comment
+`Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause)` (the time file adds the d3-time, d3-time-format,
+and d3-scale notices). The label formats and tick requests of dates are shared with the axes through the `TimeLabels`
+unit (see _Time Labels Design_).
 
 #### Purpose
 
@@ -56,7 +59,10 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   is the explicit one or `right`; the direction is the explicit one, Vega-Lite's default for the orient (horizontal for
   top and bottom, and for the inner corners with gradients), then `config.legend.direction`, `symbolDirection` or
   `gradientDirection`. The title is the explicit `legend.title` or channel `title` (null or empty means none), else the
-  distinct default titles of the members joined by a comma.
+  distinct default titles of the members joined by a comma. `LegendPlan` itself did not change for time: a temporal
+  color is a sequential scale, so it is planned as a **gradient** legend, a size or opacity over a time scale and an
+  ordinal field with a time unit are planned as **symbol** legends, and the merge key already uses the derived field
+  name of the plan (a different time unit of the same field is a different key).
 - `LegendBuilder.Build(spec, dataWidth, dataHeight, budget, cancellationToken)` - charges the legend group, the title
   and the entry group, builds the content, then performs Vega's `legendGroupLayout`: the entries sit at the padding,
   below the title by its height plus the title padding; a middle or end anchored title is positioned against the width
@@ -77,7 +83,24 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   the requirements. Entry boxes are the union of the symbol box (the shape box grown by two stroke widths for a
   stroked symbol, Vega's miter allowance) and the label box; the grid layout (`GridLayout`, a port of Vega's `layout`
   with align each, row padding 2, column padding 10, the rows centered) gives the position of each entry; a vertical
-  legend with several columns fills them from top to bottom.
+  legend with several columns fills them from top to bottom. **Temporal symbol legends** (`LegendBuilder.Time.cs`): a
+  size or opacity on a **time or UTC** scale (and a temporal color asked to be shown as symbols) has as values the explicit
+  `values` or the **time ticks** of the domain (the count is `tickCount` or 5, limited by `tickMinStep`, or an interval
+  name or `{interval, step}`), labeled as dates; the discrete values of an ordinal or nominal field **with a time unit**
+  are dates, labeled by the same function (a discrete legend over the date values of a nominal field _without_ a time
+  unit is not temporal and keeps the text labels). `legend.values` of a temporal field are timestamps, date texts, or
+  date-time objects (`TemporalValue`: a date by the domain-entry unit rule for a discrete scale, milliseconds for a
+  continuous one; an entry that is not a date is dropped).
+- **Temporal labels** (`TimeLabelFunction`, built on `TimeLabels.Create`; plan decision P8-D7): the label of a date is,
+  in order, the legend `format` (a string is a d3 time format; an object is Vega's multi-format with its members as the
+  overrides), the specifier of the time unit of the field (`%b %Y` for `yearmonth`), and `config.timeFormat` (`%b %d, %Y`
+  by default, so `Jan 01, 2024`), in the calendar of the scale (UTC for a UTC scale or unit, otherwise the zone of the
+  chart). A `formatType` of `number` formats the milliseconds as a number; `time` and `utc` force time labels; any other
+  name is a custom format type and is reported by the feature catalog. The length of every label is bounded by
+  `MaxStringLength` and charged to the build's evaluation (`MaxEvaluationSteps`) as it is made. The build's
+  `ExpressionFunctionContext` is created with the **calendar** of the canonical scale (`ResolvedScale.Calendar`, UTC when
+  the legend has none), so that expressions evaluated for the legend read dates in the zone of the chart; `labelExpr` is
+  not implemented for any legend.
 - Gradient legends - the bar is `gradientThickness` (16) by the gradient length, which is `gradientLength`, else for a
   continuous scale the view height limited to 64 to 200 (vertical) or the view width limited to 100 to 200 for top and
   bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the ends
@@ -91,7 +114,13 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   placed outside the bar at `gradientLabelOffset` (2) or `labelOffset`, aligned by position, and thinned by
   `LabelOverlap` (the method of `labelOverlap`, greedy for quantile and threshold scales, else parity). A discrete
   gradient has one band per class (the colors of the scale at minus infinity and the thresholds, positioned by the linear
-  fraction of the domain, a threshold domain widened by one class at each end) and a label for each boundary.
+  fraction of the domain, a threshold domain widened by one class at each end) and a label for each boundary. The
+  gradient legend of a **temporal** color (`ResolvedScale.IsTemporalField` on a sequential or diverging scale) takes
+  the time ticks of its millisecond domain instead of the numeric ticks, both for the labels (the tick count of the
+  legend, or the interval of `tickCount`, limited by `tickMinStep`; labels as above) and for the stops: the ramp is
+  sampled at the time ticks for a count of 15 (Vega samples a time scale at its ticks): over a domain of ten days the
+  target is 16 hours, which is nearer to the 12-hour entry of the table than to the 1-day entry, so the ramp has 21
+  stops.
 
 **Preconditions and postconditions**: the spec comes from `LegendPlan.Create`; the result's children are positioned
 relative to the legend group and the entry group; the budget has been charged for exactly the items created.
@@ -107,20 +136,25 @@ entry count is bounded before any label or item is created (domain and values by
 (`MaxEvaluationSteps`) before it is measured; every scene item is charged to the budget before it is created, the
 labels of a gradient after the overlap removal (hidden labels cost nothing); the loops poll the cancellation token
 every 1,024 entries. **Determinism**: text is measured with the bundled fonts only; the gradient has at most about 30
-stops; no dictionary enumeration order reaches the output.
+stops; no dictionary enumeration order reaches the output. A time label is also bounded before it is made (the formatter
+stops at `MaxStringLength`), the time ticks by `MaxTicks` (located at the legend), and nothing reads the host clock,
+zone, or culture.
 
 #### Dependencies
 
-`TextMeasurer`, `LabelOverlap`, `ResolvedScale`, `ScaleModel`, `Ticks`, `NumberFormat`, `RgbColor` and the discretizing
+`TextMeasurer`, `LabelOverlap`, `TimeLabels`, `ResolvedScale`, `ScaleModel`, `Ticks` (including `TimeTicks`,
+`TimeTickRequest`, and `ResolveTickCount`), `NumberFormat`, `RgbColor` and the discretizing
 scale kinds of the `Scales` subsystem; `SpecNode`, `ConfigNode` and `ResolvedConfig` of the `SpecModel` subsystem;
-`DataValue` and `JsNumber` of the `Data` subsystem; `ExpressionEvaluator.ToJsString` and `ExpressionFunctionContext` of
+`DataValue`, `JsNumber`, `TimeCalendar`, `TimeUnitSpec`, `DateTimeObject`, and `JsDateParser` of the `Data` subsystem;
+`ExpressionEvaluator.ToJsString` and `ExpressionFunctionContext` of
 the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegraph` subsystem; and the public
 `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteRenderException` and `VegaLiteSpecException`.
 
 #### Callers
 
 `VegaLiteDocument` and `LegendLayout` of the `Layout` subsystem (which also calls `LegendBuilder.GridLayout`). The
-tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs` and `LegendBuilderTests.cs` call the
+tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendBuilderTests.cs`, and
+`LegendBuilderTimeTests.cs` call the
 unit directly through `InternalsVisibleTo`.
 
 #### Deviations From Vega-Lite
@@ -130,8 +164,13 @@ stop its position along the transformed domain (Vega's `scaleFraction`; the file
 read, so the
 log, pow, and symlog fractions are derived from the d3 transforms). The canonical scale of a merged continuous
 legend is the first channel in Vega-Lite's order
-(Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, `labelExpr`
-and custom format types are not drawn and are reported by the feature catalog. The symbols of the `arrow`, `wedge` and
+(Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, `labelExpr` (not
+implemented for any legend or axis)
+and custom format types (a `formatType` other than `number`, `time`, and `utc`) are not drawn and are reported by the
+feature catalog. A discrete legend over the dates of a nominal field without a time unit is not temporal (its values are
+not date-parsed) and keeps the text labels. A temporal color scale that asks for a discretizing type (quantile,
+quantize, threshold) is replaced by the sequential default (see _ScaleResolver Unit Design_), so no discretized
+temporal legend exists. The symbols of the `arrow`, `wedge` and
 `triangle` shapes are bounded by the box of their path. `legend.symbolType` is combined with the configuration's
 `symbolType` only for marks that default to a circle. A bin-ordinal scale (the scale of a binned quantitative color) has
 a symbol legend with one entry per bin (the edges but the last are the values) labeled `lo – hi` with the format of the

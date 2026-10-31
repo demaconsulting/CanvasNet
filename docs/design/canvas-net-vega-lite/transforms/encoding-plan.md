@@ -6,14 +6,15 @@ The `EncodingPlan` unit is the third software unit in the `Transforms` subsystem
 in the `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 
 - `EncodingPlan.cs` - `EncodingPlan` (sealed class: the pure plan of a view) and its records `ChannelPlan`,
-  `BinPlan`, `AggregatePlan`, `ArgField`, and `StackPlan`, and the enumeration `BinKind`
+  `BinPlan`, `TimeUnitPlan`, `AggregatePlan`, `ArgField`, and `StackPlan`, and the enumeration `BinKind`
 - `EncodingTransforms.cs` - `EncodingTransforms` (sealed class: the execution of a plan on a table) and
   `EncodingData` (the Raw and Main tables and the bins)
 
 #### Purpose
 
 `EncodingPlan` turns the encoding of a view into the **implicit pipeline** that Vega-Lite compiles from it: the
-bins of the binned fields, the aggregate of the aggregating definitions, and the stack of the stacked channel;
+bins of the binned fields, the time units of the fields that have one, the aggregate of the aggregating definitions,
+and the stack of the stacked channel;
 and it names the field that every channel then reads, its second field, and its default title.
 `EncodingTransforms` runs that pipeline on the rows that the explicit transforms left. The plan is the **single
 source of truth** for the derived field names and titles, so that the scales, the marks, and the axes agree on
@@ -29,13 +30,15 @@ compiler (`bin`, `aggregate`, `stack`, field naming, and titles), re-implemented
 **`EncodingPlan`** is immutable and safe for concurrent use. It is created by
 `EncodingPlan.Create(view, config)` and holds `MarkType`, `Orient` (the orientation Vega-Lite infers, from
 `ScaleResolver.InferOrient`), `Channels` (a `ChannelPlan` for every definition of the encoding, array channels
-element by element and `x2` and `y2` included), `Bins` (the distinct `BinPlan`s), `Aggregate` (an
-`AggregatePlan` or null), `Stack` (a `StackPlan` or null), `NeedsRaw`, and `IsIdentity` (no bin, no aggregate,
-no stack). `Channel(name)` finds the first definition of a channel. A view without a mark or an encoding has an
+element by element and `x2` and `y2` included), `Bins` (the distinct `BinPlan`s), `TimeUnits` (the distinct
+`TimeUnitPlan`s), `Aggregate` (an
+`AggregatePlan` or null), `Stack` (a `StackPlan` or null), `NeedsRaw`, and `IsIdentity` (no bin, no time unit, no
+aggregate, no stack). `Channel(name)` finds the first definition of a channel. A view without a mark or an
+encoding has an
 identity plan with no channels.
 
 **`ChannelPlan`** `(Channel, Definition, SourceField, ValueField, RawField, FieldPath, Field2Path, Bin, BinPlan,
-Measure, IsStacked, Title, FieldDefinition)` - one definition and what the pipeline makes of it:
+Measure, IsStacked, Title, FieldDefinition, TimeUnit, HasBandEnd)` - one definition and what the pipeline makes of it:
 
 - `Definition` is always the channel node (the guides and marks find the plan by it). `FieldDefinition` is the object
   that carries the field when that is not the channel node: a channel whose own definition is a value, with a condition
@@ -52,6 +55,9 @@ Measure, IsStacked, Title, FieldDefinition)` - one definition and what the pipel
   secondary channel its end).
 - `Measure` is the `AggregateSpec` of an aggregating definition; `Title` is the default title (null when the
   channel reads no field).
+- `TimeUnit` is the `TimeUnitPlan` of a definition with a time unit (shared by every definition of the same field and
+  unit; null for any other), whose start field the channel reads; `HasBandEnd` is true when the channel **spans** its
+  unit, in which case `Field2Path` is the end field of the unit (see below).
 
 **Derived field names** (Vega-Lite's `vgField`; the names are literal and are escaped with `FieldPath.Escape`
 when used as paths):
@@ -66,6 +72,11 @@ when used as paths):
 - aggregate: `sum_x` (the operation as written, so `average_x`, not `mean_x`), `__count` for a count,
   `argmax_t` for `{"argmax": "t"}` (a measure that holds the winning row; the channel reads the scalar field
   `argmax_t.v` that `EncodingTransforms` copies out of it), and `exponential_x` for `{"exponential": 0.5}`.
+- time unit: the name of the unit and the field, `TimeUnitSpec.FieldName(field)`: `yearmonth_date` for the unit
+  `yearmonth` of the field `date`, `month_step_2_date` for the object form with a `step`, `utcmonth_date` for a UTC
+  unit, and `timeunit_maxbins_10_date` for the `maxbins` form; the end adds `_end` (`yearmonth_date_end`). A unit is
+  shared by the channels that name the same field and unit, and computed once. A unit that is `binned` is skipped (the
+  field is used as it is), and so is a definition that has an aggregate or a `bin` (the bin wins over the unit).
 - stack: `<measure>_start` and `<measure>_end`, where the measure is the derived name of an aggregate or the
   field itself.
 
@@ -75,6 +86,23 @@ plain), `Q1 of x` (the first letter is upper-cased), `x for max t` for `argmax`,
 (`Count of Records` by default) for a count in every mode. A range merges its two titles as `a, b` (distinct
 titles only).
 
+**Time-unit titles.** For a definition with a time unit (and no bin or aggregate; a bin wins, and the verbal title of a
+unit is tested before the aggregate one as in Vega-Lite): verbal `date (year-month)` (the field and the parts of the unit
+joined with a hyphen; the field alone for the `maxbins` form, which has no parts), functional `YEARMONTH(date)`
+(`UTCYEARMONTH(date)` for a UTC unit, and `TIMEUNIT(date)` for the `maxbins` form), and plain the field.
+
+**`TimeUnitPlan`** `(StartName, EndName, SourceField, Spec, Node, HasBandEnd)`: the two literal names, the field of the
+dates, the `TimeUnitSpec` as written (the `maxbins` form is resolved against the data when the transform runs and the
+resolved unit is handed over in `EncodingData.TimeUnits`), the `timeUnit` value of the first definition that asked for
+it (the location of failures), and whether any channel that shares it spans it (`HasBandEnd`). A unit **spans**
+(Vega-Lite's `hasBandEnd`) when the channel is `x` or `y`, the type
+of the field is `temporal` (the type a time unit implies when none is written), the encoding has **no secondary
+channel** for it (`x2` or `y2`), and a band position is defined: a numeric `bandPosition` of the definition, a numeric
+`timeUnitBandPosition` of the mark definition, or one of the configuration layers of the mark (`config.<mark>` and its
+`style`s, then `config.mark`, resolved with `ResolvedConfig.ResolveMarkProperty`; the bar, rect, and tick have 0.5 by
+default, a point has none and sits at the start of its unit). A spanning channel reads the end field as its second field
+(`Field2Path`), so a bar covers the whole unit; the marks and scales then read both ends.
+
 **`BinPlan`** `(StartName, EndName, RangeName, SourceField, Settings, Node, Format)`: the three literal names
 (the range name only when a discrete channel shows the bin as text), the `BinSettings`, the `bin` value that
 located the first request, and the number format of the boundaries in the text (the `axis.format` of the first
@@ -83,12 +111,16 @@ discrete position channel or the `legend.format` of the first discrete channel o
 
 **`AggregatePlan`** `(GroupBy, Measures, ArgFields)`: the group-by is **every other field definition of every
 channel** (array channels element by element; a definition that has no field contributes nothing; a binned
-definition contributes its start, its end, and its range text), without duplicates; the measures are the
-aggregating definitions, one per distinct output name, in channel order.
+definition contributes its start, its end, and its range text; a definition with a time unit contributes its start
+field and, when the channel spans its unit, its end field), without duplicates; the measures are the
+aggregating definitions, one per distinct output name, in channel order. The end of a unit follows from its start, so
+including it adds no groups, but it keeps the end field alive after the aggregate for the marks that span the unit
+(without it `Field2Path` would read null); a mark that does not span (a point) groups by the start only.
 
 **`StackPlan`** `(Channel, Offset, Field, StartName, EndName, GroupBy, Sort, Definition)`: the stacked channel,
 the offset, the field that is stacked (the value field of the channel), the two literal output names, the
-group-by (the value fields of the other position channel and its secondary, plus the end of a bin), and the
+group-by (the value fields of the other position channel and its secondary, plus the end of a bin and the end of a
+unit that the channel spans), and the
 **order of the layers** as `SortField`s: the fields of the `order` channel (each with its own `sort`, ascending
 by default) when the encoding has one, otherwise the stack-by fields (see `StackRules` in
 _AggregateTransforms_) **descending when the stacked channel is `y` and ascending otherwise**. The decision
@@ -98,11 +130,17 @@ itself is `StackRules.Decide(markType, orient, encoding)`.
 shorthand (not `ascending`, `descending`, null, or an array of values) or has `scale.domain` of `unaggregated`:
 only then does a scale read the table as it was before the aggregate.
 
-**`EncodingData`** `(Raw, Main, Bins, Evaluation)` is the result of the execution: `Raw` is the table after the
-explicit transforms and the implicit bins, before the aggregate; `Main` is the table after the aggregate and the
+**`EncodingData`** `(Raw, Main, Bins, Evaluation, TimeUnits)` is the result of the execution: `Raw` is the table after the
+explicit transforms, the implicit bins, and the implicit time units, before the aggregate; `Main` is the table after the
+aggregate and the
 stack, which the marks and every other scale read; `Bins` maps the literal start name of a bin to its `BinSpec`
-(a field without a valid value has none); `Evaluation` is the evaluation context of the call, which the scales
-charge their work to. `Raw` and `Main` are the **same instance** when the encoding neither aggregates nor
+(a field without a valid value has none); `TimeUnits` (the optional last constructor parameter; empty when there is none)
+maps the literal start name of a time unit to its **resolved** `TimeUnitSpec` (the `maxbins` form is the unit that the
+extent of the data chose, or the one as written when the data has no valid date), which the scales, the axis labels,
+and the marks read for the domain, the minimum tick step, the label format, and the band geometry; `Evaluation` is the
+evaluation context of the call, which the scales
+charge their work to (and which carries the calendar of the chart). `Raw` and `Main` are the **same instance** when
+the encoding neither aggregates nor
 stacks, or when no scale needs `Raw`. `EncodingData.Identity(table, evaluation)` is the data of an identity plan.
 
 **Invariants**: the plan reads no data; two calls with the same view and configuration give equal plans; nothing
@@ -112,7 +150,8 @@ is read from the clock, the environment, or the current culture.
 
 - `EncodingPlan.Create(view, config)` - requires a non-null view and configuration; reads the mark (a string or
   the `type` of a definition), infers the orientation, plans every definition (`PlanDefinition`: the aggregate,
-  the bin, the fields, the title), shares the bins by start name, applies `StackRules` and plans the stack
+  the bin, the time unit and whether it spans, the fields, the title), shares the bins and the time units by start name,
+  applies `StackRules` and plans the stack
   (marking the stacked channel: its `FieldPath` becomes the end and its `Field2Path` the start), links each `x`
   and `y` to its secondary channel (`LinkRanges`: not for a stacked channel and not for a bin the encoding
   computes), then plans the aggregate and decides `NeedsRaw`. A `bin` is planned on `x`, `y`, and the channels that
@@ -125,25 +164,32 @@ is read from the clock, the environment, or the current culture.
   gives the default number of bins of a channel.
 - `EncodingTransforms.Apply(plan, table, context)` (static) - requires non-null arguments; returns
   `EncodingData.Identity` for an identity plan; otherwise runs the stages in **Vega-Lite's order: explicit
-  transforms (done by the caller), bin, Raw, aggregate, stack, Main**:
+  transforms (done by the caller), bin, time unit, Raw, aggregate, stack, Main**:
   1. **Bin** (`BinFields`): for every distinct bin the extent of the finite numeric values of the field (or the
      `extent` parameter) goes to `BinAlgorithm.Resolve` with the `MaxScaleDomainSize` limit; then one pass
      writes the start, the end, and, for a discrete channel, the range text (the two boundaries formatted and
      joined with an en dash, formatted once per distinct bin, and the text `null` for a row without a valid
      value) with one `TableLayout`.
-  2. **Aggregate**: one call of the grouping engine of _AggregateTransforms_ with the plan's group-by and
+  2. **Time unit** (`TimeUnitFields`): one call of `TimeUnitTransform.Apply` (see _Time Unit Transform Design_) with a
+     request per distinct unit (the source field, the start and end names, the unit, and the `timeUnit` value, which
+     locates a failure, for example at `/encoding/x/timeUnit`) in the calendar of the chart, which adds every start and
+     end field as dates and returns the unit that was resolved for each request; the resolved units are recorded in
+     `EncodingData.TimeUnits`. The fields are written before the aggregate, so `Raw` has them and every scale reads them.
+  3. **Aggregate**: one call of the grouping engine of _AggregateTransforms_ with the plan's group-by and
      measures, `releaseInput: false` (the rows stay counted while `Raw` is in use), seeded from the pointer of
      the first aggregating definition; the winning rows of `argmax` and `argmin` measures are copied into their
      scalar fields (`ReadArgFields`); when no scale needs `Raw`, its rows are released and `Raw` becomes `Main`.
-  3. **Stack**: the stack engine with the plan's field, group-by, layer order, and offset; the rows keep their
+  4. **Stack**: the stack engine with the plan's field, group-by, layer order, and offset; the rows keep their
      place.
-  4. **Main**. The invalid-row filter of Vega-Lite's last stage is done by the marks, which skip a row whose
+  5. **Main**. The invalid-row filter of Vega-Lite's last stage is done by the marks, which skip a row whose
      position is not a number.
 - `EncodingTransforms.ApplyStandalone(plan, table, view, sourceName, limits, token)` - builds a private context
-  (evaluator, loader with an empty row budget, no parameters) for callers that have only a view and a table;
+  (evaluator and loader both with the UTC calendar, loader with an empty row budget, no parameters) for callers that
+  have only a view and a table;
   used by the convenience entry of `ScaleResolver` and by tests.
 
-**Row accounting.** The bin stage replaces its input by a table of the same size (no change). The aggregate
+**Row accounting.** The bin stage and the time unit stage replace their input by a table of the same size, with the
+added fields (no change in the row count). The aggregate
 reserves one row per group as the group appears (the input stays counted, so the peak of the input and the
 groups is bounded) and releases the input rows only when `Raw` is not needed. A stack replaces its input (no
 change), except that **a stack next to a kept `Raw` table without an aggregate reserves its own rows**
@@ -160,6 +206,7 @@ The plan never fails for a valid specification: a construct it cannot plan (a `b
 without a field, an operation that is not an aggregate) is skipped and is the feature catalog's to report. The
 execution reports everything that depends on the data as a `VegaLiteRenderException` located at the construct
 that asked for it - the `bin` value (a bin count above `MaxScaleDomainSize`, an extent that cannot be binned, a
+field limit), the `timeUnit` value (a `maxbins` above `MaxScaleDomainSize`, the step budget of the unit computation, a
 field limit), the first aggregating definition (a group, cell, step, or string limit), or the stacked
 definition - with the limit named in the message, as _AggregateTransforms_ does; an `ExpressionRuntimeException`
 of the engines is converted with the same message. A canceled token is an `OperationCanceledException`, never
@@ -167,14 +214,20 @@ wrapped. A null argument is an `ArgumentNullException`. The unit performs no I/O
 
 **Differences from Vega-Lite**: `bin: "binned"` is read on `x` and `y` only (a bin of the other channels is
 computed from the data); a count is titled by `countTitle` in every `fieldTitle` mode; the name of an aggregate
-keeps the operation as written (`average_x`); and a non-finite stack value is silently invalid, as in
-Vega-Lite.
+keeps the operation as written (`average_x`); a non-finite stack value is silently invalid, as in
+Vega-Lite; a `binned` time unit is skipped in an encoding (the field is used as it is; the catalog reports it as
+`vl-timeunit-binned`); a channel that spans its unit covers the whole unit (the geometry applies 0.5, so another
+`bandPosition` is reported by `vl-encoding-bandposition-rect`); and the aggregate groups by the end of a unit that a
+channel spans (it adds no groups; see `AggregatePlan`).
 
 #### Dependencies
 
 - **`AggregateTransforms`**, **`BinAlgorithm`** and `BinSettings`, **`StackRules`**, **`AggregateMeasures`** and
   `AggregateSpec`, **`WorkMeter`**, and **`TransformContext`** - the engines and records of
-  _AggregateTransforms_ and the shared context; **`TableLayout`** and **`FieldReader`** of _RowTransforms_
+  _AggregateTransforms_ and the shared context; **`TableLayout`** and **`FieldReader`** of _RowTransforms_;
+  **`TimeUnitTransform`** and `TimeUnitRequest` - the time unit stage (see _Time Unit Transform Design_)
+- **`TimeUnitSpec`** - the time unit grammar, the field names, and the parts of the `Data` subsystem (see
+  _Time Calendar Design_)
 - **`ScaleResolver.InferOrient`** - the orientation rule of the `Scales` subsystem (the plan reuses it so that
   the stack and the geometry agree on the orientation), and **`NumberFormat`** for the text of a bin
 - **`DataLoader`** - the row budget; **`DataTable`**, **`DataValue`**, and **`FieldPath`** of the `Data`
@@ -190,11 +243,14 @@ Vega-Lite.
 `VegaLiteDocument` creates the plan once per `Measure` or `Render` call for a single view with a supported mark,
 right after `RowTransforms.Apply`, runs `EncodingTransforms.Apply` on the same `TransformContext` (so the
 warnings and the row budget flow through one place), and keeps the plan and the data in its chart inputs.
-`ScaleResolver` reads the plan for every channel (field, second field, title, bin kind, stacked or not, measure,
+`ScaleResolver` reads the plan for every channel (field, second field, title, bin kind, time unit, whether it spans,
+stacked or not, measure,
 raw field) and the data (`Main` for domains, `Raw` for a sort by an aggregate and for `unaggregated`, `Bins` for
-a binned domain, `Evaluation` for the work charge); its results (`ResolvedScale.FieldPath`, `Field2Path`,
+a binned domain, `TimeUnits` for the unit of a temporal domain, `Evaluation` for the work charge and the calendar); its
+results (`ResolvedScale.FieldPath`, `Field2Path`,
 `Title`, `Bin`, `BinSpec`, and `Stack`) are what `MarkBuilder` and `AxisBuilder` consume, and the marks draw the
 `Main` table. `FeatureCatalog` does not use the plan: it shares `StackRules` and `ScaleResolver.InferOrient`
 with it, so that the report (`order` accepted only for an active stack) and the plan decide alike. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs` and `EncodingTransformsTests.cs`
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs`, `EncodingPlanTimeTests.cs`,
+`EncodingTransformsTests.cs`, and `EncodingTransformsTimeTests.cs`
 call the unit directly through `InternalsVisibleTo`.

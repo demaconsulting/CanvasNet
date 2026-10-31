@@ -58,6 +58,25 @@ stroke opacity, and dash pattern).
   to that size around its middle, without spacing. An explicit size (`size`, `width`, `height`) centers the mark on the
   middle of the bin instead. `point`, `circle`, `square`, `tick`, and `rule` sit at the **middle of the bin**
   (Vega-Lite's `bandPosition` 0.5).
+- **Time-unit bands** (the same `rectBinPosition` and `bandPosition` machinery). A channel on a **time or UTC** scale
+  whose field has a time unit and whose end of the unit is known (`ResolvedScale.HasBandEnd` with a second field in the
+  table: Vega-Lite's `hasBandEnd`) is a **time band** (`Channel.IsTimeBand`); `Channel.HasBandEnds`, which replaced
+  `HasBinEnds`, is true for a bin or a time band, and `BinEdges` reads the start and the end of the unit through
+  `ScaleModel.Map`. A `bar` or `rect` on a time band spans the unit exactly as it spans a bin: from the start to the end,
+  with `binSpacing`, the half-pixel translate, and `minBandSize` (compared with the **whole** unit, so a unit thinner
+  than `minBandSize` is widened around its middle to that size, without spacing). The unit may cover only a share of its
+  width, centered: the **band** is the relative `{band}` of the `width` or `height` of the mark, else
+  `timeUnitBandSize` (1 by the configuration), and the edges are at `(1 - band) / 2` and `(1 + band) / 2` of the way from
+  the start to the end of the unit (Vega-Lite's `interpolatedSignalRef`, which on a linear scale equals the pixel
+  interpolation, so a band of 1 is the full bin span and a band of 0.5 the middle half). An explicit size centers the
+  mark on the **position inside the unit** instead. Where a mark that does not span sits (`Center`): `lerp(start, end,
+  p)` with the **band position** `p` = 0.5 for a `bar` or `rect` (a different band position is reported as
+  `vl-encoding-bandposition-rect`, and 0.5 is drawn), otherwise the `bandPosition` of the field definition, else the
+  `timeUnitBandPosition` of the mark (0.5 by the configuration for a `tick`), else **0, the start of the unit**: a
+  `point`, `circle`, `square`, or `rule` on a month axis sits on the first instant of its month, as in Vega-Lite, unless
+  a band position is given. A time scale **without** a time unit has no band: a point sits at its date, and a `bar` on
+  it is `continuousBandSize` thick, centered on the date, as on a linear scale. An ordinal or nominal field with a time
+  unit uses the ordinary band scale over its date values.
 - A `tick` is `thickness` (1 in the configuration) across and as long as its band; its orientation comes from
   `ScaleResolver.InferOrient` (vertical by default).
 - `point`, `circle`, and `square` sit at the center of their band or value, and at the middle of the rectangle for
@@ -105,7 +124,10 @@ feature catalog (`vl-expr-ref`, `vl-encoding-condition`, `vl-encoding-condition-
 
 **Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
 `cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, and `rule`, and the
-offset channels are reported by the feature catalog and ignored here.
+offset channels are reported by the feature catalog and ignored here. A `datum` of a temporal channel is read as one
+instant (a number is milliseconds, a text is a date text in the calendar of the scale; a text that is not a date gives
+the datum no position); a `datum` that is a date-time object is reported (`vl-encoding-datum-datetime`) and the
+channel is ignored.
 
 #### Key Methods
 
@@ -119,8 +141,10 @@ offset channels are reported by the feature catalog and ignored here.
   extent of an interval selection, so a bar that starts at zero, as a default stack does, can overflow such a domain, as
   in Vega-Lite).
 - Row filtering (Vega-Lite's invalid filter) - a row whose value for a channel with a continuous domain (`x`, `y`,
-  `size`, or `opacity` on a linear scale, and a color, `strokeWidth`, `fillOpacity`, `strokeOpacity`, or `angle` channel
-  on a linear, sequential, diverging, quantize, quantile, or threshold scale) is null, missing, NaN, or not a number is
+  `size`, or `opacity` on a linear, time, or UTC scale, and a color, `strokeWidth`, `fillOpacity`, `strokeOpacity`, or
+  `angle` channel
+  on a linear, sequential, diverging, quantize, quantile, or threshold scale; a date that is not valid has no number)
+  is null, missing, NaN, or not a number is
   not drawn; a number that a log, pow, sqrt, or symlog scale cannot take (zero or a negative number on a log scale)
 has no
   position (`ScaleModel.Map` gives null), so the mark is not drawn instead of being placed at a position that is not a
@@ -163,9 +187,12 @@ already reported it. The unit performs no I/O.
 
 #### Dependencies
 
-- **`ResolvedScales`**, **`ResolvedScale`** (with `Field2Path`, `Bin`, `BinSpec`, and `Stack`), and **`ScaleModel`** -
+- **`ResolvedScales`**, **`ResolvedScale`** (with `Field2Path`, `Bin`, `BinSpec`, `Stack`, `TimeUnit`, `HasBandEnd`,
+  `Calendar`, and `IsTemporalField`), and **`ScaleModel`** -
   the scales of the `Scales` subsystem
-- **`DataTable`** and **`DataValue`** - the data of the `Data` subsystem
+- **`DataTable`** and **`DataValue`** - the data of the `Data` subsystem, and **`TimeCalendar`** and **`JsDateParser`**
+  of the same subsystem, which read the text of a temporal `datum` as a date in the calendar of its scale (see _Time
+  Calendar Design_ and _Time Format Design_)
 - **`RowExpressions`** - the compiled expressions and the evaluator of the call (the `Transforms` subsystem), and
   **`BinKind`** of the same subsystem (the bin kind of a channel), and
   **`CompiledExpression`** and **`ExpressionEvaluator`** of the `Expressions` subsystem, for the row-bound paint values
@@ -180,5 +207,6 @@ already reported it. The unit performs no I/O.
 
 `VegaLiteDocument` calls `IsSupported` to decide if a view is drawn and `Build` once for the final data rectangle,
 passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call. The
-tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs` call the builder directly through
+tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs` and `MarkBuilderTimeTests.cs` call the
+builder directly through
 `InternalsVisibleTo`, and the chart integration tests exercise it through the public document.

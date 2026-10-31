@@ -15,7 +15,8 @@ files in the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `int
 #### Purpose
 
 `ExpressionEvaluator` runs a `CompiledExpression` against a datum and a set of parameter values and returns a `DataValue`,
-with JavaScript and Vega semantics, independently of the culture and the time zone, under an explicit step budget and a
+with JavaScript and Vega semantics, independently of the culture and the host's time zone, under an explicit step budget
+and a
 cancellation token. It exists so that the meaning of an expression is defined in one place, so that every stage that needs
 a value computed from a row (a calculated field, a filter, a parameter, a mark paint) gets
 the same answer, and so that the
@@ -29,8 +30,9 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 An evaluator serves **one measure or render call on one thread**; it is not thread-safe, but it holds no shared mutable
 state, so evaluators of different calls never influence each other, and a `CompiledExpression` is shared freely. It holds
 the per-evaluation `ExpressionFunctionContext` (the step counter and budget, the cancellation
-token, the string limit, and the
-regular expression cache; see _ExpressionFunctions Unit Design_), the dictionary of parameter values by name (ordinal; a
+token, the string limit, the array limit `MaxArrayLength`, the `TimeCalendar` of the date and time functions, and the
+regular expression and time formatter caches; see _ExpressionFunctions Unit Design_), the dictionary of parameter values
+by name (ordinal; a
 name that is not in it reads null), a reusable value stack, and the datum of the current evaluation in one of four modes:
 none, a row of a `DataTable`, a `DataValue` (normally an object), or a caller-defined `IExpressionDatum` (with
 `GetField(string)` and `ToValue()`).
@@ -89,7 +91,9 @@ fails with `N - 1`. `StepsUsed` reports the total.
 
 #### Key Methods
 
-- `ExpressionEvaluator(limits, cancellationToken, parameters)` - creates the evaluator and its context; the parameter
+- `ExpressionEvaluator(limits, cancellationToken, parameters, calendar)` - creates the evaluator and its context; the
+  `calendar` (a `TimeCalendar`, UTC when null) is the zone of the local date and time functions and is created once per
+  call by the document from the `TimeZone` of the render options; the parameter
   dictionary is read live, so the caller fills it before the first evaluation that needs a name.
 - `Evaluate(expression)`, `Evaluate(expression, table, row)`, `Evaluate(expression, DataValue datum)`, and
   `Evaluate(expression, IExpressionDatum datum)` - set the datum mode, check the token, and run the program. The table
@@ -104,7 +108,9 @@ fails with `N - 1`. `StepsUsed` reports the total.
   agree on equality and ordering. `ToNumber`, `ToPrimitive`, `ToJsString`, `StrictEquals`, `LooseEquals`, and
   `RelationalLess` take an optional `ExpressionFunctionContext` to charge their work to; the evaluator always passes its
   own, and the filter predicates pass the same context (exposed to the unit by the internal `Context` property), so a
-  predicate and an expression are charged alike.
+  predicate and an expression are charged alike. The same `Context` carries the calendar, so the time predicates that
+  `PredicateSource` writes as expressions (see _SpecParser Unit Design_) and the `timeUnit`
+  transform evaluate in the zone of the render.
 
 **Preconditions and postconditions**: the expression was compiled with limits compatible with the evaluator's (the same
 `VegaLiteLimits` instance in the pipeline); on return the result is a value or an exception was thrown; the step counter
@@ -117,14 +123,16 @@ A failure that depends on the data is a `VegaLiteRenderException` located at the
 JSON pointer and the line and column of the expression string), with the expression offset of
 the instruction that failed in
 the message: the step budget is exhausted, a string would exceed `MaxStringLength` (concatenation, `join`, `pad`, `replace`,
-and the other string builders), or a regular expression is invalid, too long, or times out (see _ExpressionFunctions Unit
+`timeFormat`, and the other string builders), a date sequence would exceed `MaxArrayLength`, or a regular expression is
+invalid, too long, or times out (see _ExpressionFunctions Unit
 Design_). The functions signal these with the internal `ExpressionRuntimeException`, which the
 evaluator converts and which never
 reaches a public caller. A canceled token is an `OperationCanceledException`, never wrapped. A null expression, table, or
 datum argument is an `ArgumentNullException`. Anything else that JavaScript would turn into `undefined` or NaN (a missing
-field, a division by zero, a non-numeric text in arithmetic) is a value, not an error. The
+field, a division by zero, a non-numeric text in arithmetic, a date function given an invalid date) is a value, not an
+error. The
 unit performs no I/O and uses no
-clock or random source.
+clock, host time zone, or random source.
 
 #### Dependencies
 
@@ -138,6 +146,7 @@ clock or random source.
   number-formatting model of the `DataTable` unit of the `Data` subsystem
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the
   `VegaLiteDocument` unit
+- **`TimeCalendar`** - the calendar of the `Data` subsystem that the context carries (see _Time Calendar Design_)
 - **.NET base class library** - `System.Globalization` (invariant-culture parsing and formatting) and `System.Math`
 
 #### Callers

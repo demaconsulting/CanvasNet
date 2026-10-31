@@ -11,7 +11,8 @@ an expression may call. It is **internal**: its types are visible only to the ot
 through `InternalsVisibleTo`, to the test assembly. It is a **closed world**: the language is a subset of JavaScript
 with literals, `datum` access, a fixed set of operators, and calls of whitelisted pure functions; there is no
 reflection, `eval`, assignment, `new`, function expression, file or network access, clock, or random source, so an
-expression is a pure, deterministic function of its datum and its parameters. It contains three units:
+expression is a pure, deterministic function of its datum, its parameters, and the calendar of the call (the time zone
+that the render options name, UTC when none). It contains three units:
 
 - **ExpressionParser** - the internal `ExpressionParser` (with its tokenizer), `CompiledExpression` and its helper types,
   and the construct and reference records: compiles the text in one bounded pass into an immutable postfix program, under
@@ -20,9 +21,9 @@ expression is a pure, deterministic function of its datum and its parameters. It
 - **ExpressionEvaluator** - the internal `ExpressionEvaluator` and the `IExpressionDatum` interface: runs a compiled
   expression with JavaScript coercion, culture-independently, under the step budget and the cancellation token; see
   _ExpressionEvaluator Unit Design_ (`expressions/expression-evaluator.md`)
-- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 57 functions, the `ExpressionFunctionContext`,
-  and `ExpressionRegex`: the math, text and array, type and conversion, and regular expression functions; see
-  _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
+- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 99 functions, the `ExpressionFunctionContext`,
+  and `ExpressionRegex`: the math, text and array, type and conversion, regular expression, and date and time
+  functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
 
 The subsystem's namespace documentation is in `Expressions/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Expressions-*` requirements in `docs/reqstream/canvas-net-vega-lite/expressions.yaml`.
@@ -41,8 +42,11 @@ transforms reuse; `ExpressionFunctions.Names()`, `TryGet(string, out ExpressionF
 **Consumed**: `DataValue`, `DataValueKind`, `DataObject`, `DataArray`, `DataTable`, and `JsNumber` of the `Data`
 subsystem (the value model, with the array, object, and regular expression kinds that expressions produce), and the public
 `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`, and `VegaLiteRenderException` types of the
-`VegaLiteDocument` unit. The .NET base class library supplies `System.Text.RegularExpressions`, `System.Collections.Frozen`,
-`System.Globalization`, and `System.Math`.
+`VegaLiteDocument` unit. From the `Data` subsystem it also consumes the time model that the date and time functions
+are built on: `TimeCalendar` (the calendar and zone of local dates), `TimeFormat` and `TimeFormatter` (the d3 time
+format and parse), `TimeUnitSpec` (the unit specifier), and `JsDateParser` (date text); see _Time Calendar Design_
+and _Time Format Design_. The .NET base class library supplies `System.Text.RegularExpressions`,
+`System.Collections.Frozen`, `System.Globalization`, and `System.Math`.
 
 **Consumers**: the `SpecModel` subsystem (`SpecParser` compiles the expression of every supported site when the document
 is opened and keeps the result in the tree; `FeatureCatalog` reports `UnsupportedConstructs`), the `Transforms` subsystem
@@ -80,20 +84,26 @@ text, `==` and `===` follow the equality tables, relational comparison orders te
 operand, division by zero is an infinity or NaN, negative zero is kept). The value model has one null for both `null` and
 `undefined`, which is the documented deviation: null converts to 0 in arithmetic. Composite
 values compare by identity, as
-JavaScript's do. Everything is invariant of the current culture and the time zone.
+JavaScript's do. Everything is invariant of the current culture and of the host's time zone: the local date functions
+(`datetime`, `year`, `timeFormat`, and the rest) use the `TimeCalendar` that the evaluator was given (UTC unless the
+render was given a time zone), so the same expression gives the same answer on every machine.
 
 **Bounded work, fail closed.** The text is bounded by `MaxExpressionLength` (checked before tokenizing), the nesting by
 `MaxExpressionDepth`, the work by `MaxEvaluationSteps` (one step per executed instruction, plus one step per 64
 characters or elements of the work of a size-proportional function; the budget is exact, and it is shared by the
 parameters, the transforms, and the row-bound mark values of one call), strings by `MaxStringLength`, a regular
-expression pattern by 1,024 characters, and a regular expression match by the linear-time engine where the pattern allows
-it or a 100 ms timeout where it does not. Cancellation is checked when an evaluation starts and whenever the step counter
+expression pattern by 1,024 characters, a regular expression match by the linear-time engine where the pattern allows
+it or a 100 ms timeout where it does not, and a date sequence by `MaxScaleDomainSize` dates (each costs one step).
+Cancellation is checked when an evaluation starts and whenever the step counter
 crosses a multiple of 1,024. A failure that depends on the data is a `VegaLiteRenderException` located at the expression
 string with the offset in the message; a cancellation is an `OperationCanceledException`, never wrapped.
 
 **Closed function table.** `ExpressionFunctions` is the whole security boundary of the
 language: a function exists only if
 it is in the frozen table. The families are the math functions, the text and array functions, the type and conversion
-functions, and the regular expression functions. The date and time, formatting, color, geographic, scale, statistical, and
-data-flow functions are deferred to later phases of the roadmap. There is no `random` function because reproducible
-rendering is a system contract.
+functions, the regular expression functions, and the date and time functions (the constructors, the getters and their
+UTC forms, offsets and sequences, the unit specifier, and the time format and parse functions). The number formatting,
+color, geographic, scale, statistical, and data-flow functions are deferred to later phases of the roadmap. There is no
+`random` function because reproducible rendering is a system contract, and there is no `now` function for the same
+reason: the clock is not an input of a pure expression, so a call of `now` is reported as `vl-expr-function-now` and
+gives null. A date function never reads the host's zone or clock; it takes its calendar from the evaluator.

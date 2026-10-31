@@ -6,12 +6,14 @@
 
 The `Transforms` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Transforms`, folder
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/`) turns the rows a chart loads into the rows it draws. It runs the
-**row transforms** of the specification (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`) and
-the **aggregating transforms** (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`), runs the
-**implicit pipeline** that the encoding of the view asks for (its bins, its aggregate, and its stack), and computes the
+**row transforms** of the specification (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and
+`timeUnit`) and the
+**aggregating transforms** (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`), runs the
+**implicit pipeline** that the encoding of the view asks for (its bins, its time units, its aggregate, and its stack), and
+computes the
 **static parameter environment** that expressions read, after the `DataLoader` has produced its table and before any scale
 exists. It is **internal**: its types are visible only to the `VegaLiteDocument` unit and the other subsystems and, through
-`InternalsVisibleTo`, to the test assembly. It contains three units:
+`InternalsVisibleTo`, to the test assembly. It contains four units:
 
 - **RowTransforms** - the internal `RowTransforms` (with its predicates, shape, and lookup parts), `RowSampler`,
   `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`; see
@@ -20,9 +22,14 @@ exists. It is **internal**: its types are visible only to the `VegaLiteDocument`
   `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`, `StackRules`, `WorkMeter`, and `StableSorter`;
   see
   _AggregateTransforms Unit Design_ (`transforms/aggregate-transforms.md`)
-- **EncodingPlan** - the internal `EncodingPlan` (the pure plan of a view's bins, aggregate, stack, field names, and
-  titles) and `EncodingTransforms` with `EncodingData` (its execution); see _EncodingPlan Unit Design_
+- **EncodingPlan** - the internal `EncodingPlan` (the pure plan of a view's bins, time units, aggregate, stack, field
+  names, and titles) and `EncodingTransforms` with `EncodingData` (its execution); see _EncodingPlan Unit Design_
   (`transforms/encoding-plan.md`)
+- **TimeUnitTransform** - the internal `TimeUnitTransform` and `TimeUnitRequest` (the start and end of a time unit for
+  every row, for the `timeUnit` transform and for a channel's `timeUnit`) and `TemporalFields` (the fields that are
+  read as dates); see _TimeUnitTransform Unit Design_ (`transforms/time-unit-transform.md`). The time model it uses
+  (the calendar and `TimeUnitSpec`) lives in the `Data` subsystem, not here (a deviation from the master plan, plan
+  decision P8-D1; see _Data_)
 
 The subsystem's namespace documentation is in `Transforms/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Transforms-*` requirements in `docs/reqstream/canvas-net-vega-lite/transforms.yaml`.
@@ -37,13 +44,18 @@ fills the dictionary of parameter values that the evaluator reads;
 `RowSampler.Select(count, size, pointer, token)`; `EncodingPlan.Create(SpecNode, ResolvedConfig)`, which plans the implicit
 pipeline of a view, and `EncodingTransforms.Apply(EncodingPlan, DataTable, TransformContext)`, which runs it and
 returns the
-`EncodingData` (the Raw and Main tables and the bins); the accumulators and engines that other subsystems reuse
+`EncodingData` (the Raw and Main tables, the bins, and the resolved time units);
+`TimeUnitTransform.Apply(DataTable, requests, TransformContext, VegaLiteLocation, resolved)`, which adds the start and the
+end of time units to every row (`RowTransforms.Apply` dispatches the `timeUnit` transform to it), and
+`TemporalFields.Collect(SpecNode)`, which names the fields that the loader parses as dates; the accumulators and
+engines that other subsystems reuse
 (`MeasureCell`, `WorkMeter`, `BinAlgorithm`, `StackRules`, and the aggregate and stack engines of `AggregateTransforms`);
 and the `TransformContext` and `RowExpressions` records that carry what the stages share.
 
 **Consumed**: `DataTable`, `DataValue`, `DataLoader` (the row budget, the sandbox, and the
-loading of a lookup source), and
-`FieldPath` of the `Data` subsystem; `ExpressionEvaluator` and `CompiledExpression` of the `Expressions` subsystem;
+loading of a lookup source), `FieldPath`, and the time model (`TimeCalendar`, `TimeUnitSpec`, and `DateTimeObject`) of the
+`Data` subsystem; `ExpressionEvaluator` and `CompiledExpression` of the `Expressions` subsystem (whose
+`ExpressionFunctionContext` carries the calendar of the render);
 `SpecTree`, `SpecNode`, `SpecParser` (the transform and parameter helpers), `ResolvedConfig`, and `FeatureReport` of the
 `SpecModel` subsystem; `ScaleResolver.InferOrient` and `NumberFormat` of the `Scales` subsystem (the plan reuses the
 orientation rule and formats the text of a bin); and the public `VegaLiteLimits`, `VegaLiteLocation`,
@@ -60,7 +72,8 @@ evaluate the row-bound paint values and draws the Main table), and the `SpecMode
 ### Design
 
 **Between the loader and the scales.** The pipeline is `DataLoader` -> parameters -> explicit transforms in the written
-order -> `EncodingPlan` -> implicit bins -> **Raw** -> implicit aggregate -> implicit stack -> **Main** -> scales -> marks.
+order -> `EncodingPlan` -> implicit bins -> implicit time units -> **Raw** -> implicit aggregate -> implicit stack ->
+**Main** -> scales -> marks.
 Only the `transform` array of the drawn view (the root view without a composition) runs; the transforms of nested
 views of a
 composition are not drawn and are reported. Because the scales are resolved over the transformed tables, a domain and every
@@ -70,8 +83,9 @@ mark see the rows that the transforms produced, never the loaded ones; a sort of
 **Eager and immutable.** Every transform reads an immutable `DataTable` and builds a new one; a transform that keeps every
 row in order may return its input. Nothing in the pipeline ever sees a table change. A transform that the renderer does
 not
-compute (`timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`) is **skipped, not approximated**, and the
-`FeatureCatalog` reports it.
+compute (`regression`, `loess`, `density`, `quantile`, `extent`) is **skipped, not approximated**, and the
+`FeatureCatalog` reports it. The `timeUnit` transform is computed (see _TimeUnitTransform_): its start and end
+fields are dates in the calendar of the chart, whose zone is the `TimeZone` render option.
 
 **One row budget, shared with the loader.** The loader of the call is the single owner of the
 `MaxDataRows` total. Fold and
@@ -86,7 +100,8 @@ _AggregateTransforms_ and _EncodingPlan_ for the accounting of each). The field 
 every derived table is bounded by `MaxFieldCount` and its size by a bound of 2^25 cells (33,554,432), which keeps the memory
 of one table to a few hundred megabytes whatever the other limits allow; the state of the groups and the values that an
 operation keeps are counted in the same cells and checked up front. Strings are bounded by `MaxStringLength`. All the work
-that is proportional to rows, to sorts, to window frames, and to the bootstrap of a confidence interval is charged to the
+that is proportional to rows, to sorts, to window frames, to the bootstrap of a confidence interval, and to the time
+units of the rows (2 elements per row for UTC and 8 for a zone) is charged to the
 **evaluation-step budget** (`WorkMeter`, one step per 64 elements), so a hostile specification fails closed and located
 instead of running for minutes.
 
@@ -95,6 +110,12 @@ an expression is evaluated once per call, in the dependency order that the `Spec
 were rejected when the document was opened), and a value in `VegaLiteRenderOptions.Parameters` replaces the whole definition
 of that parameter (the expression is not evaluated). The environment is a dictionary of `DataValue` by name that the
 evaluator reads. Selection parameters have no value in a static chart and are reported.
+
+**Time in predicates.** A `filter` predicate that has a `timeUnit` or compares with a date-time object is written as
+expression source text by `PredicateSource` (the left side is the unit parts of the field as a `datetime` call, the
+right side the value as one) and evaluated by the same evaluator, so it reads dates in the calendar of the chart; the
+parts `week` and `dayofyear` are not applied by a predicate, as in Vega-Lite, and are reported as the warning
+`vl-predicate-timeunit-part` (see _RowTransforms_).
 
 **Warnings, not failures, for recoverable data.** A calculate that produces a regular
 expression (which cannot be stored in a
@@ -105,7 +126,8 @@ pipeline have no warnings: a value that cannot be used is null or NaN in the out
 warnings are collected in the order they are found and delivered after the loader's warnings, also when a later stage
 fails. Everything that exceeds a limit is a located `VegaLiteRenderException` instead.
 
-**Deterministic by construction.** The subsystem uses no clock, no random source, no culture, and no unordered iteration:
+**Deterministic by construction.** The subsystem uses no clock, no host time zone, no random source, no culture, and no
+unordered iteration:
 `sample` is seeded from the JSON pointer of its transform and so is the bootstrap of `ci0` and `ci1` (FNV-1a and
 SplitMix64), the fields of a derived table are in ordinal order, and groups (structural keys), pivot columns, impute keys,
 and lookup keys are ordered by first appearance or ordinal text; sorts are stable. The same

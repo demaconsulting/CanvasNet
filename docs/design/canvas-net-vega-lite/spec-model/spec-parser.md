@@ -2,7 +2,7 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises seven source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises eight source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
@@ -14,6 +14,9 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
   `ParameterGraph` (the dependency order of parameters)
 - `SpecParser.Aggregates.cs` - the fourth part of `SpecParser`: the validation of the aggregating transforms and of the
   `aggregate`, `bin`, `stack`, and `sort` properties of a channel definition, and the sort helpers that the catalog shares
+- `SpecParser.Time.cs` - the fifth part of `SpecParser`: the validation of the time constructs (time units, date-time
+  objects, the interval forms of `tickCount` and `nice`, the `timeUnit` transform, and the time values of predicates) and
+  the compilation of the time predicates
 - `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
@@ -70,8 +73,9 @@ checks the parameters of the transform scale types by the type of the scale only
 number above zero other than 1, the `exponent` of a `pow` scale finite, and the `constant` of a `symlog` scale
 above zero (the
 parameters of another type are ignored, as in Vega-Lite). `domainMid`,
-`domainMin`, `domainMax`, `rangeMin`, `rangeMax` (numbers or expression references) and `bins` (array or object) have
-kind rules only.
+`rangeMin`, and `rangeMax` (numbers or expression references) and `bins` (array or object) have
+kind rules only; `domainMin` and `domainMax` are a number, an expression reference, or a date-time object (see the time
+rules below).
 
 **Legend options.** After the kind rules of a legend, `ValidateLegendOptions` checks what they cannot express: the counts
 and lengths `columns`, `symbolLimit`, `tickCount`, `clipHeight`, `gradientLength`, and `gradientThickness` must not be
@@ -84,7 +88,9 @@ false` is a specification error.
 reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
 break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a
 `parse` object must be a string that is `number`, `boolean`, `date`, `string`, or a custom date format
-(`date:'%fmt'` or `utc:'%fmt'`, which is valid here and reported by the feature catalog because it is not applied);
+(`date:'%fmt'` or `utc:'%fmt'`, with the d3 time format in matching single or double quotes; the data stage applies it).
+An entry that starts with `date:` or `utc:` but has no quoted format is a `VegaLiteSpecException` at the entry with a
+dedicated message, and any other unknown entry value gets the general one;
 `property` must be a string; a `sequence` needs numeric `start` and `stop`, a numeric `step` (zero is **not** rejected
 here, because the metadata reports an unknown length for it and the data stage fails the render with a located error
 instead), and a non-empty `as`. A top-level `datasets` object may hold arrays, text, and objects (the catalog reports
@@ -121,8 +127,9 @@ be what its author meant, and well-formed constructs that the renderer does not 
   with either a `param` text or a `data` object (validated like any `data`), a `key` field
   path, optional `fields`, and an
   `as` and `default` that fit them (a `default` is a scalar). Predicate nesting is bounded by `MaxJsonDepth`, so the
-  recursive check cannot exhaust the stack. A transform that the renderer does not compute (`timeUnit`, `regression`,
-  `loess`, `density`, `quantile`, `extent`) is accepted without a shape check.
+  recursive check cannot exhaust the stack. A transform that the renderer does not compute (`regression`,
+  `loess`, `density`, `quantile`, `extent`) is accepted without a shape check; `timeUnit` is computed and checked (see the
+  time rules below).
 
 **Aggregation rules (phase 6, `SpecParser.Aggregates.cs`).** The same fail-fast rule applies to the six aggregating
 transforms and to the encoding properties that aggregate, bin, stack, and sort; each error is located at the offending
@@ -156,11 +163,50 @@ value:
   `argmax`) or `{encoding, order}` (the two forms cannot be mixed); the `sort` of an `order` channel is `ascending` or
   `descending` only. Every item of a `sort` array (`ValidateSortArray`) is a string, a number, a boolean, or null: an
   object or an array item is an error at the item, because it would otherwise read as the null category and silently
-  mis-sort; an object is accepted only as a date-time (a non-empty object of the keys `year quarter month date day hours
-  minutes seconds milliseconds utc` with string, number, or boolean values) on a field of type `temporal`. An array that
+  mis-sort; an object is accepted only as a date-time on a field of type `temporal`, and is then checked by
+  `DateTimeObject.TryRead` like every other date-time object (an unknown key, a wrong kind of value, or an invalid month,
+  quarter, or day is an error at its member; see the time rules below). An array that
   mixes kinds of values is accepted (values are matched by kind, as Vega-Lite's strict comparison does) and is one
   `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than `field`,
   `op`, `order`, and `encoding` is a `vl-unknown-property` warning at the key.
+
+**Time rules (phase 8, `SpecParser.Time.cs`).** The same fail-fast rule applies to the time constructs: a value whose shape
+cannot be what its author meant is a `VegaLiteSpecException` at that exact value, and a member that Vega-Lite does not
+define is a `vl-unknown-property` warning; what the renderer does with a valid construct it cannot apply is left to the
+catalog (for example a binned unit).
+
+- **Time units** (`ValidateTimeUnit`) are checked in a channel definition, in a condition, in a predicate, and in the
+  `timeUnit` transform. The value is null, a unit name that `TimeUnitSpec.TryParse` accepts (the 40 local names and
+  their `utc` forms, and the `binned` forms; an unknown name is `Unrecognized time unit 'foo'` at the value), or an
+  object whose members are `unit` (a unit name), `maxbins` and `step` (positive numbers), and `utc` and `binned`
+  (booleans), each located at its member; the object needs a `unit` or a `maxbins`, and any other member is
+  `vl-unknown-property`. The mark definition rule table also gains `timeUnitBandPosition` and `timeUnitBandSize`
+  (numbers or expression references).
+- **Date-time objects** are checked by `DateTimeObject.TryRead` of the `Data` subsystem, at every site that accepts one,
+  so every site reports the same errors at the same member: the items of `scale.domain`, `domainMin` and `domainMax`, the
+  `values` of an axis or legend, the values of a predicate (`equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`), the
+  items of a `sort` array of a temporal field, and a `datum` that has a date-time key (`IsDateTimeShaped`). An object
+  that holds an `expr` string is an expression reference and is left alone; an empty object is an error at the object;
+  otherwise only the keys `year`, `quarter`, `month`, `date`, `day`, `hours`, `minutes`, `seconds`, `milliseconds`, and
+  `utc` are allowed (anything else is an error at that member), a month, quarter, or day that is not one is an error at
+  its member, and a value of the wrong kind is an error at its member.
+- **Tick and nice intervals** (`ValidateTimeInterval`): an axis or legend `tickCount` and a scale `nice` that are a text
+  must be one of the eight intervals `millisecond`, `second`, `minute`, `hour`, `day`, `week`, `month`, and `year`
+  (`SpecParser.IsTimeInterval`); an object needs a valid `interval` and, when present, a positive
+  `step` (another key is `vl-unknown-property`); an expression reference is left alone. The rule is checked for every
+  field type because the type of the scale is not known to the parser; the catalog reports an interval on a scale that
+  has none.
+- **The `timeUnit` transform** is supported (`IsSupportedTransform("timeUnit")`): `ValidateTimeUnitTransform` requires
+  a unit, a `field` that is a valid field path, and a non-empty text `as`.
+- **Predicate time values** (`ValidatePredicateTime`, called from `ValidatePredicate` for a field predicate): the
+  `timeUnit` of the predicate and its date-time values are validated, and a time-aware `oneOf` list (one that
+  `PredicateSource.IsTimeAware` says is written as an expression) that holds more than `MaxScaleDomainSize` values is an
+  error at the array. `CompileTimePredicate` then writes every time-aware field predicate **leaf** (also inside `and`,
+  `or`, and `not`) as expression source with `PredicateSource.TryBuild` and compiles it once under the key of the
+  predicate object, so the 4,096-character `MaxExpressionLength` bounds a long list of date-time values and an over-long
+  one fails at the predicate when the document is opened.
+- **Parse directives** (`ValidateFormat`): a `date:` or `utc:` entry of `format.parse` without a format in matching
+  quotes is an error at the entry (see the data format rules above).
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -193,8 +239,12 @@ an error; a duplicate key keeps the last value at the position of the first occu
   apply the rules above from the
   validation pass; `ValidateAggregateTransform`, `ValidateWindowTransform`, `ValidateBinTransform`,
   `ValidateStackTransform`, `ValidateImputeTransform`, and `ValidateAggregationProperties` (`SpecParser.Aggregates.cs`)
-  apply the phase 6 rules. The static helpers `IsSupportedTransform(name)` (now true for the six aggregating transforms
-  too), `IsDrawnView(root, view)`, `IsViewSignal(name)`,
+  apply the phase 6 rules; `ValidateTimeUnit`, `ValidateTimeUnitObject`, `ValidateDateTimeValue`,
+  `ValidateDateTimeItems`, `ValidateTimeInterval`, `ValidateScaleTime`, `ValidateGuideTime`, `ValidateDatum`,
+  `ValidatePredicateTime`, `CompileTimePredicate`, and `ValidateTimeUnitTransform` (`SpecParser.Time.cs`) apply the
+  time rules. The static helpers `IsSupportedTransform(name)` (true for the six aggregating transforms and for
+  `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog), `IsDrawnView(root, view)`,
+  `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
   array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`,
@@ -208,7 +258,9 @@ an error; a duplicate key keeps the last value at the position of the first occu
   (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
   source by `PredicateSource.TryBuild` and compiled once under the key of the predicate node, so the marks evaluate
   it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter
-  that is not a variable, a time unit, a date object) is not written. The `value.expr` of a condition is compiled like
+  that is not a variable, a date-time object that is not valid) is not written. A predicate with a `timeUnit` or a
+  date-time value **is** written, with the date and time functions (see `PredicateSource` below), so it is evaluated in
+  the calendar of the chart. The `value.expr` of a condition is compiled like
   the one of a channel. `CompileSource(key, source, location)` is the common part of `CompileExpression`.
   `ChannelDefinitions` is the shared, pure helper that tells the conditional channels, lists the conditions, and finds
   the **field definition** of a channel (its own definition when it names a field, a datum, or an aggregate, else the
@@ -222,6 +274,22 @@ an error; a duplicate key keeps the last value at the position of the first occu
   parameter as its name. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text as a
   double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the source
   unquoted.
+  **Time predicates** (`IsTimeAware`, `ReadUnit`, `AppendTime`) follow Vega-Lite's `fieldFilterExpression`: a field
+  predicate that has a `timeUnit` keeping at least one part, or that compares with a date-time object, is written
+  with the instant of the field on the left, `time(datetime(<parts of datum["f"]>))`, where the parts are the
+  unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object does: the year 2012,
+  January, the first, zero for the times; a quarter is written as the month `3 * (quarter - 1)`), and the instant of
+  the value on the right, `time(datetime(...))`, so that both sides are numbers. Without a unit but with a date-time
+  value the left side is `time(datum["f"])`. For a UTC unit the `utc...` getters and `utc(...)` are written (Vega-Lite
+  ignores the UTC flag here, marking it a TODO; this renderer honors it). The `week` and `dayofyear` parts are not
+  written, as in Vega-Lite (and the catalog reports `vl-predicate-timeunit-part`). A date-time object value is its
+  `DateTimeObject.ToExpression()`; a number compared with a single local unit is that unit's part when it is below
+  10,000 and milliseconds since the epoch otherwise, and a text that is not a date is a unit part name (a month or
+  weekday name) while one that is a date is read as a date; `{"expr": ...}`
+  values are written as `(expr)`, or `time(expr)` with a unit; a text that is neither a date nor a part is `time(null)`
+  (it never matches). A `range` is written as `(L >= min(a, b) && L <= max(a, b))`, which also accepts reversed ends
+  (the function table has no range test), and a `oneOf` as `(indexof([...], L) !== -1)`, so that the left side is evaluated
+  once. The `valid` test and comparisons with plain values stay native. `IsUnsupported` says when `TryBuild` would fail.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
   ordered (a cycle), or -1; the same
@@ -247,7 +315,11 @@ known property of the wrong type or value (the first in document order). An expr
 with the zero-based offset inside the expression text (a syntax error, a text longer than `MaxExpressionLength`, nesting
 beyond `MaxExpressionDepth`, an invalid regular expression literal, or a reference to an undeclared parameter); a parameter
 cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
-of the wrong shape are located at the offending value. A null argument is a programming error and
+of the wrong shape are located at the offending value. A time unit that does not exist, a date-time object with an
+unknown key or a month, quarter, or day that is not one, a `tickCount` or `nice` interval that is not one of the eight
+(or a `step` that is not positive), a `parse` entry `date:` or `utc:` without a quoted format, and a time-aware `oneOf`
+of more
+than `MaxScaleDomainSize` values are located at the offending value or member. A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
 
 #### Dependencies
@@ -257,6 +329,9 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
 - **`FeatureReport`** - the report record of the `FeatureCatalog` unit, used for the parser's own warnings
 - **`DelimitedTextParser.IsValidDelimiter`** and **`ParseDirectives.TryClassify`** - the delimiter and `parse` entry
   rules of the `DelimitedTextParser` unit of the `Data` subsystem, used by the data format validation
+- **`TimeUnitSpec`**, **`DateTimeObject`**, and **`JsDateParser`** - the time unit grammar, the date-time object reader
+  and its expression form, and the date text reader of the `Data` subsystem (see _Time Calendar Design_ and
+  _Time Format Design_), used by the time rules and by `PredicateSource`
 - **`ExpressionParser`**, **`CompiledExpression`**, and **`ExpressionConstruct`** - the compilation of the text of an
   expression and the constructs it collects (the `Expressions` subsystem), and **`FieldPath`** of the `Data` subsystem
   (the validation of field names)

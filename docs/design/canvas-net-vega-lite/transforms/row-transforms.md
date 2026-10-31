@@ -23,7 +23,8 @@ The `RowTransforms` unit is the first software unit in the `Transforms` subsyste
 #### Purpose
 
 `RowTransforms` produces the rows a chart draws from the rows it loaded: it applies the supported row transforms of the
-`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit) and computes the
+`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit and the `timeUnit`
+transform to the `TimeUnitTransform` unit) and computes the
 values of the static variable parameters. It exists
 so that the semantics of each
 transform (what a row, a missing value, a repeated key, or an empty array means), the
@@ -53,7 +54,8 @@ rebuilding is the `FlatRowNode` tree of the data unit, which the expression eval
 
 **The transforms** (in the order of the `transform` array; an entry that names a transform that the renderer does not
 compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
-`AggregateTransforms`, which `Run` calls with the same `TransformContext`, see _AggregateTransforms_):
+`AggregateTransforms`, which `Run` calls with the same `TransformContext`, see _AggregateTransforms_; `timeUnit` is
+dispatched to `TimeUnitTransform`, see below):
 
 - **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row with
   `datum` bound to the row; the result of any kind (scalar, array, object) is stored in `as`, replacing a field of that
@@ -65,9 +67,18 @@ compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, 
   `oneOf` (strict equality with any
   member), and `valid` (`true` keeps the rows whose value is neither null nor NaN, `false` the others), each on a `field`;
   composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a variable
-  parameter (every row passes or none). A predicate on a selection parameter or a `selection` keeps every row; a `timeUnit`
-  of a predicate is ignored; a predicate that contains a date object is ignored (the row passes); all three are reported
-  by the catalog. A predicate is charged to the evaluation step budget of the call, through the context of the evaluator
+  parameter (every row passes or none). A predicate on a selection parameter or a `selection` keeps every row (reported
+  by
+  the catalog). **A predicate with a `timeUnit`, or one that compares with a date-time object, is evaluated through the
+  expression engine**: `SpecParser` compiled the expression that `PredicateSource` writes for it (see _SpecParser Unit
+  Design_) and stored it under the predicate object, and `BuildFieldPredicate` finds it with
+  `Tree.Expressions.Get(node)` and returns an `ExpressionPredicate` over the evaluator of the call, so its meaning
+  depends on the calendar of the chart (a month of a date is the month in the render zone; a `utc` unit reads UTC), it is
+  charged to the step budget like any expression, and a limit it exceeds is a `VegaLiteRenderException` located at the
+  predicate. It can be nested in `and`, `or`, and `not` like any other predicate leaf. The remaining native
+  fallback (a constant `true` predicate) is only for an object value that the parser could not write as an expression.
+  A native predicate (plain values, `valid`) is charged to the evaluation step budget of the call, through the context
+  of the evaluator
   that the expressions share: every tested field costs one step; a comparison of two texts (`equal`, `oneOf`, and the
   ordering operators alike) charges the shorter length per 64 characters; the members of `oneOf` are charged once per row
   per 64 members, so `and`, `or`, and `oneOf` cannot multiply the size of the specification by the number of rows for
@@ -110,6 +121,12 @@ compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, 
   that matches that row, so the memory of the copied values is bounded by the secondary rows and fields and not by the
   output rows. A row without a match gets `default` (a JSON scalar; null by default). `from.param`
   (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`).
+- **`timeUnit`** - `timeUnit` (a unit name or a unit object), `field`, and `as`. `RowTransforms.TimeUnit` reads the unit
+  with `TimeUnitSpec.TryRead` (an unreadable one returns the input; the parser rejected it), builds one
+  `TimeUnitRequest` whose end field is `<as>_end`, and calls `TimeUnitTransform.Apply` with the context and the location
+  of the transform entry. Every row then has the start of the unit of its date in `as` and the end in `as_end`, both
+  dates in the calendar of the chart (a `utc` unit in UTC); a null, non-date, or out-of-range value gives null in both.
+  The computation, its limits, and the `maxbins` form belong to the _Time Unit Transform Design_.
 
 **`RowSampler`.** `RowSampler.Select(count, size, pointer, token)` is a pure function of the
 number of rows, the size, and the
@@ -154,14 +171,17 @@ the current culture.
 - `RowTransforms.Apply(input, transforms, context)` - requires a non-null input and context; returns the input itself when
   `transforms` is null, not an array, or empty; otherwise runs the entries in order: it checks the token, finds the operation
   property of the entry (`SpecParser.FindTransformOperation`), skips entries that the renderer does not compute
-  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, or to `AggregateTransforms.Apply` for the six
+  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, to `TimeUnit` for the `timeUnit` transform, or to
+  `AggregateTransforms.Apply` for the six
   aggregating ones. The expressions were
   compiled when the document was
   opened, so no text is parsed here.
 - `Calculate`, `Filter` (with `BuildPredicate`, the predicate classes, and `SelectRows`, which builds the table of the kept
-  rows and releases the dropped ones), `Fold`, `Flatten`, `Sample`, `Pivot`, and `Lookup` - one method per transform; each
+  rows and releases the dropped ones), `Fold`, `Flatten`, `Sample`, `Pivot`, `Lookup`, and `TimeUnit` - one method per
+  transform; each
   reserves or releases rows in the loader's budget as described above, checks the token every 1,024 rows, and builds its
-  output with a `TableLayout`.
+  output with a `TableLayout`. `BuildFieldPredicate` returns the compiled expression of a time-aware predicate as an
+  `ExpressionPredicate`, else the native comparison.
 - `RowSampler.Select`, `RowSampler.Seed` (the FNV-1a hash), and `RowSampler.Next` (SplitMix64) - the sampler.
 - `ParameterEnvironment.Populate` and `SpecValues.ToDataValue` - as above.
 
@@ -196,6 +216,8 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
   `IsSupportedTransform`, `ParameterGraph`), and
   **`FeatureReport`** - the tree, the helpers, and the report record of the `SpecModel` subsystem
 - **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_)
+- **`TimeUnitTransform`**, `TimeUnitRequest`, and **`TimeUnitSpec`** - the `timeUnit` transform (see _Time Unit
+  Transform Design_) and the unit grammar of the `Data` subsystem (see _Time Calendar Design_)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the `VegaLiteDocument`
   unit
 - **.NET base class library** - `System.Globalization` (invariant-culture text) and `System.Text` (the UTF-8 bytes of the
