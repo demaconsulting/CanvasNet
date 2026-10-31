@@ -105,7 +105,7 @@ scenario in the three unit verification documents passes without error or unexpe
   `SpecParserAggregatesTests.SpecParser_Parse_ValidAggregatingTransformsAreAccepted`,
   `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark`,
   `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
   `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
   `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder` — the
@@ -113,12 +113,27 @@ scenario in the three unit verification documents passes without error or unexpe
   of the `aggregate`, `bin`, `stack`, and `sort` properties of a channel, so a wrong operation name, field, `as`, or
   parameter is a located `VegaLiteSpecException` when the document is opened, while the catalog no longer reports the
   features that the renderer computes for the drawn view (the aggregating transforms, the encoding aggregate, bin, stack,
-  and sort, secondary position channels of a range, and the `order` of a stack) and still reports the transforms of
+  and sort, secondary position channels of a range, and the `order` channel, which every mark accepts since Phase 9: it
+  orders a stack, the points of a path, or the drawing) and still reports the transforms of
   nested views, the remaining parts (a bin extent that is a parameter, a `bin: "binned"` on a channel other than `x`
   and `y`, a stack
-  on a non-linear scale (not applied: Vega-Lite does not stack on a log, pow, sqrt, or symlog scale), an `order`
-  without a stack, and a secondary channel that a mark cannot draw), and the transforms
+  on a non-linear scale (not applied: Vega-Lite does not stack on a log, pow, sqrt, or symlog scale), and a secondary
+  channel that a mark cannot draw), and the transforms
   of later phases; the document-level test now uses a `regression` transform as its example of an unsupported transform.
+- **Path, Text, And Arc Marks Are Drawn, Validated At Open, And Reported Only For What They Do Not Draw**:
+  `SpecParserMarkTests.SpecParser_Parse_RejectsABadInterpolateOrInvalidOrPointValue`,
+  `SpecParserMarkTests.SpecParser_Parse_ValidatesTextMarkProperties`,
+  `SpecParserImputeTests.SpecParser_Parse_RejectsABadImputeObjectWithItsLocation`,
+  `FeatureCatalogTests.FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot`,
+  `FeatureCatalogTests.FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated` — the parser checks the properties
+  of the line, area, trail, text, and arc marks and the `impute` object of a position definition when the document is
+  opened (a name that is not one of the fifteen interpolations, a text `point` other than `transparent`, a `text` of the
+  wrong kind, a `keyvals` list of more values than the scale-domain limit, and a `method` that is not one of the five are
+  `VegaLiteSpecException` errors at the offending member), and the catalog, which reads the same tree, reports nothing
+  for the five marks that are drawn (with every property that they read) while the marks that stay unsupported
+  (`geoshape` and `image`) are reported at the mark, a channel that a mark does not draw (`theta` on a line) is reported
+  at the channel and ignored, and the invalid data modes, the bundle interpolation of an area, and the impute of a
+  stacked path mark over a binned dimension are reported at their values.
 - **Time Constructs Are Validated At Open, Written As Expressions, And Reported Only Where They Are Not Applied**:
   `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,
   `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,

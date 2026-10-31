@@ -99,6 +99,29 @@ cancellation fail closed; and the renders are byte-identical on repeated and con
 whatever the host's time zone is. The units under it are verified in the _TimeCalendar_, _TimeFormat_, _TimeLabels_, and
 _TimeUnitTransform_ Unit Verification Designs.
 
+The line, area, trail, text, and arc scenarios assert on what the system draws from the path and polar marks, with
+expectations derived by hand from the scale formulas and the path rules, and never from the output of a real Vega-Lite
+or d3-shape: a quantitative axis that starts at zero maps the three points (0, 0), (1, 10), and (2, 5) of a 300 by 200
+chart to the pixels (0, 200), (150, 0), and (300, 100), so the line is the three commands `M0,200 L150,0 L300,100` in the
+first color of the categorical scheme with a stroke of width 2, and the area of the same data is that outline forward
+and the baseline y = 200 backward (`M0,200 L150,0 L300,100 L300,200 L150,200 L0,200 Z`); two stacked series of ten share
+the domain 0 to 20 so the first lies on top (pixels 0 to 100) and the second below (100 to 200); a trail of the sizes 4,
+8, and 12 has the half widths 2, 4, and 6 and so covers 4, 8, and 12 rows of pixels; a null in the middle of five points
+breaks the line into two subpaths (`M0,200 L75,0 M225,100 L300,40`) and the filter mode connects its neighbors; an impute
+adds the missing key of a series (the third vertex (150, 200) of the second line) and the implicit impute of a stacked
+area gives a layer a zero-thick vertex; the slices of the weights 1, 1, and 2 of a 200 by 200 pie are the angles 0 to a
+quarter turn, a quarter to a half, and a half to a whole turn around (100, 100) with the outer radius 100, whose pixel
+counts are the areas of the wedges (a quarter of pi times 100 squared, and the same less the hole of a donut with the
+inner radius 50), and their labels at the radius 60 sit at the middles of the slices, (142.4264, 57.5736), (142.4264,
+142.4264), and (40, 100). The scenarios also assert that all fifteen interpolations draw finite coordinates (the area of
+a bundle curve is reported and drawn linear), that the point and line overlays are drawn in the order area, line, point,
+that the `order` channel decides the path and the overlap of marks, that the constructs that are still unsupported (the
+geoshape and image marks, the `show` invalid mode, the sizes of an area, and so on) are reported once and in order while
+the chart is drawn, that a path, an arc, and a label above the limits fail closed with a located exception before they are
+created, that a canceled token stops every one of the marks, and that repeated, concurrent, scaled, and other-culture
+renders are identical. The units under them are verified in the _CurveBuilder_ and _ArcGeometry_ Unit Verification Designs
+and in the _MarkBuilder_ and _ScenePainter_ Unit Verification Designs.
+
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
 file for a specification that has no folder, each giving the pixels of the chart whose rows are written inline; a
@@ -114,7 +137,9 @@ an injected link probe, and real links are additional evidence there.
 System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern scenarios, one per requirement
 topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios),
 `VegaLiteAggregationIntegrationTests.cs` (the aggregation, binning, stacking, and window scenarios), and
-`VegaLiteTimeIntegrationTests.cs` (the time scenarios) within the
+`VegaLiteTimeIntegrationTests.cs` (the time scenarios), `VegaLiteLineAreaIntegrationTests.cs` (the line, area, trail,
+curve, overlay, invalid data, impute, draw order, and limit scenarios), and `VegaLiteArcTextIntegrationTests.cs` (the arc,
+text, unsupported, and determinism scenarios of the path marks) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project; the shared helpers (a pixel snapshot, uniform-color and
 region checks, ink bounds, and a data-reference projection) are in `VegaLiteTestHelpers.cs`, and the data helpers
 (temporary directories and virtual file sets) in `Data/DataTestSupport.cs`. The fixtures in
@@ -141,7 +166,9 @@ documented in `Fixtures/README.md` beside them.
   with made-up dates: `time-points` (three readings on January 1, 6, and 11, 2024), `time-bars` (six visits in the
   months January to March 2024), `time-zone` (three readings, one at 2024-03-05T20:00Z), `time-filter` (eight readings
   across 2023 and 2024), `time-legend` (three samples whose color is the date), and `time-parse` (three day-first dates
-  `05/03/2024`, `15/03/2024`, and `25/03/2024` in the CSV file)
+  `05/03/2024`, `15/03/2024`, and `25/03/2024` in the CSV file). The line, area, trail, text, and arc scenarios use
+  inline specifications only (charts of 300 by 200 and of 200 by 200 pixels with made-up numbers) and add no fixture
+  file; `unsupported.vl.json` names a `geoshape` mark, a mark that is reported permanently
 - **Fonts**: Rendering uses the Liberation fonts bundled with the core `DemaConsulting.CanvasNet` package; no
   installed font is required, and the font scenario proves that installed fonts are not consulted by default
 - **Time zone and culture**: Output does not depend on the machine's time zone or culture. The default time zone
@@ -300,20 +327,21 @@ Vega-Lite defaults, then the specification's `config`, then `VegaLiteRenderOptio
 
 Renders a document with a schema version 4 declaration (a warning first) and a layer of two views, the second with
 an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-version`, `vl-composition-layer`,
-`vl-mark-arc`), that each is delivered once, in document order, to the right handler, on the calling thread
+`vl-mark-geoshape`), that each is delivered once, in document order, to the right handler, on the calling thread
 (the recorded managed thread identifiers all equal the caller's), and that a supported `bar` mark in the same
-document is silent. Renders `unsupported.vl.json` (a `regression` transform, a `line` mark, and a `bandPosition`) and
+document is silent. Renders `unsupported.vl.json` (a `regression` transform, a `geoshape` mark, and a `bandPosition`) and
 asserts exactly one report per construct, in document order, with its stable identifier, JSON pointer, and one-based
-line and column of the value (`vl-transform-regression` at `/transform/0`, line 12, column 5; `vl-mark-line` at `/mark`,
+line and column of the value (`vl-transform-regression` at `/transform/0`, line 12, column 5; `vl-mark-geoshape` at `/mark`,
 line 14, column 11; and `vl-encoding-bandposition` at `/encoding/y/bandPosition`, line 17, column 71), each in the file
-`unsupported.vl.json`, and that the line mark is not drawn, so no data, scale, or axis work is done for it and the view
+`unsupported.vl.json`, and that the geoshape mark is not drawn, so no data, scale, or axis work is done for it and the view
 is empty with the default size.
 
 ### Strict Mode: Throws At The First Unsupported Feature
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature`
 
-Renders a single view with an unsupported mark first and an unsupported channel second with
+Renders a single view with an unsupported mark (`geoshape`, `vl-mark-geoshape` at `/mark`) first and an unsupported
+channel second with
 `ThrowOnUnsupportedFeature` and asserts a `VegaLiteUnsupportedFeatureException` for the first feature only, with
 its location, that the handler saw exactly that report, that a handler that fails while the failure is being
 reported does not hide it, that after a successful render a failing handler propagates, and that on
@@ -982,6 +1010,251 @@ same pixels under the Turkish and German cultures as under the invariant culture
 names and ASCII digits); and that a chart with no zone, a chart in `TimeZoneInfo.Utc`, and a chart in a custom zone
 with a zero offset are byte-identical, so the host's zone is never consulted.
 
+### Lines: A Polyline Has The Documented Segments And Pixels
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Lines_PolylineHasTheDocumentedSegmentsAndPixels`
+
+Renders a line of the rows (x, y) = (0, 0), (1, 10), and (2, 5) in a 300 by 200 data rectangle with no axes, in strict
+mode. The quantitative scales start at zero, so the x domain 0 to 2 spans 300 pixels (0, 150, and 300) and the y
+domain 0 to 10 spans 200 (the point at 10 is at pixel 0 and the point at 5 at pixel 100): the points are (0, 200),
+(150, 0), and
+(300, 100). Asserts that nothing is reported, that the single `mark-line` path is the three commands
+`M0,200 L150,0 L300,100`, painted with the stroke `#4c78a8` (the first color of the categorical scheme), the width 2 of
+the Vega line style, and no fill, that the pixels at the middle of the first segment (75, 100) and of the second (225,
+50) are blue within two pixels while the pixels at (75, 40) and (225, 150), far from the path, are the background, and
+that a line of the constant y = 5 on the explicit domain 0 to 10 is `M0,100 L150,100 L300,100`, two pixels wide and
+centered on the boundary between the pixel rows 99 and 100, so the rows 99 and 100 are blue and the rows 98 and 101 are
+the background.
+
+### Lines: An Interpolated Line Covers Its Curve Pixels
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Lines_InterpolatedLineCoversItsCurvePixels`
+
+Renders a `monotone` line of the rising rows (0, 0), (1, 4), (2, 6), and (3, 10). The x domain 0 to 3 spans 300 pixels
+and the y domain 0 to 10 spans 200, so the pixels are (0, 200), (100, 120), (200, 80), and (300, 0). Asserts that the
+path is one move and three cubic segments that end at those four points, that every point of each cubic curve (sampled
+at a quarter, a half, and three quarters) lies between the end points of its segment (the data rise, so the pixels fall
+and never rise: the monotone curve does not overshoot), that each sample is covered by blue ink within two pixels, and
+that a pixel far from the curve is the background.
+
+### Areas: Stacked Areas Fill Between Their Layers
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Areas_StackedAreasFillBetweenTheirLayers`
+
+Renders an area of the same three rows as the polyline. Asserts that the outline of the top is drawn forward and the
+baseline y = 0 (pixel 200) backward, `M0,200 L150,0 L300,100 L300,200 L150,200 L0,200 Z`, that it is filled with
+`#4c78a8` and not stroked, that the pixel (150, 150) below the top is blue, and that the pixel (75, 50) above the
+outline is the background. Renders two series, a and b, of ten at each of x = 0, 1, and 2, which are stacked on the y
+axis: the stack domain is 0 to 20 over 200 pixels (10 pixels a unit), the first category lies on top of a vertical stack
+(as Vega-Lite stacks it), so a spans the pixels 0 to 100 and b the pixels 100 to 200. Asserts that there is one area for
+each series in the order of first appearance, that their fills are `#4c78a8` and `#f58518`, that the paths are
+`M0,0 L150,0 L300,0 L300,100 L150,100 L0,100 Z` and `M0,100 L150,100 L300,100 L300,200 L150,200 L0,200 Z`, and that the
+pixels (150, 50), (150, 150), (20, 20), and (280, 180) have the colors of their layers.
+
+### Trails: The Width Follows The Size Channel
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_WidthFollowsTheSizeChannel`
+
+Renders a trail of the rows (x, y, size) = (1, 5, 4), (5, 5, 8), and (9, 5, 12) with the explicit domain 0 to 10 for
+x and y and the size scale from 4 to 12 onto the range 4 to 12 (the identity). The x pixels are 3 pixels a unit, so the
+points are at 30, 150, and 270, all on the row 100, with the diameters 4, 8, and 12. Asserts that there is one
+`mark-trail` item with one run of the three points `(30, 100, 4)`, `(150, 100, 8)`, and `(270, 100, 12)`, filled with
+`#4c78a8` and not stroked, and that the columns of ink at the three points follow the half widths 2, 4, and 6. The
+capsule at a point of the diameter d covers the d pixel rows from 100 - d / 2 to 100 + d / 2 - 1 of the data rectangle
+(the rows 98 to 101, 96 to 103, and 94 to 105 at the columns 30, 150, and 270), so the test asserts ink in the rows that
+are inside that range by more than the 0.02 pixel tolerance (the rows 99 to 100, 97 to 102, and 95 to 104) and no ink in
+the rows more than a pixel beyond it (the rows up to 97 and from 102, up to 95 and from 104, and up to 93 and from 106);
+the boundary rows are not asserted.
+
+### Curves: All Fifteen Interpolations Render And Are Finite
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Curves_AllFifteenInterpolationsRenderAndAreFinite`
+
+Renders a line and an area of the rows (0, 0), (1, 10), (2, 4), (3, 8), and (4, 2) (the pixels (0, 200), (75, 0),
+(150, 120), (225, 40), and (300, 160)) with each of the fifteen interpolations of Vega-Lite: `basis`, `basis-open`,
+`basis-closed`, `bundle`, `cardinal`, `cardinal-open`, `cardinal-closed`, `catmull-rom`, `linear`, `linear-closed`,
+`monotone`, `natural`, `step`, `step-before`, and `step-after`. For each line asserts that nothing is reported in strict
+mode, that every coordinate is finite and near the chart, that only the `linear`, `linear-closed`, and step curves have
+no cubic segment, that only `linear-closed` ends with the closing command (d3-shape draws the closed basis and cardinal
+curves back to their start point without it, and the test asserts that these end where they started), that every curve
+that passes through the first point starts with `M0,200`, and that the chart has ink and more than 100 blue pixels
+around the data rectangle. For each area asserts that the `bundle` interpolation is reported as
+`vl-mark-interpolate-bundle-area` at `/mark/interpolate` (and no other interpolation is reported), that the
+coordinates are finite, that the area ends with the closing command except for the closed basis and cardinal curves
+(two closed loops, the top and the baseline), that the closed curves and `linear-closed` have two subpaths (two moves)
+and the others one, and that a cubic segment appears exactly for the curved interpolations other than `bundle` (which is
+drawn linear).
+
+### Overlays: Line Points And The Area Line Are Drawn
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn`
+
+Renders a line with `point: true` of the polyline rows and asserts the line `M0,200 L150,0 L300,100`, three
+`mark-point` symbols at (0, 200), (150, 0), and (300, 100) filled with `#4c78a8` at opacity 1, and ink at the symbol
+(300, 100). Renders an area with `line: true` and `point: true` and asserts the area (with the baseline) at the opacity
+0.7 that an area with an overlay gets, a `mark-line` path along its top only (`M0,200 L150,0 L300,100`, stroked with
+`#4c78a8`), three symbols, and the drawing order area, line, point. Asserts that `point: "transparent"` draws symbols of
+opacity 0, and that two series with a color field draw each line in its own color (`#4c78a8` and `#f58518`) and each
+series' two points in its color.
+
+### InvalidData: Nulls Break A Path, Filter Connects, And Show Is Reported
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`
+
+Renders a line of the rows (x, y) = (0, 0), (1, 10), (2, null), (3, 5), and (4, 8): the x pixels are 0, 75, 150, 225,
+and 300 and the y pixels (domain 0 to 10) 200, 0, none, 100, and 40. Asserts that the default mode breaks the path at
+the invalid row, `M0,200 L75,0 M225,100 L300,40` (two subpaths) and delivers no report, that the explicit default mode
+`break-paths-show-path-domains` is the same and silent, that `invalid: "filter"` drops the row and connects its
+neighbors, `M0,200 L75,0 L225,100 L300,40`, and delivers the warning `vl-mark-invalid-domains` (the scale domains still
+include the filtered row), and that `"show"` and null are each reported once as `vl-mark-invalid-show` at
+`/mark/invalid` while the chart is drawn, and make strict mode throw a `VegaLiteUnsupportedFeatureException` for it.
+
+### Impute: The Encoding And The Stack Fill Missing Keys
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Impute_EncodingAndStackImputeFillMissingKeys`
+
+Renders two lines: a at x = 0, 1, 2 and b at x = 0 and 2 (the values 6 and 4) on the y domain 0 to 6 (200 / 6 pixels a
+unit, so 6 is at 0, 4 at 66.667, and 0 at 200). Asserts that without an impute b has two points
+(`M0,66.6667 L300,66.6667`, and a is `M0,0 L150,0 L300,0`), and that `impute: { "value": 0 }` on y adds the missing key
+x = 1 with the value 0 to b: `M0,66.6667 L150,200 L300,66.6667`. Renders two stacked areas, a at x = 1, 2, and 3 and b at
+x = 1 and 3 (the value 1 each): the x domain 1 to 3 spans 300 pixels and the stack domain 0 to 2 spans 200 (100 pixels
+a unit). The implicit impute of the stack gives b the value 0 at x = 2, so b lies at the bottom with the top 100, 200
+(zero thick), and 100 and the baseline 200, and a lies on it with 0 to 100 at x = 1 and 3 and 100 to 200 at the middle:
+the paths are `M0,0 L150,100 L300,0 L300,100 L150,200 L0,100 Z` for a and
+`M0,100 L150,200 L300,100 L300,200 L150,200 L0,200 Z` for b. Asserts these two paths, and that with `impute: null` on y
+b has only its two rows,
+`M0,100 L300,100 L300,200 L0,200 Z`, while a is unchanged.
+
+### Order: The Order Channel Controls Overlap And The Path Sort
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Order_OrderChannelControlsOverlapAndPathSort`
+
+Renders a line of the rows (x, y, s) = (1, 10, 2), (0, 0, 0), and (2, 5, 1), whose pixels are (150, 0), (0, 200), and
+(300, 100). Asserts that without an order the path is sorted by the pixel x, `M0,200 L150,0 L300,100`, that the order
+channel on `s` draws the points in the order of the field, x = 0, 2, 1, `M0,200 L300,100 L150,0`, and that the mark
+property `order: false` keeps the order of the data, `M150,0 L0,200 L300,100`. Renders three squares of the size 4000
+at the same point, in the colors of the categories a, b, and c (`#4c78a8`, `#f58518`, `#e45756`) with the order field
+z = 2, 3, and 1. Ascending z draws c, a, b, so the fills are `#e45756`, `#4c78a8`, `#f58518` and the pixel at the point
+is orange (the last is on top); `sort: "descending"` draws b, a, c, so the fills are `#f58518`, `#4c78a8`, `#e45756`
+and the
+pixel is red.
+
+### Text: Labels Are Formatted, Positioned, And Painted
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Text_LabelsAreFormattedPositionedAndPainted`
+
+Renders a text mark of the rows (x, y, v) = (1, 10, 1234.5), (2, 20, 7), and (3, 30, 0.26) in a 300 by 200 data rectangle,
+x on the domain 0 to 3 (100 pixels a unit) and y on the domain 0 to 30 (200 / 30 pixels a unit), with the text field v and
+the format `,.1f`, the font size 24 and the color `#ff0000`. Asserts that nothing is reported, that the labels are
+`1,234.5`, `7.0`, and `0.3` (the d3 format rounds 0.26 to 0.3), centered at x = 100, 200, and 300 and y = 133.3333,
+66.6667, and 0 (the pixel y of 10, 20, and 30), with the alignment `center`, the baseline `middle`, the font size 24, the
+fill `#ff0000`, and no offset; that there is red ink around the first two labels (the third is on the top edge and has
+only its lower half in the data rectangle) and none in the empty corner; that the mark properties `align: "left"`,
+`baseline: "bottom"`, `dx: 5`, and `dy: -3` leave the anchors unchanged and are the properties of the items; and that a
+`value` of the three texts `one`, `two`, and `three` is one label of three lines.
+
+### Arcs: A Pie And A Donut Cover Their Wedges
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Arcs_PieAndDonutCoverTheirWedges`
+
+Renders a pie of the weights 1, 1, and 2 of the categories a, b, and c on a 200 by 200 data rectangle with theta as the
+quantitative weight and the color as the category. The theta domain is 0 to 4 over the circle 2 pi, so the slices are the
+angles 0 to pi / 2, pi / 2 to pi, and pi to 2 pi, measured from the top and clockwise; the center is (100, 100) and the
+outer radius is 100. Asserts that there are three `mark-arc` items with the center (100, 100), the inner radius 0, the outer
+radius 100, and these angles to within 1e-9, with the fills `#4c78a8`, `#f58518`, and `#e45756`; that the points at half
+the radius at the middle angles 45, 135, and 270 degrees have the color of their slice; and that the number of pixels of
+each color is the area of the wedge, within seven percent for the partly covered pixels of the rim (a quarter of
+pi x 100 x 100 for a and b and half of it twice for c). A donut with `innerRadius: 50` has the inner radius 50 for
+every slice, a white hole (the point at 25 pixels from the center and the center itself), the ring color at 75 pixels, and
+the areas of the ring segments, a quarter of pi (100 x 100 - 50 x 50) for a and twice that for c.
+
+### Arcs: Pie Labels Are At The Slice Middles
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Arcs_PieLabelsAreAtTheSliceMiddles`
+
+Renders the same pie as a text mark with `radius: 60`, the font size 40, theta stacked (a text mark stacks only when the
+channel says `"stack": true`), the color as the category, and the category as the text. The middle of a slice is the
+middle of its stacked range (band position 0.5): a is at pi / 4, b at 3 pi / 4, and c at 3 pi / 2, and the offset is
+`x = 100 + 60 sin(theta)` and `y = 100 - 60 cos(theta)`, so a is at (142.4264, 57.5736), b at (142.4264, 142.4264),
+and c at (40, 100). Asserts that nothing is reported, that the texts are `a`, `b`, and `c` at those positions (to four decimals),
+centered, with the font size 40 and the fills of the slices, that each label has at least 30 pixels of ink of its color
+in the box of 40 by 40 pixels around its anchor, and that the middle of the chart is the background.
+
+### Unsupported: Geoshape, Image, And The Special Invalid Modes Are Reported
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Unsupported_GeoshapeImageAndSpecialInvalidModesAreReported`
+
+Renders eight small specifications and asserts the exact reports, once each, on the calling thread, with the
+identifier and the pointer: a `geoshape` mark (`vl-mark-geoshape` at `/mark`), an `image` mark (`vl-mark-image` at
+`/mark`), a line with
+`invalid: "show"` (`vl-mark-invalid-show` at `/mark/invalid`), an area with `interpolate: "bundle"`
+(`vl-mark-interpolate-bundle-area` at `/mark/interpolate`), a `size` on an area (`vl-channel-size` at
+`/encoding/size`), a `theta` on a bar (`vl-channel-theta` at `/encoding/theta`), a `text` on a point
+(`vl-channel-text` at `/encoding/text`),
+and a `strokeDash` on an area (`vl-channel-strokedash` at `/encoding/strokeDash`); that the chart is still drawn (at
+least 210 pixels wide), and that strict mode throws a `VegaLiteUnsupportedFeatureException` for the first report. A
+geoshape mark draws no marks and no arcs, so the view is empty.
+
+### PathMarks: The Supported Subset Delivers No Diagnostics In Strict Mode
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathMarks_SupportedSubsetDeliversNoDiagnosticsInStrictMode`
+
+Renders in strict mode the eight charts of the supported subset, each an original chart with made-up numbers: a pie, a
+donut with a pad angle and a corner radius, a radial chart (stacked theta, a square-root radius with `zero: true` and
+`rangeMin: 20`), a monotone line with points over two series, a stacked area with a line overlay, a trail with a size,
+text labels with a number format, and a line with an `impute` of the value 0. Asserts that no warning and no unsupported
+report is delivered, that every chart paints something, that the fixed-size render is 100 by 100 pixels, and that
+`Measure` equals the width of the rendered surface.
+
+### PathMarks: Repeated And Concurrent Renders Are Identical
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathMarks_RepeatedAndConcurrentRendersAreIdentical`
+
+Renders each of the eight charts of the supported subset once as the baseline and asserts that a second render, a render
+of a document parsed again, and eight concurrent renders of the same document are byte-identical to it, and that the
+scenes of two documents built from the same text have the same items (the roles and the numbers that identify the
+geometry, printed with the invariant culture).
+
+### PathMarks: The Scale Option Keeps The Geometry
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathMarks_ScaleKeepsTheGeometryAndMultipliesThePixels`
+
+Renders the pie at the scale 1 and the scale 2 in strict mode. Asserts that the surface is 210 by 210 pixels (200 plus
+5 pixels of padding on each side) and 420 by 420 at the scale 2, that the points at 45, 135, and 270 degrees and 50
+pixels from the center have the colors of their slices at the natural position and at the doubled position, that the
+corner of the doubled surface is the background, and that the blue wedge covers between 3.9 and 4.3 times as many pixels
+at the scale 2 (the area grows with the square of the scale).
+
+### PathMarks: The Current Culture Does Not Change The Scenes Or The Pixels
+
+**Test**: `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathMarks_CultureDoesNotChangeTheScenesOrThePixels`
+
+Renders the text, line, radial, and pie charts under the invariant culture as the baseline, and under the cultures
+`de-DE`, `tr-TR`, `fr-FR`, and `ar-SA` (a culture that the host does not have is skipped), and asserts that the pixels
+are byte-identical and that the labels of the text chart are `1,234.5`, `7.0`, and `0.3` in every culture.
+
+### PathLimits: Segments, Text, And Items Fail Closed Before Allocation
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathLimits_SegmentsTextAndItemsFailClosedBeforeAllocation`
+
+Renders a line, an area, and a trail of 2,000 points with `MaxSceneItems` of 500 and asserts a located
+`VegaLiteRenderException` at `/mark` that names `MaxSceneItems` (the path is charged one item plus an upper bound of its
+segments before the segment list exists), while the same charts render with the default limits. A line of 300 points
+costs 1 + 300 + 6 = 307 items (one item, one segment for each point, and the allowance of 6 for its one run) and fits
+500 items, but with `point: true` its 300 symbols (one item each) bring the cost to 607 and fail with `MaxSceneItems`.
+A pie of 600 slices (one item for each) fails with `MaxSceneItems` at `/mark`. Three labels of 40 characters render with
+`MaxStringLength` of 64 and fail with `MaxStringLength` at 39 (a label above the limit); twenty labels of 40 characters
+with the limit 40 are 800 characters, above 16 x 40 = 640, and fail with `MaxStringLength` at `/mark`, while sixteen
+labels (exactly 640) render; and a label of four lines renders with `MaxSceneItems` of 1,000.
+
+### PathLimits: Cancellation Is Honored While Building Paths
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_PathLimits_CancellationIsHonoredWhileBuildingPaths`
+
+Renders a line, an area, a trail, a text, and an arc chart of 200 rows with a token that is already canceled and asserts
+an `OperationCanceledException` from `Render`, from the exact-size `Render`, and from `Measure`, that no report is delivered
+to either handler, and that the same documents render with a live token.
+
 ### Platform: Every System Scenario Runs On Every Target
 
 **Tests**: all system scenarios above, run by `dotnet test` on each target framework and operating system.
@@ -1002,4 +1275,6 @@ that differs from the rendered size, a pixel outside its analytic tolerance, out
 repeated or concurrent renders, an empty chart for a local data file that cannot be used, a request that reaches the
 file callback for remote data, a dot that a transform or a parameter should have placed (or removed) at another pixel,
 an expression construct that is executed although it is reported as unsupported, a hostile expression or transform that
-does not fail closed with the location of its text, or any read outside the sandbox constitutes a failure.
+does not fail closed with the location of its text, a path, wedge, or label that is not where its derivation puts it, a
+curve with a coordinate that is not finite, a path, arc, or label that is built beyond a limit, or any read outside the
+sandbox constitutes a failure.

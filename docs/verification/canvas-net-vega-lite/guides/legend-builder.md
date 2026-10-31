@@ -20,6 +20,19 @@ start at 11 plus 5 (title padding) = 16, and the box is as tall as the last row 
 columns the second starts at the column padding 10 + the room 2 + the widest box of the first column (the labels end
 at 16 + 5.56, rounded up to 22) = 34.
 
+**Symbols of the path, text, and arc marks.** Vega-Lite gives the symbol of a legend the paint that its mark uses: the
+symbol is filled when the mark is filled, except for a trail (the legend encoding reads "filled and not a trail"), so a
+trail, which is filled by default, has a stroke symbol painted with the stroke color. The shape is the short line named
+`stroke` for a line, a rule, and a trail, and the circle of the legend (the `symbolType` of the legend, then a circle) for
+an area, an arc, and a text, which are filled. With the categories a, b, and c (the first three colors of the default
+scheme, `#4c78a8`, `#f58518`, and `#e45756`, in the order of the domain) a line therefore has three `stroke` symbols
+whose stroke is the color of the entry and whose fill is transparent, a rule and a trail the same shape and color, and an
+area, an arc, and a text three circles of the default symbol size 100 filled with the colors and with no stroke. The
+width of the line of a `stroke` symbol is the default stroke width of a legend symbol, 1.5, because the legend encoding
+of Vega-Lite does not read the width 2 of Vega's line style, while a `strokeWidth` of 5 on the mark is the width of the
+symbols, and the `symbolType` of the legend replaces the default shape of the mark (a circle for a line). A nominal
+`size` channel on a text mark is a font size and is shown as the symbol size, so its three entries differ in size.
+
 **Gradient legends.** A continuous color over 1 to 3 on a 300 pixel view has a bar of 16 by 200 pixels (the height
 limited to 64 to 200) and asks for max(2, 2 x floor(200 / 100)) = 4 ticks (d3 steps of 0.5: five labels from the
 bottom at 200 to the top at 0). Its gradient has the ticks for a count of 15 (steps of 0.1: 21 stops at offsets
@@ -37,7 +50,9 @@ additionally builds them with the real `TextMeasurer`, `Ticks`, and `NumberForma
 specifications for the sizes, opacities, and widths that the scale maps (the scale arithmetic itself is verified with
 the `ScaleModel` and `ScaleResolver` units). No mocking is used. The internal types are reached through the test
 assembly's `InternalsVisibleTo` access. Unit tests reside in `LegendPlanTests.cs` and `LegendBuilderTests.cs` within
-the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the legends of temporal fields (the time
+the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the legend symbols of the line, area,
+trail, arc, and text marks are in `LegendBuilderPathMarkTests.cs` (which reads the first legend through the shared
+`ChartTestHelpers.Legend` helper); the legends of temporal fields (the time
 ticks and date labels of a gradient, date symbols, a size over dates, and the zone) are in `LegendBuilderTimeTests.cs`,
 in the same folder, with the expectations of the ten day data derived in the scenarios below from the d3 interval
 table.
@@ -96,6 +111,20 @@ the shape, stroke, and size of its channels.
 Assert the geometry and looks derived above, the seven tick entries with one decimal for a size, the limit with the
 ellipsis entry, the range labels, the fixed and base paints, the scaled opacity, stroke width, and dash, and the explicit
 values, format, and symbol properties.
+
+##### Symbols Of Path, Text, And Arc Marks
+
+**Tests**: `LegendBuilderPathMarkTests.LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor`,
+`LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles`
+
+Assert, for a line over two quantitative positions with a nominal color of three categories, that the legend has three
+symbols of the shape `stroke` whose stroke is `#4c78a8`, `#f58518`, and `#e45756`, whose fill is `transparent`, and whose
+stroke width is 1.5; that a `strokeWidth` of 5 on the mark is the width of every symbol; that a legend `symbolType` of
+`circle` replaces the shape; and that a rule and a trail have the shape `stroke` as well, the trail with the category
+colors as its stroke even though a trail is filled (the trail legend rule above). Assert, for an area over two
+positions, an arc over a quantitative `theta`, and a text mark, each with the same color, that the three symbols are
+circles of the size 100 whose fill is the three colors and whose stroke is absent or transparent; and that a nominal
+`size` channel on the text mark gives three symbols of three different sizes.
 
 ##### Grid
 

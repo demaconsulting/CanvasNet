@@ -156,11 +156,11 @@ corner is white, the bars have the default mark color `#4c78a8` at the points th
 5-pixel padding and the 100-pixel bands, no pixel read back from the library), the pixel above the shorter bar and the gap
 between the bars are white; a scale of 2 doubles the size; a background replaces the white and is reported.
 
-**SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors**: a chart with an unknown property and an `arc` mark
-returns the
-`vega-lite-warning` note and the `vl-mark-arc` and `vl-channel-theta` unsupported notes, each on one line with the
+**SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors**: a chart with an unknown property and a `geoshape` mark
+with a `longitude` channel returns the
+`vega-lite-warning` note and the `vl-mark-geoshape` and `vl-channel-geo` unsupported notes, each on one line with the
 file, the
-position, and the pointer; with strict mode the load is `unsupported-feature` naming `vl-mark-arc` and keeping the
+position, and the pointer; with strict mode the load is `unsupported-feature` naming `vl-mark-geoshape` and keeping the
 library's
 exception as its cause; malformed JSON is a `vega-lite-error` that starts with "Vega-Lite specification error", names the
 file, and keeps the library's exception; plain Vega named like a chart is a `vega-lite-error`; a missing file is

@@ -194,9 +194,10 @@ background leaves the corner clear in the formats that keep it and white in the 
 identical bytes.
 
 **RenderCommand_Run_VegaLiteDiagnosticsAndStrict_AreReportedOrFail** and
-**RenderCommand_Run_VegaLiteError_UsesStableErrorCode**: a chart with an unknown property and an `arc` mark has three
-diagnostics in the JSON result (source `vega-lite`; the `vega-lite-warning` warning, then the `vl-mark-arc` and
-`vl-channel-theta` unsupported notes, with no page); with `--strict` it is an `unsupported-feature` error and no file; a
+**RenderCommand_Run_VegaLiteError_UsesStableErrorCode**: a chart with an unknown property and a `geoshape` mark with a
+`longitude` channel has three
+diagnostics in the JSON result (source `vega-lite`; the `vega-lite-warning` warning, then the `vl-mark-geoshape` and
+`vl-channel-geo` unsupported notes, with no page); with `--strict` it is an `unsupported-feature` error and no file; a
 malformed chart is a `vega-lite-error` of one line that names the file, and plain Vega named like a chart is a
 `vega-lite-error` with exit code 1 and the code in the failure document, through the entry point, with no output.
 

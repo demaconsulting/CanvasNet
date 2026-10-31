@@ -2,11 +2,15 @@
 
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace: the immutable scene records (`SceneItem` and its subtypes
-`SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`, `SceneSymbol`, and `SceneText`, with `SceneGradient`,
-`SceneGradientStop`, `ScenePoint`, and `SceneClip`),
+`SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`, `SceneSymbol`, `SceneText`, `SceneArc`, and `SceneTrail`, with
+`SceneGradient`, `SceneGradientStop`, `ScenePoint`, `ScenePathSegment` (with `ScenePathSegmentKind`), `SceneTrailPoint`,
+and `SceneClip`),
 the `Scene` record with its deterministic enumeration, role lookup, and item count (`SceneEntry`), the `SceneBounds`
 bounding box helper, and the internal scene item budget. The records are the assertion surface of the stages before the
-painter: they carry resolved geometry and paint as plain data, with colors as CSS strings.
+painter: they carry resolved geometry and paint as plain data, with colors as CSS strings. A path carries either points
+or a list of absolute segments (move, line, cubic Bezier, close) that replaces them, an arc carries its center, radii,
+angles, pad angle, and corner radius, a trail carries runs of points that each have a position and a size, and every
+item may carry a stroke miter limit.
 
 #### Verification Approach
 
@@ -23,6 +27,17 @@ position is not included). The bounds expectations are exact arithmetic: the box
 (5, 6, 15, 10); rotated by 90 degrees about the origin it is (-4, 0, 0, 10), by -90 or 270 degrees (0, -10, 4, 0), and
 by 180 degrees (-10, -4, 0, 0), with no rounding noise because quarter turns are exact; the empty box is the identity
 of the union.
+
+The segments of a path are asserted by their coordinates: the factories `Move(1, 2)`, `Line(9, 10)`,
+`Cubic(3, 4, 5, 6, 7, 8)`, and `Close()` store the end point in `X` and `Y` and, for a cubic, the first control point
+(3, 4) in `X1` and `Y1` and the second control point (5, 6) in `X2` and `Y2`, with every coordinate that a kind does
+not use zero, so the cubic keeps its end point (7, 8) separate from its controls, and a list of four commands keeps
+its order (move, cubic, line, close) when the source list gets a fifth one afterwards. A command is finite when the
+coordinates that its kind uses are: a close has none and is always finite, a line is finite unless `X` or `Y` is not,
+and a cubic is finite only when all six are, which is why a NaN in the first control point, an infinity in the second
+one, or a NaN in the end y coordinate each make a cubic not finite. The arc item has a center and nothing else until
+its members are set (all six numbers default to 0); a trail of two runs, the first with the points (0, 0, size 2) and
+(10, 5, size 4) and the second with (20, 5, size 6), keeps exactly those points when the source lists grow afterwards.
 
 Unit tests reside in `SceneModelTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scenegraph` folder.
@@ -92,6 +107,37 @@ numbers; that the stops are copied when the gradient is made (a later change of 
 `NotSupportedException` when changed through a cast; that a `with` copy keeps the gradient and can clear it; and that the
 number of stops is bounded (256 are accepted, 257 are an `ArgumentException`, no stop is accepted, and a null list is an
 `ArgumentNullException`).
+
+##### Path Segments Are Copied And Replace The Points
+
+**Tests**: `SceneModelTests.SceneModel_PathSegments_AreCopiedAndTakePrecedenceOverPoints`
+
+Asserts that the four segments of a path are copied when it is made (a later addition to the source list has no effect),
+keep their order (`MoveTo`, `CubicTo`, `LineTo`, `Close`), have no points, and throw `NotSupportedException` when changed
+through a cast; that the factories store the derived coordinates (the move (1, 2) with zero controls, the cubic with the
+end (7, 8) and the controls (3, 4) and (5, 6), the line (9, 10), and a close equal to the close that is built by hand);
+that a path of points has no segments and its two points; that `IsFinite` is true for a close, a line, a move, and a cubic
+with finite numbers and false for a NaN or an infinity in any coordinate that the kind uses (a line, a move, and a cubic
+with the first control point, the second control point, or the end point); and that a null segment list is an
+`ArgumentNullException`.
+
+##### Arcs And Trails Expose Their Geometry And Copy Their Lists
+
+**Tests**: `SceneModelTests.SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists`
+
+Asserts that an arc made with a center has the radii, angles, pad angle, and corner radius 0 and no fill, that a `with`
+copy that sets the inner radius 20, the outer radius 50, the angles 0.5 and 1.5, the pad angle 0.02, the corner radius 3,
+and a fill keeps the role and the center; that a trail copies its two runs and the points of each (later changes of the
+source lists have no effect, the first run keeps its two points, the second its point (20, 5, size 6)) and that the exposed
+run list and point lists throw `NotSupportedException` when changed through a cast; and that an empty trail is allowed
+and a null run list is an `ArgumentNullException`.
+
+##### Stroke Miter Limit Defaults To None And Survives Copies
+
+**Tests**: `SceneModelTests.SceneModel_StrokeMiterLimit_DefaultsToNullAndSurvivesWith`
+
+Asserts that the miter limit is null for a rectangle, a path, and an arc (the painter then uses the Vega default of 4),
+that a `with` copy can set 2.5, and that a further copy that changes the opacity keeps the 2.5.
 
 ##### Scene Item Budget
 

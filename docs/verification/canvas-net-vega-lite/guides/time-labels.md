@@ -1,13 +1,14 @@
 ### TimeLabels Unit Verification Design
 
 This document describes the unit-level verification strategy for the `TimeLabels` unit in the
-`DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal static `TimeLabels` class (`Create`,
+`DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal static `TimeLabels` class (`Create`, `CreateBounded`,
 `IsKnownFormatType`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`) with its `Options` record, which holds
 what the axes and the legends of temporal fields share: the format that a label of a date gets (the `format` and
 `formatType` of the guide, the unit specifier, the default of the guide, and Vega's multi-format), the reading of a
 `tickCount` that names a calendar interval, Vega-Lite's rule for the default tick count of a time axis, and the reading
 of an explicit list of dates. The unit is also verified through its two callers, the time axes of `AxisBuilder` and the
-temporal legends of `LegendBuilder` (`LegendBuilder.Time.cs`), whose time tests are named below.
+temporal legends of `LegendBuilder` (`LegendBuilder.Time.cs`), whose time tests are named below; the text mark of the
+`Marks` subsystem is the third caller, through `CreateBounded` (see the _MarkBuilder Unit Verification Design_).
 
 #### Verification Approach
 
@@ -125,6 +126,13 @@ ms), and the derivations are repeated here:
   864,000,000 milliseconds of an interval request of `millisecond` over ten days, and a list of 6 values are located
   render exceptions; a label longer than the string limit is refused: `%c` is `1/1/2024, 12:00:00 AM` (21 characters)
   and `%c %c` is 43, so for a single tick (an explicit value) a limit of 30 allows the first and refuses the second.
+- **Per-call limit.** `CreateBounded` makes the label of `Create` under a limit that the caller gives for each call and
+  keeps no total (the text mark charges all its labels to one total itself): the label `Mar 05, 2024` of the instant
+  2024-03-05T00:00Z has 12 characters, so the limit 12 gives it and 11, 0, and -3 give none (a null, never an exception),
+  and a refused label changes nothing, so the limit 12 gives it again afterwards; the number label of the same instant,
+  `1709596800000`, has 13 characters, so 13 gives it and 12 gives none; with the format `,d` it is `1,709,596,800,000`,
+  17 characters, so 17 gives it and 16 none; and the UTC time `%H:%M` of the same instant is `00:00`, 5 characters, so 5
+  gives it.
 - **Culture.** The labels are the English ones under `tr-TR` and `de-DE` as under the invariant culture: `Monday January
   12 AM` for the format `%A %B %I %p` on January 1, 2024 at 00:00, and `1,704,067,200,000` for the number format.
 
@@ -190,14 +198,20 @@ NaN.
 
 **Tests**: `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`,
 `TimeLabelsTests.TimeLabels_Create_LabelsOfAGuideAreBoundedTogether`,
-`TimeLabelsTests.TimeLabels_Create_LongSpecifier_IsASpecificationError`
+`TimeLabelsTests.TimeLabels_Create_LongSpecifier_IsASpecificationError`,
+`TimeLabelsTests.TimeLabels_CreateBounded_ReturnsNullWhenTheLabelIsLongerThanTheLimit`
 
 Asserts that `Mar 05, 2024` is made under a limit of 12 and is a located render exception that contains `the limit of
 11` under a limit of 11, and that the 13-digit number label under a limit of 12 is one that contains `the limit of 12`;
 that the labels of one function are limited together (two of three 12-character labels under 30, three under 36, the
 refused label uncounted, an independent function with its own total, and 13-character number labels refused at the
 third); and that a specifier of 1,025 characters, one of 400 `%c`, and a long member of a format object are located
-specification exceptions ("The axis time format is not valid") while a specifier of 1,024 characters is formatted.
+specification exceptions ("The axis time format is not valid") while a specifier of 1,024 characters is formatted. For
+the function of `CreateBounded` it asserts that the label is the one of `Create` when it fits the limit that is passed
+with each call and is null when it does not (a time format, a number format, a number format with `,d`, and a UTC
+format, at the exact limits above), that a limit of zero or less gives null, that the label that was refused does not
+change the next call, and that an invalid number format specifier (`%Q`) and a time specifier of 1,025 characters are
+the located `VegaLiteSpecException` of `Create`, thrown when the function is created.
 
 ##### Time Axes Choose Ticks And Labels By The Calendar
 

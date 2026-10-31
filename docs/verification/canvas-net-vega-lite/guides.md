@@ -100,6 +100,13 @@ documented above as machine-dependent is not a failure.
   `LegendBuilderTests.LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass` — a parsed specification's scales produce
   merged legends whose entries, labels, gradient stops, and box sizes equal the values derived by hand from Vega's legend
   rules and the measured text widths, through the whole chain of parser, scales, ticks, number format, and measurer.
+- **Legends Of Path, Text, And Arc Marks Look Like Their Marks**:
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor`,
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles` — a parsed specification of a
+  line, a rule, or a trail with a nominal color gives a legend of three `stroke` symbols (a short line) painted with the
+  stroke colors `#4c78a8`, `#f58518`, and `#e45756` and the legend default width 1.5 (a trail is filled by default but
+  is drawn with a stroke in its legend, as Vega-Lite does), and an area, an arc, or a text mark gives three filled circles
+  of the size 100 in the same colors, through the chain of parser, scales, legend plan, and builder.
 - **Legends Fail Closed With A Location**:
   `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,
   `LegendBuilderTests.LegendBuilder_Build_CancellationAndInvalidFormat` — too many values, ticks, characters, or scene
@@ -177,10 +184,13 @@ documented above as machine-dependent is not a failure.
   `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`,
   `TimeLabelsTests.TimeLabels_Create_LabelsOfAGuideAreBoundedTogether`,
   `TimeLabelsTests.TimeLabels_Create_LongSpecifier_IsASpecificationError`,
+  `TimeLabelsTests.TimeLabels_CreateBounded_ReturnsNullWhenTheLabelIsLongerThanTheLimit`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced` —
   more ticks than `MaxTicks` and a label longer than `MaxStringLength`, or labels that are together longer than it, are
   located render errors that name the limit
   (11 days, a millisecond interval over ten days, and six listed values against a limit of 5; a 43-character label
   against 30; eleven labels of 233 characters in all against 100), a time format of more than 1,024 characters or 4,096
   pieces is a located specification error, a canceled token stops the build, and the labels are the English ones with
-  ASCII digits under `tr-TR` and `de-DE` and the same on every call.
+  ASCII digits under `tr-TR` and `de-DE` and the same on every call; the per-call formatter that the text mark uses
+  (`CreateBounded`) gives the label when it fits the limit of the call (`Mar 05, 2024` is 12 characters, so the limit 12
+  gives it and 11 gives none) and no label, never an exception, when it does not.

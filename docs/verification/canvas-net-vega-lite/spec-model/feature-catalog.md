@@ -26,11 +26,25 @@ schema version, every URL shape); this document lists each test method once. The
 class `FeatureCatalogTimeTests` has its own `Visit` and `VisitView` helpers of the same kind.
 
 Unit tests reside in `FeatureCatalogTests.cs` and `FeatureCatalogTimeTests.cs` within the
-`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder. Time is supported since Phase 8, so the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder; the test of the channels that a mark does
+not draw is in `MarkChannelGatingTests.cs` in the `Scales` folder, which owns the support table that the catalog
+follows. Time is supported since Phase 8, so the
 tests of the earlier phases that asserted that a temporal field, a time unit, a custom date format, the `timeUnit`
 transform, or a time predicate was reported were changed to assert that nothing is reported (the identifiers that were
 retired are asserted absent), and the expression tests that used `datetime` and `timeFormat` as an example of an
 unsupported function now use `geoArea` and `gradient`, which are still outside the function table.
+
+The line, area, trail, text, and arc marks are drawn since Phase 9, so the tests that used one of them as the
+example of an unsupported mark were migrated: the sentinel of the unsupported mark is now `geoshape` (with
+`longitude` for the channel that no mark draws, reported as `vl-channel-geo`), and `image` (which stays unsupported)
+replaces `text` where a second unsupported mark is needed. The migrated assertions are the `geoshape` and the
+`longitude` and `latitude` of the stable-identifier specification, the mark list of the mark theory (`arc`, `area`,
+`line`, `text`, and `trail` are silent), the nested marks of the composition test (`geoshape` and `image`), and the
+mark of the document-order test; the test that listed `vl-channel-detail` and `vl-channel-order` among the reported
+channels no longer does, because every mark accepts those two. The new tests of the phase are the
+`FeatureCatalog_Report_` tests, whose expected values are lists of identifiers and pointers (and kinds) written by hand
+from the identifier table: they assert the whole report of each mark, channel, and property, and that what the renderer
+draws is silent.
 
 #### Test Environment
 
@@ -67,12 +81,12 @@ at all.
 Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
-composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
+composition (so it is not drawn and its transforms are reported by name), a `geoshape` mark, a temporal `x` with a time
 unit (supported, so it is silent), a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported,
 so it is silent), a log scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly seventeen reports whose
+`encode`, a `longitude` and a `latitude` channel, and a layer with a `geoshape` yields exactly seventeen reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-encoding-condition` at
 `/encoding/y/condition` and `vl-mark-geoshape` at `/layer/0/mark`; the custom date format at `/data/format/parse/d`,
 the temporal type and time unit of `x` (`vl-type-temporal` and `vl-encoding-timeunit` of the earlier phases, now
@@ -93,20 +107,29 @@ and that the location of a mark report is the value of the `mark` property, with
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedMarkReportsMarkId`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
-`FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`
+`FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`,
+`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw`
 
-Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`
-are silent and that `arc`, `area`, `image`, `line`, `text`, `trail`, `geoshape`, `boxplot`, `errorbar`, and
-`errorband` each report `vl-mark-<type>` at the mark; that every channel except `x`, `y`, `color`, `fill`, `stroke`,
-`size`, `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
-`vl-channel-<name>` (the four geographic channels sharing one identifier) while
-`tooltip`, `href`, `description`, and `key` are accepted silently, with the exception of the secondary position channels
-and `order`, which are reported only when the mark cannot draw the range or no stack uses the order (see the encoding
-rules below), as the `x2` and `order` of a point mark show; that, as a theory over nine marks and channels, `shape` is
+Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `arc`,
+`area`, `line`, `text`, and `trail` are silent (written as a string and as a definition, in two layers) and that
+`image`, `geoshape`, `boxplot`, `errorbar`, and `errorband` each report `vl-mark-<type>` at the mark; that on a `point`
+mark every channel except `x`, `y`, `theta`, `radius`, `theta2`, `radius2`, `text`, `color`, `fill`, `stroke`, `size`,
+`opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
+`vl-channel-<name>` (the test shows `x2`, `text`, `row`, and `xOffset`, while the geographic `longitude` and `latitude2`
+share the one identifier `vl-channel-geo`) while `tooltip`, `href`, `description`, and `key` are accepted silently, and
+so are `detail` and `order` (every mark accepts them, so neither identifier exists any more), with the exception of the
+secondary position channels, which are reported when the mark cannot draw the range (see the encoding rules below), as
+the `x2` of a point mark shows; that, as a theory over nine marks and channels, `shape` is
 silent for a `point` and reported with its own identifier (and ignored) for a `circle` or a `bar`, `angle` is silent for
 a `point` and a `square` and reported for a `tick`, and `strokeDash` is silent for a `bar` and a `rule` and reported for
-a `rect`; and that an unknown channel name is not reported
-again by the catalog (the parser warns about it once).
+a `rect`; that an unknown channel name is not reported
+again by the catalog (the parser warns about it once); and that the channels that a mark does not draw are reported at
+the channel and ignored, by the table of the marks that draw each channel: a `size` on an `area` (a field) or on an
+`arc` (a value) reports `vl-channel-size`, a `strokeDash` on a `trail`, on a `text`, and on an `area` reports
+`vl-channel-strokedash`, a `shape` or an `angle` on a `line` reports `vl-channel-shape` and `vl-channel-angle`, while
+the drawn channels are silent (a `size` and a `strokeDash` on a `line`, a `size` and an `angle` on a `text`, a `size` on
+a `trail`, a `size` and a `strokeDash` on a `bar`, and a `size` on a `rect`, which is the long-standing exception that
+the catalog does not report).
 
 ##### Data
 
@@ -145,7 +168,7 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ImplicitBarStackIsNotReported`,
-`FeatureCatalogTests.FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack`,
+`FeatureCatalogTests.FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark`,
 `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
 `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
@@ -161,18 +184,23 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 
 Asserts that the encoding identifiers that remain (`vl-encoding-bin` for `bin: "binned"` on a channel other than `x` and
 `y`,
-`vl-encoding-impute`, and `vl-encoding-bandposition`, which is narrowed by Phase 8: see the band position scenario
+`vl-encoding-impute` (narrowed by Phase 9 to a channel other than `x` and `y`: see the path mark scenario below), and
+`vl-encoding-bandposition`, which is narrowed by Phase 8: see the band position scenario
 below) are reported only when the property changes the chart (`bin: false`
 and `null`, `stack: false` and `null`, a `null` aggregate, an ascending sort shorthand, a `null` sort, an array sort, and
 a sort that names an `encoding` are silent, as are `timeUnit: null` and `impute: null`), and that the identifiers of the
 features that are computed (`vl-encoding-aggregate`, `vl-encoding-stack`, and the supported forms of `vl-encoding-sort`)
 are not produced; that, as a theory over five specifications, no bar chart is reported for being stacked implicitly,
 whatever its channels (a color, a horizontal bar with a detail channel, a size channel, an explicit `stack: null`, and a
-`y2` channel); that the `order` channel is accepted without a report when it orders a stack (a vertical bar, an array of
-order fields, a bar with two measures that Vega-Lite reads as vertical, a horizontal bar, and a point mark with an
-explicit `stack: true`) and reported as `vl-channel-order` otherwise (with `stack: null`, or for a point mark that does
-not stack); that a secondary position channel is silent for a `bar`, `rect`, or `rule` that has the channel it extends and
-is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
+`y2` channel); that the `order` channel is accepted without a report by every mark, as a theory over nine
+specifications shows (the renamed test: it said before that the channel is accepted only when it orders a stack):
+a vertical bar with a color, an array of order fields with a descending one, a bar with an explicit `stack: null`, a
+`point` mark with and without a stack, a bar with two measures that Vega-Lite reads as vertical, a horizontal bar, a
+`line` with a detail channel, and a `tick` with an `order` that is a null value and a detail channel, so that neither
+`vl-channel-order` nor `vl-channel-detail` is produced; that a secondary position channel is silent for a `bar`, `rect`,
+`rule`, or `area` that has the channel it extends (the area rows are the Phase 9 addition: an area with `y` and `y2`)
+and is reported as `vl-channel-x2` or `vl-channel-y2` for a `line`, a `point`, or a `tick`, for an area without the
+primary channel, or for a bar without the primary channel; that
 an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack (and nothing else: the log type is
 supported, and the message says that the marks are not stacked); that the unsupported scale type `identity` and the
 property `bins` report
@@ -187,7 +215,9 @@ color schemes of every kind, and the scheme object, `domainMid`, `domainMin`, `d
 `interpolate` produce no report (the identifier `vl-scale-color-ramp` is retired), while a cubehelix interpolation reports
 `vl-scale-interpolate-cubehelix`, a shape that is a custom path reports `vl-shape-path` (the mark, the channel value, and
 the scale range) and every symbol name is silent; that the shape, angle, and stroke dash channels are silent for the marks
-that draw them (`point`; `point`, `circle`, `square`; every mark but `rect`) and reported and ignored for the others;
+that draw them (`point`; `point`, `circle`, `square`, and `text`; every mark but `rect`, `area`, `trail`, `text`, and
+`arc`) and reported and ignored for the others (the rows of the theory are the Phase 8 ones; the gating of the Phase 9
+marks follows the support table and is asserted in the scenario of the marks and channels above);
 that an explicit scale type that the channel or the field type cannot use warns `vl-scale-type-ignored` (a quantitative
 field on `shape` or `strokeDash` as well) while accepted types and types reported otherwise do not; and that
 guide `encode`, `labelExpr`, `formatType`, and the listed unsupported axis properties are reported while the honored
@@ -435,3 +465,66 @@ Asserts, as a theory of five format types on the axis and on the legend of a tem
 (`/encoding/x/axis/formatType` and `/encoding/color/legend/formatType`), and that the static
 `FeatureCatalog.IsEvaluatedFormatType` agrees with each row. The legend scenario of the earlier phases was changed to
 use the format type `myFormat` for its report, because `time` is evaluated now.
+
+##### Path Marks Are Drawn, And Their Remaining Parts Are Reported
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot`,
+`FeatureCatalogTests.FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable`,
+`FeatureCatalogTests.FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds`,
+`FeatureCatalogTests.FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY`,
+`FeatureCatalogTests.FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension`
+
+Asserts that a `line`, an `area`, and a `trail`, written with every property that the mark builder reads
+(`interpolate`, `tension`, `invalid` of `break-paths-show-path-domains`, `order: false`, a stroke dash and its offset, the
+cap, the join, the miter limit, a `point` object, and `line: true`) and bare, produce no report, while `geoshape`,
+`image`, `boxplot`, `errorbar`, and `errorband` are reported once, as `vl-mark-<type>` at `/mark` (and nothing for the
+`invalid` and `interpolate` that they carry). As a table of eighteen mark and channel pairs, with the encoding of a
+quantitative `x` and a `y` without a stack, it asserts that an `area` with a `y2` or an `x2` is silent while a `line`
+with a `y2` is `vl-channel-y2` and a `trail` with an `x2` is `vl-channel-x2`; that a `size` is `vl-channel-size` on an
+`area` and silent on a `line` and a `trail`; that a `strokeDash` is silent on a `line` and `vl-channel-strokedash` on an
+`area` and a `trail`; that a `shape` on a `line` and an `angle` on an `area` are reported; that `detail` and `order`
+(an array, a field, and a null value) are silent on a `line`, an `area`, and a `trail`, and a `detail` on a bar; and
+that a `text` and a
+`theta` on a `line` are `vl-channel-text` and `vl-channel-theta`. It asserts that the invalid mode `show` of a line and
+the `null` of an area are `vl-mark-invalid-show`, unsupported, at `/mark/invalid`; that `filter` and
+`break-paths-filter-domains` are `vl-mark-invalid-domains`, of kind `Warning`, at the same place; that
+`break-paths-show-domains` and `break-paths-show-path-domains` are silent; and that the `bundle` interpolation of an
+area is `vl-mark-interpolate-bundle-area`, unsupported, at `/mark/interpolate`, while the same interpolation of a line
+and the `step` interpolation of an area are silent. For the impute it asserts, on a bar chart so that no mark report is
+mixed in, that an impute object on `x` and on `y` (with `value`, `method`, and `keyvals`) is silent because the pipeline
+runs it, that the one on a `color` is `vl-encoding-impute`, unsupported, at `/encoding/color/impute` with a message that
+names the channel, and that `impute: null` on a `size` is silent. For the stack impute it asserts that the warning
+`vl-encoding-stack-impute-bin` is reported, of kind `Warning`, at the dimension definition (`/encoding/x` for an area
+with a binned `x`, a color layer, and a quantitative measure, and for a line whose `y` has `stack: "zero"`;
+`/encoding/y` for an area whose binned dimension is `y`), with a message that names the binned `x` channel, and is not
+reported without the bin, without a layer, with `impute: null` or `stack: null` on the measure, for a bar, or for a
+line that is not stacked, while an impute object on the stacked channel does not switch the warning off.
+
+##### The Text Mark Is Drawn And Its Channels Are Gated
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Report_TextIsSupportedAndItsChannelsAreGated`
+
+Asserts that the `text` mark produces no report, as a string and as a definition with its own properties (`text` as a
+list, `lineBreak`, `limit`, and a numeric `fontWeight`), that a text mark with a size field, an angle value, and a `text`
+channel with a number format and a `bin` is silent, as are a temporal `text` with the format type `utc` and a `text`
+value that is a list; that each of the ten other marks that carry encodings (point, circle, square, bar, rect, tick,
+rule, line, area, and trail) reports `vl-channel-text` at `/encoding/text` and ignores the channel; that a custom format
+type of the `text` channel reports `vl-format-type-custom` at the `formatType` (`/encoding/text/formatType`) while the
+types `number`, `time`, and `utc` report nothing; and that a `bin: "binned"` on a `text` channel reports
+`vl-encoding-bin` at the `bin` while a plain `bin` is silent.
+
+##### The Arc Mark Is Drawn And The Polar Channels Are Gated
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated`
+
+Asserts that the `arc` mark produces no report, as a string and as a definition with `innerRadius`, `outerRadius`,
+`radius`, `radius2`, `theta`, `theta2`, `padAngle`, and `cornerRadius`, and with a stacked `theta`, a `radius` with a
+`sqrt` scale (`zero` and `rangeMin`), a `theta2` value, a `radius2` field, and a color; that a text mark draws `theta`
+and `radius` silently but reports `vl-channel-theta2` and `vl-channel-radius2` (at `/encoding/theta2` and
+`/encoding/radius2`); that each of the ten other marks reports all four channels at their pointers in document order,
+`vl-channel-theta`, `vl-channel-radius`, `vl-channel-theta2`, and `vl-channel-radius2`; that an arc with a `size`, a
+`strokeDash`, and a `longitude` reports `vl-channel-size`, `vl-channel-strokedash`, and `vl-channel-geo`; that the
+`bandPosition` of a stacked `theta` of a text mark (0.25, with a color layer) is silent because it places the label in
+its slice, and is `vl-encoding-bandposition` at `/encoding/theta/bandPosition` for a text mark whose `theta` has
+`stack: false` and for the `theta` of an arc; and that an explicit `stack: true` on a `radius` with a `sqrt` scale is
+`vl-encoding-stack-nonlinear` at `/encoding/radius/stack`, as a stack on a `sqrt` `y` is.

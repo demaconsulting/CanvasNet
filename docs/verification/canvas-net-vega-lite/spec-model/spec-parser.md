@@ -2,9 +2,11 @@
 
 This document describes the unit-level verification strategy for the `SpecParser` unit in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `SpecParser` class (the `Parse` entry
-points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs`, the compilation of
+points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs` (including the
+properties of the line, area, trail, text, and arc marks and of their overlay objects), the compilation of
 expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, the validation of the
-aggregating transforms and of the aggregate, bin, stack, and sort properties of an encoding in `SpecParser.Aggregates.cs`,
+aggregating transforms and of the aggregate, bin, stack, sort, and impute properties of an encoding in
+`SpecParser.Aggregates.cs`,
 the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`,
 and `ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
 comparisons and, since Phase 8, the time predicates), and the types of the sibling files that carry its result —
@@ -39,8 +41,12 @@ as they are the parser's result types) and `SpecParserAggregatesTests.cs` (the a
 properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `SpecModel` folder, together with `SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs`
 (the predicates written as expressions), `SpecParserTimeTests.cs` (the validation of the time constructs),
-`PredicateSourceTimeTests.cs` (the time predicates written as expressions), and `ChannelDefinitionsTests.cs`; the
-large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder. The time scenarios use the
+`PredicateSourceTimeTests.cs` (the time predicates written as expressions), `SpecParserMarkTests.cs` (the properties of
+the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding), and
+`ChannelDefinitionsTests.cs`; the
+large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that
+evaluate the conditions of a `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time
+scenarios use the
 rules of the `Data` subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see _Time Calendar Verification_
 and _Time Format Verification_), so a unit name, a date-time key, or an interval is checked here only as far as the
 parser locates the error.
@@ -228,6 +234,63 @@ and refuses null arguments; and that `IsSupportedTransform` accepts the six aggr
 (a computed transform since Phase 8) and refuses the names of later phases (`regression`, `loess`, `density`,
 `quantile`, `extent`), the lower-case `timeunit`, and the empty name.
 
+##### The Impute Of An Encoding Is Validated
+
+**Tests**: `SpecParserImputeTests.SpecParser_Parse_RejectsABadImputeObjectWithItsLocation`,
+`SpecParserImputeTests.SpecParser_Parse_AcceptsTheImputeForms`,
+`SpecParserImputeTests.SpecParser_Parse_WarnsAboutUnknownImputeMembers`
+
+Asserts, with `MaxScaleDomainSize` lowered to 2 so that the bound is reached by small texts, that 24 wrong `impute`
+values of the `y` channel of a line are located `VegaLiteSpecException` errors at the offending member, with the file
+name, a positive line and column, and a message that starts with the file name: an object that is a text, a boolean, or
+an array (`/encoding/y/impute`); a `method` that is not one of `value`, `mean`, `median`, `max`, and `min` (the text
+`mode`, a number, and the upper-case `MEAN`: `/impute/method`); `keyvals` that are not an array or a sequence object
+(`/impute/keyvals`), that hold an array or an object (`/keyvals/0` and `/keyvals/1`), or that are a sequence without a
+`stop` (`/keyvals`), with a `stop` or a `start` that is text, or with a `step` of 0 (`/keyvals/stop`, `/keyvals/start`,
+and `/keyvals/step`); keys that outnumber the limit of two (the array `[1, 2, 3]`, the sequences 0 to 3 and 10 down to 0
+by -3, which have three and four keys, and 1e300 by 1e-300, whose count is computed by arithmetic and refused before
+any key is generated), each at `/keyvals`; a `value` that is an object or an array (`/impute/value`); and a `frame` that
+is a number, an array of one entry, an array with a fraction, or an array with a text (`/impute/frame`, `/frame`,
+`/frame/0`, and `/frame/1`). It asserts that 16 valid forms are accepted without a warning and keep the node: `null`,
+the empty object, each method with its constant, a frame of integers and one with nulls, a constant of every scalar
+kind, key arrays with mixed kinds, a sequence with only a `stop`, and sequences with a positive step, with a negative
+step, and with a step that points away (no key); and that the members `groupby` and `key` (which belong to the impute
+transform, not to the encoding) are two `vl-unknown-property` warnings of kind `Warning` at their keys
+(`/encoding/y/impute/groupby` and `/encoding/y/impute/key`), the message naming an impute definition, while the object is
+otherwise accepted.
+
+##### Mark Properties Of The Path, Text, And Arc Marks Are Validated
+
+**Tests**: `SpecParserMarkTests.SpecParser_Parse_AcceptsTheFifteenInterpolateNames`,
+`SpecParserMarkTests.SpecParser_Parse_RejectsABadInterpolateOrInvalidOrPointValue`,
+`SpecParserMarkTests.SpecParser_Parse_ValidatesOverlayObjectsLikeMarkDefinitions`,
+`SpecParserMarkTests.SpecParser_Parse_ValidatesTextMarkProperties`
+
+Asserts that each of the 15 interpolation names of Vega-Lite (`basis`, `basis-open`, `basis-closed`, `bundle`,
+`cardinal`, `cardinal-open`, `cardinal-closed`, `catmull-rom`, `linear`, `linear-closed`, `monotone`, `natural`, `step`,
+`step-before`, and `step-after`: the test counts 15 before it parses them) is accepted without a warning on a line, and
+that the other path and polar properties are accepted in their kinds on an area: an `interpolate` or a `tension` that is
+an expression reference, a `point` of `true`, `false`, `null`, the text `transparent`, or an object, a `line` of `true`,
+`null`, or an object, each of the five invalid modes and `null`, an `order` of `true`, `false`, or `null`, and the
+numbers `strokeDashOffset`, `strokeMiterLimit`, `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`,
+and `theta2`. As a theory of 26 values it asserts that a wrong one is a `VegaLiteSpecException` located at the value
+(`/mark/<name>`) with the file, line, and column: an interpolation that is the Vega-only `catmull-rom-open` or
+`catmull-rom-closed` (neither is a Vega-Lite name), a name in the wrong case, a number, or `null`; a `tension` that is
+text or a boolean; an `invalid` that is not one of the five modes (`hide`, a number, a boolean); a `point` that is a text
+other than `transparent`, a number, or an array; a `line` that is a text or a number; an `order` that is a text or a
+number; and the numeric properties given as text, a boolean, an array, or an object. It asserts that the objects of the
+`point` and `line` overlays are checked like mark definitions (a color that is a number is an error at
+`/mark/point/color`, an interpolation `nope` at `/mark/line/interpolate`, an invalid mode `hide` at
+`/mark/point/invalid`), that a property that no mark has (`foo`) is the warning `vl-unknown-property` at its key
+(`/mark/point/foo`) and not an error while the overlay properties `filled`, `size`, `strokeWidth`, and `interpolate` are
+silent, and that the catalog reports an expression reference inside an overlay object as `vl-expr-ref` at
+`/mark/point/color` because it is not evaluated. For the text mark it asserts that 23 properties are accepted in each of
+their kinds (a `text` that is a string, a list, or an expression reference; `fontStyle`, `ellipsis`, and `lineBreak` as
+text; `fontWeight` as text, a number, or an expression reference; `limit` and `lineHeight` as numbers; and the
+properties `dx`, `dy`, `angle`, `align`, `baseline`, `font`, `fontSize`, `radius`, and `theta`) and that ten values of the
+wrong kind are errors at the property (`/mark/text` for a number, a boolean, or an object; `fontStyle`, `fontWeight`
+for a boolean or `null`, `limit`, `ellipsis`, `lineBreak`, and `lineHeight`).
+
 ##### Sort Array Items Are Validated And Mixed Or Unknown Parts Are Warned About
 
 **Tests**: `SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
@@ -320,7 +383,8 @@ object.
 `ChannelDefinitionsTests.ChannelDefinitions_CanCondition_ListsTheConditionalChannels`,
 `ChannelDefinitionsTests.ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField`,
 `ChannelDefinitionsTests.ChannelDefinitions_Conditions_ListsConditionsInOrder`,
-`ChannelDefinitionsTests.ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives`
+`ChannelDefinitionsTests.ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives`,
+`MarkChannelGatingTests.SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize`
 
 Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
 has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
@@ -342,7 +406,11 @@ Expressions_); and a null predicate is refused. The helper tests list the eleven
 condition (and the position, secondary, order, and tooltip channels that do not), find the field definition of a channel
 (its own, the first field condition on a test, none for a parameter condition), list the conditions in order with the
 parameter conditions left out of the tests, and list the constant values a legend shows (the conditions first, then the
-value; none for a channel that a field drives).
+value; none for a channel that a field drives). The size test puts a condition whose value is an expression that does
+not compile on a `size` channel and asserts that the document is refused with a `VegaLiteSpecException` for the ten marks
+that evaluate their size conditions (the symbols, `bar`, `rect`, `tick`, `rule`, `line`, `trail`, and `text`) and parses
+for `area` and `arc`, which have no size, and that `theta`, `radius`, `theta2`, and `radius2` take no condition (Vega-Lite
+defines none) while `size` and `angle` do.
 
 ##### Time Units Are Validated
 
