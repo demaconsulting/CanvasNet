@@ -96,7 +96,7 @@ internal static partial class ScaleResolver
     {
         switch (GroupOf(input.Channel))
         {
-            case ChannelGroup.Position:
+            case ChannelGroup.Position or ChannelGroup.Polar:
                 return new Outputs { ExplicitRange = ReadRange(input, context, 2) };
             case ChannelGroup.Color:
                 return ColorOutputs(input, kind, domainSize, context);

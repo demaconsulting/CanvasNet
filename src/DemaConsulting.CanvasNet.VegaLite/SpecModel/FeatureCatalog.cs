@@ -546,9 +546,9 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
-                else if (name is "shape" or "angle" or "strokeDash" && !ScaleResolver.ChannelIsDrawn(name, markType))
+                else if ((name is "shape" or "angle" or "strokeDash" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, markType))
                 {
-                    // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol, a dash a mark with a stroke line)
+                    // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one)
                     Unsupported(Id("channel", name), $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
                 }
                 else if (channel.IsObject)
