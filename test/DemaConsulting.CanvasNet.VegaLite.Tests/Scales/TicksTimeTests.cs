@@ -399,6 +399,36 @@ public class TicksTimeTests
     }
 
     /// <summary>
+    ///     Validates that the ticks between two instants (used for the domain of a temporal color, which is not a time scale model) are those of a time scale model with the same
+    ///     domain, in either direction, with an interval request, in a zone, and that a hostile request is bounded by the limit and the token.
+    /// </summary>
+    [Fact]
+    public void Ticks_TimeTicks_InstantsOverload_MatchesTheModelOverload()
+    {
+        // Arrange: January 1 to 11 in a zone 5:30 hours ahead: the local midnights of the 2nd to the 11th
+        var zone = TimeCalendar.Create(TimeTestSupport.Fixed(5, 30));
+        var model = ScaleModel.CreateTime([D(1, 1), D(1, 11)], [0, 400], false, false, zone, false);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var viaInstants = Ticks.TimeTicks(D(1, 1), D(1, 11), new TimeTickRequest(10), zone, false, 1_000, Ct);
+        var viaModel = Ticks.TimeTicks(model, new TimeTickRequest(10), 1_000, Ct);
+        var reversed = Ticks.TimeTicks(D(1, 11), D(1, 1), new TimeTickRequest(10), zone, false, 1_000, Ct);
+        var weeks = Ticks.TimeTicks(D(1, 1), D(1, 31), new TimeTickRequest(10, TimeIntervalKind.Week, 2), TimeCalendar.Utc, false, 1_000, Ct);
+
+        // Assert: ten local midnights, 18:30Z of the day before; the reversed domain gives them in descending order; every second Sunday counted from the epoch week
+        // (the week of Sunday 1969-12-28): January 14, 2024 is 19,740 days (2,820 weeks) after it, so January 14 and 28 are the even weeks and January 7 and 21 are not
+        Assert.Equal([.. Enumerable.Range(0, 10).Select(i => D(1, 1 + i, 18, 30))], viaInstants);
+        Assert.Equal(viaModel, viaInstants);
+        Assert.Equal([.. Enumerable.Reverse(viaInstants)], reversed);
+        Assert.Equal([D(1, 14), D(1, 28)], weeks);
+        Assert.Throws<VegaLiteRenderException>(() => Ticks.TimeTicks(D(1, 1), D(1, 11), new TimeTickRequest(10, TimeIntervalKind.Millisecond), TimeCalendar.Utc, false, 5, Ct));
+        Assert.Throws<OperationCanceledException>(() => Ticks.TimeTicks(D(1, 1), D(12, 31), new TimeTickRequest(10, TimeIntervalKind.Hour), TimeCalendar.Utc, false, 1_000, canceled.Token));
+        Assert.Throws<ArgumentNullException>(() => Ticks.TimeTicks(0, 1, new TimeTickRequest(10), null!, false, 1_000, Ct));
+    }
+
+    /// <summary>
     ///     Validates that the ticks and the boundaries are the same under the Turkish and the German cultures (nothing reads the current culture).
     /// </summary>
     [Fact]

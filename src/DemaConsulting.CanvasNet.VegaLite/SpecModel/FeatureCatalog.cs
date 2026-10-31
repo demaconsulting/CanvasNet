@@ -81,7 +81,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
-///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c> and <c>legend.formatType</c>.</description></item>
+///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c> and <c>legend.formatType</c> other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
 ///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeunit</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of the drawn view are computed and not reported.</description></item>
@@ -167,6 +167,14 @@ internal static class FeatureCatalog
         // LINQ's ordering is stable, so reports at one position keep the order in which they were found
         return walker.Reports.OrderBy(r => r.Location.Line).ThenBy(r => r.Location.Column).ToList().AsReadOnly();
     }
+
+    /// <summary>
+    ///     Tells whether a <c>formatType</c> of an axis or a legend is one that the renderer evaluates: <c>number</c> (d3 number format), <c>time</c> (d3 time format in the zone
+    ///     of the chart) and <c>utc</c> (d3 time format in UTC). Any other name is a custom format type that the host would have to provide; it is reported and the default format is used.
+    /// </summary>
+    /// <param name="formatType">The format type, or null when the property is not a text.</param>
+    /// <returns><see langword="true"/> for <c>number</c>, <c>time</c> and <c>utc</c>.</returns>
+    public static bool IsEvaluatedFormatType(string? formatType) => formatType is "number" or "time" or "utc";
 
     /// <summary>
     ///     Determines whether a data URL names something other than a relative local path: it has a scheme
@@ -1120,8 +1128,8 @@ internal static class FeatureCatalog
                     case "labelExpr":
                         Unsupported("vl-expr-label", "Label expressions (axis.labelExpr) are not supported yet.", property);
                         break;
-                    case "formatType":
-                        Unsupported("vl-format-type-custom", "Custom format types (axis.formatType) are not supported.", property);
+                    case "formatType" when !IsEvaluatedFormatType(property.AsString()):
+                        Unsupported("vl-format-type-custom", "Custom format types (axis.formatType) are not supported; the format type must be number, time or utc.", property);
                         break;
                     default:
                         if (UnsupportedAxisProperties.Contains(name))
@@ -1161,8 +1169,8 @@ internal static class FeatureCatalog
                     case "labelExpr":
                         Unsupported("vl-expr-label", "Label expressions (legend.labelExpr) are not supported yet.", property);
                         break;
-                    case "formatType":
-                        Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported.", property);
+                    case "formatType" when !IsEvaluatedFormatType(property.AsString()):
+                        Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported; the format type must be number, time or utc.", property);
                         break;
                     case "titleOrient" when property.IsString && property.StringValue != "top":
                         Unsupported(

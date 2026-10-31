@@ -56,7 +56,7 @@ internal readonly record struct TimeTickRequest(double Count, TimeIntervalKind? 
 /// </content>
 /// <remarks>
 ///     <para>
-///         <see cref="TimeTickInterval"/>, <see cref="TimeTicks"/> and <see cref="TimeNice"/> are C# versions of d3-time 3.1's <c>tickInterval</c> and
+///         <see cref="TimeTickInterval"/>, <see cref="TimeTicks(ScaleModel, TimeTickRequest, int, CancellationToken)"/> and <see cref="TimeNice"/> are C# versions of d3-time 3.1's <c>tickInterval</c> and
 ///         <c>ticks</c> and of the <c>nice</c> method of d3-scale 4's time scale. The interval is the one of the table 1, 5, 15 and 30 seconds,
 ///         1, 5, 15 and 30 minutes, 1, 3, 6 and 12 hours, 1 and 2 days, 1 week, 1 and 3 months and 1 year whose length is nearest to
 ///         <c>|stop - start| / count</c> (the earlier of the two neighbors of the target when <c>target / previous &lt; next / target</c>, so a target
@@ -207,10 +207,34 @@ internal static partial class Ticks
             throw new ArgumentException("The model must be a time or UTC scale.", nameof(model));
         }
 
-        var reverse = model.DomainEnd < model.DomainStart;
-        var start = reverse ? model.DomainEnd : model.DomainStart;
-        var stop = reverse ? model.DomainStart : model.DomainEnd;
-        var interval = ResolveTimeInterval(request, start, stop, calendar, model.Kind == ScaleKind.Utc);
+        return TimeTicks(model.DomainStart, model.DomainEnd, request, calendar, model.Kind == ScaleKind.Utc, maxTicks, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Generates the ticks between two instants (d3-time's <c>ticks</c>), for a domain that is not held by a time scale model: the instants of a temporal color scale.
+    /// </summary>
+    /// <remarks>
+    ///     The ticks are the boundaries of the chosen interval from the first one at or after the start up to and including the stop; a reversed domain gives the ticks in
+    ///     descending order. The result holds at most <paramref name="maxTicks"/> values.
+    /// </remarks>
+    /// <param name="domainStart">The first end of the domain in milliseconds.</param>
+    /// <param name="domainEnd">The second end of the domain.</param>
+    /// <param name="request">The request: a count or an interval.</param>
+    /// <param name="calendar">The calendar of the ticks.</param>
+    /// <param name="utcScale">Whether the ticks are those of a UTC scale (its two-day ticks count the days since the epoch).</param>
+    /// <param name="maxTicks">The largest number of ticks accepted.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The ticks as milliseconds since the epoch.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown when the result would hold more than <paramref name="maxTicks"/> values.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled.</exception>
+    public static double[] TimeTicks(double domainStart, double domainEnd, TimeTickRequest request, TimeCalendar calendar, bool utcScale, int maxTicks = 1_000, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+        var reverse = domainEnd < domainStart;
+        var start = reverse ? domainEnd : domainStart;
+        var stop = reverse ? domainStart : domainEnd;
+        var interval = ResolveTimeInterval(request, start, stop, calendar, utcScale);
         if (interval is null)
         {
             return [];

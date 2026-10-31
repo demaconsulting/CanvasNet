@@ -23,7 +23,8 @@ internal sealed partial class LegendBuilder
     /// <param name="Range">Whether the labels are ranges (<c>10 – 20</c>) between a value and the next one.</param>
     /// <param name="Max">The upper end of the last range.</param>
     /// <param name="Number">Formats a number, or null to use the text of the value.</param>
-    private sealed record ValueSet(List<DataValue> Values, bool Range, double Max, Func<double, string>? Number);
+    /// <param name="Date">Formats a date value (milliseconds), or null to use the text of the value.</param>
+    private sealed record ValueSet(List<DataValue> Values, bool Range, double Max, Func<double, string>? Number, Func<double, string>? Date = null);
 
     /// <summary>
     ///     The look of one symbol of a legend.
@@ -54,6 +55,14 @@ internal sealed partial class LegendBuilder
         var explicitValues = ExplicitValues(c);
         switch (model.Kind)
         {
+            case ScaleKind.Time or ScaleKind.Utc:
+                // A size or an opacity over dates: the time ticks of the domain, labeled as dates
+                var timeSet = TimeTickSet(c, model, s.Number("tickCount") ?? 5);
+                return new ValueSet(explicitValues ?? [.. timeSet.Values.Select(DataValue.FromNumber)], false, double.PositiveInfinity, TimeLabelFunction(c));
+            case ScaleKind.Sequential or ScaleKind.Diverging when IsTemporal(c):
+                // A temporal color shown as symbols: the time ticks of its domain
+                var colorSet = TimeTickSet(c, model, s.Number("tickCount") ?? 5);
+                return new ValueSet(explicitValues ?? [.. colorSet.Values.Select(DataValue.FromNumber)], false, double.PositiveInfinity, TimeLabelFunction(c));
             case ScaleKind.Linear or ScaleKind.Sequential or ScaleKind.Diverging:
                 var tickSet = ContinuousTicks(c, model, s.Number("tickCount") ?? 5);
 
@@ -68,7 +77,9 @@ internal sealed partial class LegendBuilder
                 // Explicit values are a plain list: the last one has no upper edge (Vega's array has no max), so its label is "≥ lo"
                 return new ValueSet(bins, true, explicitValues is null && edges.Count > 0 ? edges[^1] : double.PositiveInfinity, PointFormat(c, specifier));
             default:
-                return new ValueSet(explicitValues ?? [.. model.Domain], false, double.PositiveInfinity, specifier is null ? null : PointFormat(c, specifier));
+                // The values of a field with a time unit are dates, labeled by the format, the specifier of the unit or config.timeFormat
+                var dateLabel = IsTemporal(c) ? TimeLabelFunction(c) : null;
+                return new ValueSet(explicitValues ?? [.. model.Domain], false, double.PositiveInfinity, specifier is null || dateLabel is not null ? null : PointFormat(c, specifier), dateLabel);
         }
     }
 
@@ -206,6 +217,11 @@ internal sealed partial class LegendBuilder
         var value = items[index];
         if (!set.Range)
         {
+            if (set.Date is { } dateFormat && value.IsDate)
+            {
+                return dateFormat(value.Milliseconds);
+            }
+
             return set.Number is { } format && value.IsNumber ? format(value.Number) : TextOf(c, value);
         }
 

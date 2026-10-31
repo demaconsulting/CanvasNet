@@ -478,7 +478,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "datum.label", "formatType": "time", "symbolType": "M0,0L1,1", "encode": {} } },
+              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "datum.label", "formatType": "myFormat", "symbolType": "M0,0L1,1", "encode": {} } },
               "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left", "titleOrient": "top", "symbolType": "diamond", "title": "S" } },
               "opacity": { "field": "a", "type": "quantitative", "legend": null },
               "fill": { "field": "a", "type": "nominal", "scale": null },

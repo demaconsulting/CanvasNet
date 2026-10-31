@@ -31,9 +31,11 @@ internal sealed partial class LegendBuilder
 
         // The default tick count follows the length of the bar; labels are the ticks, or the two ends when there are fewer than three
         var explicitValues = ExplicitValues(c);
-        var tickSet = ContinuousTicks(c, model, s.Number("tickCount") ?? Math.Max(2, 2 * Math.Floor(length / 100)));
+        var requestedCount = s.Number("tickCount") ?? Math.Max(2, 2 * Math.Floor(length / 100));
+        var temporal = IsTemporal(c);
+        var tickSet = temporal ? TimeTickSet(c, model, requestedCount) : ContinuousTicks(c, model, requestedCount);
         var specifier = FormatSpecifier(s);
-        var format = ContinuousFormat(c, model, tickSet, specifier, explicitValues is not null);
+        var format = temporal ? TimeLabelFunction(c) : ContinuousFormat(c, model, tickSet, specifier, explicitValues is not null);
         List<DataValue> values = explicitValues ?? [.. tickSet.Values.Select(DataValue.FromNumber)];
         if (explicitValues is null && values.Count < 3 && start.CompareTo(end) != 0)
         {
@@ -356,7 +358,19 @@ internal sealed partial class LegendBuilder
         List<double> stops;
         try
         {
-            stops = [.. expanded ? Ticks.GetTicks(min, max, GradientTickCount, _limits.MaxTicks) : Ticks.ModelTicks(model, GradientTickCount, _limits.MaxTicks, c.Token)];
+            if (expanded)
+            {
+                stops = [.. Ticks.GetTicks(min, max, GradientTickCount, _limits.MaxTicks)];
+            }
+            else if (IsTemporal(c))
+            {
+                // The color of a temporal field is sampled at the time ticks of its domain, as Vega samples a time scale
+                stops = [.. TimeTicksOf(c, model, new TimeTickRequest(GradientTickCount))];
+            }
+            else
+            {
+                stops = [.. Ticks.ModelTicks(model, GradientTickCount, _limits.MaxTicks, c.Token)];
+            }
         }
         catch (VegaLiteRenderException ex) when (!ex.Location.IsKnown)
         {

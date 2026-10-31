@@ -293,4 +293,28 @@ public class FeatureCatalogTimeTests
         Assert.Equal(["vl-timeunit-binned /encoding/x/timeUnit"], features);
         Assert.Contains(warnings, message => message.Contains("week", StringComparison.Ordinal));
     }
+
+    /// <summary>
+    ///     Validates the narrowing of <c>vl-format-type-custom</c>: the format types that the renderer evaluates (<c>number</c>, <c>time</c> and <c>utc</c>) report nothing on
+    ///     an axis or a legend, and any other name is reported at the <c>formatType</c> property.
+    /// </summary>
+    /// <param name="formatType">The format type.</param>
+    /// <param name="reported">Whether the format type is custom, so that it is reported.</param>
+    [Theory]
+    [InlineData("number", false)]
+    [InlineData("time", false)]
+    [InlineData("utc", false)]
+    [InlineData("custom", true)]
+    [InlineData("Time", true)]
+    public void FeatureCatalog_Visit_FormatTypesNumberTimeAndUtcAreEvaluated(string formatType, bool reported)
+    {
+        // Act
+        var axis = VisitView("\"point\"", "{\"x\":{\"field\":\"d\",\"type\":\"temporal\",\"axis\":{\"formatType\":\"" + formatType + "\"}}}");
+        var legend = VisitView("\"point\"", "{\"color\":{\"field\":\"d\",\"type\":\"temporal\",\"legend\":{\"formatType\":\"" + formatType + "\"}}}");
+
+        // Assert
+        Assert.Equal(reported ? [("vl-format-type-custom", "/encoding/x/axis/formatType")] : [], axis);
+        Assert.Equal(reported ? [("vl-format-type-custom", "/encoding/color/legend/formatType")] : [], legend);
+        Assert.Equal(!reported, FeatureCatalog.IsEvaluatedFormatType(formatType));
+    }
 }
