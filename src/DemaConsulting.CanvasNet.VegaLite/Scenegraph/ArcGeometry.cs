@@ -133,8 +133,10 @@ internal static class ArcGeometry
         // Apply padding; since r1 >= r0, da1 >= da0
         if (rp > Epsilon)
         {
-            var p0 = Math.Asin(rp / r0 * Math.Sin(ap));
-            var p1 = Math.Asin(rp / r1 * Math.Sin(ap));
+            // With no inner radius rp / r0 is infinite and the clamped asin gives a quarter turn, which collapses the
+            // inner ring to a point at the origin exactly as d3-shape does
+            var p0 = ClampedAsin(rp / r0 * Math.Sin(ap));
+            var p1 = ClampedAsin(rp / r1 * Math.Sin(ap));
             da0 -= p0 * 2;
             if (da0 > Epsilon)
             {
@@ -181,10 +183,21 @@ internal static class ArcGeometry
                 var ay = y01 - ocy;
                 var bx = x11 - ocx;
                 var by = y11 - ocy;
-                var kc = 1 / Math.Sin(Math.Acos(((ax * bx) + (ay * by)) / (Math.Sqrt((ax * ax) + (ay * ay)) * Math.Sqrt((bx * bx) + (by * by)))) / 2);
+                var kc = 1 / Math.Sin(ClampedAcos(((ax * bx) + (ay * by)) / (Math.Sqrt((ax * ax) + (ay * ay)) * Math.Sqrt((bx * bx) + (by * by)))) / 2);
                 var lc = Math.Sqrt((ocx * ocx) + (ocy * ocy));
                 rc0 = Math.Min(rc, (r0 - lc) / (kc - 1));
                 rc1 = Math.Min(rc, (r1 - lc) / (kc + 1));
+
+                // A degenerate corner (a zero-length edge or a zero angle) gives a quotient that is not finite: no corner
+                if (!double.IsFinite(rc0))
+                {
+                    rc0 = 0;
+                }
+
+                if (!double.IsFinite(rc1))
+                {
+                    rc1 = 0;
+                }
             }
             else
             {
@@ -193,14 +206,24 @@ internal static class ArcGeometry
         }
 
         // The outer ring: a point when the sector collapsed to a line, with rounded corners, or a circular arc
+        CornerCircle? o0 = null;
+        CornerCircle? o1 = null;
+        if (da1 > Epsilon && rc1 > Epsilon)
+        {
+            o0 = CornerTangents(x00, y00, x01, y01, r1, rc1, cw);
+            o1 = CornerTangents(x11, y11, x10, y10, r1, rc1, cw);
+            if (!o0.Value.IsFinite || !o1.Value.IsFinite)
+            {
+                o0 = o1 = null;
+            }
+        }
+
         if (!(da1 > Epsilon))
         {
             writer.MoveTo(x01, y01);
         }
-        else if (rc1 > Epsilon)
+        else if (o0 is { } t0 && o1 is { } t1)
         {
-            var t0 = CornerTangents(x00, y00, x01, y01, r1, rc1, cw);
-            var t1 = CornerTangents(x11, y11, x10, y10, r1, rc1, cw);
             writer.MoveTo(t0.Cx + t0.X01, t0.Cy + t0.Y01);
             if (rc1 < rc)
             {
@@ -221,30 +244,70 @@ internal static class ArcGeometry
         }
 
         // The inner ring: a point (no inner radius, or collapsed by the padding), with rounded corners, or a circular arc
+        CornerCircle? i0 = null;
+        CornerCircle? i1 = null;
+        if (r0 > Epsilon && da0 > Epsilon && rc0 > Epsilon)
+        {
+            i0 = CornerTangents(x10, y10, x11, y11, r0, -rc0, cw);
+            i1 = CornerTangents(x01, y01, x00, y00, r0, -rc0, cw);
+            if (!i0.Value.IsFinite || !i1.Value.IsFinite)
+            {
+                i0 = i1 = null;
+            }
+        }
+
         if (!(r0 > Epsilon) || !(da0 > Epsilon))
         {
             writer.LineTo(x10, y10);
         }
-        else if (rc0 > Epsilon)
+        else if (i0 is { } u0 && i1 is { } u1)
         {
-            var t0 = CornerTangents(x10, y10, x11, y11, r0, -rc0, cw);
-            var t1 = CornerTangents(x01, y01, x00, y00, r0, -rc0, cw);
-            writer.LineTo(t0.Cx + t0.X01, t0.Cy + t0.Y01);
+            writer.LineTo(u0.Cx + u0.X01, u0.Cy + u0.Y01);
             if (rc0 < rc)
             {
-                writer.Arc(t0.Cx, t0.Cy, rc0, Math.Atan2(t0.Y01, t0.X01), Math.Atan2(t1.Y01, t1.X01), !cw);
+                writer.Arc(u0.Cx, u0.Cy, rc0, Math.Atan2(u0.Y01, u0.X01), Math.Atan2(u1.Y01, u1.X01), !cw);
             }
             else
             {
-                writer.Arc(t0.Cx, t0.Cy, rc0, Math.Atan2(t0.Y01, t0.X01), Math.Atan2(t0.Y11, t0.X11), !cw);
-                writer.Arc(0, 0, r0, Math.Atan2(t0.Cy + t0.Y11, t0.Cx + t0.X11), Math.Atan2(t1.Cy + t1.Y11, t1.Cx + t1.X11), cw);
-                writer.Arc(t1.Cx, t1.Cy, rc0, Math.Atan2(t1.Y11, t1.X11), Math.Atan2(t1.Y01, t1.X01), !cw);
+                writer.Arc(u0.Cx, u0.Cy, rc0, Math.Atan2(u0.Y01, u0.X01), Math.Atan2(u0.Y11, u0.X11), !cw);
+                writer.Arc(0, 0, r0, Math.Atan2(u0.Cy + u0.Y11, u0.Cx + u0.X11), Math.Atan2(u1.Cy + u1.Y11, u1.Cx + u1.X11), cw);
+                writer.Arc(u1.Cx, u1.Cy, rc0, Math.Atan2(u1.Y11, u1.X11), Math.Atan2(u1.Y01, u1.X01), !cw);
             }
         }
         else
         {
             writer.Arc(0, 0, r0, a10, a00, cw);
         }
+    }
+
+    /// <summary>
+    ///     The arc sine of d3-shape: an argument beyond the range of the function gives a quarter turn instead of NaN.
+    /// </summary>
+    /// <param name="x">The argument.</param>
+    /// <returns>The angle in radians.</returns>
+    private static double ClampedAsin(double x)
+    {
+        if (x >= 1)
+        {
+            return HalfPi;
+        }
+
+        return x <= -1 ? -HalfPi : Math.Asin(x);
+    }
+
+    /// <summary>
+    ///     The arc cosine of d3-shape: an argument beyond the range of the function gives 0 or π instead of NaN.
+    /// </summary>
+    /// <param name="x">The argument.</param>
+    /// <returns>The angle in radians.</returns>
+    private static double ClampedAcos(double x)
+    {
+        if (x > 1)
+        {
+            return 0;
+        }
+
+        return x < -1 ? Math.PI : Math.Acos(x);
     }
 
     /// <summary>
@@ -352,7 +415,12 @@ internal static class ArcGeometry
     /// <param name="Y01">The y offset of the tangent point on the edge.</param>
     /// <param name="X11">The x offset of the tangent point on the ring.</param>
     /// <param name="Y11">The y offset of the tangent point on the ring.</param>
-    private readonly record struct CornerCircle(double Cx, double Cy, double X01, double Y01, double X11, double Y11);
+    private readonly record struct CornerCircle(double Cx, double Cy, double X01, double Y01, double X11, double Y11)
+    {
+        /// <summary>Gets a value indicating whether every member is finite.</summary>
+        public bool IsFinite => double.IsFinite(Cx) && double.IsFinite(Cy) && double.IsFinite(X01) && double.IsFinite(Y01)
+            && double.IsFinite(X11) && double.IsFinite(Y11);
+    }
 }
 
 /// <summary>

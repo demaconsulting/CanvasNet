@@ -303,4 +303,84 @@ public class ArcGeometryTests
         Assert.NotEmpty(ArcGeometry.Build(0, 50, 0, 0.02, 0, 1e6).Subpaths);
         Assert.NotEmpty(ArcGeometry.Build(20, 50, 0, 3 * HalfPi, 0.1, 50).Subpaths);
     }
+
+    /// <summary>
+    ///     Validates that a padded pie (inner radius 0) paints ink in every slice: rp / r0 is infinite there, which d3-shape
+    ///     clamps to a quarter turn instead of producing NaN coordinates.
+    /// </summary>
+    [Fact]
+    public void ArcGeometry_Build_PaddedPieSlicesHaveInk()
+    {
+        // Arrange: four equal slices of a pie of radius 100 with a pad angle of 0.1
+        const int slices = 4;
+        var step = 2 * Math.PI / slices;
+
+        for (var i = 0; i < slices; i++)
+        {
+            // Act
+            var path = ArcGeometry.Build(0, 100, i * step, (i + 1) * step, 0.1, 0);
+            var area = FilledArea(path, 110);
+
+            // Assert: the slice exists, is finite and is smaller than the plain slice but not by much
+            Assert.NotEmpty(path.Subpaths);
+            var plain = 0.5 * 100 * 100 * step;
+            Assert.InRange(area, 0.8 * plain, plain);
+        }
+
+        // Assert: with and without a corner radius, and with a slice larger than half a circle
+        Assert.True(FilledArea(ArcGeometry.Build(0, 100, 0, step, 0.1, 8), 110) > 0);
+        Assert.True(FilledArea(ArcGeometry.Build(0, 100, 0, 1.5 * Math.PI, 0.1, 0), 110) > 0.5 * 100 * 100 * 1.5 * Math.PI * 0.8);
+    }
+
+    /// <summary>
+    ///     Validates that padded donut slices keep the area implied by the constant-width gap.
+    /// </summary>
+    [Fact]
+    public void ArcGeometry_Build_PaddedDonutSlicesHaveInk()
+    {
+        // Arrange / Act
+        var plain = FilledArea(ArcGeometry.Build(40, 100, 0, HalfPi, 0, 0), 110);
+        var padded = FilledArea(ArcGeometry.Build(40, 100, 0, HalfPi, 0.1, 0), 110);
+        var rounded = FilledArea(ArcGeometry.Build(40, 100, 0, HalfPi, 0.1, 6), 110);
+
+        // Assert: the padding removes a little, the rounded corners remove a little more
+        Assert.InRange(padded, 0.8 * plain, plain);
+        Assert.InRange(rounded, 0.8 * plain, padded);
+    }
+
+    /// <summary>
+    ///     Validates that no combination of degenerate parameters gives NaN coordinates (which would make the writer
+    ///     discard the whole path): a failing path is the empty path.
+    /// </summary>
+    [Fact]
+    public void ArcGeometry_Build_DegenerateCombinationsNeverProduceNaN()
+    {
+        double[] radii = [0, 1e-13, 1e-6, 0.5, 10, 50];
+        double[] sweeps = [0, 1e-13, 1e-9, 0.01, 0.5, HalfPi, Math.PI - 1e-9, Math.PI, 3.5, 2 * Math.PI - 1e-13, 2 * Math.PI, -1, -2 * Math.PI];
+        double[] pads = [0, 1e-13, 0.01, 0.5, Math.PI / 2, Math.PI, 3 * Math.PI, 7];
+        double[] corners = [0, 1e-13, 0.01, 5, 1e6];
+
+        foreach (var r0 in radii)
+        {
+            foreach (var r1 in radii)
+            {
+                foreach (var sweep in sweeps)
+                {
+                    foreach (var pad in pads)
+                    {
+                        foreach (var corner in corners)
+                        {
+                            // Act
+                            var path = ArcGeometry.Build(r0, r1, 0.3, 0.3 + sweep, pad, corner);
+
+                            // Assert: a path that is not finite is the empty path
+                            Assert.True(
+                                path.Subpaths.Count > 0,
+                                $"Empty path for r0={r0}, r1={r1}, sweep={sweep}, pad={pad}, corner={corner}");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
