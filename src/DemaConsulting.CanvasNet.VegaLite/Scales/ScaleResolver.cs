@@ -148,6 +148,12 @@ internal sealed class ResolvedScale
     /// <summary>Gets a value indicating whether the values of the field are instants: the field is temporal or has a time unit.</summary>
     public bool IsTemporalField { get; init; }
 
+    /// <summary>
+    ///     Gets a value indicating whether the channel spans its time unit: <see cref="Field2Path"/> is the end of the unit (Vega-Lite's <c>hasBandEnd</c>), so a bar, rect or tick
+    ///     covers the unit and a point can sit anywhere between its start and its end. It is false for a range that the encoding gives (<c>x2</c>, <c>y2</c>).
+    /// </summary>
+    public bool HasBandEnd { get; init; }
+
     /// <summary>Gets the interval (a name with an optional step) that <c>nice</c> extends a time scale to, or null when <c>nice</c> uses <see cref="NiceCount"/> or is off.</summary>
     public TimeTickRequest? NiceInterval { get; init; }
 
@@ -1289,6 +1295,7 @@ internal static partial class ScaleResolver
             Calendar = time?.Calendar,
             TimeUnit = time?.Unit,
             IsTemporalField = time is not null,
+            HasBandEnd = input.Plan?.HasBandEnd ?? false,
         };
     }
 

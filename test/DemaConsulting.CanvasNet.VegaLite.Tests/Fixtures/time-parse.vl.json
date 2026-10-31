@@ -1,0 +1,14 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 200,
+  "height": 100,
+  "data": {
+    "url": "time-parse.csv",
+    "format": { "type": "csv", "parse": { "visit": "date:'%d/%m/%Y'", "tickets": "number" } }
+  },
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "visit", "type": "temporal" },
+    "y": { "field": "tickets", "type": "quantitative" }
+  }
+}

@@ -224,6 +224,7 @@ internal sealed class MarkBuilder
                 _ => null,
             };
             Value = node["value"];
+            BandPosition = fieldNode["bandPosition"] is { IsNumber: true } bandPosition ? bandPosition.NumberValue : null;
         }
 
         /// <summary>
@@ -265,14 +266,20 @@ internal sealed class MarkBuilder
         /// <summary>Gets a value indicating whether the channel is the stacked channel: its field is the upper end of the stack and its second field the lower end.</summary>
         public bool IsStacked => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: not null } && Field2Index >= 0;
 
-        /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known: the geometry of a bin applies.</summary>
-        public bool HasBinEnds => Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null);
+        /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known, or spans its time unit on a time scale: the geometry of a bin (Vega-Lite's <c>rectBinPosition</c>) applies.</summary>
+        public bool HasBandEnds => (Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null)) || IsTimeBand;
+
+        /// <summary>Gets a value indicating whether the channel is a time unit on a time or UTC scale whose end of the unit is known (Vega-Lite's <c>hasBandEnd</c>): the unit is a band.</summary>
+        public bool IsTimeBand => Model is { Kind: ScaleKind.Time or ScaleKind.Utc } && Scale is { TimeUnit: not null, HasBandEnd: true } && Field2Index >= 0;
+
+        /// <summary>Gets the <c>bandPosition</c> of the field definition of the channel (where in its unit or bin a mark sits), or null.</summary>
+        public double? BandPosition { get; }
 
         /// <summary>Gets a value indicating whether the scale of the channel has a continuous domain, so that a row whose value is not a number is not drawn (Vega-Lite's invalid filter).</summary>
         public bool HasContinuousDomain => Model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold };
 
-        /// <summary>Gets a value indicating whether the channel spans a range that the encoding gives: <c>x2</c> or <c>y2</c> next to a field that is not binned by the encoding and not stacked.</summary>
-        public bool HasRange => Model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc } && Scale is { Stack: null, Bin: not BinKind.Binning } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
+        /// <summary>Gets a value indicating whether the channel spans a range that the encoding gives: <c>x2</c> or <c>y2</c> next to a field that is not binned by the encoding, has no time unit band and is not stacked.</summary>
+        public bool HasRange => Model is { Kind: ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc } && Scale is { Stack: null, Bin: not BinKind.Binning, HasBandEnd: false } && (Field2Index >= 0 || SecondDatum is not null || SecondValue is not null);
 
         /// <summary>Gets the datum of the channel, or null.</summary>
         public DataValue? Datum { get; }
@@ -996,7 +1003,8 @@ internal sealed class MarkBuilder
 
         /// <summary>
         ///     Gets the position of the value of a row on a position channel: the center of its band, the scaled value, the upper end of a
-        ///     stack, or, for a field that is binned on a continuous scale, the middle of the bin (Vega-Lite's <c>bandPosition</c> 0.5).
+        ///     stack, for a field that is binned on a continuous scale the middle of the bin (Vega-Lite's <c>bandPosition</c> 0.5), and for a field with a
+        ///     time unit that spans it the position inside the unit that the band position gives.
         /// </summary>
         /// <param name="channel">The channel.</param>
         /// <param name="model">The scale of the channel.</param>
@@ -1004,18 +1012,51 @@ internal sealed class MarkBuilder
         /// <returns>The position, or null when the row is invalid.</returns>
         private double? Center(Channel channel, ScaleModel model, int row)
         {
-            if (!channel.HasBinEnds)
+            if (!channel.HasBandEnds)
             {
                 return model.MapCenter(channel.Read(_table, row));
             }
 
-            return BinEdges(channel, model, row) is { } edges ? (edges.Start + edges.End) / 2 : null;
+            if (BinEdges(channel, model, row) is not { } edges)
+            {
+                return null;
+            }
+
+            // A bin is at its middle; a time unit is where Vega-Lite's band position puts a mark: the start (0), the middle (0.5) or between
+            return channel.IsTimeBand ? Lerp(edges.Start, edges.End, TimeBandPosition(channel)) : (edges.Start + edges.End) / 2;
+        }
+
+        /// <summary>
+        ///     Gets where a mark sits between the start and the end of the time unit of its row (Vega-Lite's <c>getBandPosition</c>): the <c>bandPosition</c> of the
+        ///     channel, else the <c>timeUnitBandPosition</c> of the mark (0.5 for a tick by default), else the start of the unit. A bar and a rect always span the
+        ///     middle of the unit (0.5; another band position is reported by the feature catalog and not drawn).
+        /// </summary>
+        /// <param name="channel">The channel that spans a time unit.</param>
+        /// <returns>The position from 0 (the start) to 1 (the end).</returns>
+        private double TimeBandPosition(Channel channel) =>
+            _type is "bar" or "rect" ? 0.5 : channel.BandPosition ?? Prop("timeUnitBandPosition")?.AsNumber() ?? 0;
+
+        /// <summary>
+        ///     Interpolates between two positions the way Vega-Lite's <c>interpolatedSignalRef</c> does: the ends themselves for a position of 0 and 1.
+        /// </summary>
+        /// <param name="start">The first position.</param>
+        /// <param name="end">The second position.</param>
+        /// <param name="position">The fraction from the first to the second position.</param>
+        /// <returns>The interpolated position.</returns>
+        private static double Lerp(double start, double end, double position)
+        {
+            if (position.CompareTo(0) == 0)
+            {
+                return start;
+            }
+
+            return position.CompareTo(1) == 0 ? end : start + (position * (end - start));
         }
 
         /// <summary>
         ///     Gets the positions of the two boundaries of the bin of a row.
         /// </summary>
-        /// <param name="channel">The channel (<see cref="Channel.HasBinEnds"/>).</param>
+        /// <param name="channel">The channel (<see cref="Channel.HasBandEnds"/>).</param>
         /// <param name="model">The scale of the channel.</param>
         /// <param name="row">The row.</param>
         /// <returns>The positions of the start and of the end of the bin, or null when the row has no valid bin.</returns>
@@ -1210,10 +1251,10 @@ internal sealed class MarkBuilder
                 return BandSpan(channel!, model, sizing, row);
             }
 
-            // A field that is binned on a continuous scale spans its bin unless a size is given (Vega-Lite's rectBinPosition)
-            if (channel is { HasBinEnds: true } && model is not null && sizing.Fixed is null && sizing.Encoded is null)
+            // A field that is binned on a continuous scale, or has a time unit on a time scale, spans its bin or unit unless a size is given (Vega-Lite's rectBinPosition)
+            if (channel is { HasBandEnds: true } && model is not null && sizing.Fixed is null && sizing.Encoded is null)
             {
-                return BinSpan(channel, model, row);
+                return BinSpan(channel, model, sizing, row);
             }
 
             if (barOrTick && channel?.HasRange != true)
@@ -1241,28 +1282,38 @@ internal sealed class MarkBuilder
         }
 
         /// <summary>
-        ///     Works out where a bar or rectangle spans along an axis whose field is binned (Vega-Lite's <c>rectBinPosition</c>): from the start of
-        ///     the bin to its end, each edge drawn <c>binSpacing</c> / 2 inside it and the whole span shifted by the half pixel that the axis is
-        ///     translated by; a bin thinner than <c>minBandSize</c> is widened around its middle to that size, without spacing.
+        ///     Works out where a bar or rectangle spans along an axis whose field is binned or has a time unit (Vega-Lite's <c>rectBinPosition</c>): from the start of
+        ///     the bin or unit to its end, each edge drawn <c>binSpacing</c> / 2 inside it and the whole span shifted by the half pixel that the axis is
+        ///     translated by; a bin or unit thinner than <c>minBandSize</c> is widened around its middle to that size, without spacing.
         /// </summary>
+        /// <remarks>
+        ///     A time unit may cover only the share <c>band</c> of its width, centered: the <c>timeUnitBandSize</c> of the mark, or the <c>band</c> of its <c>width</c> or
+        ///     <c>height</c> (Vega-Lite's <c>getBandSize</c>); the edges are then at <c>(1 - band) / 2</c> and <c>(1 + band) / 2</c> of the way from the start to the end of the
+        ///     unit. The width that <c>minBandSize</c> is compared with is that of the whole unit. A bin always has the band 1.
+        /// </remarks>
         /// <param name="channel">The binned channel.</param>
         /// <param name="model">The scale of the channel.</param>
+        /// <param name="sizing">The thickness along this axis (its relative band applies to a time unit).</param>
         /// <param name="row">The row.</param>
         /// <returns>The start and the length, or null when the row has no valid bin.</returns>
-        private (double Start, double Length)? BinSpan(Channel channel, ScaleModel model, int row)
+        private (double Start, double Length)? BinSpan(Channel channel, ScaleModel model, Sizing sizing, int row)
         {
             if (BinEdges(channel, model, row) is not { } edges)
             {
                 return null;
             }
 
-            var low = Math.Min(edges.Start, edges.End);
-            var high = Math.Max(edges.Start, edges.End);
+            var band = channel.IsTimeBand ? sizing.Band ?? Prop("timeUnitBandSize")?.AsNumber() ?? 1 : 1;
+            var first = Lerp(edges.Start, edges.End, (1 - band) / 2);
+            var second = Lerp(edges.Start, edges.End, (1 + band) / 2);
+            var low = Math.Min(first, second);
+            var high = Math.Max(first, second);
+            var whole = Math.Abs(edges.End - edges.Start);
             var spacing = Prop("binSpacing")?.AsNumber() ?? (_type == "bar" ? DefaultBarBinSpacing : 0);
             var minimum = Prop("minBandSize")?.AsNumber() ?? 0;
-            if (minimum > 0 && high - low < minimum)
+            if (minimum > 0 && whole < minimum)
             {
-                var growth = 0.5 * (minimum - (high - low));
+                var growth = 0.5 * (minimum - whole);
                 low -= growth;
                 high += growth;
             }

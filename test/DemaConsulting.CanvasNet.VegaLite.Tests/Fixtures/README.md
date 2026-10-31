@@ -51,6 +51,22 @@ describe nothing real. They exist to give the tests small, readable charts whose
 - `conditional-marks.vl.json`: the same eight made-up daily soil readings as circles whose color, size and opacity are
   conditional: the dry readings (`moisture` under 30) are red, the others blue; the plants of height 4 or more are
   larger; days 3 to 5 are opaque and the others faint. The conditions hold values only, so the chart has no legend.
+- `time-points.vl.json`: three made-up daily readings (January 1, 6 and 11, 2024) as points on a temporal x axis with a tick
+  every two days (`tickCount: 5`), so that the axis has six ticks 60 pixels apart whose labels are Vega's multi-format
+  (`2024`, `Wed 03`, `Fri 05`, `Jan 07`, `Tue 09`, `Thu 11`) and the points are 0, 150 and 300 pixels in.
+- `time-bars.vl.json`: six made-up clinic visit dates counted per month (`timeUnit: yearmonth`: two in January, three in
+  February, one in March 2024), so that the bars span their months on a scale of 91 days over 300 pixels and the axis labels
+  are the month starts `Jan 2024` to `Apr 2024` under the title `visit (year-month)`.
+- `time-zone.vl.json`: three made-up level readings (one of them at 2024-03-05T20:00Z) as points on the days of
+  `timeUnit: yearmonthdate`, so that a chart in a zone 5:30 hours ahead of UTC puts the middle reading on March 6 (200 pixels
+  of 400) where UTC puts it on March 5 (160 pixels); the tests also use it for a zone with a zero offset.
+- `time-parse.vl.json` and `time-parse.csv`: three made-up ticket counts on the days 5, 15 and 25 March 2024 written
+  day first (`05/03/2024`), read by the parse directive `date:'%d/%m/%Y'`, so that the points are 0, 100 and 200 pixels in;
+  without the directive the day first dates are not valid month first dates and do not draw.
+- `time-filter.vl.json`: eight made-up readings across 2023 and 2024 filtered by a time unit (`month` one of Feb and Mar) and a
+  range of date-time objects (the year 2024), so that four points remain, 0, 100, 195 and 270 pixels in.
+- `time-legend.vl.json`: three made-up soil samples (January 1, 6 and 11, 2024) whose circle color is the temporal date, so
+  that the chart has one gradient legend with the date labels `Jan 01, 2024` to `Jan 11, 2024` at the two day ticks.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or
@@ -63,6 +79,13 @@ hand from the scale formulas and from the algorithm that the tests describe, and
 fixture is that `unsupported.vl.json` now uses a window transform (a later phase) so that it still has an unsupported
 transform to report. In Phase 6 the window transform and the aggregate became supported, so the same fixture now uses a
 regression transform and a band position (both still unsupported) for the same purpose.
+
+Phase 8 (time) adds the `time-*.vl.json` fixtures above and many small inline specifications. All of them are **original works**
+with made-up dates: no Vega-Lite or Vega example, gallery chart, `vega-datasets` data set (the well-known stock, weather or
+flight series in particular) or reference image was copied, adapted or used as a source of expected values. The expected
+ticks, labels and positions are derived by hand from the calendar of 2024 (a leap year that starts on a Monday), the d3
+interval table and Vega's multi-format; the time zones are built in the tests (`TimeZoneInfo.CreateCustomTimeZone`) and no test
+reads the host's zone, clock or culture.
 
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or

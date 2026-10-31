@@ -1,0 +1,20 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 300,
+  "height": 150,
+  "data": {
+    "values": [
+      { "visit": "2024-01-04" },
+      { "visit": "2024-01-22" },
+      { "visit": "2024-02-03" },
+      { "visit": "2024-02-14" },
+      { "visit": "2024-02-27" },
+      { "visit": "2024-03-19" }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "visit", "type": "temporal", "timeUnit": "yearmonth" },
+    "y": { "aggregate": "count", "type": "quantitative" }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 270,
+  "height": 100,
+  "data": {
+    "values": [
+      { "when": "2023-02-10", "n": 1 },
+      { "when": "2024-01-20", "n": 2 },
+      { "when": "2024-02-05", "n": 3 },
+      { "when": "2024-02-25", "n": 4 },
+      { "when": "2024-03-15", "n": 5 },
+      { "when": "2024-04-02", "n": 6 },
+      { "when": "2024-03-30", "n": 7 },
+      { "when": "2024-06-01", "n": 8 }
+    ]
+  },
+  "transform": [
+    {
+      "filter": {
+        "and": [
+          { "field": "when", "timeUnit": "month", "oneOf": ["Feb", "Mar"] },
+          { "field": "when", "range": [{ "year": 2024, "month": 1, "date": 1 }, { "year": 2024, "month": 12, "date": 31 }] }
+        ]
+      }
+    }
+  ],
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "when", "type": "temporal" },
+    "y": { "field": "n", "type": "quantitative" }
+  }
+}
