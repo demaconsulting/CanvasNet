@@ -189,7 +189,7 @@ internal sealed record StackImputePlan(string Field, string Key, IReadOnlyList<s
 ///     <para>
 ///         <b>Differences from Vega-Lite.</b> <c>bin</c> is planned on <c>x</c> and <c>y</c> and on the channels that have a scale (<c>color</c>, <c>fill</c>,
 ///         <c>stroke</c>, <c>size</c>, the opacities, <c>strokeWidth</c>, <c>strokeDash</c>, <c>shape</c> and <c>angle</c>; the default <c>maxbins</c> of those channels is
-///         Vega-Lite's <c>autoMaxBins</c>), while <c>bin: "binned"</c> is read on <c>x</c> and <c>y</c> only (the feature catalog reports it elsewhere); a count is titled by <c>countTitle</c> in every <c>fieldTitle</c> mode; the aggregate name keeps the
+///         Vega-Lite's <c>autoMaxBins</c>) and on <c>text</c> (the text mark shows the bin), while <c>bin: "binned"</c> is read on <c>x</c> and <c>y</c> only (the feature catalog reports it elsewhere); a count is titled by <c>countTitle</c> in every <c>fieldTitle</c> mode; the aggregate name keeps the
 ///         operation as written (<c>average_x</c>). The class is immutable and safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -578,12 +578,12 @@ internal sealed class EncodingPlan
     }
 
     /// <summary>
-    ///     Tells whether a channel other than <c>x</c> and <c>y</c> can bin its field: every channel the renderer draws through a scale.
+    ///     Tells whether a channel other than <c>x</c> and <c>y</c> can bin its field: every channel the renderer draws through a scale, and the <c>text</c> channel (which shows the bin).
     /// </summary>
     /// <param name="channel">The channel name.</param>
-    /// <returns><see langword="true"/> for <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, the opacities, <c>strokeWidth</c>, <c>strokeDash</c>, <c>shape</c> and <c>angle</c>.</returns>
+    /// <returns><see langword="true"/> for <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, the opacities, <c>strokeWidth</c>, <c>strokeDash</c>, <c>shape</c>, <c>angle</c> and <c>text</c>.</returns>
     internal static bool CanBin(string channel) =>
-        channel is "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "strokeDash" or "shape" or "angle";
+        channel is "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "strokeDash" or "shape" or "angle" or "text";
 
     /// <summary>
     ///     Gets the number of bins Vega-Lite asks for on a channel when the specification gives neither <c>maxbins</c> nor <c>step</c>

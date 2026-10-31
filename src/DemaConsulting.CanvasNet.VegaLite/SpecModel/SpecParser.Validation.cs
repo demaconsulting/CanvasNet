@@ -117,7 +117,8 @@ internal sealed partial class SpecParser
         "strokeJoin: SE", "interpolate: SE=" + string.Join('|', InterpolateNames), "tension: NE", "point: BOSZ=transparent", "line: BZO",
         "invalid: SZ=filter|break-paths-filter-domains|break-paths-show-domains|break-paths-show-path-domains|show", "order: BZ",
         "strokeDashOffset: NE", "strokeMiterLimit: NE", "padAngle: NE", "innerRadius: NE", "outerRadius: NE", "radius: NE", "radius2: NE",
-        "theta: NE", "theta2: NE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
+        "theta: NE", "theta2: NE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE", "text: STAE", "fontStyle: SE", "fontWeight: SNE",
+        "limit: NE", "ellipsis: SE", "lineBreak: SE", "lineHeight: NE",
         "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO", "timeUnitBandPosition: NE", "timeUnitBandSize: NE");
 
     /// <summary>The rules for the properties of a channel definition.</summary>

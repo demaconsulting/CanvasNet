@@ -238,6 +238,36 @@ public class TimeLabelsTests
     }
 
     /// <summary>
+    ///     Validates that a time or number label under a limit that the caller gives is made, or is null when it is longer (it never throws for length and keeps no total), and that the
+    ///     format errors are the specification errors of <c>Create</c>.
+    /// </summary>
+    [Fact]
+    public void TimeLabels_CreateBounded_ReturnsNullWhenTheLabelIsLongerThanTheLimit()
+    {
+        // Arrange: "Mar 05, 2024" has 12 characters, the number of March5 has 13
+        var time = TimeLabels.CreateBounded(Options("\"%b %d, %Y\""));
+        var number = TimeLabels.CreateBounded(Options(formatType: "number"));
+        var formatted = TimeLabels.CreateBounded(Options("\",d\"", "number"));
+        var utc = TimeLabels.CreateBounded(Options("\"%H:%M\"", "utc"));
+
+        // Act / Assert: the limit decides, call by call, and a label that is refused does not change what the next one may be
+        Assert.Equal("Mar 05, 2024", time(March5, 12));
+        Assert.Null(time(March5, 11));
+        Assert.Null(time(March5, 0));
+        Assert.Null(time(March5, -3));
+        Assert.Equal("Mar 05, 2024", time(March5, 12));
+        Assert.Equal("1709596800000", number(March5, 13));
+        Assert.Null(number(March5, 12));
+        Assert.Equal("1,709,596,800,000", formatted(March5, 17));
+        Assert.Null(formatted(March5, 16));
+        Assert.Equal("00:00", utc(March5, 5));
+
+        // Act / Assert: a format that is not valid is the located specification error of Create, when the function is created
+        Assert.Throws<VegaLiteSpecException>(() => TimeLabels.CreateBounded(Options("\"%Q\"", "number")));
+        Assert.Throws<VegaLiteSpecException>(() => TimeLabels.CreateBounded(Options("\"" + new string('x', TimeFormat.MaxSpecifierLength + 1) + "\"")));
+    }
+
+    /// <summary>
     ///     Validates that a time format that is too long, or that expands to too many pieces, is a located specification exception when the label function is created, for a
     ///     format text and for a member of a multi-format object, and that a specifier of the longest length still works.
     /// </summary>

@@ -41,8 +41,8 @@ internal sealed partial class SpecParser
     /// <summary>The channels whose constant <c>value</c> may be an expression evaluated for every row.</summary>
     private static readonly HashSet<string> ExpressionChannels = Set("color fill stroke opacity size");
 
-    /// <summary>The marks whose <c>size</c> is evaluated for every row and may be an expression: the symbols (the area of the symbol), the line (its stroke width) and the trail (its width).</summary>
-    private static readonly HashSet<string> SymbolMarks = Set("point circle square line trail");
+    /// <summary>The marks whose <c>size</c> is evaluated for every row and may be an expression: the symbols (the area of the symbol), the line (its stroke width), the trail (its width) and the text (its font size).</summary>
+    private static readonly HashSet<string> SymbolMarks = Set("point circle square line trail text");
 
     /// <summary>The predicate operators of a field predicate, in the order they are looked for.</summary>
     private static readonly string[] PredicateOperators = ["equal", "lt", "lte", "gt", "gte", "range", "oneOf", "valid"];

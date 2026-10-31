@@ -27,6 +27,7 @@ public class MarkChannelGatingTests
             ["radius"] = ["text", "arc"],
             ["theta2"] = ["arc"],
             ["radius2"] = ["arc"],
+            ["text"] = ["text"],
             ["size"] = ["point", "circle", "square", "bar", "tick", "rule", "line", "trail", "text"],
             ["strokeDash"] = ["point", "circle", "square", "bar", "tick", "rule", "line", "image"],
             ["angle"] = ["point", "circle", "square", "text"],

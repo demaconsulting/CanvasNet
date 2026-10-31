@@ -264,7 +264,7 @@ public class FeatureCatalogTests
     [InlineData("area", true)]
     [InlineData("image", false)]
     [InlineData("line", true)]
-    [InlineData("text", false)]
+    [InlineData("text", true)]
     [InlineData("trail", true)]
     [InlineData("geoshape", false)]
     [InlineData("boxplot", false)]
@@ -932,7 +932,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             {
-              "hconcat": [ { "mark": "arc" }, { "vconcat": [ { "mark": "text" } ] } ],
+              "hconcat": [ { "mark": "arc" }, { "vconcat": [ { "mark": "image" } ] } ],
               "concat": [], "facet": { "row": { "field": "a" } }, "spec": { "mark": "geoshape" }, "repeat": [ "a" ],
               "resolve": { "scale": { "x": "independent" } }, "projection": { "type": "albers" }
             }
@@ -947,7 +947,7 @@ public class FeatureCatalogTests
                 ("vl-composition-hconcat", "/hconcat"),
                 ("vl-mark-arc", "/hconcat/0/mark"),
                 ("vl-composition-vconcat", "/hconcat/1/vconcat"),
-                ("vl-mark-text", "/hconcat/1/vconcat/0/mark"),
+                ("vl-mark-image", "/hconcat/1/vconcat/0/mark"),
                 ("vl-composition-concat", "/concat"),
                 ("vl-composition-facet", "/facet"),
                 ("vl-mark-geoshape", "/spec/mark"),
@@ -985,14 +985,14 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_ReportsAreInDocumentOrder()
     {
         // Arrange: the encoding is written before the mark, and a nested view before the parent's later properties
-        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"arc\"}],\"mark\":\"text\"}";
+        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"arc\"}],\"mark\":\"image\"}";
 
         // Act
         var ids = Visit(json);
 
         // Assert
         Assert.Equal(
-            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-arc", "/layer/0/mark"), ("vl-mark-text", "/mark")],
+            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-arc", "/layer/0/mark"), ("vl-mark-image", "/mark")],
             ids);
     }
 
@@ -1716,5 +1716,48 @@ public class FeatureCatalogTests
         Assert.Equal([("vl-mark-interpolate-bundle-area", "/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "area", "interpolate": "bundle" }"""));
         Assert.Empty(Report("""{ "type": "line", "interpolate": "bundle" }"""));
         Assert.Empty(Report("""{ "type": "area", "interpolate": "step" }"""));
+    }
+
+    /// <summary>
+    ///     Validates that the text mark is supported, that the <c>text</c> channel is drawn by it only (any other mark reports <c>vl-channel-text</c> and ignores the channel), that a binned
+    ///     text field is supported, that a custom <c>formatType</c> of the channel is reported and the evaluated ones are not, and that the <c>size</c> and <c>angle</c> channels are drawn by text.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_TextIsSupportedAndItsChannelsAreGated()
+    {
+        // Assert: the mark is not reported, as a string and as a definition, with its own properties
+        Assert.Empty(Visit("""{ "mark": "text" }"""));
+        Assert.Empty(Visit("""{ "mark": { "type": "text", "text": ["a", "b"], "lineBreak": "|", "limit": 40, "fontWeight": 700 } }"""));
+
+        // Assert: the text channel is drawn by the text mark, with a size, an angle, a format and a bin
+        Assert.Empty(Visit(
+            """
+            { "mark": "text", "encoding": { "x": { "field": "a", "type": "quantitative" }, "size": { "field": "b", "type": "quantitative" }, "angle": { "value": 30 },
+              "text": { "field": "c", "type": "quantitative", "format": ".2f", "formatType": "number", "bin": true } } }
+            """));
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "temporal", "format": "%Y", "formatType": "utc" } } }"""));
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "text": { "value": ["a", "b"] } } }"""));
+
+        // Assert: every other mark ignores the channel and says so at the channel
+        foreach (var mark in new[] { "point", "circle", "square", "bar", "rect", "tick", "rule", "line", "area", "trail" })
+        {
+            Assert.Equal(
+                [("vl-channel-text", "/encoding/text")],
+                Visit("{ \"mark\": \"" + mark + "\", \"encoding\": { \"text\": { \"field\": \"c\", \"type\": \"nominal\" } } }"));
+        }
+
+        // Assert: a custom format type is reported at the formatType; number, time and utc are evaluated
+        Assert.Equal(
+            [("vl-format-type-custom", "/encoding/text/formatType")],
+            Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "quantitative", "format": "x", "formatType": "mine" } } }"""));
+        foreach (var formatType in new[] { "number", "time", "utc" })
+        {
+            Assert.Empty(Visit("{ \"mark\": \"text\", \"encoding\": { \"text\": { \"field\": \"c\", \"type\": \"quantitative\", \"formatType\": \"" + formatType + "\" } } }"));
+        }
+
+        // Assert: a bin that is binned already has no meaning for a label (the position channels read it), a plain bin does
+        Assert.Equal(
+            [("vl-encoding-bin", "/encoding/text/bin")],
+            Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "quantitative", "bin": "binned" } } }"""));
     }
 }

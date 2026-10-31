@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <summary>
 ///     Builds the scene items of the mark of a single view: <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>,
-///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c> and <c>trail</c>, and the point and line overlays of the path marks.
+///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c> and <c>text</c>, and the point and line overlays of the path marks.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -70,6 +70,14 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         rows of every other mark when the marks are not stacked.
 ///     </para>
 ///     <para>
+///         <b>Text.</b> A <c>text</c> mark draws one <see cref="SceneText"/> per row (role <c>mark-text</c>) at its <c>x</c> and <c>y</c> (the middle of the data rectangle for an absent channel), moved by the polar offset of its
+///         <c>radius</c> and <c>theta</c> (pixels and radians clockwise from twelve o'clock; the mark properties of the same names are the constants) and by <c>dx</c> and <c>dy</c>. The text of a row is
+///         the <c>text</c> channel (a field formatted by its <c>format</c>: a d3 number format, or a time format for a temporal field, a time unit or <c>formatType</c> <c>time</c> or <c>utc</c>; a binned field is
+///         <c>start – end</c>; any other value is its JavaScript text; or a <c>datum</c> or <c>value</c>), else the <c>text</c> property of the mark; an array is one line for each element, and the <c>lineBreak</c> of the mark
+///         splits a text. The characters of a label are bounded by <see cref="VegaLiteLimits.MaxStringLength"/> and those of all the labels of a mark by sixteen times that, before the labels are formatted
+///         or kept, and the lines of a label are charged to the scene budget as items.
+///     </para>
+///     <para>
 ///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
 ///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
@@ -104,7 +112,7 @@ internal sealed partial class MarkBuilder
     private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text"];
 
     /// <summary>The marks whose missing fill is transparent instead of none (Vega-Lite's <c>transparentIfNeeded</c>).</summary>
     private static readonly HashSet<string> TransparentMarks = ["bar", "point", "circle", "square"];
@@ -124,6 +132,9 @@ internal sealed partial class MarkBuilder
     /// <summary>The compiled expressions and the evaluator of the call, or null when there are none.</summary>
     private readonly RowExpressions? _expressions;
 
+    /// <summary>The longest text of one label of a text mark (<see cref="VegaLiteLimits.MaxStringLength"/>).</summary>
+    private readonly int _maxStringLength;
+
     /// <summary>
     ///     Initializes a mark builder.
     /// </summary>
@@ -138,6 +149,7 @@ internal sealed partial class MarkBuilder
         ArgumentNullException.ThrowIfNull(config);
         _config = config;
         _budget = budget ?? new SceneBudget((limits ?? VegaLiteLimits.Default).MaxSceneItems);
+        _maxStringLength = (limits ?? VegaLiteLimits.Default).MaxStringLength;
         _sourceName = sourceName;
         _expressions = expressions;
     }
@@ -146,7 +158,7 @@ internal sealed partial class MarkBuilder
     ///     Tells whether this builder draws a mark type.
     /// </summary>
     /// <param name="markType">The mark type, such as <c>bar</c>.</param>
-    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c> and <c>trail</c>.</returns>
+    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c> and <c>text</c>.</returns>
     public static bool IsSupported(string? markType) => markType is not null && SupportedMarks.Contains(markType);
 
     /// <summary>
@@ -494,7 +506,7 @@ internal sealed partial class MarkBuilder
             }
 
             var encoding = view["encoding"] is { IsObject: true } e ? e : null;
-            foreach (var name in new[] { "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle" })
+            foreach (var name in new[] { "x", "y", "theta", "radius", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle" })
             {
                 // An overlay shares the scales of the mark it overlays: a channel that the mark does not draw has no scale and is not read
                 if (overlay is not null && encoding?[name] is { IsObject: true } unscaled && scales[name] is null && unscaled["value"] is null)
@@ -505,11 +517,18 @@ internal sealed partial class MarkBuilder
                 if (encoding?[name] is { IsObject: true } node && (name is not ("shape" or "angle" or "strokeDash") || ScaleResolver.ChannelIsDrawn(name, type)))
                 {
                     var scale = scales[name];
-                    var extent = name == "x" ? width : height;
+
+                    // The radius of a polar scale runs to half of the smaller side of the data rectangle; an angle needs no extent
+                    var extent = name switch
+                    {
+                        "x" => width,
+                        "radius" => Math.Min(width, height) / 2,
+                        _ => height,
+                    };
                     _channels[name] = new Channel(
                         node,
                         scale,
-                        scale?.CreateModel(name is "x" or "y" ? extent : 0),
+                        scale?.CreateModel(name is "x" or "y" or "radius" ? extent : 0),
                         table,
                         owner._expressions?.Compiled.GetReference(node["value"]),
                         name is "x" or "y" && overlay is null && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
@@ -567,6 +586,7 @@ internal sealed partial class MarkBuilder
                 "tick" => Ticks(),
                 "rule" => Rules(),
                 "line" or "area" or "trail" => Paths(),
+                "text" => Texts(),
                 _ => Symbols(),
             };
             if (_overlay is null)

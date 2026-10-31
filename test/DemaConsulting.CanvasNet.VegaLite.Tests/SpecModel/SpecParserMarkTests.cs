@@ -99,6 +99,41 @@ public class SpecParserMarkTests
     }
 
     /// <summary>
+    ///     Validates that the properties of the text mark take their kinds (a text, a list of lines or an expression for <c>text</c>; a text for <c>fontStyle</c>, <c>ellipsis</c> and
+    ///     <c>lineBreak</c>; a text or a number for <c>fontWeight</c>; a number for <c>limit</c> and <c>lineHeight</c>) and that a wrong kind is a located error at the value.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_ValidatesTextMarkProperties()
+    {
+        // Assert: every property is accepted in each of its kinds, without a warning
+        string[] valid =
+        [
+            "\"text\":\"label\"", "\"text\":[\"a\",\"b\"]", "\"text\":{\"expr\":\"'x'\"}", "\"fontStyle\":\"italic\"", "\"fontStyle\":{\"expr\":\"'x'\"}",
+            "\"fontWeight\":\"bold\"", "\"fontWeight\":700", "\"fontWeight\":{\"expr\":\"700\"}", "\"limit\":50", "\"limit\":{\"expr\":\"50\"}", "\"ellipsis\":\"..\"",
+            "\"lineBreak\":\"\\n\"", "\"lineBreak\":\"|\"", "\"lineHeight\":14", "\"dx\":2", "\"dy\":-3", "\"angle\":45", "\"align\":\"left\"", "\"baseline\":\"top\"",
+            "\"font\":\"Georgia\"", "\"fontSize\":12", "\"radius\":30", "\"theta\":1",
+        ];
+        foreach (var property in valid)
+        {
+            Assert.Empty(SpecParser.Parse(Spec("text", property)).Warnings);
+        }
+
+        // Assert: a wrong kind is an error at the value of the property
+        (string Property, string Pointer)[] invalid =
+        [
+            ("\"text\":5", "/mark/text"), ("\"text\":true", "/mark/text"), ("\"text\":{}", "/mark/text"), ("\"fontStyle\":2", "/mark/fontStyle"),
+            ("\"fontWeight\":true", "/mark/fontWeight"), ("\"fontWeight\":null", "/mark/fontWeight"), ("\"limit\":\"wide\"", "/mark/limit"), ("\"ellipsis\":1", "/mark/ellipsis"),
+            ("\"lineBreak\":5", "/mark/lineBreak"), ("\"lineHeight\":\"tall\"", "/mark/lineHeight"),
+        ];
+        foreach (var (property, pointer) in invalid)
+        {
+            var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(Spec("text", property), "t.json"));
+            Assert.Equal(pointer, ex.Location.Pointer);
+            Assert.Equal("t.json", ex.Location.File);
+        }
+    }
+
+    /// <summary>
     ///     Validates that the objects of the <c>point</c> and <c>line</c> overlays are checked like mark definitions: a wrong value is a located error, an unknown
     ///     property is warned about at its key, and the expression references inside them are reported by the feature catalog as not evaluated.
     /// </summary>
