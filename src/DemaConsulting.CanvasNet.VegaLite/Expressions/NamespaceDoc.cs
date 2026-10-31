@@ -11,8 +11,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         The engine is a closed world. The language is a subset of JavaScript that has literals, <c>datum</c> access,
 ///         the arithmetic, comparison, logical and conditional operators and calls of whitelisted pure functions;
 ///         there is no reflection, <c>eval</c>, assignment, <c>new</c>, function expression, file or network access,
-///         random number source or clock. Date and time, formatting, color, geographic, scale, statistical and data-flow
-///         functions are deferred to later phases; calls of them, view state (<c>signal</c>, <c>event</c>,
+///         random number source or clock. The date and time functions use the calendar of the render (UTC unless a time zone
+///         is given); number formatting, color, geographic, scale, statistical and data-flow functions are deferred to
+///         later phases, and so is the clock function <c>now</c>; calls of them, view state (<c>signal</c>, <c>event</c>,
 ///         <c>item()</c>) and the bitwise operators are parsed and collected so that the feature catalog can report them
 ///         with stable identifiers, and they evaluate to null.
 ///     </para>

@@ -1042,10 +1042,10 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             {
-              "params": [ { "name": "p", "expr": "datetime(2020, 1, 1)" }, { "name": "width", "value": 3 } ],
+              "params": [ { "name": "p", "expr": "geoArea(1)" }, { "name": "width", "value": 3 } ],
               "data": { "values": [ { "a": 1 } ] },
               "transform": [
-                { "calculate": "timeFormat(datum.d, '%Y')", "as": "y" },
+                { "calculate": "gradient(datum.d, 1)", "as": "y" },
                 { "filter": "signal('a') || event.x" },
                 { "calculate": "datum.a & 3 in datum.b", "as": "z" },
                 { "calculate": "height / 2 + width", "as": "w" },
@@ -1062,8 +1062,8 @@ public class FeatureCatalogTests
         // Assert: one report per construct, at the expression text, in document order (width is a declared parameter here)
         Assert.Equal(
             [
-                ("vl-expr-function-datetime", "/params/0/expr"),
-                ("vl-expr-function-timeformat", "/transform/0/calculate"),
+                ("vl-expr-function-geoarea", "/params/0/expr"),
+                ("vl-expr-function-gradient", "/transform/0/calculate"),
                 ("vl-expr-view-state", "/transform/1/filter"),
                 ("vl-expr-view-state", "/transform/1/filter"),
                 ("vl-expr-construct-bitwise-and", "/transform/2/calculate"),
@@ -1078,7 +1078,7 @@ public class FeatureCatalogTests
         Assert.Contains("'height'", reports[6].Message, StringComparison.Ordinal);
 
         // Assert: the identifier is lower case while the message keeps the function name as written
-        Assert.Contains("'timeFormat'", reports[1].Message, StringComparison.Ordinal);
+        Assert.Contains("'gradient'", reports[1].Message, StringComparison.Ordinal);
 
         // Assert: the location is that of the string value, so the first report is at line 2 (the parameter) and a strict render stops there
         Assert.Equal(2, reports[0].Location.Line);
@@ -1095,7 +1095,7 @@ public class FeatureCatalogTests
         const string json = """
             {
               "data": { "values": [ { "a": 1 } ] },
-              "transform": [ { "calculate": "timeFormat(datum.d, '%Y') + timeformat(datum.d, '%Y') + TIMEFORMAT(datum.d, '%Y')", "as": "y" } ],
+              "transform": [ { "calculate": "gradient(datum.d, 1) + GRADIENT(datum.d, 1) + Gradient(datum.d, 1)", "as": "y" } ],
               "mark": "point",
               "encoding": { "x": { "field": "a", "type": "quantitative" } }
             }
@@ -1106,10 +1106,10 @@ public class FeatureCatalogTests
 
         // Assert: three reports with one identifier and distinct messages, in offset order
         Assert.Equal(3, reports.Count);
-        Assert.All(reports, r => Assert.Equal("vl-expr-function-timeformat", r.Id));
-        Assert.Contains("'timeFormat'", reports[0].Message, StringComparison.Ordinal);
-        Assert.Contains("'timeformat'", reports[1].Message, StringComparison.Ordinal);
-        Assert.Contains("'TIMEFORMAT'", reports[2].Message, StringComparison.Ordinal);
+        Assert.All(reports, r => Assert.Equal("vl-expr-function-gradient", r.Id));
+        Assert.Contains("'gradient'", reports[0].Message, StringComparison.Ordinal);
+        Assert.Contains("'GRADIENT'", reports[1].Message, StringComparison.Ordinal);
+        Assert.Contains("'Gradient'", reports[2].Message, StringComparison.Ordinal);
         Assert.Equal(3, reports.Select(r => r.Message).Distinct(StringComparer.Ordinal).Count());
     }
 

@@ -757,6 +757,19 @@ words:
   - yearweekdayhours
   - yearweekdayhoursminutes
   - yearweekdayhoursminutesseconds
+  - geoarea
+  - isoweek
+  - timezoneoffset
+  - utcdate
+  - utcday
+  - utchours
+  - utcisoweek
+  - utcmilliseconds
+  - utcminutes
+  - utcquarter
+  - utcseconds
+  - utcweek
+  - utcyear
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

@@ -49,6 +49,9 @@ internal sealed class ExpressionFunctionContext
     /// <summary>The compiled regular expressions of this evaluation by flags and source.</summary>
     private readonly Dictionary<string, ExpressionRegex> _regexCache = new(StringComparer.Ordinal);
 
+    /// <summary>The compiled time formatters of this evaluation by specifier.</summary>
+    private readonly Dictionary<string, TimeFormatter> _timeFormatCache = new(StringComparer.Ordinal);
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="ExpressionFunctionContext"/> class.
     /// </summary>
@@ -73,6 +76,9 @@ internal sealed class ExpressionFunctionContext
 
     /// <summary>Gets the calendar of the date and time functions: the zone of local dates, UTC unless the render was given a time zone.</summary>
     public TimeCalendar Calendar { get; }
+
+    /// <summary>Gets the cancellation token of the call, for functions that run their own loops.</summary>
+    public CancellationToken CancellationToken => _cancellationToken;
 
     /// <summary>Gets the step budget of the evaluation.</summary>
     public long MaxSteps { get; }
@@ -112,10 +118,17 @@ internal sealed class ExpressionFunctionContext
     /// <param name="size">The number of characters or elements touched.</param>
     /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
     /// <exception cref="OperationCanceledException">Thrown when cancellation was requested at a check point.</exception>
-    public void ChargeSize(long size)
+    public void ChargeSize(long size) => ChargeSteps(size / CharactersPerStep);
+
+    /// <summary>
+    ///     Counts a number of whole steps, for work that costs one step for every element it produces.
+    /// </summary>
+    /// <param name="units">The number of steps; zero and negative counts cost nothing.</param>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when cancellation was requested at a check point.</exception>
+    public void ChargeSteps(long units)
     {
         // Small inputs cost nothing extra: the instruction that called the function was already counted
-        var units = size / CharactersPerStep;
         if (units <= 0)
         {
             return;
@@ -144,9 +157,37 @@ internal sealed class ExpressionFunctionContext
     {
         if (length > MaxStringLength)
         {
-            throw new ExpressionRuntimeException(
-                $"The expression produced a string longer than the limit of {MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
+            throw StringLimitExceeded();
         }
+    }
+
+    /// <summary>
+    ///     Creates the exception for a string that is longer than <see cref="MaxStringLength"/>.
+    /// </summary>
+    /// <returns>The exception.</returns>
+    public ExpressionRuntimeException StringLimitExceeded() =>
+        new($"The expression produced a string longer than the limit of {MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
+
+    /// <summary>
+    ///     Gets the compiled formatter of a time format specifier, from the cache when it was used before.
+    /// </summary>
+    /// <param name="specifier">The d3 time format specifier.</param>
+    /// <returns>The formatter.</returns>
+    public TimeFormatter GetTimeFormatter(string specifier)
+    {
+        if (_timeFormatCache.TryGetValue(specifier, out var cached))
+        {
+            return cached;
+        }
+
+        var created = TimeFormat.Compile(specifier);
+        if (_timeFormatCache.Count >= RegexCacheSize)
+        {
+            _timeFormatCache.Clear();
+        }
+
+        _timeFormatCache[specifier] = created;
+        return created;
     }
 
     /// <summary>

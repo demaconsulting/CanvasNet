@@ -108,6 +108,31 @@ internal sealed class TimeUnitSpec
         ["hours-minutes"] = "%H:%M",
     };
 
+    /// <summary>The unit names of Vega's <c>TIME_UNITS</c> in order, including the ISO week.</summary>
+    private static readonly string[] VegaUnitNames =
+        ["year", "quarter", "month", "week", "isoweek", "date", "day", "dayofyear", "hours", "minutes", "seconds", "milliseconds"];
+
+    /// <summary>The label specifiers of Vega's <c>timeUnitSpecifier</c> without the Vega-Lite overrides.</summary>
+    private static readonly Dictionary<string, string> VegaDefaultSpecifiers = new(StringComparer.Ordinal)
+    {
+        ["year"] = "%Y ",
+        ["quarter"] = "Q%q ",
+        ["month"] = "%b ",
+        ["date"] = "%d ",
+        ["week"] = "W%U ",
+        ["isoweek"] = "W%V ",
+        ["day"] = "%a ",
+        ["dayofyear"] = "%j ",
+        ["hours"] = "%H:00",
+        ["minutes"] = "00:%M",
+        ["seconds"] = ":%S",
+        ["milliseconds"] = ".%L",
+        ["year-isoweek"] = "%G W%V ",
+        ["year-month"] = "%Y-%m ",
+        ["year-month-date"] = "%Y-%m-%d ",
+        ["hours-minutes"] = "%H:%M",
+    };
+
     /// <summary>The intervals of Vega's <c>timeBin</c> table in increasing duration: the parts, the step and the duration.</summary>
     private static readonly (string[] Parts, double Step, double Duration)[] BinIntervals =
     [
@@ -291,7 +316,62 @@ internal sealed class TimeUnitSpec
             return null;
         }
 
-        // Each step takes the longest run of parts that has a specifier of its own, as Vega does
+        return JoinSpecifiers(units, key => Specifiers.GetValueOrDefault(key));
+    }
+
+    /// <summary>
+    ///     Builds the label specifier of a list of Vega time units with Vega's own defaults (the expression function
+    ///     <c>timeUnitSpecifier(units, specifiers)</c>); the Vega-Lite overrides of <see cref="Specifier"/> are not applied.
+    /// </summary>
+    /// <param name="units">
+    ///     The Vega time unit names: <c>year</c>, <c>quarter</c>, <c>month</c>, <c>week</c>, <c>isoweek</c>, <c>date</c>,
+    ///     <c>day</c>, <c>dayofyear</c>, <c>hours</c>, <c>minutes</c>, <c>seconds</c> and <c>milliseconds</c>.
+    /// </param>
+    /// <param name="overrides">The specifiers that replace the defaults, keyed by a unit or a <c>-</c> joined run of units; or null.</param>
+    /// <param name="specifier">The d3 time format, such as <c>%Y-%m</c>.</param>
+    /// <returns>
+    ///     True when the units are valid: at least one, all known, and not mixing the week, quarter/month/date and day of year
+    ///     families or the week with the ISO week (the combinations Vega rejects).
+    /// </returns>
+    public static bool TryGetUnitSpecifier(IReadOnlyList<string> units, IReadOnlyDictionary<string, string>? overrides, out string specifier)
+    {
+        specifier = string.Empty;
+        if (units.Count == 0 || units.Count > VegaUnitNames.Length)
+        {
+            return false;
+        }
+
+        // A unit twice is not a valid list (and a long list of one unit would make the matching below expensive)
+        var seen = new HashSet<string>(units, StringComparer.Ordinal);
+        if (seen.Count != units.Count || !seen.IsSubsetOf(VegaUnitNames))
+        {
+            return false;
+        }
+
+        var families = (seen.Overlaps(["week", "isoweek", "day"]) ? 1 : 0)
+            + (seen.Overlaps(["quarter", "month", "date"]) ? 1 : 0)
+            + (seen.Contains("dayofyear") ? 1 : 0);
+        if (families > 1 || (seen.Contains("week") && seen.Contains("isoweek")))
+        {
+            return false;
+        }
+
+        // The units are sorted into Vega's order; the sort is stable so equal names keep their place
+        var sorted = units.OrderBy(u => Array.IndexOf(VegaUnitNames, u)).ToArray();
+        specifier = JoinSpecifiers(sorted, key =>
+            overrides is not null && overrides.TryGetValue(key, out var custom) ? custom : VegaDefaultSpecifiers.GetValueOrDefault(key));
+        return true;
+    }
+
+    /// <summary>
+    ///     Joins the specifiers of the longest runs of units that have one, as Vega's <c>timeUnitSpecifier</c> does.
+    /// </summary>
+    /// <param name="units">The units in Vega's order.</param>
+    /// <param name="lookup">Gets the specifier of a <c>-</c> joined run of units, or null when the run has none.</param>
+    /// <returns>The specifiers joined and trimmed.</returns>
+    private static string JoinSpecifiers(string[] units, Func<string, string?> lookup)
+    {
+        // Each step takes the longest run of parts that has a specifier of its own; a unit without one is skipped
         var format = new StringBuilder();
         var start = 0;
         while (start < units.Length)
@@ -299,7 +379,8 @@ internal sealed class TimeUnitSpec
             var matched = false;
             for (var end = units.Length; end > start && !matched; end--)
             {
-                if (Specifiers.TryGetValue(string.Join('-', units[start..end]), out var specifier))
+                var specifier = lookup(string.Join('-', units[start..end]));
+                if (specifier is not null)
                 {
                     format.Append(specifier);
                     start = end;
