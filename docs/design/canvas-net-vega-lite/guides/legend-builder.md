@@ -28,7 +28,8 @@ unit's behavior is specified by the `CanvasNetVegaLite-Guides-LegendBuilder-*` r
 
 - `LegendMember` - one channel that a legend explains: the channel, its `ResolvedScale`, the `ScaleModel` (a legend scale
   does not depend on the size of the data rectangle), the channel definition and its `legend` object.
-- `LegendMarkFacts` - what the symbols stand for: whether the mark is filled, its fixed fill and stroke (the same rules
+- `LegendMarkFacts` - what the symbols stand for: whether the mark is filled (a **trail is never filled for its legend**,
+  see the paragraph on the path, area, arc, and text marks below), its fixed fill and stroke (the same rules
   the marks use), the opacity (0.7 for point-like marks, or the constant opacity channel), the fixed shape, the stroke
   width, dash, fill and stroke opacity, and whether a field drives the fill or the stroke.
 - `LegendSettings` - property lookup: the `legend` objects of the members (the first member that has a property wins,
@@ -83,7 +84,20 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   the requirements. Entry boxes are the union of the symbol box (the shape box grown by two stroke widths for a
   stroked symbol, Vega's miter allowance) and the label box; the grid layout (`GridLayout`, a port of Vega's `layout`
   with align each, row padding 2, column padding 10, the rows centered) gives the position of each entry; a vertical
-  legend with several columns fills them from top to bottom. **Temporal symbol legends** (`LegendBuilder.Time.cs`): a
+  legend with several columns fills them from top to bottom. **Path, area, arc, and text marks** (the symbol that stands
+  for each mark): the shape of the symbols of a legend that has no shape scale is the `symbolType` of the legend, else
+  the fixed shape of the mark, else the shape of the mark: a `square` for a bar, rect, image, and square, the **`stroke`
+  shape** (a short line) for a **line, rule, and trail**, and a circle (or the `symbolType` of the configuration) for
+  every other mark, so an **area, an arc, and a text mark have filled circles**. A mark is filled by its `filled` property
+  or by the default of the mark type (`ConfigResolver.IsFilledByDefault`), **except that a trail is never filled for its
+  legend**: Vega-Lite's legend encoding paints a symbol as filled only when `filled && mark !== 'trail'`, so a trail, which
+  is filled by default, gets a `stroke` symbol painted with the stroke color (the color of the category is the stroke,
+  and the fill is `transparent`), as a line does. This was a fix of `LegendPlan` (in the creation of `LegendMarkFacts`);
+  before it the trail got the stroke-shaped symbol with the category color as its fill. The stroke width of a line,
+  rule, or trail symbol is the default of a legend symbol, **1.5**, because Vega-Lite's legend encoding does not read the
+  width of Vega's line style; a `strokeWidth` that the mark definition gives wins. Text and arc marks have filled circles
+  of the default symbol size, and the font size that a `size` channel gives a text mark is shown as the size of the
+  symbol. **Temporal symbol legends** (`LegendBuilder.Time.cs`): a
   size or opacity on a **time or UTC** scale (and a temporal color asked to be shown as symbols) has as values the explicit
   `values` or the **time ticks** of the domain (the count is `tickCount` or 5, limited by `tickMinStep`, or an interval
   name or `{interval, step}`), labeled as dates; the discrete values of an ordinal or nominal field **with a time unit**
@@ -158,8 +172,9 @@ the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegrap
 #### Callers
 
 `VegaLiteDocument` and `LegendLayout` of the `Layout` subsystem (which also calls `LegendBuilder.GridLayout`). The
-tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendBuilderTests.cs`, and
-`LegendBuilderTimeTests.cs` call the
+tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendBuilderTests.cs`,
+`LegendBuilderTimeTests.cs`, and `LegendBuilderPathMarkTests.cs` (the symbols of the line, rule, trail, area, arc, and text
+marks) call the
 unit directly through `InternalsVisibleTo`.
 
 #### Deviations From Vega-Lite

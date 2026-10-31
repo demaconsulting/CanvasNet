@@ -12,14 +12,15 @@ source files in the `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, al
 - `AggregateTransforms.Bin.cs` - the `bin` transform and the names of its two output fields
 - `AggregateTransforms.Window.cs` - the `window` transform and the window engine (`WindowRun`, `WindowSpec`)
 - `AggregateTransforms.Stack.cs` - the `stack` transform and the stack engine, `StackOffset`, and `SortField`
-- `AggregateTransforms.Impute.cs` - the `impute` transform
+- `AggregateTransforms.Impute.cs` - the `impute` transform, the typed `ImputeField` entry that the encoding stage
+  calls, and `ReadImputeParameters`
 - `AggregateMeasures.cs` - `AggregateOp` and `WindowOp` (the operation names) and the `AggregateMeasures`
   registry (parsing, canonical names, which operation needs a field or a parameter) and the R-7 `Quantile`
 - `AggregateMeasures.Cell.cs` - `MeasureCell` (the accumulator of one operation over a group or a frame),
   `AggregateSpec`, and `MeasureEnvironment`
 - `BinAlgorithm.cs` - `BinSettings`, `BinSpec`, and `BinAlgorithm` (the port of the Vega bin algorithm)
-- `StackRules.cs` - `StackRules` and `StackDecision` (Vega-Lite's decision that a view stacks, from the
-  specification alone)
+- `StackRules.cs` - `StackRules` and `StackDecision` (Vega-Lite's decision that a view stacks, on the Cartesian and
+  the polar channels, from the specification alone)
 - `WorkMeter.cs` - `WorkMeter` (charges work proportional to a number of elements to the step budget)
 - `StableSorter.cs` - `StableSorter` (a stable, cancelable merge sort of row numbers)
 - `TransformContext.cs` - shared with _RowTransforms_; it gained `Locate`, `Tick`, and `CheckText` for these
@@ -106,7 +107,8 @@ group order and then key order, with the group fields, the key, and the imputed 
 The imputed field is the `value` (default 0; an explicit null is honored) or, for `mean`, `median`, `min`, and
 `max`, that operation over the `frame` (default `[null, null]`) of the group in data order, and replaces every
 null of the field, including the nulls that were already in the rows (the pair of a window and a formula in
-Vega-Lite).
+Vega-Lite). The same engine serves the `impute` property of an encoding and the implicit impute of a stacked line or
+area (see _EncodingPlan_); it does not know where its parameters come from.
 
 **Bin.** `BinSettings` holds the parameters (`maxbins` 20 when the algorithm is used raw, `base` 10, `divide`
 `[5, 2]`, `step`, `steps`, `minstep`, `nice` true, `anchor`, `extent`; the `bin` transform and the position
@@ -119,10 +121,16 @@ an explicit `extent` fall in the bins at minus and plus infinity.
 offset, stack-by definitions) or null. A mark is stackable when it is `arc`, `area`, `bar`, `rule`, `point`,
 `circle`, `square`, `line`, `text`, or `tick`; `arc`, `area`, and `bar` stack by default (offset `zero`) and the
 others only with an explicit `stack`. The stacked channel is the unbinned quantitative one of `x` and `y` (the
-aggregating one wins when both are, then the `orient` of a bar or area). The group-by is the other position
-channel. The stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
+aggregating one wins when both are, then the `orient` of a bar or area). **When `x` and `y` give no stack, the same
+rule is applied to the polar pair `theta` and `radius`** (Vega-Lite's `potentialStackedChannel`): the unbinned
+quantitative one is stacked, the aggregating one wins when both are, and an explicit `stack` decides before that;
+the `orient` of a bar or area applies to `x` and `y` only. `StackRules.DimensionChannel(channel)` pairs the channels
+(`x` with `y`, `theta` with `radius`). The group-by is the dimension channel (the other channel of the pair), unless it
+reads the stacked field itself (a radial chart reads its `theta` and its `radius` from one field). The
+stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
 is excluded; `order` counts). There is no stack when an aggregating encoding has no stack-by field, when the
-stacked channel has a range (`x2` or `y2` with a field, datum, or aggregate), when `stack` is false or null, or when
+stacked channel has a range (`x2`, `y2`, `theta2`, or `radius2` with a field, datum, or aggregate: a ranged mark draws
+its own extent), when `stack` is false or null, or when
 the stacked channel's `scale.type` is `log`, `pow`, `sqrt`, or `symlog` (Vega-Lite warns that it cannot stack on a
 non-linear scale and draws the marks from the baseline).
 
@@ -167,11 +175,18 @@ clock, the environment, a random source, or the current culture.
   `sort`, the encoding stage builds it from the `order` channel or from the stack-by fields (see _EncodingPlan_).
   The default output names of the `stack` transform are `field_start` and `field_end`; an `as` of one name gives
   `name` and `name_end`.
-- `Impute(...)` - bounds the result before allocating it, in this order: the number of `keyvals` against
+- `Impute(...)` - the engine of the `impute` transform. `ReadImputeParameters(parameters)` (internal, static) reads the
+  `method` (default `value`), the `value` (default 0), and the `frame` from a transform object or from the `impute`
+  object of a channel definition, so that the two forms mean the same. `ImputeField(input, field, key, groupBy, method,
+  value, frame, keyValues, seed, location, releaseInput)` (internal) is the typed entry behind the transform, which the
+  encoding stage calls with the parameters it read (and the implicit impute of a stack calls with the constant 0). Its
+  optional last parameter `releaseInput` (default true) says whether the input rows are given back to the row budget
+  once the result exists; the encoding stage passes false when the imputed table is the Raw table that a scale still
+  reads. The engine bounds the result before allocating it, in this order: the number of `keyvals` against
   `MaxDataRows` (before any value is materialized); `groups * keys` rows reserved in the row budget (a lower
   bound of the result) and checked against 2^25; one bit per combination marks the present ones; the exact
   remainder of the rows is reserved; `MaxFieldCount` and the cell count are checked; the table is allocated; the
-  nulls are replaced for the window methods; the input rows are released.
+  nulls are replaced for the window methods; the input rows are released (unless `releaseInput` is false).
 - `BinAlgorithm.Compute(min, max, settings, maxBinsLimit, location)` - the port of Vega's `bin`. The span is
   `max - min` (the magnitude of a single value, 1 for zero); the start step is
   `max(minstep, base^(round(log_base(span)) - ceil(log_base(maxbins))))`, multiplied by the base while
@@ -207,7 +222,7 @@ charges the `WorkMeter`; every limit message contains `the limit of` or `VegaLit
 | `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
 | `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |
 | `stack` | Unchanged | 2 + group fields per group; sort keys; `TableLayout` | 1 per row for the copy and 1 for the number, the group size per group, n log n per sort |
-| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end (peak: input plus output) | `keyvals` count against `MaxDataRows`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
+| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
 <!-- markdownlint-enable MD013 -->
 
 **Preconditions and postconditions**: `SpecParser` validated the transform shapes (operation names, parameters,
@@ -271,7 +286,8 @@ output, as documented per operation. The unit performs no I/O.
 #### Callers
 
 `RowTransforms.Apply` dispatches the six transform names to `AggregateTransforms.Apply`. `EncodingTransforms`
-calls the `Aggregate` and `Stack` engines and `BinAlgorithm` for the implicit pipeline of a view (see
+calls the `Aggregate`, `ImputeField`, and `Stack` engines, `ReadImputeParameters`, and `BinAlgorithm` for the implicit
+pipeline of a view (see
 _EncodingPlan_), and `EncodingPlan` uses `StackRules`, `BinSettings`, `AggregateSpec`, and `AggregateMeasures`.
 `ScaleResolver` uses `MeasureCell`, `MeasureEnvironment`, `WorkMeter`, `BinSpec`, and `AggregateMeasures` to sort
 categories by an aggregate and to read the bins. `SpecParser` (`SpecParser.Aggregates.cs`) uses

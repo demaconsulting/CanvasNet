@@ -45,8 +45,10 @@ expressions and the constructs they collect), `FieldPath`, `ParseDirectives`, `T
 `JsDateParser` of the `Data` subsystem (field names, the `parse` entry rule, and the time unit, date-time object, and
 date text rules of the time validation), `AggregateMeasures` and `StackRules`
 of
-the `Transforms` subsystem (the operation names and the stack decision), and `ScaleResolver.InferOrient` of the `Scales`
-subsystem (so that the catalog reports `order` exactly when the plan will stack). The .NET base class
+the `Transforms` subsystem (the operation names and the stack decision), and `ScaleResolver.InferOrient` and
+`ScaleResolver.ChannelIsDrawn` of the `Scales`
+subsystem (so that the catalog decides the stack of a view exactly as the plan does, for the stack check, the warning
+about a binned dimension of a stacked path mark, and the channels that a mark does not draw). The .NET base class
 library supplies `System.Text.Json`, `System.Text`, and `System.Globalization`.
 
 **Consumers**: `VegaLiteDocument` (parse, metadata, reports, and configuration), the `Data` subsystem (`DataLoader`
@@ -78,7 +80,10 @@ Values the validator does not check are left to the stage that uses them.
 **The catalog is the boundary of support.** `FeatureCatalog` is the single place that defines which recognized
 constructs the renderer does not draw. It is a pure function of the tree and returns one report per construct, sorted
 by position. Supported constructs are simply absent from its output, so moving a construct from deferred to supported
-is an edit of the catalog's supported sets together with the unit that draws it. The document merges the catalog
+is an edit of the catalog's supported sets together with the unit that draws it: the supported marks of the catalog and
+`MarkBuilder.SupportedMarks` change in the same commit, and a channel that a mark does
+not draw is reported from the same support table as the scale resolver's (`ScaleResolver.ChannelIsDrawn`), so the report
+and the drawing cannot disagree. The document merges the catalog
 reports with the parse warnings once.
 
 **Configuration is a merged tree, not a bag of constants.** `ConfigResolver` builds one `ConfigNode` tree from the Vega

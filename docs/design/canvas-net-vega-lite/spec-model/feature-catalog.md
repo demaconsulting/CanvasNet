@@ -26,10 +26,11 @@ construct (the value; for an unknown property or a duplicate key, the key), and 
 `UnsupportedFeature` (a recognized construct that is not rendered, delivered as a `VegaLiteUnsupportedFeature`).
 
 **The supported sets** are private read-only sets in the class and define the boundary: the supported marks (bar, rect,
-point, circle, square, rule, tick), the supported channels (x, y, color, fill, stroke, size, opacity, shape, strokeWidth,
-strokeDash, fillOpacity, strokeOpacity, angle), the marks that
-draw a range between a position channel and its secondary channel (bar, rect, rule), the channels on which `bin` is
-applied (x, y, and every channel that has a scale), the ignored
+point, circle, square, rule, tick, line, area, trail, text, arc), the supported channels (x, y, color, fill, stroke, size,
+opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2; `order`
+and `detail` are accepted by every mark and are not in the set), the marks that
+draw a range between a position channel and its secondary channel (bar, rect, rule, area), the channels on which `bin` is
+applied (x, y, `text`, and every channel that has a scale), the ignored
 channels (tooltip, href, description, key), the geographic channels, the legend channels (color, fill, stroke, size,
 opacity, shape, strokeWidth, strokeDash), the supported scale types
 (linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold,
@@ -53,16 +54,18 @@ other names taken from the specification (the message keeps the function name as
 those constructs are supported and absent from the
 result; so are `vl-encoding-aggregate` and `vl-encoding-stack` (and the report of an implicit bar stack), because
 `aggregate`, `stack`, and `bin` on `x` and `y` are computed. The phase 6 identifiers are `vl-encoding-bin` (now only for
-a `bin: "binned"` on a channel other than `x` and `y`, and for a `bin` on a channel that cannot bin: `order` and the
-secondary channels; the other channels that have a scale bin from the data since phase 7), `vl-encoding-bin-extent-param`
+a `bin: "binned"` on a channel other than `x` and `y`, and for a `bin` on a channel that cannot bin: `order`, the
+secondary channels, and (since phase 9) `theta` and `radius`, whose bins are not drawn; the other channels that have a scale
+bin from the data since phase 7, and `text` since phase 9), `vl-encoding-bin-extent-param`
 and `vl-transform-bin-extent-param` (a bin extent that
 is a parameter; the
 extent of the data is used), `vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
 linear; the marks of a log, pow, sqrt, or symlog scale are not stacked, because Vega-Lite does not stack on
-them), `vl-channel-x2`, `vl-channel-y2`, and
-`vl-channel-order` (reported only where the channel is not applied), and
+them), `vl-channel-x2` and `vl-channel-y2` (reported only where the channel is not applied), and
 `vl-encoding-sort` (now only for a sort that is not applied) and the new warning `vl-encoding-sort-ignored` (a sort that
-a continuous scale ignores). The phase 7 identifier `vl-encoding-condition` is narrowed to a `condition` on a channel that
+a continuous scale ignores). The identifier `vl-channel-order`, which phase 6 reported where the channel orders no
+stack, is retired in phase 9: `order` is accepted by every mark (see below). The phase 7 identifier
+`vl-encoding-condition` is narrowed to a `condition` on a channel that
 takes none (the position, secondary, and order channels); a condition with a `test` on the color, fill, stroke, opacity,
 fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape, and angle channels is evaluated by the marks, so it is
 not reported. A condition with a `param`, and a `test` that names a selection or a parameter that is not a variable,
@@ -113,6 +116,45 @@ adds are:
   `time`, or `utc` (`FeatureCatalog.IsEvaluatedFormatType`); a custom format type that a host would have to provide
   still uses the default format.
 
+**Phase 9 (line, area, trail, text, and arc) identifiers.** The marks `line`, `area`, `trail`, `text`, and `arc` are
+drawn, so the identifiers `vl-mark-line`, `vl-mark-area`, `vl-mark-trail`, `vl-mark-text`, and `vl-mark-arc` are retired
+(the supported mark set of the catalog and `MarkBuilder.SupportedMarks` change in the same commit), and so are
+`vl-channel-detail` and `vl-channel-order`: both channels are accepted by every mark. `vl-mark-image`, `vl-mark-geoshape`,
+and the composite marks `vl-mark-boxplot`, `vl-mark-errorbar`, and `vl-mark-errorband` stay; **`geoshape` is now the
+sentinel "unsupported mark"** of the tests and examples (and `encoding.longitude`, which reports `vl-channel-geo`, is the
+sentinel unsupported channel), where `arc` and `theta` were before. The identifiers that change are:
+
+- `vl-channel-theta`, `vl-channel-radius`, `vl-channel-theta2`, `vl-channel-radius2`, `vl-channel-text`,
+  `vl-channel-size`, `vl-channel-strokedash`, `vl-channel-angle`, and `vl-channel-shape` are **narrowed** to the marks
+  that do not draw the channel (the message says that the channel is not drawn by the mark and is ignored), by
+  `ScaleResolver.ChannelIsDrawn`: `theta` and
+  `radius` are drawn by `arc` and `text`, `theta2` and `radius2` by `arc`, `text` by `text`, `shape` by `point`,
+  `angle` by `point`, `circle`, `square`, and `text`, `strokeDash` by every mark but `rect`, `area`, `trail`, `text`, and
+  `arc`, and `size` by every mark but `rect`, `area`, `arc`, and `image` (so `size` on an `area` or an `arc` is newly
+  reported; the `rect` size stays unreported as before). `vl-channel-x2` and `vl-channel-y2` are narrowed too: a bar,
+  rect, rule, and (new) area that has the channel they extend accepts them.
+- `vl-encoding-impute` is narrowed to a channel other than `x` and `y`: the impute of a position channel is run by the
+  pipeline, and the impute of any other channel is ignored and reported.
+- `vl-encoding-bandposition` no longer reports the `bandPosition` of the **stacked** `theta` or `radius` of a text mark
+  (it places the label inside its slice, the only place where `bandPosition` is applied); every other
+  `bandPosition` on a
+  field without a time unit is reported as before.
+- `vl-encoding-stack-nonlinear` also checks the `theta` and `radius` channels.
+- `vl-format-type-custom` is also reported for a `formatType` of a `text` channel that is not `number`, `time`, or `utc`
+  (the default format is used and the `format` is ignored).
+- `vl-mark-invalid-show` - the `invalid` property of a mark definition when it is `show` or null: the marks are not drawn
+  at a fallback position and the default mode applies (`UnsupportedFeature`, located at the value).
+- `vl-mark-invalid-domains` (warning) - an `invalid` of `filter` or `break-paths-filter-domains`: those modes leave the
+  invalid rows out of the scale domains, and the domains of this renderer always include them.
+- `vl-mark-interpolate-bundle-area` - the `interpolate: "bundle"` of an `area`, which d3-shape cannot draw as an area
+  (`UnsupportedFeature`; the area is drawn with the linear interpolation).
+- `vl-encoding-stack-impute-bin` (warning) - the dimension channel of a stacked `line`, `area`, or `trail` that has
+  stack-by fields, is binned, and whose stacked channel does not say `impute: null`: Vega-Lite fills the layers with zeros
+  for the bins they lack, and this renderer does not impute a binned dimension. It is located at the dimension definition.
+
+The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **not added**: the discrete polar scales
+(a band scale for an arc and a point scale for a text mark) are implemented.
+
 #### Key Methods
 
 - `Visit(SpecTree tree)` - requires a non-null tree, runs a private `Walker`, and returns the reports sorted by line and
@@ -135,7 +177,10 @@ adds are:
   `format.property` are supported and are not reported. The retired identifiers `vl-data-file`, `vl-data-named`,
   `vl-data-sequence`, `vl-data-parse`, `vl-data-parse-date-format`, `vl-data-format-<type>`, and `vl-data-property` are
   no longer produced.
-- `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set. `VisitEncoding` reports the
+- `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set and, for a supported mark, visits the
+  `shape` name, the `invalid` property (`VisitMarkInvalid`: `vl-mark-invalid-show` for `show` and null, the warning
+  `vl-mark-invalid-domains` for `filter` and `break-paths-filter-domains`), and the `interpolate: "bundle"` of an `area`
+  (`vl-mark-interpolate-bundle-area`). `VisitEncoding` reports the
   channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-geojson`; a
   `temporal` field is supported), the encoding properties (`vl-encoding-<name>`), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the parts
@@ -145,14 +190,19 @@ adds are:
   path shapes (`vl-shape-path`), and the axis
   properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`). `VisitEncoding` also
   remembers the mark definition and the mark type of the view (for the band position rule). The phase 6 rules:
-  `x2` and `y2` are accepted (and their definitions visited like any channel definition) for a bar, rect, or rule that
-  has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; `order` is accepted when it
-  orders a stack, decided lazily by `StackRules.Decide` with the orientation of `ScaleResolver.InferOrient` (so the
-  catalog and the encoding plan agree), and reports `vl-channel-order` otherwise; `VisitBin` reports `vl-encoding-bin`
-  for a `bin` on a channel that cannot bin (`BinnedChannels` holds `x`, `y`, and the channels that have a scale) and for
+  `x2` and `y2` are accepted (and their definitions visited like any channel definition) for a bar, rect, rule, or
+  area that has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; **`order` and
+  `detail` are accepted by every mark** (their definitions are visited like any channel definition, and
+  `vl-channel-order` and `vl-channel-detail` are retired); the stack decision of the view
+  (`StackRules.Decide` with the orientation of `ScaleResolver.InferOrient`, so the catalog and the encoding plan
+  agree) is made lazily and is used by the band position rule and by `VisitStackImpute` (see below); `VisitBin`
+  reports `vl-encoding-bin`
+  for a `bin` on a channel that cannot bin (`BinnedChannels` holds `x`, `y`, `text`, and the channels that have a
+  scale) and for
   a `bin: "binned"` on any channel but `x` and `y` (`IsBinning` tells the bins of the data from the data that is binned
   already), and `vl-encoding-bin-extent-param` for an extent that is a parameter;
-  `VisitStack` reports `vl-encoding-stack-nonlinear`; `aggregate`, `bin` on the channels that bin, and `stack` are otherwise
+  `VisitStack` reports `vl-encoding-stack-nonlinear` for the `x`, `y`, `theta`, and `radius` channels; `aggregate`,
+  `bin` on the channels that bin, and `stack` are otherwise
   supported and never reported; `sort` is reported as `vl-encoding-sort` when `SpecParser.IsSupportedSort` rejects it (a
   channel shorthand or an `encoding` that names a channel without a field or an aggregate, or an `op` of `values` or an
   exponential operation); the message of a missing channel names it (`SpecParser.TryGetSortChannel`: "The sort refers to
@@ -164,10 +214,25 @@ adds are:
   quantize threshold`; a `shape` or `strokeDash` channel never counts as continuous): a continuous scale has no
   categories to order. `ascending`, `descending`, `null`, and an object with only
   an `order` are never reported;
-  `timeUnit` is applied (see the phase 8 rules below), an encoding `impute` stays reported, and `bandPosition` is reported
-  only as described for `vl-encoding-bandposition` and `vl-encoding-bandposition-rect`; `condition` is reported only on
+  `timeUnit` is applied (see the phase 8 rules below), an encoding `impute` is reported only outside the `x` and `y`
+  channels (the pipeline runs the impute of a position channel), and `bandPosition` is reported
+  only as described for `vl-encoding-bandposition` and `vl-encoding-bandposition-rect` (the stacked `theta` or
+  `radius` of
+  a text mark is the exception that `VisitBandPosition` does not report); `condition` is reported only on
   a channel that takes
   none, or for a parameter (see the phase 7 identifiers above).
+- The phase 9 rules: `SupportedChannels` also holds `text`, `theta`, `radius`, `theta2`, and `radius2`, and the
+  report of a
+  channel that the mark does not draw covers them all: `VisitEncoding` reports `vl-channel-<name>` for `shape`,
+  `angle`,
+  `strokeDash`, `text`, `theta`, `radius`, `theta2`, and `radius2` on a mark for which
+  `ScaleResolver.ChannelIsDrawn` is false,
+  and for `size` on an `area` or an `arc` (the `size` of a `rect` is not reported, as before). `VisitStackImpute` warns
+  `vl-encoding-stack-impute-bin` when the stack decision exists, the mark is a `line`, `area`, or `trail`, the decision
+  has stack-by fields, the stacked definition does not say `impute: null`, and the dimension channel (found with
+  `StackRules.DimensionChannel`) is a field definition with an enabled `bin` (also `"binned"`); it is located at the
+  dimension definition. `VisitChannelDefinition` reports `vl-format-type-custom` for a `formatType` of a `text` channel
+  that `IsEvaluatedFormatType` does not accept.
 - The phase 7 rules: `SupportedChannels` also holds `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`,
   `strokeOpacity`, and `angle`, but a `shape`, `angle`, or `strokeDash` channel is reported (`vl-channel-<name>`) and
   ignored for a mark that does not draw it (`ScaleResolver.ChannelIsDrawn`). `SupportedScaleTypes` also holds
@@ -255,8 +320,11 @@ applied here: the document records the reports in a sink, which throws at the fi
   operation registry `AggregateMeasures.CanOrderCategories` of the `Transforms` subsystem), so that the report and the
   sort of the scale resolver agree
 - **`StackRules`** (the `Transforms` subsystem) and **`ScaleResolver.InferOrient`** (the `Scales` subsystem) - the
-  decision that a view stacks, which decides whether the `order` channel is accepted, shared with the encoding plan so
-  that the report and the pipeline decide alike
+  decision that a view stacks (on the Cartesian or the polar channels) and the dimension channel of a stack, which
+  decide the
+  stack-impute warning and the band position of a stacked polar text channel, shared with the encoding plan so
+  that the report and the pipeline decide alike; **`ScaleResolver.ChannelIsDrawn`** - the support table of the channels
+  per mark, shared with the scale resolver
 - **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see _Time Calendar Design_), so that the report and
   the unit that is applied agree on what a binned or `maxbins` unit is
 - **`ScaleResolver.AcceptsScaleType`** - the scale type rule per channel and field type (including temporal fields), in
@@ -269,4 +337,5 @@ applied here: the document records the reports in a sink, which throws at the fi
 `VegaLiteDocument` calls `Visit` once when a document is created and merges the result with the parse warnings; the
 pipeline delivers the reports through the sink. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` call `Visit` and `IsSchemeBearingUrl`
-directly through `InternalsVisibleTo`.
+directly through `InternalsVisibleTo`; the test `FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark` pins that `order`
+is accepted by every mark.

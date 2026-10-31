@@ -25,10 +25,13 @@ contains six units:
   by the axes and the gradient legends; see _LabelOverlap Unit Design_ (`guides/label-overlap.md`)
 - **LegendBuilder** - the internal `LegendPlan`, `LegendBuilder`, and their records: which channels have legends, how
   they merge, and the symbol, gradient, and discrete gradient legend as scene items with the box each needs (the legends
-  of temporal fields are in `LegendBuilder.Time.cs`); see _LegendBuilder Unit Design_ (`guides/legend-builder.md`)
+  of temporal fields are in `LegendBuilder.Time.cs`; the symbol of each mark type, including the stroke symbol of a line,
+  rule, and trail and the filled circle of an area, arc, and text mark, is decided here); see _LegendBuilder Unit Design_
+  (`guides/legend-builder.md`)
 - **TimeLabels** - the internal static `TimeLabels` (with its `Options` record): the label format of a date (the
   `format`, `formatType`, time unit, and `config.timeFormat` rules), the interval `tickCount` request, the default
-  tick count of a time axis, and the reader of an explicit list of dates, shared by `AxisBuilder` and `LegendBuilder`;
+  tick count of a time axis, and the reader of an explicit list of dates, shared by `AxisBuilder` and `LegendBuilder`
+  (and, through the bounded form `CreateBounded` that leaves the budget to its caller, by the text mark of `Marks`);
   see _TimeLabels Unit Design_ (`guides/time-labels.md`). The date formatting itself (the d3 time formats and Vega's
   multi-format) and the calendar are in the `Data` subsystem (plan decision P8-D1), not here
 
@@ -48,7 +51,7 @@ ResolvedConfig, bool)`, which returns a `TitleBlock` whose `Place` produces the 
 `CancellationToken)`, which returns a `LegendResult`, with the static `LegendBuilder.GridLayout(boxes, options)` (the
 grid layout that the
 `Layout` subsystem also uses to place the legends); the static `LabelOverlap.Hidden(...)`; and the static `TimeLabels`
-(`Create(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`).
+(`Create(Options)`, `CreateBounded(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`).
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `ScaleModel`, `ResolvedScale`, `Ticks`
 (including the time ticks), and `NumberFormat` from the `Scales` subsystem; `DataValue` and the time model
@@ -60,7 +63,8 @@ subsystem; the public `VegaLiteFontOptions`, `VegaLiteLimits`, `VegaLiteLocation
 `Rendering` (`TextRenderer`) subsystems through their public API.
 
 **Consumers**: `VegaLiteDocument` (the pipeline creates the measurer, the title, and the axes), `ViewLayout` (reads the
-`TitleBlock`), and `ScenePainter` (draws text with the same measurer, so that what was measured is what is drawn).
+`TitleBlock`), `ScenePainter` (draws text with the same measurer, so that what was measured is what is drawn), and
+`MarkBuilder` (the text mark formats the time labels of its rows with `TimeLabels.CreateBounded`).
 
 ### Design
 

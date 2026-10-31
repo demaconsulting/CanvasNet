@@ -90,6 +90,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   limit either: time ticks are bounded by `MaxTicks`, formatted dates by `MaxStringLength`, date sequences, discrete date
   domains, and the `maxbins` of a time unit by `MaxScaleDomainSize`, the work of the time-unit transform and of the date
   functions by `MaxEvaluationSteps`, and the number of derived fields and rows by `MaxFieldCount` and `MaxDataRows`.
+  Phase 9 (the line, area, trail, text, and arc marks) added none either: the segments of a path, the overlay points,
+  the arcs, and the lines of a label are charged to `MaxSceneItems`, a label and the labels of a mark to
+  `MaxStringLength`, the rows that an impute adds to `MaxDataRows`, and the work of the path marks to
+  `MaxEvaluationSteps`.
 - **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
   in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
   `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.

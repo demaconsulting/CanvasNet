@@ -9,7 +9,9 @@ The `Transforms` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Transfo
 **row transforms** of the specification (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and
 `timeUnit`) and the
 **aggregating transforms** (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`), runs the
-**implicit pipeline** that the encoding of the view asks for (its bins, its time units, its aggregate, and its stack), and
+**implicit pipeline** that the encoding of the view asks for (its bins, its time units, its aggregate, its imputes, and
+its
+stack, on the Cartesian and on the polar channels), and
 computes the
 **static parameter environment** that expressions read, after the `DataLoader` has produced its table and before any scale
 exists. It is **internal**: its types are visible only to the `VegaLiteDocument` unit and the other subsystems and, through
@@ -18,12 +20,14 @@ exists. It is **internal**: its types are visible only to the `VegaLiteDocument`
 - **RowTransforms** - the internal `RowTransforms` (with its predicates, shape, and lookup parts), `RowSampler`,
   `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`; see
   _RowTransforms Unit Design_ (`transforms/row-transforms.md`)
-- **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute parts),
-  `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`, `StackRules`, `WorkMeter`, and `StableSorter`;
+- **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute parts,
+  the impute also behind a typed entry), `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`,
+  `StackRules` (the stack decision on the Cartesian and the polar channels), `WorkMeter`, and `StableSorter`;
   see
   _AggregateTransforms Unit Design_ (`transforms/aggregate-transforms.md`)
-- **EncodingPlan** - the internal `EncodingPlan` (the pure plan of a view's bins, time units, aggregate, stack, field
-  names, and titles) and `EncodingTransforms` with `EncodingData` (its execution); see _EncodingPlan Unit Design_
+- **EncodingPlan** - the internal `EncodingPlan` (the pure plan of a view's bins, time units, aggregate, imputes, stack,
+  field names, and titles, and, for the path marks, the fields that group the rows into paths and the fields that order
+  them) and `EncodingTransforms` with `EncodingData` (its execution); see _EncodingPlan Unit Design_
   (`transforms/encoding-plan.md`)
 - **TimeUnitTransform** - the internal `TimeUnitTransform` and `TimeUnitRequest` (the start and end of a time unit for
   every row, for the `timeUnit` transform and for a channel's `timeUnit`) and `TemporalFields` (the fields that are
@@ -44,7 +48,8 @@ fills the dictionary of parameter values that the evaluator reads;
 `RowSampler.Select(count, size, pointer, token)`; `EncodingPlan.Create(SpecNode, ResolvedConfig)`, which plans the implicit
 pipeline of a view, and `EncodingTransforms.Apply(EncodingPlan, DataTable, TransformContext)`, which runs it and
 returns the
-`EncodingData` (the Raw and Main tables, the bins, and the resolved time units);
+`EncodingData` (the Raw and Main tables, the bins, and the resolved time units), and `EncodingPlan.PathGroupFields` and
+`EncodingPlan.OrderFields`, which tell a path mark how to split its rows into paths and in which order to draw them;
 `TimeUnitTransform.Apply(DataTable, requests, TransformContext, VegaLiteLocation, resolved)`, which adds the start and the
 end of time units to every row (`RowTransforms.Apply` dispatches the `timeUnit` transform to it), and
 `TemporalFields.Collect(SpecNode)`, which names the fields that the loader parses as dates; the accumulators and
@@ -66,14 +71,18 @@ parameters, applies the transforms to the loaded table, plans and runs the impli
 warnings after the loader warnings), the `Scales` subsystem (`ScaleResolver` reads the plan and the Raw and Main
 tables, and
 reuses `MeasureCell`, `WorkMeter`, and `BinSpec`), the `Marks` subsystem (`MarkBuilder` receives `RowExpressions` to
-evaluate the row-bound paint values and draws the Main table), and the `SpecModel` subsystem (`SpecParser` and
+evaluate the row-bound paint values, draws the Main table, and reads the path grouping and order fields of the plan for
+the line, area, and trail marks), and the `SpecModel` subsystem (`SpecParser` and
 `FeatureCatalog` use the operation registry of `AggregateMeasures` and `StackRules`).
 
 ### Design
 
 **Between the loader and the scales.** The pipeline is `DataLoader` -> parameters -> explicit transforms in the written
-order -> `EncodingPlan` -> implicit bins -> implicit time units -> **Raw** -> implicit aggregate -> implicit stack ->
-**Main** -> scales -> marks.
+order -> `EncodingPlan` -> implicit bins -> implicit time units -> **Raw** -> implicit aggregate -> implicit imputes ->
+implicit stack -> **Main** -> scales -> marks. The imputes are the `impute` property of the `x` or `y` channel and,
+for a
+stacked line, area, or trail, the zeros that give every layer of the stack a point at every key; they run between the
+aggregate and the stack, as in Vega-Lite.
 Only the `transform` array of the drawn view (the root view without a composition) runs; the transforms of nested
 views of a
 composition are not drawn and are reported. Because the scales are resolved over the transformed tables, a domain and every
@@ -95,7 +104,9 @@ output is complete; filter, sample, and pivot give back the rows they drop; a lo
 instance, so it has the same sandbox, file cache, file and byte limits, and row total as the
 main data. `aggregate` reserves one row per group as the group appears, `impute` reserves its result (the combinations of
 groups and keys first) before it allocates anything, the transforms that keep every row (`joinaggregate`, `window`, `bin`,
-and `stack`) change nothing, and the implicit aggregate keeps the Raw rows counted while a scale needs them (see
+and `stack`) change nothing, and the implicit aggregate keeps the Raw rows counted while a scale needs them; the implicit
+impute of an encoding reserves its result through the same engine and keeps the Raw rows counted when the imputed table
+is the Raw table that a scale still reads (see
 _AggregateTransforms_ and _EncodingPlan_ for the accounting of each). The field count of
 every derived table is bounded by `MaxFieldCount` and its size by a bound of 2^25 cells (33,554,432), which keeps the memory
 of one table to a few hundred megabytes whatever the other limits allow; the state of the groups and the values that an

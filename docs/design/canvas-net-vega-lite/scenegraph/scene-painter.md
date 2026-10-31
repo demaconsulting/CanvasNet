@@ -2,10 +2,14 @@
 
 ![Scenegraph Structure](VegaLiteScenegraphView.svg)
 
-The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It is one source file,
-`ScenePainter.cs`, in the `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, and defines two `internal` types:
-`ScenePainter` (sealed class) and `ScenePlacement` (readonly record struct). The file carries the provenance header comment
-for the Vega rendering behavior it ports.
+The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It comprises two source files in the
+`DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace: `ScenePainter.cs` and `ScenePainter.Paths.cs`.
+`ScenePainter` is a `partial` class, so the two files are one type; together they define two `internal` types:
+`ScenePainter` (sealed class) and `ScenePlacement` (readonly record struct, in `ScenePainter.cs`). `ScenePainter.cs` has
+the placement, the painting of the groups, rectangles, rules, polylines, symbols, and text, and the fills and strokes;
+`ScenePainter.Paths.cs` has the painting of paths made of segments, arcs, and trails, and the miter limit. Both files
+carry the provenance header comment for the Vega rendering behavior they port (the second one also names d3-shape,
+d3-path, and Vega-Lite).
 
 #### Purpose
 
@@ -33,7 +37,7 @@ translations), and the scale.
   alpha of the color; a paint that is `none`, invalid, or fully transparent draws nothing; an item of opacity zero or a
   non-finite coordinate is skipped.
 - Every path is transformed by the placement and the enclosing groups' translations before it is filled. The stroke of an
-  item is built in the item's own units with the core `PathStroker` (width, dash, cap, and join) and then
+  item is built in the item's own units with the core `PathStroker` (width, dash, cap, join, and miter limit) and then
   filled, so widths and dashes scale with the chart. Fills are flattened to 0.02 pixel so that symbols a few
   pixels wide stay round.
 - The stroke values are validated after their conversion to the `float` of the stroker, because a value that is
@@ -67,6 +71,37 @@ translations), and the scale.
   not the whole surface.
 - **Symbols** use Vega's geometry with `size` as the area of the bounding box (circle, square, cross, diamond, arrow, wedge,
   the triangles, and stroke; an unknown shape is a circle), rotated about the center.
+- **Paths of segments.** A `ScenePath` that has `Segments` is drawn from its commands, in item units
+  (`ScenePainter.Paths.cs`): a line or cubic command **before the first move is skipped**; a command **after a close
+  continues at the start of the closed subpath** (the painter reopens it with a move, as d3-path does); a move starts a
+  new subpath, so one item can hold several. A command with a coordinate that is **not finite makes the whole item draw
+  nothing** (checked with `ScenePathSegment.IsFinite` before anything is built, as a points path does), and so does an
+  opacity of zero. The fill is nonzero and the stroke is that of the item, so a gradient fill, a dash, a cap, and a join
+  work as for any path. A `ScenePath` without segments is drawn from its points as before (nothing for fewer than two
+  points).
+- **Arcs.** A `SceneArc` is the outline that `ArcGeometry.Build` returns for its radii, angles, pad angle, and corner
+  radius, **translated to the center** of the item (a translation to the center composed with the transform of the
+  enclosing groups), then filled and stroked like any path. An arc with a member that is not finite, or an opacity of
+  zero, draws nothing; a member that is beyond one billion gives the empty outline of the geometry unit and draws
+  nothing.
+- **Trails.** A `SceneTrail` is drawn as Vega's trail shape does it, described here in the painter's own words. Within
+  a run, every pair of consecutive points becomes a **capsule**: the unit normal of the segment is scaled by half the
+  size at each point (the radius), the capsule starts at the first point moved by its radius against the normal, runs
+  straight to the second point moved by its radius the same way, goes around the second point with a half circle on the
+  forward side to the opposite side, runs straight back to the first point moved by its radius along the normal, goes
+  around the first point with a half circle on the backward side, and closes. The width is therefore the size at each
+  point, tapering linearly between two points of different size, with round ends. The capsules of **all runs are one
+  path**, filled with the nonzero rule (so overlapping capsules are one shape and have no seams) and stroked as one path
+  with the stroke of the item. A point whose coordinates or size are not finite, whose coordinates or size are above 1e9
+  in magnitude, or whose size is not positive **ends its run** (the next usable point starts the run again, so a run
+  with a gap draws two pieces), and a run needs two usable points to draw anything (a run of one point draws nothing).
+  *Deviation from Vega* (the coincident points): two coincident points (the normal has no length) draw a circle of the
+  radius at the second point; Vega starts that circle with a line from the previous capsule, and this painter starts it
+  with a move, which has the same fill and no stray line in the stroke. The painter polls the cancellation token **every
+  1,024 points** across all runs, and its cost is proportional to the total number of points.
+- **Miter limit.** The stroke takes the miter limit of its item through `ScenePainter.ResolveMiterLimit`: **4 when the item
+  has none** (`StrokeMiterLimit` is null), **1 when the value is not finite or is below 1**, **1,000 when it is above
+  1,000**, and the value itself otherwise (as a `float`).
 - **Text** is filled only (a stroke on text is ignored), at the scaled font size, with the font that the measurer resolves,
   each line drawn at its baseline using Vega's baseline offsets and alignment, rotated about the text position; the lines
   are those the measurer produced (trimmed and truncated to the limit).
@@ -80,6 +115,8 @@ translations), and the scale.
   token is polled per group and per item.
 - `SymbolPath(string shape, double size)` (internal static) - the path of a symbol shape at the origin; empty for a
   size that is not positive and finite.
+- `ResolveMiterLimit(double?)` (internal static) - the miter limit that the stroker receives: 4 for null, 1 for a value
+  that is not finite or is below 1, at most 1,000 otherwise.
 - `ScenePlacement.Uniform` and `ScenePlacement.Fit` - the two placements `VegaLiteDocument` uses.
 
 **Pre- and postconditions**: the scene is non-null; on return the surface holds the drawing, deterministic for the
@@ -90,14 +127,17 @@ same scene, size, and placement.
 A null scene or surface is `ArgumentNullException` and a scale that is not finite and positive is
 `ArgumentOutOfRangeException`; these are programming errors and are not converted. A width or height outside the surface
 limits is rejected by the `Surface` constructor (the document validates sizes first). A canceled token is an
-`OperationCanceledException`, and the surface that an overload created is disposed. Bad content never throws: an
-unparseable color draws nothing, a non-finite coordinate or a zero-sized rectangle or clip is skipped, and an unknown shape
-is a circle.
+`OperationCanceledException`, and the surface that an overload created is disposed; the token is also polled every 1,024
+points inside a trail. Bad content never throws: an unparseable color draws nothing, a non-finite coordinate or a
+zero-sized rectangle or clip is skipped, a segment path, arc, or trail member that is not finite draws nothing (a trail
+point that is not usable only ends its run), and an unknown shape is a circle.
 
 #### Dependencies
 
 - **`Scene`** and the item types - the `SceneModel` unit
 - **`CssColor`** - color parsing, in the `CssColor` unit
+- **`ArcGeometry`** and **`ArcPathWriter`** - the outline of a `SceneArc` and the path calls for the capsules of a trail,
+  in the `ArcGeometry` unit
 - **`TextMeasurer`** - font resolution and text lines, in the `Guides` subsystem
 - **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CompositeOverSpan` (`Canvas`), `PathFiller`, `PathStroker`, and
   `LinearGradient` with `GradientStop` (`Drawing`), `Path`, `PathBuilder`, and `Transform` (`Geometry`), and
@@ -107,5 +147,5 @@ is a circle.
 #### Callers
 
 `VegaLiteDocument` paints the scene of every `Render` call (with `ScenePlacement.Uniform` or `Fit`). The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs` call the painter directly through
-`InternalsVisibleTo` and check analytic pixels.
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs` and `ScenePainterPathTests.cs` (the segment
+paths, arcs, trails, and the miter limit) call the painter directly through `InternalsVisibleTo` and check analytic pixels.
