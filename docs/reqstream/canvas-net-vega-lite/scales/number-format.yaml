@@ -66,3 +66,28 @@ sections:
                   Format specifiers come from untrusted specifications.
                 tests:
                   - NumberFormat_Format_HugeWidthIsLimited
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-FormatFloat
+                title: >-
+                  The NumberFormat unit shall create the variable-precision format of Vega's formatFloat for the
+                  labels of a log axis and legend: the specifier defaults to the grouped number, a specifier without
+                  a precision gets 12 significant digits (10 for a percentage, 11 for an exponent) and loses the
+                  trailing zeros after the decimal point together with the point (in front of an exponent or a unit
+                  suffix), and a specifier with a precision is used as it is.
+                justification: |
+                  The labels of a log axis span many orders of magnitude, so one precision derived from a tick step
+                  does not fit them; Vega trims instead.
+                tests:
+                  - NumberFormat_FormatFloat_TrimsZeroesWithoutAPrecision
+
+              - id: CanvasNetVegaLite-Scales-NumberFormat-ZeroSpan
+                title: >-
+                  The NumberFormat unit shall give a tick format of a domain without span no derived precision (the
+                  tick step is zero, so the precision is not a number, as in d3-format 3.1.2), so that a specifier
+                  without a precision keeps the default of six decimals and a specifier with a precision is
+                  unaffected.
+                justification: |
+                  The behavior for a degenerate domain must be pinned to the version of d3-format that the unit
+                  follows.
+                tests:
+                  - NumberFormat_TickFormat_ZeroSpanDomainKeepsTheDefaultPrecision

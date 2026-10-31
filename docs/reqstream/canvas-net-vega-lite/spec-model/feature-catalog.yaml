@@ -84,16 +84,22 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
                   square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
-                  stroke, size, and opacity as vl-channel-name, the temporal and geographic types, and the
+                  stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and
+                  angle as vl-channel-name, the shape, angle, and strokeDash channels of a mark that does not
+                  draw them (as vl-channel-name, the channel being ignored), the temporal and geographic types, and the
                   encoding properties timeUnit, condition, impute, and bandPosition when they change the
                   chart, but not the properties aggregate, stack, and sort (in its supported forms) and the
-                  bin of x and y, which the renderer draws, and no implicit bar stack; shall accept the
+                  bin of x, y, and the channels that have a scale (which the renderer draws), and no implicit
+                  bar stack; shall
+                  accept the
                   secondary channels x2 and y2 of a bar, rect, or rule that has the channel they extend and
                   report them (vl-channel-x2 and vl-channel-y2) for any other mark or without it; shall
                   accept the order channel when it orders a stack and report it (vl-channel-order) otherwise;
-                  and shall report the bin of any other channel (vl-encoding-bin), a bin extent that is a
+                  and shall report the bin of a channel that cannot bin (vl-encoding-bin: a secondary channel and
+                  order) and a bin: "binned" on a channel other than x and y (vl-encoding-bin), a bin extent that is a
                   parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
-                  linear (vl-encoding-stack-nonlinear).
+                  linear (vl-encoding-stack-nonlinear; Vega-Lite does not stack on a log, pow, sqrt, or symlog
+                  scale, so such marks are not stacked).
                 justification: |
                   Marks and channels are the heart of the supported boundary; each unsupported one must be
                   named so that the author knows exactly what was not drawn, and one that is drawn must not
@@ -101,35 +107,53 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_UnsupportedMarkReportsMarkId
                   - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
+                  - FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem
                   - FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart
                   - FeatureCatalog_Visit_ImplicitBarStackIsNotReported
                   - FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack
                   - FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges
                   - FeatureCatalog_Visit_StackOnANonLinearScaleIsReported
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
+                  - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-
-                  The FeatureCatalog unit shall report scale types other than linear, band, point, and
-                  ordinal, scale properties and color schemes outside the supported set, a legend only
-                  when one would be drawn, and the guide properties and encode blocks that the axis
-                  builder does not honor, and shall not report the properties it does honor.
+                  The FeatureCatalog unit shall report scale types other than linear, log, pow, sqrt, symlog,
+                  sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, scale
+                  properties outside the supported set (the bins property, but not the properties of the
+                  continuous color scales or the base, exponent, and constant of the log, pow, and symlog
+                  scales), a cubehelix interpolation
+                  (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
+                  properties that the legend builder does not draw (encode, labelExpr, formatType, a title
+                  orient other than top, clipHeight, and a custom symbol path), and the guide properties and
+                  encode blocks that the axis builder does not honor, shall warn (vl-scale-type-ignored) about
+                  a scale type that the channel
+                  or the field type cannot use (the bin-ordinal type is accepted for a binned quantitative
+                  color only), and shall not report the continuous color scales, the color
+                  schemes, the legends (which are drawn), or the properties it does honor (the identifiers
+                  vl-scale-color-ramp and vl-guide-legend are retired).
                 justification: |
                   Scales and guides decide how data is positioned and labeled; a silently ignored property
                   would produce a plausible but wrong chart.
                 tests:
                   - FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset
-                  - FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset
+                  - FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported
+                  - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
+                  - FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported
+                  - FeatureCatalog_Visit_CubehelixInterpolationIsReported
+                  - FeatureCatalog_Visit_CustomPathShapesAreReported
+                  - FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed
+                  - FeatureCatalog_Visit_SchemeNamesAreNotReported
                   - FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes
-                  - FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn
+                  - FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
                   The FeatureCatalog unit shall report each transform of a later phase (timeUnit, regression,
                   loess, density, quantile, and extent) as vl-transform-name, every transform and every
                   variable parameter of a nested view that is not drawn (the aggregating transforms included),
-                  each selection parameter (vl-param-selection), the conditional
-                  encodings (vl-encoding-condition), each projection, composition (layer, concat, hconcat,
+                  each selection parameter (vl-param-selection), the conditions on a parameter
+                  (vl-encoding-condition-param), each projection, composition (layer, concat, hconcat,
                   vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
                   composition, shall report each construct once at its own location, and shall not report
                   the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
@@ -185,6 +209,25 @@ sections:
                   - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
 
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
+                title: >-
+                  The FeatureCatalog unit shall report a sort by a channel that the encoding does not have
+                  (or that reads no field) as vl-encoding-sort with a message that names the channel and says
+                  that the categories are sorted ascending, report a sort by an operation that cannot order
+                  categories as vl-encoding-sort with the operation message, and warn with
+                  vl-encoding-sort-ignored, at the sort, when a sort array, a channel shorthand, or a sort
+                  object with a field, an operation, or an encoding is given on a quantitative field whose
+                  scale is continuous - and shall not warn for ascending, descending, null, an object that
+                  has only an order, a discrete field, or a discrete scale type.
+                justification: |
+                  A sort that does nothing must say why: the specification, not the renderer, is the problem,
+                  and the message must name what to fix without hiding it behind a generic unsupported text.
+                tests:
+                  - FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel
+                  - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
+                  - FeatureCatalog_Visit_SortByFieldIsReportedOnlyForUnsupportedForms
+                  - CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes
+
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SchemaVersion
                 title: >-
                   The FeatureCatalog unit shall warn with vl-schema-version, at the $schema value, when the
@@ -195,3 +238,23 @@ sections:
                   version may render differently and its author should be told.
                 tests:
                   - FeatureCatalog_Visit_SchemaVersionWarnsOutsideFiveAndSix
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ConditionalEncodings
+                title: >-
+                  The FeatureCatalog unit shall not report a condition with a test on the color, fill, stroke,
+                  opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, and angle
+                  channels, shall report vl-encoding-condition for a condition on a channel that takes none,
+                  vl-encoding-condition-param for a condition or a test on a parameter that is not a variable
+                  parameter, and vl-encoding-condition-test for a time unit or a date object in a test, each
+                  at the construct, and shall visit the expressions and the field properties of a condition
+                  like those of a channel.
+                justification: |
+                  A condition that the renderer cannot evaluate must be reported where it is, and one that it
+                  evaluates must not be reported at all.
+                tests:
+                  - FeatureCatalog_Visit_ConditionsWithATestAreNotReported
+                  - FeatureCatalog_Visit_ParameterConditionsAreReported
+                  - FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported
+                  - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
+                  - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
+                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported

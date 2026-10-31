@@ -321,6 +321,95 @@ public class ScaleResolverPlanTests
     }
 
     /// <summary>
+    ///     Validates the domain of signed stacks in both orientations and every offset. Mixed signs on a horizontal measure: p = 3 stacks up to 3 and
+    ///     q = -4 down to -4, so x is -4 to 3. All negative: p = -3 and q = -2 stack to -5, so the domain is -5 to 0 (the zero rule keeps the baseline).
+    ///     Normalize ignores the signs of the values (|3| + |-1| = 4): 0 to 1. Center uses absolute values too: a (|3| + |-1| = 4) starts at 0 and spans 0 to 4,
+    ///     b (|-2| = 2) starts at 1 and spans 1 to 3, so the domain is 0 to 4.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_SignedStackDomainInBothOrientations()
+    {
+        // Act
+        var horizontal = Parts(
+            """[{"c":"a","g":"p","v":3},{"c":"a","g":"q","v":-4}]""",
+            "bar",
+            """{"y":{"field":"c","type":"nominal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var negative = Parts(
+            """[{"c":"a","g":"p","v":-3},{"c":"a","g":"q","v":-2}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""");
+        var normalized = Parts(
+            """[{"c":"a","g":"p","v":3},{"c":"a","g":"q","v":-1}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":"normalize"},"color":{"field":"g","type":"nominal"}}""");
+        var centered = Parts(
+            """[{"c":"a","g":"p","v":3},{"c":"a","g":"q","v":-1},{"c":"b","g":"p","v":-2}]""",
+            "bar",
+            """{"x":{"field":"c","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":"center"},"color":{"field":"g","type":"nominal"}}""");
+
+        // Assert
+        Assert.Equal((-4, 3), (horizontal.Scales["x"]!.DomainStart, horizontal.Scales["x"]!.DomainEnd));
+        Assert.Equal((-5, 0), (negative.Scales["y"]!.DomainStart, negative.Scales["y"]!.DomainEnd));
+        Assert.Equal((0, 1), (normalized.Scales["y"]!.DomainStart, normalized.Scales["y"]!.DomainEnd));
+        Assert.Equal((0, 4), (centered.Scales["y"]!.DomainStart, centered.Scales["y"]!.DomainEnd));
+    }
+
+    /// <summary>
+    ///     Validates the limits of a sort array: more items than <see cref="VegaLiteLimits.MaxScaleDomainSize"/> is a located failure at the array that names
+    ///     the limit the way the tool maps it (<c>the limit of</c> and <c>VegaLiteLimits.MaxScaleDomainSize</c>), an array of exactly the limit is accepted, and the
+    ///     cancellation token is polled while the array is read (the data has no rows, so only the sort can notice the cancellation).
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation()
+    {
+        // Arrange: three categories, so the domain fits the limit of three; the array has four and three items
+        string Spec(string sort, string rows = SortRows) =>
+            "{\"data\":{\"values\":" + rows + "},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\",\"sort\":" + sort + "},\"y\":{\"field\":\"w\",\"type\":\"quantitative\"}}}";
+        var limits = new VegaLiteLimits { MaxScaleDomainSize = 3 };
+
+        // Act
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.ResolveFull(Spec("""["a","b","c","d"]"""), limits));
+        var exact = ChartTestHelpers.ResolveFull(Spec("""["c","b","a"]"""), limits);
+        var tree = SpecParser.Parse(Spec("""["a"]""", "[]"));
+        var table = DataLoader.Load(tree.Root["data"], null, null, TestContext.Current.CancellationToken);
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Assert
+        Assert.Equal("/encoding/x/sort", tooMany.Location.Pointer);
+        Assert.Contains("the limit of 3", tooMany.Message, StringComparison.Ordinal);
+        Assert.Contains("VegaLiteLimits.MaxScaleDomainSize", tooMany.Message, StringComparison.Ordinal);
+        Assert.Equal("c,b,a", XDomain(exact));
+        Assert.Throws<OperationCanceledException>(() =>
+            ScaleResolver.Resolve(tree.Root, table, ConfigResolver.Resolve(tree, null), null, null, canceled.Token));
+    }
+
+    /// <summary>
+    ///     Validates that the resolver never lets an object or an array item of a sort array stand for the null category (the parser rejects such items, so the
+    ///     nodes are built by hand): the data has the categories a, null and b; a sort of [{}, "a"] lists only a, so the unlisted null and b come first in data
+    ///     order and a last. Reading the object as null would have put null after b.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_SortArrayNeverMapsNonScalarItemsToNull()
+    {
+        // Arrange: a parsed specification gives the data and the configuration; the specification that is resolved is built by hand
+        var tree = SpecParser.Parse("""{"data":{"values":[{"k":"a"},{"k":null},{"k":"b"}]},"mark":"bar","encoding":{"x":{"field":"k","type":"nominal"}}}""");
+        var table = DataLoader.Load(tree.Root["data"], null, null, TestContext.Current.CancellationToken);
+        var position = new NodePosition(1, 1, 1, 1);
+        SpecNode Text(string text, string? name = null, int index = -1) => new(SpecNodeKind.String, name, index, position, text, 0, false, null);
+        SpecNode Object(string? name, int index, params SpecNode[] members) => new(SpecNodeKind.Object, name, index, position, null, 0, false, members);
+        var sort = new SpecNode(SpecNodeKind.Array, "sort", -1, position, null, 0, false, [Object(null, 0), new SpecNode(SpecNodeKind.Array, null, 1, position, null, 0, false, null), Text("a", null, 2)]);
+        var x = Object("x", -1, Text("k", "field"), Text("nominal", "type"), sort);
+        var root = Object(null, -1, Text("bar", "mark"), Object("encoding", -1, x));
+
+        // Act
+        var scales = ScaleResolver.Resolve(root, table, ConfigResolver.Resolve(tree, null), null, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("null,b,a", string.Join(",", scales["x"]!.DiscreteDomain.Select(v => v.ToText())));
+    }
+
+    /// <summary>
     ///     Validates that a normalized stack has the domain 0 to 1 whatever the totals (10 and 4 here), and that a bar chart whose categories hold one row
     ///     each is not stacked (the domain is the zero rule over the values 10 and 4, 0 to 10).
     /// </summary>

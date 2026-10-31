@@ -201,6 +201,59 @@ sections:
                   - SpecParser_IsSupportedSort_RequiresAnOperationOrChannelTheRendererComputes
                   - SpecParser_IsSupportedSort_RejectsNullArguments
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-SortValues
+                title: >-
+                  The SpecParser unit shall validate the values of an encoding sort array - every item a
+                  string, a number, a boolean, or null, and an object only as a date-time object on a field of
+                  type temporal, an object or array item otherwise being a located VegaLiteSpecException at the
+                  item - shall report an array that mixes the kinds of its values as the warning
+                  vl-encoding-sort-mixed-types at the array (the values still being accepted and matched by
+                  kind), shall report a key that a sort object does not define as a vl-unknown-property warning
+                  at the key, and shall tell the channel that a sort refers to.
+                justification: |
+                  A sort array item that is an object or an array would otherwise be read as the null category
+                  and silently mis-sort the chart; the specification is the problem and must be reported where
+                  it is, and a spec-quality problem that changes nothing the renderer can fix is a warning.
+                tests:
+                  - SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned
+                  - SpecParser_Parse_SortArrayAndObjectWarningsAreLocated
+                  - SpecParser_TryGetSortChannel_ReadsTheShorthandAndTheEncoding
+                  - SpecParser_Parse_ValidEncodingAggregateBinStackSortFormsAreAccepted
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ScaleOptions
+                title: >-
+                  The SpecParser unit shall validate the structured options of a scale - domainMid, domainMin,
+                  domainMax, rangeMin, and rangeMax numbers (or expression references), an interpolate that is
+                  the name of a color space or an object with that name as its type and a numeric gamma, a scheme
+                  that is a name or an object with a string name, a positive whole count, and an extent of two
+                  numbers, and bins as an array or an object - with a located VegaLiteSpecException at the
+                  offending value, shall validate the parameters of the log, pow, and symlog scale types (a base above
+                  zero other than 1, a finite exponent, a constant above zero; those of another type are not checked),
+                  and shall report an unknown key of a scheme or interpolate object as a
+                  vl-unknown-property warning at the key.
+                justification: |
+                  A scheme or an interpolation with the wrong shape cannot be what the author meant, so the
+                  mistake is reported where it is instead of drawing a guess.
+                tests:
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn
+                  - SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
+                title: >-
+                  The SpecParser unit shall validate the properties of a legend object - the orient, direction,
+                  and title orient names and the kinds of the paint, font, and layout properties - and the counts
+                  and lengths of a legend (columns, symbolLimit, tickCount, clipHeight, gradientLength, and
+                  gradientThickness), which must not be negative, with a located VegaLiteSpecException at the
+                  offending value, and shall report a key that Vega-Lite does not define for a legend as a
+                  vl-unknown-property warning at the key.
+                justification: |
+                  A legend with a wrong property cannot be what the author meant, and a negative size would break
+                  the layout that is derived from it.
+                tests:
+                  - SpecParser_Parse_WrongTypeReportsPointer
+                  - SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
                   The SpecParser unit shall reject source text longer than the source-length limit with
@@ -231,3 +284,30 @@ sections:
                   - SpecMetadata_Read_SequenceComputesLength
                   - SpecMetadata_Read_InlineValuesTakePrecedenceOverName
                   - SpecParser_ParseSchemaMajorVersion_ParsesTheMajorVersion
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ConditionalEncodings
+                title: >-
+                  The SpecParser unit shall validate the condition of a channel definition (an object or an
+                  array of objects, each with a test or a param and the properties of a value or a field
+                  definition) with a located error at the offending value, shall compile the test of a
+                  condition on a drawn channel once, an expression text as written and a predicate object
+                  (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter) as the
+                  expression that means the same, shall compile the value expression of a condition, and shall
+                  leave out what no expression can say (a selection, a time unit, a date object).
+                justification: |
+                  Evaluating the tests of the conditions with the expression engine gives them the same
+                  limits, step budget, and cancellation as every other expression, and compiling them once
+                  keeps the per-row work small.
+                tests:
+                  - SpecParser_Parse_MalformedConditionReportsThePointer
+                  - SpecParser_Parse_ConditionTestsAreCompiled
+                  - SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled
+                  - SpecParser_Parse_FieldConditionScaleIsValidated
+                  - PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame
+                  - PredicateSource_TryBuild_QuotesPathsAndStrings
+                  - PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay
+                  - PredicateSource_TryBuild_NullPredicateThrows
+                  - ChannelDefinitions_CanCondition_ListsTheConditionalChannels
+                  - ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField
+                  - ChannelDefinitions_Conditions_ListsConditionsInOrder
+                  - ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives

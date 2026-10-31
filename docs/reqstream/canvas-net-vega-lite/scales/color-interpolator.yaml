@@ -1,0 +1,89 @@
+---
+# Software Unit Requirements for ColorInterpolator
+#
+# These requirements describe the design-level behavior of the ColorInterpolator unit of the Scales subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the interpolation of colors in sRGB, HSL, CIELAB,
+# and HCL (with an sRGB gamma), piecewise ramps through a list of colors, the Vega range and quantize helpers, and
+# the conversion of a color to a core pixel and to CSS text. The algorithms are own C# ports of d3-interpolate and
+# d3-color (ISC) and are attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md; the expected
+# values in the tests are derived by hand from the formulas. See
+# docs/verification/canvas-net-vega-lite/scales/color-interpolator.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scales Requirements
+        sections:
+          - title: ColorInterpolator Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Rgb
+                title: >-
+                  The ColorInterpolator unit shall interpolate two colors linearly in sRGB, rounding each channel
+                  half away from zero after clamping it to 0 to 255, extrapolating outside 0 to 1 and clamping the
+                  result, and interpolating the opacity linearly.
+                justification: |
+                  sRGB is the default interpolation space of Vega, and the rounding to whole 8-bit channels is what
+                  makes the colors identical on every machine.
+                tests:
+                  - ColorInterpolator_Rgb_RoundsHalfAwayAndClamps
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Spaces
+                title: >-
+                  The ColorInterpolator unit shall interpolate in HSL, CIELAB (D50), and HCL, taking the shorter
+                  way round the hue circle (or the long way for the long variants), giving a grey the hue of the
+                  other color, and returning the end colors at 0 and 1.
+                justification: |
+                  The scale interpolate property selects the color space; each space must follow the d3
+                  conversions and channel rules so that a color ramp looks as it does in Vega.
+                tests:
+                  - ColorInterpolator_Hsl_Lab_Hcl_Match_HandDerivedVectors
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Gamma
+                title: >-
+                  The ColorInterpolator unit shall apply a gamma to the sRGB space only, raising the channels to
+                  the gamma, interpolating, and raising the result to its reciprocal.
+                justification: |
+                  Vega offers a gamma for the sRGB interpolation (interpolateGamma) and for no other space.
+                tests:
+                  - ColorInterpolator_Gamma_AppliesToRgbOnly
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Piecewise
+                title: >-
+                  The ColorInterpolator unit shall interpolate through a list of colors spaced evenly over 0 to 1,
+                  choosing the segment as floor(t * n) clamped to the first and last segment, extrapolating along
+                  them outside 0 to 1, treating NaN as 0, and rejecting an empty list.
+                justification: |
+                  Every continuous color scheme is a piecewise ramp; the segment rule decides each color of it.
+                tests:
+                  - ColorInterpolator_Piecewise_ChoosesTheSegmentAndExtrapolates
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Quantize
+                title: >-
+                  The ColorInterpolator unit shall restrict an interpolator to a sub-range of its input, in either
+                  direction, and shall sample an interpolator at i / (count + 1) for i = 1 to count, polling the
+                  cancellation token every 4,096 colors and rejecting a negative count.
+                justification: |
+                  These are the Vega interpolateRange and quantizeInterpolator helpers behind scheme extents,
+                  reversal, and discrete color ranges.
+                tests:
+                  - ColorInterpolator_RangeAndQuantize_SampleWithoutTheEndPoints
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Conversions
+                title: >-
+                  The ColorInterpolator unit shall convert a color to a core pixel and to lower-case hexadecimal
+                  CSS text (with an alpha byte only when it is not opaque), shall read six-digit hexadecimal
+                  colors, and shall map the interpolate names of a scale to the interpolation spaces.
+                justification: |
+                  Scene items hold colors as CSS text and the painter reads pixels; the conversions must be exact
+                  and invertible, and the names of the supported spaces must be recognized exactly.
+                tests:
+                  - ColorInterpolator_RgbColor_ConvertsAndParses
+
+              - id: CanvasNetVegaLite-Scales-ColorInterpolator-Determinism
+                title: >-
+                  The ColorInterpolator unit shall give identical colors for repeated and concurrent evaluation in
+                  every interpolation space.
+                justification: |
+                  Equal inputs must give byte-identical charts on every run.
+                tests:
+                  - ColorInterpolator_Interpolation_IsDeterministic

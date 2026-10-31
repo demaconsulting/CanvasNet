@@ -58,21 +58,28 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
-///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size and opacity; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
+///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle; <c>shape</c> is drawn by a point, <c>angle</c> by a point, circle or square and <c>strokeDash</c> by every mark but a rect, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
 ///         <item><term><c>vl-type-temporal</c>, <c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
-///         <item><term><c>vl-scale-color-ramp</c></term><description>the <c>type</c> of a <c>color</c>, <c>fill</c> or <c>stroke</c> channel that has a <c>field</c> and is quantitative (a continuous color scale is not drawn; the default mark color is used).</description></item>
-///         <item><term><c>vl-encoding-timeunit</c>, <c>-condition</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
-///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel other than <c>x</c> and <c>y</c>, unless it is false or null (binning on the other channels needs the binned scale types of a later phase). <c>aggregate</c>, <c>bin</c> (on <c>x</c> and <c>y</c>), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
+///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
+///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
+///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
+///         <item><term><c>vl-encoding-timeunit</c>, <c>-impute</c>, <c>-bandposition</c></term><description>that property of a supported channel (the <c>impute</c> of a channel needs the grouping fields of a path mark; the <c>impute</c> transform is supported).</description></item>
+///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition for every row.</description></item>
+///         <item><term><c>vl-encoding-condition-param</c></term><description>a condition with a <c>param</c> (it never holds), and a <c>test</c> that names a selection or a parameter that is not a variable parameter.</description></item>
+///         <item><term><c>vl-encoding-condition-test</c></term><description>a predicate object in the <c>test</c> of a condition with a <c>timeUnit</c> or a date object (the condition never holds).</description></item>
+///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
 ///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
-///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; the values are stacked on the linear scale.</description></item>
-///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported.</description></item>
-///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, band, point and ordinal.</description></item>
-///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round and clamp; <c>scheme</c> is reported unless it names <c>tableau10</c> (compared without regard to case, as the scale resolver does) or the scale has an explicit color <c>range</c>, which overrides it.</description></item>
-///         <item><term><c>vl-guide-legend</c></term><description>the <c>legend</c> (or the channel when it has none) of a color, fill, stroke, size or opacity channel with a <c>field</c>, unless <c>legend</c> or <c>scale</c> is null.</description></item>
+///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; Vega-Lite does not stack on a log, pow, sqrt or symlog scale, so those marks are not stacked, and any other type is stacked on the linear scale.</description></item>
+///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported. The message names the channel that the sort refers to when that is the problem (the sort stays a report, not a specification error, because a channel can come from a parent encoding after normalization).</description></item>
+///         <item><term><c>vl-encoding-sort-ignored</c> (warning)</term><description>a <c>sort</c> array, channel shorthand, or object with a <c>field</c>, <c>op</c> or <c>encoding</c> on a quantitative field whose scale is continuous (no discrete <c>scale.type</c>): there are no categories to order and the sort is ignored. <c>ascending</c>, <c>descending</c> and null are not reported.</description></item>
+///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
+///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize and threshold.</description></item>
+///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax, interpolate, base, exponent and constant. An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
+///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
-///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>.</description></item>
-///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
+///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c> and <c>legend.formatType</c>.</description></item>
+///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the date, format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>, <c>timeunit</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c> and <c>impute</c> of the drawn view are computed and not reported.</description></item>
 ///         <item><term><c>vl-transform-filter-param</c>, <c>-filter-timeunit</c>, <c>-filter-datetime</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a <c>timeUnit</c> of a predicate (ignored), a date object in a predicate (the predicate is ignored), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
@@ -82,7 +89,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-layout-autosize-&lt;type&gt;</c></term><description><c>autosize</c> types other than pad and none (fit, fit-x, fit-y).</description></item>
 ///     </list>
 ///     <para>
-///         The warnings <c>vl-duplicate-key</c> and <c>vl-unknown-property</c> are produced by <see cref="SpecParser"/>
+///         The warnings <c>vl-duplicate-key</c>, <c>vl-unknown-property</c> and <c>vl-encoding-sort-mixed-types</c> are produced by <see cref="SpecParser"/>
 ///         and are available in <see cref="SpecTree.Warnings"/>. The warning <c>vl-data-parse-failed</c> is not part of the
 ///         catalog: it needs the data, so the data stage produces it while a chart is measured or rendered (values that an
 ///         explicit <c>format.parse</c> conversion could not read, one warning per field).
@@ -94,7 +101,10 @@ internal static class FeatureCatalog
     private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick"];
 
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
-    private static readonly HashSet<string> SupportedChannels = ["x", "y", "color", "fill", "stroke", "size", "opacity"];
+    private static readonly HashSet<string> SupportedChannels =
+    [
+        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle",
+    ];
 
     /// <summary>The channels that are accepted and ignored without a report (interaction, accessibility and linking).</summary>
     private static readonly HashSet<string> IgnoredChannels = ["tooltip", "href", "description", "key"];
@@ -103,21 +113,28 @@ internal static class FeatureCatalog
     private static readonly HashSet<string> GeoChannels = ["longitude", "latitude", "longitude2", "latitude2"];
 
     /// <summary>The channels that get a legend when they are driven by a field.</summary>
-    private static readonly HashSet<string> LegendChannels = ["color", "fill", "stroke", "size", "opacity"];
+    private static readonly HashSet<string> LegendChannels = ["color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash"];
 
     /// <summary>The marks that draw a range between a position and its secondary channel (<c>x2</c> and <c>y2</c>).</summary>
     private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule"];
 
-    /// <summary>The channels on which <c>bin</c> is applied (every other channel needs a scale type of a later phase).</summary>
-    private static readonly HashSet<string> BinnedChannels = ["x", "y"];
+    /// <summary>The channels on which <c>bin</c> is applied: the position channels and every channel that has a scale (a <c>bin: "binned"</c> is read on the position channels only).</summary>
+    private static readonly HashSet<string> BinnedChannels =
+    [
+        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle",
+    ];
 
     /// <summary>The scale types that the renderer implements.</summary>
-    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "band", "point", "ordinal"];
+    private static readonly HashSet<string> SupportedScaleTypes = ["linear", "log", "pow", "sqrt", "symlog", "sequential", "band", "point", "ordinal", "quantile", "quantize", "threshold", "bin-ordinal"];
 
-    /// <summary>The scale properties that the renderer implements; <c>scheme</c> only for <c>tableau10</c> (see the scale visit).</summary>
+    /// <summary>The scale types that order categories (a quantitative field with one of them is not on a continuous scale).</summary>
+    private static readonly HashSet<string> DiscreteScaleTypes = ["band", "point", "ordinal", "bin-ordinal", "quantile", "quantize", "threshold"];
+
+    /// <summary>The scale properties that the renderer implements (<c>interpolate</c> except for the cubehelix types, see the scale visit).</summary>
     private static readonly HashSet<string> SupportedScaleProperties =
     [
         "type", "domain", "range", "zero", "nice", "padding", "reverse", "paddingInner", "paddingOuter", "align", "round", "clamp", "scheme",
+        "domainMid", "domainMin", "domainMax", "rangeMin", "rangeMax", "interpolate", "base", "exponent", "constant",
     ];
 
     /// <summary>The axis properties that the renderer does not implement; each reports <c>vl-guide-axis-&lt;name&gt;</c>.</summary>
@@ -457,6 +474,10 @@ internal static class FeatureCatalog
             {
                 Unsupported(Id("mark", type), $"The mark type '{type}' is not rendered yet.", mark);
             }
+            else if (mark["shape"] is { IsString: true } shape)
+            {
+                VisitShapeName(shape);
+            }
         }
 
         /// <summary>
@@ -519,6 +540,11 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
+                else if (name is "shape" or "angle" or "strokeDash" && !ScaleResolver.ChannelIsDrawn(name, markType))
+                {
+                    // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol, a dash a mark with a stroke line)
+                    Unsupported(Id("channel", name), $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
+                }
                 else if (channel.IsObject)
                 {
                     VisitChannelDefinition(name, channel);
@@ -559,9 +585,6 @@ internal static class FeatureCatalog
                     case "geojson":
                         Unsupported("vl-type-geojson", "GeoJSON fields are not supported.", type);
                         break;
-                    case "quantitative" when name is "color" or "fill" or "stroke" && definition["field"] is not null:
-                        Unsupported("vl-scale-color-ramp", "Continuous color scales are not supported yet; the default mark color is used.", type);
-                        break;
                     default:
                         break;
                 }
@@ -570,28 +593,108 @@ internal static class FeatureCatalog
             ReportProperty(definition, "timeUnit", n => !n.IsNull, "Time units are not supported yet.");
             VisitBin(name, definition);
             VisitStack(name, definition);
-            if (definition["sort"] is { } sort && !SpecParser.IsSupportedSort(sort, definition))
-            {
-                Unsupported("vl-encoding-sort", "Sorting by this operation or channel is not supported yet.", sort);
-            }
-
-            ReportProperty(definition, "condition", _ => true, "Conditional encodings are not supported yet.");
+            VisitSort(name, definition);
+            VisitCondition(name, definition);
             ReportProperty(definition, "impute", n => !n.IsNull, "Imputation of a channel is not supported yet (the impute transform is).");
             ReportProperty(definition, "bandPosition", _ => true, "The band position of a field is not supported yet.");
+            if (name == "shape" && definition["value"] is { IsString: true } shape)
+            {
+                VisitShapeName(shape);
+            }
 
             var scale = definition["scale"];
             if (scale is { IsObject: true })
             {
-                VisitScale(scale);
+                VisitScale(name, scale);
             }
+
+            VisitScaleType(name, definition);
 
             if (definition["axis"] is { IsObject: true } axis)
             {
                 VisitAxis(axis);
             }
 
-            VisitLegend(name, definition, scale);
+            VisitLegend(name, definition);
         }
+
+        /// <summary>
+        ///     Reports a <c>sort</c> that is not applied: one the renderer cannot compute, one that refers to a channel the encoding does
+        ///     not have, and one that a continuous scale ignores.
+        /// </summary>
+        /// <remarks>
+        ///     <c>ascending</c>, <c>descending</c> and null are meaningful on every scale. A sort array, a channel shorthand and an object
+        ///     that sorts by a field, an operation or a channel orders the categories of a discrete scale; on a quantitative field
+        ///     (whose scale is continuous unless <c>scale.type</c> names a discrete scale) it has nothing to order and is ignored, which
+        ///     is the warning <c>vl-encoding-sort-ignored</c>.
+        /// </remarks>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitSort(string name, SpecNode definition)
+        {
+            if (definition["sort"] is not { } sort)
+            {
+                return;
+            }
+
+            if (!SpecParser.IsSupportedSort(sort, definition))
+            {
+                if (SpecParser.TryGetSortChannel(sort, out var other))
+                {
+                    Unsupported(
+                        "vl-encoding-sort",
+                        $"The sort refers to the '{other}' channel, which this encoding does not have (or which reads no field); the categories are sorted ascending.",
+                        sort);
+                }
+                else
+                {
+                    Unsupported("vl-encoding-sort", "Sorting by this operation is not supported yet; the categories are sorted ascending.", sort);
+                }
+
+                return;
+            }
+
+            if (name is not ("order" or "x2" or "y2") && SortOrdersCategories(sort) && IsContinuous(name, definition))
+            {
+                Warn(
+                    "vl-encoding-sort-ignored",
+                    "The sort orders the categories of a discrete scale; this field is quantitative with a continuous scale, so the sort is ignored.",
+                    sort);
+            }
+        }
+
+        /// <summary>
+        ///     Determines whether a <c>sort</c> lists, or computes, an order of categories (everything but ascending, descending, null and an order-only object).
+        /// </summary>
+        /// <param name="sort">The <c>sort</c> value.</param>
+        /// <returns><see langword="true"/> for an array, a channel shorthand, or an object with a field, an operation or an encoding.</returns>
+        private static bool SortOrdersCategories(SpecNode sort) => sort.Kind switch
+        {
+            SpecNodeKind.Array => true,
+            SpecNodeKind.String => sort.StringValue is not ("ascending" or "descending"),
+            SpecNodeKind.Object => sort["field"] is not null || sort["op"] is not null || sort["encoding"] is not null,
+            _ => false,
+        };
+
+        /// <summary>
+        ///     Determines whether a channel definition is a quantitative field on a continuous scale (the shape and stroke dash channels
+        ///     have categories only, so their scale is never continuous).
+        /// </summary>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        /// <returns><see langword="true"/> for the type <c>quantitative</c> without a discrete <c>scale.type</c>.</returns>
+        private static bool IsContinuous(string name, SpecNode definition) =>
+            definition["type"] is { IsString: true, StringValue: "quantitative" }
+            && name is not ("shape" or "strokeDash")
+            && !(definition["scale"]?["type"] is { IsString: true } scaleType && DiscreteScaleTypes.Contains(scaleType.StringValue!));
+
+        /// <summary>
+        ///     Determines whether a channel definition asks the encoding to bin its field (<c>bin</c> true or an object, not <c>"binned"</c>).
+        /// </summary>
+        /// <param name="definition">The channel definition object.</param>
+        /// <returns><see langword="true"/> when the bins are computed from the data.</returns>
+        private static bool IsBinning(SpecNode definition) =>
+            definition["bin"] is { } bin && IsEnabled(bin) && !(bin.IsString || bin["binned"] is { IsBoolean: true, BoolValue: true });
 
         /// <summary>
         ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
@@ -607,7 +710,11 @@ internal static class FeatureCatalog
 
             if (!BinnedChannels.Contains(name))
             {
-                Unsupported("vl-encoding-bin", $"Binning is only supported on the x and y channels, not on '{name}' (it needs the binned scale types of a later phase).", bin);
+                Unsupported("vl-encoding-bin", $"Binning is not supported on the '{name}' channel; it bins the x and y channels and the channels that have a scale.", bin);
+            }
+            else if (name is not ("x" or "y") && (bin is { IsString: true } || bin["binned"] is { IsBoolean: true, BoolValue: true }))
+            {
+                Unsupported("vl-encoding-bin", $"A field that is binned already (bin: \"binned\") is only supported on the x and y channels, not on '{name}'.", bin);
             }
             else if (bin is { IsObject: true } && bin["extent"] is { IsObject: true } extent)
             {
@@ -622,17 +729,126 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitStack(string name, SpecNode definition)
         {
-            if (!BinnedChannels.Contains(name) || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
+            if (name is not ("x" or "y") || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
             {
                 return;
             }
 
             if (definition["scale"]?["type"] is { IsString: true } scaleType && scaleType.StringValue != "linear")
             {
-                Unsupported(
-                    "vl-encoding-stack-nonlinear",
-                    $"Stacking on a '{scaleType.StringValue}' scale is not supported; the values are stacked on the linear scale.",
-                    stack);
+                // Vega-Lite does not stack on a log, pow, sqrt or symlog scale: the stack is off and the marks start at the baseline
+                var message = scaleType.StringValue is "log" or "pow" or "sqrt" or "symlog"
+                    ? $"Stacking on a '{scaleType.StringValue}' scale is not supported; Vega-Lite does not stack on it, so the marks are not stacked."
+                    : $"Stacking on a '{scaleType.StringValue}' scale is not supported; the values are stacked on the linear scale.";
+                Unsupported("vl-encoding-stack-nonlinear", message, stack);
+            }
+        }
+
+        /// <summary>
+        ///     Reports the <c>condition</c> of a channel definition that is not applied, and visits the field definition of a condition that is.
+        /// </summary>
+        /// <remarks>
+        ///     A condition with a <c>test</c> is evaluated for every row on the channels that accept one. A condition on a channel that cannot take one
+        ///     is reported as a whole; a condition on a parameter (or a test that refers to a selection, a time unit or a date object)
+        ///     is reported and never holds.
+        /// </remarks>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitCondition(string name, SpecNode definition)
+        {
+            if (definition["condition"] is not { } condition)
+            {
+                return;
+            }
+
+            if (!ChannelDefinitions.CanCondition(name))
+            {
+                Unsupported("vl-encoding-condition", $"A conditional encoding is not supported on the '{name}' channel; the condition is ignored.", condition);
+                return;
+            }
+
+            foreach (var item in condition.IsArray ? condition.Items : [condition])
+            {
+                if (!item.IsObject)
+                {
+                    continue;
+                }
+
+                if (item["param"] is not null)
+                {
+                    Unsupported("vl-encoding-condition-param", "A condition on a parameter is not supported yet; it never holds.", item);
+                    continue;
+                }
+
+                if (item["test"] is { } test)
+                {
+                    VisitConditionTest(test);
+                }
+
+                VisitChannelDefinition(name, item);
+            }
+        }
+
+        /// <summary>
+        ///     Reports the part of the test of a condition that the renderer cannot evaluate.
+        /// </summary>
+        /// <param name="test">The <c>test</c> value: an expression text or a predicate object.</param>
+        private void VisitConditionTest(SpecNode test)
+        {
+            if (test.IsString)
+            {
+                ReportConstructs(test);
+                return;
+            }
+
+            if (!test.IsObject || !PredicateSource.IsUnsupported(test))
+            {
+                return;
+            }
+
+            var pending = new Stack<SpecNode>();
+            pending.Push(test);
+            while (pending.Count > 0)
+            {
+                var predicate = pending.Pop();
+                if (predicate.IsString)
+                {
+                    ReportConstructs(predicate);
+                }
+                else if (predicate.IsObject)
+                {
+                    VisitConditionPredicate(predicate, pending);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Reports one object of a predicate that cannot be evaluated, or queues its parts.
+        /// </summary>
+        /// <param name="predicate">The predicate object.</param>
+        /// <param name="pending">The predicates still to visit.</param>
+        private void VisitConditionPredicate(SpecNode predicate, Stack<SpecNode> pending)
+        {
+            var composed = predicate["and"] ?? predicate["or"];
+            var named = predicate["param"] ?? predicate["selection"];
+            if (composed is { IsArray: true })
+            {
+                foreach (var item in composed.Items)
+                {
+                    pending.Push(item);
+                }
+            }
+            else if (predicate["not"] is { } negated)
+            {
+                pending.Push(negated);
+            }
+            else if (named is not null)
+            {
+                Unsupported("vl-encoding-condition-param", "A test on a selection or a parameter that is not a variable is not supported yet; the condition never holds.", named);
+            }
+            else if (PredicateSource.IsUnsupported(predicate))
+            {
+                Unsupported("vl-encoding-condition-test", "A time unit or a date object in the test of a condition is not supported yet; the condition never holds.", predicate);
             }
         }
 
@@ -662,8 +878,9 @@ internal static class FeatureCatalog
         /// <summary>
         ///     Visits a scale definition.
         /// </summary>
+        /// <param name="channel">The channel the scale belongs to.</param>
         /// <param name="scale">The scale object.</param>
-        private void VisitScale(SpecNode scale)
+        private void VisitScale(string channel, SpecNode scale)
         {
             foreach (var property in scale.Properties)
             {
@@ -675,22 +892,74 @@ internal static class FeatureCatalog
                         Unsupported(Id("scale", property.StringValue!), $"The '{property.StringValue}' scale type is not supported yet.", property);
                     }
                 }
-                else if (name == "scheme")
+                else if (name == "interpolate")
                 {
-                    // Only the default categorical palette is available (the lookup the scale resolver uses, so the two agree on
-                    // the name's case); any other scheme falls back to it. An explicit color range overrides a scheme, so a scheme
-                    // next to one is never applied and is not reported
-                    var scheme = property.IsString ? property.StringValue : property["name"]?.AsString();
-                    var hasRange = scale["range"] is { IsArray: true, Items.Count: > 0 } range && range.Items.All(i => i.IsString);
-                    if (!hasRange && !ColorSchemes.TryGetScheme(scheme, out _))
+                    // Cubehelix is recognized and interpolates in RGB instead; the other interpolation types are implemented
+                    var type = property.IsString ? property.StringValue : property["type"]?.AsString();
+                    if (type is "cubehelix" or "cubehelix-long")
                     {
-                        Unsupported(Id("scale-property", name), $"The color scheme '{scheme}' is not available; tableau10 is used instead.", property);
+                        Unsupported("vl-scale-interpolate-cubehelix", $"The '{type}' color interpolation is not supported; RGB interpolation is used.", property);
+                    }
+                }
+                else if (name == "range" && channel == "shape" && property.IsArray)
+                {
+                    foreach (var item in property.Items)
+                    {
+                        VisitShapeName(item);
                     }
                 }
                 else if (!SupportedScaleProperties.Contains(name))
                 {
                     Unsupported(Id("scale-property", name), $"The scale property '{name}' is not supported yet.", property);
                 }
+            }
+        }
+
+        /// <summary>
+        ///     Reports a shape that is a custom SVG path instead of one of the symbol names; the painter draws a circle for it.
+        /// </summary>
+        /// <param name="shape">The value: a shape name or a path.</param>
+        private void VisitShapeName(SpecNode shape)
+        {
+            if (shape.IsString && !ScaleResolver.IsKnownShape(shape.StringValue!))
+            {
+                Unsupported("vl-shape-path", $"The shape '{shape.StringValue}' is not a symbol name; custom SVG path shapes are not supported, and a circle is drawn.", shape);
+            }
+        }
+
+        /// <summary>
+        ///     Warns about a <c>scale.type</c> that the channel or the field type cannot use, and about a quantitative field on a channel
+        ///     that has categories only.
+        /// </summary>
+        /// <remarks>
+        ///     Vega-Lite replaces the type with the default one and warns; so does the scale resolver. A type that the renderer does not
+        ///     draw is reported as <c>vl-scale-&lt;type&gt;</c> instead and is not repeated here.
+        /// </remarks>
+        /// <param name="channel">The channel name.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitScaleType(string channel, SpecNode definition)
+        {
+            if (definition["type"] is not { IsString: true, StringValue: "quantitative" or "nominal" or "ordinal" } fieldType || definition["field"] is null)
+            {
+                return;
+            }
+
+            if (definition["scale"]?["type"] is { IsString: true } scaleType)
+            {
+                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldType.StringValue, scaleType.StringValue!, IsBinning(definition)))
+                {
+                    Warn(
+                        "vl-scale-type-ignored",
+                        $"The '{scaleType.StringValue}' scale type cannot be used for the '{channel}' channel with a {fieldType.StringValue} field; the default scale type is used.",
+                        scaleType);
+                }
+            }
+            else if (channel is "shape" or "strokeDash" && fieldType.StringValue == "quantitative")
+            {
+                Warn(
+                    "vl-scale-type-ignored",
+                    $"The '{channel}' channel shows categories, so a quantitative field gets an ordinal scale; use a nominal or ordinal field or a discretizing scale type (quantize, quantile, threshold).",
+                    fieldType);
             }
         }
 
@@ -726,23 +995,50 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports the legend that Vega-Lite would draw for a channel driven by a field.
+        ///     Reports the parts of a legend definition that the renderer does not draw.
         /// </summary>
+        /// <remarks>
+        ///     Legends themselves are drawn (by the <c>LegendPlan</c> and <c>LegendBuilder</c> units) and are not reported. A <c>titleOrient</c> other than <c>top</c> and a
+        ///     <c>clipHeight</c> are not drawn, <c>encode</c>, <c>labelExpr</c> and <c>formatType</c> are not evaluated, and a
+        ///     <c>symbolType</c> that is not a symbol name is a custom shape path (a circle is drawn).
+        /// </remarks>
         /// <param name="channel">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
-        /// <param name="scale">The <c>scale</c> value of the channel, or null.</param>
-        private void VisitLegend(string channel, SpecNode definition, SpecNode? scale)
+        private void VisitLegend(string channel, SpecNode definition)
         {
-            var legend = definition["legend"];
-            if (!LegendChannels.Contains(channel) || definition["field"] is null || legend is { IsNull: true } || scale is { IsNull: true })
+            if (!LegendChannels.Contains(channel) || definition["legend"] is not { IsObject: true } legend)
             {
                 return;
             }
 
-            Unsupported("vl-guide-legend", "Legends are not supported yet.", legend ?? definition);
-            if (legend is { IsObject: true } && legend["encode"] is { } encode)
+            foreach (var property in legend.Properties)
             {
-                Unsupported("vl-guide-encode", "Custom guide encodings (legend.encode) are not supported.", encode);
+                switch (property.Name)
+                {
+                    case "encode":
+                        Unsupported("vl-guide-encode", "Custom guide encodings (legend.encode) are not supported.", property);
+                        break;
+                    case "labelExpr":
+                        Unsupported("vl-expr-label", "Label expressions (legend.labelExpr) are not supported yet.", property);
+                        break;
+                    case "formatType":
+                        Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported.", property);
+                        break;
+                    case "titleOrient" when property.IsString && property.StringValue != "top":
+                        Unsupported(
+                            "vl-guide-legend-titleorient",
+                            $"The legend title orient '{property.StringValue}' is not supported; the title is drawn above the legend.",
+                            property);
+                        break;
+                    case "clipHeight":
+                        Unsupported("vl-guide-legend-clipheight", "The legend property 'clipHeight' is not supported yet.", property);
+                        break;
+                    case "symbolType":
+                        VisitShapeName(property);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 

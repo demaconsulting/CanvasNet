@@ -78,6 +78,27 @@ sections:
                   - EncodingTransforms_Apply_BinStepAndExtentParameters
                   - EncodingTransforms_Apply_OrdinalBinsAreTextCategoriesOrderedByStart
 
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-BinnedChannels
+                title: >-
+                  The EncodingPlan unit shall, for a color, fill, stroke, size, opacity, fillOpacity,
+                  strokeOpacity, strokeWidth, strokeDash, shape, or angle channel with bin set and a field
+                  that is not aggregated, add the bin of the field as for a position channel with Vega-Lite's
+                  default of 6 bins (4 for strokeDash, 10 for angle) when neither maxbins nor step is given,
+                  name it by those parameters, share it with the channels that bin the same field the same
+                  way, group an aggregate by its start and end, give a quantitative field the start of the
+                  bin and its end and a nominal or ordinal field the text of the bin (formatted with the
+                  format of the legend), and read bin set to binned on x and y only.
+                justification: |
+                  A color or size that shows a binned measure must use the bins of Vega-Lite so that the
+                  same specification draws the same classes; the bin of a histogram and of its color must be
+                  one bin.
+                tests:
+                  - EncodingPlan_Create_BinsTheChannelsThatHaveAScaleWithTheirDefaultMaxBins
+                  - EncodingPlan_Create_DiscreteBinOfAnotherChannelReadsTheRangeTextWithTheLegendFormat
+                  - EncodingPlan_Create_DiscreteBinReadsTheRangeText
+                  - EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX
+                  - EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields
+                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-StackRules
                 title: >-
                   The EncodingPlan unit shall, when the Vega-Lite rules make the measure channel of an encoding
@@ -99,6 +120,8 @@ sections:
                   - EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY
                   - EncodingTransforms_Apply_StacksAscendingOnX
                   - EncodingTransforms_Apply_StacksNegativeValuesDownwards
+                  - EncodingTransforms_Apply_SignedStacksOnXAndWithAggregatedNegativeSums
+                  - EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar
                   - EncodingTransforms_Apply_NormalizeAndCenterOffsets
                   - EncodingTransforms_Apply_OrderChannelOrdersTheLayers
 
@@ -146,6 +169,7 @@ sections:
                   - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
                   - EncodingTransforms_Apply_StackNextToRawRowsCountsTheRows
                   - EncodingTransforms_Apply_BoundsTheBinsAndChargesTheRows
+                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable
 
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
                 title: >-
@@ -168,3 +192,16 @@ sections:
                   culture would break golden tests.
                 tests:
                   - EncodingTransforms_Apply_IsDeterministicAndCultureInvariant
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-ConditionalFields
+                title: >-
+                  The EncodingPlan unit shall read the field, aggregate, bin, type, scale, and legend of a
+                  channel whose own definition is a value from the first condition on a test that holds a
+                  field, as Vega-Lite reads the field definition of a conditional channel, while a channel
+                  that has a field of its own keeps it and a condition that holds only values, or a
+                  parameter, reads none.
+                justification: |
+                  A color that is conditional on a test but mapped from a field elsewhere draws a scale and a
+                  legend from that field; the plan must name the same field as the scale and the legend.
+                tests:
+                  - EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel

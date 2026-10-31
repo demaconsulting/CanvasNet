@@ -631,6 +631,68 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that malformed encoding <c>sort</c> values are reported with locations and never crash or silently mis-sort: an object or array item of a sort
+    ///     array is a specification error with the line and column of the item, a sort array that mixes kinds of values is one warning delivered once, in order,
+    ///     through the warning handler, a sort that a continuous scale ignores is a warning, a sort by a channel the encoding lacks is an unsupported feature
+    ///     (that strict mode throws for), and the warnings never make strict mode throw.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes()
+    {
+        // Arrange: a view whose x channel takes the sort that each case supplies, over a quantitative y
+        static string Spec(string x) =>
+            "{\n  \"data\": { \"values\": [ { \"k\": \"a\", \"v\": 1 }, { \"k\": \"b\", \"v\": 2 } ] },\n  \"mark\": \"bar\",\n  \"encoding\": {\n    \"x\": " + x +
+            ",\n    \"y\": { \"field\": \"v\", \"type\": \"quantitative\" }\n  }\n}";
+        const string Nominal = "{ \"field\": \"k\", \"type\": \"nominal\", \"sort\": ";
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act / Assert: an object item is a located error and no document is created
+        var bad = Assert.Throws<VegaLiteSpecException>(() =>
+            VegaLiteDocument.Parse(Spec(Nominal + "[ \"a\", { \"year\": 2024 } ] }"), new VegaLiteOpenOptions { SourceName = "sort.vl.json" }));
+        Assert.Equal("/encoding/x/sort/1", bad.Location.Pointer);
+        Assert.Equal("sort.vl.json", bad.Location.File);
+        Assert.Equal(5, bad.Location.Line);
+        Assert.StartsWith("sort.vl.json:5:", bad.Message, StringComparison.Ordinal);
+
+        // Act: a mixed sort array renders, warns once at the array and does not trip strict mode
+        var warnings = new List<string>();
+        var features = new List<string>();
+        var delivering = new VegaLiteRenderOptions { WarningHandler = w => warnings.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + "|" + w.Location.Pointer), UnsupportedFeatureHandler = f => features.Add(f.Feature) };
+        var mixed = VegaLiteDocument.Parse(Spec(Nominal + "[ 1, \"b\", \"a\" ] }"));
+        Draw(mixed, delivering);
+
+        // Assert
+        Assert.Equal(["vl-encoding-sort-mixed-types|/encoding/x/sort"], warnings);
+        Assert.Empty(features);
+        Draw(mixed, strict);
+
+        // Act: a sort array on a quantitative field is ignored with a warning, and strict mode is unaffected
+        warnings.Clear();
+        var ignored = VegaLiteDocument.Parse(Spec("{ \"field\": \"v\", \"type\": \"quantitative\", \"sort\": [ 2, 1 ] }"));
+        Draw(ignored, delivering);
+
+        // Assert
+        Assert.Equal(["vl-encoding-sort-ignored|/encoding/x/sort"], warnings);
+        Draw(ignored, strict);
+
+        // Act / Assert: a sort by a channel the encoding does not have is reported and strict mode stops at it
+        var missing = VegaLiteDocument.Parse(Spec(Nominal + "{ \"encoding\": \"color\" } }"));
+        var thrown = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => missing.Render(strict, Ct));
+        Assert.Equal(("vl-encoding-sort", "/encoding/x/sort"), (thrown.Feature, thrown.Location.Pointer));
+        Assert.Contains("'color' channel", thrown.Message, StringComparison.Ordinal);
+        features.Clear();
+        Draw(missing, delivering);
+        Assert.Equal(["vl-encoding-sort"], features);
+
+        // Renders a document and checks that a surface came out
+        static void Draw(VegaLiteDocument document, VegaLiteRenderOptions options)
+        {
+            using var surface = document.Render(options, Ct);
+            Assert.True(surface.Width > 0);
+        }
+    }
+
+    /// <summary>
     ///     Validates that remote data is reported and never fetched or resolved, and that empty inline data warns.
     /// </summary>
     [Fact]

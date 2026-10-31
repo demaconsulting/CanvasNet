@@ -60,6 +60,26 @@ definitions) are the generous union of every variant in the Vega-Lite 6 schema, 
 top-level `selection` and the channel key `band` are accepted too. Validation never walks inline data rows: a `values`
 array is checked for being an array and no more.
 
+**Scale options.** After the kind rules of a scale, `ValidateScaleOptions` checks the options that need more than a kind
+letter: a `scheme` object must have a string `name`, a positive whole `count`, and an `extent` of two numbers; an
+`interpolate` must be one of the eight color-space names (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`,
+`cubehelix`, `cubehelix-long`) or an object with that name as `type` and a numeric `gamma`; each failure is a
+`VegaLiteSpecException` at the offending value, and an unknown key of a `scheme` or `interpolate` object is a
+`vl-unknown-property` warning. An expression reference in place of either is left to the catalog. `ValidateTransformOptions`
+checks the parameters of the transform scale types by the type of the scale only: the `base` of a `log` scale must be a
+number above zero other than 1, the `exponent` of a `pow` scale finite, and the `constant` of a `symlog` scale
+above zero (the
+parameters of another type are ignored, as in Vega-Lite). `domainMid`,
+`domainMin`, `domainMax`, `rangeMin`, `rangeMax` (numbers or expression references) and `bins` (array or object) have
+kind rules only.
+
+**Legend options.** After the kind rules of a legend, `ValidateLegendOptions` checks what they cannot express: the counts
+and lengths `columns`, `symbolLimit`, `tickCount`, `clipHeight`, `gradientLength`, and `gradientThickness` must not be
+negative (a `VegaLiteSpecException` at the value), and a key that Vega-Lite does not define for a legend is a
+`vl-unknown-property` warning. The kind rules carry the enumerations (`orient`, `direction`, `titleOrient`, and the
+alignments) and the kinds of the paint, font, and layout properties; `legend: null` disables the legend, and `legend:
+false` is a specification error.
+
 **Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data stage
 reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
 break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a
@@ -134,7 +154,13 @@ value:
   values, a channel shorthand (`"y"` or `"-y"` with a channel of `x y color fill stroke strokeWidth size shape fillOpacity
   strokeOpacity opacity text`), or an object `{field, op, order}` (the `op` any aggregate operation but `argmin` and
   `argmax`) or `{encoding, order}` (the two forms cannot be mixed); the `sort` of an `order` channel is `ascending` or
-  `descending` only.
+  `descending` only. Every item of a `sort` array (`ValidateSortArray`) is a string, a number, a boolean, or null: an
+  object or an array item is an error at the item, because it would otherwise read as the null category and silently
+  mis-sort; an object is accepted only as a date-time (a non-empty object of the keys `year quarter month date day hours
+  minutes seconds milliseconds utc` with string, number, or boolean values) on a field of type `temporal`. An array that
+  mixes kinds of values is accepted (values are matched by kind, as Vega-Lite's strict comparison does) and is one
+  `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than `field`,
+  `op`, `order`, and `encoding` is a `vl-unknown-property` warning at the key.
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -171,8 +197,31 @@ an error; a duplicate key keeps the last value at the position of the first occu
   too), `IsDrawnView(root, view)`, `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
-  array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`, and
+  array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`,
+  `TryGetSortChannel(sort, out channel)` (the channel a shorthand or an `encoding` refers to), and
   `IsSortChannel(name)` are shared with the catalog and the scale resolver in the same way.
+- `ValidateConditions(definition)` (in `SpecParser.Transforms.cs`, called from `ValidateChannelDefinition`) checks the
+  `condition` of a channel definition: an object, or an array of objects, each with a `test` or a `param` (an object
+  that has neither is an error at the condition) and the properties of a value or a field definition (the scale, axis,
+  and legend of a field condition are validated like those of a channel). A `test` is checked by `ValidatePredicate`
+  (an expression text is compiled there, as in a filter). On a channel that accepts a condition of the drawn view
+  (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
+  source by `PredicateSource.TryBuild` and compiled once under the key of the predicate node, so the marks evaluate
+  it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter
+  that is not a variable, a time unit, a date object) is not written. The `value.expr` of a condition is compiled like
+  the one of a channel. `CompileSource(key, source, location)` is the common part of `CompileExpression`.
+  `ChannelDefinitions` is the shared, pure helper that tells the conditional channels, lists the conditions, and finds
+  the **field definition** of a channel (its own definition when it names a field, a datum, or an aggregate, else the
+  first condition on a test that does, as Vega-Lite's `getFieldOrDatumDef`) and the constant values a legend shows
+  (the first condition value, then the channel's own value).
+- `PredicateSource.TryBuild(predicate, out source)` writes the predicates of Vega-Lite as expression text with the
+  meaning that `isValid`, strict equality, and the comparison operators give: `equal` as `===`, `lt`, `lte`, `gt`, and
+  `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null
+  endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as `isValid` (negated for false),
+  `and`, `or`, and `not` as the logical operators (an empty `and` is true, an empty `or` is false), and a variable
+  parameter as its name. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text as a
+  double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the source
+  unquoted.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
   ordered (a cycle), or -1; the same

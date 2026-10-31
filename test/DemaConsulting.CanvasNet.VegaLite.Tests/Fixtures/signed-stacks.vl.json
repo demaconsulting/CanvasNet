@@ -1,0 +1,24 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Takings and outgoings per quarter",
+  "width": 240,
+  "height": 100,
+  "data": {
+    "values": [
+      { "quarter": "q1", "kind": "sales", "amount": 12 },
+      { "quarter": "q1", "kind": "tips", "amount": 8 },
+      { "quarter": "q1", "kind": "refunds", "amount": -4 },
+      { "quarter": "q1", "kind": "costs", "amount": -6 },
+      { "quarter": "q2", "kind": "sales", "amount": 15 },
+      { "quarter": "q2", "kind": "tips", "amount": 3 },
+      { "quarter": "q2", "kind": "refunds", "amount": -8 },
+      { "quarter": "q2", "kind": "costs", "amount": -12 }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "quarter", "type": "nominal", "axis": { "labelAngle": 0 } },
+    "y": { "field": "amount", "type": "quantitative" },
+    "color": { "field": "kind", "type": "nominal" }
+  }
+}

@@ -105,22 +105,84 @@ public class EncodingPlanTests
 
     /// <summary>
     ///     Validates that a nominal or ordinal binned field reads the text of the bin (<c>_range</c>) and has no second field, and that
-    ///     a continuous channel that shares the bin gets the range name in its plan too.
+    ///     a continuous channel that shares the bin gets the range name in its plan too (and still reads the start and the end).
     /// </summary>
     [Fact]
     public void EncodingPlan_Create_DiscreteBinReadsTheRangeText()
     {
         // Act
-        var (plan, _) = Create("""{"x":{"field":"x","type":"ordinal","bin":true},"color":{"field":"x","type":"quantitative","bin":true}}""", "\"point\"");
+        var (plan, _) = Create("""{"x":{"field":"x","type":"ordinal","bin":true},"color":{"field":"x","type":"quantitative","bin":{"maxbins":10}}}""", "\"point\"");
 
-        // Assert: one bin for both channels, with the range field; "color" is not binned (bin is planned on x and y only)
+        // Assert: one bin for both channels, with the range field; "color" reads the start and the end of the bin
         Assert.Single(plan.Bins);
         Assert.Equal("bin_maxbins_10_x_range", plan.Bins[0].RangeName);
         var x = plan.Channel("x")!;
         Assert.Equal("bin_maxbins_10_x_range", x.ValueField);
         Assert.Null(x.Field2Path);
         Assert.Equal("bin_maxbins_10_x_range", x.BinPlan!.RangeName);
-        Assert.Equal(BinKind.None, plan.Channel("color")!.Bin);
+        var color = plan.Channel("color")!;
+        Assert.Equal(BinKind.Binning, color.Bin);
+        Assert.Equal("bin_maxbins_10_x", color.ValueField);
+        Assert.Equal("bin_maxbins_10_x_end", color.Field2Path);
+    }
+
+    /// <summary>
+    ///     Validates that a channel that has a scale bins its field with Vega-Lite's <c>autoMaxBins</c> default (6 for the color, size, opacity, stroke
+    ///     width and shape channels, 4 for the stroke dash, 10 for the others), keeps a <c>maxbins</c> or <c>step</c> that is written, names the bin
+    ///     by its channel's default, titles it as a binned field, and ignores <c>bin: "binned"</c> (read on x and y only).
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="bin">The <c>bin</c> value.</param>
+    /// <param name="start">The expected name of the start field.</param>
+    [Theory]
+    [InlineData("color", "true", "bin_maxbins_6_v")]
+    [InlineData("fill", "true", "bin_maxbins_6_v")]
+    [InlineData("stroke", "{\"nice\":false}", "bin_nice_false_maxbins_6_v")]
+    [InlineData("size", "true", "bin_maxbins_6_v")]
+    [InlineData("opacity", "true", "bin_maxbins_6_v")]
+    [InlineData("fillOpacity", "true", "bin_maxbins_6_v")]
+    [InlineData("strokeOpacity", "true", "bin_maxbins_6_v")]
+    [InlineData("strokeWidth", "true", "bin_maxbins_6_v")]
+    [InlineData("shape", "true", "bin_maxbins_6_v")]
+    [InlineData("strokeDash", "true", "bin_maxbins_4_v")]
+    [InlineData("angle", "true", "bin_maxbins_10_v")]
+    [InlineData("color", "{\"maxbins\":3}", "bin_maxbins_3_v")]
+    [InlineData("size", "{\"step\":5}", "bin_step_5_v")]
+    public void EncodingPlan_Create_BinsTheChannelsThatHaveAScaleWithTheirDefaultMaxBins(string channel, string bin, string start)
+    {
+        // Act
+        var (plan, _) = Create("{\"" + channel + "\":{\"field\":\"v\",\"type\":\"quantitative\",\"bin\":" + bin + "}}", "\"point\"");
+
+        // Assert
+        var planned = plan.Channel(channel)!;
+        Assert.Equal(BinKind.Binning, planned.Bin);
+        Assert.Equal(start, planned.ValueField);
+        Assert.Equal(start + "_end", planned.Field2Path);
+        Assert.Equal("v (binned)", planned.Title);
+        Assert.Equal([start], plan.Bins.Select(b => b.StartName).ToArray());
+    }
+
+    /// <summary>
+    ///     Validates that a nominal or ordinal field on a non-position channel reads the text of the bin, formatted with the <c>format</c> of
+    ///     the legend, and that data that is binned already, a bin of an aggregate and a secondary channel are not planned as bins.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_DiscreteBinOfAnotherChannelReadsTheRangeTextWithTheLegendFormat()
+    {
+        // Act
+        var discrete = Create("""{"color":{"field":"v","type":"ordinal","bin":true,"legend":{"format":".1f"}}}""", "\"point\"").Plan;
+        var already = Create("""{"color":{"field":"v","type":"quantitative","bin":"binned"}}""", "\"point\"").Plan;
+        var aggregate = Create("""{"color":{"field":"v","type":"quantitative","aggregate":"mean","bin":true}}""", "\"point\"").Plan;
+
+        // Assert
+        var channel = discrete.Channel("color")!;
+        Assert.Equal("bin_maxbins_6_v_range", channel.ValueField);
+        Assert.Null(channel.Field2Path);
+        Assert.Equal(".1f", discrete.Bins[0].Format);
+        Assert.Equal(BinKind.None, already.Channel("color")!.Bin);
+        Assert.Empty(already.Bins);
+        Assert.Equal(BinKind.None, aggregate.Channel("color")!.Bin);
+        Assert.Empty(aggregate.Bins);
     }
 
     /// <summary>
@@ -205,6 +267,36 @@ public class EncodingPlanTests
         Assert.All(plan.Channels, c => Assert.False(c.HasField));
         Assert.All(plan.Channels, c => Assert.Null(c.Title));
         Assert.True(plan.IsIdentity);
+    }
+
+    /// <summary>
+    ///     Validates that a field in a condition of a value channel is the field the channel reads (the definition that carries the field is the condition), that
+    ///     value conditions and parameter conditions read none, and that a field with value conditions keeps its own field.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel()
+    {
+        // Act
+        var (plan, tree) = Create(
+            """
+            {"color":{"condition":{"test":"datum.a > 1","field":"c","type":"nominal"},"value":"gray"},
+             "size":{"condition":{"test":"datum.a > 1","value":9}},
+             "opacity":{"condition":{"param":"p","field":"c","type":"nominal"},"value":0.5},
+             "shape":{"field":"s","type":"nominal","condition":{"test":"datum.a > 1","value":"square"}}}
+            """,
+            "\"point\"");
+
+        // Assert: the color reads c through its condition; the size and the parameter condition read nothing; the shape keeps its own field
+        var color = plan.Channel("color")!;
+        Assert.Equal(("c", "c"), (color.SourceField, color.FieldPath));
+        Assert.Same(tree.Root["encoding"]!["color"]!["condition"], color.FieldDef);
+        Assert.Same(tree.Root["encoding"]!["color"], color.Definition);
+        Assert.Equal("c", color.Title);
+        Assert.False(plan.Channel("size")!.HasField);
+        Assert.False(plan.Channel("opacity")!.HasField);
+        var shape = plan.Channel("shape")!;
+        Assert.Equal("s", shape.FieldPath);
+        Assert.Same(shape.Definition, shape.FieldDef);
     }
 
     /// <summary>
@@ -379,6 +471,35 @@ public class EncodingPlanTests
         Assert.Equal([new SortField("g", false)], horizontal.Stack!.Sort.ToArray());
         Assert.Equal([new SortField("o1", false), new SortField("o2", true)], ordered.Stack!.Sort.ToArray());
         Assert.Equal([new SortField("o1", false)], single.Stack!.Sort.ToArray());
+    }
+
+    /// <summary>
+    ///     Validates that an <c>area</c> mark decides, plans and computes its stack like a bar in both orientations, with signed values: the area is not drawn
+    ///     until a later phase, but the stack decision, the plan and the engine are shared, so its rows are the ones a bar gets. Vertical: the layers x (3),
+    ///     y (-2), z (1) stack descending, so z is (0, 1), y is (0, -2) and x is (1, 4). Horizontal: ascending, so x is (0, 3), y is (0, -2) and z is (3, 4).
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar()
+    {
+        // Arrange
+        const string rows = """[{"c":"a","g":"x","v":3},{"c":"a","g":"y","v":-2},{"c":"a","g":"z","v":1}]""";
+        const string vertical = """{"x":{"field":"c","type":"ordinal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""";
+        const string horizontal = """{"y":{"field":"c","type":"ordinal"},"x":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""";
+
+        // Act
+        var areaPlan = Create(vertical, "\"area\"").Plan;
+        var barPlan = Create(vertical, "\"bar\"").Plan;
+        var areaRows = ChartTestHelpers.ResolveFull("{\"data\":{\"values\":" + rows + "},\"mark\":\"area\",\"encoding\":" + vertical + "}");
+        var areaAcross = ChartTestHelpers.ResolveFull("{\"data\":{\"values\":" + rows + "},\"mark\":\"area\",\"encoding\":" + horizontal + "}");
+
+        // Assert: the same decision and the same layer order as a bar
+        Assert.Equal(barPlan.Stack!.Channel, areaPlan.Stack!.Channel);
+        Assert.Equal(barPlan.Stack.Offset, areaPlan.Stack.Offset);
+        Assert.Equal(barPlan.Stack.Sort.ToArray(), areaPlan.Stack.Sort.ToArray());
+        Assert.Equal(["x|1|4", "y|0|-2", "z|0|1"], AggregateTestSupport.Rows(areaRows.Data.Main, "g", "v_start", "v_end"));
+        Assert.Equal((-2, 4), (areaRows.Scales["y"]!.DomainStart, areaRows.Scales["y"]!.DomainEnd));
+        Assert.Equal(["x|0|3", "y|0|-2", "z|3|4"], AggregateTestSupport.Rows(areaAcross.Data.Main, "g", "v_start", "v_end"));
+        Assert.Equal((-2, 4), (areaAcross.Scales["x"]!.DomainStart, areaAcross.Scales["x"]!.DomainEnd));
     }
 
     /// <summary>

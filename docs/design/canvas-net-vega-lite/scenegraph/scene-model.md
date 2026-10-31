@@ -6,8 +6,8 @@ The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. 
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, all `internal`:
 
 - `SceneModel.cs` - `Scene`, `SceneItem` and its subtypes `SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`,
-  `SceneSymbol`, and `SceneText`, the value types `ScenePoint`, `SceneClip`, and `SceneEntry`, and the `SceneLists` copy
-  helper
+  `SceneSymbol`, and `SceneText`, the gradient types `SceneGradient` and `SceneGradientStop`, the value types
+  `ScenePoint`, `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper
 - `SceneBounds.cs` - `SceneBounds` (readonly record struct): axis-aligned bounding boxes
 - `SceneBudget.cs` - `SceneBudget` (sealed class): the item counter behind `MaxSceneItems`
 
@@ -31,7 +31,18 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-SceneModel
 paint), `StrokeWidth` (null means 1), `Opacity`, `FillOpacity`, and `StrokeOpacity` (1 by default and multiplying: the
 fill is drawn with fill opacity times opacity, the stroke with stroke opacity times opacity), the `StrokeDash` pattern
 (copied, read-only), `StrokeDashOffset`, and the `StrokeCap` and `StrokeJoin`. Items are immutable; a changed copy is made
-with a `with` expression, and list-valued members are copied when set.
+with a `with` expression, and list-valued members are copied when set. An item can also carry a `FillGradient`, which
+replaces the solid `Fill` when it is set and can be drawn.
+
+- **`SceneGradient`** `(X1, Y1, X2, Y2, stops)` - an immutable linear gradient for a fill, as in Vega's gradient object:
+  the start `(X1, Y1)` and the end `(X2, Y2)` are fractions of the bounding box of the item (`(0, 0)` is the top-left
+  corner and `(1, 1)` the bottom-right one), the defaults `(0, 0)` to `(1, 0)` run from left to right (`Horizontal`), and
+  the vertical gradient of a legend runs from `(0, 1)` to `(0, 0)`, so that the last stop is at the top (`Vertical`).
+  `Stops` is a read-only copy of the `SceneGradientStop` list (an `Offset` from 0 to 1 and a CSS `Color`); the stops
+  need not be sorted and may share an offset (a hard step). The number of stops is bounded by `MaxStops` (256; a larger
+  list is an `ArgumentException`), so a gradient costs a constant and is not charged against the scene-item budget.
+  Vega's `scaleGradient` builds its stops from the domain end points and the ticks of the scale (15 by default); that
+  choice belongs to the scene builders, not to the model.
 
 - **`SceneGroup`** - a coordinate system at `(X, Y)` with a `Width`, `Height`, and `CornerRadius` for its own
   background and border, an optional `SceneClip`, a `StrokeOffset` (null means Vega's rule: half a pixel for a one-pixel
@@ -41,7 +52,7 @@ with a `with` expression, and list-valued members are copied when set.
   (the area of the bounding box in square pixels, 64 by default) and `Angle`; **`SceneText`** `(X, Y, Lines)` with `Text`
   (lines joined by a line feed), `Dx`, `Dy`, `FontFamily`, `FontSize` (11), `FontWeight`, `FontStyle`, `Align` (left,
   center, right), `Baseline` (alphabetic, top, middle, bottom, line-top, line-bottom), `Angle`, `Limit`, `LineHeight`, and
-  `Ellipsis` (the horizontal ellipsis).
+  `Ellipsis` (the horizontal ellipsis); text has no gradient fill.
 - **`Scene`** `(Width, Height, Background, Root)` - the canvas at a scale of one, y down; the constructor requires finite,
   non-negative sizes and a non-null root. `Enumerate()`, `Find(role)`, `FindAll(role)`, `OfType<T>()`, and `CountItems()`
   visit the items in drawing order, parents before children, reporting for each `SceneEntry` the item, the accumulated
@@ -56,7 +67,8 @@ the drawing order; the empty bounds contain nothing.
 #### Key Methods
 
 - Item and scene constructors - validate the role (`ArgumentException`), the scene size (`ArgumentOutOfRangeException`),
-  and the root (`ArgumentNullException`), and copy list-valued members into read-only lists.
+  the root (`ArgumentNullException`), and the stops of a gradient (`ArgumentNullException`, and `ArgumentException` for
+  more than `MaxStops`), and copy list-valued members into read-only lists.
 - `Scene.Enumerate()` - an iterative walk with an explicit stack, so a deep scene cannot overflow the stack; the same scene
   always yields the same sequence.
 - `SceneBounds.Union`, `Translate`, and `Rotate` - the arithmetic that layout uses to grow the bounds of a view; the empty

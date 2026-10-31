@@ -25,14 +25,16 @@ internal static partial class ScaleResolver
     /// <param name="input">The channel facts.</param>
     /// <param name="context">The view facts.</param>
     /// <param name="binSpec">Receives the bins when the domain is that of a binned field; otherwise null.</param>
+    /// <param name="found">Receives whether the domain comes from valid values (false when there is none and the default 0 to 1 is returned).</param>
     /// <returns>The minimum and maximum; (0, 1) when there is no valid value.</returns>
-    private static (double Min, double Max) LinearExtent(CommonInputs input, Context context, out BinSpec? binSpec)
+    private static (double Min, double Max) LinearExtent(CommonInputs input, Context context, out BinSpec? binSpec, out bool found)
     {
         binSpec = null;
+        found = true;
         var plan = input.Plan;
         if (plan is null)
         {
-            return ExtentOfFields(context.Data.Main, [], input.Datum, context);
+            return ExtentOfFields(context.Data.Main, [], input.Datum, context, out found);
         }
 
         // The bins of a field that the encoding bins: the domain runs from the start of the first bin to the stop of the last
@@ -44,6 +46,7 @@ internal static partial class ScaleResolver
                 return (spec.Start, spec.Stop);
             }
 
+            found = false;
             return (0, 1);
         }
 
@@ -55,10 +58,10 @@ internal static partial class ScaleResolver
 
         if (IsUnaggregatedDomain(input, plan))
         {
-            return ExtentOfFields(context.Data.Raw, [plan.RawField], null, context);
+            return ExtentOfFields(context.Data.Raw, [plan.RawField], null, context, out found);
         }
 
-        var extent = ExtentOfFields(context.Data.Main, [plan.FieldPath, plan.Field2Path], input.Datum, context);
+        var extent = ExtentOfFields(context.Data.Main, [plan.FieldPath, plan.Field2Path], input.Datum, context, out found);
 
         // A field that is binned already and has no end field gives the width of its bins as a step: the last bin ends one step after its start
         if (plan is { Bin: BinKind.Binned, Field2Path: null } && plan.Definition["bin"]?["step"] is { IsNumber: true } step && step.NumberValue > 0)
@@ -88,8 +91,9 @@ internal static partial class ScaleResolver
     /// <param name="paths">The field paths (null entries and fields the table lacks are skipped).</param>
     /// <param name="datum">The datum that gives the extent when no field is read, or null.</param>
     /// <param name="context">The view facts.</param>
+    /// <param name="found">Receives whether at least one valid number was found.</param>
     /// <returns>The minimum and maximum; (0, 1) when there is no valid value.</returns>
-    private static (double Min, double Max) ExtentOfFields(DataTable table, IReadOnlyList<string?> paths, SpecNode? datum, Context context)
+    private static (double Min, double Max) ExtentOfFields(DataTable table, IReadOnlyList<string?> paths, SpecNode? datum, Context context, out bool found)
     {
         var min = double.PositiveInfinity;
         var max = double.NegativeInfinity;
@@ -124,6 +128,7 @@ internal static partial class ScaleResolver
             min = max = datumNumber;
         }
 
-        return double.IsFinite(min) ? (min, max) : (0, 1);
+        found = double.IsFinite(min);
+        return found ? (min, max) : (0, 1);
     }
 }

@@ -370,7 +370,8 @@ Renders a point chart from a virtual CSV without `parse`, whose nominal color co
 whose x, y, and size columns hold numeric text, and the same chart from inline rows with real numbers. Asserts that no
 `vl-data-*` warning or report is delivered (the text was kept, not mis-converted) and that the two charts have the same
 size and pixels, so the quantitative x, y, and size channels coerced the text where they draw it, as Vega does for an
-unparsed column (quantitative color is not drawn by this subset and is not claimed). A second scenario writes the
+unparsed column (the color of this scenario is nominal, so it claims nothing about a quantitative color). A second
+scenario writes the
 `data-files.csv` fixture text with LF line ends, with CRLF line ends, and without a final line break and asserts that each
 draws the pixels of the inline chart, so no fixture assertion depends on how the checkout normalized line endings.
 
@@ -483,12 +484,31 @@ that would have come later.
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
 Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, `quantile`, and
-`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a conditional encoding. Asserts that each is
+`timeUnit`, a calculate that calls `timeFormat`, `now`, and `format`, and a condition on the `x` channel (which takes
+none). Asserts that each is
 reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
 `vl-transform-density`, `vl-transform-quantile`, `vl-transform-timeunit`, `vl-expr-function-timeformat`,
 `vl-expr-function-now`, `vl-expr-function-format`, `vl-encoding-condition`), that nothing is executed silently, and that
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before they
 were supported are computed now and are covered by the aggregation scenarios below.
+
+### Colors: Ramp Color And Shape Channels Are Drawn In Strict Mode
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode`
+
+Renders two dots at (2, 2) and (5, 5) with a quantitative color field (values 0 and 10, a black to red range) and a nominal
+shape field (the categories a and b) with strict mode on. Asserts that nothing is reported (the identifier
+`vl-scale-color-ramp` is retired), that the first dot is black and the second red, and that the pixel 6.5 pixels from the
+center along both axes is red for the square of the second category and white for the circle of the first.
+
+### Colors: Diagnostics Are Located
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated`
+
+Renders a color scheme `no-such-scheme` and a point mark whose `shape` is the path `M0,0L1,1Z` with a `band` scale on a
+quantitative `x`. Asserts that the scheme is a `VegaLiteSpecException` at `/encoding/color/scale/scheme`, that the path
+shape is the unsupported feature `vl-shape-path` at `/mark/shape`, and that the ignored scale type is the warning
+`vl-scale-type-ignored` at `/encoding/x/scale/type`.
 
 ### Expressions: Errors And Limits Fail When The Document Is Opened
 
@@ -558,6 +578,29 @@ each layer is drawn from its start to its end and not from zero: with bands of 1
 data rectangle 100 pixels high (y(v) = 100 - 10 v), a pixel inside a lower layer has that layer's color (bolts blue,
 nuts orange, washers red in the order of the sorted colors).
 
+### Signed Stacking: Layers Hang On Both Sides Of Zero
+
+**Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero`
+
+Renders `signed-stacks.vl.json` (takings and outgoings per quarter split by the color `kind`) and the same data
+transposed. Asserts that the domain is -20 to 20 over 100 pixels (y(v) = 50 - 2.5 v), that in q1 the layers tips (0, 8)
+and sales (8, 20) are drawn above the zero line and refunds (0, -4) and costs (-4, -10) below it (the rectangles at
+y = 0, 30, 50, and 60 and as high as 30, 20, 10, and 15 pixels; q2 likewise), that the pixels above the zero line of the
+q1 bar are only the positive layer colors and those below it only the negative ones, and that the transposed chart
+stacks ascending with the negative layers left of the zero line (x = 25 to 50) and the positive ones right of it; and
+that rendering twice is byte-identical.
+
+### Sort Validation: Malformed Sorts Are Reported And Never Mis-Sort
+
+**Test**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes`
+
+Opens inline specifications through the public API. Asserts that an object item of a sort array is a
+`VegaLiteSpecException` with the file, pointer `/encoding/x/sort/1`, and the line and column of the item; that a sort
+array that mixes kinds of values renders and delivers exactly one `vl-encoding-sort-mixed-types` warning at
+`/encoding/x/sort` through the warning handler and does not make strict mode throw; that a sort array on a quantitative
+field delivers `vl-encoding-sort-ignored` the same way; and that a sort by a channel the encoding does not have is an
+unsupported feature `vl-encoding-sort` whose message names the channel and which strict mode throws for.
+
 ### Sort By Aggregate: Bars Follow The Sort Of Their Category Axis
 
 **Tests**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand`,
@@ -606,8 +649,8 @@ limit) and a canceled token stops the render with an `OperationCanceledException
 **Test**: `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
 
 Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
-report, the only report being the color legend of the stacked bars (`vl-guide-legend` at `/encoding/color`, because
-legends are not drawn yet); and that adding a `timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
+report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding a
+`timeUnit` next to the aggregate of `aggregate-bars.vl.json` is reported
 once (`vl-encoding-timeunit` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render with a
 `VegaLiteUnsupportedFeatureException` for that feature.
 
@@ -642,13 +685,95 @@ lines, the ticks, the labels, the domain line, and the title (13 for the three-t
 one fewer, that the title builder charges the group, the title, and the subtitle (3) and fails at `/title` with fewer,
 and that a forked budget counts on its own and is taken over only when adopted.
 
+### Legends: Placement, Merging, Gradients, Limits, And Determinism
+
+**Tests**: `VegaLiteLegendIntegrationTests.CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle`,
+`..._NullSwitchesTheLegendOff`, `..._QuantitativeColorDrawsAGradient`,
+`..._DefaultColorRampOfAScatterPlotHasAGradientLegend`, `..._SharedFieldsMergeAndOthersStack`,
+`..._OrientsPlaceTheLegendAroundTheDataRectangle`, `..._ConfigurationAndAutosizeNone`,
+`..._UnsupportedPropertiesAreReportedWithLocations`, `..._LimitsAndCancellationApply`,
+`..._RendersAreDeterministicAcrossThreads`
+
+Uses the three original legend fixtures and small inline specifications, reads the scene of the rendered document and
+asserts hand-derived geometry (the sizes of the legend boxes are those of the unit-tested legend builder): the color and
+size legends of `legend-symbols.vl.json` are one column 18 pixels right of the data rectangle and 8 pixels apart, with
+the explicit title `Crop`, the colors of the scheme, and a canvas as wide as the legends need; `legend: null` removes
+them; the
+quantitative color of `legend-gradient.vl.json` (and of a small scatter plot without any legend property) has a gradient
+bar of 16 by 160 pixels whose stops are the ends of the domain and the ticks (the second at 0.04), whose first and last
+colors are the ends of the default ramp and whose painted rows are light at the bottom and dark at the top, titled `Rain
+(mm)`; a color and a shape on the same field of `legend-merged.vl.json` share one legend (stroked symbols with both a
+shape and a color) while the size has its own legend 8 pixels below, and a shape on another field is a third legend; a
+bottom legend is 18 pixels below the x axis, a top legend 18 pixels above the data rectangle, an inner orient does not
+change the canvas, a left legend ends 18 pixels left of the y axis, and `autosize: none` keeps the canvas size so the legend
+sticks out; a `titleOrient` of `left` is reported once with its location and stops a strict render; a `MaxSceneItems` of
+the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
+in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
+
+### Log, Pow, Sqrt, And Symlog Scales: Positions, Ticks, Legends, Limits, And Determinism
+
+**Tests**: `VegaLiteScaleIntegrationTests.CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue`,
+`..._LogScale_ZeroInTheDataIsALocatedErrorAndSymlogDrawsIt`,
+`..._SqrtAndSymlogScales_PointsSitAtTheTransformedPositions`, `..._LogScale_ColorLegendLabelsThePowers`,
+`..._LogScale_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `log-scales.vl.json` and small inline specifications, and asserts hand-derived numbers from
+the scale formulas: four bars of 12, 95, 1200, and 8000 on a log axis rounded out to 10 to 10000 (100 pixels per decade)
+reach `300 - 100 * (log10(v) - 1)` and end at the bottom, the axis has 28 ticks and the ten labels that d3's log rule
+keeps, and the bars are painted over the grid; data that reaches zero is a located `VegaLiteRenderException` that names
+the symlog scale while a symlog scale draws the same data with the zero bar flat; points on a square root x scale and a
+symlog y scale sit at the formula positions with the ordinary ticks; a log color scale has a gradient legend labeled with
+the powers a third of the bar apart and reports nothing in strict mode; and a tick limit of 5 against the 28 ticks fails
+with the name of the limit, a limit of exactly 28 renders, a canceled token stops the render, and repeated and
+concurrent renders are byte-identical.
+
+### Binned Channels: Bin-Ordinal Colors, Range Legends, Limits, And Determinism
+
+**Tests**: `VegaLiteBinnedChannelIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinnedColor_CirclesTakeTheColorOfTheirBinAndTheLegendListsTheRanges`,
+`..._BinnedColor_HistogramBarsAreColoredByTheirOwnBin`,
+`..._BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel`, `..._BinnedColor_DiagnosticsAreLocated`,
+`..._BinnedColor_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `binned-channels.vl.json` (eight readings from 3 to 97 with a binned color) and small inline
+specifications, and asserts hand-derived numbers from Vega's bin algorithm (the step 20 over 0 to 100): the circles sit
+at 25 pixels a day and 20 pixels a unit, are filled with the color of their bin (the first two readings share the first
+color, 41 and 58 the third, 83 and 97 the last), and are painted in those colors over the white background at the
+opacity of 0.7; the legend is a symbol legend of five entries labeled `0 – 20` to `80 – 100`, titled
+`moisture (binned)`, in strict mode and without a warning, with the colors confirmed by pixels; a histogram whose color
+bins the field as its x axis does has five bars of 39 pixels at 1, 41, ..., 161 with the counts 2, 1, 2, 1, and 2 in the
+colors of their bins, a bin axis of 0 to 100 by 20, and a count axis of 0 to 2; a binned size sizes the points by the
+start of the bin (`4 + 357 * start / 100`) and has the legend ticks 0 to 100 by 20, and an ordinal binned opacity lists
+the text of the bins; `bin: "binned"` on a color is reported with its location (and stops a strict render there) while
+an explicit `bin-ordinal` on a field that is not binned is a located warning that leaves the gradient; and a
+`MaxScaleDomainSize` of 5 fails at the `bin` while 6 renders, the exact scene count renders and one less fails naming
+`MaxSceneItems`, a canceled token stops the render, and repeated and
+concurrent renders are byte-identical.
+
+### Conditional Encodings: Tests Pick The Value Of Each Mark, Limits, And Determinism
+
+**Tests**: `VegaLiteConditionalMarksIntegrationTests.CanvasNetVegaLite_SystemIntegration_ConditionalMarks_CirclesTakeTheValuesOfTheirConditions`,
+`..._ConditionalMarks_FieldConditionDrawsALegendAndKeepsTheValueElsewhere`,
+`..._ConditionalMarks_DiagnosticsAreLocated`, `..._ConditionalMarks_LimitsCancellationAndDeterminismApply`
+
+Uses the original fixture `conditional-marks.vl.json` (the eight readings with a conditional color, size, and opacity)
+and small inline specifications, and asserts hand-derived values: the readings with a moisture under 30 are red and the
+others blue, the plants of height 4 or more have the size 240 and the others 60, the days 3 to 5 have the opacity 1 and
+the others 0.4, in strict mode, without a warning and without a legend (conditions that hold values create none), with
+the colors confirmed by pixels blended over the white background; a color condition that holds a field draws the legend
+of that field (`a`, `b`, `c` in the palette colors) and leaves the value of the channel where the test fails; a condition
+on a variable parameter is reported once at the condition with `vl-encoding-condition-param` (and stops a strict render
+there) while the chart draws the value of the channel, and a test with a syntax error is a `VegaLiteSpecException` at
+the test; and a `MaxEvaluationSteps` of 10 fails naming the limit while a roomy one renders, the exact scene count
+renders and one less fails naming `MaxSceneItems`, a canceled token stops the render, and repeated and concurrent
+renders are byte-identical.
+
 ### Limits: Chart Failures Carry Locations
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations`
 
 Asserts that an invalid axis format is a `VegaLiteSpecException` pointing at the format value, that a point chart
 with more rows than the item budget allows is a `VegaLiteRenderException` pointing at the mark, and that reports
-found before the failure (a legend report in the test) are still delivered.
+found before the failure (a `bandPosition` report in the test) are still delivered.
 
 ### Cancellation: Stops Measuring And Rendering
 

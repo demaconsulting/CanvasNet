@@ -116,3 +116,22 @@ formatter that scales by the prefix of a reference value formats 1500 and 2500 a
 Asserts the derived tick format vectors above (the default `,f`, percent, SI, significant digits, exponent, negative
 domains, and specifiers with an explicit precision), reporting all failures together, and that an invalid specifier
 throws `FormatException`.
+
+##### Variable-Precision Format For Log Labels
+
+**Tests**: `NumberFormatTests.NumberFormat_FormatFloat_TrimsZeroesWithoutAPrecision`
+
+Asserts the hand-derived texts of Vega's `formatFloat` (from `toPrecision(12)` and the trimming of the zeros): 1000 is `1,000`,
+0.001 is `0.001`, 1234.5 is `1,234.5`, 1e-7 is `1e-7`, 2.5e-7 is `2.5e-7`, 1e21 is `1e+21`, `s` gives `1k` and `1.5k`,
+`%` gives
+`25.6%` (precision 10), `e` gives `1.2345e+4` (precision 11), a specifier with a precision keeps its zeros
+(`.3f` gives `2.000`),
+and an invalid specifier throws `FormatException`.
+
+##### Zero-Span Tick Format
+
+**Tests**: `NumberFormatTests.NumberFormat_TickFormat_ZeroSpanDomainKeepsTheDefaultPrecision`
+
+Asserts that a domain without span (5 to 5, 0 to 0) derives no precision (the tick step is zero and d3-format 3.1.2
+has no
+exponent for zero), so `,f` gives `5.000000` and `0.000000` while `,d` gives `5` and `.1f` gives `5.0`.

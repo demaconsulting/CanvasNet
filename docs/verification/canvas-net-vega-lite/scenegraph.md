@@ -45,6 +45,12 @@ in the three unit verification documents passes without error or unexpected exce
   from model records with CSS color strings (hexadecimal, names, `transparent`, `none`) cover exactly the pixels
   that their geometry covers, in the exact colors, with the stroke centered on the edge and the opacity folded into the
   alpha.
+- **Gradient Fills Follow The Stops And The Geometry**:
+  `ScenePainterTests.ScenePainter_Paint_GradientFillRunsAlongTheItemBox`,
+  `ScenePainterTests.ScenePainter_Paint_GradientFollowsTheScaleAndTheEnclosingGroup`,
+  `SceneModelTests.SceneModel_Gradient_DefaultsCopiesAndLimits` — a gradient built from model records fills the
+  bounding box of its item from the first stop to the last, with the end colors continuing, and follows the scale and
+  the translation of the enclosing groups.
 - **Clip, Scale, And Placement Compose**:
   `ScenePainterTests.ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels`,
   `ScenePainterTests.ScenePainter_Paint_FractionalAndNestedClipsUseCoverage` — group translations from the model

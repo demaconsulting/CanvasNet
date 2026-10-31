@@ -70,7 +70,7 @@ the four unit verification documents passes without error or unexpected exceptio
   — a CSV without `parse` keeps `01234`, `007`, ISO-looking dates, and `true` as strings (as Vega does), a parse map
   converts only its named field, and a chart whose x, y, and size are quantitative fields of unparsed CSV text has the
   pixels of the same rows with real numbers, with no data warning, so the numeric text is coerced where it is drawn.
-  Quantitative color is not drawn by the current subset and is not claimed.
+  The color of this scenario is a nominal column, so it claims nothing about a quantitative color.
 - **The Sandbox Refuses What It Must And Fails Closed**:
   `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
   `DataFileResolverLinkTests.DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen`,

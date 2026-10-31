@@ -79,8 +79,9 @@
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Third-party license notices: BSD-3-Clause (Vega, Vega-Lite) and ISC (d3) require the notices to be
-       reproduced in binary distributions, so they ship as plain files in the package's licenses\ folder
+  <!-- Third-party license notices: BSD-3-Clause (Vega, Vega-Lite), ISC (d3), and Apache-2.0 (ColorBrewer, Turbo) and the
+       notice of cividis require the notices to be reproduced in binary distributions, so they ship as plain files in
+       the package's licenses\ folder
        (the same approach as the Liberation fonts' OFL.txt in the core package). -->
   <ItemGroup>
     <None Include="third-party\LICENSE-*.txt" Pack="true" PackagePath="licenses\" />

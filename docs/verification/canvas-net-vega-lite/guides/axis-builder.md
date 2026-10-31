@@ -170,3 +170,25 @@ Asserts that an invalid orient for the channel (`left` on x) and an invalid d3 f
 more ticks than `MaxTicks` (a continuous axis with a count of 100 over 3,000 pixels and a limit of 5, and a band axis
 with three categories and a limit of 2) throw `VegaLiteRenderException` at `/encoding/x` naming `MaxTicks`; that a
 canceled token throws `OperationCanceledException`; and that a null request throws `ArgumentNullException`.
+
+##### Log Axis
+
+**Tests**: `AxisBuilderTests.AxisBuilder_Build_LogAxisHasDecadeTicksAndFilteredLabels`,
+`AxisBuilderTests.AxisBuilder_Build_LogAxisHonorsValuesTickCountFormatAndNegativeDomains`,
+`AxisBuilderTests.AxisBuilder_Build_LogAxisThinsOverlappingLabelsGreedilyByDefault`,
+`AxisBuilderTests.AxisBuilder_Build_PowSqrtAndSymlogAxesUseOrdinaryTicksAtTransformedPositions`,
+`AxisBuilderTests.AxisBuilder_Build_LogAxisEnforcesTheTickLimitAndCancellation`
+
+Assert, for 1 to 1000 over 300 pixels, 28 ticks (1 to 9, 10 to 90, 100 to 900, 1000) at the positions 300, 200, 100,
+and 0
+for the powers, and that the labels of the digits above 3 are empty (k = 10 * 10 / 28 = 3.57) while the others use the grouped
+variable-precision format (`1`, `2`, `3`, `10`, ..., `1,000`); that explicit values are all labeled, a tick count of 2 gives
+the powers 1 and 100, a precision format keeps its zeros (`1.0`) and a type without one is trimmed (`10k`, `1M`),
+and -1000 to
+-1 gives 28 ascending ticks with the labels `−1,000`, `−300`, ..., `−1`; that on 40 pixels the ten labels overlap and are
+thinned by default but all drawn with `labelOverlap: false`; that a pow axis (the square of 0 to 100 over 200
+pixels) has the
+ordinary ticks 0, 20, ..., 100 at the positions 200, 192, 168, 128, 72, and 0, a sqrt axis puts 20 at the square
+root, and a
+symlog axis of -100 to 100 has the ticks -100, -50, 0, 50, 100 with zero in the middle; and that a limit of 5 gives a
+`VegaLiteRenderException` at `/encoding/y` containing `the limit of 5` and a canceled token an `OperationCanceledException`.

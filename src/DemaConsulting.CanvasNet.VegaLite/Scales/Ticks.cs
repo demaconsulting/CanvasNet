@@ -1,5 +1,6 @@
 // Portions derived from d3-array (ISC, Mike Bostock); see third-party/README.md
 // Portions derived from d3-scale (ISC, Mike Bostock) and Vega (BSD-3-Clause); see third-party/README.md
+using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scales;
@@ -20,6 +21,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 ///         Vega-Lite default of one tick per 40 pixels), <see cref="DefaultAxisTickMinStep"/> and
 ///         <see cref="ResolveTickCount"/> (the <c>tickCount</c> function of vega-scale, which lowers the count until
 ///         the step is at least the minimum step). The type is stateless and thread-safe.
+///     </para>
+///     <para>
+///         <see cref="LogTicks"/>, <see cref="LogNice"/> and <see cref="LogLabelTest"/> are the log-scale counterparts: the <c>ticks</c> and
+///         <c>nice</c> methods of d3's <c>scaleLog</c> and the label filter of its <c>tickFormat</c> that Vega applies to the labels of a log
+///         axis. The other non-linear scales (pow, sqrt, symlog) use the ordinary ticks of their domain, as in d3.
 ///     </para>
 /// </remarks>
 internal static class Ticks
@@ -211,8 +217,9 @@ internal static class Ticks
     /// <param name="domainEnd">The second end of the domain.</param>
     /// <param name="count">The desired tick count.</param>
     /// <param name="minStep">The minimum step, or null for none.</param>
+    /// <param name="logarithmic">Whether the scale is a log scale (Vega does not lower the count by the tick step for it).</param>
     /// <returns>The tick count to pass to <see cref="GetTicks"/>.</returns>
-    public static double ResolveTickCount(double domainStart, double domainEnd, double count, double? minStep)
+    public static double ResolveTickCount(double domainStart, double domainEnd, double count, double? minStep, bool logarithmic = false)
     {
         if (minStep is not { } min)
         {
@@ -225,7 +232,9 @@ internal static class Ticks
         var span = (hi - lo) / min;
         var steps = JsNumber.IsZero(span) || double.IsNaN(span) ? 1 : span;
         count = Math.Min(count, Math.Floor(steps) + 1);
-        if (lo < hi)
+
+        // A logarithmic scale does not lower the count further: its ticks are not evenly spaced, so the d3 step does not describe them
+        if (lo < hi && !logarithmic)
         {
             while (count > 1 && TickStep(lo, hi, count) < min)
             {
@@ -249,6 +258,297 @@ internal static class Ticks
     /// <exception cref="VegaLiteRenderException">Thrown when the result would hold more than <paramref name="maxTicks"/> values.</exception>
     public static double[] AxisTicks(double domainStart, double domainEnd, double count, double? minStep = null, int maxTicks = 1_000) =>
         GetTicks(domainStart, domainEnd, ResolveTickCount(domainStart, domainEnd, count, minStep), maxTicks);
+
+    /// <summary>
+    ///     Generates the ticks of a continuous scale the way d3 does for its type: the powers and their multiples for a log scale, the
+    ///     d3 ticks of the domain for every other.
+    /// </summary>
+    /// <param name="model">The scale model (linear, sequential or diverging); its <see cref="ScaleModel.Transform"/> decides.</param>
+    /// <param name="count">The desired tick count (already resolved against the minimum step).</param>
+    /// <param name="maxTicks">The largest number of ticks accepted.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The tick values.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the result would hold more than <paramref name="maxTicks"/> values.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled.</exception>
+    public static double[] ModelTicks(ScaleModel model, double count, int maxTicks = 1_000, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return model.Transform.Kind == ScaleTransformKind.Log
+            ? LogTicks(model.DomainStart, model.DomainEnd, count, model.Transform.Parameter, maxTicks, cancellationToken)
+            : GetTicks(model.DomainStart, model.DomainEnd, count, maxTicks);
+    }
+
+    /// <summary>
+    ///     Generates the ticks of a log scale (the <c>ticks</c> method of d3's <c>scaleLog</c>).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         When the base is a whole number and the domain spans fewer powers than the count, the ticks are the multiples
+    ///         <c>1 .. base - 1</c> of every power of the base inside the domain (1, 2, ..., 9, 10, 20, ... for base 10); when that gives fewer
+    ///         than half the wanted ticks the ordinary d3 ticks of the domain are used instead. Otherwise the ticks are powers of the base at
+    ///         the d3 ticks of the exponents. A domain that starts below zero is reflected, as in d3. A descending domain gives descending ticks.
+    ///     </para>
+    ///     <para>
+    ///         The domain must not contain zero or cross it: the result is empty then (the resolver refuses such a domain before). The loops
+    ///         are bounded by the largest tick count (and by a hundred times it for the multiples that fall outside the domain), so a huge base
+    ///         cannot run away, and the cancellation token is polled while they run.
+    ///     </para>
+    /// </remarks>
+    /// <param name="start">The first end of the domain.</param>
+    /// <param name="stop">The second end of the domain.</param>
+    /// <param name="count">The approximate number of ticks wanted; d3 uses 10 when it is not given.</param>
+    /// <param name="logBase">The base of the logarithm.</param>
+    /// <param name="maxTicks">The largest number of ticks accepted.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The tick values.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the result would hold more than <paramref name="maxTicks"/> values.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled.</exception>
+    public static double[] LogTicks(double start, double stop, double count, double logBase, int maxTicks = 1_000, CancellationToken cancellationToken = default)
+    {
+        if (!IsLogDomain(start, stop) || !(logBase > 0) || !double.IsFinite(logBase) || logBase.CompareTo(1) == 0)
+        {
+            return [];
+        }
+
+        var reflect = start < 0;
+        var (logs, pows) = LogFunctions(logBase, reflect);
+        var u = start;
+        var v = stop;
+        var reversed = v < u;
+        if (reversed)
+        {
+            (u, v) = (v, u);
+        }
+
+        var i = logs(u);
+        var j = logs(v);
+        var z = new List<double>();
+        if (logBase % 1 == 0 && j - i < count)
+        {
+            i = Math.Floor(i);
+            j = Math.Ceiling(j);
+
+            // The multiples of each power; the multiples that lie outside the domain are skipped but still counted as work
+            var budget = 100L * maxTicks;
+            var work = 0L;
+            for (; i <= j; i++)
+            {
+                if (u > 0)
+                {
+                    for (double k = 1; k < logBase; k++)
+                    {
+                        if (!AddLogTick(z, k, i, pows, u, v, maxTicks, ref work, budget, cancellationToken, increasing: true))
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    for (var k = logBase - 1; k >= 1; k--)
+                    {
+                        if (!AddLogTick(z, k, i, pows, u, v, maxTicks, ref work, budget, cancellationToken, increasing: false))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (z.Count * 2 < count)
+            {
+                z = [.. GetTicks(u, v, count, maxTicks)];
+            }
+        }
+        else
+        {
+            z = [.. GetTicks(i, j, Math.Min(j - i, count), maxTicks).Select(pows)];
+        }
+
+        if (reversed)
+        {
+            z.Reverse();
+        }
+
+        return [.. z];
+    }
+
+    /// <summary>
+    ///     Extends the domain of a log scale to the nearest powers of the base (the <c>nice</c> method of d3's <c>scaleLog</c>).
+    /// </summary>
+    /// <remarks>
+    ///     The first end is floored and the last ceiled to a power of the base (reflected for a domain that starts below zero); the count
+    ///     plays no part. A domain that contains or crosses zero, or a base that is not usable, is returned unchanged.
+    /// </remarks>
+    /// <param name="start">The first end of the domain.</param>
+    /// <param name="stop">The second end of the domain.</param>
+    /// <param name="logBase">The base of the logarithm.</param>
+    /// <returns>The extended domain, in the direction of the input.</returns>
+    public static (double Start, double Stop) LogNice(double start, double stop, double logBase)
+    {
+        if (!IsLogDomain(start, stop) || !(logBase > 0) || !double.IsFinite(logBase) || logBase.CompareTo(1) == 0)
+        {
+            return (start, stop);
+        }
+
+        var (logs, pows) = LogFunctions(logBase, start < 0);
+        var reversed = stop < start;
+        var low = reversed ? stop : start;
+        var high = reversed ? start : stop;
+        low = pows(Math.Floor(logs(low)));
+        high = pows(Math.Ceiling(logs(high)));
+        return reversed ? (high, low) : (low, high);
+    }
+
+    /// <summary>
+    ///     Creates the test that decides whether the label of a log tick is shown (the filter of d3's <c>scaleLog.tickFormat</c>, which Vega
+    ///     applies to the labels of an axis and a gradient legend).
+    /// </summary>
+    /// <remarks>
+    ///     A tick is labeled when its leading digit, <c>d / base^round(log(d))</c> (scaled up by the base when that is below one), is not above
+    ///     <c>max(1, base * count / ticks)</c>: with many ticks only the powers and the first multiples are labeled, with few all of them. Vega
+    ///     computes this with <c>Math.log(d)</c>, which hides every label of a negative domain; the test here uses the magnitude, so the
+    ///     labels of a negative log axis are shown by the same rule.
+    /// </remarks>
+    /// <param name="logBase">The base of the logarithm.</param>
+    /// <param name="count">The tick count the ticks were made for.</param>
+    /// <param name="tickCount">The number of ticks that were made.</param>
+    /// <returns>The test, from a tick value to whether its label is shown.</returns>
+    public static Func<double, bool> LogLabelTest(double logBase, double count, int tickCount)
+    {
+        var logb = Math.Log(logBase);
+        var k = Math.Max(1, logBase * count / tickCount);
+        return d =>
+        {
+            var magnitude = Math.Abs(d);
+            var i = magnitude / Math.Pow(logBase, JsNumber.Round(Math.Log(magnitude) / logb));
+            if (i * logBase < logBase - 0.5)
+            {
+                i *= logBase;
+            }
+
+            return i <= k;
+        };
+    }
+
+    /// <summary>
+    ///     Tells whether two domain ends make a usable log domain: finite, not zero, and on the same side of zero.
+    /// </summary>
+    /// <param name="start">The first end.</param>
+    /// <param name="stop">The second end.</param>
+    /// <returns><see langword="true"/> when the logarithm is defined (after reflection) on the whole domain.</returns>
+    public static bool IsLogDomain(double start, double stop) =>
+        double.IsFinite(start) && double.IsFinite(stop) && start.CompareTo(0) != 0 && stop.CompareTo(0) != 0 && (start < 0) == (stop < 0);
+
+    /// <summary>
+    ///     Adds one multiple of a power to the ticks of a log scale when it lies inside the domain.
+    /// </summary>
+    /// <param name="ticks">The ticks so far.</param>
+    /// <param name="k">The multiple.</param>
+    /// <param name="exponent">The exponent of the power.</param>
+    /// <param name="pows">The power function.</param>
+    /// <param name="low">The lower end of the domain.</param>
+    /// <param name="high">The upper end of the domain.</param>
+    /// <param name="maxTicks">The largest number of ticks accepted.</param>
+    /// <param name="work">The multiples looked at so far.</param>
+    /// <param name="budget">The most multiples that may be looked at.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <param name="increasing">Whether the multiples run upward (a positive domain) or downward.</param>
+    /// <returns><see langword="false"/> when the multiples of this power have passed the end of the domain.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the ticks or the work exceed their limits.</exception>
+    private static bool AddLogTick(List<double> ticks, double k, double exponent, Func<double, double> pows, double low, double high, int maxTicks, ref long work, long budget, CancellationToken cancellationToken, bool increasing)
+    {
+        if (++work % 4096 == 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        if (work > budget)
+        {
+            throw new VegaLiteRenderException($"The log axis would look at more than {budget} tick candidates, more than the limit of {maxTicks} ticks allows (MaxTicks).");
+        }
+
+        // d3: a power below one is divided (exact), otherwise multiplied
+        var positive = increasing ? exponent < 0 : exponent > 0;
+        var t = positive ? k / pows(-exponent) : k * pows(exponent);
+        if (t < low)
+        {
+            return true;
+        }
+
+        if (t > high)
+        {
+            return false;
+        }
+
+        if (ticks.Count >= maxTicks)
+        {
+            throw new VegaLiteRenderException($"The axis would have more than the limit of {maxTicks} ticks (MaxTicks).");
+        }
+
+        ticks.Add(t);
+        return true;
+    }
+
+    /// <summary>
+    ///     Gets the logarithm and power functions of d3's <c>scaleLog</c> for a base.
+    /// </summary>
+    /// <param name="logBase">The base.</param>
+    /// <param name="reflect">Whether the domain starts below zero, so both functions are reflected (<c>-f(-x)</c>).</param>
+    /// <returns>The logarithm and the power.</returns>
+    private static (Func<double, double> Logs, Func<double, double> Pows) LogFunctions(double logBase, bool reflect)
+    {
+        Func<double, double> logs;
+        Func<double, double> pows;
+        if (logBase.CompareTo(Math.E) == 0)
+        {
+            logs = Math.Log;
+            pows = Math.Exp;
+        }
+        else if (logBase.CompareTo(10) == 0)
+        {
+            logs = Math.Log10;
+            pows = Pow10;
+        }
+        else if (logBase.CompareTo(2) == 0)
+        {
+            logs = Math.Log2;
+            pows = x => Math.Pow(2, x);
+        }
+        else
+        {
+            var denominator = Math.Log(logBase);
+            logs = x => Math.Log(x) / denominator;
+            pows = x => Math.Pow(logBase, x);
+        }
+
+        if (!reflect)
+        {
+            return (logs, pows);
+        }
+
+        var plainLogs = logs;
+        var plainPows = pows;
+        return (x => -plainLogs(-x), x => -plainPows(-x));
+    }
+
+    /// <summary>
+    ///     Computes ten to a power exactly for a whole exponent (d3's <c>pow10</c>, which parses <c>"1e" + x</c>).
+    /// </summary>
+    /// <param name="x">The exponent.</param>
+    /// <returns>The power; zero for minus infinity and an infinity for infinity.</returns>
+    private static double Pow10(double x)
+    {
+        if (!double.IsFinite(x))
+        {
+            return x < 0 ? 0 : x;
+        }
+
+        // A whole exponent is parsed from text, which is exact where Math.Pow is not guaranteed to be
+        return double.IsInteger(x) && Math.Abs(x) < 400
+            ? double.Parse("1e" + ((long)x).ToString(CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture)
+            : Math.Pow(10, x);
+    }
 
     /// <summary>
     ///     Works out the first and last tick index and the increment of an interval, doubling a count below 2 once when

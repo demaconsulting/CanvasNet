@@ -95,6 +95,6 @@ input, run `python make-slide.py` in `docs/images/showcase` (it needs `pip insta
 
 Notes:
 
-- Vega-Lite legends are not supported yet (`--strict` fails on them), so the chart colors bars by region on the
-  x axis with `legend: null`.
+- The chart colors bars by region on the x axis, which already names each bar, so its legend is switched off with
+  `legend: null`.
 - Panels 3, 4, 5, and 6 are padded with white to exactly 4:3 so that every cell has the same shape.

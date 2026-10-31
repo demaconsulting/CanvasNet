@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the ScaleModel unit of the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable linear, band, point, and ordinal
-# scale mappings, with the d3-scale arithmetic and the Vega band-space rule. See
+# scale mappings, with the d3-scale arithmetic and the Vega band-space rule, and the color and discretizing
+# scales (sequential, diverging, quantize, quantile, threshold, and bin-ordinal) with their output ranges. See
 # docs/verification/canvas-net-vega-lite/scales/scale-model.md for the test-evidence mapping.
 
 sections:
@@ -42,3 +43,89 @@ sections:
                   value must not be assigned an arbitrary color.
                 tests:
                   - ScaleModel_MapOrdinal_CyclesThroughTheRange
+                  - ScaleModel_Range_HoldsTextsNumbersOrACount
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Sequential
+                title: >-
+                  The ScaleModel unit shall map a number through a sequential scale (two domain entries) to a
+                  color of an interpolator over 0 to 1 at the position (x - x0) / (x1 - x0), clamped to 0 to 1
+                  on request and extrapolating otherwise, giving the middle of the interpolator for a domain of
+                  zero width and no color for a value that is not a number.
+                justification: |
+                  A quantitative color field takes its colors from this mapping (d3 scaleSequential), so the
+                  position of every value on the ramp must match the d3 arithmetic.
+                tests:
+                  - ScaleModel_Sequential_MapsThroughTheInterpolator
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Diverging
+                title: >-
+                  The ScaleModel unit shall map a number through a diverging scale (three domain entries) to a
+                  color of an interpolator at the position 0.5 + (x - x1) * k with the slope k of the side of the
+                  middle value that the number lies on (0.5 / (x1 - x0) below, 0.5 / (x2 - x1) above, zero for
+                  equal entries), also for a descending domain, clamped on request.
+                justification: |
+                  A color field with a middle value (domainMid) is drawn with d3 scaleDiverging, whose two slopes
+                  put the middle value at the middle of the interpolator.
+                tests:
+                  - ScaleModel_Diverging_UsesTheTwoSlopes
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Quantize
+                title: >-
+                  The ScaleModel unit shall map a number through a quantize scale to the range value of the
+                  equal-width interval of the domain that it falls into, with the thresholds
+                  ((i + 1) * x1 - (i - n) * x0) / (n + 1), a number on a threshold going to the interval above it
+                  and a number outside the domain to the first or last value.
+                justification: |
+                  Quantize color and size scales classify values into equal-width classes (d3 scaleQuantize).
+                tests:
+                  - ScaleModel_Quantize_ThresholdsAreEqualWidth
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Quantile
+                title: >-
+                  The ScaleModel unit shall map a number through a quantile scale to the range value of the group
+                  that it falls into, with the thresholds being the R-7 quantiles i / n of the sorted domain values
+                  (linear interpolation between the closest ranks).
+                justification: |
+                  Quantile scales classify values into groups of equal size (d3 scaleQuantile).
+                tests:
+                  - ScaleModel_Quantile_UsesR7Thresholds
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Threshold
+                title: >-
+                  The ScaleModel unit shall map a number through a threshold scale to the range value of the
+                  interval between the explicit thresholds that it falls into (bisectRight), using only as many
+                  thresholds as the range has values less one.
+                justification: |
+                  Threshold scales classify values at boundaries the author chooses (d3 scaleThreshold).
+                tests:
+                  - ScaleModel_Threshold_Bisects
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-BinOrdinal
+                title: >-
+                  The ScaleModel unit shall map a number through a bin-ordinal scale to the range value of the bin
+                  between two edges, cycling through the range, as Vega's scaleBinOrdinal does, and give no value
+                  below the first edge.
+                justification: |
+                  Binned color fields give each bin a color of a discrete range.
+                tests:
+                  - ScaleModel_BinOrdinal_MapsByBinIndex
+
+              - id: CanvasNetVegaLite-Scales-ScaleModel-Transforms
+                title: >-
+                  The ScaleModel unit shall map a number through a linear scale with a log, pow (and sqrt), or
+                  symlog transform as d3 does (clamp in the domain, transform, piecewise linear map over the
+                  transformed domain, inverse of the transform for the inverse): the natural logarithm with a
+                  reflected log below zero, the sign-preserving power with the square root and its square for the
+                  exponent 0.5, and the symmetric log sign(x) * log1p(|x| / c) with an accurate log1p for tiny
+                  numbers; shall give no position (null for a data value) to a number the transform cannot take;
+                  shall compute the position of a sequential or diverging color scale from the transformed domain,
+                  middle value included; and shall give the fraction of a value along the transformed domain.
+                justification: |
+                  Log, pow, sqrt, and symlog scales are the other continuous position and size scales of Vega-Lite;
+                  their positions must equal the d3 formulas.
+                tests:
+                  - ScaleModel_Transform_LogMapsDecadesEvenly
+                  - ScaleModel_Transform_PowAndSqrtFollowTheSignedPower
+                  - ScaleModel_Transform_SymlogIsSymmetricAndAccurateNearZero
+                  - ScaleModel_Transform_SequentialAndDivergingUseTheTransformedPosition
+                  - ScaleModel_Fraction_FollowsTheTransformedDomain

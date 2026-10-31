@@ -155,6 +155,48 @@ public class SceneModelTests
     }
 
     /// <summary>
+    ///     Validates the gradient fill of an item: the Vega defaults of the factories, the copied and read-only stops,
+    ///     the bound on the number of stops and the argument checks.
+    /// </summary>
+    [Fact]
+    public void SceneModel_Gradient_DefaultsCopiesAndLimits()
+    {
+        // Arrange: an item has no gradient by default, and a gradient does not touch the solid fill
+        Assert.Null(new SceneRect("r", 0, 0, 1, 1).FillGradient);
+        var source = new List<SceneGradientStop> { new(0, "#ff0000"), new(1, "#0000ff") };
+
+        // Act
+        var horizontal = SceneGradient.Horizontal(source);
+        var vertical = SceneGradient.Vertical(source);
+        var custom = new SceneGradient(0.25, 0.5, 0.75, 1, source);
+        source.Add(new SceneGradientStop(0.5, "#00ff00"));
+        var item = new SceneRect("r", 0, 0, 10, 10) { Fill = "#00ff00", FillGradient = horizontal };
+
+        // Assert: Vega's defaults run left to right, and a legend gradient runs from the bottom to the top
+        Assert.Equal((0.0, 0.0, 1.0, 0.0), (horizontal.X1, horizontal.Y1, horizontal.X2, horizontal.Y2));
+        Assert.Equal((0.0, 1.0, 0.0, 0.0), (vertical.X1, vertical.Y1, vertical.X2, vertical.Y2));
+        Assert.Equal((0.25, 0.5, 0.75, 1.0), (custom.X1, custom.Y1, custom.X2, custom.Y2));
+
+        // Assert: the stops were copied when the gradient was made and cannot be changed through the property
+        Assert.Equal(2, horizontal.Stops.Count);
+        Assert.Equal(new SceneGradientStop(1, "#0000ff"), horizontal.Stops[1]);
+        Assert.Throws<NotSupportedException>(() => ((IList<SceneGradientStop>)horizontal.Stops).Add(new SceneGradientStop(0.5, "#fff")));
+
+        // Assert: the item keeps both paints, and a copy made with a with-expression keeps the gradient
+        Assert.Equal("#00ff00", item.Fill);
+        Assert.Same(horizontal, item.FillGradient);
+        Assert.Same(horizontal, (item with { Fill = null }).FillGradient);
+        Assert.Null((item with { FillGradient = null }).FillGradient);
+
+        // Assert: the stop count is bounded; exactly the limit and no stops at all are accepted
+        Assert.Equal(256, SceneGradient.MaxStops);
+        Assert.Equal(256, SceneGradient.Horizontal(Enumerable.Range(0, 256).Select(i => new SceneGradientStop(i / 255d, "#000"))).Stops.Count);
+        Assert.Throws<ArgumentException>(() => SceneGradient.Horizontal(Enumerable.Range(0, 257).Select(i => new SceneGradientStop(i / 256d, "#000"))));
+        Assert.Empty(SceneGradient.Horizontal([]).Stops);
+        Assert.Throws<ArgumentNullException>(() => SceneGradient.Horizontal(null!));
+    }
+
+    /// <summary>
     ///     Validates the bounding box helper used by layout: union identity, translation and exact quarter turns.
     /// </summary>
     [Fact]

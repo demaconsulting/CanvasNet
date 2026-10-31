@@ -107,12 +107,16 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scales/ticks.md
   - docs/verification/canvas-net-vega-lite/scales/number-format.md
   - docs/verification/canvas-net-vega-lite/scales/color-schemes.md
+  - docs/verification/canvas-net-vega-lite/scales/color-interpolator.md
   - docs/verification/canvas-net-vega-lite/guides.md
   - docs/verification/canvas-net-vega-lite/guides/text-measurer.md
   - docs/verification/canvas-net-vega-lite/guides/title-builder.md
   - docs/verification/canvas-net-vega-lite/guides/axis-builder.md
+  - docs/verification/canvas-net-vega-lite/guides/label-overlap.md
+  - docs/verification/canvas-net-vega-lite/guides/legend-builder.md
   - docs/verification/canvas-net-vega-lite/layout.md
   - docs/verification/canvas-net-vega-lite/layout/view-layout.md
+  - docs/verification/canvas-net-vega-lite/layout/legend-layout.md
   - docs/verification/canvas-net-vega-lite/marks.md
   - docs/verification/canvas-net-vega-lite/marks/mark-builder.md
   - docs/verification/canvas-net-vega-lite/scenegraph.md

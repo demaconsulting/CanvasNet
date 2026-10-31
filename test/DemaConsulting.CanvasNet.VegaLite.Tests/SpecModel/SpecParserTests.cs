@@ -375,9 +375,46 @@ public class SpecParserTests
     [InlineData("{\"encoding\":{\"x\":{\"type\":\"numeric\"}}}", "/encoding/x/type")]
     [InlineData("{\"encoding\":{\"x\":{\"field\":3}}}", "/encoding/x/field")]
     [InlineData("{\"encoding\":{\"x\":{\"scale\":{\"type\":\"cubic\"}}}}", "/encoding/x/scale/type")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMid\":\"x\"}}}}", "/encoding/color/scale/domainMid")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMin\":true}}}}", "/encoding/color/scale/domainMin")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"domainMax\":{\"a\":1}}}}}", "/encoding/color/scale/domainMax")]
+    [InlineData("{\"encoding\":{\"size\":{\"scale\":{\"rangeMin\":\"1\"}}}}", "/encoding/size/scale/rangeMin")]
+    [InlineData("{\"encoding\":{\"size\":{\"scale\":{\"rangeMax\":[1]}}}}", "/encoding/size/scale/rangeMax")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":5}}}}", "/encoding/color/scale/interpolate")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":\"yuv\"}}}}", "/encoding/color/scale/interpolate")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":{\"type\":\"yuv\"}}}}}", "/encoding/color/scale/interpolate/type")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":{}}}}}", "/encoding/color/scale/interpolate")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":{\"type\":3}}}}}", "/encoding/color/scale/interpolate/type")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"interpolate\":{\"type\":\"rgb\",\"gamma\":\"x\"}}}}}", "/encoding/color/scale/interpolate/gamma")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":5}}}}", "/encoding/color/scale/scheme")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{}}}}}", "/encoding/color/scale/scheme")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":5}}}}}", "/encoding/color/scale/scheme/name")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"count\":0}}}}}", "/encoding/color/scale/scheme/count")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"count\":2.5}}}}}", "/encoding/color/scale/scheme/count")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"count\":\"3\"}}}}}", "/encoding/color/scale/scheme/count")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"count\":-1}}}}}", "/encoding/color/scale/scheme/count")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"extent\":[0]}}}}}", "/encoding/color/scale/scheme/extent")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"extent\":[0,\"a\"]}}}}}", "/encoding/color/scale/scheme/extent")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"extent\":0}}}}}", "/encoding/color/scale/scheme/extent")]
+    [InlineData("{\"encoding\":{\"color\":{\"scale\":{\"bins\":5}}}}", "/encoding/color/scale/bins")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":1}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":0}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":-10}}}}", "/encoding/y/scale/base")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"symlog\",\"constant\":0}}}}", "/encoding/y/scale/constant")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"symlog\",\"constant\":-1}}}}", "/encoding/y/scale/constant")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"pow\",\"exponent\":\"2\"}}}}", "/encoding/y/scale/exponent")]
+    [InlineData("{\"encoding\":{\"y\":{\"scale\":{\"type\":\"log\",\"base\":\"10\"}}}}", "/encoding/y/scale/base")]
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"orient\":\"middle\"}}}}", "/encoding/y/axis/orient")]
     [InlineData("{\"encoding\":{\"y\":{\"axis\":{\"grid\":\"yes\"}}}}", "/encoding/y/axis/grid")]
     [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"type\":\"bubble\"}}}}", "/encoding/color/legend/type")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"columns\":-1}}}}", "/encoding/color/legend/columns")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":false}}}", "/encoding/color/legend")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"symbolLimit\":-5}}}}", "/encoding/color/legend/symbolLimit")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"gradientLength\":-200}}}}", "/encoding/color/legend/gradientLength")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"gradientThickness\":-1}}}}", "/encoding/color/legend/gradientThickness")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"orient\":\"middle\"}}}}", "/encoding/color/legend/orient")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"direction\":\"diagonal\"}}}}", "/encoding/color/legend/direction")]
+    [InlineData("{\"encoding\":{\"color\":{\"legend\":{\"titleOrient\":\"middle\"}}}}", "/encoding/color/legend/titleOrient")]
     [InlineData("{\"encoding\":{\"detail\":[1]}}", "/encoding/detail/0")]
     [InlineData("{\"params\":{}}", "/params")]
     [InlineData("{\"params\":[1]}", "/params/0")]
@@ -474,6 +511,96 @@ public class SpecParserTests
         // Assert: accepted without a parse warning (the layers themselves are only reported by the catalog)
         Assert.Empty(tree.Warnings);
         Assert.Equal(9, tree.Root["layer"]!.Items.Count);
+    }
+
+    /// <summary>
+    ///     Validates that the legend properties are accepted in every valid form (the orients, directions, counts, a null legend, a list of values, the
+    ///     paint and font properties and the symbol type) without a warning, and that an unknown key warns once at the key.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_LegendPropertiesAreAcceptedAndUnknownKeysWarn()
+    {
+        // Arrange: each form on its own channel
+        const string json = """
+            {
+              "mark": "point",
+              "encoding": {
+                "color": { "field": "a", "type": "nominal", "legend": { "title": "T", "orient": "top-right", "direction": "horizontal", "columns": 2, "symbolLimit": 0, "symbolType": "diamond", "symbolSize": 80, "values": ["x", "y"], "offset": 4, "padding": 3, "labelLimit": 50, "titleLimit": 60, "format": ".1f", "fillColor": "white", "strokeColor": "gray", "gradientLength": 100, "gradientThickness": 10, "tickCount": 3, "labelAlign": "left", "titleFontWeight": "bold" } },
+                "size": { "field": "a", "type": "quantitative", "legend": null },
+                "shape": { "field": "a", "type": "nominal", "legend": { "orient": "none", "legendX": 5, "legendY": 6 } }
+              }
+            }
+            """;
+
+        // Act
+        var accepted = SpecParser.Parse(json);
+        var warned = SpecParser.Parse("{\"encoding\":{\"color\":{\"legend\":{\"title\":\"T\",\"bogus\":1}}}}");
+
+        // Assert
+        Assert.Empty(accepted.Warnings);
+        var warning = Assert.Single(warned.Warnings);
+        Assert.Equal(("vl-unknown-property", "/encoding/color/legend/bogus"), (warning.Id, warning.Location.Pointer));
+    }
+
+    /// <summary>
+    ///     Validates the parameters of the log, pow and symlog scale types: a base above zero other than 1, a finite exponent and a constant above zero
+    ///     (or an expression reference) are accepted without a warning, and the parameters of another type are not checked (Vega-Lite ignores them).
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType()
+    {
+        // Arrange: valid parameters on their types, invalid ones on types that do not use them
+        const string json = """
+            {
+              "mark": "point",
+              "encoding": {
+                "x": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": 2.5 } },
+                "y": { "field": "a", "type": "quantitative", "scale": { "type": "pow", "exponent": -0.5 } },
+                "size": { "field": "a", "type": "quantitative", "scale": { "type": "symlog", "constant": 0.01 } },
+                "opacity": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": { "expr": "10" } } },
+                "color": { "field": "a", "type": "quantitative", "scale": { "type": "linear", "base": 1, "constant": 0, "exponent": 3 } },
+                "stroke": { "field": "a", "type": "quantitative", "scale": { "type": "sqrt", "base": 1, "constant": -5 } }
+              }
+            }
+            """;
+
+        // Act
+        var tree = SpecParser.Parse(json);
+
+        // Assert
+        Assert.Empty(tree.Warnings);
+    }
+
+    /// <summary>
+    ///     Validates that the color scale options are accepted in every valid form (numbers and expression references for the domain and range limits, a scheme name or object with
+    ///     a count and an extent, an interpolate name or object, bin edges) without a warning, and that an unknown key of a scheme or an interpolate object warns once at the key.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_ColorScaleOptionsAreAcceptedAndUnknownKeysWarn()
+    {
+        // Arrange: each form on its own channel
+        const string json = """
+            {
+              "mark": "point",
+              "encoding": {
+                "color": { "field": "a", "type": "quantitative", "scale": { "domainMid": 0, "domainMin": { "expr": "1" }, "domainMax": 10, "interpolate": "hcl-long", "scheme": { "name": "viridis", "count": 5, "extent": [0.1, 0.9] } } },
+                "fill": { "field": "a", "type": "quantitative", "scale": { "interpolate": { "type": "rgb", "gamma": 2.2 }, "scheme": "blues", "bins": [0, 5, 10], "rangeMin": 1, "rangeMax": { "expr": "2" } } },
+                "stroke": { "field": "a", "type": "quantitative", "scale": { "interpolate": { "expr": "'lab'" }, "scheme": { "expr": "'x'" }, "range": ["red", "blue"] } },
+                "size": { "field": "a", "type": "quantitative", "scale": { "type": "quantize", "bins": { "step": 5 } } }
+              }
+            }
+            """;
+
+        // Act
+        var accepted = SpecParser.Parse(json);
+        var warned = SpecParser.Parse("{\"encoding\":{\"color\":{\"scale\":{\"scheme\":{\"name\":\"a\",\"bogus\":1},\"interpolate\":{\"type\":\"lab\",\"depth\":1}}}}}");
+
+        // Assert
+        Assert.Empty(accepted.Warnings);
+        Assert.Equal(
+            ["/encoding/color/scale/scheme/bogus", "/encoding/color/scale/interpolate/depth"],
+            warned.Warnings.Select(w => w.Location.Pointer).ToArray());
+        Assert.All(warned.Warnings, w => Assert.Equal("vl-unknown-property", w.Id));
     }
 
     /// <summary>

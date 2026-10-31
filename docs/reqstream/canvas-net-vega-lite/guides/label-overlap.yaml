@@ -1,0 +1,62 @@
+---
+# Software Unit Requirements for LabelOverlap
+#
+# These requirements describe the design-level behavior of the LabelOverlap unit of the Guides subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Guides): the removal of overlapping guide labels with Vega's parity and
+# greedy methods, shared by the axis labels and the gradient legend labels. The unit was extracted unchanged from the
+# AxisBuilder unit; its rules follow the Overlap transform of Vega. See
+# docs/verification/canvas-net-vega-lite/guides/label-overlap.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: LabelOverlap Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-LabelOverlap-Parity
+                title: >-
+                  The LabelOverlap unit shall, with the parity method and at least three labels with content that
+                  overlap, hide every other label and repeat until nothing overlaps or fewer than three labels are
+                  left, and shall keep the last label visible by swapping it for the last label that stayed when the
+                  rounds would have hidden it.
+                justification: |
+                  Parity is the default overlap strategy of continuous axes and of legend gradients; the rule for the
+                  last label keeps the end of an axis labeled.
+                tests:
+                  - LabelOverlap_Hidden_ParityKeepsEveryOtherLabelUntilNothingOverlaps
+                  - LabelOverlap_Hidden_TheLastLabelIsKeptVisible
+
+              - id: CanvasNetVegaLite-Guides-LabelOverlap-Greedy
+                title: >-
+                  The LabelOverlap unit shall, with the greedy method, hide each label that overlaps the last label
+                  that stays, and repeat until nothing overlaps or fewer than three labels are left.
+                justification: |
+                  Greedy removal keeps more labels than parity when the labels are unevenly spaced, and Vega-Lite
+                  selects it for some scales.
+                tests:
+                  - LabelOverlap_Hidden_GreedyHidesLabelsThatOverlapTheLastOneKept
+
+              - id: CanvasNetVegaLite-Guides-LabelOverlap-Conditions
+                title: >-
+                  The LabelOverlap unit shall hide nothing when no method is given, when fewer than three labels have
+                  content, or when no two neighbors are closer than the separation; shall skip labels whose box is not
+                  larger than a pixel in both directions; and shall read the labelOverlap setting as true for parity,
+                  the names parity and greedy, and anything else for none.
+                justification: |
+                  A label that is not drawn or that does not overlap must never be removed, and the setting has
+                  several spellings in Vega-Lite.
+                tests:
+                  - LabelOverlap_Hidden_NoMethodFewLabelsOrNoOverlapHidesNothing
+                  - LabelOverlap_Hidden_LabelsWithoutContentAreSkipped
+                  - LabelOverlap_FromSetting_ReadsBooleansAndMethodNames
+
+              - id: CanvasNetVegaLite-Guides-LabelOverlap-Cancellation
+                title: >-
+                  The LabelOverlap unit shall poll the cancellation token between the rounds of removal, bound its
+                  work by the number of labels it is given, and give the same result for the same labels every time.
+                justification: |
+                  The number of labels is bounded by the callers before any label is created; the unit must stop
+                  promptly when the render is canceled and must not make a chart depend on timing.
+                tests:
+                  - LabelOverlap_Hidden_PollsCancellationAndIsDeterministic

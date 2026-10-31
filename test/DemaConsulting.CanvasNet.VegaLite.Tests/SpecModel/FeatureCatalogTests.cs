@@ -71,11 +71,9 @@ public class FeatureCatalogTests
                 ("vl-mark-arc", "/mark"),
                 ("vl-type-temporal", "/encoding/x/type"),
                 ("vl-encoding-timeunit", "/encoding/x/timeUnit"),
+                ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
-                ("vl-encoding-bin", "/encoding/color/bin"),
-                ("vl-scale-log", "/encoding/color/scale/type"),
-                ("vl-scale-property-scheme", "/encoding/color/scale/scheme"),
-                ("vl-guide-legend", "/encoding/color/legend"),
+                ("vl-scale-type-ignored", "/encoding/color/scale/type"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-theta", "/encoding/theta"),
                 ("vl-channel-geo", "/encoding/latitude"),
@@ -84,9 +82,13 @@ public class FeatureCatalogTests
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
 
-        // Assert: only the schema version is a warning; every other report is an unsupported feature; all carry positions and the file
-        Assert.Equal(FeatureReportKind.Warning, reports[0].Kind);
-        Assert.All(reports.Skip(1), r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+        // Assert: only the schema version, the ignored sort and the ignored scale type are warnings; every other report is an unsupported feature; all carry positions and the file
+        Assert.Equal(
+            ["vl-schema-version", "vl-encoding-sort-ignored", "vl-scale-type-ignored"],
+            reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
+        Assert.All(
+            reports.Where(r => r.Id is not ("vl-schema-version" or "vl-encoding-sort-ignored" or "vl-scale-type-ignored")),
+            r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.All(reports, r => Assert.True(r.Location.Line >= 1 && r.Location.Column >= 1 && r.Message.Length > 0));
         Assert.All(reports, r => Assert.Equal("all.json", r.Location.File));
         Assert.Equal((2, 14), (reports[0].Location.Line, reports[0].Location.Column));
@@ -323,21 +325,20 @@ public class FeatureCatalogTests
               "x": {"field":"a","type":"quantitative"}, "y": {"field":"a","type":"quantitative"},
               "color": {"value":"red"}, "fill": {"value":"red"}, "stroke": {"value":"red"}, "size": {"value":3}, "opacity": {"value":1},
               "tooltip": {"value":"t"}, "href": {"value":"h"}, "description": {"value":"d"}, "key": {"field":"a"},
-              "x2": {"field":"a"}, "shape": {"field":"a","type":"nominal"}, "strokeWidth": {"value":2}, "text": {"field":"a"},
+              "x2": {"field":"a"}, "shape": {"field":"a","type":"nominal","legend":null}, "strokeWidth": {"value":2}, "text": {"field":"a"},
               "detail": [ {"field":"a"} ], "order": {"field":"a"}, "row": {"field":"a"}, "xOffset": {"field":"a"},
-              "longitude": {"field":"a"}, "latitude2": {"field":"a"}
+              "longitude": {"field":"a"}, "latitude2": {"field":"a"},
+              "strokeDash": {"value":[1,1]}, "fillOpacity": {"value":0.5}, "strokeOpacity": {"value":0.5}, "angle": {"value":45}
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert
+        // Assert: shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle are drawn by a point mark
         Assert.Equal(
             [
                 ("vl-channel-x2", "/encoding/x2"),
-                ("vl-channel-shape", "/encoding/shape"),
-                ("vl-channel-strokewidth", "/encoding/strokeWidth"),
                 ("vl-channel-text", "/encoding/text"),
                 ("vl-channel-detail", "/encoding/detail"),
                 ("vl-channel-order", "/encoding/order"),
@@ -473,29 +474,39 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the legend rule: a legend is reported for field-driven color, size and opacity channels unless it
-    ///     or the scale is null, never for values, data and position channels.
+    ///     Validates the legend rule: legends are drawn, so they are not reported; only the parts of a legend that are not drawn are
+    ///     (a title orient other than top, a clip height, an encode, a label expression, a custom format type, and a custom symbol path),
+    ///     at the exact property, and never for a position channel or a channel without a legend.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn()
+    public void FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal" },
-              "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left" } },
+              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "datum.label", "formatType": "time", "symbolType": "M0,0L1,1", "encode": {} } },
+              "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left", "titleOrient": "top", "symbolType": "diamond", "title": "S" } },
               "opacity": { "field": "a", "type": "quantitative", "legend": null },
               "fill": { "field": "a", "type": "nominal", "scale": null },
-              "stroke": { "value": "red" },
-              "x": { "field": "a", "type": "nominal", "legend": {} }
+              "stroke": { "field": "a", "type": "nominal" },
+              "x": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left" } }
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert: color has no legend object, so the channel itself is the location; size reports its legend object
-        Assert.Equal([("vl-guide-legend", "/encoding/color"), ("vl-guide-legend", "/encoding/size/legend")], ids);
+        // Assert: in document order; the legend of the size channel and the plain ones draw without a report
+        Assert.Equal(
+            [
+                ("vl-guide-legend-titleorient", "/encoding/color/legend/titleOrient"),
+                ("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight"),
+                ("vl-expr-label", "/encoding/color/legend/labelExpr"),
+                ("vl-format-type-custom", "/encoding/color/legend/formatType"),
+                ("vl-shape-path", "/encoding/color/legend/symbolType"),
+                ("vl-guide-encode", "/encoding/color/legend/encode"),
+            ],
+            ids);
     }
 
     /// <summary>
@@ -508,10 +519,10 @@ public class FeatureCatalogTests
         const string json = """
             { "mark": "point", "encoding": {
               "x": { "field": "a", "type": "quantitative", "scale": { "type": "linear", "zero": false, "nice": true, "padding": 1, "domain": [0, 1], "range": [0, 1] } },
-              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true, "exponent": 2 } },
+              "y": { "field": "a", "type": "nominal", "scale": { "type": "point", "paddingInner": 0.1, "clamp": true, "bins": [0, 1] } },
               "size": { "field": "a", "type": "ordinal", "scale": { "type": "ordinal" }, "legend": null },
               "opacity": { "value": 1, "scale": { "type": "bin-ordinal", "reverse": true } },
-              "stroke": { "value": "x", "scale": { "type": "sqrt" } },
+              "stroke": { "value": "x", "scale": { "type": "identity" } },
               "fill": { "value": "x", "scale": { "type": "band" } }
             } }
             """;
@@ -522,66 +533,252 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-scale-property-exponent", "/encoding/y/scale/exponent"),
-                ("vl-scale-bin-ordinal", "/encoding/opacity/scale/type"),
-                ("vl-scale-sqrt", "/encoding/stroke/scale/type"),
+                ("vl-scale-property-bins", "/encoding/y/scale/bins"),
+                ("vl-scale-identity", "/encoding/stroke/scale/type"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates that a color scheme other than the default palette and a continuous color scale are reported, and the default
-    ///     palette and an ordinal color scale are not.
+    ///     Validates that the <c>bin</c> of every channel that has a scale is supported (it reports nothing), that <c>bin: "binned"</c> on such a
+    ///     channel and a bin on a secondary channel are reported, and that the bin-ordinal scale type is supported for a binned quantitative color but warns, with the
+    ///     default type used instead, for a field that is not binned, a nominal field, and a channel Vega-Lite does not give it.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset()
+    public void FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "x": { "field": "a", "type": "quantitative" },
+              "color": { "field": "b", "type": "quantitative", "bin": true, "scale": { "type": "bin-ordinal" } },
+              "fill": { "field": "b", "type": "quantitative", "bin": { "maxbins": 4 }, "scale": { "type": "linear" } },
+              "stroke": { "field": "b", "type": "quantitative", "scale": { "type": "bin-ordinal" } },
+              "size": { "field": "b", "type": "quantitative", "bin": true, "scale": { "type": "bin-ordinal" } },
+              "opacity": { "field": "b", "type": "quantitative", "bin": true },
+              "strokeWidth": { "field": "b", "type": "ordinal", "bin": true },
+              "angle": { "field": "b", "type": "quantitative", "bin": "binned" },
+              "shape": { "field": "b", "type": "nominal", "scale": { "type": "bin-ordinal" } },
+              "fillOpacity": { "field": "b", "type": "nominal", "bin": true, "scale": { "type": "bin-ordinal" } }
+            } }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json, "bins.json"));
+        var secondary = Visit("""{ "mark": "bar", "encoding": { "x": { "field": "a", "type": "quantitative" }, "x2": { "field": "b", "bin": true } } }""");
+
+        // Assert: the bins of the scale channels are silent; the bin-ordinal scale of a binned quantitative color is silent too
+        Assert.Equal(
+            [
+                ("vl-scale-type-ignored", "/encoding/stroke/scale/type"),
+                ("vl-scale-type-ignored", "/encoding/size/scale/type"),
+                ("vl-encoding-bin", "/encoding/angle/bin"),
+                ("vl-scale-type-ignored", "/encoding/shape/scale/type"),
+                ("vl-scale-type-ignored", "/encoding/fillOpacity/scale/type"),
+            ],
+            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Equal(["vl-scale-type-ignored", "vl-scale-type-ignored", "vl-scale-type-ignored", "vl-scale-type-ignored"], reports.Where(r => r.Kind == FeatureReportKind.Warning).Select(r => r.Id));
+        Assert.Contains("only supported on the x and y channels", reports.Single(r => r.Location.Pointer == "/encoding/angle/bin").Message, StringComparison.Ordinal);
+        Assert.Equal([("vl-encoding-bin", "/encoding/x2/bin")], secondary);
+    }
+
+    /// <summary>
+    ///     Validates that the log, pow, sqrt and symlog scale types and their <c>base</c>, <c>exponent</c> and <c>constant</c> are supported
+    ///     (they report nothing), on position, color and numeric channels alike.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "x": { "field": "a", "type": "quantitative", "scale": { "type": "log", "base": 2, "nice": true, "clamp": true } },
+              "y": { "field": "b", "type": "quantitative", "scale": { "type": "pow", "exponent": 2, "zero": false } },
+              "size": { "field": "c", "type": "quantitative", "scale": { "type": "sqrt" }, "legend": null },
+              "color": { "field": "d", "type": "quantitative", "scale": { "type": "symlog", "constant": 10, "scheme": "blues" }, "legend": null },
+              "opacity": { "field": "e", "type": "quantitative", "scale": { "type": "log" }, "legend": null }
+            } }
+            """;
+
+        // Act / Assert
+        Assert.Empty(FeatureCatalog.Visit(SpecParser.Parse(json)));
+    }
+
+    /// <summary>
+    ///     Validates that continuous color scales, the color schemes (of every kind) and the other color scale properties of Phase 7 are not
+    ///     reported, and that the retired <c>vl-scale-color-ramp</c> never is.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
               "color": { "field": "a", "type": "quantitative", "legend": null },
-              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "tableau10" }, "legend": null },
-              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": { "name": "category20" } }, "legend": null },
-              "opacity": { "field": "d", "type": "ordinal", "scale": { "scheme": "blues" }, "legend": null }
+              "fill": { "field": "b", "type": "quantitative", "scale": { "scheme": { "name": "viridis", "count": 5, "extent": [0.1, 0.9] }, "domainMid": 0, "domainMin": -1, "domainMax": 1, "interpolate": { "type": "hcl", "gamma": 2 }, "type": "sequential" }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "category20" }, "legend": null },
+              "opacity": { "field": "d", "type": "quantitative", "scale": { "scheme": "blues", "type": "quantize", "rangeMin": 0.1, "rangeMax": 1 }, "legend": null }
             } }
             """;
 
         // Act
         var ids = Visit(json);
 
-        // Assert: the quantitative color has no ramp; tableau10 (also as an object) is available, other schemes are not
+        // Assert
+        Assert.Empty(ids);
+    }
+
+    /// <summary>
+    ///     Validates the cubehelix interpolation report: both spellings, as a string and as an object, and no report for the other types.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_CubehelixInterpolationIsReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "quantitative", "scale": { "interpolate": "cubehelix" }, "legend": null },
+              "fill": { "field": "b", "type": "quantitative", "scale": { "interpolate": { "type": "cubehelix-long", "gamma": 1 } }, "legend": null },
+              "stroke": { "field": "c", "type": "quantitative", "scale": { "interpolate": "lab" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
         Assert.Equal(
             [
-                ("vl-scale-color-ramp", "/encoding/color/type"),
-                ("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"),
-                ("vl-scale-property-scheme", "/encoding/opacity/scale/scheme"),
+                ("vl-scale-interpolate-cubehelix", "/encoding/color/scale/interpolate"),
+                ("vl-scale-interpolate-cubehelix", "/encoding/fill/scale/interpolate"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates that the scheme report agrees with the scale resolver: the name is matched without regard to case, an
-    ///     explicit color range overrides the scheme (so nothing is reported), and each report is made once with its pointer.
+    ///     Validates that a shape that is not a symbol name is reported wherever it can be given (the mark, the channel value, the scale
+    ///     range), and that every symbol name the painter draws is not.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_SchemeReportAgreesWithTheResolver()
+    public void FeatureCatalog_Visit_CustomPathShapesAreReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": { "type": "point", "shape": "M0,0L1,1" }, "encoding": {
+              "shape": { "field": "a", "type": "nominal", "scale": { "range": ["circle", "M0,0L1,1Z", "wedge"] }, "legend": null }
+            } }
+            """;
+        const string value = """
+            { "mark": "point", "encoding": { "shape": { "value": "M0,0L1,1" } } }
+            """;
+        var known = string.Join(
+            ",",
+            new[] { "circle", "square", "cross", "diamond", "arrow", "wedge", "triangle", "triangle-up", "triangle-down", "triangle-left", "triangle-right", "stroke" }.Select(s => $"\"{s}\""));
+
+        // Act
+        var ids = Visit(json);
+        var channelValue = Visit(value);
+        var symbols = Visit("{\"mark\":{\"type\":\"point\",\"shape\":\"cross\"},\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\",\"scale\":{\"range\":[" + known + "]},\"legend\":null}}}");
+
+        // Assert
+        Assert.Equal(
+            [
+                ("vl-shape-path", "/mark/shape"),
+                ("vl-shape-path", "/encoding/shape/scale/range/1"),
+            ],
+            ids);
+        Assert.Equal([("vl-shape-path", "/encoding/shape/value")], channelValue);
+        Assert.Empty(symbols);
+    }
+
+    /// <summary>
+    ///     Validates that the shape, angle and stroke dash channels are reported (and ignored) on a mark that does not draw them, and are not
+    ///     reported on one that does.
+    /// </summary>
+    /// <param name="mark">The mark type.</param>
+    /// <param name="channel">The channel with its definition.</param>
+    /// <param name="drawn">Whether the mark draws the channel.</param>
+    [Theory]
+    [InlineData("point", "\"shape\":{\"value\":\"cross\"}", true)]
+    [InlineData("circle", "\"shape\":{\"value\":\"cross\"}", false)]
+    [InlineData("bar", "\"shape\":{\"value\":\"cross\"}", false)]
+    [InlineData("point", "\"angle\":{\"value\":10}", true)]
+    [InlineData("square", "\"angle\":{\"value\":10}", true)]
+    [InlineData("tick", "\"angle\":{\"value\":10}", false)]
+    [InlineData("bar", "\"strokeDash\":{\"value\":[2,2]}", true)]
+    [InlineData("rule", "\"strokeDash\":{\"value\":[2,2]}", true)]
+    [InlineData("rect", "\"strokeDash\":{\"value\":[2,2]}", false)]
+    public void FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem(string mark, string channel, bool drawn)
+    {
+        // Act
+        var ids = Visit("{\"mark\":\"" + mark + "\",\"encoding\":{" + channel + "}}");
+
+        // Assert
+        var name = channel[1..channel.IndexOf('"', 1)];
+        Assert.Equal(drawn ? [] : [("vl-channel-" + name.ToLowerInvariant(), "/encoding/" + name)], ids);
+    }
+
+    /// <summary>
+    ///     Validates the scale type warning: a type the channel or the field type cannot use, a quantitative field on a shape or stroke dash
+    ///     channel, and no warning for accepted types, for types that are reported otherwise, or for a channel without a field.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed()
     {
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal", "scale": { "scheme": "Tableau10" }, "legend": null },
-              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "blues", "range": ["red", "blue"] }, "legend": null },
-              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "BLUES" }, "legend": null }
+              "x": { "field": "a", "type": "quantitative", "scale": { "type": "band" } },
+              "y": { "field": "b", "type": "nominal", "scale": { "type": "linear" } },
+              "color": { "field": "c", "type": "nominal", "scale": { "type": "sequential" }, "legend": null },
+              "fill": { "field": "d", "type": "quantitative", "scale": { "type": "quantize" }, "legend": null },
+              "stroke": { "field": "e", "type": "quantitative", "scale": { "type": "log" }, "legend": null },
+              "size": { "field": "f", "type": "quantitative", "scale": { "type": "threshold", "domain": [1] }, "legend": null },
+              "shape": { "field": "g", "type": "quantitative", "legend": null },
+              "strokeDash": { "field": "h", "type": "quantitative", "scale": { "type": "quantile" }, "legend": null },
+              "opacity": { "value": 1, "scale": { "type": "band" } }
             } }
             """;
 
         // Act
         var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
-        // Assert: only the unavailable scheme without a range is reported
-        var report = Assert.Single(reports);
-        Assert.Equal(("vl-scale-property-scheme", "/encoding/stroke/scale/scheme"), (report.Id, report.Location.Pointer));
-        Assert.Contains("'BLUES'", report.Message, StringComparison.Ordinal);
+        // Assert: log on a quantitative stroke is a supported type and warns about nothing; band on a quantitative field, linear on a nominal
+        // one, sequential on a nominal color and the quantitative shape each warn
+        var warnings = reports.Where(r => r.Id == "vl-scale-type-ignored").Select(r => (r.Kind, r.Location.Pointer)).ToList();
+        Assert.Equal(
+            [
+                (FeatureReportKind.Warning, "/encoding/x/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/y/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/color/scale/type"),
+                (FeatureReportKind.Warning, "/encoding/shape/type"),
+            ],
+            warnings);
+        Assert.DoesNotContain(reports, r => r.Id == "vl-scale-log");
+        Assert.DoesNotContain(reports, r => r.Id == "vl-scale-quantize");
+    }
+
+    /// <summary>
+    ///     Validates that a sort that orders categories is not ignored on a discretizing color scale, and that scheme names are never
+    ///     catalog reports (an unknown name is a specification error of the scale resolver).
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_SchemeNamesAreNotReported()
+    {
+        // Arrange
+        const string json = """
+            { "mark": "point", "encoding": {
+              "color": { "field": "a", "type": "quantitative", "scale": { "type": "quantize", "scheme": "Blues" }, "sort": ["a"], "legend": null },
+              "fill": { "field": "b", "type": "nominal", "scale": { "scheme": "TABLEAU10" }, "legend": null },
+              "stroke": { "field": "c", "type": "nominal", "scale": { "scheme": "no-such-scheme" }, "legend": null }
+            } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Empty(ids);
     }
 
     /// <summary>
@@ -696,7 +893,7 @@ public class FeatureCatalogTests
         var reports = Visit(json);
 
         // Assert
-        Assert.Equal([("vl-encoding-stack-nonlinear", "/encoding/y/stack"), ("vl-scale-log", "/encoding/y/scale/type")], reports);
+        Assert.Equal([("vl-encoding-stack-nonlinear", "/encoding/y/stack")], reports);
     }
 
     /// <summary>
@@ -959,7 +1156,7 @@ public class FeatureCatalogTests
             [
                 ("vl-param-selection", "/params/0"), ("vl-transform-timeunit", "/transform/6"), ("vl-transform-regression", "/transform/7"),
                 ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
-                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition", "/encoding/color/condition"),
+                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition-param", "/encoding/color/condition"),
             ],
             ids);
     }
@@ -1013,9 +1210,9 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: bin on a channel other
-    ///     than x and y, a bin extent that is a parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
-    ///     impute of a channel, and a stack on a scale that is not linear.
+    ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: a bin extent that is a
+    ///     parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
+    ///     impute of a channel, and a stack on a scale that is not linear (the bin of a color channel is supported).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre()
@@ -1035,11 +1232,10 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: x2 draws a range and the order channel orders the stack of y; only the binned scale parts are reported
+        // Assert: x2 draws a range and the order channel orders the stack of y; the bin of the color channel is supported, and only the extent parameter is reported
         Assert.Equal(
             [
                 ("vl-encoding-bin-extent-param", "/encoding/x/bin/extent"),
-                ("vl-encoding-bin", "/encoding/color/bin"),
             ],
             ids);
     }
@@ -1185,5 +1381,163 @@ public class FeatureCatalogTests
 
         // Assert
         Assert.Equal(reported ? new[] { "vl-encoding-sort" } : [], ids);
+    }
+
+    /// <summary>
+    ///     Validates that a sort that refers to a channel the encoding lacks is reported as <c>vl-encoding-sort</c> with a message that names the channel
+    ///     (the specification is the problem, not the renderer), at the sort, and that an operation that cannot order categories keeps the general message.
+    /// </summary>
+    /// <param name="encoding">The text of the encoding (x always has the sort).</param>
+    /// <param name="channel">The channel the message must name, or null for the operation message.</param>
+    [Theory]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"encoding":"y"}}}""", "y")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":"-y"},"y":{"value":3}}""", "y")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":"color"},"y":{"field":"v","type":"quantitative"}}""", "color")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"encoding":"size","order":"descending"}},"size":{"value":3}}""", "size")]
+    [InlineData("""{"x":{"field":"k","type":"nominal","sort":{"op":"values","field":"v"}},"y":{"field":"v","type":"quantitative"}}""", null)]
+    public void FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel(string encoding, string? channel)
+    {
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse("{\"mark\":\"bar\",\"encoding\":" + encoding + "}"));
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Equal("vl-encoding-sort", report.Id);
+        Assert.Equal(FeatureReportKind.UnsupportedFeature, report.Kind);
+        Assert.Equal("/encoding/x/sort", report.Location.Pointer);
+        if (channel is null)
+        {
+            Assert.Contains("operation", report.Message, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("refers to the '" + channel + "' channel", report.Message, StringComparison.Ordinal);
+            Assert.Contains("sorted ascending", report.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a sort that lists or computes an order of categories is a <c>vl-encoding-sort-ignored</c> warning on a quantitative field with a
+    ///     continuous scale, and is not reported for the plain directions, for null, for an order-only object, for a discrete field, or when the scale type is
+    ///     a discrete one.
+    /// </summary>
+    /// <param name="definition">The definition of the <c>x</c> channel.</param>
+    /// <param name="reported">Whether the warning is expected.</param>
+    [Theory]
+    [InlineData("""{"field":"v","type":"quantitative","sort":["a"]}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":[]}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"-y"}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"op":"sum","field":"w"}}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"field":"w"}}""", true)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"ascending"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":"descending"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":null}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","sort":{"order":"descending"}}""", false)]
+    [InlineData("""{"field":"v","type":"nominal","sort":["a"]}""", false)]
+    [InlineData("""{"field":"v","type":"ordinal","sort":"-y"}""", false)]
+    [InlineData("""{"field":"v","type":"quantitative","scale":{"type":"linear"},"sort":["a"]}""", true)]
+    public void FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning(string definition, bool reported)
+    {
+        // Act: the y channel exists, so a channel shorthand is applicable
+        var reports = FeatureCatalog.Visit(SpecParser.Parse("{\"mark\":\"point\",\"encoding\":{\"x\":" + definition + ",\"y\":{\"field\":\"w\",\"type\":\"quantitative\"}}}"));
+
+        // Assert
+        if (reported)
+        {
+            var report = Assert.Single(reports);
+            Assert.Equal(("vl-encoding-sort-ignored", FeatureReportKind.Warning, "/encoding/x/sort"), (report.Id, report.Kind, report.Location.Pointer));
+        }
+        else
+        {
+            Assert.Empty(reports);
+        }
+    }
+
+    /// <summary>
+    ///     Parses a specification whose color channel is the given definition and lists the findings that are not about the selection parameter
+    ///     the specification declares.
+    /// </summary>
+    /// <param name="color">The JSON text of the color definition.</param>
+    /// <returns>The findings as identifier and pointer pairs.</returns>
+    private static List<(string Id, string Pointer)> VisitColor(string color) =>
+        Visit("{\"params\":[{\"name\":\"sel\",\"select\":\"interval\"}],\"data\":{\"values\":[{\"q\":1,\"g\":\"a\"}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"q\",\"type\":\"quantitative\"},\"color\":" + color + "}}")
+            .Where(r => r.Id != "vl-param-selection").ToList();
+
+    /// <summary>
+    ///     Validates that the conditions that the renderer evaluates are not reported: an expression test, the predicate forms, value and field
+    ///     conditions, and an array of conditions.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"condition":{"test":"datum.q > 1","value":"red"},"value":"gray"}""")]
+    [InlineData("""{"condition":{"test":{"field":"q","gt":1},"value":"red"}}""")]
+    [InlineData("""{"condition":{"test":{"and":[{"field":"q","range":[1,3]},{"not":{"field":"g","oneOf":["b"]}}]},"value":"red"}}""")]
+    [InlineData("""{"condition":{"test":"datum.q > 1","field":"g","type":"nominal"},"value":"gray"}""")]
+    [InlineData("""{"field":"g","type":"nominal","condition":[{"test":"datum.q > 1","value":"red"},{"test":"datum.q > 2","value":"blue"}]}""")]
+    public void FeatureCatalog_Visit_ConditionsWithATestAreNotReported(string color) =>
+        Assert.Empty(VisitColor(color));
+
+    /// <summary>
+    ///     Validates that a condition on a parameter, and a test that names a selection or a parameter that is not a variable, are reported at the
+    ///     parameter or the condition and are never applied.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ParameterConditionsAreReported()
+    {
+        // Act
+        var single = VisitColor("""{"condition":{"param":"sel","value":"red"},"value":"gray"}""");
+        var array = VisitColor("""{"condition":[{"test":"datum.q > 1","value":"blue"},{"param":"sel","value":"red"}]}""");
+        var inTest = VisitColor("""{"condition":{"test":{"and":[{"field":"q","gt":1},{"param":"sel"}]},"value":"red"}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition")], single);
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/1")], array);
+        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/test/and/1/param")], inTest);
+    }
+
+    /// <summary>
+    ///     Validates that a time unit or a date object in the predicate of a test is reported once, at the predicate, and that the supported
+    ///     parts of the same composition are not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported()
+    {
+        // Act
+        var timeUnit = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"year","equal":2020},"value":"red"}}""");
+        var date = VisitColor("""{"condition":{"test":{"or":[{"field":"q","gt":1},{"field":"q","equal":{"year":2020}}]},"value":"red"}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test")], timeUnit);
+        Assert.Equal([("vl-encoding-condition-test", "/encoding/color/condition/test/or/1")], date);
+    }
+
+    /// <summary>
+    ///     Validates that a condition on a channel that takes none is reported as a whole, and that a position channel keeps the report.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported()
+    {
+        // Act
+        var reports = Visit("""{"mark":"point","encoding":{"x":{"field":"q","type":"quantitative","condition":{"test":"datum.q > 1","value":1}},"y":{"field":"r","type":"quantitative"}}}""");
+
+        // Assert
+        Assert.Equal([("vl-encoding-condition", "/encoding/x/condition")], reports);
+    }
+
+    /// <summary>
+    ///     Validates that the expressions of a condition are reported for what the engine cannot do (a function outside the whitelist in the test
+    ///     and in a value expression), and that the properties of a field condition are visited like those of a channel.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited()
+    {
+        // Act
+        var test = VisitColor("""{"condition":{"test":"datum.q > now()","value":"red"}}""");
+        var value = VisitColor("""{"condition":{"test":"datum.q > 1","value":{"expr":"now()"}}}""");
+        var field = VisitColor("""{"condition":{"test":"datum.q > 1","field":"q","type":"temporal"},"value":"gray"}""");
+
+        // Assert
+        Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/test")], test);
+        Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/value/expr")], value);
+        Assert.Equal([("vl-type-temporal", "/encoding/color/condition/type")], field);
     }
 }

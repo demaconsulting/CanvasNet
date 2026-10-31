@@ -446,6 +446,59 @@ public class MarkBuilderTests
     }
 
     /// <summary>
+    ///     Validates that signed stacks hang below the zero baseline in both orientations: positives stack up (right) from zero and negatives stack down
+    ///     (left) from zero, separately; an all-negative stack hangs entirely below zero; center and normalize use the absolute values. The rectangles are
+    ///     derived by hand from the domains below, with the band of a single category 90 px wide at 5 and of two categories 45 px wide at 2.5 and 52.5.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations()
+    {
+        // Arrange: one category a with p = 3, q = 2, r = -4, s = -1. A vertical stack runs descending by the color: q (0, 2) then p (2, 5) above
+        // zero, s (0, -1) then r (-1, -5) below. The domain is -5 to 5, so y(v) = 50 - 10 v
+        const string mixed = "[ { \"k\": \"a\", \"c\": \"p\", \"n\": 3 }, { \"k\": \"a\", \"c\": \"q\", \"n\": 2 }, { \"k\": \"a\", \"c\": \"r\", \"n\": -4 }, { \"k\": \"a\", \"c\": \"s\", \"n\": -1 } ]";
+        const string color = ", \"color\": { \"field\": \"c\", \"type\": \"nominal\" }";
+        var vertical = Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\" }" + color + " }", mixed, 100, 100);
+
+        // Act
+        var up = Rectangles(vertical, 100, 100);
+
+        // Assert: the rows are in data order: p is 2 to 5 (y 0 to 30), q is 0 to 2 (30 to 50), r is -1 to -5 (60 to 100), s is 0 to -1 (50 to 60)
+        Assert.Equal([Q(5, 0, 90, 30), Q(5, 30, 90, 20), Q(5, 60, 90, 40), Q(5, 50, 90, 10)], up.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: the horizontal chart stacks ascending by the color: p (0, 3) then q (3, 5) to the right, r (0, -4) then s (-4, -5) to the left; x(v) = 50 + 10 v
+        var horizontal = Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": { \"field\": \"n\", \"type\": \"quantitative\" }" + color + " }", mixed, 100, 100);
+
+        // Assert: p is x 50 wide 30, q is 80 wide 20, r is 10 wide 40 (from -4 to 0), s is 0 wide 10 (from -5 to -4)
+        Assert.Equal(
+            [Q(50, 5, 30, 90), Q(80, 5, 20, 90), Q(10, 5, 40, 90), Q(0, 5, 10, 90)],
+            Rectangles(horizontal, 100, 100).Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: an all-negative stack: p = -3 and q = -2 stack down to -5 (q first, then p). The domain is -5 to 0, so y(v) = -20 v
+        const string negative = "[ { \"k\": \"a\", \"c\": \"p\", \"n\": -3 }, { \"k\": \"a\", \"c\": \"q\", \"n\": -2 } ]";
+        var down = Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\" }" + color + " }", negative, 100, 100);
+
+        // Assert: p is -2 to -5 (y 40 to 100) and q is 0 to -2 (y 0 to 40): nothing is drawn above the baseline at the top edge
+        Assert.Equal([Q(5, 40, 90, 60), Q(5, 0, 90, 40)], Rectangles(down, 100, 100).Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Arrange: a with p = 3 and q = -1, b with p = -2 (the data order is a/p, a/q, b/p)
+        const string signed = "[ { \"k\": \"a\", \"c\": \"p\", \"n\": 3 }, { \"k\": \"a\", \"c\": \"q\", \"n\": -1 }, { \"k\": \"b\", \"c\": \"p\", \"n\": -2 } ]";
+        string Offset(string stack) => Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\", \"stack\": \"" + stack + "\" }" + color + " }", signed, 100, 100);
+
+        // Assert: center adds the absolute values: a is q 0 to 1 and p 1 to 4 (the widest, starting at 0), b is p from (4 - 2) / 2 = 1 to 3; the domain is 0 to 4, y(v) = 100 - 25 v
+        Assert.Equal(
+            [Q(2.5, 0, 45, 75), Q(2.5, 75, 45, 25), Q(52.5, 25, 45, 50)],
+            Rectangles(Offset("center"), 100, 100).Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: normalize divides by the sum of the absolute values (4 and 2): a is q 0 to 0.25 and p 0.25 to 1, b is p 0 to 1; y(v) = 100 - 100 v
+        Assert.Equal(
+            [Q(2.5, 0, 45, 75), Q(2.5, 75, 45, 25), Q(52.5, 0, 45, 100)],
+            Rectangles(Offset("normalize"), 100, 100).Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: the result is deterministic
+        Assert.Equal(up.Select(b => (b.X, b.Y, b.Width, b.Height)), Rectangles(vertical, 100, 100).Select(b => (b.X, b.Y, b.Width, b.Height)));
+    }
+
+    /// <summary>
     ///     Validates the geometry of bars and rectangles on a binned field: the bin from its start to its end less the bin spacing (1 for a bar, 0 for a
     ///     rect) and shifted by the half pixel of the axis translate; the reversed scale; <c>minBandSize</c>; an explicit <c>binSpacing</c>; a size that
     ///     centers the bar on the middle of the bin; and a bin step on a field that is binned already.
@@ -608,5 +661,34 @@ public class MarkBuilderTests
         var plain = Rectangles(BarSpec, 240, 200);
         Assert.Equal([114.0, 144.0, 90.0, 18.0], R(plain.Select(b => b.Y)));
         Assert.Equal([86.0, 56.0, 110.0, 182.0], R(plain.Select(b => b.Height)));
+    }
+
+    /// <summary>
+    ///     Validates the bars of a log y axis: the domain 28 to 91 is rounded out to 10 to 100 (one decade, which is the 200 pixels of the data rectangle), the
+    ///     bars are not stacked and start at the bottom of the data rectangle (the start of the domain, as Vega-Lite's <c>zeroOrMin</c> gives for a log
+    ///     scale), and a row whose value the log cannot map (zero) is left out instead of drawing a bar at a position that is not a number.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap()
+    {
+        // Arrange: y(v) = 200 - 200 * (log10(v) - 1) on the domain 10 to 100 over 200 px
+        var log = BarSpec.Replace("\"y\": { \"field\": \"n\", \"type\": \"quantitative\" }", "\"y\": { \"field\": \"n\", \"type\": \"quantitative\", \"scale\": { \"type\": \"log\" } }", StringComparison.Ordinal);
+        var bars = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(log, 240, 200), "mark-bar");
+
+        // Assert: the tops follow the logarithm and every bar ends at the bottom
+        double[] values = [43, 28, 55, 91];
+        Assert.Equal(4, bars.Count);
+        Assert.Equal(R(values.Select(v => 200 - (200 * (Math.Log10(v) - 1)))), R(bars.Select(b => b.Y)));
+        Assert.All(bars, b => Assert.Equal(200, Math.Round(b.Y + b.Height, 9)));
+
+        // Arrange: a fifth category whose value is zero, on an explicit domain 10 to 100 (a zero in the data would otherwise be a domain error)
+        var withZero = log
+            .Replace("{ \"k\": \"West\", \"n\": 91 }", "{ \"k\": \"West\", \"n\": 91 }, { \"k\": \"None\", \"n\": 0 }", StringComparison.Ordinal)
+            .Replace("\"scale\": { \"type\": \"log\" }", "\"scale\": { \"type\": \"log\", \"domain\": [10, 100] }", StringComparison.Ordinal);
+        var drawn = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(withZero, 240, 200), "mark-bar");
+
+        // Assert: the zero row has no bar, and the others are where they were
+        Assert.Equal(4, drawn.Count);
+        Assert.Equal(R(values.Select(v => 200 - (200 * (Math.Log10(v) - 1)))), R(drawn.Select(b => b.Y)));
     }
 }

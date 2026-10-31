@@ -2,7 +2,8 @@
 
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace: the immutable scene records (`SceneItem` and its subtypes
-`SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`, `SceneSymbol`, and `SceneText`, with `ScenePoint` and `SceneClip`),
+`SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`, `SceneSymbol`, and `SceneText`, with `SceneGradient`,
+`SceneGradientStop`, `ScenePoint`, and `SceneClip`),
 the `Scene` record with its deterministic enumeration, role lookup, and item count (`SceneEntry`), the `SceneBounds`
 bounding box helper, and the internal scene item budget. The records are the assertion surface of the stages before the
 painter: they carry resolved geometry and paint as plain data, with colors as CSS strings.
@@ -80,6 +81,17 @@ canvas size throws `ArgumentOutOfRangeException`, and that a null root and a nul
 
 Asserts the derived union, translation, and quarter-turn results, that the empty box has zero width and stays empty
 under translation and rotation, and that it is the identity of the union.
+
+##### Gradient Fills
+
+**Tests**: `SceneModelTests.SceneModel_Gradient_DefaultsCopiesAndLimits`
+
+Asserts that an item has no gradient by default and that a gradient leaves the solid fill alone; that the factories give
+Vega's defaults (`Horizontal` from (0, 0) to (1, 0), `Vertical` from (0, 1) to (0, 0)) and an explicit gradient keeps its
+numbers; that the stops are copied when the gradient is made (a later change of the source list has no effect) and throw
+`NotSupportedException` when changed through a cast; that a `with` copy keeps the gradient and can clear it; and that the
+number of stops is bounded (256 are accepted, 257 are an `ArgumentException`, no stop is accepted, and a null list is an
+`ArgumentNullException`).
 
 ##### Scene Item Budget
 

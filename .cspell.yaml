@@ -15,6 +15,8 @@ language: en
 # Project-specific technical terms and tool names
 words:
   - canvasnet
+  - titleorient
+  - clipheight
   - davehoward
   - extensionless
   - Visio
@@ -508,6 +510,50 @@ words:
   - blueorange
   - blueviolet
   - Bostock
+  - Anderton
+  - Battelle
+  - bluegreen
+  - bluepurple
+  - greenblue
+  - purpleblue
+  - purplebluegreen
+  - purplered
+  - redpurple
+  - yelloworangebrown
+  - yelloworangered
+  - brownbluegreen
+  - purplegreen
+  - purpleorange
+  - pinkyellowgreen
+  - redblue
+  - redgrey
+  - redyellowblue
+  - redyellowgreen
+  - tealblues
+  - warmgreys
+  - goldgreen
+  - goldorange
+  - goldred
+  - lightgreyred
+  - lightgreyteal
+  - lightmulti
+  - lightorange
+  - lighttealblue
+  - darkgold
+  - darkmulti
+  - strokedash
+  - fillopacity
+  - strokeopacity
+  - CIELAB
+  - cividis
+  - colorbrewer
+  - colormaps
+  - cubehelix
+  - Mikhailov
+  - nogamma
+  - Renslow
+  - sinebow
+  - viridis
   - burlywood
   - cadetblue
   - consolas
@@ -626,6 +672,9 @@ words:
   - symlink
   - symlinks
   - symlog
+  - expm
+  - logb
+  - Kahan
   - tahoma
   - tickband
   - tickminstep

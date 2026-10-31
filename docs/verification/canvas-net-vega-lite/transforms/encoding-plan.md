@@ -121,15 +121,19 @@ the returned row, while an operation without a field is not a measure.
 `EncodingPlanTests.EncodingPlan_Create_StackNamesAndGroupsFollowTheMeasure`,
 `EncodingPlanTests.EncodingPlan_Create_OrdersTheLayersLikeVegaLite`,
 `EncodingPlanTests.EncodingPlan_Create_StackByExcludesTheDimensionField`,
-`EncodingPlanTests.EncodingPlan_Create_BarWithTwoMeasuresStacksTheAggregatedOne`
+`EncodingPlanTests.EncodingPlan_Create_BarWithTwoMeasuresStacksTheAggregatedOne`,
+`EncodingPlanTests.EncodingPlan_Create_AreaMarkStacksSignedValuesLikeABar`
 
 Asserts, as a theory of fourteen mark and encoding combinations, the stacked channel and offset above; that the stack
 writes `<field>_start` and `<field>_end` of the derived measure, the stacked channel reads the upper end with the lower
 end as its second field, and a stack splits by the fields of the other position channel; that the layers are ordered
 bottom first by the stack-by fields, descending when the stacked channel is `y` and ascending when it is `x`, or by the
 `order` channel in its own direction; that a stack-by field that is also the group-by is not a layer (the dimension's own
-field is excluded) and a stack-by field that is aggregated is sorted by its derived name; and that the plan carries the
-inferred orientation, which decides the stack of a bar with two measures.
+field is excluded) and a stack-by field that is aggregated is sorted by its derived name; that the plan carries the
+inferred orientation, which decides the stack of a bar with two measures; and that an `area` with the signed values 3,
+-2, and 1 gets the decision, the layer order, and the rows of a bar in both orientations (vertical: z (0, 1), y (0, -2),
+x (1, 4); horizontal: x (0, 3), y (0, -2), z (3, 4)), so that the area mark, which is drawn in a later phase, inherits
+verified stacking.
 
 ##### Raw Table Is Flagged
 
@@ -155,11 +159,14 @@ keeps the three input rows and their fields while Main has the two groups when a
 
 **Tests**: `EncodingTransformsTests.EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY`,
 `EncodingTransformsTests.EncodingTransforms_Apply_StacksNegativeValuesDownwards`,
+`EncodingTransformsTests.EncodingTransforms_Apply_SignedStacksOnXAndWithAggregatedNegativeSums`,
 `EncodingTransformsTests.EncodingTransforms_Apply_NormalizeAndCenterOffsets`,
 `EncodingTransformsTests.EncodingTransforms_Apply_StacksAscendingOnX`,
 `EncodingTransformsTests.EncodingTransforms_Apply_OrderChannelOrdersTheLayers`
 
 Asserts the stacked ranges above for the aggregated layers, the negative values (the rows keep their order), the
+signed values on a horizontal measure (x (0, 3) and z (3, 4) up, y (0, -2) down) and the aggregated negative sums
+(x = -1 + -3 = -4 stacks to (0, -4), y = 2 to (0, 2)), the
 normalize and center offsets with the domain `[0, 1]` for normalize, the ascending horizontal stack, and that the
 `order` channel replaces the default layer order: with the order field descending the layer with the larger order is at
 the bottom (`q` (0, 2), `p` (2, 3)), and with the default direction `p` is (0, 1) and `q` is (1, 3).
@@ -177,6 +184,27 @@ its bin (0 is `[0, 10)` and 100 is `[90, 100]`), with null for a value that is n
 `"abc"`); that an aggregate puts the rows with no valid value in one group, in first-seen order, with no bin; the exact
 `step` and `extent` vectors above; and that a discrete bin has the text of its boundaries joined with an en dash as its
 categories, ordered by where the bin starts (the values 0, 10, and so on to 100 have the bins 0 to 100 by 10).
+
+##### Binned Channels Other Than The Positions
+
+**Tests**: `EncodingPlanTests.EncodingPlan_Create_BinsTheChannelsThatHaveAScaleWithTheirDefaultMaxBins`,
+`EncodingPlanTests.EncodingPlan_Create_DiscreteBinOfAnotherChannelReadsTheRangeTextWithTheLegendFormat`,
+`EncodingPlanTests.EncodingPlan_Create_DiscreteBinReadsTheRangeText`,
+`EncodingTransformsTests.EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX`,
+`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields`,
+`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable`
+
+Asserts, as a theory over the channels, that a binned `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, and
+`shape` get the field `bin_maxbins_6_v`, a `strokeDash` `bin_maxbins_4_v`, an `angle` `bin_maxbins_10_v`, that an explicit
+`maxbins`, `step`, or `nice` is named in the order written, that the second field is the end of the bin, and that the
+title is `v (binned)`; that a nominal or ordinal color reads `bin_maxbins_6_v_range` with no second field and the
+`legend.format` is the format of the text, while `bin: "binned"` and a bin of an aggregate plan no bin; that a bin of
+`x` and a bin of `color` with the same `maxbins` of 5 are one bin whose start and end the aggregate groups by (the
+values 3, 12, 27, 41, 58, 66, 83, and 97 have the step 20 over 0 to 100 and the counts 2, 1, 2, 1, and 2), that a
+color alone keeps the rows and adds `0|20`, `0|20`, `20|40`, `40|60`, `40|60`, `60|80`, `80|100`, and `80|100`; that
+four bins ask for the step 50, and the ordinal color has the texts `0 – 20` to `80 – 100`; and that a limit of 100
+evaluation steps stops the bins of a color of 5000 rows with a located error naming `MaxEvaluationSteps` and a canceled
+token stops the stage.
 
 ##### Row Budget, Limits, And Cancellation
 
@@ -196,3 +224,12 @@ failure that names `MaxEvaluationSteps`); and that the standalone entry polls a 
 
 Asserts that an encoding that asks for nothing returns the input table itself as both the Raw and the Main table, that
 null arguments are refused, and that two runs and runs under other cultures give the same tables, domains, and labels.
+
+##### Conditional Fields
+
+**Tests**: `EncodingPlanTests.EncodingPlan_Create_FieldInAConditionIsTheFieldOfTheChannel`
+
+Asserts, for a point mark, that a color whose own definition is a value with a condition on a test that holds the field
+`c` reads `c` (the source field, the field path, and the title) and names the condition as its field definition while
+its `Definition` stays the channel; that a size with a value condition and an opacity with a condition on a parameter
+read no field; and that a shape with a field of its own keeps it and is its own field definition.

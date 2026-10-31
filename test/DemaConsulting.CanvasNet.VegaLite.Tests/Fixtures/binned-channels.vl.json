@@ -1,0 +1,28 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 200,
+  "height": 100,
+  "data": {
+    "values": [
+      { "day": 1, "height": 1, "moisture": 3 },
+      { "day": 2, "height": 3, "moisture": 12 },
+      { "day": 3, "height": 2, "moisture": 27 },
+      { "day": 4, "height": 4, "moisture": 41 },
+      { "day": 5, "height": 2, "moisture": 58 },
+      { "day": 6, "height": 5, "moisture": 66 },
+      { "day": 7, "height": 1, "moisture": 83 },
+      { "day": 8, "height": 3, "moisture": 97 }
+    ]
+  },
+  "mark": { "type": "circle", "size": 120 },
+  "encoding": {
+    "x": { "field": "day", "type": "quantitative" },
+    "y": { "field": "height", "type": "quantitative" },
+    "color": {
+      "field": "moisture",
+      "type": "quantitative",
+      "bin": true,
+      "scale": { "range": ["#d73027", "#fc8d59", "#fee08b", "#91cf60", "#1a9850"] }
+    }
+  }
+}

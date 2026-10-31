@@ -5,7 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the Vega-Lite inference of the scale of each
 # channel of a single view from its encoding, the field types, the mark, the scale properties, the data, and
 # the configuration - including the derived fields, domains, and sort orders of the implicit bin, aggregate, and
-# stack that the EncodingPlan unit plans (ScaleResolver.cs, ScaleResolver.Plan.cs, and ScaleResolver.Sort.cs). See
+# stack that the EncodingPlan unit plans, and the colors, schemes, and ranges of the color and non-position channels
+# (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
+# ScaleResolver.Range.cs). See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
@@ -17,16 +19,23 @@ sections:
             requirements:
               - id: CanvasNetVegaLite-Scales-ScaleResolver-TypeInference
                 title: >-
-                  The ScaleResolver unit shall infer the scale kind of each channel from its type -
-                  linear for quantitative x and y, band for nominal and ordinal x and y of bar, rect,
-                  rule, and tick marks, point for the other marks, no scale for quantitative colors, an
-                  ordinal scale for discrete color, and continuous scales for size and opacity - and shall
-                  honor an explicit scale type of the supported set.
+                  The ScaleResolver unit shall infer the scale kind of each channel from its type, as Vega-Lite's
+                  defaultType does - linear for quantitative x and y, band for nominal and ordinal x and y of bar,
+                  rect, rule, and tick marks, point for the other marks, a sequential scale for a quantitative color,
+                  an ordinal scale for discrete color, shape, and stroke dash, and continuous (linear) or point scales
+                  for size, opacity, stroke width, fill and stroke opacity, and angle - shall honor an explicit
+                  scale type that both the channel and the field type accept (linear, sequential, quantile, quantize,
+                  threshold, band, point, and ordinal) and otherwise use the default, and shall give a channel a scale
+                  only for the marks that use it.
                 justification: |
-                  Which scale a channel gets decides how values are positioned; it must follow the
+                  Which scale a channel gets decides how values are positioned and colored; it must follow the
                   Vega-Lite rules so the same specification gives the same chart.
                 tests:
                   - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
+                  - ScaleResolverColor_Kind_FollowsTheVegaLiteTypeRules
+                  - ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules
+                  - ScaleResolverColor_AcceptsScaleType_RejectsNullArguments
+                  - ScaleResolverColor_Channels_AreDroppedForMarksThatDoNotUseThem
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Orient
                 title: >-
@@ -84,6 +93,23 @@ sections:
                   - ScaleResolver_Resolve_UnresolvableSortsAndPlainFormsKeepTheirOrder
                   - ScaleResolver_IsSupportedFieldSort_AcceptsOrderableOperations
 
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-SortArrayLimits
+                title: >-
+                  The ScaleResolver unit shall order a discrete domain by an explicit sort array in which a
+                  value missing from the array comes first and a repeated value counts at its first position
+                  (values of another kind not matching), shall fail with a VegaLiteRenderException located at the
+                  array and naming the limit of VegaLiteLimits.MaxScaleDomainSize when the array has more items
+                  than that limit, shall poll the cancellation token while it reads the array, and shall never
+                  let an object or array item stand for the null category.
+                justification: |
+                  A specification of a few megabytes can hold millions of sort items; reading them must be
+                  bounded and cancellable, and an item that is not a category must not silently position the
+                  null category.
+                tests:
+                  - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
+                  - ScaleResolver_Resolve_SortArrayIsBoundedAndPollsCancellation
+                  - ScaleResolver_Resolve_SortArrayNeverMapsNonScalarItemsToNull
+
               - id: CanvasNetVegaLite-Scales-ScaleResolver-PlanFields
                 title: >-
                   The ScaleResolver unit shall read each channel from the field that the encoding plan names
@@ -130,6 +156,7 @@ sections:
                   - ScaleResolver_Resolve_ScalesCarryThePlanFacts
                   - ScaleResolver_Resolve_StackedDomainReachesTheTotalOfTheHighestStack
                   - ScaleResolver_Resolve_StackedDomainIncludesNegativeLayers
+                  - ScaleResolver_Resolve_SignedStackDomainInBothOrientations
                   - ScaleResolver_Resolve_NormalizedStackHasTheUnitDomain
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-UnaggregatedDomain
@@ -160,13 +187,116 @@ sections:
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Colors
                 title: >-
                   The ScaleResolver unit shall give discrete color, fill, and stroke fields an ordinal
-                  scale over the tableau10 scheme or an explicit range, and shall fall back to tableau10,
-                  marking the scale as a fallback, for an ordinal field or a scheme it does not supply.
+                  scale whose colors come, in this order, from the scale's range, its scheme, or the named range
+                  of config.range that Vega-Lite picks (category for a nominal field, ordinal for an ordinal one),
+                  sampling a continuous scheme at i / (n + 1) for the n categories, using a categorical scheme
+                  whole, and reversing the list on request.
                 justification: |
-                  Color is the most common reason for a second encoding; a fallback must be deterministic
-                  and visible.
+                  Color is the most common reason for a second encoding; the colors a category gets must match
+                  the ones Vega-Lite gives it.
                 tests:
-                  - ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes
+                  - ScaleResolver_Resolve_OrdinalColorsUseTheConfiguredRanges
+                  - ScaleResolverColor_Ordinal_SchemesAreWholeListsOrSamples
+                  - ScaleResolverColor_Precedence_RangeThenSchemeThenTheDefault
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ColorScales
+                title: >-
+                  The ScaleResolver unit shall give a quantitative color, fill, or stroke field a sequential scale
+                  over the extent of the data (no zero, no nice unless asked for), whose interpolator is the ramp
+                  range (the heatmap range for a rect mark), a diverging scale with the diverging range when
+                  domainMid inserts a middle value (or with the ramp range for an explicit domain of three entries),
+                  shall apply zero, nice, domainMin, domainMax, clamp, and reverse as Vega's configureDomain does, and
+                  shall fail with a located specification error for an explicit color domain of four or more
+                  entries.
+                justification: |
+                  A continuous color scale is drawn with the same ramp and the same domain rules as in
+                  Vega-Lite, so that equal data give equal colors.
+                tests:
+                  - ScaleResolverColor_Default_QuantitativeColorIsSequentialWithTheRampScheme
+                  - ScaleResolverColor_Default_RectUsesTheHeatmapRangeAndDomainMidTheDivergingRange
+                  - ScaleResolverColor_Domain_ThreeEntriesAreDivergingAndMoreAreRefused
+                  - ScaleResolverColor_Domain_ZeroNiceMinMaxAndClamp
+                  - ScaleResolverColor_UnsupportedProperties_AreIgnored
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Schemes
+                title: >-
+                  The ScaleResolver unit shall resolve the scheme of a color scale by name (ignoring case) or
+                  object with a name, a count, and an extent, give the colors of an explicit range of colors
+                  piecewise in the color space that interpolate names (a named scheme ignores it), reverse the
+                  ramp on request, let the range win over the scheme and the scheme over the default, and fail
+                  with a located specification error for an unknown scheme name, an unknown named range, an
+                  empty list of colors, or a color that cannot be read (never replaced by the default range).
+                justification: |
+                  The scheme and the interpolation are what a color scale looks like; an unknown name must
+                  stop the renderer as in Vega rather than give a plausible color.
+                tests:
+                  - ScaleResolverColor_Scheme_NamesObjectsAndExtents
+                  - ScaleResolverColor_Reverse_FlipsTheRamp
+                  - ScaleResolverColor_Range_ExplicitColorsInterpolatePiecewise
+                  - ScaleResolverColor_Interpolate_ChoosesTheColorSpaceOfAList
+                  - ScaleResolverColor_Scheme_UnknownNameIsASpecificationError
+                  - ScaleResolverColor_InvalidColorList_IsASpecificationErrorNotTheDefault
+                  - ScaleResolverColor_ConfiguredSchemeObject_MalformedCountOrExtentIsASpecificationError
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ConfigRange
+                title: >-
+                  The ScaleResolver unit shall read the default ranges of color scales and the symbol list of shape
+                  scales from config.range (a list of values or a scheme object with scheme, count, and extent), let a
+                  range property name any entry of config.range, and fall back to Vega's own values when the
+                  configuration removes one.
+                justification: |
+                  Authors restyle a whole chart through config.range; the lookup must follow Vega's parseScaleRange.
+                tests:
+                  - ScaleResolverColor_ConfigRange_NamedRangesAreListsOrSchemes
+                  - ScaleResolverColor_Shape_RangeIsTheSymbolList
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-Discretizing
+                title: >-
+                  The ScaleResolver unit shall resolve quantize scales over the data extent, quantile scales over all
+                  the valid values in ascending order, and threshold scales over explicit thresholds (or the extent),
+                  with five scheme colors by default (the explicit count otherwise, one more than the thresholds for
+                  a threshold scale), the numbers of a discretizing size scale spread evenly (quantileCount and
+                  quantizeCount of 4, one more than the thresholds), and the two-entry range for the other
+                  numeric channels.
+                justification: |
+                  The number of classes decides what a classified chart and its legend show; the counts must
+                  follow Vega and Vega-Lite.
+                tests:
+                  - ScaleResolverColor_Quantize_UsesFiveSchemeColorsOverEqualIntervals
+                  - ScaleResolverColor_Quantile_ThresholdsComeFromTheSortedValues
+                  - ScaleResolverColor_Threshold_ExplicitThresholdsOrTheExtent
+                  - ScaleResolverColor_DiscretizingNumbers_SpreadTheRangeEvenly
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-NewChannels
+                title: >-
+                  The ScaleResolver unit shall resolve scales for the strokeWidth, fillOpacity, strokeOpacity, angle,
+                  shape, and strokeDash channels - stroke widths from minStrokeWidth to maxStrokeWidth, opacities from
+                  minOpacity to maxOpacity, angles from 0 to 360, the symbols of config.range.symbol, and five
+                  dash patterns, or the explicit range of the scale - and shall let rangeMin and rangeMax replace the
+                  first and the second entry of a default two-entry range.
+                justification: |
+                  These channels are drawn from their scales; the ranges are Vega-Lite's defaults.
+                tests:
+                  - ScaleResolverColor_NewChannels_UseTheirDefaultRanges
+                  - ScaleResolverColor_Shape_RangeIsTheSymbolList
+                  - ScaleResolverColor_StrokeDash_RangeIsFivePatterns
+                  - ScaleResolverColor_RangeMinAndMax_ReplaceTheEntriesOfADefaultRange
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ColorLimits
+                title: >-
+                  The ScaleResolver unit shall refuse, with a located render exception that names
+                  VegaLiteLimits.MaxScaleDomainSize, a range, a domain, a scheme count, or a generated range of
+                  more entries than the limit before it builds anything, shall count the values of a quantile
+                  scale against the cell limit and charge reading and sorting them to the evaluation-step
+                  budget, shall poll the cancellation token while it reads and sorts them, and shall give the
+                  same scales for repeated and concurrent runs.
+                justification: |
+                  A specification can ask for an arbitrarily long range or domain; the memory and time must be
+                  bounded, the caller must be able to stop the work, and equal inputs must give equal charts.
+                tests:
+                  - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
+                  - ScaleResolverColor_ConfiguredArrays_AreBoundedLikeInlineOnes
+                  - ScaleResolverColor_QuantileDomain_IsSortedChargedAndCancellable
+                  - ScaleResolverColor_Resolve_IsDeterministicAcrossRepeatedAndConcurrentRuns
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Validation
                 title: >-
@@ -180,3 +310,65 @@ sections:
                 tests:
                   - ScaleResolver_Resolve_InvalidInputsFailWithLocation
                   - ScaleResolver_Resolve_SortIsChargedBoundedAndCancellable
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-TransformedScales
+                title: >-
+                  The ScaleResolver unit shall resolve the scale types log, pow, sqrt, and symlog of a quantitative
+                  field on a position, size, opacity, stroke width, angle, or color channel to a continuous scale with
+                  the matching transform and its base (default 10), exponent (default 1; sqrt is the power 0.5),
+                  or constant (default 1); shall apply Vega-Lite's defaults to them (no zero for a log scale, nice to
+                  the powers of the base for a log scale, the padding in the transformed domain, domainMin,
+                  domainMax, clamp, and an explicit domain as for a linear scale, one decade when a log scale has no
+                  valid value); shall refuse a log domain that includes zero or crosses it with a located error
+                  (a VegaLiteSpecException at the domain for an explicit domain, a VegaLiteRenderException at the
+                  channel for the domain of the data); and shall use the default scale type instead of one that the
+                  channel or the field type cannot use.
+                justification: |
+                  Log-family scales are part of the Vega-Lite scale set; a domain that the logarithm cannot map must
+                  be reported where Vega would draw nothing.
+                tests:
+                  - ScaleResolver_Resolve_LogPowSqrtSymlogCarryTheirTransform
+                  - ScaleResolver_Resolve_LogScaleDefaultsFollowVegaLite
+                  - ScaleResolver_Resolve_LogDomainThatIncludesZeroFailsWithALocatedError
+                  - ScaleResolver_Resolve_TransformTypesNeedAChannelAndFieldThatAcceptThem
+                  - ScaleResolverColor_AcceptsScaleType_AppliesChannelAndFieldRules
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-BinOrdinal
+                title: >-
+                  The ScaleResolver unit shall resolve the bin-ordinal scale of a binned quantitative color, fill,
+                  or stroke (the default of Vega-Lite, and the one an explicit bin-ordinal type asks for): the
+                  domain is the edges of the bins of the encoding (one more than the bins), the range has one
+                  color per bin from the scheme (ramp by default), the colors of the range or the reversal of the
+                  specification, and a field without a finite value has no edge and no color; shall resolve the
+                  other binned channels as Vega-Lite does (a continuous scale over the start of the first bin to
+                  the stop of the last for a size, opacity, stroke width, or angle, or an explicit continuous
+                  type of a color, and the text of the bins as the categories of an ordinal scale for a nominal
+                  or ordinal field); shall use the default scale type instead of a bin-ordinal type that the
+                  channel, the field type, or a missing bin cannot use; and shall bound the bins by the
+                  scale-domain limit and the work by the evaluation-step budget with a located error.
+                justification: |
+                  A binned color is a classified color; the classes must be the bins that Vega-Lite makes, and a
+                  scale type that cannot be drawn must fall back to the default rather than draw a wrong chart.
+                tests:
+                  - ScaleResolverBin_BinnedColor_DefaultsToBinOrdinalOverTheBinEdges
+                  - ScaleResolverBin_Kind_FollowsTheVegaLiteTypeRulesForBinnedFields
+                  - ScaleResolverBin_ContinuousScales_SpanTheBins
+                  - ScaleResolverBin_BinOrdinal_UsesTheRangeAndTheReversalOfTheSpecification
+                  - ScaleResolverBin_DiscreteBinnedColor_ReadsTheTextOfTheBins
+                  - ScaleResolverBin_FieldWithoutNumbers_HasAnEmptyBinOrdinalScale
+                  - ScaleResolverBin_Limits_AreEnforcedOnTheBinsOfAChannel
+                  - ScaleResolverBin_Work_IsChargedToTheEvaluationBudget
+                  - ScaleResolverColor_AcceptsScaleType_BinOrdinalNeedsABinnedQuantitativeColor
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ConditionalFields
+                title: >-
+                  The ScaleResolver unit shall resolve the scale of a conditional channel from the field
+                  definition that the plan names (its own, or the condition that holds a field), with the
+                  type, scale options, and domain of that definition, and shall resolve no scale for a
+                  channel whose conditions hold only values.
+                justification: |
+                  Vega-Lite builds the scale of a conditional channel from its field definition; conditions
+                  that hold values must not create a scale that nothing reads.
+                tests:
+                  - ScaleResolverColor_Resolve_FieldInAConditionGivesTheChannelItsScale
+                  - LegendPlan_Create_ValueConditionsCreateNoScaleAndNoLegend

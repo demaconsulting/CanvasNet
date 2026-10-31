@@ -1,10 +1,11 @@
 ## Scales Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scales` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Scales`), containing five units: `ScaleModel` (linear, band, point, and ordinal
-mappings), `ScaleResolver` (the inference of scales from a specification and its data), `Ticks` (the tick, tick step,
-and nice algorithms), `NumberFormat` (the d3-format subset that labels axes), and `ColorSchemes` (the `tableau10`
-category colors).
+`DemaConsulting.CanvasNet.VegaLite.Scales`), containing six units: `ScaleModel` (the linear, band, point, ordinal,
+sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings), `ScaleResolver` (the inference of
+scales from a specification and its data), `Ticks` (the tick, tick step, and nice algorithms), `NumberFormat` (the
+d3-format subset that labels axes), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range),
+and `ColorInterpolator` (the color interpolation).
 
 ### Verification Approach
 
@@ -16,8 +17,11 @@ plan and the Raw and Main tables of the implicit stage), and the resolved config
 whole chain with the real `SpecParser`, `ConfigResolver`, `DataLoader`, and `ScaleModel`, and asserts the mapped
 positions, the domains, and the ranges); and the axis stage derives its tick values and labels from a scale model's
 domain with `Ticks` and `NumberFormat` (`AxisBuilderTests` runs this chain and asserts the tick values and label texts
-of the whole axis against values derived by hand). The colors of an ordinal color scale come from `ColorSchemes`
-through the resolver.
+of the whole axis against values derived by hand). The colors of a color scale come from `ColorSchemes`
+through the resolver (`ScaleResolverColorTests` resolves color specifications with the real units and compares the
+colors with the samples of the scheme ramps at hand-derived positions); the colors of a scheme are interpolated by
+`ColorInterpolator` (`ColorSchemesTests` runs this chain with the real unit and compares the colors with hand-derived
+values).
 
 The algorithmic units (`Ticks`, `NumberFormat`, `ScaleModel`) are verified with vector tables whose expected values are
 derived by hand from the published algorithms and from arithmetic, never by running d3 or Vega and pasting the output:
@@ -69,11 +73,12 @@ the five unit verification documents passes without error or unexpected exceptio
   pre-binned field has the union of its start and end as its domain with no zero and no nice, an `unaggregated` domain
   reads the rows before the aggregate (1 to 12 rather than the means 2 to 8), and a binned axis asks for one tick per ten
   pixels (the ticks 0, 2, ..., 34 for the bins 0 to 35).
-- **Colors Come From The Default Palette, With A Documented Fallback**:
-  `ScaleResolverTests.ScaleResolver_Resolve_ColorsUseTableau10AndFallBackForOtherSchemes`,
+- **Colors Come From The Configured Ranges**:
+  `ScaleResolverTests.ScaleResolver_Resolve_OrdinalColorsUseTheConfiguredRanges`,
   `ColorSchemesTests.ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors` — the ordinal color scale of a nominal
-  field uses the ten `tableau10` colors in domain order, an unknown scheme or an ordinal field falls back to them with
-  the fallback flag set, and an explicit range or configured category range wins.
+  field uses the ten `tableau10` colors in domain order, an ordinal field the blues ramp sampled for its categories, and
+  an explicit range, a scheme, or a configured named range wins in that order; a quantitative color is a sequential or
+  diverging scale, and the quantize, quantile, and threshold scales classify (`ScaleResolverColorTests`).
 - **Tick Limits Fail Closed Through The Axis**:
   `TicksTests.Ticks_Ticks_ResultOverTheLimitFailsClosed`,
   `AxisBuilderTests.AxisBuilder_Build_InvalidSettingsAndLimitsFailWithLocations` — a tick result larger than the limit

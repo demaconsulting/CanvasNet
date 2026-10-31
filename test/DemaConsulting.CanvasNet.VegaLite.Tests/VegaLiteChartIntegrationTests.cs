@@ -139,11 +139,15 @@ public class VegaLiteChartIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels()
     {
-        // Arrange: scatter plot. The data rectangle is 300 by 200; the y axis is 0 to 100 (widest label "100"), the title sits above
-        // the top label overhang as in the bar chart, so the origin is the same formula. x runs 6 to 20 (300 / 14 per unit).
+        // Arrange: scatter plot without its legends (the legend geometry is the subject of the legend integration tests). The data rectangle
+        // is 300 by 200; the y axis is 0 to 100 (widest label "100"), the title sits above the top label overhang as in the bar chart,
+        // so the origin is the same formula. x runs 6 to 20 (300 / 14 per unit).
         var ox = (int)(5 + Math.Ceiling(7 + LabelWidth("100") + 4 + 11));
         const int oy = 27;
-        using var scatter = OpenFixture("point-inline.vl.json").Render(cancellationToken: Ct);
+        var withoutLegends = Fixture("point-inline.vl.json")
+            .Replace("\"color\": { \"field\": \"glaze\", \"type\": \"nominal\" }", "\"color\": { \"field\": \"glaze\", \"type\": \"nominal\", \"legend\": null }", StringComparison.Ordinal)
+            .Replace("\"size\": { \"field\": \"load\", \"type\": \"quantitative\" }", "\"size\": { \"field\": \"load\", \"type\": \"quantitative\", \"legend\": null }", StringComparison.Ordinal);
+        using var scatter = VegaLiteDocument.Parse(withoutLegends).Render(cancellationToken: Ct);
 
         // Assert: the canvas has the 5 px of padding and 1 px for the half tick at the right end; the points are at
         // x = 300 (h - 6) / 14, y = 200 - 2 yield: (12, 78) -> (128.6, 44) gloss (blue), (14, 74) -> (171.4, 52) matte (orange)
@@ -320,7 +324,7 @@ public class VegaLiteChartIntegrationTests
               "encoding": { "x": { "field": "a", "type": "quantitative", "axis": { "format": "!!" } } } }
             """);
         var rows = string.Join(',', Enumerable.Range(0, 5000).Select(i => "{\"k\":\"c" + i + "\",\"v\":" + i + "}"));
-        var big = VegaLiteDocument.Parse("{\"mark\":\"point\",\"data\":{\"values\":[" + rows + "]},\"encoding\":{\"x\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"k\",\"type\":\"nominal\"}}}");
+        var big = VegaLiteDocument.Parse("{\"mark\":\"point\",\"data\":{\"values\":[" + rows + "]},\"encoding\":{\"x\":{\"field\":\"v\",\"type\":\"quantitative\",\"bandPosition\":0.5},\"color\":{\"field\":\"k\",\"type\":\"nominal\",\"legend\":null}}}");
         var reported = new List<string>();
         var options = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxSceneItems = 100 }, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
 
@@ -328,12 +332,12 @@ public class VegaLiteChartIntegrationTests
         var format = Assert.Throws<VegaLiteSpecException>(() => invalidAxis.Render(cancellationToken: Ct));
         var items = Assert.Throws<VegaLiteRenderException>(() => big.Render(options, Ct));
 
-        // Assert: the format error points at the format value; the budget error at the mark; the legend report was still delivered
+        // Assert: the format error points at the format value; the budget error at the mark; the report found before the failure was still delivered
         Assert.Equal("/encoding/x/axis/format", format.Location.Pointer);
         Assert.Equal(2, format.Location.Line);
         Assert.Equal("/mark", items.Location.Pointer);
         Assert.Contains("MaxSceneItems", items.Message, StringComparison.Ordinal);
-        Assert.Contains("vl-guide-legend", reported);
+        Assert.Contains("vl-encoding-bandposition", reported);
     }
 
     /// <summary>
@@ -850,6 +854,69 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(new Rgba32(0, 255, 0, 255), valued[50, 50]);
         Assert.Equal(VegaLiteTestHelpers.White, valued[30, 80]);
         Assert.Equal(new Rgba32(0, 255, 0, 255), valued[60, 50]);
+    }
+
+    /// <summary>
+    ///     Validates that a continuous color and a shape channel are drawn through the whole pipeline without a report, in strict mode:
+    ///     the ramp color of each dot and the symbol of each category are the pixels at the derived positions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode()
+    {
+        // Arrange: dots at (2, 2) and (5, 5) with the values 0 and 10 on a black to red ramp; the categories a and b are a circle and a square
+        const string rows = "[{\"x\":2,\"v\":0,\"g\":\"a\"},{\"x\":5,\"v\":10,\"g\":\"b\"}]";
+        var encoding = "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"x\"," + Measure + "},"
+            + "\"color\":{\"field\":\"v\",\"type\":\"quantitative\",\"legend\":null,\"scale\":{\"range\":[\"#000000\",\"#ff0000\"]}},"
+            + "\"shape\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null}";
+        var reported = new List<string>();
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
+
+        // Act
+        using var surface = RenderDots(Dots(rows, "[]", encoding), strict);
+
+        // Assert: nothing was reported, the first dot is black (the start of the ramp) and the second red (its end)
+        Assert.Empty(reported);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), surface[20, 80]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[50, 50]);
+
+        // Assert: 6.5 pixels from the center along both axes is inside the square (half side 7.07) and outside the circle (radius 7.98)
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[56, 56]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[26, 86]);
+    }
+
+    /// <summary>
+    ///     Validates the diagnostics of the Phase 7 channels: an unknown color scheme is a located specification error, a custom path shape
+    ///     is reported once and drawn as a circle, and a scale type that the field cannot use is a warning that keeps the default scale.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated()
+    {
+        // Arrange
+        const string unknown = """
+            { "data": { "values": [ { "a": 1 } ] }, "mark": "point",
+              "encoding": { "x": { "field": "a", "type": "quantitative" },
+                            "color": { "field": "a", "type": "quantitative", "legend": null, "scale": { "scheme": "no-such-scheme" } } } }
+            """;
+        const string custom = """
+            { "data": { "values": [ { "a": 1 } ] }, "mark": { "type": "point", "shape": "M0,0L1,1Z" },
+              "encoding": { "x": { "field": "a", "type": "quantitative", "scale": { "type": "band" } } } }
+            """;
+        var unsupported = new List<string>();
+        var warnings = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            UnsupportedFeatureHandler = u => unsupported.Add(u.Feature + " " + u.Location.Pointer),
+            WarningHandler = w => warnings.Add(w.Message[..w.Message.IndexOf(':', StringComparison.Ordinal)] + " " + w.Location.Pointer),
+        };
+
+        // Act
+        var error = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(unknown).Render(null, Ct));
+        using var surface = VegaLiteDocument.Parse(custom).Render(options, Ct);
+
+        // Assert: the scheme error points at the scheme; the path shape and the ignored scale type are reported at their values
+        Assert.Equal("/encoding/color/scale/scheme", error.Location.Pointer);
+        Assert.Equal(["vl-shape-path /mark/shape"], unsupported);
+        Assert.Equal(["vl-scale-type-ignored /encoding/x/scale/type"], warnings);
     }
 
     /// <summary>

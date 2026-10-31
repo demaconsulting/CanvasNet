@@ -116,11 +116,21 @@ internal sealed partial class SpecParser
         "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO", "formatType: S",
         "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ");
 
+    /// <summary>The rules for the properties of a condition of a channel definition: a test (or a parameter), a value or the properties of a field definition.</summary>
+    private static readonly Dictionary<string, Rule> ConditionRules = Rules(
+        "test: SO", "param: S", "empty: B", "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ",
+        "bin: BOSZ", "timeUnit: SOZ", "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO",
+        "formatType: S", "bandPosition: NE");
+
     /// <summary>The rules for the properties of a scale definition.</summary>
     private static readonly Dictionary<string, Rule> ScaleRules = Rules(
         "type: S=" + string.Join('|', ScaleTypes), "zero: BE", "nice: BNSO", "padding: NE", "paddingInner: NE",
         "paddingOuter: NE", "reverse: BE", "round: BE", "clamp: BE", "domain: ASO", "range: ASO", "scheme: SO",
-        "exponent: NE", "base: NE", "constant: NE");
+        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NE", "domainMax: NE",
+        "rangeMin: NE", "rangeMax: NE", "interpolate: SO", "bins: AO");
+
+    /// <summary>The color spaces that <c>scale.interpolate</c> names (Vega-Lite's <c>ScaleInterpolateEnum</c>).</summary>
+    private static readonly string[] InterpolateTypes = ["rgb", "hsl", "hsl-long", "lab", "hcl", "hcl-long", "cubehelix", "cubehelix-long"];
 
     /// <summary>The rules for the properties of an axis definition.</summary>
     private static readonly Dictionary<string, Rule> AxisRules = Rules(
@@ -132,11 +142,36 @@ internal sealed partial class SpecParser
         "domainColor: SZE", "gridColor: SZE", "tickColor: SZE", "labelColor: SZE", "titleColor: SZE",
         "labelFont: SE", "titleFont: SE", "labelFontWeight: SNE", "titleFontWeight: SNE", "labelOverlap: BSE");
 
+    /// <summary>The names of the properties of a legend definition (the Vega-Lite version 6 legend, plus <c>encode</c>).</summary>
+    private static readonly HashSet<string> LegendKeys = Set(
+        "aria clipHeight columnPadding columns cornerRadius description direction encode fillColor format formatType "
+        + "gradientLength gradientOpacity gradientStrokeColor gradientStrokeWidth gradientThickness gridAlign labelAlign "
+        + "labelBaseline labelColor labelExpr labelFont labelFontSize labelFontStyle labelFontWeight labelLimit "
+        + "labelOffset labelOpacity labelOverlap labelSeparation legendX legendY offset orient padding rowPadding "
+        + "strokeColor symbolDash symbolDashOffset symbolFillColor symbolLimit symbolOffset symbolOpacity symbolSize "
+        + "symbolStrokeColor symbolStrokeWidth symbolType tickCount tickMinStep title titleAlign titleAnchor "
+        + "titleBaseline titleColor titleFont titleFontSize titleFontStyle titleFontWeight titleLimit titleLineHeight "
+        + "titleOpacity titleOrient titlePadding type values zindex");
+
+    /// <summary>The legend properties that must be numbers that are not negative.</summary>
+    private static readonly string[] LegendCounts = ["columns", "symbolLimit", "tickCount", "clipHeight", "gradientLength", "gradientThickness"];
+
     /// <summary>The rules for the properties of a legend definition.</summary>
     private static readonly Dictionary<string, Rule> LegendRules = Rules(
         "orient: SE=none|left|right|top|bottom|top-left|top-right|bottom-left|bottom-right",
         "type: S=symbol|gradient", "title: STZE", "encode: O", "values: AE", "format: SO", "tickCount: NSO",
-        "direction: S=horizontal|vertical");
+        "direction: S=horizontal|vertical", "aria: BE", "description: SE", "zindex: NE", "clipHeight: NE",
+        "columnPadding: NE", "columns: NE", "cornerRadius: NE", "fillColor: SZE", "strokeColor: SZE", "formatType: S",
+        "gradientLength: NE", "gradientOpacity: NE", "gradientStrokeColor: SZE", "gradientStrokeWidth: NE",
+        "gradientThickness: NE", "gridAlign: S=all|each|none", "labelAlign: SE", "labelBaseline: SE", "labelColor: SZE",
+        "labelExpr: S", "labelFont: SE", "labelFontSize: NE", "labelFontStyle: SE", "labelFontWeight: SNE",
+        "labelLimit: NE", "labelOffset: NE", "labelOpacity: NE", "labelOverlap: BSE", "labelSeparation: NE",
+        "legendX: NE", "legendY: NE", "offset: NE", "padding: NE", "rowPadding: NE", "symbolDash: AE",
+        "symbolDashOffset: NE", "symbolFillColor: SZE", "symbolLimit: NE", "symbolOffset: NE", "symbolOpacity: NE",
+        "symbolSize: NE", "symbolStrokeColor: SZE", "symbolStrokeWidth: NE", "symbolType: SE", "tickMinStep: NE",
+        "titleAlign: SE", "titleAnchor: SE=start|middle|end", "titleBaseline: SE", "titleColor: SZE", "titleFont: SE",
+        "titleFontSize: NE", "titleFontStyle: SE", "titleFontWeight: SNE", "titleLimit: NE", "titleLineHeight: NE",
+        "titleOpacity: NE", "titleOrient: SE=left|right|top|bottom", "titlePadding: NE");
 
     /// <summary>The rules for the properties of a data definition.</summary>
     private static readonly Dictionary<string, Rule> DataRules = Rules(
@@ -614,6 +649,7 @@ internal sealed partial class SpecParser
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);
+            ValidateScaleOptions(scale);
         }
 
         if (definition["axis"] is { IsObject: true } axis)
@@ -624,9 +660,135 @@ internal sealed partial class SpecParser
         if (definition["legend"] is { IsObject: true } legend)
         {
             CheckObject(legend, LegendRules);
+            ValidateLegendOptions(legend);
         }
 
         CompileChannelExpression(definition);
+        ValidateConditions(definition);
+    }
+
+    /// <summary>
+    ///     Validates what the rules of a legend cannot express: the counts and lengths are not negative, and the keys that Vega-Lite does
+    ///     not define for a legend are warned about.
+    /// </summary>
+    /// <param name="legend">The legend object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a negative or non-finite count or length.</exception>
+    private void ValidateLegendOptions(SpecNode legend)
+    {
+        foreach (var name in LegendCounts)
+        {
+            if (legend[name] is { IsNumber: true } number && !(number.NumberValue >= 0 && double.IsFinite(number.NumberValue)))
+            {
+                throw Error(number, $"The '{name}' must be a number that is not negative.");
+            }
+        }
+
+        foreach (var property in legend.Properties.Where(p => !LegendKeys.Contains(p.Name!)))
+        {
+            WarnUnknown(property, "a legend");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the structured options of a scale whose kind the rules cannot express: a <c>scheme</c> object and <c>interpolate</c>.
+    /// </summary>
+    /// <remarks>
+    ///     A <c>scheme</c> object has a string <c>name</c>, a positive whole <c>count</c> and an <c>extent</c> of two numbers; an
+    ///     <c>interpolate</c> is the name of a color space or an object with that name as <c>type</c> and a numeric <c>gamma</c>. An
+    ///     expression reference (<c>{"expr": ...}</c>) is left to the feature catalog, which reports it. Unknown keys warn.
+    /// </remarks>
+    /// <param name="scale">The scale object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a wrong type or value.</exception>
+    private void ValidateScaleOptions(SpecNode scale)
+    {
+        if (scale["scheme"] is { IsObject: true } scheme && scheme["expr"] is not { IsString: true })
+        {
+            if (scheme["name"] is not { IsString: true })
+            {
+                throw Error(scheme["name"] ?? scheme, "The 'name' of a scheme must be a string.");
+            }
+
+            if (scheme["count"] is { } count && !(count.IsNumber && count.NumberValue >= 1 && double.IsInteger(count.NumberValue)))
+            {
+                throw Error(count, "The 'count' of a scheme must be a positive whole number.");
+            }
+
+            if (scheme["extent"] is { } extent && !(extent.IsArray && extent.Items.Count == 2 && extent.Items.All(item => item.IsNumber)))
+            {
+                throw Error(extent, "The 'extent' of a scheme must be an array of two numbers.");
+            }
+
+            foreach (var property in scheme.Properties.Where(p => p.Name is not ("name" or "count" or "extent")))
+            {
+                WarnUnknown(property, "a scheme");
+            }
+        }
+
+        ValidateTransformOptions(scale);
+
+        if (scale["interpolate"] is { } interpolate && interpolate["expr"] is not { IsString: true })
+        {
+            if (interpolate.IsString)
+            {
+                CheckInterpolateType(interpolate);
+            }
+            else if (interpolate.IsObject)
+            {
+                if (interpolate["type"] is not { IsString: true } type)
+                {
+                    throw Error(interpolate["type"] ?? interpolate, "The 'type' of an interpolate must be a string.");
+                }
+
+                CheckInterpolateType(type);
+                if (interpolate["gamma"] is { IsNumber: false } gamma)
+                {
+                    throw Error(gamma, "The 'gamma' of an interpolate must be a number.");
+                }
+
+                foreach (var property in interpolate.Properties.Where(p => p.Name is not ("type" or "gamma")))
+                {
+                    WarnUnknown(property, "an interpolate");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the parameters of the log, pow and symlog scale types: the <c>base</c> of a log scale, the <c>exponent</c> of a pow scale and
+    ///     the <c>constant</c> of a symlog scale (the properties of another type are ignored, as in Vega-Lite).
+    /// </summary>
+    /// <param name="scale">The scale object, whose property kinds have been checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a base that is not above zero or is 1, an exponent that is not finite, or a constant that is not above zero.</exception>
+    private void ValidateTransformOptions(SpecNode scale)
+    {
+        var type = scale["type"]?.AsString();
+        if (type == "log" && scale["base"] is { IsNumber: true } logBase && !(logBase.NumberValue > 0 && double.IsFinite(logBase.NumberValue) && logBase.NumberValue.CompareTo(1) != 0))
+        {
+            throw Error(logBase, "The 'base' of a log scale must be a number above zero other than 1.");
+        }
+
+        if (type == "pow" && scale["exponent"] is { IsNumber: true } exponent && !double.IsFinite(exponent.NumberValue))
+        {
+            throw Error(exponent, "The 'exponent' of a pow scale must be a finite number.");
+        }
+
+        if (type == "symlog" && scale["constant"] is { IsNumber: true } constant && !(constant.NumberValue > 0 && double.IsFinite(constant.NumberValue)))
+        {
+            throw Error(constant, "The 'constant' of a symlog scale must be a number above zero.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that an interpolate type is the name of a color space.
+    /// </summary>
+    /// <param name="type">The string value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when the name is not one of <see cref="InterpolateTypes"/>.</exception>
+    private void CheckInterpolateType(SpecNode type)
+    {
+        if (!InterpolateTypes.Contains(type.StringValue, StringComparer.Ordinal))
+        {
+            throw Error(type, $"The 'interpolate' must be one of {string.Join(", ", InterpolateTypes.Select(v => "'" + v + "'"))}.");
+        }
     }
 
     /// <summary>

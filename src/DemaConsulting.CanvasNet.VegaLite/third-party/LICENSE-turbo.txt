@@ -1,0 +1,26 @@
+Third-party license notice: Turbo color map
+===========================================
+
+DemaConsulting.CanvasNet.VegaLite contains the color values of the Turbo color
+map ("turbo") designed by Anton Mikhailov at Google, as published by Vega
+(https://github.com/vega/vega) and d3-scale-chromatic
+(https://github.com/d3/d3-scale-chromatic) as a polynomial approximation of the
+map. The Turbo color map is released under the Apache License, Version 2.0; the
+notice below is reproduced exactly as it appears in the header of the published
+Turbo color map source file
+(https://gist.github.com/mikhailov-work/ee72ba4191942acecc03fe6da94fc73f), and the
+text of the Apache License, Version 2.0 is shipped in the file
+LICENSE-apache-2.0.txt next to this file.
+
+This project is not affiliated with, and is not endorsed or promoted by,
+Google LLC or the author of the Turbo color map.
+
+
+--------------------------------------------------------------------------
+Turbo, An Improved Rainbow Colormap for Visualization
+--------------------------------------------------------------------------
+
+Copyright 2019 Google LLC.
+SPDX-License-Identifier: Apache-2.0
+
+Author: Anton Mikhailov

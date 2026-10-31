@@ -3,8 +3,9 @@
 #
 # These requirements decompose the CanvasNetVegaLite system's guide responsibility into the Guides subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): text measurement with the bundled fonts
-# (TextMeasurer), the title and subtitle block (TitleBuilder), and the axis guide with its grid, ticks, labels,
-# domain line, and title (AxisBuilder). Guides produce scene items and the extents they need; the layout places
+# (TextMeasurer), the title and subtitle block (TitleBuilder), the axis guide with its grid, ticks, labels,
+# domain line, and title (AxisBuilder), the removal of overlapping labels (LabelOverlap), and the legend guides
+# (LegendBuilder). Guides produce scene items and the extents they need; the layout places
 # them. Each requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/guides.md for the test-evidence mapping.
 
@@ -98,3 +99,48 @@ sections:
               - AxisBuilder_Build_BinnedAxisAsksForATickPerTenPixels
               - AxisBuilder_Build_NormalizedStackUsesTheNormalizedNumberFormat
               - CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin
+
+          - id: CanvasNetVegaLite-Guides-OverlapRemoval
+            title: >-
+              The Guides subsystem shall remove overlapping guide labels with Vega's parity and greedy methods, for
+              the labels of an axis and of a gradient legend alike, keeping the last label visible and never
+              removing a label that has no neighbor closer than the separation.
+            justification: |
+              Axes and legends of dense data would otherwise be unreadable.
+            children:
+              - CanvasNetVegaLite-Guides-LabelOverlap-Parity
+              - CanvasNetVegaLite-Guides-LabelOverlap-Greedy
+              - CanvasNetVegaLite-Guides-LabelOverlap-Conditions
+              - CanvasNetVegaLite-Guides-LabelOverlap-Cancellation
+            tests:
+              - LabelOverlap_Hidden_ParityKeepsEveryOtherLabelUntilNothingOverlaps
+              - LabelOverlap_Hidden_GreedyHidesLabelsThatOverlapTheLastOneKept
+              - AxisBuilder_Build_OverlappingLabelsAreRemovedByParity
+
+          - id: CanvasNetVegaLite-Guides-Legends
+            title: >-
+              The Guides subsystem shall build the legends of the channels color, size, shape, fill, stroke,
+              strokeDash, strokeWidth, and opacity as scene items - symbol legends with an entry per value,
+              gradient legends for continuous color scales, and discrete gradients for discretizing ones - merging
+              the legends of channels that share a domain, with the Vega-Lite defaults and configuration, bounded
+              by the limits of the system, and giving the size of each legend box for the layout.
+            justification: |
+              A legend is what explains the color, size, and shape of the marks; the size of its box decides the
+              size of the chart.
+            children:
+              - CanvasNetVegaLite-Guides-LegendBuilder-Planning
+              - CanvasNetVegaLite-Guides-LegendBuilder-Merging
+              - CanvasNetVegaLite-Guides-LegendBuilder-Symbols
+              - CanvasNetVegaLite-Guides-LegendBuilder-Entries
+              - CanvasNetVegaLite-Guides-LegendBuilder-Grid
+              - CanvasNetVegaLite-Guides-LegendBuilder-Gradient
+              - CanvasNetVegaLite-Guides-LegendBuilder-DiscreteGradient
+              - CanvasNetVegaLite-Guides-LegendBuilder-Titles
+              - CanvasNetVegaLite-Guides-LegendBuilder-Limits
+              - CanvasNetVegaLite-Guides-LegendBuilder-Determinism
+            tests:
+              - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
+              - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
+              - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
+              - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
+              - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated

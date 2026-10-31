@@ -46,7 +46,21 @@ translations), and the scale.
   caps are generous for charts (a 1,000-pixel gridline with a 2-pixel period has 500 dashes), so ordinary dashes
   are unchanged.
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
-  Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row).
+  Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row). The
+  background can be a gradient.
+- **Gradient fills.** An item with a `SceneGradient` is filled with the core `LinearGradient` (pad spread) through
+  `PathFiller.Fill`, instead of its solid fill. The start and end of the gradient are fractions of the bounding box of
+  the item's path (`Path.GetBounds`, in the item's own units, without the stroke), mapped to surface pixels with the same
+  matrix as the path, so the gradient follows the scale, the placement, and the translations of the enclosing groups.
+  The fill opacity (`FillOpacity` times `Opacity`) scales the alpha of every stop. A stop whose offset is not a number or
+  whose color cannot be parsed is dropped and an offset outside 0 to 1 is clamped. A gradient with no usable stop, or with
+  geometry that is not finite, is ignored and the solid fill is drawn; a gradient that is fully transparent draws nothing
+  and does not fall back to the solid fill. Strokes and text are never filled with a gradient. The core evaluates the
+  gradient per pixel, so the cost is that of a solid fill of the area plus a small constant per pixel; the stops are
+  bounded by `SceneGradient.MaxStops`.
+  *Deviation from Vega*: Vega computes the gradient over the bounds of the item including its stroke (the legend
+  gradient has a stroke width of 0 by default, so the two agree there). *Sampling*: the core evaluates the ramp at the
+  pixel centers, so a gradient across a 100-pixel box changes by about 2.55 levels of an 8-bit channel per pixel.
 - **Clipping**: a group with a clip draws its children onto a transparent layer the size of the clip's pixel box and
   composites the layer back with the per-pixel coverage of the clip rectangle (exact on integer edges, anti-aliased on
   fractional edges, nested clips intersecting); the corner radius of a clip is not applied. Memory is the clip's pixel box,
@@ -85,9 +99,9 @@ is a circle.
 - **`Scene`** and the item types - the `SceneModel` unit
 - **`CssColor`** - color parsing, in the `CssColor` unit
 - **`TextMeasurer`** - font resolution and text lines, in the `Guides` subsystem
-- **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CompositeOverSpan` (`Canvas`), `PathFiller` and `PathStroker`
-  (`Drawing`), `Path`, `PathBuilder`, and `Transform` (`Geometry`), and `TextRenderer` (`Rendering`), through their public
-  API
+- **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CompositeOverSpan` (`Canvas`), `PathFiller`, `PathStroker`, and
+  `LinearGradient` with `GradientStop` (`Drawing`), `Path`, `PathBuilder`, and `Transform` (`Geometry`), and
+  `TextRenderer` (`Rendering`), through their public API
 - **.NET base class library** - `System.Numerics` (`Matrix3x2`, `Vector2`), `System.Threading`
 
 #### Callers

@@ -11,10 +11,12 @@ core `Surface`. It is **internal**: its types are visible only to the other subs
 `InternalsVisibleTo`, to the test assembly. It contains three units:
 
 - **SceneModel** - the internal scene types: `Scene`, the items `SceneItem`, `SceneGroup`, `SceneRect`, `SceneRule`,
-  `ScenePath`, `SceneSymbol`, and `SceneText`, the value types `ScenePoint`, `SceneClip`, and `SceneEntry`, `SceneBounds`,
+  `ScenePath`, `SceneSymbol`, and `SceneText`, the gradient types `SceneGradient` and `SceneGradientStop`, the value
+  types `ScenePoint`, `SceneClip`, and `SceneEntry`, `SceneBounds`,
   `SceneLists`, and the `SceneBudget`; see _SceneModel Unit Design_ (`scenegraph/scene-model.md`)
-- **ScenePainter** - the internal `ScenePainter` and `ScenePlacement`: drawing a scene onto a `Surface` with fills,
-  strokes, dashes, opacity, rotation, uniform scale, clipping, and text; see _ScenePainter Unit Design_
+- **ScenePainter** - the internal `ScenePainter` and `ScenePlacement`: drawing a scene onto a `Surface` with fills
+  (solid or linear gradient), strokes, dashes, opacity, rotation, uniform scale, clipping, and text; see _ScenePainter
+  Unit Design_
   (`scenegraph/scene-painter.md`)
 - **CssColor** - the internal static `CssColor`: CSS color text to `Rgba32`; see _CssColor Unit Design_
   (`scenegraph/css-color.md`)
@@ -33,8 +35,8 @@ CancellationToken)`, `ScenePainter.SymbolPath`, and `ScenePlacement.Uniform` and
 
 **Consumed**: `TextMeasurer` from the `Guides` subsystem (the painter resolves fonts and draws the lines the measurer
 produces); the public `VegaLiteLocation` and `VegaLiteRenderException` of the `VegaLiteDocument` unit; and the core
-`CanvasNet` public API: `Surface` and `Rgba32` (`Canvas`), `PathFiller` and `PathStroker` (`Drawing`), `Path` and
-`PathBuilder` (`Geometry`), and `TextRenderer` (`Rendering`).
+`CanvasNet` public API: `Surface` and `Rgba32` (`Canvas`), `PathFiller`, `PathStroker`, and `LinearGradient` (`Drawing`),
+`Path` and `PathBuilder` (`Geometry`), and `TextRenderer` (`Rendering`).
 
 **Consumers**: the builders of the `Guides`, `Layout`, and `Marks` subsystems create the items; `VegaLiteDocument` paints
 the scene.

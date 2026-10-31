@@ -35,6 +35,12 @@ internal sealed partial class SpecParser
     /// <summary>The sort orders.</summary>
     private static readonly HashSet<string> SortOrders = Set("ascending descending");
 
+    /// <summary>The properties of a <c>sort</c> object; any other key is warned about.</summary>
+    private static readonly HashSet<string> SortObjectKeys = Set("field op order encoding");
+
+    /// <summary>The keys of a Vega-Lite date-time object (an item of the <c>sort</c> array of a temporal field).</summary>
+    private static readonly HashSet<string> DateTimeKeys = Set("year quarter month date day hours minutes seconds milliseconds utc");
+
     /// <summary>The most numbers a bin <c>steps</c> array may have.</summary>
     private const int MaxBinSteps = 1024;
 
@@ -67,6 +73,30 @@ internal sealed partial class SpecParser
         descending = text[0] == '-';
         channel = descending ? text[1..] : text;
         return SortChannels.Contains(channel);
+    }
+
+    /// <summary>
+    ///     Reads the channel that a <c>sort</c> refers to: the channel shorthand (<c>"-y"</c>) or the <c>encoding</c> of a sort object.
+    /// </summary>
+    /// <param name="sort">The <c>sort</c> value.</param>
+    /// <param name="channel">Receives the channel name.</param>
+    /// <returns><see langword="true"/> when the sort refers to a channel.</returns>
+    public static bool TryGetSortChannel(SpecNode sort, out string channel)
+    {
+        ArgumentNullException.ThrowIfNull(sort);
+        channel = string.Empty;
+        if (sort.IsString)
+        {
+            return TryParseSortShorthand(sort.StringValue, out channel, out _);
+        }
+
+        if (sort.IsObject && sort["encoding"] is { IsString: true } encoding)
+        {
+            channel = encoding.StringValue!;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -653,7 +683,8 @@ internal sealed partial class SpecParser
     /// <remarks>
     ///     The accepted forms are <c>ascending</c>, <c>descending</c>, null, an array of values, a channel shorthand
     ///     (<c>"y"</c>, <c>"-y"</c>) and an object <c>{field, op, order}</c> or <c>{encoding, order}</c>. The <c>order</c> channel
-    ///     takes only <c>ascending</c> and <c>descending</c>.
+    ///     takes only <c>ascending</c> and <c>descending</c>. The items of an array are checked by <see cref="ValidateSortArray"/>
+    ///     and the keys of an object that Vega-Lite does not define are warned about (<c>vl-unknown-property</c>).
     /// </remarks>
     /// <param name="definition">The channel definition that owns the sort.</param>
     /// <param name="sort">The <c>sort</c> value.</param>
@@ -683,10 +714,66 @@ internal sealed partial class SpecParser
             case SpecNodeKind.Object:
                 ValidateSortObject(sort);
                 break;
+            case SpecNodeKind.Array:
+                ValidateSortArray(definition, sort);
+                break;
             default:
                 break;
         }
     }
+
+    /// <summary>
+    ///     Validates a <c>sort</c> array: the values in the order the categories take.
+    /// </summary>
+    /// <remarks>
+    ///     Every item is a string, a number, a boolean or null. An object is accepted only as a date-time (an object of date-time
+    ///     keys such as <c>{"year": 2024, "month": 3}</c>) on a field of type <c>temporal</c>; any other object or array item would
+    ///     otherwise be read as the null category and silently mis-sort, so it is an error at the item. An array that mixes
+    ///     kinds of values is accepted (the values are matched by kind, as Vega-Lite's strict comparison does) and reported
+    ///     as the warning <c>vl-encoding-sort-mixed-types</c>.
+    /// </remarks>
+    /// <param name="definition">The channel definition that owns the sort.</param>
+    /// <param name="sort">The array.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the item, when an item is an array or an object that is not a date-time of a temporal field.</exception>
+    private void ValidateSortArray(SpecNode definition, SpecNode sort)
+    {
+        var temporal = definition["type"] is { IsString: true, StringValue: "temporal" };
+        var kinds = new HashSet<SpecNodeKind>();
+        foreach (var item in sort.Items)
+        {
+            if (item.IsObject && temporal && IsDateTimeObject(item))
+            {
+                continue;
+            }
+
+            if (item.IsObject || item.IsArray)
+            {
+                throw Error(item, temporal
+                    ? "An item of a 'sort' array must be a string, a number, a boolean, null or a date-time object such as {\"year\": 2024}."
+                    : "An item of a 'sort' array must be a string, a number, a boolean or null (a date-time object needs a field of type 'temporal').");
+            }
+
+            kinds.Add(item.Kind);
+        }
+
+        if (kinds.Count > 1)
+        {
+            _warnings.Add(new FeatureReport(
+                "vl-encoding-sort-mixed-types",
+                "The 'sort' array mixes strings, numbers, booleans or null; values are matched by kind, so a value of another kind than the data's does not position it.",
+                sort.GetLocation(_file),
+                FeatureReportKind.Warning));
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether an object is a Vega-Lite date-time (a non-empty object with only date-time keys).
+    /// </summary>
+    /// <param name="node">The object.</param>
+    /// <returns><see langword="true"/> for an object whose every key is a date-time key with a string, number or boolean value.</returns>
+    private static bool IsDateTimeObject(SpecNode node) =>
+        node.Properties.Count > 0
+        && node.Properties.All(p => DateTimeKeys.Contains(p.Name!) && (p.IsString || p.IsNumber || p.IsBoolean));
 
     /// <summary>
     ///     Validates a <c>sort</c> object: <c>{field, op, order}</c> (sort by an operation over a field) or <c>{encoding, order}</c> (sort by another channel).
@@ -695,6 +782,11 @@ internal sealed partial class SpecParser
     /// <exception cref="VegaLiteSpecException">Thrown when a property is not valid or the two forms are mixed.</exception>
     private void ValidateSortObject(SpecNode sort)
     {
+        foreach (var property in sort.Properties.Where(p => !SortObjectKeys.Contains(p.Name!)))
+        {
+            WarnUnknown(property, "a sort definition");
+        }
+
         if (sort["order"] is { IsNull: false } order && (!order.IsString || !SortOrders.Contains(order.StringValue!)))
         {
             throw Error(order, "The 'order' of a sort must be 'ascending' or 'descending'.");

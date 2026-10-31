@@ -47,6 +47,24 @@ sections:
                   - ScenePainter_Paint_ClipAndScaleMatchAnalyticPixels
                   - ScenePainter_Paint_FractionalAndNestedClipsUseCoverage
 
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Gradient
+                title: >-
+                  The ScenePainter unit shall fill an item that has a gradient with the core linear gradient, its
+                  start and end placed on the bounding box of the item's path and mapped to pixels with the
+                  placement of the item, with the fill opacity scaling every stop, the end colors continuing
+                  beyond the stops, hard steps preserved, and no fallback to the solid fill when the gradient
+                  is transparent, but a fallback to the solid fill for a gradient that has no usable stop or
+                  whose geometry is not finite; and shall paint the same pixels every time.
+                justification: |
+                  The color legend draws its bar with a gradient fill, and the colors of the bar are the
+                  evidence of a continuous color scale, so the pixels must follow the stops and the geometry.
+                tests:
+                  - ScenePainter_Paint_GradientFillRunsAlongTheItemBox
+                  - ScenePainter_Paint_GradientFollowsTheScaleAndTheEnclosingGroup
+                  - ScenePainter_Paint_GradientOpacityReplacementAndFallback
+                  - ScenePainter_Paint_GradientOnGroupSymbolAndPath
+                  - ScenePainter_Paint_GradientIsDeterministic
+
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
                 title: >-
                   The ScenePainter unit shall draw symbols whose area and bounds follow the Vega symbol
@@ -57,6 +75,7 @@ sections:
                 tests:
                   - ScenePainter_Paint_SymbolsCoverTheirDocumentedArea
                   - ScenePainter_SymbolPath_ShapesHaveVegaBounds
+                  - ScenePainter_IsSymbolShape_KnowsTheDrawnShapes
                   - ScenePainter_Paint_PathsRoundedRectanglesAndGroupBackgroundAreCrisp
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Text

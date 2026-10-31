@@ -18,7 +18,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 /// <param name="Config">The effective configuration.</param>
 /// <param name="Plan">The plan of the encoding.</param>
 /// <param name="Data">The Raw and Main tables of the implicit pipeline and the bins.</param>
-internal sealed record ChartParts(SpecTree Tree, DataTable Table, ResolvedScales Scales, ResolvedConfig Config, EncodingPlan Plan, EncodingData Data);
+/// <param name="Expressions">The row-bound expressions of the marks with the evaluator of the pipeline (they evaluate the tests of the conditions).</param>
+internal sealed record ChartParts(SpecTree Tree, DataTable Table, ResolvedScales Scales, ResolvedConfig Config, EncodingPlan Plan, EncodingData Data, RowExpressions? Expressions = null);
 
 /// <summary>
 ///     Helpers that run the data, scale, axis and mark stages on a specification text without painting, so the tests can
@@ -50,7 +51,7 @@ internal static class ChartTestHelpers
         var plan = EncodingPlan.Create(tree.Root, config);
         var data = EncodingTransforms.Apply(plan, table, context);
         var scales = ScaleResolver.Resolve(tree.Root, plan, data, config, tree.SourceName, effective, token);
-        return new ChartParts(tree, data.Main, scales, config, plan, data);
+        return new ChartParts(tree, data.Main, scales, config, plan, data, new RowExpressions(tree.Expressions, evaluator));
     }
 
     /// <summary>
@@ -87,11 +88,55 @@ internal static class ChartTestHelpers
     /// <param name="width">The width of the data rectangle.</param>
     /// <param name="height">The height of the data rectangle.</param>
     /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <param name="limits">The limits, or null for the defaults (they also limit the evaluation of the conditions).</param>
+    /// <param name="cancellationToken">The cancellation token of the marks; the one of the test when null.</param>
     /// <returns>The group of mark items.</returns>
-    public static SceneGroup Marks(string json, double width, double height, string? callerConfig = null)
+    public static SceneGroup Marks(string json, double width, double height, string? callerConfig = null, VegaLiteLimits? limits = null, CancellationToken? cancellationToken = null)
+    {
+        var parts = Parts(json, callerConfig, limits);
+        return new MarkBuilder(parts.Config, limits, sourceName: parts.Tree.SourceName, expressions: parts.Expressions)
+            .Build(parts.Tree.Root, parts.Table, parts.Scales, width, height, cancellationToken ?? TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    ///     Plans the legends of a specification.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <returns>The planned legends.</returns>
+    public static IReadOnlyList<LegendSpec> Legends(string json, string? callerConfig = null)
     {
         var parts = Parts(json, callerConfig);
-        return new MarkBuilder(parts.Config, sourceName: parts.Tree.SourceName).Build(parts.Tree.Root, parts.Table, parts.Scales, width, height);
+        return LegendPlan.Create(parts.Tree.Root, parts.Scales, parts.Config, parts.Tree.SourceName);
+    }
+
+    /// <summary>
+    ///     Builds one legend of a specification for a data rectangle of a given size.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="index">The position of the legend among the planned legends.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="callerConfig">The caller's configuration text, or null.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <param name="budget">The scene budget, or null for one from the limits.</param>
+    /// <param name="cancellationToken">The cancellation token; the one of the test when null.</param>
+    /// <returns>The legend.</returns>
+    public static LegendResult Legend(
+        string json,
+        int index = 0,
+        double width = 300,
+        double height = 300,
+        string? callerConfig = null,
+        VegaLiteLimits? limits = null,
+        SceneBudget? budget = null,
+        CancellationToken? cancellationToken = null)
+    {
+        var parts = Parts(json, callerConfig, limits);
+        var specs = LegendPlan.Create(parts.Tree.Root, parts.Scales, parts.Config, parts.Tree.SourceName);
+        var effective = limits ?? VegaLiteLimits.Default;
+        return new LegendBuilder(new TextMeasurer(), limits, parts.Tree.SourceName)
+            .Build(specs[index], width, height, budget ?? new SceneBudget(effective.MaxSceneItems), cancellationToken ?? TestContext.Current.CancellationToken);
     }
 
     /// <summary>

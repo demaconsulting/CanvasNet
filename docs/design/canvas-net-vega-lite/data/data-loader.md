@@ -60,7 +60,7 @@ stay text); `parse: "auto"` is the explicit opt-in to per-column inference of bo
 `parse` object converts only the fields it names. The loader therefore always reads the directives with
 `defaultAuto: false`. A quantitative encoding still coerces numeric text to a number when it is drawn (`DataValue`
 parses it lazily for linear domains, positions, size, and opacity), which is a property of the encodings and not a
-parse mode; a quantitative color encoding is not drawn by the current subset. Date parsing of text for temporal
+parse mode. Date parsing of text for temporal
 encodings and time support arrive in Phase 8.
 
 **Named data.** A `name` is looked up in the caller's datasets (`VegaLiteRenderOptions.Datasets`) first and then in

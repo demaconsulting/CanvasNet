@@ -364,6 +364,92 @@ internal sealed partial class NumberFormat
     }
 
     /// <summary>
+    ///     Creates the formatter of the labels of a log axis or legend (Vega's <c>formatFloat</c>): a specifier without a precision shows
+    ///     up to 12 significant digits and drops the trailing zeros.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The specifier defaults to <c>,</c> (grouped digits). When it has no precision it gets 12 (10 for <c>%</c>, 11 for <c>e</c>),
+    ///         and the digits after the decimal point that are zeros are removed together with the point when nothing remains, in front of an
+    ///         exponent or a unit suffix (Vega's <c>trimZeroes</c>), so 1000 is <c>1,000</c>, 0.001 is <c>0.001</c> and 1e-7 is <c>1e-7</c>.
+    ///         A specifier with a precision is used as it is.
+    ///     </para>
+    /// </remarks>
+    /// <param name="specifier">The format specifier, or null for the default.</param>
+    /// <returns>The formatter of a number.</returns>
+    /// <exception cref="FormatException">Thrown when the specifier is not valid.</exception>
+    public static Func<double, string> FormatFloat(string? specifier)
+    {
+        var spec = ParseSpecifier(string.IsNullOrEmpty(specifier) ? "," : specifier);
+        if (spec.Precision is not null)
+        {
+            return Create(spec).Format;
+        }
+
+        var precision = 12 - (spec.Type == "%" ? 2 : 0) - (spec.Type == "e" ? 1 : 0);
+        var format = Create(spec with { Precision = precision });
+        return value => TrimZeroes(format.Format(value));
+    }
+
+    /// <summary>
+    ///     Removes the trailing zeros after the decimal point of a formatted number, and the point if nothing is left (Vega's <c>trimZeroes</c>).
+    /// </summary>
+    /// <param name="text">The formatted number.</param>
+    /// <returns>The text without the zeros.</returns>
+    private static string TrimZeroes(string text)
+    {
+        var decimalPoint = text.IndexOf('.', StringComparison.Ordinal);
+        if (decimalPoint < 0)
+        {
+            return text;
+        }
+
+        // The position after the rightmost digit (before an exponent), then back over the zeros
+        var index = RightmostDigit(text, decimalPoint);
+        if (index < 0)
+        {
+            return text;
+        }
+
+        var end = index < text.Length ? text[index..] : string.Empty;
+        while (--index > decimalPoint)
+        {
+            if (text[index] != '0')
+            {
+                index++;
+                break;
+            }
+        }
+
+        return text[..index] + end;
+    }
+
+    /// <summary>
+    ///     Finds the position after the last digit of the number in a text, ignoring an exponent and any suffix.
+    /// </summary>
+    /// <param name="text">The formatted number.</param>
+    /// <param name="decimalPoint">The position of the decimal point.</param>
+    /// <returns>The position after the digit (the position of an <c>e</c> when there is one); -1 when no digit follows the point.</returns>
+    private static int RightmostDigit(string text, int decimalPoint)
+    {
+        var exponent = text.LastIndexOf('e');
+        if (exponent > 0)
+        {
+            return exponent;
+        }
+
+        for (var i = text.Length; --i > decimalPoint;)
+        {
+            if (text[i] is >= '0' and <= '9')
+            {
+                return i + 1;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     ///     Gets the number of decimals that distinguishes numbers a given step apart (d3's <c>precisionFixed</c>).
     /// </summary>
     /// <param name="step">The step between the numbers.</param>

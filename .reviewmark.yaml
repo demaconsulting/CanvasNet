@@ -1904,6 +1904,10 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSystemIntegrationTests.cs"  # integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAggregationIntegrationTests.cs"  # aggregation tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLegendIntegrationTests.cs"  # legend integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteScaleIntegrationTests.cs"  # scale integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBinnedChannelIntegrationTests.cs"  # binned channel tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteConditionalMarksIntegrationTests.cs"  # conditional tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs"  # shared expression helpers
@@ -2011,8 +2015,13 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNode.cs"  # unit source (immutable tree)
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecMetadata.cs"  # unit source (descriptive facts)
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecExpressions.cs"  # unit source (compiled expressions)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/ChannelDefinitions.cs"  # unit source (conditions)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/PredicateSource.cs"  # unit source (predicates as expressions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserAggregatesTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
 
   # CanvasNetVegaLite-SpecModel-FeatureCatalog Review (one per unit)
   - id: CanvasNetVegaLite-SpecModel-FeatureCatalog
@@ -2317,9 +2326,11 @@ reviews:
       - "docs/design/canvas-net-vega-lite/scales/scale-resolver.md"   # unit design
       - "docs/verification/canvas-net-vega-lite/scales/scale-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scales/scale-resolver.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver*.cs"  # unit source (partial files: plan, sort)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPlanTests.cs"  # unit tests (plan, sort)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverColorTests.cs"  # unit tests (colors)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverBinTests.cs"  # unit tests (binned channels)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
@@ -2368,7 +2379,29 @@ reviews:
       - "docs/verification/canvas-net-vega-lite/scales/color-schemes.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scales/color-schemes.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ColorSchemes.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ColorSchemeData.cs"  # unit source (the palette tables)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-colorbrewer.txt"  # ColorBrewer notice (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-apache-2.0.txt"  # Apache License text (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-turbo.txt"  # Turbo notice (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-cividis.txt"  # cividis license (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the palettes
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ColorSchemesTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scales-ColorInterpolator Review (one per unit)
+  - id: CanvasNetVegaLite-Scales-ColorInterpolator
+    title: Review that CanvasNetVegaLite Scales ColorInterpolator Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scales.md"
+      - "docs/reqstream/canvas-net-vega-lite/scales.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scales/color-interpolator.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scales/color-interpolator.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scales/color-interpolator.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scales/color-interpolator.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ColorInterpolator.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ColorInterpolatorTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Guides Review (one per subsystem)
   - id: CanvasNetVegaLite-Guides
@@ -2432,6 +2465,45 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
+  # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-LabelOverlap
+    title: Review that CanvasNetVegaLite Guides LabelOverlap Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/label-overlap.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/label-overlap.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/label-overlap.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LabelOverlap.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LabelOverlapTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Guides-LegendBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Guides-LegendBuilder
+    title: Review that CanvasNetVegaLite Guides LegendBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/guides.md"
+      - "docs/reqstream/canvas-net-vega-lite/guides.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/guides/legend-builder.md"   # unit design
+      - "docs/verification/canvas-net-vega-lite/guides/legend-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/guides/legend-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendPlan.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Symbols.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Gradient.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Grid.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
   # CanvasNetVegaLite-Layout Review (one per subsystem)
   - id: CanvasNetVegaLite-Layout
     title: Review that CanvasNetVegaLite Layout Subsystem Implementation is Correct
@@ -2461,6 +2533,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs"  # unit tests
 
+  # CanvasNetVegaLite-Layout-LegendLayout Review (one per unit)
+  - id: CanvasNetVegaLite-Layout-LegendLayout
+    title: Review that CanvasNetVegaLite Layout LegendLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/layout.md"
+      - "docs/reqstream/canvas-net-vega-lite/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/layout/legend-layout.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/layout/legend-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/layout/legend-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Layout/LegendLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/LegendLayoutTests.cs"  # unit tests
+
   # CanvasNetVegaLite-Marks Review (one per subsystem)
   - id: CanvasNetVegaLite-Marks
     title: Review that CanvasNetVegaLite Marks Subsystem Implementation is Correct
@@ -2489,6 +2577,8 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/marks/mark-builder.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs"  # unit tests (Phase 7)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph Review (one per subsystem)
@@ -2521,6 +2611,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBounds.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBudget.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneBudgetTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scenegraph-ScenePainter Review (one per unit)
   - id: CanvasNetVegaLite-Scenegraph-ScenePainter

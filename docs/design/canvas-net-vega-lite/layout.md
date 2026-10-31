@@ -8,10 +8,13 @@ The `Layout` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Layout`, fo
 `src/DemaConsulting.CanvasNet.VegaLite/Layout/`) computes the boxes of a chart: the data rectangle, the padding, the
 canvas that holds everything, the place of the title, and the background and border of the view. It is **internal**: its
 types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It
-contains one unit:
+contains two units:
 
 - **ViewLayout** - the internal static `ViewLayout` with its request, measure, and result records; see _ViewLayout Unit
   Design_ (`layout/view-layout.md`)
+- **LegendLayout** - the internal static `LegendLayout` with the `LegendPlacement` record, which places the built legends
+  around the data rectangle and the axes and joins their reach with that of the axes; see _LegendLayout Unit Design_
+  (`layout/legend-layout.md`)
 
 The subsystem's namespace documentation is in `Layout/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Layout-*` requirements in `docs/reqstream/canvas-net-vega-lite/layout.yaml`. In the first delivery the
@@ -21,16 +24,19 @@ subsystem lays out a **single view**; the composition layout (layers, concatenat
 
 **Exposed** (internal only): `ViewLayout.Resolve(SpecNode?, ResolvedConfig, ViewSizeHints, string?)`, which returns a
 `ViewLayoutRequest`; `ViewLayout.Measure(request, ViewExtents, TitleBlock?)`, which returns a `ViewMeasure`;
-`ViewLayout.Build(request, measure, content)`, which returns a `Scene`; and `ViewLayout.Compute(request, extents, title,
-content)`, which does both and returns a `ViewLayoutResult`. The records `ViewPadding`, `ViewExtents`, `ViewStyle`,
+`ViewLayout.Build(request, measure, content)`, which returns a `Scene`; `ViewLayout.Compute(request, extents, title,
+content)`, which does both and returns a `ViewLayoutResult`; and `LegendLayout.Place`, `AxisBounds`, and `Combine`. The
+records `ViewPadding`, `ViewExtents`, `ViewStyle`,
 `ViewSizeHints`, `ViewLayoutRequest`, `ViewMeasure`, and `ViewLayoutResult` and the enumeration `AutosizeType` carry the
 data.
 
-**Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `TitleBlock` from the `Guides` subsystem;
-the scene types from the `Scenegraph` subsystem; and the public `VegaLiteSize` of the `VegaLiteDocument` unit.
+**Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `TitleBlock`, `AxisResult`, and
+`LegendResult` (with the grid layout of `LegendBuilder`) from the `Guides` subsystem; the scene types from the
+`Scenegraph` subsystem; and the public `VegaLiteSize` of the `VegaLiteDocument` unit.
 
-**Consumers**: `VegaLiteDocument` (the pipeline resolves, measures, and builds), and `AxisBuilder`, whose `GetExtents`
-returns the `ViewExtents` record that `Measure` consumes.
+**Consumers**: `VegaLiteDocument` (the pipeline resolves, measures, and builds the scene, and places the legends), and
+`AxisBuilder`, whose `GetExtents` returns the `ViewExtents` record that `Measure` consumes and that
+`LegendLayout.Combine` widens.
 
 ### Design
 
@@ -52,3 +58,9 @@ container size from the options, less the padding and the guides at the sides. W
 grows to hold everything that reaches beyond the data rectangle; with `none` it is the stated size plus the padding (or
 exactly the stated size when `contains` is `padding`) and anything that does not fit is cut off. The other autosize types
 are reported by the feature catalog and laid out as `pad`.
+
+**Legends.** After the axes are built, the legends are built for the same data rectangle and `LegendLayout` places them
+against the data rectangle united with the axes on their side; the union of their bounds joins the extents of the axes
+(`LegendLayout.Combine`) before the title is laid out, so a legend outside the data rectangle grows the canvas with
+`autosize: pad` and sticks out with `none`. Each pass of the iteration builds the axes and the legends again against the
+new data rectangle.

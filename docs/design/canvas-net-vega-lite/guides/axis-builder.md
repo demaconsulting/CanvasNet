@@ -76,16 +76,25 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   otherwise resolves the settings and the orientation, builds the ticks (`BuildTicks`), creates the grid rules, tick rules,
   labels, and domain rule, computes the bounds of ticks and labels, resolves the title, and finishes the groups with the
   extent clamping and title placement. The token is polled per tick.
-- Ticks (`BuildTicks`): a continuous scale uses `Ticks.AxisTicks` with Vega-Lite's count (`ceil(size / 40)`, or the number
-  of `values`, or `tickCount`) and minimum step, and labels from `NumberFormat.TickFormat` (the default is `,f`; negatives
-  use the minus sign U+2212); a field that the encoding bins (`BinKind.Binning`, not a pre-binned one) has the default count
+- Ticks (`BuildTicks`): a continuous scale uses `Ticks.ModelTicks` (the d3 ticks of the domain, or the log ticks for a log
+  scale) with Vega-Lite's count (`ceil(size / 40)`, or the number
+  of `values`, or `tickCount`; **ten** for a log scale, for which Vega-Lite sets no count of its own) and minimum step
+  (`Ticks.ResolveTickCount`, which does not lower the count by the tick step for a log scale), and labels from
+  `NumberFormat.TickFormat` (the default is `,f`; negatives
+  use the minus sign U+2212); a **log** axis labels with `NumberFormat.FormatFloat` (Vega's variable precision: up to 12
+  digits, the zeros trimmed, `format` honored) and, for generated ticks, gives an empty label to every tick that d3's log
+  rule hides (`Ticks.LogLabelTest`; the labels of explicit `values` are all shown), and its labels are thinned by the
+  greedy overlap method by default (Vega-Lite's `labelOverlap` default for log scales, parity for the other continuous
+  scales); a pow, sqrt, or symlog axis uses the ordinary ticks and `TickFormat` of its domain at the transformed positions;
+  a field that the encoding bins (`BinKind.Binning`, not a pre-binned one) has the default count
   `ceil(size / 10)` instead, so the ticks follow the bins, and the labels of a normalized stack
   (`ResolvedScale.Stack` is `Normalize`) use `config.normalizedNumberFormat` (`.0%` when the configuration has none) unless
   the axis gives a `format`; explicit `values` follow Vega's `validTicks` (in range, in range order, thinned to the count);
   a band or point scale has a tick for every category (or the existing `values`), labeled with JavaScript-style text of
   the value (numbers formatted with `format` when given).
 - Label overlap: Vega's parity method (every second label dropped until none overlap, taking `labelSeparation` into
-  account) or its greedy method; dropped labels remain in `AxisResult.Ticks`.
+  account) or its greedy method, performed by the `LabelOverlap` unit that `AxisBuilder` shares with `LegendBuilder`
+  (see _LabelOverlap Unit Design_); dropped labels remain in `AxisResult.Ticks`.
 - `GetExtents(axes, dataWidth, dataHeight)` (static) - the union of the axes' bounds with the data rectangle, as the
   `ViewExtents` (how far everything reaches beyond each side, never negative), for `ViewLayout`.
 

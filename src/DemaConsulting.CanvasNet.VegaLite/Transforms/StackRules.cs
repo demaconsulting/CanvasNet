@@ -23,7 +23,8 @@ internal sealed record StackDecision(string Channel, string Offset, IReadOnlyLis
 ///         <c>y</c>; when both are (and neither says <c>stack</c>) the one that aggregates and the other does not wins, and then the
 ///         explicit <c>orient</c> of a bar or area decides. The other position channel names the group
 ///         of the stack. A stack needs at least one stack-by field when the encoding aggregates, never exists for a range
-///         (a secondary channel <c>x2</c> or <c>y2</c> with a field or datum), and an explicit <c>stack</c> of false or null switches
+///         (a secondary channel <c>x2</c> or <c>y2</c> with a field or datum) or for a stacked channel whose <c>scale.type</c> is log, pow, sqrt or
+///         symlog (Vega-Lite does not stack on a scale that is not linear), and an explicit <c>stack</c> of false or null switches
 ///         it off. Polar stacking (theta, radius) is not part of this renderer.
 ///     </para>
 ///     <para>
@@ -72,6 +73,12 @@ internal static class StackRules
 
         var stacked = encoding[channel]!;
         var other = channel == "x" ? "y" : "x";
+
+        // Vega-Lite warns and does not stack on a scale that is not linear (log, pow, sqrt, symlog): every mark is drawn from the baseline
+        if (stacked["scale"]?["type"]?.AsString() is "log" or "pow" or "sqrt" or "symlog")
+        {
+            return null;
+        }
 
         var offset = Offset(stacked["stack"], markType);
         if (offset is null)

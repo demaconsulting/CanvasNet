@@ -107,3 +107,52 @@ minimum step, kept when the step already meets it, reduced to 4 for the domain 0
 to 1 (two ticks would give a step of 0.5), the same for a reversed domain, and 2 for an empty span; and that the ticks
 of an integer axis never have a fractional step (0 to 5 gives 0 through 5, 0 to 1 gives 0 and 1, and a 200 pixel axis
 over 0 to 100 gives 0, 20, 40, 60, 80, 100).
+
+##### Log Ticks Match The Hand-Derived d3 Vectors
+
+**Tests**: `TicksTests.Ticks_LogTicks_MatchHandDerivedD3Vectors`,
+`TicksTests.Ticks_ResolveTickCount_LogarithmicScaleDoesNotLowerTheCountByTheStep`,
+`TicksTests.Ticks_ModelTicks_DispatchesByTheTransform`
+
+Asserts the log ticks derived by hand from `scaleLog.ticks`: three decades with a count of 10 give the 28 multiples
+1 to 9,
+10 to 90, 100 to 900 and 1000; 0.01 to 1 gives 19 ticks whose decimals are exact (3 / 100 is 0.03); 2 to 30 starts at 2
+(the multiples below 2 are skipped); twelve decades with a count of 5 give the powers 1, 1e2, ..., 1e12 (the d3
+ticks of 0 to
+12, step 2); 2 to 8 with a count of 20 has 7 multiples, fewer than half of the count, so the ordinary ticks 2, 2.2,
+..., 8 are
+used (31); a descending domain gives the same ticks reversed; -1000 to -1 gives the 28 reflected ticks in ascending order;
+base 2 gives 1, 2, 4, 8, 16; a base of 2.5 gives the powers 2.5^0 to 2.5^7 of the ticks 0 to 7; and domains the
+logarithm is
+not defined on (zero, both signs, an infinite end) and bases that are not usable (1, 0, negative) give no ticks. Asserts
+that a minimum step of 25 on 1 to 100 lowers the count of a linear scale to 3 (step 50) while a log scale keeps the 4 that
+fit, and that the ticks of a scale model follow its transform (log ticks for a log scale, the ordinary ticks of the domain
+for pow and symlog).
+
+##### Log Ticks Respect The Limits
+
+**Tests**: `TicksTests.Ticks_LogTicks_LimitsAndCancellationAreEnforced`
+
+Asserts that 28 ticks against a limit of 5 and a base of 1e9 whose multiples below the domain are 5e8 (the work
+budget of a
+hundred times the tick limit) throw `VegaLiteRenderException` whose message contains `the limit of`, that a canceled token
+stops the same walk with `OperationCanceledException` (polled every 4,096 multiples), and that the ticks of the exponents
+over 1e-300 to 1e300 keep the tick limit too.
+
+##### Log Nice
+
+**Tests**: `TicksTests.Ticks_LogNice_ExtendsToPowersOfTheBase`
+
+Asserts the hand-derived domains (3 to 800 becomes 1 to 1000, 0.02 to 5 becomes 0.01 to 10, 800 to 3 keeps its direction,
+-800 to -3 becomes -1000 to -1, 3 to 100 in base 2 becomes 2 to 128, 5 to 5 becomes 1 to 10) and that a domain with
+zero, both
+signs, or the base 1 is unchanged.
+
+##### Log Labels
+
+**Tests**: `TicksTests.Ticks_LogLabelTest_LabelsTheLeadingDigitsThatFit`
+
+Asserts the label rule for 28 ticks and a count of 10 (k = 3.57: the digits 1, 2, and 3 of every decade are
+labeled, 4 to 9
+are not, a fraction is read after its exponent so 0.5 is a 5), for a count of 3 (k = 1.07: only the powers), for 5 ticks
+(every digit), and that the magnitude decides for negative ticks while zero is not labeled.

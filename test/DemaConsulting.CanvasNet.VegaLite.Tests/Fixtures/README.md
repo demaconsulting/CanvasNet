@@ -33,6 +33,24 @@ describe nothing real. They exist to give the tests small, readable charts whose
   (49, 74 and 24 pixels, a pixel of bin spacing taken off every pair of edges).
 - `window-cumulative.vl.json`: four made-up quarterly order counts, turned into a running total by a `window` transform
   (`sum`, frame up to the current row: 4, 7, 12 and 14) and drawn as bars on an ordinal axis.
+- `signed-stacks.vl.json`: made-up takings (positive) and outgoings (negative) per quarter, split by `kind` (a color), so
+  that each quarter's bar is a stack that hangs both above and below the zero line (the positive layers stack up from
+  zero and the negative layers stack down from zero, separately; the domain is -20 to 20).
+- `legend-symbols.vl.json`: made-up seed packet readings as filled points with a color field (`crop`, a legend with an
+  explicit title) and a size field (`trays`), so that the chart has two symbol legends stacked at its right side.
+- `legend-gradient.vl.json`: made-up rain gauge readings as points colored by a quantitative field (`rain`, 2.5 to 15 in
+  steps of 2.5), so that the chart has one gradient legend with the default ramp.
+- `legend-merged.vl.json`: made-up garden bed readings with a color, a shape and a size field, where the color and the
+  shape read the same field (`bed`), so that they share one legend (symbols with both a shape and a color) and the
+  size (`weeds`) has a legend of its own.
+- `log-scales.vl.json`: four made-up daily colony counts (12, 95, 1200 and 8000) as bars on a logarithmic y axis, so that
+  the domain is rounded out to 10 to 10000 (three decades of 100 pixels in a height of 300) and the bars start at the bottom.
+- `binned-channels.vl.json`: eight made-up daily soil readings (`moisture` from 3 to 97) as circles whose color field is
+  binned, so that the six-bin default gives the bins 0-20 to 80-100 (two, one, two, one and two readings), a bin-ordinal
+  color scale with five explicit colors, and a legend with one entry per bin.
+- `conditional-marks.vl.json`: the same eight made-up daily soil readings as circles whose color, size and opacity are
+  conditional: the dry readings (`moisture` under 30) are red, the others blue; the plants of height 4 or more are
+  larger; days 3 to 5 are opaque and the others faint. The conditions hold values only, so the chart has no legend.
 
 Phase 5 (expressions, static parameters and row transforms) adds no fixture file. Its tests build small specifications
 inline, with made-up values that are written for each test (a handful of rows such as `{"x": 3}` or

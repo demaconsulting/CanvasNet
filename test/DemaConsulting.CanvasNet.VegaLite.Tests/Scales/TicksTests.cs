@@ -280,4 +280,220 @@ public class TicksTests
         Assert.Equal(new double[] { 0, 1 }, Ticks.AxisTicks(0, 1, 5, 1));
         Assert.Equal(new double[] { 0, 20, 40, 60, 80, 100 }, Ticks.AxisTicks(0, 100, Ticks.DefaultAxisTickCount(200)));
     }
+
+    /// <summary>
+    ///     Validates the minimum step on a log scale: the count is still limited to the steps that fit, but is not lowered by the d3 tick step
+    ///     (the steps of log ticks are not even), as in Vega's <c>tickCount</c>.
+    /// </summary>
+    [Fact]
+    public void Ticks_ResolveTickCount_LogarithmicScaleDoesNotLowerTheCountByTheStep()
+    {
+        // 1..100 with minimum step 25: at most 3 steps fit (99 / 25 = 3.96), so 4 ticks; the d3 step of 4 ticks is 20 (below 25), so a linear
+        // scale goes down to 3 ticks (step 50), a log scale keeps the 4
+        Assert.Equal(3, Ticks.ResolveTickCount(1, 100, 10, 25));
+        Assert.Equal(4, Ticks.ResolveTickCount(1, 100, 10, 25, logarithmic: true));
+
+        // Without a minimum step nothing changes for either
+        Assert.Equal(10, Ticks.ResolveTickCount(1, 100, 10, null, logarithmic: true));
+    }
+
+    /// <summary>
+    ///     Validates the ticks of a log scale against d3's <c>scaleLog.ticks</c>: the multiples of every power of the base inside the domain when
+    ///     the domain spans fewer powers than the count (with exact decimals below one), the d3 ticks of the exponents when it spans more,
+    ///     the ordinary ticks when the multiples are fewer than half the count, reflected ticks for a negative domain, descending ticks for
+    ///     a descending domain, other bases, and no ticks for a domain that contains or crosses zero.
+    /// </summary>
+    [Fact]
+    public void Ticks_LogTicks_MatchHandDerivedD3Vectors()
+    {
+        // Three decades with 10 ticks wanted: 1..9, 10..90 step 10, 100..900 step 100, then 1000 (2000 is past the end): 9 + 9 + 9 + 1
+        var decades = LogTicks(1, 1000, 10, 10);
+        Assert.Equal(28, decades.Length);
+        Assert.Equal([1.0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20], decades[..11]);
+        Assert.Equal([800.0, 900, 1000], decades[^3..]);
+
+        // Below one the multiples are divided by the power (exact decimals): 0.01..0.09, 0.1..0.9, 1
+        var fractions = LogTicks(0.01, 1, 10, 10);
+        Assert.Equal(19, fractions.Length);
+        Assert.Equal([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1], fractions[..10]);
+        Assert.Equal([0.9, 1.0], fractions[^2..]);
+
+        // The domain starts between powers: 2..9, 10, 20, 30 (100 is past the end)
+        Assert.Equal([2.0, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30], LogTicks(2, 30, 10, 10));
+
+        // Twelve decades with 5 ticks wanted: the span is not below the count, so the exponents get the d3 ticks of 0..12 (step 2) as powers
+        Assert.Equal([1.0, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12], LogTicks(1, 1e12, 5, 10));
+
+        // Fewer multiples than half the count fall back to the ordinary ticks of the domain: 2..8 gives 7 multiples, below 10; the step of
+        // 20 ticks over 6 is 0.3, which rounds to 0.2, so 2, 2.2, ..., 8
+        var fallback = LogTicks(2, 8, 20, 10);
+        Assert.Equal(31, fallback.Length);
+        Assert.Equal([2.0, 2.2, 2.4], fallback[..3]);
+        Assert.Equal(8.0, fallback[^1]);
+
+        // A descending domain gives the same ticks backwards
+        var backwards = LogTicks(1000, 1, 10, 10);
+        Assert.Equal([.. decades.AsEnumerable().Reverse()], backwards);
+
+        // A domain below zero is reflected: the ticks run from -1000 up to -1, 28 of them, in ascending order
+        var negative = LogTicks(-1000, -1, 10, 10);
+        Assert.Equal(28, negative.Length);
+        Assert.Equal([-1000.0, -900, -800], negative[..3]);
+        Assert.Equal([-2.0, -1.0], negative[^2..]);
+        Assert.True(negative.Zip(negative.Skip(1), (a, b) => a < b).All(ascending => ascending));
+
+        // The base 2 has one multiple per power: 1, 2, 4, 8, 16
+        Assert.Equal([1.0, 2, 4, 8, 16], LogTicks(1, 16, 10, 2));
+
+        // A base that is not a whole number takes the d3 ticks of the exponents (0..7 for 7.54 powers) as powers of the base
+        var fractional = LogTicks(1, 1000, 10, 2.5);
+        Assert.Equal(8, fractional.Length);
+        Assert.Equal(1.0, fractional[0]);
+        Assert.Equal(Math.Pow(2.5, 7), fractional[7], 9);
+
+        // Domains the logarithm is not defined on have no ticks, and neither has a base that is not usable
+        Assert.Empty(LogTicks(0, 10, 10, 10));
+        Assert.Empty(LogTicks(-5, 5, 10, 10));
+        Assert.Empty(LogTicks(1, double.PositiveInfinity, 10, 10));
+        Assert.Empty(LogTicks(1, 1000, 10, 1));
+        Assert.Empty(LogTicks(1, 1000, 10, 0));
+        Assert.Empty(LogTicks(1, 1000, 10, -2));
+        Assert.True(Ticks.IsLogDomain(0.5, 80));
+        Assert.True(Ticks.IsLogDomain(-80, -0.5));
+        Assert.False(Ticks.IsLogDomain(0, 80));
+        Assert.False(Ticks.IsLogDomain(-1, 1));
+    }
+
+    /// <summary>
+    ///     Gets the ticks of a log scale with the cancellation token of the running test.
+    /// </summary>
+    /// <param name="start">The first end of the domain.</param>
+    /// <param name="stop">The second end of the domain.</param>
+    /// <param name="count">The approximate number of ticks wanted.</param>
+    /// <param name="logBase">The base of the logarithm.</param>
+    /// <param name="maxTicks">The largest number of ticks accepted.</param>
+    /// <returns>The tick values.</returns>
+    private static double[] LogTicks(double start, double stop, double count, double logBase, int maxTicks = 1_000) =>
+        Ticks.LogTicks(start, stop, count, logBase, maxTicks, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    ///     Validates that the ticks of a log scale respect the tick limit and the work limit that guards the multiples outside the domain,
+    ///     poll the cancellation token, and give the located limit message the tool maps to a budget error.
+    /// </summary>
+    [Fact]
+    public void Ticks_LogTicks_LimitsAndCancellationAreEnforced()
+    {
+        // The multiples inside the domain are more than the limit: 28 ticks against a limit of 5
+        var tooMany = Assert.Throws<VegaLiteRenderException>(() => LogTicks(1, 1000, 10, 10, maxTicks: 5));
+        Assert.Contains("the limit of 5", tooMany.Message, StringComparison.Ordinal);
+
+        // A huge base walks over hundreds of millions of multiples below the domain: the work is limited to a hundred times the tick limit
+        var tooMuchWork = Assert.Throws<VegaLiteRenderException>(() => LogTicks(5e8, 1e9, 10, 1e9, maxTicks: 10));
+        Assert.Contains("the limit of 10", tooMuchWork.Message, StringComparison.Ordinal);
+
+        // The same walk polls the token, so a canceled one stops it long before the budget ends
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+        Assert.Throws<OperationCanceledException>(() => Ticks.LogTicks(5e8, 1e9, 10, 1e9, 1_000, source.Token));
+
+        // The ordinary ticks of the exponents keep their own limit: 1e-300..1e300 with a count of 100000 asks for more than 1000 ticks
+        Assert.Throws<VegaLiteRenderException>(() => LogTicks(1e-300, 1e300, 100_000, 10, maxTicks: 1_000));
+    }
+
+    /// <summary>
+    ///     Validates the <c>nice</c> extension of a log domain against d3's <c>scaleLog.nice</c>: the first end is floored and the last ceiled to a
+    ///     power of the base (reflected below zero), a descending domain keeps its direction, and a domain the logarithm is not defined on
+    ///     stays as it is.
+    /// </summary>
+    [Fact]
+    public void Ticks_LogNice_ExtendsToPowersOfTheBase()
+    {
+        // Arrange: (start, stop, base, nice start, nice stop)
+        var vectors = new (double Start, double Stop, double Base, double NiceStart, double NiceStop)[]
+        {
+            // 3..800: floor of log10 3 is 0 (1), ceil of log10 800 is 3 (1000)
+            (3, 800, 10, 1, 1000),
+
+            // 0.02..5: floor of -1.69 is -2 (0.01), ceil of 0.7 is 1 (10)
+            (0.02, 5, 10, 0.01, 10),
+
+            // already on powers: unchanged
+            (1, 1000, 10, 1, 1000),
+
+            // a descending domain keeps its direction
+            (800, 3, 10, 1000, 1),
+
+            // a domain below zero is reflected: -800..-3 becomes -1000..-1
+            (-800, -3, 10, -1000, -1),
+
+            // base 2: floor of log2 3 is 1 (2), ceil of log2 100 is 7 (128)
+            (3, 100, 2, 2, 128),
+
+            // a domain of one number is widened to its decade
+            (5, 5, 10, 1, 10),
+
+            // domains the logarithm is not defined on stay as they are
+            (0, 10, 10, 0, 10),
+            (-1, 1, 10, -1, 1),
+            (1, 1000, 1, 1, 1000),
+        };
+
+        // Act / Assert
+        foreach (var (start, stop, logBase, niceStart, niceStop) in vectors)
+        {
+            var (resultStart, resultStop) = Ticks.LogNice(start, stop, logBase);
+            Assert.True(
+                (niceStart, niceStop).Equals((resultStart, resultStop)),
+                $"logNice({start}, {stop}, {logBase}) = ({resultStart}, {resultStop}), expected ({niceStart}, {niceStop})");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the label filter of a log axis against d3's <c>scaleLog.tickFormat</c>: the leading digit of a tick must not exceed
+    ///     <c>max(1, base * count / ticks)</c>, so many ticks label only the powers and the first multiples, few ticks label all of them, and
+    ///     the digit of a fraction is read after the exponent (0.5 is a 5).
+    /// </summary>
+    [Fact]
+    public void Ticks_LogLabelTest_LabelsTheLeadingDigitsThatFit()
+    {
+        // 28 ticks for a count of 10: k = 10 * 10 / 28 = 3.57, so the digits 1, 2 and 3 are labeled and 4 to 9 are not
+        var crowded = Ticks.LogLabelTest(10, 10, 28);
+        Assert.All([1.0, 2, 3, 10, 20, 30, 100, 300, 1000, 0.1, 0.2, 0.3], tick => Assert.True(crowded(tick), $"{tick} is labeled"));
+        Assert.All([4.0, 5, 9, 40, 90, 400, 0.4, 0.5, 0.7, 0.9], tick => Assert.False(crowded(tick), $"{tick} is not labeled"));
+
+        // A count of 3 with 28 ticks gives k = 1.07: only the powers
+        var powers = Ticks.LogLabelTest(10, 3, 28);
+        Assert.True(powers(1));
+        Assert.True(powers(1000));
+        Assert.True(powers(0.01));
+        Assert.False(powers(2));
+
+        // Few ticks label every digit (k = 20 here), also the 9
+        var sparse = Ticks.LogLabelTest(10, 10, 5);
+        Assert.True(sparse(9));
+        Assert.True(sparse(900));
+
+        // The magnitude decides, so the ticks of a negative domain are labeled by the same rule; zero has no leading digit
+        Assert.True(crowded(-300));
+        Assert.False(crowded(-400));
+        Assert.False(crowded(0));
+    }
+
+    /// <summary>
+    ///     Validates the tick dispatch by scale: log scales use the log ticks, pow, sqrt and symlog scales use the d3 ticks of their domain,
+    ///     as the scales of d3 do.
+    /// </summary>
+    [Fact]
+    public void Ticks_ModelTicks_DispatchesByTheTransform()
+    {
+        var log = ScaleModel.CreateLinear([1, 100], [0, 100], transform: ScaleTransform.Log(10));
+        var token = TestContext.Current.CancellationToken;
+        Assert.Equal(LogTicks(1, 100, 10, 10), Ticks.ModelTicks(log, 10, 1_000, token));
+        var square = ScaleModel.CreateLinear([0, 100], [0, 100], transform: ScaleTransform.Pow(2));
+        Assert.Equal(Ticks.GetTicks(0, 100, 5), Ticks.ModelTicks(square, 5, 1_000, token));
+        var symlog = ScaleModel.CreateLinear([-100, 100], [0, 100], transform: ScaleTransform.Symlog(1));
+        Assert.Equal([-100.0, -50, 0, 50, 100], Ticks.ModelTicks(symlog, 4, 1_000, token));
+        Assert.Equal(Ticks.GetTicks(0, 10, 5), Ticks.ModelTicks(ScaleModel.CreateLinear([0, 10], [0, 1]), 5, 1_000, token));
+        Assert.Throws<ArgumentNullException>(() => Ticks.ModelTicks(null!, 5, 1_000, token));
+    }
 }

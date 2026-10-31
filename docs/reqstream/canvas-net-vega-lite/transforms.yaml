@@ -9,7 +9,7 @@
 # algorithm, the aggregate and window operations, and the stack rules); and the EncodingPlan unit that derives the
 # implicit bin, aggregate, and stack of the encoding and runs them after the transforms. Time-unit and
 # statistical transforms are deferred to later phases and are reported by the FeatureCatalog; selection
-# parameters and conditional encodings stay deferred. Each requirement
+# parameters and conditions on a parameter stay deferred. Each requirement
 # here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
 # for the test-evidence mapping.
 

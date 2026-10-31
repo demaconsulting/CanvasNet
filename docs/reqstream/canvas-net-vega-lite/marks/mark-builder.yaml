@@ -41,6 +41,20 @@ sections:
                   - MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd
                   - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
 
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-SignedStacks
+                title: >-
+                  The MarkBuilder unit shall draw the layers of a stack with negative values hanging below (or,
+                  on a horizontal measure, left of) the zero baseline - the positive layers from zero up and
+                  the negative layers from zero down, separately, in both orientations, an all-negative stack
+                  entirely below zero, and the offsets center and normalize by the absolute values - each layer
+                  from its stack start to its stack end whichever of the two is the larger.
+                justification: |
+                  A chart of takings and outgoings is a stacked chart on both sides of zero; a negative layer
+                  drawn above the baseline or on top of the positive layers would reverse its meaning.
+                tests:
+                  - MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations
+                  - CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero
+
               - id: CanvasNetVegaLite-Marks-MarkBuilder-BinnedBars
                 title: >-
                   The MarkBuilder unit shall draw a bar or rect on a binned continuous channel across its bin
@@ -109,6 +123,48 @@ sections:
                   The channels carry additional data in a chart and their defaults decide its look.
                 tests:
                   - MarkBuilder_Build_ColorSizeAndOpacityUseExpectedProperties
+                  - MarkBuilder_Build_InvalidValuesOfContinuousChannelsDropTheRow
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ContinuousColors
+                title: >-
+                  The MarkBuilder unit shall color each item of a color, fill, or stroke channel from the scale of
+                  the channel whatever its kind - the color of the ramp (sequential or diverging, with its
+                  domain, reversal, and middle value) for a continuous scale, the color of the class of the
+                  value for a quantize, quantile, or threshold scale (a value on a threshold belonging to the
+                  class above), and
+                  the color of the category for an ordinal scale - as the fill of a filled mark and the
+                  stroke of an unfilled one, and shall not draw a row whose value on a continuous color scale is not a
+                  number.
+                justification: |
+                  A continuous or binned color encoding is the second most common way to show a measure, and the
+                  default mark color it replaced hid the data.
+                tests:
+                  - MarkBuilder_Build_SequentialColorInterpolatesTheRange
+                  - MarkBuilder_Build_DefaultRampReverseAndDivergingColors
+                  - MarkBuilder_Build_DiscretizedColorsGiveTheColorOfTheClass
+                  - MarkBuilder_Build_RampColorsPaintBarsRectsRulesAndTicks
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-StrokeAndSymbolChannels
+                title: >-
+                  The MarkBuilder unit shall give each item its stroke width, fill opacity, stroke opacity, and
+                  stroke dash pattern from the strokeWidth, fillOpacity, strokeOpacity, and strokeDash channels
+                  (a field through the scale, a value as given) in preference to the mark definition, and give
+                  each symbol its shape from the shape channel (a symbol name, a custom path being kept as
+                  written), its angle from the angle channel, and its size from a quantize, quantile, threshold, or
+                  ordinal size scale; and shall ignore the shape, angle, and strokeDash channels of a mark that does
+                  not draw them.
+                justification: |
+                  These channels carry the remaining encodings that distinguish items without color, and a mark
+                  that cannot draw one must not be altered by it.
+                tests:
+                  - MarkBuilder_Build_ShapeChannelChoosesTheSymbolOfEachRow
+                  - MarkBuilder_Build_EveryShapeNameReachesTheSymbol
+                  - MarkBuilder_Build_StrokeWidthChannelScalesAndOverridesTheMark
+                  - MarkBuilder_Build_StrokeDashChannelChoosesThePatternOfEachRow
+                  - MarkBuilder_Build_FillAndStrokeOpacityChannelsScaleIndependently
+                  - MarkBuilder_Build_AngleChannelRotatesTheSymbols
+                  - MarkBuilder_Build_SizeOnDiscretizingScalesUsesTheClassOfTheValue
+                  - MarkBuilder_Build_NewChannelsAreDeterministic
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-ExpressionValues
                 title: >-
@@ -130,7 +186,9 @@ sections:
                   The MarkBuilder unit shall fail with a located VegaLiteRenderException when the number of scene items
                   would exceed the scene-item limit, counting the marks group and each item before it is created (a row
                   that draws nothing costs nothing; a limit of N allows exactly N items), shall stop with an
-                  OperationCanceledException when the cancellation token is canceled, and shall build nothing for a mark
+                  OperationCanceledException when the cancellation token is canceled, shall fail with a located
+                  VegaLiteRenderException for a dash pattern of more than 64 entries (of the mark, a channel value,
+                  or a scale range), and shall build nothing for a mark
                   type it does not support.
                 justification: |
                   Marks scale with the data, so their number and their time must be bounded.
@@ -138,4 +196,64 @@ sections:
                   - MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks
                   - MarkBuilder_Build_BudgetCountsOnlyTheItemsThatAreCreated
                   - MarkBuilder_Build_StackedAndBinnedMarksRespectTheBudgetAndCancellation
+                  - MarkBuilder_Build_LongDashPatternsExceedTheLimit
+                  - MarkBuilder_Build_NewChannelsHonorCancellationAndTheSceneBudget
                   - CanvasNetVegaLite_SystemIntegration_Limits_SceneItemLimitIsExactAtTheBoundary
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-LogScales
+                title: >-
+                  The MarkBuilder unit shall draw the marks of a log, pow, sqrt, or symlog scale at the transformed
+                  positions, start the bars of a log axis at the start of the domain (not stacked), and leave out
+                  a row whose value the scale cannot map (a number that is not above zero on a log scale) instead of
+                  drawing it at a position that is not a number.
+                justification: |
+                  A bar or point must sit where the transformed scale puts its value, and a value outside the scale
+                  must not produce an invalid scene item.
+                tests:
+                  - MarkBuilder_Build_LogScaleBarsStartAtTheBaselineAndSkipValuesTheLogCannotMap
+                  - CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue
+                  - CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-BinnedChannels
+                title: >-
+                  The MarkBuilder unit shall draw the marks of a binned field on a color, fill, stroke, size, or other
+                  scale channel with the value of the scale at the start of the bin of the row (the color of the bin
+                  for a bin-ordinal scale, the size of the start of the bin for a linear one), color the bars of a
+                  histogram by the bin they count when the color channel bins the field as the x channel does, charge
+                  the scene items before creating them, and observe the cancellation token.
+                justification: |
+                  The marks are what the reader sees of a binned encoding; each must carry the class of its own bin.
+                tests:
+                  - MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin
+                  - MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin
+                  - MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin
+                  - MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
+                title: >-
+                  The MarkBuilder unit shall evaluate the test of each condition of a color, fill, stroke,
+                  opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, or angle
+                  channel for every row with the expression engine, give the row the value (or the scaled
+                  field) of the first condition that holds, else the value or scale of the channel, else the
+                  default of the mark, ignore the conditions on a parameter, charge the evaluation to the step
+                  budget, observe the cancellation token, and give the same items on every call.
+                justification: |
+                  A conditional encoding is how a chart highlights the rows that match a test; the first match
+                  must win and the rest must look exactly as they do without the condition.
+                tests:
+                  - MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds
+                  - MarkBuilder_Build_ConditionWithoutBaseValueLeavesTheMarkDefault
+                  - MarkBuilder_Build_FirstConditionThatHoldsWins
+                  - MarkBuilder_Build_FieldConditionUsesTheScaleOfItsFieldWhereTheTestHolds
+                  - MarkBuilder_Build_FieldWithValueConditionMapsTheFieldElsewhere
+                  - MarkBuilder_Build_NumericChannelConditionsGiveValuesAndKeepDefaults
+                  - MarkBuilder_Build_FillAndStrokeOpacityConditionsApplyPerRow
+                  - MarkBuilder_Build_ShapeAndDashConditionsApplyPerRow
+                  - MarkBuilder_Build_PredicateObjectTestsAreEvaluated
+                  - MarkBuilder_Build_TestReadsVariableParametersAndMissingFieldsDoNotHold
+                  - MarkBuilder_Build_ParameterConditionIsNotApplied
+                  - MarkBuilder_Build_ConditionsApplyToBarsTicksAndRules
+                  - MarkBuilder_Build_SizeConditionGivesTheThicknessOfABar
+                  - MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget
+                  - MarkBuilder_Build_CanceledTokenStopsTheEvaluation
+                  - MarkBuilder_Build_ConditionalMarksAreDeterministic

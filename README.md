@@ -154,12 +154,12 @@ for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart
 `canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
 title, and schema version without drawing it. The library implements a defined subset of the language (one view with
 inline, local-file, named, or generated data; the row, aggregating, binning, and stacking transforms with a subset of the
-expression language and static parameters; bar, rect, point, circle, square, rule, and tick marks; x, y, color, fill,
-stroke, size, and opacity encodings), draws only the bundled fonts, and never reads the network; a chart's CSV, TSV,
-DSV, or JSON data file is read from the folder of its specification and below it only (there is no data-folder option,
-and a missing file is a `vega-lite-error`); everything else (other marks, layers, remote data, and so on) is left out
-and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first such report into a failure). A
-malformed or invalid specification is the error `vega-lite-error`.
+expression language and static parameters; bar, rect, point, circle, square, rule, and tick marks; position, color,
+size, shape, and opacity encodings with legends and color schemes), draws only the bundled fonts, and never reads the
+network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of its specification and below it only
+(there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks, layers,
+remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
+such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
@@ -478,8 +478,12 @@ text and sourcing/provenance details.
 The `DemaConsulting.CanvasNet.VegaLite` package (and the `canvasnet` tool, which bundles it) implements the public
 Vega-Lite specification language and contains a small number of values and algorithms that were ported, with
 attribution, from the Vega and Vega-Lite projects (BSD-3-Clause, Copyright (c) University of Washington Interactive
-Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, and d3-scale-chromatic (ISC, Copyright Mike
-Bostock). The license texts ship in the packages under `licenses/`; see
+Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, d3-scale-chromatic, d3-interpolate, and d3-color (ISC,
+Copyright Mike Bostock), and its color schemes include the ColorBrewer colors (Apache-2.0, Copyright Cynthia Brewer,
+Mark Harrower, and The Pennsylvania State University), the Turbo color map (Apache-2.0, Copyright Google LLC), the
+cividis color map (Battelle Memorial Institute license), and the matplotlib colormaps viridis, magma, inferno, and
+plasma (CC0, by Nathaniel J. Smith, Stefan van der Walt, and Eric Firing). The license texts ship in the packages under
+`licenses/`; see
 [the third-party notice][link-vegalite-third-party] (`src/DemaConsulting.CanvasNet.VegaLite/third-party`) for the
 license texts and the record of what was ported from where. The package is not affiliated with or endorsed by the
 Vega project, the Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab.

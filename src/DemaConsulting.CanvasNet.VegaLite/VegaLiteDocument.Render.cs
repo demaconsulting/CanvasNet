@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, stack, impute) run in the order of the specification, the
 ///     encoding's own bin, aggregate and stack run on the result (Vega-Lite's implicit stage, see <see cref="EncodingTransforms"/>), the scales are resolved over the
 ///     Raw and Main tables that stage produced,
-///     the axes, the marks and the title are built, the view
+///     the axes, the legends, the marks and the title are built, the view
 ///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A composition
 ///     (layer, concat, facet, repeat) is not drawn yet: only its title and background are. The private pipeline
 ///     methods at the end of this file are the seam that later stages extend; the public methods, their validation order and
@@ -341,7 +341,7 @@ public sealed partial class VegaLiteDocument
         }
 
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
-        // has, then the title, the axes (per pass), the marks group and the marks
+        // has, then the title, the axes and the legends (per pass), the marks group and the marks
         var budget = new SceneBudget(options.Limits.MaxSceneItems);
         budget.Add(2, root.GetLocation(_tree.SourceName));
         var scales = data is null || plan is null ? null : ScaleResolver.Resolve(root, plan, data, config, _tree.SourceName, options.Limits, cancellationToken);
@@ -360,13 +360,15 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Builds the axes and the marks of a single view and lays the chart out around them.
+    ///     Builds the axes, the legends and the marks of a single view and lays the chart out around them.
     /// </summary>
     /// <remarks>
-    ///     The axes need the size of the data rectangle (tick counts, positions) and the data rectangle can depend on the
-    ///     axes (a <c>"container"</c> size leaves the room the axes do not need), so the two are iterated until the rectangle
-    ///     does not change; for a fixed size the first pass is final. The marks are built once, for the final rectangle. The
-    ///     axes come first in the view group, so that they are drawn behind the marks (Vega-Lite's default axis z-index).
+    ///     The axes and the legends need the size of the data rectangle (tick counts, positions, the length of a gradient) and the data
+    ///     rectangle can depend on them (a <c>"container"</c> size leaves the room the axes and the legends do not need), so they are
+    ///     iterated with the layout until the rectangle does not change; for a fixed size the first pass is final. The legends are placed
+    ///     outside the axes and add their reach to that of the axes before the title is laid out, so a legend outside the data rectangle
+    ///     makes the canvas larger. The marks are built once, for the final rectangle. The
+    ///     axes come first in the view group, so that they are drawn behind the marks (Vega-Lite's default axis z-index), and the legends last.
     /// </remarks>
     /// <param name="inputs">What the stages need.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
@@ -376,15 +378,21 @@ public sealed partial class VegaLiteDocument
         var sourceName = _tree.SourceName;
         var budget = inputs.Budget;
         var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName);
+        var legendSpecs = LegendPlan.Create(_tree.Root, inputs.Scales, inputs.Config, sourceName);
+        var legendBuilder = new LegendBuilder(inputs.Measurer, inputs.Limits, sourceName);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
         var axes = new List<AxisResult>();
+        var legends = new LegendPlacement([], SceneBounds.Empty);
         var passBudget = budget;
         for (var pass = 0; pass < 3; pass++)
         {
-            // Each pass builds the axes afresh, so each is charged to a fork; only the pass that is kept is adopted
+            // Each pass builds the axes and the legends afresh, so each is charged to a fork; only the pass that is kept is adopted
             passBudget = budget.Fork();
             axes = BuildAxes(inputs, axisBuilder, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
-            var extents = AxisBuilder.GetExtents(axes, measure.DataWidth, measure.DataHeight);
+            legends = BuildLegends(legendSpecs, legendBuilder, inputs, axes, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
+
+            // The legends join the axes in what the data rectangle needs around it, before the title is laid out
+            var extents = LegendLayout.Combine(AxisBuilder.GetExtents(axes, measure.DataWidth, measure.DataHeight), legends.Bounds, measure.DataWidth, measure.DataHeight);
             var next = ViewLayout.Measure(inputs.Request, extents, inputs.Title);
             var stable = Math.Abs(next.DataWidth - measure.DataWidth) < 1e-9 && Math.Abs(next.DataHeight - measure.DataHeight) < 1e-9;
             measure = next;
@@ -395,9 +403,9 @@ public sealed partial class VegaLiteDocument
         }
 
         budget.Adopt(passBudget);
-        var content = new List<SceneItem>(axes.Count * 2 + 1);
+        var content = new List<SceneItem>(axes.Count * 2 + legends.Groups.Count + 1);
 
-        // Vega-Lite draws the grids first, then the axes that are behind the marks, the marks, and last the axes in front of them
+        // Vega-Lite draws the grids first, then the axes that are behind the marks, the marks, the axes in front of them, and last the legends
         content.AddRange(axes.Where(a => a.Grid is not null).Select(a => (SceneItem)a.Grid!));
         content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
 
@@ -406,7 +414,38 @@ public sealed partial class VegaLiteDocument
             .Build(_tree.Root, inputs.Data.Main, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
         content.Add(marks);
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
+        content.AddRange(legends.Groups);
         return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content), inputs.Measurer);
+    }
+
+    /// <summary>
+    ///     Builds the legends of the view for a data rectangle and places them next to the data rectangle and the axes.
+    /// </summary>
+    /// <param name="specs">The planned legends.</param>
+    /// <param name="builder">The legend builder.</param>
+    /// <param name="inputs">What the stages need.</param>
+    /// <param name="axes">The axes of the pass (the legends are placed outside them).</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="budget">The budget of scene items the legends of the pass are charged to.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The placed legends; empty when the view has none.</returns>
+    private static LegendPlacement BuildLegends(IReadOnlyList<LegendSpec> specs, LegendBuilder builder, ChartInputs inputs, IReadOnlyList<AxisResult> axes, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
+    {
+        if (specs.Count == 0)
+        {
+            return new LegendPlacement([], SceneBounds.Empty);
+        }
+
+        var built = new List<LegendResult>(specs.Count);
+        foreach (var spec in specs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            built.Add(builder.Build(spec, width, height, budget, cancellationToken));
+        }
+
+        var (horizontal, vertical) = LegendLayout.AxisBounds(axes, width, height);
+        return LegendLayout.Place(built, inputs.Config, horizontal, vertical, width, height);
     }
 
     /// <summary>

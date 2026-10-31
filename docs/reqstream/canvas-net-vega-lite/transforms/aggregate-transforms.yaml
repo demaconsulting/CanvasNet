@@ -259,7 +259,9 @@ sections:
                   default; the others only when stack is set), the measure channel (the aggregated one, else
                   the one that the orientation names), the offset (zero by default for a stackable-by-default
                   mark, zero, center, or normalize when asked, none for an explicit null or false), no stack
-                  for a range with a secondary channel or for an aggregate without a stack-by channel, and
+                  for a range with a secondary channel, for an aggregate without a stack-by channel, or for a
+                  measure whose scale type is log, pow, sqrt, or symlog (Vega-Lite does not stack on a
+                  non-linear scale), and
                   the channels that divide the stack into layers (color, detail, and the order channel, but
                   not tooltip).
                 justification: |
@@ -268,6 +270,8 @@ sections:
                 tests:
                   - StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields
                   - StackRules_Decide_ReturnsNullWhenNothingIsStacked
+                  - StackRules_Decide_NonLinearScaleTypesDoNotStack
+                  - StackRules_Decide_AreaStacksByDefaultInBothOrientations
                   - StackRules_Decide_ListsTheStackByDefinitionsInChannelOrder
                   - StackRules_Decide_HandlesMissingArguments
                   - StackRules_Helpers_ClassifyDefinitionsAndSwitches

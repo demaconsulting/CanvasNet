@@ -63,14 +63,20 @@ Asserts that one original specification that deliberately uses a version 4 schem
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
 composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
-unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin`, a log scale with a scheme, a legend with
-`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-two reports whose
+unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported, so it is silent), a log
+scale on a nominal field with a scheme
+(which
+cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
+`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-one reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
-`/data/format/parse/d`, `vl-encoding-bin` at `/encoding/color/bin`, and `vl-mark-geoshape` at `/layer/0/mark`; the local
+`/data/format/parse/d`, `vl-encoding-condition` at `/encoding/y/condition`, and `vl-mark-geoshape` at
+`/layer/0/mark`; the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
 `filter` transforms, and the `aggregate`, `bin`, `stack`, and `sort` of `y` are silent, and no `vl-expr-calculate`,
 `vl-expr-filter`, `vl-param-variable`, `vl-encoding-aggregate`, `vl-encoding-stack`, or `vl-encoding-sort` is produced for
-them), that only the schema version is a warning while every other report is an unsupported feature, that
+them), that the schema version, the ignored sort, and the ignored scale type are the only warnings while
+every other report is an unsupported feature,
+that
 all carry a file, line, column, and message (the schema report is at line 2, column 14), and that the supported
 `tooltip` channel is absent; that reports are sorted by position in the text and not by the order in which the
 constructs are visited (an encoding written before the mark, a nested view before the parent's later properties);
@@ -80,15 +86,20 @@ and that the location of a mark report is the value of the `mark` property, with
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedMarkReportsMarkId`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
 `FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`
 
 Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`
 are silent and that `arc`, `area`, `image`, `line`, `text`, `trail`, `geoshape`, `boxplot`, `errorbar`, and
 `errorband` each report `vl-mark-<type>` at the mark; that every channel except `x`, `y`, `color`, `fill`, `stroke`,
-`size`, and `opacity` reports `vl-channel-<name>` (the four geographic channels sharing one identifier) while
+`size`, `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
+`vl-channel-<name>` (the four geographic channels sharing one identifier) while
 `tooltip`, `href`, `description`, and `key` are accepted silently, with the exception of the secondary position channels
 and `order`, which are reported only when the mark cannot draw the range or no stack uses the order (see the encoding
-rules below), as the `x2` and `order` of a point mark show; and that an unknown channel name is not reported
+rules below), as the `x2` and `order` of a point mark show; that, as a theory over nine marks and channels, `shape` is
+silent for a `point` and reported with its own identifier (and ignored) for a `circle` or a `bar`, `angle` is silent for
+a `point` and a `square` and reported for a `tick`, and `strokeDash` is silent for a `bar` and a `rule` and reported for
+a `rect`; and that an unknown channel name is not reported
 again by the catalog (the parser warns about it once).
 
 ##### Data
@@ -130,10 +141,18 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
 `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypesAndPropertiesReportOutsideTheSupportedSubset`,
-`FeatureCatalogTests.FeatureCatalog_Visit_ColorSchemesAndContinuousColorsReportOutsideTheSupportedSubset`,
+`FeatureCatalogTests.FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CubehelixInterpolationIsReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CustomPathShapesAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed`,
+`FeatureCatalogTests.FeatureCatalog_Visit_SchemeNamesAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes`
 
-Asserts that the encoding identifiers that remain (`vl-encoding-bin` for a channel other than `x` and `y`,
+Asserts that the encoding identifiers that remain (`vl-encoding-bin` for `bin: "binned"` on a channel other than `x` and
+`y`,
 `vl-encoding-impute`, and `vl-encoding-bandposition`) are reported only when the property changes the chart (`bin: false`
 and `null`, `stack: false` and `null`, a `null` aggregate, an ascending sort shorthand, a `null` sort, an array sort, and
 a sort that names an `encoding` are silent, as are `timeUnit: null` and `impute: null`), and that the identifiers of the
@@ -145,19 +164,35 @@ order fields, a bar with two measures that Vega-Lite reads as vertical, a horizo
 explicit `stack: true`) and reported as `vl-channel-order` otherwise (with `stack: null`, or for a point mark that does
 not stack); that a secondary position channel is silent for a `bar`, `rect`, or `rule` that has the channel it extends and
 is reported as `vl-channel-x2` or `vl-channel-y2` for a `point` or a `tick` or for a bar without the primary channel; that
-an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack together with
-`vl-scale-log`; that unsupported scale types and properties report
-`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not; that a color scheme other than
-`tableau10` reports `vl-scale-property-scheme` and a quantitative color field reports `vl-scale-color-ramp`; and that
+an explicit `stack` on a log scale reports `vl-encoding-stack-nonlinear` at the stack (and nothing else: the log type is
+supported, and the message says that the marks are not stacked); that the unsupported scale type `identity` and the
+property `bins` report
+`vl-scale-<type>` and `vl-scale-property-<name>` while the supported subset does not, that the `bin` of a color, fill,
+stroke, size, opacity, stroke width, and the other channels that have a scale and the `bin-ordinal` scale type of a
+binned quantitative color report nothing, that `bin: "binned"` on a channel other than `x` and `y` and a `bin` of a secondary
+channel report `vl-encoding-bin` at the `bin`, and that a `bin-ordinal` type on a field that is not binned, on a
+nominal field, and on a size, shape, or opacity warns `vl-scale-type-ignored`, and that the log, pow, sqrt, and
+symlog types with their `base`, `exponent`, and `constant` (on position, size, color, and opacity channels) produce no
+report at all; that continuous color scales, the
+color schemes of every kind, and the scheme object, `domainMid`, `domainMin`, `domainMax`, `rangeMin`, `rangeMax`, and
+`interpolate` produce no report (the identifier `vl-scale-color-ramp` is retired), while a cubehelix interpolation reports
+`vl-scale-interpolate-cubehelix`, a shape that is a custom path reports `vl-shape-path` (the mark, the channel value, and
+the scale range) and every symbol name is silent; that the shape, angle, and stroke dash channels are silent for the marks
+that draw them (`point`; `point`, `circle`, `square`; every mark but `rect`) and reported and ignored for the others;
+that an explicit scale type that the channel or the field type cannot use warns `vl-scale-type-ignored` (a quantitative
+field on `shape` or `strokeDash` as well) while accepted types and types reported otherwise do not; and that
 guide `encode`, `labelExpr`, `formatType`, and the listed unsupported axis properties are reported while the honored
 properties are not.
 
 ##### Legends
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreReportedOnlyWhenOneWouldBeDrawn`
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported`
 
-Asserts that `vl-guide-legend` is reported for field-driven color, size, and opacity channels unless the legend or
-the scale is `null`, and never for value definitions, the data, or position channels.
+Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
+not drawn are reported once each at the exact property (`vl-guide-legend-titleorient` for a title orient other than
+`top`, `vl-guide-legend-clipheight`, `vl-expr-label`, `vl-format-type-custom`, `vl-shape-path` for a symbol type that
+is a path, and `vl-guide-encode`), in document order, and that a `titleOrient` of `top`, a `null` legend, a null scale,
+and a legend object on a position channel produce no report.
 
 ##### Transforms, Expressions, Parameters, Compositions, And Autosize
 
@@ -212,7 +247,7 @@ Asserts that a drawn view with a selection parameter and the twelve transforms `
 `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports only
 `vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`timeunit`, `regression`, `loess`,
 `density`, `quantile`, and `extent`, with `timeunit` in lower case) at their indexes 6 to 11 in document order, and the
-conditional encoding as `vl-encoding-condition`, while the six aggregating transforms are computed and silent.
+conditions on a parameter as `vl-encoding-condition-param`, while the six aggregating transforms are computed and silent.
 
 ##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
 
@@ -221,7 +256,7 @@ conditional encoding as `vl-encoding-condition`, while the six aggregating trans
 
 Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear scale,
 a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports only
-`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` and `vl-encoding-bin` at `/encoding/color/bin` (the `x2`
+`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` (the binned color is supported and silent; the `x2`
 draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that every
 aggregating transform of a nested view, which is not drawn, is still reported by name (`vl-transform-aggregate`,
 `-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/layer/0/transform/0` to `/5`, after
@@ -264,5 +299,36 @@ Asserts, as a theory of sixteen sort forms, that `ascending`, an array, a sort o
 `count`, `median`, `valid`, or `q1`) and an optional field and order (also an `order` of null), a sort object with
 only a `field`, the `encoding` form that names a channel of the encoding (`y`), and the channel shorthands `-y` and `x`
 are silent, and that the forms that the scale resolver does not compute — an `encoding` that names a channel the
-encoding does not have (`color`), the operations `values` and `exponential`, and the shorthand `-color` — report
-`vl-encoding-sort`.
+encoding does not have (`color`), the operations `values` and `exponential`, and the shorthand `-color` — report `vl-encoding-sort`.
+
+##### Sort Diagnostics: A Missing Channel Is Named And A Continuous Scale Ignores The Sort
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SortOfAMissingChannelNamesTheChannel`,
+`FeatureCatalogTests.FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning`
+
+Asserts, as a theory of five encodings, that a sort that refers to a channel the encoding lacks (`{"encoding":"y"}`
+without a `y`, `"-y"` when `y` has only a `value`, the shorthand `color`, and `{"encoding":"size"}` with a `size` that
+has only a `value`) is one unsupported `vl-encoding-sort` at `/encoding/x/sort` whose message says that the sort refers
+to the named channel and that the categories are sorted ascending, and that an operation that cannot order categories
+(`values`) keeps the operation message; and, as a theory of thirteen definitions, that a sort array (also an empty one),
+a channel shorthand, and a sort object with a field or an operation on a quantitative field with a continuous scale (or
+an explicit `linear` scale) are one `vl-encoding-sort-ignored` warning at the sort, while `ascending`, `descending`, `null`,
+an object that has only an order, a nominal or ordinal field, and a quantitative field with a `band` scale type are not
+reported.
+
+##### Conditional Encodings Are Reported Only Where They Are Not Applied
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ConditionsWithATestAreNotReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited`
+
+Assert, as a theory of five color definitions, that a condition with an expression test, with a predicate object, with
+a composition of a range and a negated set, with a field, and an array of conditions on a field are not reported; that a
+condition on a `param` is `vl-encoding-condition-param` at the condition (at the item of an array), and a selection
+inside a composition at the `param` of the test; that a `timeUnit`, and a date object inside an `or`, are
+`vl-encoding-condition-test` at the predicate that holds them (and not for the part that is supported); that a
+condition on
+`x` is `vl-encoding-condition` at the condition; and that a function outside the list in a test or in a `value.expr`
+is `vl-expr-function-now` at the text, and a `temporal` field in a field condition is `vl-type-temporal` at its `type`.

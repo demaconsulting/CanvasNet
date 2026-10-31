@@ -1,0 +1,43 @@
+Third-party license notice: ColorBrewer color schemes
+=====================================================
+
+DemaConsulting.CanvasNet.VegaLite contains the color values of ColorBrewer color
+schemes (the qualitative sets accent, dark2, paired, pastel1, pastel2, set1,
+set2 and set3, and the sequential and diverging ramps that Vega names blues,
+greens, greys, oranges, purples, reds, blueGreen, bluePurple, greenBlue,
+orangeRed, purpleBlue, purpleBlueGreen, purpleRed, redPurple, yellowGreen,
+yellowOrangeBrown, yellowOrangeRed, brownBlueGreen, purpleGreen, purpleOrange,
+redBlue, redGrey, yellowGreenBlue, redYellowBlue, redYellowGreen,
+pinkYellowGreen and spectral), which it takes from the palette tables of Vega
+(https://github.com/vega/vega) and of d3-scale-chromatic
+(https://github.com/d3/d3-scale-chromatic).
+
+The ColorBrewer color schemes are licensed under the Apache License, Version
+2.0. The notice below is reproduced exactly as published in the license file of
+d3-scale-chromatic (https://github.com/d3/d3-scale-chromatic/blob/main/LICENSE),
+and the text of the Apache License, Version 2.0 is shipped in the file
+LICENSE-apache-2.0.txt next to this file.
+
+This project is not affiliated with, and is not endorsed or promoted by,
+Cynthia Brewer, Mark Harrower, The Pennsylvania State University or the
+ColorBrewer project.
+
+
+--------------------------------------------------------------------------
+ColorBrewer (http://colorbrewer2.org/)
+--------------------------------------------------------------------------
+
+Apache-Style Software License for ColorBrewer software and ColorBrewer Color Schemes
+
+Copyright 2002 Cynthia Brewer, Mark Harrower, and The Pennsylvania State University
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.

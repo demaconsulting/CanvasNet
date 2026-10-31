@@ -22,7 +22,7 @@ internal readonly record struct ViewPadding(double Left, double Top, double Righ
 }
 
 /// <summary>
-///     How far the guides of a view (axes, later legends) reach beyond the data rectangle on each side.
+///     How far the guides of a view (axes and legends) reach beyond the data rectangle on each side.
 /// </summary>
 /// <param name="Left">The reach to the left of the data rectangle (an axis at the left), 0 or more.</param>
 /// <param name="Top">The reach above the data rectangle, 0 or more.</param>

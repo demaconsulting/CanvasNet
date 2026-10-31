@@ -119,12 +119,16 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scales/ticks.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/number-format.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/color-schemes.yaml
+  - docs/reqstream/canvas-net-vega-lite/scales/color-interpolator.yaml
   - docs/reqstream/canvas-net-vega-lite/guides.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/text-measurer.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/title-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/axis-builder.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
+  - docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/marks.yaml
   - docs/reqstream/canvas-net-vega-lite/marks/mark-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph.yaml

@@ -159,7 +159,8 @@ to the baseline constitutes a failure.
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
   transforms of the drawn view are computed and not reported, while the transforms of later phases (`timeUnit`,
   `regression`, `loess`, `density`, `quantile`, and `extent`), every transform of a nested view, the selection
-  parameters, the conditional encodings, and the parts of the supported transforms that are not computed (a selection
+  parameters, the conditions on a channel that takes none, and the parts of the supported transforms that are not
+  computed (a selection
   or a time unit in a filter, a pivot operation other than `sum` and `count`, a lookup in a parameter, a bin extent that
   is a parameter) are reported once each in document order, are skipped by the executor, and the chart is still drawn;
   a time unit next to the aggregate of the fixture is the one report, which strict mode turns into an exception.

@@ -34,6 +34,17 @@ The pixel expectations are analytic:
   [12, 20) by [2, 10); a clip on [2.5, 7.5) by [0, 5) is half covering at its edge columns (red over white gives 127
   or 128 in green and blue) and full inside, and an inner clip cuts the outer one to the intersection [8, 14) by
   [8, 14).
+- Gradients: a 100 by 20 rectangle at (10, 10) filled from red to blue runs along its box, so a pixel column whose center
+  is at distance d from the left edge has the fraction d / 100 of the way: the column at 59 (center 59.5) is 0.495,
+  which is red 255 x 0.505 = 128.8 and blue 255 x 0.495 = 126.2, and the adjacent columns differ by 2.55 levels (the
+  assertions allow a few levels for rounding); the first and last columns are within 3 levels of the end colors, and
+  the pixels outside the box stay white. A 20 by 100 legend gradient from black (bottom) to white (top) is dark at the
+  bottom row and light at the top row, and the same in every column. Stops at 0.25 and 0.75 leave the first color
+  exactly on the first quarter and the last exactly on the last quarter (the end colors continue), and the middle is the
+  mean of the two colors; the stops red 0, red 0.5, blue 0.5, blue 1 give a hard step with red exactly up to column 59
+  and blue exactly from column 60 of a box that starts at 10. A circle of size 400 (20 by 20) centered at (60, 20) has its
+  gradient over its box (x from 50 to 70), so the center column is 0.525 of the way (134) while the corners of the box
+  stay white.
 - Symbols: a square of size (area) 100 has side 10 and covers [5, 15) by [5, 15); rotated by 45 degrees its corners
   move to the middle of the sides at a distance of 5 x sqrt(2) = 7.07; a circle of area 100 has diameter 10, with its
   center in and the corners of its box out and an area within the anti-aliasing error of the circle of radius 5; for
@@ -89,16 +100,37 @@ background; that a translucent background (`rgba(255, 0, 0, 0.5)`) keeps its alp
 Asserts the derived clipped, scaled, and fitted pixels, the half-covered edge pixels of a fractional clip, and the
 intersection of nested clips.
 
+##### Gradient Fills
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_GradientFillRunsAlongTheItemBox`,
+`ScenePainterTests.ScenePainter_Paint_GradientFollowsTheScaleAndTheEnclosingGroup`,
+`ScenePainterTests.ScenePainter_Paint_GradientOpacityReplacementAndFallback`,
+`ScenePainterTests.ScenePainter_Paint_GradientOnGroupSymbolAndPath`,
+`ScenePainterTests.ScenePainter_Paint_GradientIsDeterministic`
+
+Asserts the derived gradient pixels (horizontal, legend-style vertical, padded ends, and a hard step); that the gradient
+follows the scale of the placement and the translation of an enclosing group (a 50 by 10 rectangle in a group at (5, 5)
+covers columns 5 to 54 at a scale of one and 10 to 109 at a scale of two, with the middle grey in the middle of the
+box); that a half-transparent fill opacity gives (255, 127, 127) for a red gradient over white, that a fully transparent
+gradient draws nothing and does not fall back to the solid green fill that it replaces, that a gradient with only
+unusable stops (an unparseable color, a NaN offset), with no stops, or with a start that is not a number falls back to the
+solid fill, and that the stroke is drawn over a gradient fill; that a group background, a circle symbol, and a triangle
+path each use the bounding box of their own geometry (a text item with a gradient but no solid fill draws nothing); and
+that painting twice and from several threads gives identical pixels for a gradient with three stops, an alpha stop, a
+fractional box, and rounded corners.
+
 ##### Symbols
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_SymbolsCoverTheirDocumentedArea`,
-`ScenePainterTests.ScenePainter_SymbolPath_ShapesHaveVegaBounds`
+`ScenePainterTests.ScenePainter_SymbolPath_ShapesHaveVegaBounds`,
+`ScenePainterTests.ScenePainter_IsSymbolShape_KnowsTheDrawnShapes`
 
 Asserts the derived square, rotated square, and circle coverage and area; the bounding boxes for size 64 (radius 4) of
 `square`, `cross`, `diamond`, and `circle` (-4 to 4 in both directions), of `triangle-up` and `triangle-down` (-4 to 4
 by minus and plus 3.4641), of `triangle-right` and `triangle-left` (the transpose), of `stroke` (-4 to 4 by 0 to 0), and
-of an unknown shape (drawn as a circle); that `arrow`, `wedge`, and `triangle` have shapes; and that a size that is not
-positive has no shape.
+of an unknown shape (drawn as a circle); that `arrow`, `wedge`, and `triangle` have shapes; that a size that is not
+positive has no shape; and, as a theory, that `IsSymbolShape` is true for each of the twelve names that have a shape and
+false for another case of a name, the empty text, and an SVG path.
 
 ##### Paths, Rounded Rectangles, And Group Backgrounds
 

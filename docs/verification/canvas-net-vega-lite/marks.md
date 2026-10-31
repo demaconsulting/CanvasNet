@@ -50,6 +50,12 @@ the unit verification document passes without error or unexpected exception.
   `CanvasNetVegaLite_SystemIntegration_Render_CallerConfigOverridesSpecificationConfig` — the color, size, and opacity
   channels and the mark configuration (the definition over `config.point` over `config.mark`) set the paint of the items,
   and a caller configuration changes the chart.
+- **Ramp And Classified Colors, And The Stroke And Symbol Channels**:
+  `MarkBuilderChannelTests.MarkBuilder_Build_SequentialColorInterpolatesTheRange`,
+  `MarkBuilderChannelTests.MarkBuilder_Build_DiscretizedColorsGiveTheColorOfTheClass`,
+  `MarkBuilderChannelTests.MarkBuilder_Build_ShapeChannelChoosesTheSymbolOfEachRow` — the color of a row is the color of
+  its ramp position or class, and the shape, stroke width, dash pattern, opacities, and angle of a row come from their
+  channels, as the unit scenarios derive.
 - **Unsupported Marks Draw Nothing And Are Reported**:
   `MarkBuilderTests.MarkBuilder_Build_LimitsCancellationAndUnsupportedMarks`,
   `CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn` — a mark that is not drawn
@@ -62,9 +68,11 @@ the unit verification document passes without error or unexpected exception.
   `VegaLiteRenderException` at the mark's pointer before the memory is spent, and a canceled token stops the build.
 - **Stacked, Binned, And Ranged Marks Drawn Through The Whole Pipeline**:
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds`,
+  `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges`,
   `MarkBuilderTests.MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd`,
+  `MarkBuilderTests.MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations`,
   `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing` — the layers of a stack are drawn from their
   stack start to their end in their colors, the bars of a histogram fill their bins less a pixel of spacing (the bars at
   x = 1, 41, and so on, 39 pixels wide, for the bins 0 to 35 by 5 over 280 pixels), and the bars of pre-binned data span

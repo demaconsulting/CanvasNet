@@ -14,8 +14,10 @@
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, stack, and impute with a closed subset of the Vega expression language and static variable
 # parameters, the aggregate, bin, and stack of an encoding, the marks bar, rect, point, circle, square,
-# rule, and tick (with stacked, binned, and ranged geometry), linear, band, and point scales, axes, and
-# titles - and reports every recognized construct outside that subset with a stable vl-* identifier instead of
+# rule, and tick (with stacked, binned, and ranged geometry), the color, size, shape, opacity, stroke, and angle
+# channels with color schemes, linear, logarithmic, power, symlog, band, point, ordinal, and discretizing scales,
+# axes, legends, and titles - and reports every recognized construct outside that subset with a stable vl-*
+# identifier instead of
 # skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
 # never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
 # algorithms; the default configuration, view layout, and text layout follow Vega-Lite and Vega behavior.
@@ -174,11 +176,12 @@ sections:
       - id: CanvasNetVegaLite-SupportedSubset
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
-          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, and opacity
-          channels (and the x2 and y2 ranges of bar, rect, and rule) with field, value, and datum forms,
-          quantitative, nominal, and ordinal types, and
-          linear, band, and point scales with their documented properties - and shall draw each
-          supported construct without reporting it.
+          point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, opacity, fillOpacity,
+          strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2 and y2 ranges of
+          bar, rect, and rule) with field, value, and datum forms, quantitative, nominal, and ordinal
+          types, and the documented scale types (linear, log, pow, sqrt, symlog, sequential, band, point,
+          ordinal, quantile, quantize, threshold, and bin-ordinal) with their documented properties - and
+          shall draw each supported construct without reporting it.
         tags: [system]
         justification: |
           A renderer that claims general Vega-Lite support but draws a subset misleads its users; the
@@ -484,6 +487,175 @@ sections:
           - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
           - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
 
+      - id: CanvasNetVegaLite-ColorSchemes
+        title: >-
+          The library shall provide the 68 color schemes of Vega - categorical lists and continuous ramps,
+          including the ColorBrewer, matplotlib, cividis, and Turbo colors - with the colors, counts, and
+          interpolation of Vega (piecewise sRGB, with HSL, CIELAB, and HCL on request), culture-independently,
+          and shall distribute the license notices of those palettes (ColorBrewer and Turbo Apache-2.0, the
+          cividis license, the CC0 credit, and the d3 and Vega licenses) with the package.
+        tags: [system]
+        justification: |
+          A scheme name in a specification must give the colors that Vega gives, and the licenses of the
+          palettes require their notices to be reproduced in binary distributions.
+        children:
+          - CanvasNetVegaLite-Scales-ColorSchemeCatalog
+          - CanvasNetVegaLite-Scales-ColorInterpolation
+        tests:
+          - ColorSchemes_Catalog_HasSixtyEightSchemesWithUniqueNames
+          - ColorSchemes_Notices_ShipWithTheTablesAndNameEveryLicense
+          - ColorInterpolator_Interpolation_IsDeterministic
+
+      - id: CanvasNetVegaLite-ContinuousColor
+        title: >-
+          The library shall give a quantitative color, fill, or stroke field a continuous color scale as
+          Vega-Lite does - a sequential scale over the extent of the data (a diverging one with a middle
+          value) that maps a number to a color of the ramp, heatmap, or diverging range of the
+          configuration, of a named scheme with its extent, count, and reversal, or of a list of colors
+          interpolated in the color space that interpolate names - with the zero, nice, domain limit, and
+          clamp rules of Vega, and shall refuse an unknown scheme name or a malformed scheme with a located
+          specification error.
+        tags: [system]
+        justification: |
+          A continuous color encoding must look as it does in Vega-Lite, and a scheme that is misspelled or
+          malformed must be found where it is written rather than drawn as a guess.
+        children:
+          - CanvasNetVegaLite-Scales-ContinuousColors
+          - CanvasNetVegaLite-SpecModel-ScaleValidation
+          - CanvasNetVegaLite-Marks-ContinuousColorsAndChannels
+        tests:
+          - ScaleResolverColor_Default_QuantitativeColorIsSequentialWithTheRampScheme
+          - ScaleResolverColor_Scheme_UnknownNameIsASpecificationError
+          - MarkBuilder_Build_SequentialColorInterpolatesTheRange
+          - CanvasNetVegaLite_SystemIntegration_Colors_RampColorAndShapeChannelsAreDrawnInStrictMode
+          - CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated
+
+      - id: CanvasNetVegaLite-DiscretizingScales
+        title: >-
+          The library shall classify values with the quantize, quantile, threshold, and bin-ordinal scales
+          of Vega-Lite - the class boundaries, the class counts, and the scheme colors, spread sizes,
+          opacities, shapes, and dash patterns of each class - and shall give the strokeWidth, fillOpacity,
+          strokeOpacity, angle, shape, and strokeDash channels their scales with the documented default
+          ranges, under the scale-domain limit and the cancellation token.
+        tags: [system]
+        justification: |
+          Classified charts and the channels that vary a mark property per value depend on where the class
+          boundaries fall and on the default ranges, which must be those of Vega-Lite.
+        children:
+          - CanvasNetVegaLite-Scales-DiscretizingScales
+          - CanvasNetVegaLite-Scales-ChannelRanges
+        tests:
+          - ScaleResolverColor_Quantize_UsesFiveSchemeColorsOverEqualIntervals
+          - ScaleResolverColor_Limits_AreEnforcedBeforeAnythingIsBuilt
+
+      - id: CanvasNetVegaLite-Legends
+        title: >-
+          The library shall explain the color, size, shape, fill, stroke, stroke dash, stroke width, and
+          opacity channels of a chart with legends as Vega-Lite does - a symbol legend with an entry per
+          value, a color gradient for a continuous color scale, and bands for a discretizing one - merging the
+          legends of channels that share a domain, titling them like the axes, honoring the documented legend
+          properties and configuration, thinning overlapping labels, and bounding every legend by the limits
+          of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A chart with a color, size, or shape encoding cannot be read without its key, and the key must look
+          and measure as it does in Vega-Lite so that the chart around it is laid out the same.
+        children:
+          - CanvasNetVegaLite-Guides-Legends
+          - CanvasNetVegaLite-Guides-OverlapRemoval
+          - CanvasNetVegaLite-Layout-LegendPlacement
+        tests:
+          - LegendPlan_Merge_ChannelsOfTheSameDomainShareOneLegend
+          - LegendBuilder_Symbol_NominalColorOnAPointDrawsStrokedCirclesInOneColumn
+          - LegendBuilder_Gradient_ContinuousColorDrawsAVerticalBarWithTickLabels
+          - LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass
+          - LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated
+          - CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle
+          - CanvasNetVegaLite_SystemIntegration_Legend_QuantitativeColorDrawsAGradient
+          - CanvasNetVegaLite_SystemIntegration_Legend_DefaultColorRampOfAScatterPlotHasAGradientLegend
+          - CanvasNetVegaLite_SystemIntegration_Legend_SharedFieldsMergeAndOthersStack
+          - CanvasNetVegaLite_SystemIntegration_Legend_NullSwitchesTheLegendOff
+          - CanvasNetVegaLite_SystemIntegration_Legend_UnsupportedPropertiesAreReportedWithLocations
+          - CanvasNetVegaLite_SystemIntegration_Legend_LimitsAndCancellationApply
+          - CanvasNetVegaLite_SystemIntegration_Legend_RendersAreDeterministicAcrossThreads
+
+      - id: CanvasNetVegaLite-ExtendedScales
+        title: >-
+          The library shall draw quantitative fields on the log, pow, sqrt, and symlog scales of Vega-Lite
+          with their base, exponent, and constant, the zero, nice, clamp, and domain rules of Vega-Lite, the
+          log ticks and labels of d3, and axes and gradient legends that follow the transformed scale, and
+          shall refuse a log scale whose domain includes or crosses zero with a located error that names
+          the symlog scale, under the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          Positions, ticks, and legends on a non-linear scale must be those of Vega-Lite, and a domain that
+          a logarithm cannot draw must be found where it is written rather than drawn as an empty chart.
+        children:
+          - CanvasNetVegaLite-Scales-ScaleModel-Transforms
+          - CanvasNetVegaLite-Scales-ScaleResolver-TransformedScales
+          - CanvasNetVegaLite-Scales-Ticks-LogTicks
+          - CanvasNetVegaLite-Scales-Ticks-LogNice
+          - CanvasNetVegaLite-Scales-Ticks-LogLabels
+          - CanvasNetVegaLite-Scales-NumberFormat-FormatFloat
+          - CanvasNetVegaLite-Scales-NumberFormat-ZeroSpan
+          - CanvasNetVegaLite-Guides-AxisBuilder-LogAxis
+          - CanvasNetVegaLite-Guides-LegendBuilder-NonLinearScales
+          - CanvasNetVegaLite-Marks-MarkBuilder-LogScales
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_LogScale_BarsRiseByTheLogarithmOfTheirValue
+          - CanvasNetVegaLite_SystemIntegration_LogScale_ZeroInTheDataIsALocatedErrorAndSymlogDrawsIt
+          - CanvasNetVegaLite_SystemIntegration_SqrtAndSymlogScales_PointsSitAtTheTransformedPositions
+          - CanvasNetVegaLite_SystemIntegration_LogScale_ColorLegendLabelsThePowers
+          - CanvasNetVegaLite_SystemIntegration_LogScale_LimitsCancellationAndDeterminismApply
+
+      - id: CanvasNetVegaLite-BinnedChannels
+        title: >-
+          The library shall bin a quantitative, nominal, or ordinal field on the color, fill, stroke, size, opacity,
+          stroke width, stroke dash, shape, and angle channels as Vega-Lite does (its default numbers of bins, the bins
+          shared with the other channels that bin the field the same way), give a binned quantitative color the
+          bin-ordinal scale with one color per bin, draw each mark in the class of its bin, and explain the bins with
+          a legend whose entries are the ranges of the bins, under the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A binned color or size is how a continuous measure is classified in a chart; the classes and their key must be
+          those of Vega-Lite so that the chart reads the same.
+        children:
+          - CanvasNetVegaLite-Transforms-EncodingPlan-BinnedChannels
+          - CanvasNetVegaLite-Scales-ScaleResolver-BinOrdinal
+          - CanvasNetVegaLite-Guides-LegendBuilder-BinnedLegends
+          - CanvasNetVegaLite-Marks-MarkBuilder-BinnedChannels
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_CirclesTakeTheColorOfTheirBinAndTheLegendListsTheRanges
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_HistogramBarsAreColoredByTheirOwnBin
+          - CanvasNetVegaLite_SystemIntegration_BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_DiagnosticsAreLocated
+          - CanvasNetVegaLite_SystemIntegration_BinnedColor_LimitsCancellationAndDeterminismApply
+
+      - id: CanvasNetVegaLite-ConditionalEncoding
+        title: >-
+          The library shall evaluate the test of the conditions of a color, fill, stroke, opacity, stroke width,
+          stroke dash, size, shape, and angle channel for every row as Vega-Lite does (an expression or a
+          predicate, the first condition that holds giving the value or the scaled field, else the value or
+          scale of the channel, else the default of the mark), draw a scale and a legend only for a condition
+          that holds a field, and report the conditions that it cannot evaluate (a parameter or a selection), under
+          the limits of the library and the cancellation token.
+        tags: [system]
+        justification: |
+          A conditional encoding is how a chart highlights the rows that match a test; a specification that uses
+          it must draw the highlight, not only report it.
+        children:
+          - CanvasNetVegaLite-SpecModel-SpecParser-ConditionalEncodings
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-ConditionalEncodings
+          - CanvasNetVegaLite-Transforms-EncodingPlan-ConditionalFields
+          - CanvasNetVegaLite-Scales-ScaleResolver-ConditionalFields
+          - CanvasNetVegaLite-Guides-LegendBuilder-ConditionalLegends
+          - CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_CirclesTakeTheValuesOfTheirConditions
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_FieldConditionDrawsALegendAndKeepsTheValueElsewhere
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_DiagnosticsAreLocated
+          - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_LimitsCancellationAndDeterminismApply
+
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum
@@ -627,6 +799,23 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal
           - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreDrawnBetweenTheirStackBounds
 
+      - id: CanvasNetVegaLite-SignedStacking
+        title: >-
+          The library shall draw a stack with negative values on both sides of the zero baseline - the
+          positive layers stacking up (right) from zero and the negative layers down (left) from zero,
+          separately, with an axis that reaches both ends - for a vertical and a horizontal bar chart, and
+          shall give an area mark the same stack decision and rows.
+        tags: [system]
+        justification: |
+          Charts of takings and outgoings, gains and losses, and signed differences are common; a negative
+          layer must hang below zero and never overlap the positive layers.
+        children:
+          - CanvasNetVegaLite-Transforms-Stacking
+          - CanvasNetVegaLite-Scales-StackedDomains
+          - CanvasNetVegaLite-Marks-StackedMarks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Stacking_SignedLayersAreDrawnOnBothSidesOfZero
+
       - id: CanvasNetVegaLite-GroupedTransforms
         title: >-
           The library shall draw the result of the transforms joinaggregate, window, and impute - group
@@ -657,6 +846,25 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_VerticalBarsFollowTheYShorthand
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_HorizontalBarsFollowTheXShorthand
           - CanvasNetVegaLite_SystemIntegration_SortByAggregate_ASortObjectOrdersBySumInBothDirections
+
+      - id: CanvasNetVegaLite-SortValidation
+        title: >-
+          The library shall reject a sort array that holds an object or an array (other than a date-time of a
+          temporal field) with a specification error located at the item, shall warn once, at the array, about a
+          sort array that mixes kinds of values and about a sort that a continuous scale ignores, shall warn
+          about a key a sort object does not define, shall report a sort by a channel the encoding does not have
+          with a message that names the channel, and shall bound and cancel the reading of a sort array - and
+          none of them shall crash the renderer or silently mis-sort a chart.
+        tags: [system]
+        justification: |
+          A malformed sort is a mistake of the specification author; it must be reported where it is and must
+          never be read as a different, plausible sort.
+        children:
+          - CanvasNetVegaLite-SpecModel-AggregationValidation
+          - CanvasNetVegaLite-SpecModel-FeatureReporting
+          - CanvasNetVegaLite-Scales-SortByAggregate
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Sort_MalformedSortReportsLocatedDiagnosticsAndNeverCrashes
 
       - id: CanvasNetVegaLite-TransformLimits
         title: >-
@@ -739,7 +947,7 @@ sections:
           an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
           report as unsupported features, with the stable identifiers vl-expr-function-name (the name lower-cased),
           vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
-          shall keep reporting the transforms, parameters, conditional encodings, and functions of later
+          shall keep reporting the transforms, parameters, conditions on a parameter, and functions of later
           phases; and shall let strict mode abort at the first such report.
         tags: [system]
         justification: |
