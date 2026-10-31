@@ -15,7 +15,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     safe for concurrent use once built; a loader and a resolver serve one call on one thread. The loader of a call is
 ///     also the context of the row transforms: a lookup loads its source through it (same sandbox, file cache and limits) and
 ///     the rows of derived tables are reserved in its row budget. A value can also be an immutable array or object, the
-///     result of an expression. All text formatting is culture invariant and all dates are UTC.
+///     result of an expression. All text formatting is culture invariant. Calendar work (<c>TimeCalendar</c>, its d3-time
+///     intervals, the Vega-Lite time units <c>TimeUnitSpec</c> and the datetime objects <c>DateTimeObject</c>) uses only the
+///     time zone it is given (UTC by default), never the host's zone, clock or culture, and every date outside years 1 to
+///     9999 is invalid.
 /// </remarks>
 internal static class NamespaceDoc
 {
