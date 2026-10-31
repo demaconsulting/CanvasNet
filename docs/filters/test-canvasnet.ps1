@@ -249,25 +249,58 @@ try {
             "rejects $case" $run.Log
     }
 
-    # --- Case sensitivity of the resource-path check ------------------------------------------------------
-    # Windows compares names without regard to case, so docs/GUIDE is the resource folder docs/guide and a
-    # source named through it is accepted. Elsewhere docs/GUIDE is a different folder (a real sibling on
-    # Linux; on a case-insensitive macOS file system the same folder, still named differently), so a source
-    # reached through it is outside the resource path.
-    $onWindows = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
-        [System.Runtime.InteropServices.OSPlatform]::Windows)
+    # --- Containment is lexical and assumes nothing about case -----------------------------------------------
+    # The filter never compares folder names or folds case: a name is refused when, collapsed, it starts with
+    # "..", and a file is found by opening it. So these checks give the same result on every OS and on both
+    # case-sensitive and case-insensitive file systems.
+    Copy-Item (Join-Path $showcase 'mesh-shading.pdf') (Join-Path $root 'esc.pdf')
+    $escape = Invoke-Filter 'esc-image' '![m](../../../esc.pdf){dpi=48}'
+    Write-Result ($escape.ExitCode -ne 0 -and $escape.Log -match "outside the document's resource path") `
+        'a ../ escape in an image src is rejected' $escape.Log
+
+    # A model and a chart whose include / data url leave their folder: the filter does not follow them (it
+    # never hashes a file outside the folder), and the tool, which is the authority and enforces its own
+    # sandbox when it opens files, refuses them at render time with its own message.
+    $sub = Join-Path $guide 'esc'
+    New-Item -ItemType Directory -Force -Path $sub | Out-Null
+    Set-Content (Join-Path $guide 'outer.scad') -Value 'module outer() { cube([3, 3, 3]); }'
+    Set-Content (Join-Path $guide 'outer.csv') -Value "k,v`na,1`nb,2"
+    Set-Content (Join-Path $sub 'm.scad') -Value "include <../outer.scad>`ncube(5);"
+    Set-Content (Join-Path $sub 'c.vl.json') -Value $urlSpec.Replace('URL', '../outer.csv')
+    foreach ($dep in 'm.scad', 'c.vl.json') {
+        $run = Invoke-Filter ('esc-dep-' + ($dep -replace '\W', '-')) "![x](esc/$dep)"
+        Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'outside the allowed directories' -and
+            $run.Log -notmatch 'outside the document') `
+            "an include or data url leaving the folder is not followed; the tool refuses it ($dep)" $run.Log
+    }
+    # A case-variant sibling of the resource folder (docs/GUIDE next to docs/guide) is rejected by the lexical
+    # rule on every OS: the name starts with ".." once collapsed, whatever the file system makes of GUIDE.
     $sibling = Join-Path $tree 'docs/GUIDE'
     New-Item -ItemType Directory -Force -Path $sibling | Out-Null
     Copy-Item (Join-Path $showcase 'mesh-shading.pdf') (Join-Path $sibling 'case.pdf')
     $case = Invoke-Filter 'case-variant' '![m](../GUIDE/case.pdf){dpi=48}'
-    if ($onWindows) {
-        Write-Result ($case.ExitCode -eq 0) 'Windows: a case-variant of the resource folder is the same folder' $case.Log
-    }
-    else {
-        Write-Result ($case.ExitCode -ne 0 -and $case.Log -match "outside the document's resource path") `
-            'a case-variant sibling of the resource folder is outside it' $case.Log
-    }
+    Write-Result ($case.ExitCode -ne 0 -and $case.Log -match "outside the document's resource path") `
+        'a case-variant sibling of the resource folder is rejected, whatever the OS' $case.Log
 
+    # The same file named with two spellings (different case where the file system folds it, a missing file
+    # where it does not) must not break the build or the cache: the exact text is the key, nothing is assumed.
+    Set-Content (Join-Path $guide 'Twice.scad') -Value 'module twice() { cube([2, 2, 2]); }'
+    Set-Content (Join-Path $guide 'twice-main.scad') -Value "include <Twice.scad>`ninclude <TWICE.scad>`ninclude <twice.scad>`ncube(4);"
+    $twice = Invoke-Filter 'twice' '![m](twice-main.scad)'
+    Write-Result ($twice.ExitCode -eq 0) 'one file named with two spellings does not break the build' $twice.Log
+    $twiceCount = @(Get-Pictures).Count
+    $twiceAgain = Invoke-Filter 'twice' '![m](twice-main.scad)'
+    Write-Result ($twiceAgain.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $twiceCount) `
+        'and the second run finds the same picture' $twiceAgain.Log
+
+    # An include cycle whose spellings differ in case still ends (the dependency walk is finite).
+    Set-Content (Join-Path $guide 'cyc-a.scad') -Value "include <CYC-B.scad>`ncube(3);"
+    Set-Content (Join-Path $guide 'cyc-b.scad') -Value "include <Cyc-A.scad>`ninclude <cyc-a.scad>`ncube(2);"
+    $cycle = Invoke-Filter 'cycle' '![m](cyc-a.scad)'
+    Write-Result ($cycle.ExitCode -eq 0 -or $cycle.Log -match 'SCAD|include|cannot') `
+        'an include cycle with differing case ends' $cycle.Log
+    Write-Result ($cycle.Log -notmatch 'levels deep|stack overflow|limit is 512') `
+        'the cycle is ended by the exact keys, not by a limit' $cycle.Log
     # --- Dependency limit ---------------------------------------------------------------------------------
     # A chart that names more data files than the filter hashes (512) must fail, not draw from a partial hash.
     $many = Join-Path $guide 'many'

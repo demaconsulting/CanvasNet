@@ -36,19 +36,29 @@ Attributes this filter reads (all optional; "all" means every input type above):
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
 Every other attribute (width, height, an id or a class) stays on the picture.
 
-How it works. The source is found on the document's resource path, like a picture, and its name must lie
-inside one of its folders. The check is on the path text (names are collapsed, so "..", and an absolute
-name, are caught). Names are compared without regard to case on Windows only, and exactly on Linux and
-macOS (whose file systems are often case-insensitive, but the safe choice for containment is to treat a
-name that differs only by case as outside); the filter does not resolve or check symbolic links or junctions, which Pandoc Lua
-cannot do, so a link inside the resource path may lead outside it. It is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is
-written to docs/generated/canvasnet/ (git-ignored through **/generated/) under a name made from a SHA-1
-of everything that decides the picture:
+How it works. The source is found on the document's resource path, like a picture: the filter tries the
+name in each of its folders and takes the first file that opens. Containment is lexical and decided on
+the RELATIVE part of a path only: the name (or a model's include target, or a chart's data url) is
+collapsed ("." and ".." removed) and is refused when what remains is rooted or starts with "..". No
+folder name is ever compared with another, and no case rule of any file system is assumed: Windows and
+Linux can each mount case-sensitive and case-insensitive file systems, so the operating system tells
+nothing, and the only truth is what opening a file does. Paths therefore keep the case they were written
+in and are compared and keyed exactly as written. A name such as "../GUIDE/x.scad" is refused whatever
+the file system, because it leaves the folder it is relative to; and a file reached through two spellings
+that differ only by case (on a case-insensitive file system) is simply hashed twice, which is harmless and
+gives the same picture name every time. An absolute picture name is used if the file opens, as in the
+scad.lua filter this one grew from. These checks decide only what goes into the cache key and which file
+is handed to the tool: the tool is the authority and enforces its own sandbox when it opens files. The
+filter does not resolve or check symbolic links or junctions, which Pandoc Lua cannot do, so a link
+inside a folder may lead outside it. The picture is drawn by the canvasnet tool ("canvasnet render ...
+--json"), and the PNG is written to docs/generated/canvasnet/ (git-ignored through **/generated/) under a
+name made from a SHA-1 of everything that decides the picture:
 
   - the file, and every file it pulls in: for a model every file it names with include <...> or use <...>
-    (followed recursively, relative to the including file, within the model's folder, each file once);
-    for a chart every relative data file named by a "url" in a "data" object of the specification
-    (within the specification's folder only; a remote URL is not a file and is not read); a chart that
+    (followed recursively, relative to the including file, within the model's folder, each spelling
+    once, at most 512 files); for a chart every relative data file named by a "url" in a "data" object
+    of the specification (within the specification's folder only; a remote URL is not a file and is not
+    read); a chart that
     names more than 512 different data files stops the build, since a file left out of the hash could
     change without the picture being drawn again;
   - the drawing attributes, with the defaults this filter adds;
@@ -96,7 +106,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "3"
+local FILTER_VERSION = "4"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -172,36 +182,32 @@ local function absolute(path)
   return collapse(pandoc.path.join({ pandoc.system.get_working_directory(), path }))
 end
 
--- Path names are compared without regard to case on Windows only (its file systems are case-insensitive by
--- default) and exactly everywhere else. macOS file systems are usually case-insensitive too, but treating
--- them as case-sensitive is the safe choice for containment: a name that differs only by case from the
--- resource path is then "outside" it, never wrongly "inside". Every place that folds case (the containment
--- check, the relative path of the picture, and the keys that detect a file met twice) uses fold_case.
--- pandoc.system.os is "mingw32" on Windows, "linux" on Linux and "darwin" on macOS.
-local IS_WINDOWS = pandoc.system.os == "mingw32" or pandoc.system.os == "windows"
+-- Case. No file system's case rule is assumed anywhere: Windows and Linux can each mount case-sensitive
+-- and case-insensitive file systems, so the operating system says nothing about the one a path is on.
+-- The only truth is what opening a file does. Paths are therefore kept as written and compared exactly (a
+-- dedupe key is the exact collapsed text); the same file reached through two spellings is just read twice,
+-- which is harmless and deterministic. Containment is decided on the relative part of a path, never by
+-- comparing folder names (see escapes).
 
-local function fold_case(text)
-  if IS_WINDOWS then
-    return text:lower()
-  end
-  return text
+-- Whether a path is rooted: absolute, starting with a slash or a backslash, or naming a drive ("C:x").
+local function is_rooted(path)
+  return pandoc.path.is_absolute(path) or path:match("^[/\\]") ~= nil or path:match("^%a:") ~= nil
 end
 
--- Whether a path is the folder itself or inside it, comparing whole segments.
-local function is_within(folder, path)
-  local inner = pandoc.path.split(path)
-  local outer = pandoc.path.split(folder)
-  if #inner < #outer then
-    return false
+-- Whether a collapsed relative path leaves the folder it is relative to: it is rooted, or its first
+-- segment is "..". This is the whole containment rule. It looks at the relative text only, so it needs no
+-- comparison between folder names and holds the same on a case-sensitive and a case-insensitive file system.
+local function escapes(relative)
+  if is_rooted(relative) then
+    return true
   end
-  for index, part in ipairs(outer) do
-    if fold_case(part) ~= fold_case(inner[index]) then
-      return false
-    end
-  end
-  return true
+  return pandoc.path.split(relative)[1] == ".."
 end
 
+-- "target" taken from the folder "folder", both relative; the result is collapsed.
+local function join_relative(folder, target)
+  return collapse(pandoc.path.join({ folder, target }))
+end
 -- The path of "target" seen from the folder "from" (both absolute and collapsed), with forward slashes, or
 -- nil when there is no relative path (another drive).
 local function relative_path(from, target)
@@ -209,7 +215,7 @@ local function relative_path(from, target)
   local target_parts = pandoc.path.split(target)
   local common = 0
   while common < #from_parts and common < #target_parts
-    and fold_case(from_parts[common + 1]) == fold_case(target_parts[common + 1]) do
+    and from_parts[common + 1] == target_parts[common + 1] do
     common = common + 1
   end
   if common == 0 then
@@ -393,10 +399,13 @@ local function resource_dirs()
   return dirs
 end
 
--- The source file as an absolute path. Its collapsed name must lie inside a folder of the resource path,
--- which keeps a document from reaching a file elsewhere on the machine with a "../../.." or an absolute
--- name. Only the path text is checked: symbolic links and junctions are not resolved (Pandoc Lua cannot),
--- so a link inside the resource path may lead outside it.
+-- The source file as an absolute path. A relative name, once collapsed, must not leave the folder it is
+-- taken from (no leading ".." segment), so a document cannot reach a file elsewhere with "../../..". The
+-- check is on the name alone (see escapes); the file is found by opening it in each resource-path folder
+-- in turn. An absolute name is used if the file opens, as in the scad.lua filter this one grew from.
+-- Symbolic links and junctions are not resolved (Pandoc Lua cannot). None of this is the tool's sandbox:
+-- the tool enforces its own when it opens files, and these checks only decide what goes into the cache key
+-- and which file is handed to the tool.
 local function find_source(src)
   local names = { src }
   local decoded = decode_percent(src)
@@ -408,13 +417,23 @@ local function find_source(src)
     if name:find("%c") then
       fail("'" .. src .. "' has a control character in its name")
     end
-    for _, dir in ipairs(resource_dirs()) do
-      local candidate = pandoc.path.is_absolute(name) and collapse(name) or collapse(pandoc.path.join({ dir, name }))
+    if pandoc.path.is_absolute(name) then
+      -- As in the scad.lua filter this one grew from: an absolute name is used if the file opens.
+      local candidate = collapse(name)
       if file_exists(candidate) then
-        if is_within(dir, candidate) then
-          return candidate
-        end
+        return candidate
+      end
+    else
+      local relative = collapse(name)
+      if escapes(relative) then
         outside = true
+      else
+        for _, dir in ipairs(resource_dirs()) do
+          local candidate = collapse(pandoc.path.join({ dir, relative }))
+          if file_exists(candidate) then
+            return candidate
+          end
+        end
       end
     end
   end
@@ -425,26 +444,38 @@ local function find_source(src)
 end
 
 -- Adds a model file, and every file it pulls in, to the hash input: each file once, in the order met.
--- Matching "include <...>" and "use <...>" anywhere (a comment included) can only add a file to the hash,
--- never leave one out. A file outside the model's folder is not followed: the tool refuses it, and the
--- build fails on that, not here.
-local function add_scad_sources(path, root, seen, parts)
-  local key = fold_case(path)
-  if seen[key] then
+-- "root" is the model's folder; "relative" is the file's collapsed path relative to it, and is also its
+-- dedupe key, exactly as written. Matching "include <...>" and "use <...>" anywhere (a comment included)
+-- can only add a file to the hash, never leave one out. A target whose relative path leaves the model's
+-- folder is not followed: the tool refuses it, and the build fails on that, not here. A file reached
+-- through two spellings that differ only by case is hashed twice (on a case-insensitive file system); an
+-- include cycle ends because only finitely many spellings are written in the sources, and the depth and
+-- file-count limits end anything else (a link loop, say).
+local function add_scad_sources(root, relative, seen, parts, depth)
+  if seen[relative] then
     return
   end
-  seen[key] = true
-  local content = read_file(path)
+  seen[relative] = true
+  if depth > MAX_DEPTH then
+    fail("'" .. relative .. "' is included more than " .. MAX_DEPTH .. " levels deep")
+  end
+  local content = read_file(pandoc.path.join({ root, relative }))
   if not content then
     return
   end
-  table.insert(parts, pandoc.path.make_relative(path, root) .. "\n" .. content)
-  local folder = pandoc.path.directory(path)
+  if #parts >= MAX_DEPENDENCIES then
+    fail("the model includes more than " .. MAX_DEPENDENCIES .. " files; the limit is " .. MAX_DEPENDENCIES
+      .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  table.insert(parts, relative .. "\n" .. content)
+  local folder = pandoc.path.directory(relative)
   for _, keyword in ipairs({ "include", "use" }) do
     for target in content:gmatch(keyword .. "%s*<%s*([^>\r\n]-)%s*>") do
-      local resolved = collapse(pandoc.path.join({ folder, target }))
-      if is_within(root, resolved) and file_exists(resolved) then
-        add_scad_sources(resolved, root, seen, parts)
+      if not is_rooted(target) then
+        local next_relative = join_relative(folder, target)
+        if not escapes(next_relative) and file_exists(pandoc.path.join({ root, next_relative })) then
+          add_scad_sources(root, next_relative, seen, parts, depth + 1)
+        end
       end
     end
   end
@@ -467,18 +498,22 @@ local function collect_data_urls(node, urls, depth)
   end
 end
 
--- The data file a chart names, as an absolute path, or nil when it is not a relative file inside the
--- specification's folder (the tool reports a remote or an outside file itself; this filter reads none).
--- The same rules as the tool's DataFileResolver: a backslash is a slash, there is no percent decoding,
--- and a blank text, a control character, a colon (a scheme or a drive) or a leading slash is no file.
--- Only the path text is checked; symbolic links are not resolved (the tool itself refuses them).
+-- The data file a chart names, as a collapsed path relative to the specification's folder, or nil when it
+-- is not a relative file that stays inside that folder and opens (the tool reports a remote or an outside
+-- file itself; this filter reads none). The same rules as the tool's DataFileResolver: a backslash is a
+-- slash, there is no percent decoding, and a blank text, a control character, a colon (a scheme or a
+-- drive) or a leading slash is no file. Only the path text is checked (see escapes); symbolic links are
+-- not resolved (the tool itself refuses them).
 local function local_data_file(folder, url)
   if url:match("^%s*$") or url:find("%c") or url:find(":", 1, true) or url:match("^[/\\]") then
     return nil
   end
-  local resolved = collapse(pandoc.path.join({ folder, (url:gsub("\\", "/")) }))
-  if is_within(folder, resolved) and file_exists(resolved) then
-    return resolved
+  local relative = collapse((url:gsub("\\", "/")))
+  if relative == "" or escapes(relative) then
+    return nil
+  end
+  if file_exists(pandoc.path.join({ folder, relative })) then
+    return relative
   end
   return nil
 end
@@ -488,7 +523,7 @@ local function add_chart_sources(path, root, parts)
   if not content then
     return
   end
-  table.insert(parts, pandoc.path.make_relative(path, root) .. "\n" .. content)
+  table.insert(parts, pandoc.path.filename(path) .. "\n" .. content)
   local ok, spec = pcall(pandoc.json.decode, content, false)
   if not ok or type(spec) ~= "table" then
     return -- the tool reports the syntax error
@@ -507,9 +542,9 @@ local function add_chart_sources(path, root, parts)
   local seen = {}
   local unique = {}
   for _, file in ipairs(files) do
-    local key = fold_case(file)
-    if not seen[key] then
-      seen[key] = true
+    -- The exact relative text is the key; a file named with two spellings is hashed twice, harmlessly.
+    if not seen[file] then
+      seen[file] = true
       table.insert(unique, file)
     end
   end
@@ -520,9 +555,9 @@ local function add_chart_sources(path, root, parts)
       .. MAX_DEPENDENCIES .. " (every data file must be hashed so that a changed one is drawn again)")
   end
   for _, file in ipairs(unique) do
-    local data = read_file(file)
+    local data = read_file(pandoc.path.join({ root, file }))
     if data then
-      table.insert(parts, pandoc.path.make_relative(file, root) .. "\n" .. data)
+      table.insert(parts, file .. "\n" .. data)
     end
   end
 end
@@ -721,7 +756,7 @@ function Image(img)
   local root = pandoc.path.directory(source)
   local sources = {}
   if kind == "scad" then
-    add_scad_sources(source, root, {}, sources)
+    add_scad_sources(root, pandoc.path.filename(source), {}, sources, 0)
   elseif kind == "vegalite" then
     add_chart_sources(source, root, sources)
   else
